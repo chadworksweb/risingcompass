@@ -1,0 +1,99 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import date
+
+from app.database import get_db
+from app.models import Song, DailyReading, ReadingSong, WeeklyAlbumReading
+from app.schemas import CompassCurrent, DailyReadingOut, DailyReadingSummary, PaginatedReadings
+from app.services.compass_calc import compute_degree
+from app.services.charge_calc import degree_to_charge
+from app.services.contamination import count_contaminated
+
+router = APIRouter(prefix="/api/compass", tags=["compass"])
+
+
+def _historical_aggregate(db: Session) -> tuple[float, str]:
+    """Compute aggregate degree from all historical songs."""
+    songs = db.query(Song).all()
+    if not songs:
+        return 90.0, "yellow"
+    song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in songs]
+    deg = compute_degree(song_dicts)
+    return deg, degree_to_charge(deg)
+
+
+@router.get("/current", response_model=CompassCurrent)
+def get_current(db: Session = Depends(get_db)):
+    """Today's reading (or most recent), plus historical aggregate."""
+    hist_deg, hist_charge = _historical_aggregate(db)
+
+    # Most recent daily song reading
+    reading = db.query(DailyReading).order_by(DailyReading.date.desc()).first()
+
+    # Most recent weekly album reading
+    album_reading = db.query(WeeklyAlbumReading).order_by(WeeklyAlbumReading.week_date.desc()).first()
+
+    # Build album fields
+    album_kwargs = {}
+    if album_reading:
+        album_kwargs = dict(
+            has_album_reading=True,
+            album_week_date=album_reading.week_date,
+            album_compass_degree=album_reading.compass_degree,
+            album_charge_level=album_reading.charge_level,
+            album_contamination_count=album_reading.contamination_count,
+            album_editorial_summary=album_reading.editorial_summary,
+            album_entries=album_reading.albums,
+        )
+
+    if not reading:
+        return CompassCurrent(
+            has_reading=False,
+            compass_degree=hist_deg,
+            charge_level=hist_charge,
+            contamination_count=0,
+            historical_degree=hist_deg,
+            historical_charge=hist_charge,
+            **album_kwargs,
+        )
+
+    return CompassCurrent(
+        has_reading=True,
+        date=reading.date,
+        compass_degree=reading.compass_degree,
+        charge_level=reading.charge_level,
+        contamination_count=reading.contamination_count,
+        editorial_summary=reading.editorial_summary,
+        songs=reading.songs,
+        historical_degree=hist_deg,
+        historical_charge=hist_charge,
+        **album_kwargs,
+    )
+
+
+@router.get("/history", response_model=PaginatedReadings)
+def get_history(page: int = 1, per_page: int = 10, db: Session = Depends(get_db)):
+    """Paginated past readings."""
+    total = db.query(func.count(DailyReading.id)).scalar()
+    pages = max(1, (total + per_page - 1) // per_page)
+    offset = (page - 1) * per_page
+
+    items = (
+        db.query(DailyReading)
+        .order_by(DailyReading.date.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    return PaginatedReadings(items=items, total=total, page=page, pages=pages)
+
+
+@router.get("/reading/{reading_date}", response_model=DailyReadingOut)
+def get_reading(reading_date: date, db: Session = Depends(get_db)):
+    """Specific date reading with songs."""
+    reading = db.query(DailyReading).filter(DailyReading.date == reading_date).first()
+    if not reading:
+        raise HTTPException(status_code=404, detail="No reading for this date")
+    return reading

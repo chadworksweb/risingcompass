@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rising Compass — Admin</title>
+<style>
+  :root {
+    --bg: #0a0a14;
+    --panel: #12121e;
+    --border: #3a3a5c;
+    --text: #c8c8d8;
+    --accent: #00d4aa;
+    --red: #e28a6c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
+  h1 { color: var(--accent); margin-bottom: 1rem; font-size: 1.5rem; }
+  .form-group { margin-bottom: 1rem; }
+  label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; color: #888; }
+  input, select, textarea { width: 100%; padding: 0.5rem; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.9rem; }
+  textarea { min-height: 60px; resize: vertical; }
+  .entry-row { display: grid; grid-template-columns: 40px 1fr 1fr 120px 80px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--panel); border-radius: 4px; }
+  .entry-row label { display: none; }
+  .entry-header { display: grid; grid-template-columns: 40px 1fr 1fr 120px 80px; gap: 0.5rem; font-size: 0.75rem; color: #666; padding: 0 0.5rem; margin-bottom: 0.3rem; }
+  button { padding: 0.6rem 1.5rem; background: var(--accent); color: var(--bg); border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+  button:hover { opacity: 0.9; }
+  .admin-key-row { display: flex; gap: 1rem; align-items: end; margin-bottom: 1.5rem; }
+  .admin-key-row .form-group { flex: 1; margin-bottom: 0; }
+  .status-msg { margin-top: 1rem; padding: 0.8rem; border-radius: 4px; display: none; }
+  .status-msg.success { display: block; background: #0a2a1a; border: 1px solid var(--accent); }
+  .status-msg.error { display: block; background: #2a0a0a; border: 1px solid var(--red); color: var(--red); }
+  .contam-fields { display: none; margin-top: 0.3rem; }
+  .contam-fields.show { display: block; }
+  /* Tabs */
+  .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .tab-btn { padding: 0.7rem 1.5rem; background: none; border: none; border-bottom: 2px solid transparent; color: #666; cursor: pointer; font-size: 0.9rem; font-family: inherit; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  h2.section-title { color: #888; font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+</style>
+</head>
+<body>
+<h1>The Rising Compass — Admin</h1>
+
+<div class="admin-key-row">
+  <div class="form-group">
+    <label>Admin Key</label>
+    <input type="password" id="adminKey" placeholder="Enter admin key">
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('songs')">Daily Songs</button>
+  <button class="tab-btn" onclick="switchTab('albums')">Weekly Albums</button>
+</div>
+
+<!-- Daily Songs Tab -->
+<div class="tab-panel active" id="tab-songs">
+  <div class="admin-key-row">
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="songDate">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Editorial Summary</label>
+    <textarea id="songEditorial" placeholder="One-line editorial for today's reading..."></textarea>
+  </div>
+  <h2 class="section-title">Top 10 Songs</h2>
+  <div class="entry-header">
+    <span>#</span><span>Title</span><span>Artist</span><span>Color</span><span>Contam?</span>
+  </div>
+  <div id="songRows"></div>
+  <div style="margin-top:1rem;">
+    <button onclick="submitSongReading()">Submit Song Reading</button>
+  </div>
+  <div class="status-msg" id="songStatus"></div>
+</div>
+
+<!-- Weekly Albums Tab -->
+<div class="tab-panel" id="tab-albums">
+  <div class="admin-key-row">
+    <div class="form-group">
+      <label>Week Of (Monday)</label>
+      <input type="date" id="albumWeekDate">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Editorial Summary</label>
+    <textarea id="albumEditorial" placeholder="One-line editorial for this week's album chart..."></textarea>
+  </div>
+  <h2 class="section-title">Top 10 Albums</h2>
+  <div class="entry-header">
+    <span>#</span><span>Album Title</span><span>Artist</span><span>Color</span><span>Contam?</span>
+  </div>
+  <div id="albumRows"></div>
+  <div style="margin-top:1rem;">
+    <button onclick="submitAlbumReading()">Submit Album Reading</button>
+  </div>
+  <div class="status-msg" id="albumStatus"></div>
+</div>
+
+<script>
+const colors = ['bright_green','green','yellow','orange','red'];
+const colorLabels = {'bright_green':'Bright Green','green':'Green','yellow':'Yellow','orange':'Orange','red':'Red'};
+
+// Set default dates
+document.getElementById('songDate').valueAsDate = new Date();
+// Default album week to most recent Monday
+const today = new Date();
+const monday = new Date(today);
+monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+document.getElementById('albumWeekDate').valueAsDate = monday;
+
+// Tab switching
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// Generate entry rows for a container
+function generateRows(containerId, prefix, placeholderTitle) {
+  const container = document.getElementById(containerId);
+  for (let i = 1; i <= 10; i++) {
+    const row = document.createElement('div');
+    row.className = 'entry-row';
+    row.innerHTML = `
+      <span style="text-align:center;color:#666;">${i}</span>
+      <input type="text" placeholder="${placeholderTitle}" data-field="${prefix}-title" data-pos="${i}">
+      <input type="text" placeholder="Artist" data-field="${prefix}-artist" data-pos="${i}">
+      <select data-field="${prefix}-color" data-pos="${i}" onchange="updateContamVisibility('${prefix}',${i})">
+        ${colors.map(c => `<option value="${c}">${colorLabels[c]}</option>`).join('')}
+      </select>
+      <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;" id="${prefix}-contam-label-${i}">
+        <input type="checkbox" data-field="${prefix}-contam" data-pos="${i}" onchange="toggleExtra('${prefix}',${i})" disabled> —
+      </label>
+    `;
+    container.appendChild(row);
+
+    const extra = document.createElement('div');
+    extra.className = 'contam-fields';
+    extra.id = `${prefix}-extra-${i}`;
+    extra.innerHTML = `
+      <div style="padding:0 0.5rem;">
+        <input type="text" placeholder="Contamination note" data-field="${prefix}-contam_note" data-pos="${i}" style="margin-bottom:0.3rem;">
+        <textarea placeholder="Charge summary / analysis" data-field="${prefix}-summary" data-pos="${i}" rows="2"></textarea>
+      </div>
+    `;
+    container.appendChild(extra);
+  }
+}
+
+generateRows('songRows', 'song', 'Song title');
+generateRows('albumRows', 'album', 'Album title');
+
+function toggleExtra(prefix, pos) {
+  const extra = document.getElementById(`${prefix}-extra-${pos}`);
+  const cb = document.querySelector(`[data-field="${prefix}-contam"][data-pos="${pos}"]`);
+  extra.classList.toggle('show', cb.checked);
+}
+
+function updateContamVisibility(prefix, pos) {
+  const colorSel = document.querySelector(`[data-field="${prefix}-color"][data-pos="${pos}"]`);
+  const cb = document.querySelector(`[data-field="${prefix}-contam"][data-pos="${pos}"]`);
+  const label = document.getElementById(`${prefix}-contam-label-${pos}`);
+  const topTier = ['bright_green', 'green', 'yellow'].includes(colorSel.value);
+  cb.disabled = !topTier;
+  if (!topTier) {
+    cb.checked = false;
+    toggleExtra(prefix, pos);
+  }
+  label.lastChild.textContent = topTier ? ' Yes' : ' —';
+}
+
+function getField(field, pos) {
+  return document.querySelector(`[data-field="${field}"][data-pos="${pos}"]`);
+}
+
+function collectEntries(prefix, chartSource) {
+  const entries = [];
+  for (let i = 1; i <= 10; i++) {
+    const title = getField(`${prefix}-title`, i)?.value.trim();
+    const artist = getField(`${prefix}-artist`, i)?.value.trim();
+    if (!title || !artist) continue;
+    entries.push({
+      title,
+      artist,
+      position: i,
+      rubric_color: getField(`${prefix}-color`, i)?.value || 'green',
+      contaminated: getField(`${prefix}-contam`, i)?.checked || false,
+      contamination_note: getField(`${prefix}-contam_note`, i)?.value.trim() || null,
+      charge_summary: getField(`${prefix}-summary`, i)?.value.trim() || null,
+      chart_source: chartSource,
+    });
+  }
+  return entries;
+}
+
+async function submitSongReading() {
+  const statusEl = document.getElementById('songStatus');
+  statusEl.className = 'status-msg';
+  const adminKey = document.getElementById('adminKey').value.trim();
+  const readingDate = document.getElementById('songDate').value;
+  const editorial = document.getElementById('songEditorial').value.trim();
+
+  if (!adminKey) { showMsg(statusEl, 'Admin key required', 'error'); return; }
+  if (!readingDate) { showMsg(statusEl, 'Date required', 'error'); return; }
+
+  const songs = collectEntries('song', 'spotify');
+  if (songs.length === 0) { showMsg(statusEl, 'Enter at least one song', 'error'); return; }
+
+  try {
+    const resp = await fetch('/api/admin/reading', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({ date: readingDate, editorial_summary: editorial || null, songs }),
+    });
+    if (resp.status === 409) {
+      const putResp = await fetch(`/api/admin/reading/${readingDate}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+        body: JSON.stringify({ editorial_summary: editorial || null, songs }),
+      });
+      if (!putResp.ok) throw new Error(await putResp.text());
+      showMsg(statusEl, 'Song reading updated!', 'success');
+      return;
+    }
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, 'Song reading created!', 'success');
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+async function submitAlbumReading() {
+  const statusEl = document.getElementById('albumStatus');
+  statusEl.className = 'status-msg';
+  const adminKey = document.getElementById('adminKey').value.trim();
+  const weekDate = document.getElementById('albumWeekDate').value;
+  const editorial = document.getElementById('albumEditorial').value.trim();
+
+  if (!adminKey) { showMsg(statusEl, 'Admin key required', 'error'); return; }
+  if (!weekDate) { showMsg(statusEl, 'Week date required', 'error'); return; }
+
+  const albums = collectEntries('album', 'billboard_200');
+  if (albums.length === 0) { showMsg(statusEl, 'Enter at least one album', 'error'); return; }
+
+  try {
+    const resp = await fetch('/api/admin/weekly-album-reading', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({ week_date: weekDate, editorial_summary: editorial || null, albums }),
+    });
+    if (resp.status === 409) {
+      const putResp = await fetch(`/api/admin/weekly-album-reading/${weekDate}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+        body: JSON.stringify({ editorial_summary: editorial || null, albums }),
+      });
+      if (!putResp.ok) throw new Error(await putResp.text());
+      showMsg(statusEl, 'Album reading updated!', 'success');
+      return;
+    }
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, 'Album reading created!', 'success');
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+function showMsg(el, msg, type) {
+  el.textContent = msg;
+  el.className = `status-msg ${type}`;
+}
+</script>
+</body>
+</html>

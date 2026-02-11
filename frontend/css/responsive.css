@@ -1,0 +1,92 @@
+/* === Mobile Breakpoints === */
+
+@media (max-width: 768px) {
+  .main-dashboard {
+    grid-template-columns: 1fr;
+    padding: 0 1rem;
+    gap: 1rem;
+    margin: 1rem auto;
+  }
+
+  #reading-panel,
+  #album-reading-panel {
+    grid-column: span 1 !important;
+  }
+
+  .site-title {
+    font-size: 1.3rem;
+  }
+
+  .compass-svg {
+    max-width: 280px;
+  }
+
+  .compass-degree-text {
+    font-size: 1.6rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .nav-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-tab {
+    padding: 0.6rem 1rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .drift-chart {
+    height: 150px;
+  }
+
+  .song-item {
+    gap: 0.5rem;
+  }
+
+  .track-assessment {
+    display: none;
+  }
+
+  .color-legend {
+    grid-template-columns: 1fr;
+  }
+
+  .archive-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+
+  .album-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .song-row {
+    grid-template-columns: 30px 1fr;
+    gap: 0.3rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header {
+    padding: 1.2rem 0.8rem 0.8rem;
+  }
+
+  .site-title {
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
+  }
+
+  .site-subtitle {
+    font-size: 0.65rem;
+  }
+
+  .contam-number {
+    font-size: 2rem;
+  }
+}

@@ -1,0 +1,1143 @@
+/* === Main App Logic === */
+
+const App = (() => {
+  const COLOR_HEX = {
+    bright_green: '#9933ff',
+    green: '#3388ff',
+    yellow: '#33cc55',
+    orange: '#ffbb33',
+    red: '#ff3333',
+  };
+
+  const CHARGE_LABELS = {
+    bright_green: 'Ascended',
+    green: 'Elevated',
+    yellow: 'Balanced',
+    orange: 'Degraded',
+    red: 'Corrupted',
+  };
+
+  // --- Initialize ---
+  async function init() {
+    Compass.render('compass-container');
+    Charge.render('charge-container');
+    Contamination.render('contam-container');
+    initNav();
+    initCalcOverlay();
+    await loadCurrent();
+    loadTrajectory();
+    loadGhostTrail();
+  }
+
+  function initCalcOverlay() {
+    const btn = document.getElementById('calc-overlay-toggle');
+    const overlay = document.getElementById('calc-overlay');
+    if (!btn || !overlay) return;
+
+    btn.addEventListener('click', () => {
+      const open = overlay.classList.toggle('open');
+      btn.classList.toggle('active', open);
+      btn.querySelector('span').textContent = open ? 'Close Calculator' : 'Calculator';
+    });
+  }
+
+  // --- Load Current Reading ---
+  async function loadCurrent() {
+    try {
+      const data = await API.getCompassCurrent();
+
+      // Set compass
+      const degree = data.has_reading ? data.compass_degree : data.historical_degree;
+      const charge = data.has_reading ? data.charge_level : data.historical_charge;
+      // Small delay for needle animation effect
+      setTimeout(() => {
+        Compass.setDegree(degree, charge);
+      }, 300);
+
+      // Set charge bar
+      const redCount = data.songs.filter(s => s.rubric_color === 'red').length;
+      Charge.setLevel(charge, redCount, data.songs.length);
+
+      // Set contamination
+      Contamination.setCount(data.contamination_count, data.songs.length || 10);
+
+      // Set compass date
+      const dateEl = document.getElementById('compass-date');
+      if (dateEl) {
+        dateEl.textContent = data.has_reading ? formatDate(data.date) : 'Historical Aggregate';
+      }
+
+      // Render right panel
+      renderReading(data);
+
+      // Render weekly album reading if present
+      renderAlbumReading(data);
+
+    } catch (err) {
+      console.error('Failed to load compass data:', err);
+      document.getElementById('reading-content').innerHTML =
+        '<div class="error-msg">Could not load compass data. Is the API running?</div>';
+    }
+  }
+
+  function renderReading(data) {
+    const container = document.getElementById('reading-content');
+    if (!container) return;
+
+    if (!data.has_reading) {
+      container.innerHTML = `
+        <div class="no-reading">
+          <p>No daily reading yet.</p>
+          <p>The compass is showing the historical aggregate of 650+ Billboard #1 songs analyzed from 1960-2024.</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    html += `<div class="reading-date">${formatDate(data.date)}</div>`;
+    if (data.editorial_summary) {
+      html += `<div class="reading-editorial">${escapeHtml(data.editorial_summary)}</div>`;
+    }
+    html += '<ul class="song-list">';
+    const sortedSongs = [...data.songs].sort((a, b) => a.position - b.position);
+    sortedSongs.forEach(song => {
+      html += `
+        <li class="song-item">
+          <span class="song-pos">${song.position}</span>
+          <span class="song-dot ${song.rubric_color}"></span>
+          <div class="song-info">
+            <div class="song-title">${escapeHtml(song.title)}</div>
+            <div class="song-artist">${escapeHtml(song.artist)}</div>
+          </div>
+          ${song.contaminated ? '<span class="song-contam">CONTAM</span>' : ''}
+        </li>
+      `;
+    });
+    html += '</ul>';
+
+    container.innerHTML = html;
+  }
+
+  function renderAlbumReading(data) {
+    const panel = document.getElementById('album-reading-panel');
+    const container = document.getElementById('album-reading-content');
+    if (!panel || !container) return;
+
+    const readingPanel = document.getElementById('reading-panel');
+    if (!data.has_album_reading) {
+      panel.style.display = 'none';
+      if (readingPanel) readingPanel.style.gridColumn = 'span 2';
+      return;
+    }
+
+    panel.style.display = '';
+    if (readingPanel) readingPanel.style.gridColumn = '';
+    let html = '';
+    html += `<div class="reading-date">Week of ${formatDate(data.album_week_date)}</div>`;
+
+    // Album compass summary
+    const albumCharge = CHARGE_LABELS[data.album_charge_level] || data.album_charge_level;
+    html += `<div style="font-size:0.82rem;color:var(--rc-text-dim);margin-bottom:0.8rem;">
+      Album compass: <strong style="color:${COLOR_HEX[data.album_charge_level] || '#888'}">${degreeToScore(data.album_compass_degree)} ${albumCharge}</strong>
+      — ${data.album_contamination_count} contaminated
+    </div>`;
+
+    if (data.album_editorial_summary) {
+      html += `<div class="reading-editorial">${escapeHtml(data.album_editorial_summary)}</div>`;
+    }
+
+    html += '<ul class="song-list">';
+    const sorted = [...data.album_entries].sort((a, b) => a.position - b.position);
+    sorted.forEach(album => {
+      html += `
+        <li class="song-item">
+          <span class="song-pos">${album.position}</span>
+          <span class="song-dot ${album.rubric_color}"></span>
+          <div class="song-info">
+            <div class="song-title">${escapeHtml(album.title)}</div>
+            <div class="song-artist">${escapeHtml(album.artist)}</div>
+          </div>
+          ${album.contaminated ? '<span class="song-contam">CONTAM</span>' : ''}
+        </li>
+      `;
+    });
+    html += '</ul>';
+
+    container.innerHTML = html;
+  }
+
+  // --- Ghost Trail (past 30 days on compass) ---
+  async function loadGhostTrail() {
+    try {
+      const data = await API.getHistory(1, 30);
+      if (data.items && data.items.length) {
+        Compass.setGhostTrail(data.items);
+      }
+    } catch (err) {
+      // Silent fail — ghost trail is decorative
+    }
+  }
+
+  // --- Trajectory Chart (year-by-year with zoom + Time Machine) ---
+  let allYearData = [];
+  let currentZoom = 'all';
+  let chartPoints = [];
+  let chartData = [];
+  let tmPlaying = false;
+  let tmAnimFrame = null;
+  let tmPosition = 0;
+  let tmDirection = 1;
+  const TM_SPEEDS = [0.5, 1, 2, 4];
+  let tmSpeedIdx = 1;
+  const TM_BASE_SPEED = 3;
+
+  function renderTrajectoryChart(data, container) {
+    if (!data.length) return;
+    chartData = data;
+
+    const W = 320, H = 120;
+    const padL = 30, padR = 10, padT = 10, padB = 22;
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const maxIdx = data.length - 1;
+
+    chartPoints = data.map((d, i) => ({
+      x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
+      y: padT + (d.compass_degree / 180) * chartH,
+      degree: d.compass_degree,
+      year: d.year,
+      color: d.charge_level,
+    }));
+
+    const linePath = chartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const areaPath = linePath + ` L ${chartPoints[maxIdx].x.toFixed(1)} ${padT + chartH} L ${chartPoints[0].x.toFixed(1)} ${padT + chartH} Z`;
+
+    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+    svg += `<defs>
+      <linearGradient id="traj-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${COLOR_HEX.bright_green}" />
+        <stop offset="35%" stop-color="${COLOR_HEX.green}" />
+        <stop offset="65%" stop-color="${COLOR_HEX.orange}" />
+        <stop offset="100%" stop-color="${COLOR_HEX.red}" />
+      </linearGradient>
+      <linearGradient id="traj-area-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${COLOR_HEX.bright_green}" stop-opacity="0.2" />
+        <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
+      </linearGradient>
+      <clipPath id="traj-clip"><rect id="traj-clip-rect" x="0" y="0" width="${W}" height="${H}" /></clipPath>
+    </defs>`;
+
+    // Grid lines
+    [{ deg: 0, label: '+100' }, { deg: 45, label: '' }, { deg: 90, label: '0' }, { deg: 135, label: '' }, { deg: 180, label: '-100' }].forEach(({ deg, label }) => {
+      const y = padT + (deg / 180) * chartH;
+      svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
+      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}">${label}</text>`;
+    });
+
+    // Clipped line + area
+    svg += `<g clip-path="url(#traj-clip)">`;
+    svg += `<path class="trajectory-area" d="${areaPath}" fill="url(#traj-area-grad)" />`;
+    svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#traj-grad)" />`;
+    svg += `</g>`;
+
+    // X-axis labels
+    const yearSpan = data[maxIdx].year - data[0].year;
+    const labelInterval = yearSpan > 40 ? 10 : yearSpan > 15 ? 5 : yearSpan > 8 ? 2 : 1;
+    const labelYears = new Set();
+    const startDecade = Math.ceil(data[0].year / labelInterval) * labelInterval;
+    for (let yr = startDecade; yr <= data[maxIdx].year; yr += labelInterval) labelYears.add(yr);
+    labelYears.add(data[0].year);
+    labelYears.add(data[maxIdx].year);
+
+    chartPoints.forEach(p => {
+      if (labelYears.has(p.year)) {
+        svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">'${String(p.year).slice(2)}</text>`;
+        svg += `<line x1="${p.x.toFixed(1)}" y1="${padT + chartH}" x2="${p.x.toFixed(1)}" y2="${padT + chartH + 4}" stroke="var(--rc-text-dim)" stroke-width="0.5" opacity="0.5" />`;
+      }
+    });
+
+    // Moving dot (time machine position indicator)
+    const lastPt = chartPoints[maxIdx];
+    svg += `<circle id="traj-tm-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
+
+    // Hover elements
+    svg += `<line id="traj-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
+    svg += `<circle id="traj-hover-dot" cx="0" cy="0" r="4" class="traj-hover-dot" style="display:none" />`;
+    svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="traj-hover-area" />`;
+    svg += '</svg>';
+
+    const chartEl = container.querySelector('.traj-chart-area');
+    chartEl.innerHTML = `<div class="traj-wrap">${svg}<div class="traj-tooltip" id="traj-tooltip"></div></div>`;
+
+    // Hover interaction
+    const wrap = chartEl.querySelector('.traj-wrap');
+    const svgEl = chartEl.querySelector('.trajectory-svg');
+
+    wrap.addEventListener('mousemove', (e) => {
+      if (tmPlaying) return;
+      const hoverLine = document.getElementById('traj-hover-line');
+      const hoverDot = document.getElementById('traj-hover-dot');
+      const tooltip = document.getElementById('traj-tooltip');
+      if (!hoverLine) return;
+
+      const rect = svgEl.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const svgX = relX * W;
+
+      let nearest = 0, minDist = Infinity;
+      for (let i = 0; i <= maxIdx; i++) {
+        const dist = Math.abs(chartPoints[i].x - svgX);
+        if (dist < minDist) { minDist = dist; nearest = i; }
+      }
+
+      const p = chartPoints[nearest];
+      const d = chartData[nearest];
+      const hex = COLOR_HEX[p.color] || '#888';
+
+      hoverLine.setAttribute('x1', p.x.toFixed(1));
+      hoverLine.setAttribute('x2', p.x.toFixed(1));
+      hoverLine.style.display = '';
+      hoverDot.setAttribute('cx', p.x.toFixed(1));
+      hoverDot.setAttribute('cy', p.y.toFixed(1));
+      hoverDot.setAttribute('stroke', hex);
+      hoverDot.style.display = '';
+
+      tooltip.innerHTML = `<strong>${d.year}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${d.song_count} songs analyzed</span>`;
+      tooltip.style.display = 'block';
+
+      const wrapRect = wrap.getBoundingClientRect();
+      const pixelX = e.clientX - wrapRect.left;
+      const wrapW = wrapRect.width;
+      tooltip.style.left = pixelX + 'px';
+      tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
+    });
+
+    wrap.addEventListener('mouseleave', () => {
+      const hoverLine = document.getElementById('traj-hover-line');
+      const hoverDot = document.getElementById('traj-hover-dot');
+      const tooltip = document.getElementById('traj-tooltip');
+      if (hoverLine) hoverLine.style.display = 'none';
+      if (hoverDot) hoverDot.style.display = 'none';
+      if (tooltip) tooltip.style.display = 'none';
+    });
+
+    // Set initial TM position to end
+    tmPosition = maxIdx;
+  }
+
+  // --- Time Machine (drives trajectory clip + compass) ---
+  function updateTimeMachine(pos) {
+    const max = chartData.length - 1;
+    if (max < 0) return;
+
+    const i = Math.floor(pos);
+    const frac = pos - i;
+    const a = chartData[Math.min(i, max)];
+    const b = chartData[Math.min(i + 1, max)];
+
+    const deg = a.compass_degree + (b.compass_degree - a.compass_degree) * frac;
+    const tier = degreeToTier(deg);
+    const hex = COLOR_HEX[tier] || '#888';
+    const nearest = chartData[Math.round(pos)];
+
+    // Update info display
+    const yearEl = document.getElementById('tm-year');
+    const scoreEl = document.getElementById('tm-score');
+    const tierEl = document.getElementById('tm-tier');
+    const countEl = document.getElementById('tm-count');
+    const slider = document.getElementById('tm-slider');
+    const progressFill = document.getElementById('tm-progress');
+    const resetBtn = document.getElementById('tm-reset');
+
+    if (yearEl) yearEl.textContent = nearest.year;
+    if (scoreEl) { scoreEl.textContent = degreeToScore(deg); scoreEl.style.color = hex; }
+    if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
+    if (countEl) countEl.textContent = `${nearest.song_count} songs`;
+    if (progressFill) progressFill.style.width = (pos / max * 100) + '%';
+    if (slider) slider.value = Math.round(pos);
+    if (resetBtn) resetBtn.style.display = '';
+
+    // Clip trajectory chart to current position
+    const clipRect = document.getElementById('traj-clip-rect');
+    if (clipRect && chartPoints.length) {
+      // Interpolate x position
+      const px = chartPoints[Math.min(i, max)].x + (chartPoints[Math.min(i + 1, max)].x - chartPoints[Math.min(i, max)].x) * frac;
+      clipRect.setAttribute('width', px + 2);
+    }
+
+    // Move the dot to current position
+    const tmDot = document.getElementById('traj-tm-dot');
+    if (tmDot && chartPoints.length) {
+      const px = chartPoints[Math.min(i, max)].x + (chartPoints[Math.min(i + 1, max)].x - chartPoints[Math.min(i, max)].x) * frac;
+      const py = chartPoints[Math.min(i, max)].y + (chartPoints[Math.min(i + 1, max)].y - chartPoints[Math.min(i, max)].y) * frac;
+      tmDot.setAttribute('cx', px.toFixed(1));
+      tmDot.setAttribute('cy', py.toFixed(1));
+      tmDot.setAttribute('stroke', hex);
+    }
+
+    // Drive compass + charge
+    Compass.setDegree(deg, tier);
+    Charge.setLevel(tier, 0, 0);
+  }
+
+  function tmAnimate(timestamp) {
+    if (!tmPlaying) return;
+    if (!tmAnimate.lastTime) tmAnimate.lastTime = timestamp;
+
+    const dt = (timestamp - tmAnimate.lastTime) / 1000;
+    tmAnimate.lastTime = timestamp;
+    const max = chartData.length - 1;
+
+    tmPosition += TM_BASE_SPEED * TM_SPEEDS[tmSpeedIdx] * tmDirection * dt;
+
+    if (tmDirection === 1 && tmPosition >= max) { tmPosition = max; tmStopPlayback(); }
+    if (tmDirection === -1 && tmPosition <= 0) { tmPosition = 0; tmStopPlayback(); }
+
+    updateTimeMachine(tmPosition);
+    if (tmPlaying) tmAnimFrame = requestAnimationFrame(tmAnimate);
+  }
+
+  function tmStartPlayback(dir) {
+    if (savedDegree === null) {
+      const scoreText = document.getElementById('compass-score')?.textContent;
+      const chargeText = document.getElementById('compass-charge-text')?.textContent;
+      if (scoreText && chargeText) {
+        for (const [color, label] of Object.entries(CHARGE_LABELS)) {
+          if (label.toUpperCase() === chargeText) { savedCharge = color; break; }
+        }
+        savedDegree = 90 - (parseInt(scoreText) * 90 / 100);
+      }
+    }
+
+    tmDirection = dir;
+    const max = chartData.length - 1;
+    if (dir === 1 && tmPosition >= max) tmPosition = 0;
+    if (dir === -1 && tmPosition <= 0) tmPosition = max;
+
+    tmPlaying = true;
+    tmAnimate.lastTime = null;
+
+    const needle = document.getElementById('compass-needle');
+    if (needle) needle.classList.add('no-transition');
+
+    const playBtn = document.getElementById('tm-play');
+    const playIcon = document.getElementById('tm-play-icon');
+    const revBtn = document.getElementById('tm-rev');
+    const fwdBtn = document.getElementById('tm-fwd');
+    if (playBtn) playBtn.classList.add('active');
+    if (dir === 1 && fwdBtn) fwdBtn.classList.add('active');
+    if (dir === -1 && revBtn) revBtn.classList.add('active');
+    if (playIcon) playIcon.innerHTML = '<rect fill="currentColor" x="6" y="4" width="4" height="16"/><rect fill="currentColor" x="14" y="4" width="4" height="16"/>';
+
+    tmAnimFrame = requestAnimationFrame(tmAnimate);
+  }
+
+  function tmStopPlayback() {
+    tmPlaying = false;
+    if (tmAnimFrame) cancelAnimationFrame(tmAnimFrame);
+
+    const needle = document.getElementById('compass-needle');
+    if (needle) needle.classList.remove('no-transition');
+
+    ['tm-play', 'tm-rev', 'tm-fwd'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    });
+    const playIcon = document.getElementById('tm-play-icon');
+    if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
+  }
+
+  function initTimeMachineControls(container) {
+    const max = chartData.length - 1;
+    const last = chartData[max];
+
+    const tmArea = container.querySelector('.tm-controls');
+    if (!tmArea) return;
+
+    tmArea.innerHTML = `
+      <div class="calc-slider-wrap">
+        <input type="range" class="calc-slider" id="tm-slider" min="0" max="${max}" value="${max}" step="1">
+      </div>
+      <div class="calc-slider-info">
+        <span class="calc-decade" id="tm-year">${last.year}</span>
+        <span class="calc-score" id="tm-score" style="color:${COLOR_HEX[last.charge_level] || '#888'}">${degreeToScore(last.compass_degree)}</span>
+        <span class="calc-tier" id="tm-tier">${CHARGE_LABELS[last.charge_level]}</span>
+        <span class="calc-song-count" id="tm-count">${last.song_count} songs</span>
+      </div>
+      <div class="calc-playback">
+        <button class="calc-play-btn" id="tm-rev" title="Play backward">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+        </button>
+        <button class="calc-play-btn" id="tm-play" title="Play forward">
+          <svg viewBox="0 0 24 24" width="14" height="14" id="tm-play-icon"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="calc-play-btn" id="tm-fwd" title="Play forward fast">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+        </button>
+        <div class="calc-progress"><div class="calc-progress-fill" id="tm-progress" style="width:100%"></div></div>
+        <button class="calc-speed-btn" id="tm-speed">1x</button>
+        <button class="calc-reset" id="tm-reset" style="display:none;">Reset</button>
+      </div>
+    `;
+
+    // Wire up controls
+    const slider = document.getElementById('tm-slider');
+    document.getElementById('tm-play').addEventListener('click', () => {
+      if (tmPlaying) { tmStopPlayback(); return; }
+      tmStartPlayback(1);
+    });
+    document.getElementById('tm-rev').addEventListener('click', () => {
+      if (tmPlaying && tmDirection === -1) { tmStopPlayback(); return; }
+      tmStopPlayback();
+      tmStartPlayback(-1);
+    });
+    document.getElementById('tm-fwd').addEventListener('click', () => {
+      if (tmPlaying && tmDirection === 1) { tmStopPlayback(); return; }
+      tmStopPlayback();
+      tmStartPlayback(1);
+    });
+    document.getElementById('tm-speed').addEventListener('click', () => {
+      tmSpeedIdx = (tmSpeedIdx + 1) % TM_SPEEDS.length;
+      document.getElementById('tm-speed').textContent = TM_SPEEDS[tmSpeedIdx] + 'x';
+    });
+
+    // Slider scrub
+    slider.addEventListener('mousedown', () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle) needle.classList.add('no-transition');
+    });
+    slider.addEventListener('touchstart', () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle) needle.classList.add('no-transition');
+    });
+    const endScrub = () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle && !tmPlaying) needle.classList.remove('no-transition');
+    };
+    slider.addEventListener('mouseup', endScrub);
+    slider.addEventListener('touchend', endScrub);
+    slider.addEventListener('input', () => {
+      tmStopPlayback();
+      tmPosition = parseInt(slider.value);
+      updateTimeMachine(tmPosition);
+    });
+
+    // Reset
+    document.getElementById('tm-reset').addEventListener('click', () => {
+      tmStopPlayback();
+      if (savedDegree !== null) {
+        Compass.setDegree(savedDegree, savedCharge);
+        Charge.setLevel(savedCharge, 0, 0);
+        savedDegree = null;
+        savedCharge = null;
+      }
+      tmPosition = max;
+      updateTimeMachine(tmPosition);
+      document.getElementById('tm-reset').style.display = 'none';
+    });
+  }
+
+  function applyZoom(container) {
+    const lastYear = allYearData[allYearData.length - 1].year;
+    let filtered;
+    switch (currentZoom) {
+      case '10': filtered = allYearData.filter(d => d.year > lastYear - 10); break;
+      case '20': filtered = allYearData.filter(d => d.year > lastYear - 20); break;
+      case '30': filtered = allYearData.filter(d => d.year > lastYear - 30); break;
+      default: filtered = allYearData;
+    }
+    tmStopPlayback();
+    renderTrajectoryChart(filtered, container);
+    initTimeMachineControls(container);
+
+    container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.zoom === currentZoom);
+    });
+  }
+
+  async function loadTrajectory() {
+    const container = document.getElementById('trajectory-container');
+    if (!container) return;
+
+    try {
+      const [decadeData, yearData] = await Promise.all([API.getDrift(), API.getDriftYears()]);
+
+      if (!yearData.length) {
+        container.innerHTML = '<p style="color:var(--rc-text-dim);font-size:0.8rem;">No historical data</p>';
+        return;
+      }
+
+      allYearData = yearData;
+
+      container.innerHTML = `
+        <div class="traj-zoom-bar">
+          <button class="traj-zoom-btn active" data-zoom="all">All</button>
+          <button class="traj-zoom-btn" data-zoom="30">30Y</button>
+          <button class="traj-zoom-btn" data-zoom="20">20Y</button>
+          <button class="traj-zoom-btn" data-zoom="10">10Y</button>
+        </div>
+        <div class="traj-chart-area"></div>
+        <div class="tm-controls"></div>
+      `;
+
+      container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentZoom = btn.dataset.zoom;
+          applyZoom(container);
+        });
+      });
+
+      applyZoom(container);
+      renderCalculator(decadeData);
+    } catch (err) {
+      container.innerHTML = '<p style="color:var(--rc-text-dim);font-size:0.8rem;">Could not load trajectory</p>';
+    }
+  }
+
+  // --- Era Calculator (Tabbed Suite) ---
+  let savedDegree = null;
+  let savedCharge = null;
+
+  function renderCalculator(driftData) {
+    const container = document.getElementById('era-calculator');
+    if (!container || !driftData || !driftData.length) return;
+
+    const currentDecade = driftData[driftData.length - 1];
+
+    container.innerHTML = `
+      <div class="era-calc">
+        <div class="calc-header-row">
+          <div class="calc-tabs">
+            <button class="calc-tab active" data-calc="mix">What If</button>
+            <button class="calc-tab" data-calc="reverse">Reverse</button>
+            <button class="calc-tab" data-calc="playlist">Playlist</button>
+          </div>
+          <button class="calc-close-btn" id="calc-close" title="Close calculator">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+        <div class="calc-panel active" id="calc-mix"></div>
+        <div class="calc-panel" id="calc-reverse"></div>
+        <div class="calc-panel" id="calc-playlist"></div>
+      </div>
+    `;
+
+    // Close button
+    document.getElementById('calc-close').addEventListener('click', () => {
+      const overlay = document.getElementById('calc-overlay');
+      const toggleBtn = document.getElementById('calc-overlay-toggle');
+      if (overlay) overlay.classList.remove('open');
+      if (toggleBtn) {
+        toggleBtn.classList.remove('active');
+        toggleBtn.querySelector('span').textContent = 'Calculator';
+      }
+    });
+
+    // Tab switching
+    container.querySelectorAll('.calc-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        container.querySelectorAll('.calc-tab').forEach(t => t.classList.remove('active'));
+        container.querySelectorAll('.calc-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('calc-' + tab.dataset.calc).classList.add('active');
+      });
+    });
+
+    renderMixCalc();
+    renderReverseCalc(currentDecade);
+    renderPlaylistCalc();
+  }
+
+  function renderMixCalc() {
+    const panel = document.getElementById('calc-mix');
+    if (!panel) return;
+
+    const COLOR_DEGREES = { bright_green: 0, green: 45, yellow: 90, orange: 135, red: 180 };
+    const tiers = [
+      { key: 'bright_green', label: 'Ascended', initial: 0 },
+      { key: 'green', label: 'Elevated', initial: 0 },
+      { key: 'yellow', label: 'Balanced', initial: 0 },
+      { key: 'orange', label: 'Degraded', initial: 5 },
+      { key: 'red', label: 'Corrupted', initial: 5 },
+    ];
+
+    let rows = '';
+    tiers.forEach(t => {
+      const hex = COLOR_HEX[t.key];
+      rows += `
+        <div class="wi-row">
+          <span class="wi-dot" style="background:${hex}"></span>
+          <span class="wi-label">${t.label}</span>
+          <div class="wi-stepper">
+            <button class="wi-btn" data-tier="${t.key}" data-dir="-1">-</button>
+            <span class="wi-count" id="wi-${t.key}">${t.initial}</span>
+            <button class="wi-btn" data-tier="${t.key}" data-dir="1">+</button>
+          </div>
+        </div>
+      `;
+    });
+
+    panel.innerHTML = `
+      <p class="calc-context">Build a hypothetical top 10. How does the day's charge shift?</p>
+      <div class="wi-grid">${rows}</div>
+      <div class="wi-total" id="wi-total">10 of 10 songs</div>
+      <div class="calc-mix-result" id="mix-result"></div>
+    `;
+
+    const counts = {};
+    tiers.forEach(t => { counts[t.key] = t.initial; });
+
+    function getTotal() {
+      return Object.values(counts).reduce((a, b) => a + b, 0);
+    }
+
+    function compute() {
+      const total = getTotal();
+      const totalEl = document.getElementById('wi-total');
+      totalEl.textContent = `${total} of 10 songs`;
+      totalEl.classList.toggle('wi-total-warn', total !== 10);
+
+      const result = document.getElementById('mix-result');
+
+      if (total !== 10) {
+        result.innerHTML = `<span class="calc-tier" style="color:var(--rc-text-dim)">${total < 10 ? `Add ${10 - total} more` : `Remove ${total - 10}`} to see result</span>`;
+        return;
+      }
+
+      // Build position-weighted average: best tiers fill top positions
+      let pos = 1;
+      let totalWeight = 0, weightedSum = 0;
+      tiers.forEach(t => {
+        const deg = COLOR_DEGREES[t.key];
+        for (let i = 0; i < counts[t.key]; i++) {
+          const w = 11 - pos; // pos 1 = weight 10
+          totalWeight += w;
+          weightedSum += w * deg;
+          pos++;
+        }
+      });
+
+      const avgDeg = weightedSum / totalWeight;
+      const score = Math.round((90 - avgDeg) * 100 / 90);
+      const tier = degreeToTier(avgDeg);
+      const hex = COLOR_HEX[tier] || '#888';
+
+      result.innerHTML = `
+        <span class="calc-score" style="color:${hex}">${score > 0 ? '+' : ''}${score}</span>
+        <span class="calc-tier" style="color:${hex}">${CHARGE_LABELS[tier]}</span>
+      `;
+    }
+
+    // Stepper button clicks
+    panel.querySelectorAll('.wi-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tier = btn.dataset.tier;
+        const dir = parseInt(btn.dataset.dir);
+        const newVal = counts[tier] + dir;
+        if (newVal < 0 || newVal > 10) return;
+        counts[tier] = newVal;
+        document.getElementById('wi-' + tier).textContent = newVal;
+        compute();
+      });
+    });
+
+    compute();
+  }
+
+  function renderReverseCalc(currentDecade) {
+    const panel = document.getElementById('calc-reverse');
+    if (!panel) return;
+
+    const songCount = currentDecade.song_count;
+    const curDeg = currentDecade.compass_degree;
+
+    panel.innerHTML = `
+      <p class="calc-context">The ${currentDecade.decade} sits at <strong>${degreeToScore(curDeg)}</strong> (${CHARGE_LABELS[currentDecade.charge_level]}) across ${songCount} songs.</p>
+      <div class="calc-mix-row">
+        <div class="calc-mix-group">
+          <label>Target</label>
+          <select class="era-calc-select" id="rev-target">
+            <option value="0">Ascended (+100)</option>
+            <option value="45">Elevated (+50)</option>
+            <option value="90" selected>Balanced (0)</option>
+            <option value="135">Degraded (-50)</option>
+            <option value="180">Corrupted (-100)</option>
+          </select>
+        </div>
+        <div class="calc-mix-group">
+          <label>If every top 10 was</label>
+          <select class="era-calc-select" id="rev-charge">
+            <option value="0">Ascended (+100)</option>
+            <option value="45" selected>Elevated (+50)</option>
+            <option value="90">Balanced (0)</option>
+            <option value="135">Degraded (-50)</option>
+            <option value="180">Corrupted (-100)</option>
+          </select>
+        </div>
+      </div>
+      <div class="era-calc-result" id="rev-result"></div>
+    `;
+
+    const targetSel = document.getElementById('rev-target');
+    const chargeSel = document.getElementById('rev-charge');
+    const resultEl = document.getElementById('rev-result');
+
+    const compute = () => {
+      const targetDeg = parseFloat(targetSel.value);
+      const newDeg = parseFloat(chargeSel.value);
+      const targetScore = Math.round((90 - targetDeg) * 100 / 90);
+      const chargeScore = Math.round((90 - newDeg) * 100 / 90);
+
+      // Already at target?
+      if (Math.abs(curDeg - targetDeg) < 1) {
+        resultEl.innerHTML = `The era is already at ${targetScore > 0 ? '+' + targetScore : targetScore}.`;
+        return;
+      }
+
+      // Charge doesn't help
+      if (Math.abs(newDeg - targetDeg) < 0.1) {
+        resultEl.innerHTML = `${chargeScore > 0 ? '+' + chargeScore : chargeScore} songs hold the line — they don't move toward the target.`;
+        return;
+      }
+
+      if ((curDeg > targetDeg && newDeg >= curDeg) || (curDeg < targetDeg && newDeg <= curDeg)) {
+        resultEl.innerHTML = `That charge pushes the era further from the target.`;
+        return;
+      }
+
+      // days = N * |curDeg - targetDeg| / (10 * |newDeg - targetDeg| ... corrected)
+      // Each day adds 10 songs. Need total songs S such that:
+      // (songCount * curDeg + S * newDeg) / (songCount + S) = targetDeg
+      // S = songCount * (curDeg - targetDeg) / (targetDeg - newDeg)
+      const songsNeeded = songCount * Math.abs(curDeg - targetDeg) / Math.abs(targetDeg - newDeg);
+      const days = Math.ceil(songsNeeded / 10);
+      const months = (days / 30).toFixed(1);
+      const years = (days / 365).toFixed(1);
+
+      let timeStr = `<strong>${days} days</strong>`;
+      if (days > 60) timeStr += ` (${months} months)`;
+      if (days > 365) timeStr = `<strong>${years} years</strong> (${days} days)`;
+
+      resultEl.innerHTML = `${timeStr} of all-${chargeScore > 0 ? '+' + chargeScore : chargeScore} top 10s to bring the era to ${targetScore > 0 ? '+' + targetScore : targetScore}.`;
+    };
+
+    targetSel.addEventListener('change', compute);
+    chargeSel.addEventListener('change', compute);
+    compute();
+  }
+
+  function renderPlaylistCalc() {
+    const panel = document.getElementById('calc-playlist');
+    if (!panel) return;
+
+    panel.innerHTML = `
+      <p class="calc-context">Paste your playlist and see its consciousness charge.</p>
+      <textarea class="calc-textarea" id="playlist-input" placeholder="Paste songs, one per line&#10;&#10;e.g.&#10;Bohemian Rhapsody - Queen&#10;Blinding Lights - The Weeknd&#10;HUMBLE. - Kendrick Lamar" rows="6"></textarea>
+      <div class="calc-playlist-footer">
+        <span class="calc-line-count" id="playlist-count">0 songs</span>
+        <button class="calc-btn calc-btn-disabled" id="playlist-analyze">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h3l4 8H3l4-8h3V9.5A4 4 0 0 1 12 2z"/></svg>
+          Analyze
+        </button>
+      </div>
+      <div class="calc-playlist-result" id="playlist-result"></div>
+    `;
+
+    const textarea = document.getElementById('playlist-input');
+    const countEl = document.getElementById('playlist-count');
+    const analyzeBtn = document.getElementById('playlist-analyze');
+
+    textarea.addEventListener('input', () => {
+      const lines = textarea.value.split('\n').filter(l => l.trim().length > 0);
+      const n = lines.length;
+      countEl.textContent = n === 1 ? '1 song' : `${n} songs`;
+    });
+
+    analyzeBtn.addEventListener('click', () => {
+      const lines = textarea.value.split('\n').filter(l => l.trim().length > 0);
+      const resultEl = document.getElementById('playlist-result');
+      if (lines.length === 0) {
+        resultEl.innerHTML = '<span style="color:var(--rc-text-dim)">Paste some songs first.</span>';
+        return;
+      }
+      resultEl.innerHTML = '<span style="color:var(--rc-accent)">AI-powered playlist analysis is coming soon. Stay tuned.</span>';
+    });
+  }
+
+  function degreeToTier(deg) {
+    if (deg <= 22.5) return 'bright_green';
+    if (deg <= 67.5) return 'green';
+    if (deg <= 112.5) return 'yellow';
+    if (deg <= 157.5) return 'orange';
+    return 'red';
+  }
+
+  // --- Secondary Nav ---
+  function initNav() {
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const section = tab.dataset.section;
+        setActiveSection(section);
+      });
+    });
+
+    // Check hash on load
+    const hash = window.location.hash.slice(1);
+    if (hash) setActiveSection(hash);
+  }
+
+  function setActiveSection(section) {
+    document.querySelectorAll('.nav-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.section === section);
+    });
+    document.querySelectorAll('.section-content').forEach(s => {
+      s.classList.toggle('active', s.id === `section-${section}`);
+    });
+    window.location.hash = section;
+
+    // Lazy-load section data
+    if (section === 'history') loadDrift();
+    else if (section === 'albums') loadAlbums();
+    else if (section === 'archive') loadArchive();
+  }
+
+  // --- Drift (Historical Overview) ---
+  let driftLoaded = false;
+  async function loadDrift() {
+    if (driftLoaded) return;
+    const container = document.getElementById('drift-content');
+    if (!container) return;
+
+    try {
+      const data = await API.getDrift();
+      driftLoaded = true;
+
+      const COLOR_ORDER = ['bright_green', 'green', 'yellow', 'orange', 'red'];
+
+      let html = '<div class="decade-cards">';
+      data.forEach(d => {
+        const score = degreeToScore(d.compass_degree);
+        const hex = COLOR_HEX[d.charge_level] || '#888';
+        const tierLabel = CHARGE_LABELS[d.charge_level] || d.charge_level;
+
+        // Stacked color bar segments
+        let barHtml = '';
+        COLOR_ORDER.forEach(color => {
+          const count = d.color_counts[color] || 0;
+          if (count === 0) return;
+          const pct = (count / d.song_count) * 100;
+          barHtml += `<div class="decade-seg" style="width:${pct.toFixed(1)}%;background:${COLOR_HEX[color]}" title="${count} ${CHARGE_LABELS[color] || color}"></div>`;
+        });
+
+        // Color breakdown text
+        let breakdownParts = [];
+        COLOR_ORDER.forEach(color => {
+          const count = d.color_counts[color] || 0;
+          if (count > 0) {
+            breakdownParts.push(`<span style="color:${COLOR_HEX[color]}">${count}</span> ${CHARGE_LABELS[color] || color}`);
+          }
+        });
+
+        html += `
+          <div class="decade-card">
+            <div class="decade-header">
+              <span class="decade-name">${d.decade}</span>
+              <span class="decade-score" style="color:${hex}">${score}</span>
+              <span class="decade-tier" style="color:${hex}">${tierLabel}</span>
+            </div>
+            <div class="decade-bar">${barHtml}</div>
+            <div class="decade-breakdown">${breakdownParts.join('<span class="decade-sep">/</span>')}</div>
+            <div class="decade-meta">${d.song_count} #1 hits analyzed</div>
+          </div>
+        `;
+      });
+      html += '</div>';
+
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = '<div class="error-msg">Could not load drift data.</div>';
+    }
+  }
+
+  // --- Albums ---
+  let albumsLoaded = false;
+  async function loadAlbums() {
+    if (albumsLoaded) return;
+    const container = document.getElementById('albums-content');
+    if (!container) return;
+
+    try {
+      const albums = await API.getAlbums();
+      albumsLoaded = true;
+
+      if (albums.length === 0) {
+        container.innerHTML = '<p style="color:var(--rc-text-dim);">No album deep dives yet.</p>';
+        return;
+      }
+
+      let html = '<div id="album-list-view" class="album-grid">';
+      albums.forEach(a => {
+        const colorDot = a.overall_color ? `<span class="song-dot ${a.overall_color}" style="display:inline-block;margin-right:0.4rem;"></span>` : '';
+        html += `
+          <div class="album-card" onclick="App.showAlbum('${a.slug}')">
+            <div class="album-card-title">${colorDot}${escapeHtml(a.title)}</div>
+            <div class="album-card-artist">${escapeHtml(a.artist)}</div>
+            ${a.release_year ? `<div class="album-card-year">${a.release_year}</div>` : ''}
+          </div>
+        `;
+      });
+      html += '</div>';
+      html += '<div id="album-detail-view" class="album-detail"></div>';
+
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = '<div class="error-msg">Could not load albums.</div>';
+    }
+  }
+
+  async function showAlbum(slug) {
+    const listView = document.getElementById('album-list-view');
+    const detailView = document.getElementById('album-detail-view');
+    if (!listView || !detailView) return;
+
+    try {
+      const album = await API.getAlbum(slug);
+      listView.style.display = 'none';
+      detailView.classList.add('active');
+
+      let html = `<button class="album-back" onclick="App.backToAlbums()">&larr; Back to albums</button>`;
+      html += `<h3 style="color:var(--rc-text-bright);margin-bottom:0.2rem;">${escapeHtml(album.title)}</h3>`;
+      html += `<p style="color:var(--rc-text-dim);margin-bottom:1rem;">${escapeHtml(album.artist)} ${album.release_year ? `(${album.release_year})` : ''}</p>`;
+
+      if (album.summary) {
+        html += `<p style="font-size:0.9rem;margin-bottom:1.5rem;line-height:1.6;">${escapeHtml(album.summary)}</p>`;
+      }
+
+      html += '<ul class="track-list">';
+      album.tracks.forEach(t => {
+        html += `
+          <li class="track-item">
+            <span class="track-num">${t.track_number}</span>
+            <span class="song-dot ${t.charge_color || 'yellow'}"></span>
+            <span>${escapeHtml(t.name)}</span>
+            ${t.assessment ? `<span class="track-assessment">${escapeHtml(t.assessment)}</span>` : ''}
+          </li>
+        `;
+      });
+      html += '</ul>';
+
+      detailView.innerHTML = html;
+    } catch (err) {
+      detailView.innerHTML = '<div class="error-msg">Could not load album.</div>';
+    }
+  }
+
+  function backToAlbums() {
+    const listView = document.getElementById('album-list-view');
+    const detailView = document.getElementById('album-detail-view');
+    if (listView) listView.style.display = '';
+    if (detailView) {
+      detailView.classList.remove('active');
+      detailView.innerHTML = '';
+    }
+  }
+
+  // --- Archive ---
+  let archivePage = 1;
+  let archiveLoaded = false;
+  async function loadArchive() {
+    if (archiveLoaded) return;
+    const container = document.getElementById('archive-content');
+    if (!container) return;
+
+    try {
+      const data = await API.getHistory(archivePage);
+      archiveLoaded = true;
+
+      if (data.items.length === 0) {
+        container.innerHTML = '<p style="color:var(--rc-text-dim);">No archived readings yet.</p>';
+        return;
+      }
+
+      let html = '<ul class="archive-list">';
+      data.items.forEach(r => {
+        html += `
+          <li class="archive-item" onclick="App.viewArchiveReading('${r.date}')">
+            <span class="archive-date">${formatDate(r.date)}</span>
+            <div class="archive-meta">
+              <span class="archive-degree" style="color:${COLOR_HEX[r.charge_level] || '#888'}">${degreeToScore(r.compass_degree)}</span>
+              <span class="archive-charge">${CHARGE_LABELS[r.charge_level] || r.charge_level}</span>
+            </div>
+          </li>
+        `;
+      });
+      html += '</ul>';
+
+      if (data.pages > 1) {
+        html += '<div style="text-align:center;margin-top:1rem;">';
+        for (let p = 1; p <= data.pages; p++) {
+          const active = p === archivePage ? 'color:var(--rc-accent);font-weight:bold;' : 'color:var(--rc-text-dim);';
+          html += `<button onclick="App.loadArchivePage(${p})" style="background:none;border:none;padding:0.5rem;cursor:pointer;font-family:var(--rc-font-mono);${active}">${p}</button>`;
+        }
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = '<div class="error-msg">Could not load archive.</div>';
+    }
+  }
+
+  async function loadArchivePage(page) {
+    archivePage = page;
+    archiveLoaded = false;
+    await loadArchive();
+  }
+
+  async function viewArchiveReading(date) {
+    try {
+      const reading = await API.getReading(date);
+      // Update compass + panels with this reading
+      Compass.setDegree(reading.compass_degree, reading.charge_level);
+      const redCount = reading.songs.filter(s => s.rubric_color === 'red').length;
+      Charge.setLevel(reading.charge_level, redCount, reading.songs.length);
+      Contamination.setCount(reading.contamination_count, reading.songs.length);
+      renderReading({ has_reading: true, ...reading });
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error('Failed to load reading:', err);
+    }
+  }
+
+  // --- Helpers ---
+  function degreeToScore(degree) {
+    const s = Math.round((90 - degree) * 100 / 90);
+    return (s > 0 ? '+' : '') + s;
+  }
+
+  function formatDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // --- Public ---
+  return {
+    init,
+    showAlbum,
+    backToAlbums,
+    loadArchivePage,
+    viewArchiveReading,
+  };
+})();
+
+// Boot
+document.addEventListener('DOMContentLoaded', App.init);

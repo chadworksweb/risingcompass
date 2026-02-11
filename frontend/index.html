@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Rising Compass — Consciousness Diagnostic for Popular Music</title>
+  <meta name="description" content="Visualizing the aggregate moral and vibrational charge of popular music. Daily readings, historical analysis, and contamination tracking.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/compass.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <h1 class="site-title">The Rising <span>Compass</span></h1>
+    <p class="site-subtitle">Consciousness Diagnostic for Popular Music</p>
+  </header>
+
+  <main class="main-dashboard">
+    <!-- ROW 1 LEFT: Compass -->
+    <div class="card" id="compass-panel" style="position:relative;">
+      <div class="card-header">Today's Charge</div>
+      <div id="contam-container"></div>
+      <div id="compass-container"></div>
+      <div class="compass-date" id="compass-date"></div>
+    </div>
+
+    <!-- ROW 1 RIGHT: Aggregate Charge Index + Calculator -->
+    <div class="card" id="era-panel">
+      <div class="card-header">Aggregate Charge Index</div>
+      <div id="charge-container" style="margin-bottom:1rem;"></div>
+      <div class="era-chart-calc">
+        <div id="trajectory-container"></div>
+        <div class="calc-overlay" id="calc-overlay">
+          <div id="era-calculator"></div>
+        </div>
+        <button class="calc-overlay-toggle" id="calc-overlay-toggle">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm4 12H8v-1c0-1.33 2.67-2 4-2s4 .67 4 2v1z"/></svg>
+          <span>Calculator</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ROW 2: Daily Songs + Weekly Albums side by side -->
+    <div class="card" id="reading-panel">
+      <div class="card-header">Daily Top 10 Songs</div>
+      <p class="card-desc">Today's most-heard songs, individually charged.</p>
+      <div id="reading-content">
+        <div class="loading">Loading today's reading...</div>
+      </div>
+    </div>
+    <div class="card" id="album-reading-panel" style="display:none;">
+      <div class="card-header">Weekly Top 10 Albums</div>
+      <p class="card-desc">This week's most-heard albums, individually charged.</p>
+      <div id="album-reading-content"></div>
+    </div>
+  </main>
+
+  <!-- Secondary Navigation -->
+  <nav class="secondary-nav">
+    <div class="nav-tabs">
+      <button class="nav-tab" data-section="history">Historical Overview</button>
+      <button class="nav-tab" data-section="methodology">Methodology</button>
+      <button class="nav-tab" data-section="albums">Albums</button>
+      <button class="nav-tab" data-section="archive">Archive</button>
+    </div>
+
+    <!-- Historical Overview Section -->
+    <div class="section-content" id="section-history">
+      <div class="card" id="history-panel">
+        <div class="card-header">The Drift — Decade by Decade</div>
+        <div id="drift-content"></div>
+      </div>
+    </div>
+
+    <!-- Methodology Section -->
+    <div class="section-content" id="section-methodology">
+      <div class="card methodology-content" id="methodology-panel">
+        <h3>What is The Rising Compass?</h3>
+        <p>The Rising Compass is a consciousness diagnostic tool for popular music. It measures the aggregate moral and vibrational charge of the songs that dominate popular culture — the ones heard most, shared most, and internalized most.</p>
+
+        <h3>The Five Charge Levels</h3>
+        <div class="charge-legend">
+          <div class="charge-legend-bar">
+            <div class="charge-legend-seg" style="background:var(--rc-bright-green)"></div>
+            <div class="charge-legend-seg" style="background:var(--rc-green)"></div>
+            <div class="charge-legend-seg" style="background:var(--rc-yellow)"></div>
+            <div class="charge-legend-seg" style="background:var(--rc-orange)"></div>
+            <div class="charge-legend-seg" style="background:var(--rc-red)"></div>
+          </div>
+          <div class="charge-legend-labels">
+            <span>Ascended<em>Music that lifts consciousness</em></span>
+            <span>Elevated<em>Positive, authentic expression</em></span>
+            <span>Balanced<em>Neither elevating nor degrading</em></span>
+            <span>Degraded<em>Materialistic, shallow messaging</em></span>
+            <span>Corrupted<em>Actively harmful content</em></span>
+          </div>
+        </div>
+
+        <h3>How the Compass Works</h3>
+        <p>Each song in the top 10 is evaluated and assigned a charge color. The compass position is a weighted average — songs ranked higher on the chart carry more weight, because they reach more people. Position #1 has 10x the weight of position #10.</p>
+
+        <h3>Contamination</h3>
+        <p>Contamination tracks songs in the top 3 tiers (Ascended, Elevated, Balanced) that carry content undercutting or distracting from being 100% pure. A song can score well overall but still have elements that compromise its integrity. Contamination doesn't change the compass — it's a separate signal about purity and quick-hitting injections/subliminal notions.</p>
+
+        <h3>Data Source</h3>
+        <p>Historical data comes from an analysis of 650+ Billboard Hot 100 #1 hits spanning 1960-2024, originally published on <a href="https://chadrising.com" target="_blank" style="color:var(--rc-accent);">chadrising.com</a>. Daily readings use current chart data from major streaming platforms.</p>
+
+      </div>
+    </div>
+
+    <!-- Albums Section -->
+    <div class="section-content" id="section-albums">
+      <div class="card" id="albums-panel">
+        <div class="card-header">Album Deep Dives</div>
+        <div id="albums-content">
+          <div class="loading">Loading albums...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Archive Section -->
+    <div class="section-content" id="section-archive">
+      <div class="card" id="archive-panel">
+        <div class="card-header">Reading Archive</div>
+        <div id="archive-content">
+          <div class="loading">Loading archive...</div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <footer class="site-footer">
+    <p>The Rising Compass — A <a href="https://chadrising.com">chadrising.com</a> project</p>
+  </footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/compass.js"></script>
+  <script src="js/charge.js"></script>
+  <script src="js/contamination.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
