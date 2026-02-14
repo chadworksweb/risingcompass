@@ -1,5 +1,6 @@
-"""Compass degree calculation from song colors and chart positions."""
+"""Compass degree calculation from song charge values and chart positions."""
 
+# Legacy fixed degrees per color (used when charge_value is missing)
 COLOR_DEGREES = {
     "bright_green": 0.0,
     "green": 45.0,
@@ -9,16 +10,41 @@ COLOR_DEGREES = {
     "red": 180.0,
 }
 
+# Midpoint charge_values per tier (for legacy conversion)
+TIER_MIDPOINTS = {
+    "bright_green": 88,
+    "green": 50,
+    "yellow": 0,
+    "orange": -50,
+    "red": -88,
+}
 
-def position_weight(position: int) -> int:
-    """Higher chart position = more weight. Position 1 → 10, position 10 → 1."""
-    return max(1, 11 - position)
+
+def charge_to_degree(charge_value: int) -> float:
+    """Convert a charge_value (+100 to -100) to internal degree (0 to 180)."""
+    return round(90.0 - (charge_value * 0.9), 1)
+
+
+def degree_to_charge(degree: float) -> int:
+    """Convert internal degree (0-180) to charge_value (+100 to -100)."""
+    return round((90.0 - degree) * 100.0 / 90.0)
+
+
+def position_weight(position: int, total: int = 20) -> int:
+    """Higher chart position = more weight. Position 1 → total, position N → 1."""
+    return max(1, total + 1 - position)
 
 
 def compute_degree(songs: list[dict]) -> float:
     """
     Compute weighted average compass degree from a list of songs.
-    Each song dict needs 'rubric_color' and 'chart_position'.
+
+    Uses charge_value when available (precise per-song scoring).
+    Falls back to fixed degrees per color for legacy data.
+
+    Each song dict needs 'rubric_color' and 'position' (or 'chart_position').
+    Optionally 'charge_value' for precise scoring.
+
     Returns degree 0-180.
     """
     if not songs:
@@ -26,12 +52,20 @@ def compute_degree(songs: list[dict]) -> float:
 
     total_weight = 0
     weighted_sum = 0.0
+    total = len(songs)
 
     for song in songs:
-        color = song.get("rubric_color", "yellow")
         pos = song.get("chart_position") or song.get("position", 5)
-        deg = COLOR_DEGREES.get(color, 90.0)
-        w = position_weight(pos)
+        w = position_weight(pos, total)
+
+        # Use charge_value if available, otherwise fall back to fixed color degree
+        cv = song.get("charge_value")
+        if cv is not None:
+            deg = charge_to_degree(cv)
+        else:
+            color = song.get("rubric_color", "yellow")
+            deg = COLOR_DEGREES.get(color, 90.0)
+
         weighted_sum += deg * w
         total_weight += w
 

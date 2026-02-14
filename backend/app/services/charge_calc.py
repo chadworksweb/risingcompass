@@ -3,7 +3,7 @@
 CHARGE_TIERS = [
     (22.5, "bright_green", "Ascended"),
     (67.5, "green", "Elevated"),
-    (112.5, "yellow", "Balanced"),
+    (112.5, "yellow", "Decent"),
     (157.5, "orange", "Degraded"),
     (180.0, "red", "Corrupted"),
 ]
@@ -30,7 +30,7 @@ def charge_color_to_label(color: str) -> str:
     labels = {
         "bright_green": "Ascended",
         "green": "Elevated",
-        "yellow": "Balanced",
+        "yellow": "Decent",
         "orange": "Degraded",
         "red": "Corrupted",
     }

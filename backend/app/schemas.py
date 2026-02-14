@@ -12,6 +12,7 @@ class SongOut(BaseModel):
     decade: str
     chart_position: int
     rubric_color: str
+    charge_value: Optional[int] = None
     contaminated: bool
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
@@ -27,6 +28,7 @@ class ReadingSongOut(BaseModel):
     artist: str
     position: int
     rubric_color: str
+    charge_value: Optional[int] = None
     contaminated: bool
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
@@ -40,6 +42,7 @@ class ReadingSongIn(BaseModel):
     artist: str
     position: int
     rubric_color: str
+    charge_value: Optional[int] = None
     contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
@@ -223,6 +226,196 @@ class PaginatedReadings(BaseModel):
 
 class PaginatedWeeklyAlbumReadings(BaseModel):
     items: List[WeeklyAlbumReadingSummary]
+    total: int
+    page: int
+    pages: int
+
+
+# --- Library (Collections + Recommendations) ---
+class CollectionCreate(BaseModel):
+    name: str
+    slug: str
+    description: Optional[str] = None
+    charge_colors: Optional[str] = None
+    is_active: bool = True
+    sort_order: int = 0
+
+
+class CollectionUpdate(BaseModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    description: Optional[str] = None
+    charge_colors: Optional[str] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+
+class CollectionOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    description: Optional[str] = None
+    charge_colors: Optional[str] = None
+    is_active: bool
+    sort_order: int
+
+    model_config = {"from_attributes": True}
+
+
+class RecommendationCreate(BaseModel):
+    collection_id: int
+    title: str
+    artist: str
+    item_type: str = "song"
+    rubric_color: str
+    editorial_note: Optional[str] = None
+    external_url: Optional[str] = None
+    cover_art_url: Optional[str] = None
+    sort_order: int = 0
+
+
+class RecommendationUpdate(BaseModel):
+    collection_id: Optional[int] = None
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    item_type: Optional[str] = None
+    rubric_color: Optional[str] = None
+    editorial_note: Optional[str] = None
+    external_url: Optional[str] = None
+    cover_art_url: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class RecommendationOut(BaseModel):
+    id: int
+    collection_id: int
+    title: str
+    artist: str
+    item_type: str
+    rubric_color: str
+    editorial_note: Optional[str] = None
+    external_url: Optional[str] = None
+    cover_art_url: Optional[str] = None
+    sort_order: int
+
+    model_config = {"from_attributes": True}
+
+
+class LibraryItemOut(BaseModel):
+    title: str
+    artist: str
+    rubric_color: str
+    source: str  # "recommendation", "song", "album_deep_dive"
+    item_type: str = "song"
+    editorial_note: Optional[str] = None
+    external_url: Optional[str] = None
+    cover_art_url: Optional[str] = None
+
+
+class LibraryCollectionOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    description: Optional[str] = None
+    items: List[LibraryItemOut] = []
+
+
+# --- Manual Song Feed ---
+class SongFeedIn(BaseModel):
+    title: str
+    artist: str
+    rubric_color: str
+    charge_value: int  # -100 to +100
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+    year: Optional[int] = None
+    chart_source: str = "manual"
+
+
+# --- Agent Drafts ---
+class DraftSongOut(BaseModel):
+    id: int
+    title: str
+    artist: str
+    position: int
+    rubric_color: Optional[str] = None
+    charge_value: Optional[int] = None
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+    chart_source: Optional[str] = None
+    confidence: Optional[float] = None
+    lyrics_available: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class DraftOut(BaseModel):
+    id: int
+    created_at: datetime.datetime
+    status: str
+    date: datetime.date
+    compass_degree: Optional[float] = None
+    charge_level: Optional[str] = None
+    contamination_count: int = 0
+    editorial_summary: Optional[str] = None
+    agent_model: Optional[str] = None
+    agent_notes: Optional[str] = None
+    songs: List[DraftSongOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class DraftSummary(BaseModel):
+    id: int
+    created_at: datetime.datetime
+    status: str
+    date: datetime.date
+    compass_degree: Optional[float] = None
+    charge_level: Optional[str] = None
+    contamination_count: int = 0
+    editorial_summary: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class DraftTriggerSongIn(BaseModel):
+    title: str
+    artist: str
+    position: int
+    chart_source: str = "spotify"
+
+
+class DraftTriggerIn(BaseModel):
+    songs: List[DraftTriggerSongIn]
+    date: Optional[datetime.date] = None
+
+
+class DraftSongUpdate(BaseModel):
+    rubric_color: Optional[str] = None
+    charge_value: Optional[int] = None
+    contaminated: Optional[bool] = None
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+
+
+class DraftUpdate(BaseModel):
+    editorial_summary: Optional[str] = None
+    songs: Optional[List[DraftSongUpdate]] = None
+
+
+class PaginatedDrafts(BaseModel):
+    items: List[DraftSummary]
     total: int
     page: int
     pages: int

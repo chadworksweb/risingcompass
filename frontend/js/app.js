@@ -12,7 +12,7 @@ const App = (() => {
   const CHARGE_LABELS = {
     bright_green: 'Ascended',
     green: 'Elevated',
-    yellow: 'Balanced',
+    yellow: 'Decent',
     orange: 'Degraded',
     red: 'Corrupted',
   };
@@ -27,6 +27,7 @@ const App = (() => {
     await loadCurrent();
     loadTrajectory();
     loadGhostTrail();
+    loadLibrary();
   }
 
   function initCalcOverlay() {
@@ -657,7 +658,7 @@ const App = (() => {
     const tiers = [
       { key: 'bright_green', label: 'Ascended', initial: 0 },
       { key: 'green', label: 'Elevated', initial: 0 },
-      { key: 'yellow', label: 'Balanced', initial: 0 },
+      { key: 'yellow', label: 'Decent', initial: 0 },
       { key: 'orange', label: 'Degraded', initial: 5 },
       { key: 'red', label: 'Corrupted', initial: 5 },
     ];
@@ -760,7 +761,7 @@ const App = (() => {
           <select class="era-calc-select" id="rev-target">
             <option value="0">Ascended (+100)</option>
             <option value="45">Elevated (+50)</option>
-            <option value="90" selected>Balanced (0)</option>
+            <option value="90" selected>Decent (0)</option>
             <option value="135">Degraded (-50)</option>
             <option value="180">Corrupted (-100)</option>
           </select>
@@ -770,7 +771,7 @@ const App = (() => {
           <select class="era-calc-select" id="rev-charge">
             <option value="0">Ascended (+100)</option>
             <option value="45" selected>Elevated (+50)</option>
-            <option value="90">Balanced (0)</option>
+            <option value="90">Decent (0)</option>
             <option value="135">Degraded (-50)</option>
             <option value="180">Corrupted (-100)</option>
           </select>
@@ -871,6 +872,70 @@ const App = (() => {
     if (deg <= 112.5) return 'yellow';
     if (deg <= 157.5) return 'orange';
     return 'red';
+  }
+
+  // --- Elevated Library ---
+  async function loadLibrary() {
+    const container = document.getElementById('library-content');
+    if (!container) return;
+
+    try {
+      const collections = await API.getLibrary();
+
+      if (!collections.length) {
+        container.innerHTML = '<p style="color:var(--rc-text-dim);text-align:center;">No collections yet.</p>';
+        return;
+      }
+
+      let html = '<div class="elevated-collections">';
+      collections.forEach(col => {
+        html += `<div class="elevated-collection">`;
+        html += `<div class="elevated-collection-header">`;
+        html += `<h3 class="elevated-collection-name">${escapeHtml(col.name)}</h3>`;
+        if (col.description) {
+          html += `<p class="elevated-collection-desc">${escapeHtml(col.description)}</p>`;
+        }
+        html += `</div>`;
+
+        if (col.items.length) {
+          html += '<ul class="elevated-items">';
+          col.items.forEach(item => {
+            html += `<li class="elevated-item">`;
+            if (item.cover_art_url) {
+              html += `<img class="elevated-cover" src="${escapeHtml(item.cover_art_url)}" alt="" loading="lazy">`;
+            }
+            html += `<span class="song-dot ${item.rubric_color}"></span>`;
+            html += `<div class="elevated-item-info">`;
+            html += `<span class="elevated-item-title">${escapeHtml(item.title)}</span>`;
+            html += `<span class="elevated-item-artist">${escapeHtml(item.artist)}</span>`;
+            if (item.editorial_note) {
+              html += `<span class="elevated-item-note">${escapeHtml(item.editorial_note)}</span>`;
+            }
+            html += `</div>`;
+            if (item.external_url) {
+              html += `<a class="elevated-link" href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener" title="Listen">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </a>`;
+            }
+            const sourceLabel = item.source === 'recommendation' ? '' : item.source === 'album_deep_dive' ? 'album' : '';
+            if (sourceLabel) {
+              html += `<span class="elevated-item-source">${sourceLabel}</span>`;
+            }
+            html += `</li>`;
+          });
+          html += '</ul>';
+        } else {
+          html += '<p style="color:var(--rc-text-dim);font-size:0.82rem;padding:1rem 0;">No items in this collection yet.</p>';
+        }
+
+        html += `</div>`;
+      });
+      html += '</div>';
+
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = '<p style="color:var(--rc-text-dim);text-align:center;">Could not load library.</p>';
+    }
   }
 
   // --- Secondary Nav ---

@@ -1,7 +1,8 @@
 from sqlalchemy import (
-    Column, Integer, String, Text, Float, Boolean, Date, ForeignKey, UniqueConstraint
+    Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from app.database import Base
 
 
@@ -15,6 +16,7 @@ class Song(Base):
     decade = Column(Text, nullable=False)
     chart_position = Column(Integer, nullable=False)
     rubric_color = Column(Text, nullable=False)
+    charge_value = Column(Integer)  # -100 to +100 per-song charge
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
     charge_summary = Column(Text)
@@ -47,6 +49,7 @@ class ReadingSong(Base):
     artist = Column(Text, nullable=False)
     position = Column(Integer, nullable=False)
     rubric_color = Column(Text, nullable=False)
+    charge_value = Column(Integer)  # -100 to +100 per-song charge
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
     charge_summary = Column(Text)
@@ -110,3 +113,74 @@ class AlbumTrack(Base):
     assessment = Column(Text)
 
     album = relationship("AlbumDeepDive", back_populates="tracks")
+
+
+class Collection(Base):
+    __tablename__ = "collections"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(Text, nullable=False)
+    slug = Column(String(200), unique=True, nullable=False)
+    description = Column(Text)
+    charge_colors = Column(Text)  # Comma-separated: "bright_green,green"
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+
+    recommendations = relationship("Recommendation", back_populates="collection", cascade="all, delete-orphan")
+
+
+class Recommendation(Base):
+    __tablename__ = "recommendations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    collection_id = Column(Integer, ForeignKey("collections.id"), nullable=False)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    item_type = Column(String(20), default="song")  # "song" or "album"
+    rubric_color = Column(Text, nullable=False)
+    editorial_note = Column(Text)
+    external_url = Column(Text)
+    cover_art_url = Column(Text)
+    sort_order = Column(Integer, default=0)
+
+    collection = relationship("Collection", back_populates="recommendations")
+
+
+class AgentDraft(Base):
+    __tablename__ = "agent_drafts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(20), default="pending")  # pending / approved / rejected / published
+    date = Column(Date, nullable=False)
+    compass_degree = Column(Float)
+    charge_level = Column(Text)
+    contamination_count = Column(Integer, default=0)
+    editorial_summary = Column(Text)
+    agent_model = Column(Text)
+    agent_notes = Column(Text)
+
+    songs = relationship("AgentDraftSong", back_populates="draft", cascade="all, delete-orphan")
+
+
+class AgentDraftSong(Base):
+    __tablename__ = "agent_draft_songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    draft_id = Column(Integer, ForeignKey("agent_drafts.id"), nullable=False)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False)
+    rubric_color = Column(Text)
+    charge_value = Column(Integer)  # -100 to +100 per-song charge
+    contaminated = Column(Boolean, default=False)
+    contamination_note = Column(Text)
+    charge_summary = Column(Text)
+    message_analysis = Column(Text)
+    expression_analysis = Column(Text)
+    intention_analysis = Column(Text)
+    chart_source = Column(Text, default="spotify")
+    confidence = Column(Float)
+    lyrics_available = Column(Boolean, default=False)
+
+    draft = relationship("AgentDraft", back_populates="songs")

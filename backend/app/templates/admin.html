@@ -39,6 +39,17 @@
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
   h2.section-title { color: #888; font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+  /* Collection / Rec list rows */
+  .list-item { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.8rem; background: var(--panel); border-radius: 4px; margin-bottom: 0.4rem; }
+  .list-item .meta { font-size: 0.85rem; color: #888; margin-left: 0.5rem; }
+  .list-item .actions { display: flex; gap: 0.4rem; }
+  .btn-sm { padding: 0.3rem 0.8rem; font-size: 0.8rem; }
+  .btn-danger { background: var(--red); }
+  .checkbox-group { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .checkbox-group label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--text); cursor: pointer; }
+  .checkbox-group input[type="checkbox"] { width: auto; }
+  .legal-note { font-size: 0.75rem; color: var(--red); margin-top: 0.2rem; }
+  .inactive-badge { font-size: 0.7rem; background: var(--red); color: #fff; padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: 0.5rem; }
 </style>
 </head>
 <body>
@@ -54,6 +65,8 @@
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('songs')">Daily Songs</button>
   <button class="tab-btn" onclick="switchTab('albums')">Weekly Albums</button>
+  <button class="tab-btn" onclick="switchTab('collections')">Collections</button>
+  <button class="tab-btn" onclick="switchTab('recs')">Recommendations</button>
 </div>
 
 <!-- Daily Songs Tab -->
@@ -102,6 +115,106 @@
   <div class="status-msg" id="albumStatus"></div>
 </div>
 
+<!-- Collections Tab -->
+<div class="tab-panel" id="tab-collections">
+  <h2 class="section-title">Existing Collections</h2>
+  <div id="collectionList"></div>
+
+  <h2 class="section-title" id="colFormTitle">Create Collection</h2>
+  <input type="hidden" id="colEditId">
+  <div class="form-group">
+    <label>Name</label>
+    <input type="text" id="colName" placeholder="e.g. Pure Listening">
+  </div>
+  <div class="form-group">
+    <label>Slug</label>
+    <input type="text" id="colSlug" placeholder="e.g. pure-listening">
+  </div>
+  <div class="form-group">
+    <label>Description</label>
+    <textarea id="colDesc" placeholder="What this collection represents..."></textarea>
+  </div>
+  <div class="form-group">
+    <label>Auto-include Charge Colors</label>
+    <div class="checkbox-group" id="colColors"></div>
+  </div>
+  <div class="form-group">
+    <label>Sort Order</label>
+    <input type="number" id="colSort" value="0" min="0">
+  </div>
+  <div class="form-group">
+    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+      <input type="checkbox" id="colActive" checked style="width:auto;"> Active
+    </label>
+  </div>
+  <div>
+    <button id="colSubmitBtn" onclick="submitCollection()">Create Collection</button>
+    <button onclick="resetColForm()" style="background:transparent;border:1px solid var(--border);color:var(--text);margin-left:0.5rem;">Cancel</button>
+  </div>
+  <div class="status-msg" id="colStatus"></div>
+</div>
+
+<!-- Recommendations Tab -->
+<div class="tab-panel" id="tab-recs">
+  <div class="form-group">
+    <label>Select Collection</label>
+    <select id="recCollectionSelect" onchange="loadRecs()">
+      <option value="">— choose —</option>
+    </select>
+  </div>
+
+  <h2 class="section-title">Recommendations</h2>
+  <div id="recList"></div>
+
+  <h2 class="section-title" id="recFormTitle">Add Recommendation</h2>
+  <input type="hidden" id="recEditId">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" id="recTitle" placeholder="Song or album title">
+    </div>
+    <div class="form-group">
+      <label>Artist</label>
+      <input type="text" id="recArtist" placeholder="Artist name">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+    <div class="form-group">
+      <label>Type</label>
+      <select id="recItemType">
+        <option value="song">Song</option>
+        <option value="album">Album</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Rubric Color</label>
+      <select id="recColor"></select>
+    </div>
+    <div class="form-group">
+      <label>Sort Order</label>
+      <input type="number" id="recSort" value="0" min="0">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Editorial Note</label>
+    <textarea id="recNote" placeholder="Why this is recommended..."></textarea>
+  </div>
+  <div class="form-group">
+    <label>External URL</label>
+    <input type="text" id="recUrl" placeholder="https://...">
+  </div>
+  <div class="form-group">
+    <label>Cover Art URL</label>
+    <input type="text" id="recCover" placeholder="https://...">
+    <div class="legal-note">Confirm rights clearance before using cover art</div>
+  </div>
+  <div>
+    <button id="recSubmitBtn" onclick="submitRec()">Add Recommendation</button>
+    <button onclick="resetRecForm()" style="background:transparent;border:1px solid var(--border);color:var(--text);margin-left:0.5rem;">Cancel</button>
+  </div>
+  <div class="status-msg" id="recStatus"></div>
+</div>
+
 <script>
 const colors = ['bright_green','green','yellow','orange','red'];
 const colorLabels = {'bright_green':'Bright Green','green':'Green','yellow':'Yellow','orange':'Orange','red':'Red'};
@@ -120,6 +233,8 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById(`tab-${tab}`).classList.add('active');
+  if (tab === 'collections') loadCollections();
+  if (tab === 'recs') loadCollectionDropdown();
 }
 
 // Generate entry rows for a container
@@ -271,6 +386,261 @@ async function submitAlbumReading() {
 function showMsg(el, msg, type) {
   el.textContent = msg;
   el.className = `status-msg ${type}`;
+}
+
+function adminHeaders() {
+  return { 'Content-Type': 'application/json', 'X-Admin-Key': document.getElementById('adminKey').value.trim() };
+}
+
+// --- Collections ---
+
+// Populate color checkboxes
+(function initColColors() {
+  const container = document.getElementById('colColors');
+  colors.forEach(c => {
+    container.innerHTML += `<label><input type="checkbox" value="${c}"> ${colorLabels[c]}</label>`;
+  });
+})();
+
+// Populate rec color dropdown
+(function initRecColor() {
+  const sel = document.getElementById('recColor');
+  colors.forEach(c => {
+    sel.innerHTML += `<option value="${c}">${colorLabels[c]}</option>`;
+  });
+})();
+
+async function loadCollections() {
+  const key = document.getElementById('adminKey').value.trim();
+  if (!key) { document.getElementById('collectionList').innerHTML = '<p style="color:#666;">Enter admin key first.</p>'; return; }
+  try {
+    const resp = await fetch('/api/admin/collections', { headers: { 'X-Admin-Key': key } });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderCollections(data);
+  } catch (e) { showMsg(document.getElementById('colStatus'), e.message, 'error'); }
+}
+
+function renderCollections(list) {
+  const el = document.getElementById('collectionList');
+  if (!list.length) { el.innerHTML = '<p style="color:#666;">No collections yet.</p>'; return; }
+  el.innerHTML = list.map(c => `
+    <div class="list-item">
+      <div>
+        <strong>${esc(c.name)}</strong> <span class="meta">/${esc(c.slug)}</span>
+        ${!c.is_active ? '<span class="inactive-badge">Inactive</span>' : ''}
+        ${c.charge_colors ? `<span class="meta">[${esc(c.charge_colors)}]</span>` : ''}
+        <span class="meta">order: ${c.sort_order}</span>
+      </div>
+      <div class="actions">
+        <button class="btn-sm" onclick='editCollection(${JSON.stringify(c)})'>Edit</button>
+        <button class="btn-sm btn-danger" onclick="deleteCollection(${c.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function editCollection(c) {
+  document.getElementById('colEditId').value = c.id;
+  document.getElementById('colName').value = c.name;
+  document.getElementById('colSlug').value = c.slug;
+  document.getElementById('colDesc').value = c.description || '';
+  document.getElementById('colSort').value = c.sort_order;
+  document.getElementById('colActive').checked = c.is_active;
+  // Set color checkboxes
+  const selected = (c.charge_colors || '').split(',').map(s => s.trim());
+  document.querySelectorAll('#colColors input[type="checkbox"]').forEach(cb => {
+    cb.checked = selected.includes(cb.value);
+  });
+  document.getElementById('colFormTitle').textContent = 'Edit Collection';
+  document.getElementById('colSubmitBtn').textContent = 'Update Collection';
+}
+
+function resetColForm() {
+  document.getElementById('colEditId').value = '';
+  document.getElementById('colName').value = '';
+  document.getElementById('colSlug').value = '';
+  document.getElementById('colDesc').value = '';
+  document.getElementById('colSort').value = '0';
+  document.getElementById('colActive').checked = true;
+  document.querySelectorAll('#colColors input[type="checkbox"]').forEach(cb => cb.checked = false);
+  document.getElementById('colFormTitle').textContent = 'Create Collection';
+  document.getElementById('colSubmitBtn').textContent = 'Create Collection';
+}
+
+async function submitCollection() {
+  const statusEl = document.getElementById('colStatus');
+  statusEl.className = 'status-msg';
+  const key = document.getElementById('adminKey').value.trim();
+  if (!key) { showMsg(statusEl, 'Admin key required', 'error'); return; }
+
+  const name = document.getElementById('colName').value.trim();
+  const slug = document.getElementById('colSlug').value.trim();
+  if (!name || !slug) { showMsg(statusEl, 'Name and slug required', 'error'); return; }
+
+  const selectedColors = [];
+  document.querySelectorAll('#colColors input[type="checkbox"]:checked').forEach(cb => selectedColors.push(cb.value));
+
+  const body = {
+    name,
+    slug,
+    description: document.getElementById('colDesc').value.trim() || null,
+    charge_colors: selectedColors.join(',') || null,
+    is_active: document.getElementById('colActive').checked,
+    sort_order: parseInt(document.getElementById('colSort').value) || 0,
+  };
+
+  const editId = document.getElementById('colEditId').value;
+  try {
+    const resp = await fetch(
+      editId ? `/api/admin/collections/${editId}` : '/api/admin/collections',
+      { method: editId ? 'PUT' : 'POST', headers: adminHeaders(), body: JSON.stringify(body) }
+    );
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, editId ? 'Collection updated!' : 'Collection created!', 'success');
+    resetColForm();
+    loadCollections();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+async function deleteCollection(id) {
+  if (!confirm('Delete this collection and all its recommendations?')) return;
+  const statusEl = document.getElementById('colStatus');
+  try {
+    const resp = await fetch(`/api/admin/collections/${id}`, { method: 'DELETE', headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, 'Collection deleted', 'success');
+    loadCollections();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+// --- Recommendations ---
+
+async function loadCollectionDropdown() {
+  const key = document.getElementById('adminKey').value.trim();
+  const sel = document.getElementById('recCollectionSelect');
+  if (!key) { sel.innerHTML = '<option value="">Enter admin key first</option>'; return; }
+  try {
+    const resp = await fetch('/api/admin/collections', { headers: { 'X-Admin-Key': key } });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    sel.innerHTML = '<option value="">— choose —</option>' + data.map(c =>
+      `<option value="${c.id}">${esc(c.name)} (/${esc(c.slug)})</option>`
+    ).join('');
+  } catch (e) { showMsg(document.getElementById('recStatus'), e.message, 'error'); }
+}
+
+async function loadRecs() {
+  const colId = document.getElementById('recCollectionSelect').value;
+  const el = document.getElementById('recList');
+  if (!colId) { el.innerHTML = ''; return; }
+  const key = document.getElementById('adminKey').value.trim();
+  try {
+    const resp = await fetch(`/api/admin/collections/${colId}/recommendations`, { headers: { 'X-Admin-Key': key } });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderRecs(data);
+  } catch (e) { showMsg(document.getElementById('recStatus'), e.message, 'error'); }
+}
+
+function renderRecs(list) {
+  const el = document.getElementById('recList');
+  if (!list.length) { el.innerHTML = '<p style="color:#666;">No recommendations in this collection.</p>'; return; }
+  el.innerHTML = list.map(r => `
+    <div class="list-item">
+      <div>
+        <strong>${esc(r.title)}</strong> — ${esc(r.artist)}
+        <span class="meta">${r.item_type} | ${colorLabels[r.rubric_color] || r.rubric_color} | order: ${r.sort_order}</span>
+      </div>
+      <div class="actions">
+        <button class="btn-sm" onclick='editRec(${JSON.stringify(r)})'>Edit</button>
+        <button class="btn-sm btn-danger" onclick="deleteRec(${r.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function editRec(r) {
+  document.getElementById('recEditId').value = r.id;
+  document.getElementById('recTitle').value = r.title;
+  document.getElementById('recArtist').value = r.artist;
+  document.getElementById('recItemType').value = r.item_type;
+  document.getElementById('recColor').value = r.rubric_color;
+  document.getElementById('recSort').value = r.sort_order;
+  document.getElementById('recNote').value = r.editorial_note || '';
+  document.getElementById('recUrl').value = r.external_url || '';
+  document.getElementById('recCover').value = r.cover_art_url || '';
+  document.getElementById('recFormTitle').textContent = 'Edit Recommendation';
+  document.getElementById('recSubmitBtn').textContent = 'Update Recommendation';
+}
+
+function resetRecForm() {
+  document.getElementById('recEditId').value = '';
+  document.getElementById('recTitle').value = '';
+  document.getElementById('recArtist').value = '';
+  document.getElementById('recItemType').value = 'song';
+  document.getElementById('recColor').value = colors[0];
+  document.getElementById('recSort').value = '0';
+  document.getElementById('recNote').value = '';
+  document.getElementById('recUrl').value = '';
+  document.getElementById('recCover').value = '';
+  document.getElementById('recFormTitle').textContent = 'Add Recommendation';
+  document.getElementById('recSubmitBtn').textContent = 'Add Recommendation';
+}
+
+async function submitRec() {
+  const statusEl = document.getElementById('recStatus');
+  statusEl.className = 'status-msg';
+  const key = document.getElementById('adminKey').value.trim();
+  if (!key) { showMsg(statusEl, 'Admin key required', 'error'); return; }
+
+  const colId = document.getElementById('recCollectionSelect').value;
+  if (!colId) { showMsg(statusEl, 'Select a collection first', 'error'); return; }
+
+  const title = document.getElementById('recTitle').value.trim();
+  const artist = document.getElementById('recArtist').value.trim();
+  if (!title || !artist) { showMsg(statusEl, 'Title and artist required', 'error'); return; }
+
+  const body = {
+    collection_id: parseInt(colId),
+    title,
+    artist,
+    item_type: document.getElementById('recItemType').value,
+    rubric_color: document.getElementById('recColor').value,
+    sort_order: parseInt(document.getElementById('recSort').value) || 0,
+    editorial_note: document.getElementById('recNote').value.trim() || null,
+    external_url: document.getElementById('recUrl').value.trim() || null,
+    cover_art_url: document.getElementById('recCover').value.trim() || null,
+  };
+
+  const editId = document.getElementById('recEditId').value;
+  try {
+    const resp = await fetch(
+      editId ? `/api/admin/recommendations/${editId}` : '/api/admin/recommendations',
+      { method: editId ? 'PUT' : 'POST', headers: adminHeaders(), body: JSON.stringify(body) }
+    );
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, editId ? 'Recommendation updated!' : 'Recommendation added!', 'success');
+    resetRecForm();
+    loadRecs();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+async function deleteRec(id) {
+  if (!confirm('Delete this recommendation?')) return;
+  const statusEl = document.getElementById('recStatus');
+  try {
+    const resp = await fetch(`/api/admin/recommendations/${id}`, { method: 'DELETE', headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, 'Recommendation deleted', 'success');
+    loadRecs();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
 }
 </script>
 </body>

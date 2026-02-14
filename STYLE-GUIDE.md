@@ -13,7 +13,7 @@ Change any `--rc-*` variable in `:root` and it propagates everywhere.
 |------|----------|-----|--------|-------------|
 | Ascended | `--rc-bright-green` | `#9933ff` (violet) | `bright_green` | 0°–22.5° |
 | Elevated | `--rc-green` | `#3388ff` (blue) | `green` | 22.5°–67.5° |
-| Balanced | `--rc-yellow` | `#33cc55` (green) | `yellow` | 67.5°–112.5° |
+| Decent | `--rc-yellow` | `#33cc55` (green) | `yellow` | 67.5°–112.5° |
 | Degraded | `--rc-orange` | `#ffbb33` (yellow) | `orange` | 112.5°–157.5° |
 | Corrupted | `--rc-red` | `#ff3333` (red) | `red` | 157.5°–180° |
 
@@ -216,7 +216,7 @@ Google Fonts import: `Inter` (300, 400, 600, 700) + `JetBrains Mono` (400, 700)
 score = Math.round((90 - degree) * 100 / 90)
 ```
 - 0° → +100 (Ascended)
-- 90° → 0 (Balanced)
+- 90° → 0 (Decent)
 - 180° → -100 (Corrupted)
 
 ---

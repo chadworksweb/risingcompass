@@ -22,5 +22,6 @@ const API = (() => {
     getWeeklyAlbumsCurrent: () => get('/api/weekly-albums/current'),
     getWeeklyAlbumsHistory: (page = 1) => get(`/api/weekly-albums/history?page=${page}`),
     getWeeklyAlbumsReading: (date) => get(`/api/weekly-albums/reading/${date}`),
+    getLibrary: () => get('/api/library'),
   };
 })();

@@ -19,7 +19,7 @@ DECADE_ORDER = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"]
 # to reflect this coarseness honestly.
 HISTORICAL_DEGREES = {
     "bright_green": 0.0,
-    "green": 65.0,  # old "not bad" ≈ upper Elevated, nearly Balanced
+    "green": 65.0,  # old "not bad" ≈ upper Elevated, nearly Decent
     "yellow": 90.0,
     "orange": 135.0,
     "red": 180.0,

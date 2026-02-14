@@ -44,7 +44,7 @@ const Compass = (() => {
     let svg = `<svg class="compass-svg" viewBox="0 -10 360 270" xmlns="http://www.w3.org/2000/svg">`;
 
     const arcSpan = 36; // 180/5
-    const TIER_LABELS = ['Ascended', 'Elevated', 'Balanced', 'Degraded', 'Corrupted'];
+    const TIER_LABELS = ['Ascended', 'Elevated', 'Decent', 'Degraded', 'Corrupted'];
     const labelR = R + ARC_WIDTH / 2 + 11;
 
     // Defs: arc paths for curved text labels
@@ -123,7 +123,7 @@ const Compass = (() => {
       const labels = {
         bright_green: 'ASCENDED',
         green: 'ELEVATED',
-        yellow: 'BALANCED',
+        yellow: 'DECENT',
         orange: 'DEGRADED',
         red: 'CORRUPTED',
       };

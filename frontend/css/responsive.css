@@ -30,15 +30,22 @@
   }
 
   .nav-tabs {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    flex-wrap: wrap;
+    gap: 0;
   }
 
   .nav-tab {
-    padding: 0.6rem 1rem;
-    font-size: 0.7rem;
-    white-space: nowrap;
+    flex: 1 1 45%;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.68rem;
+    text-align: center;
+    border-radius: 0;
   }
+
+  .nav-tab:first-child { border-radius: var(--rc-radius-lg) 0 0 0; }
+  .nav-tab:nth-child(2) { border-radius: 0 var(--rc-radius-lg) 0 0; }
+  .nav-tab:nth-child(3) { border-radius: 0; }
+  .nav-tab:nth-child(4) { border-radius: 0; }
 
   .drift-chart {
     height: 150px;
@@ -63,6 +70,10 @@
   }
 
   .album-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .elevated-grid {
     grid-template-columns: 1fr;
   }
 
