@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report a Misread — The Rising Compass</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <style>
+    .misread-page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    .misread-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.82rem;
+      color: var(--rc-accent);
+      text-decoration: none;
+      margin-bottom: 1.5rem;
+      transition: opacity var(--rc-ease);
+    }
+
+    .misread-back:hover { opacity: 0.7; }
+
+    .misread-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+      margin-bottom: 0.5rem;
+    }
+
+    .misread-intro {
+      font-size: 0.88rem;
+      color: var(--rc-text);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .misread-intro strong {
+      color: var(--rc-text-bright);
+    }
+
+    /* Song info card */
+    .misread-song-card {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      padding: 1rem 1.2rem;
+      background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border);
+      border-radius: var(--rc-radius-md);
+      margin-bottom: 1.5rem;
+    }
+
+    .misread-song-card .song-dot {
+      width: 12px;
+      height: 12px;
+    }
+
+    .misread-song-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .misread-song-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+    }
+
+    .misread-song-artist {
+      font-size: 0.85rem;
+      color: var(--rc-text-dim);
+    }
+
+    .misread-song-tier {
+      font-family: var(--rc-font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .misread-song-summary {
+      width: 100%;
+      padding: 0.6rem 0 0;
+      margin-top: 0.6rem;
+      border-top: 1px solid var(--rc-border);
+    }
+
+    .misread-mei-line {
+      font-size: 0.78rem;
+      color: var(--rc-text);
+      line-height: 1.5;
+      padding: 0.1rem 0;
+    }
+
+    .misread-mei-line strong {
+      font-family: var(--rc-font-mono);
+      font-size: 0.68rem;
+      color: var(--rc-text-bright);
+      margin-right: 0.3rem;
+    }
+
+    .misread-charge-summary {
+      font-size: 0.78rem;
+      color: var(--rc-text-dim);
+      font-style: italic;
+      line-height: 1.5;
+    }
+
+    /* Form */
+    .misread-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .misread-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .misread-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .misread-field label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--rc-text-dim);
+    }
+
+    .misread-field input,
+    .misread-field textarea {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border);
+      border-radius: var(--rc-radius-sm);
+      color: var(--rc-text-bright);
+      font-family: var(--rc-font);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color var(--rc-ease);
+    }
+
+    .misread-field input:focus,
+    .misread-field textarea:focus {
+      border-color: var(--rc-accent);
+    }
+
+    .misread-field textarea {
+      min-height: 100px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .misread-field input::placeholder,
+    .misread-field textarea::placeholder {
+      color: var(--rc-text-dim);
+      opacity: 0.5;
+    }
+
+    .misread-consent {
+      font-size: 0.72rem;
+      color: var(--rc-text-dim);
+      line-height: 1.5;
+      padding: 0.6rem 0.8rem;
+      background: var(--rc-bg-card);
+      border-radius: var(--rc-radius-sm);
+      border: 1px solid var(--rc-border);
+    }
+
+    .misread-submit {
+      padding: 0.7rem 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: var(--rc-font);
+      background: var(--rc-accent);
+      color: var(--rc-bg-dark);
+      border: none;
+      border-radius: var(--rc-radius-sm);
+      cursor: pointer;
+      transition: opacity var(--rc-ease);
+      letter-spacing: 0.04em;
+    }
+
+    .misread-submit:hover { opacity: 0.85; }
+    .misread-submit:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* States */
+    .misread-success {
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+
+    .misread-success-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .misread-success h2 {
+      font-size: 1.2rem;
+      color: var(--rc-accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .misread-success p {
+      font-size: 0.88rem;
+      color: var(--rc-text);
+      line-height: 1.5;
+    }
+
+    .misread-banned {
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+
+    .misread-banned h2 {
+      font-size: 1.2rem;
+      color: var(--rc-red);
+      margin-bottom: 0.5rem;
+    }
+
+    .misread-banned p {
+      font-size: 0.88rem;
+      color: var(--rc-text-dim);
+    }
+
+    .misread-error {
+      font-size: 0.82rem;
+      color: var(--rc-red);
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="misread-page">
+  <a href="/" class="misread-back">&larr; Back to compass</a>
+
+  <h1 class="misread-title">Report a Misread</h1>
+  <p class="misread-intro">
+    Music is personal, so we understand that a classification can feel wrong when it's a song you love. This is why the Rising Compass measures lyrical content against a fixed rubric, not taste, talent, or personal interpretation.
+  </p>
+  <p class="misread-intro">
+    If you believe we misread the <strong>content</strong>: missed context, missed context from the artist directly, misinterpreted lyrics, or overlooked something that changes the classification—we want to hear it. We review every report and will update the reading if the evidence supports it. Abuse of this form will result in a permanent ban.
+  </p>
+
+  <!-- Song info card (populated from query params) -->
+  <div class="misread-song-card" id="song-card">
+    <span class="song-dot" id="song-dot"></span>
+    <div class="misread-song-info">
+      <div class="misread-song-title" id="song-title">—</div>
+      <div class="misread-song-artist" id="song-artist">—</div>
+    </div>
+    <span class="misread-song-tier" id="song-tier">—</span>
+    <div class="misread-song-summary" id="song-summary" style="display:none;"></div>
+  </div>
+
+  <!-- Form (default state) -->
+  <form class="misread-form" id="misread-form">
+    <div class="misread-row">
+      <div class="misread-field">
+        <label for="first-name">First Name</label>
+        <input type="text" id="first-name" required placeholder="Jane">
+      </div>
+      <div class="misread-field">
+        <label for="last-name">Last Name</label>
+        <input type="text" id="last-name" required placeholder="Doe">
+      </div>
+    </div>
+    <div class="misread-field">
+      <label for="email">Email</label>
+      <input type="email" id="email" required placeholder="jane@example.com">
+    </div>
+    <div class="misread-field">
+      <label for="message">Why do you think this was misread?</label>
+      <textarea id="message" required placeholder="Be specific. Reference lyrics, themes, or context that supports a different classification."></textarea>
+    </div>
+    <div class="misread-consent">
+      By submitting, you consent to your device ID and IP address being recorded for moderation purposes.
+    </div>
+    <button type="submit" class="misread-submit" id="submit-btn">Submit Report</button>
+    <div class="misread-error" id="error-msg" style="display:none;"></div>
+  </form>
+
+  <!-- Success state -->
+  <div class="misread-success" id="success-state" style="display:none;">
+    <div class="misread-success-icon">&#x2713;</div>
+    <h2>Report Submitted</h2>
+    <p>Thank you for your feedback. We'll review your report and update the classification if warranted.</p>
+  </div>
+
+  <!-- Banned state -->
+  <div class="misread-banned" id="banned-state" style="display:none;">
+    <h2>Submissions Blocked</h2>
+    <p>Your device has been restricted from submitting reports due to prior violations.</p>
+  </div>
+</div>
+
+<script>
+(function() {
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const API_BASE = isLocal
+    ? `http://${window.location.hostname}:8000`
+    : 'https://api.risingcompass.com';
+
+  const COLOR_HEX = {
+    violet: '#9933ff',
+    blue: '#3388ff',
+    green: '#33cc55',
+    yellow: '#ffbb33',
+    red: '#ff3333',
+  };
+
+  const TIER_LABELS = {
+    violet: 'Ascended',
+    blue: 'Elevated',
+    green: 'Decent',
+    yellow: 'Degraded',
+    red: 'Corrupted',
+  };
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // --- Device ID ---
+  function getDeviceId() {
+    let id = localStorage.getItem('rc-device-id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('rc-device-id', id);
+    }
+    return id;
+  }
+
+  // --- Parse query params ---
+  const params = new URLSearchParams(window.location.search);
+  const songTitle = params.get('title') || '';
+  const songArtist = params.get('artist') || '';
+  const songColor = params.get('color') || 'green';
+  const songPos = params.get('pos') || '';
+
+  // Populate song card
+  const dot = document.getElementById('song-dot');
+  dot.className = `song-dot ${songColor}`;
+
+  document.getElementById('song-title').textContent = songTitle || 'Unknown Song';
+  document.getElementById('song-artist').textContent = songArtist || 'Unknown Artist';
+
+  const tierEl = document.getElementById('song-tier');
+  tierEl.textContent = TIER_LABELS[songColor] || songColor;
+  tierEl.style.color = COLOR_HEX[songColor] || '#888';
+
+  // Populate song summary (M.E.I. + charge summary)
+  const ma = params.get('ma');
+  const ea = params.get('ea');
+  const ia = params.get('ia');
+  const cs = params.get('cs');
+
+  if (ma || ea || ia || cs) {
+    const summaryEl = document.getElementById('song-summary');
+    let html = '';
+    if (ma) html += `<div class="misread-mei-line"><strong>M</strong> ${escapeHtml(ma)}</div>`;
+    if (ea) html += `<div class="misread-mei-line"><strong>E</strong> ${escapeHtml(ea)}</div>`;
+    if (ia) html += `<div class="misread-mei-line"><strong>I</strong> ${escapeHtml(ia)}</div>`;
+    if (!ma && !ea && !ia && cs) html += `<div class="misread-charge-summary">${escapeHtml(cs)}</div>`;
+    summaryEl.innerHTML = html;
+    summaryEl.style.display = '';
+  }
+
+  // --- Ban check ---
+  const deviceId = getDeviceId();
+
+  async function checkBan() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/misread/check?device_id=${encodeURIComponent(deviceId)}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.banned) {
+          showBanned();
+        }
+      }
+    } catch (e) {
+      // Silent fail — allow form to show
+    }
+  }
+
+  function showBanned() {
+    document.getElementById('misread-form').style.display = 'none';
+    document.getElementById('banned-state').style.display = '';
+  }
+
+  checkBan();
+
+  // --- Form submission ---
+  const form = document.getElementById('misread-form');
+  const submitBtn = document.getElementById('submit-btn');
+  const errorMsg = document.getElementById('error-msg');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+
+    const body = {
+      song_title: songTitle,
+      song_artist: songArtist,
+      song_color: songColor,
+      song_position: songPos ? parseInt(songPos) : null,
+      first_name: document.getElementById('first-name').value.trim(),
+      last_name: document.getElementById('last-name').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      message: document.getElementById('message').value.trim(),
+      device_id: deviceId,
+    };
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/misread`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (resp.status === 403) {
+        showBanned();
+        return;
+      }
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: 'Submission failed' }));
+        throw new Error(err.detail || 'Submission failed');
+      }
+
+      // Success
+      form.style.display = 'none';
+      document.getElementById('success-state').style.display = '';
+
+    } catch (err) {
+      errorMsg.textContent = err.message;
+      errorMsg.style.display = '';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Report';
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

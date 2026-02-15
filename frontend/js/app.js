@@ -97,16 +97,17 @@ const App = (() => {
     }
 
     let html = '';
-    html += `<div class="reading-date">${formatDate(data.date)}</div>`;
-
-    // Daily charge summary
+    // Daily charge summary with date tab
     const dailyCharge = CHARGE_LABELS[data.charge_level] || data.charge_level;
     const dailyHex = COLOR_HEX[data.charge_level] || '#888';
-    html += `<div class="reading-charge-bar" style="background:${dailyHex}">
-      <div class="reading-charge-inner">
-        <span class="reading-charge-score">${degreeToScore(data.compass_degree)}</span>
-        <span class="reading-charge-label">${dailyCharge}</span>
-        <span class="reading-charge-meta">${data.songs.length} songs &middot; ${data.contamination_count} contaminated</span>
+    html += `<div class="reading-charge-group">
+      <div class="reading-date" style="background:${dailyHex}">${formatDate(data.date)}</div>
+      <div class="reading-charge-bar" style="background:${dailyHex}">
+        <div class="reading-charge-inner">
+          <span class="reading-charge-score">${degreeToScore(data.compass_degree)}</span>
+          <span class="reading-charge-label">${dailyCharge}</span>
+          <span class="reading-charge-meta">${data.songs.length} songs &middot; ${data.contamination_count} contaminated</span>
+        </div>
       </div>
     </div>`;
 
@@ -127,6 +128,12 @@ const App = (() => {
         if (song.intention_analysis) lines += `<div class="mei-line"><strong>I</strong> ${escapeHtml(song.intention_analysis)}</div>`;
         if (!hasMEI && song.charge_summary) lines += `<div class="mei-line">${escapeHtml(song.charge_summary)}</div>`;
         if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
+        const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color, pos: song.position });
+        if (song.message_analysis) disputeParams.set('ma', song.message_analysis);
+        if (song.expression_analysis) disputeParams.set('ea', song.expression_analysis);
+        if (song.intention_analysis) disputeParams.set('ia', song.intention_analysis);
+        if (song.charge_summary) disputeParams.set('cs', song.charge_summary);
+        lines += `<div class="mei-dispute"><a href="/misread-submission.html?${disputeParams.toString()}">Did we get it wrong?</a></div>`;
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
       html += `

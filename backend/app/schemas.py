@@ -422,3 +422,48 @@ class PaginatedDrafts(BaseModel):
     total: int
     page: int
     pages: int
+
+
+# --- Misread Submissions ---
+class MisreadSubmissionCreate(BaseModel):
+    song_title: str
+    song_artist: str
+    song_color: str
+    song_position: Optional[int] = None
+    first_name: str
+    last_name: str
+    email: str
+    message: str
+    device_id: Optional[str] = None
+
+
+class MisreadSubmissionOut(BaseModel):
+    id: int
+    created_at: datetime.datetime
+    song_title: str
+    song_artist: str
+    song_color: str
+    song_position: Optional[int] = None
+    first_name: str
+    last_name: str
+    email: str
+    message: str
+    device_id: Optional[str] = None
+    ip_address: Optional[str] = None
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+class MisreadStatusUpdate(BaseModel):
+    status: str  # reviewed / accepted / rejected / flagged
+
+
+class MisreadBanOut(BaseModel):
+    id: int
+    created_at: datetime.datetime
+    device_id: Optional[str] = None
+    ip_address: Optional[str] = None
+    reason: Optional[str] = None
+
+    model_config = {"from_attributes": True}

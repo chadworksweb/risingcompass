@@ -184,3 +184,31 @@ class AgentDraftSong(Base):
     lyrics_available = Column(Boolean, default=False)
 
     draft = relationship("AgentDraft", back_populates="songs")
+
+
+class MisreadSubmission(Base):
+    __tablename__ = "misread_submissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    song_title = Column(Text, nullable=False)
+    song_artist = Column(Text, nullable=False)
+    song_color = Column(Text, nullable=False)
+    song_position = Column(Integer)
+    first_name = Column(Text, nullable=False)
+    last_name = Column(Text, nullable=False)
+    email = Column(Text, nullable=False)
+    message = Column(Text, nullable=False)
+    device_id = Column(Text)
+    ip_address = Column(Text)
+    status = Column(String(20), default="pending")  # pending / reviewed / accepted / rejected / flagged
+
+
+class MisreadBan(Base):
+    __tablename__ = "misread_bans"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    device_id = Column(Text, nullable=True)
+    ip_address = Column(Text, nullable=True)
+    reason = Column(Text)

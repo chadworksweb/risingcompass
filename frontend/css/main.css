@@ -303,6 +303,7 @@ body {
 
 .song-item.has-tooltip.active .song-tooltip {
   display: block;
+  pointer-events: auto;
 }
 
 .song-actions {
@@ -353,6 +354,24 @@ body {
   margin-top: 0.2rem;
   padding-top: 0.2rem;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.mei-dispute {
+  margin-top: 0.3rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  text-align: right;
+}
+
+.mei-dispute a {
+  font-size: 0.62rem;
+  color: rgba(20, 20, 30, 0.35);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+
+.mei-dispute a:hover {
+  color: rgba(20, 20, 30, 0.6);
 }
 
 /* === Charge Spectrum === */
@@ -1138,17 +1157,18 @@ body {
 }
 
 /* === Reading Info === */
+.reading-charge-group {
+  margin-bottom: 0.8rem;
+}
+
 .reading-date {
   font-family: var(--rc-font-mono);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--rc-text-bright);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--rc-bg-dark);
   letter-spacing: 0.06em;
-  padding: 0.35rem 0.6rem;
-  margin-bottom: 0.6rem;
-  background: var(--rc-bg-card);
-  border: 1px solid var(--rc-border);
-  border-radius: var(--rc-radius-sm);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--rc-radius-sm) var(--rc-radius-sm) 0 0;
   display: inline-block;
 }
 
@@ -1164,9 +1184,8 @@ body {
 
 /* Daily/Album charge bar */
 .reading-charge-bar {
-  margin-bottom: 0.8rem;
   padding: 3px;
-  border-radius: var(--rc-radius-sm);
+  border-radius: 0 var(--rc-radius-sm) var(--rc-radius-sm) var(--rc-radius-sm);
 }
 
 .reading-charge-inner {
