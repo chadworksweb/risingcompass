@@ -24,6 +24,7 @@ const App = (() => {
     Contamination.render('contam-container');
     initNav();
     initCalcOverlay();
+    initEraTabs();
     await loadCurrent();
     loadTrajectory();
     loadGhostTrail();
@@ -325,6 +326,8 @@ const App = (() => {
       const tooltip = document.getElementById('traj-tooltip');
       if (!hoverLine) return;
 
+      saveCompassState();
+
       const rect = svgEl.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
       const svgX = relX * W;
@@ -355,6 +358,11 @@ const App = (() => {
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
+
+      // Update compass date to year only
+      setCompassDate(String(d.year));
+      Compass.setDegree(p.degree, p.color);
+      Charge.setLevel(p.color, 0, 0);
     });
 
     wrap.addEventListener('mouseleave', () => {
@@ -364,6 +372,7 @@ const App = (() => {
       if (hoverLine) hoverLine.style.display = 'none';
       if (hoverDot) hoverDot.style.display = 'none';
       if (tooltip) tooltip.style.display = 'none';
+      restoreCompassState();
     });
 
     // Set initial TM position to end
@@ -420,9 +429,10 @@ const App = (() => {
       tmDot.setAttribute('stroke', hex);
     }
 
-    // Drive compass + charge
+    // Drive compass + charge + date
     Compass.setDegree(deg, tier);
     Charge.setLevel(tier, 0, 0);
+    setCompassDate(String(nearest.year));
   }
 
   function tmAnimate(timestamp) {
@@ -443,16 +453,7 @@ const App = (() => {
   }
 
   function tmStartPlayback(dir) {
-    if (savedDegree === null) {
-      const scoreText = document.getElementById('compass-score')?.textContent;
-      const chargeText = document.getElementById('compass-charge-text')?.textContent;
-      if (scoreText && chargeText) {
-        for (const [color, label] of Object.entries(CHARGE_LABELS)) {
-          if (label.toUpperCase() === chargeText) { savedCharge = color; break; }
-        }
-        savedDegree = 90 - (parseInt(scoreText) * 90 / 100);
-      }
-    }
+    saveCompassState();
 
     tmDirection = dir;
     const max = chartData.length - 1;
@@ -573,6 +574,7 @@ const App = (() => {
     slider.addEventListener('mouseup', endScrub);
     slider.addEventListener('touchend', endScrub);
     slider.addEventListener('input', () => {
+      saveCompassState();
       tmStopPlayback();
       tmPosition = parseInt(slider.value);
       updateTimeMachine(tmPosition);
@@ -581,12 +583,7 @@ const App = (() => {
     // Reset
     document.getElementById('tm-reset').addEventListener('click', () => {
       tmStopPlayback();
-      if (savedDegree !== null) {
-        Compass.setDegree(savedDegree, savedCharge);
-        Charge.setLevel(savedCharge, 0, 0);
-        savedDegree = null;
-        savedCharge = null;
-      }
+      restoreCompassState();
       tmPosition = max;
       updateTimeMachine(tmPosition);
       document.getElementById('tm-reset').style.display = 'none';
@@ -650,9 +647,511 @@ const App = (() => {
     }
   }
 
-  // --- Era Calculator (Tabbed Suite) ---
+  // --- Compass State Save/Restore ---
   let savedDegree = null;
   let savedCharge = null;
+  let savedDateText = null;
+
+  function saveCompassState() {
+    if (savedDegree !== null) return; // already saved
+    const scoreText = document.getElementById('compass-score')?.textContent;
+    const chargeText = document.getElementById('compass-charge-text')?.textContent;
+    const dateEl = document.getElementById('compass-date-svg');
+    if (scoreText && chargeText) {
+      for (const [color, label] of Object.entries(CHARGE_LABELS)) {
+        if (label.toUpperCase() === chargeText) { savedCharge = color; break; }
+      }
+      savedDegree = 90 - (parseInt(scoreText) * 90 / 100);
+    }
+    if (dateEl) savedDateText = dateEl.textContent;
+  }
+
+  function restoreCompassState() {
+    if (savedDegree !== null) {
+      Compass.setDegree(savedDegree, savedCharge);
+      Charge.setLevel(savedCharge, 0, 0);
+    }
+    if (savedDateText) {
+      const dateEl = document.getElementById('compass-date-svg');
+      if (dateEl) dateEl.textContent = savedDateText;
+    }
+    savedDegree = null;
+    savedCharge = null;
+    savedDateText = null;
+  }
+
+  function setCompassDate(text) {
+    const dateEl = document.getElementById('compass-date-svg');
+    if (dateEl) dateEl.textContent = text;
+  }
+
+  // --- Era Panel Tabs ---
+  let dailyChartLoaded = false;
+  let dailyChartData = [];
+  let dailyChartPoints = [];
+  let dailyCurrentZoom = 'year';
+  let dtmPlaying = false;
+  let dtmAnimFrame = null;
+  let dtmPosition = 0;
+  let dtmDirection = 1;
+  let dtmSpeedIdx = 1;
+
+  function initEraTabs() {
+    document.querySelectorAll('.era-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.era-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.era-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.era;
+        document.getElementById('era-' + target)?.classList.add('active');
+
+        if (target === 'daily' && !dailyChartLoaded) {
+          loadDailyChart();
+        }
+      });
+    });
+  }
+
+  async function loadDailyChart() {
+    const container = document.getElementById('daily-chart-container');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading">Loading daily chart...</div>';
+
+    try {
+      const data = await API.getDailyChart();
+      dailyChartLoaded = true;
+
+      if (!data.length) {
+        container.innerHTML = '<div class="daily-empty">No daily readings yet.</div>';
+        return;
+      }
+
+      dailyChartData = data;
+
+      container.innerHTML = `
+        <div class="traj-zoom-bar">
+          <button class="traj-zoom-btn active" data-zoom="year">Year</button>
+          <button class="traj-zoom-btn" data-zoom="q">Q</button>
+          <button class="traj-zoom-btn" data-zoom="m">M</button>
+          <button class="traj-zoom-btn" data-zoom="w">W</button>
+        </div>
+        <div class="traj-chart-area"></div>
+        <div class="tm-controls"></div>
+      `;
+
+      container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          dailyCurrentZoom = btn.dataset.zoom;
+          applyDailyZoom(container);
+        });
+      });
+
+      applyDailyZoom(container);
+    } catch (err) {
+      container.innerHTML = '<p style="color:var(--rc-text-dim);font-size:0.8rem;">Could not load daily chart</p>';
+    }
+  }
+
+  function applyDailyZoom(container) {
+    const now = new Date();
+    let filtered;
+    switch (dailyCurrentZoom) {
+      case 'w': {
+        const cutoff = new Date(now);
+        cutoff.setDate(cutoff.getDate() - 7);
+        filtered = dailyChartData.filter(d => new Date(d.date) >= cutoff);
+        break;
+      }
+      case 'm': {
+        const cutoff = new Date(now);
+        cutoff.setDate(cutoff.getDate() - 30);
+        filtered = dailyChartData.filter(d => new Date(d.date) >= cutoff);
+        break;
+      }
+      case 'q': {
+        const cutoff = new Date(now);
+        cutoff.setDate(cutoff.getDate() - 90);
+        filtered = dailyChartData.filter(d => new Date(d.date) >= cutoff);
+        break;
+      }
+      default:
+        filtered = dailyChartData;
+    }
+
+    if (!filtered.length) filtered = dailyChartData;
+
+    dtmStopPlayback();
+    renderDailyChart(filtered, container);
+    initDailyTimeMachineControls(container);
+
+    container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.zoom === dailyCurrentZoom);
+    });
+  }
+
+  function renderDailyChart(data, container) {
+    if (!data.length) return;
+
+    const W = 320, H = 120;
+    const padL = 30, padR = 10, padT = 10, padB = 22;
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const maxIdx = data.length - 1;
+
+    dailyChartPoints = data.map((d, i) => ({
+      x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
+      y: padT + (d.compass_degree / 180) * chartH,
+      degree: d.compass_degree,
+      date: d.date,
+      color: d.charge_level,
+    }));
+
+    const linePath = dailyChartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const areaPath = linePath + ` L ${dailyChartPoints[maxIdx].x.toFixed(1)} ${padT + chartH} L ${dailyChartPoints[0].x.toFixed(1)} ${padT + chartH} Z`;
+
+    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+    svg += `<defs>
+      <linearGradient id="daily-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+        <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
+        <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
+        <stop offset="50%" stop-color="${COLOR_HEX.green}" />
+        <stop offset="75%" stop-color="${COLOR_HEX.yellow}" />
+        <stop offset="100%" stop-color="${COLOR_HEX.red}" />
+      </linearGradient>
+      <linearGradient id="daily-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+        <stop offset="0%" stop-color="${COLOR_HEX.violet}" stop-opacity="0.2" />
+        <stop offset="50%" stop-color="${COLOR_HEX.green}" stop-opacity="0.05" />
+        <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
+      </linearGradient>
+      <clipPath id="daily-clip"><rect id="daily-clip-rect" x="0" y="0" width="${W}" height="${H}" /></clipPath>
+    </defs>`;
+
+    // Grid lines
+    [{ deg: 0, label: '+100' }, { deg: 45, label: '' }, { deg: 90, label: '0' }, { deg: 135, label: '' }, { deg: 180, label: '-100' }].forEach(({ deg, label }) => {
+      const y = padT + (deg / 180) * chartH;
+      svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
+      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}">${label}</text>`;
+    });
+
+    // Clipped line + area
+    svg += `<g clip-path="url(#daily-clip)">`;
+    svg += `<path class="trajectory-area" d="${areaPath}" fill="url(#daily-area-grad)" />`;
+    svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#daily-grad)" />`;
+    svg += `</g>`;
+
+    // X-axis labels — month abbreviations or day numbers depending on data span
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const daySpan = maxIdx > 0 ? (new Date(data[maxIdx].date) - new Date(data[0].date)) / 86400000 : 0;
+
+    if (daySpan > 60) {
+      // Show month labels
+      const shownMonths = new Set();
+      dailyChartPoints.forEach((p, i) => {
+        const d = new Date(data[i].date + 'T00:00:00');
+        const m = d.getMonth();
+        if (!shownMonths.has(m)) {
+          shownMonths.add(m);
+          svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">${MONTHS[m]}</text>`;
+        }
+      });
+    } else {
+      // Show select day labels
+      const labelInterval = Math.max(1, Math.ceil(data.length / 8));
+      dailyChartPoints.forEach((p, i) => {
+        if (i % labelInterval === 0 || i === maxIdx) {
+          const d = new Date(data[i].date + 'T00:00:00');
+          svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">${d.getDate()}/${d.getMonth() + 1}</text>`;
+        }
+      });
+    }
+
+    // Moving dot
+    const lastPt = dailyChartPoints[maxIdx];
+    svg += `<circle id="daily-tm-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
+
+    // Hover elements
+    svg += `<line id="daily-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
+    svg += `<circle id="daily-hover-dot" cx="0" cy="0" class="traj-hover-dot" style="display:none" />`;
+    svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="traj-hover-area" />`;
+    svg += '</svg>';
+
+    const chartEl = container.querySelector('.traj-chart-area');
+    chartEl.innerHTML = `<div class="traj-wrap">${svg}<div class="traj-tooltip" id="daily-tooltip"></div></div>`;
+
+    // Hover interaction
+    const wrap = chartEl.querySelector('.traj-wrap');
+    const svgEl = chartEl.querySelector('.trajectory-svg');
+
+    wrap.addEventListener('mousemove', (e) => {
+      if (dtmPlaying) return;
+      const hoverLine = document.getElementById('daily-hover-line');
+      const hoverDot = document.getElementById('daily-hover-dot');
+      const tooltip = document.getElementById('daily-tooltip');
+      if (!hoverLine) return;
+
+      saveCompassState();
+
+      const rect = svgEl.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const svgX = relX * W;
+
+      let nearest = 0, minDist = Infinity;
+      for (let i = 0; i <= maxIdx; i++) {
+        const dist = Math.abs(dailyChartPoints[i].x - svgX);
+        if (dist < minDist) { minDist = dist; nearest = i; }
+      }
+
+      const p = dailyChartPoints[nearest];
+      const d = data[nearest];
+      const hex = COLOR_HEX[p.color] || '#888';
+
+      hoverLine.setAttribute('x1', p.x.toFixed(1));
+      hoverLine.setAttribute('x2', p.x.toFixed(1));
+      hoverLine.style.display = '';
+      hoverDot.setAttribute('cx', p.x.toFixed(1));
+      hoverDot.setAttribute('cy', p.y.toFixed(1));
+      hoverDot.setAttribute('stroke', hex);
+      hoverDot.style.display = '';
+
+      const fdate = formatDate(d.date);
+      tooltip.innerHTML = `<strong>${fdate}</strong><br><span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}`;
+      tooltip.style.display = 'block';
+
+      const wrapRect = wrap.getBoundingClientRect();
+      const pixelX = e.clientX - wrapRect.left;
+      const wrapW = wrapRect.width;
+      tooltip.style.left = pixelX + 'px';
+      tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
+
+      // Update compass date to full formatted date
+      setCompassDate(fdate);
+      Compass.setDegree(p.degree, p.color);
+      Charge.setLevel(p.color, 0, 0);
+    });
+
+    wrap.addEventListener('mouseleave', () => {
+      const hoverLine = document.getElementById('daily-hover-line');
+      const hoverDot = document.getElementById('daily-hover-dot');
+      const tooltip = document.getElementById('daily-tooltip');
+      if (hoverLine) hoverLine.style.display = 'none';
+      if (hoverDot) hoverDot.style.display = 'none';
+      if (tooltip) tooltip.style.display = 'none';
+      restoreCompassState();
+    });
+
+    // Click to load full reading
+    wrap.addEventListener('click', (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const svgX = relX * W;
+
+      let nearest = 0, minDist = Infinity;
+      for (let i = 0; i <= maxIdx; i++) {
+        const dist = Math.abs(dailyChartPoints[i].x - svgX);
+        if (dist < minDist) { minDist = dist; nearest = i; }
+      }
+      viewArchiveReading(data[nearest].date);
+    });
+
+    dtmPosition = maxIdx;
+  }
+
+  // --- Daily Time Machine ---
+  function updateDailyTimeMachine(pos) {
+    const pts = dailyChartPoints;
+    const ptMax = pts.length - 1;
+    if (ptMax < 0) return;
+
+    const i = Math.floor(Math.min(pos, ptMax));
+    const frac = pos - i;
+    const a = pts[Math.min(i, ptMax)];
+    const b = pts[Math.min(i + 1, ptMax)];
+
+    const deg = a.degree + (b.degree - a.degree) * frac;
+    const tier = degreeToTier(deg);
+    const hex = COLOR_HEX[tier] || '#888';
+    const nearestPt = pts[Math.round(Math.min(pos, ptMax))];
+
+    const dateEl = document.getElementById('dtm-date');
+    const scoreEl = document.getElementById('dtm-score');
+    const tierEl = document.getElementById('dtm-tier');
+    const slider = document.getElementById('dtm-slider');
+    const progressFill = document.getElementById('dtm-progress');
+    const resetBtn = document.getElementById('dtm-reset');
+
+    if (dateEl) dateEl.textContent = formatDate(nearestPt.date);
+    if (scoreEl) { scoreEl.textContent = degreeToScore(deg); scoreEl.style.color = hex; }
+    if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
+    if (progressFill) progressFill.style.width = (pos / ptMax * 100) + '%';
+    if (slider) slider.value = Math.round(pos);
+    if (resetBtn) resetBtn.style.display = '';
+
+    // Clip chart
+    const clipRect = document.getElementById('daily-clip-rect');
+    if (clipRect && pts.length) {
+      const px = a.x + (b.x - a.x) * frac;
+      clipRect.setAttribute('width', px + 2);
+    }
+
+    // Move dot
+    const tmDot = document.getElementById('daily-tm-dot');
+    if (tmDot && pts.length) {
+      const px = a.x + (b.x - a.x) * frac;
+      const py = a.y + (b.y - a.y) * frac;
+      tmDot.setAttribute('cx', px.toFixed(1));
+      tmDot.setAttribute('cy', py.toFixed(1));
+      tmDot.setAttribute('stroke', hex);
+    }
+
+    // Drive compass
+    Compass.setDegree(deg, tier);
+    Charge.setLevel(tier, 0, 0);
+    setCompassDate(formatDate(nearestPt.date));
+  }
+
+  function dtmAnimate(timestamp) {
+    if (!dtmPlaying) return;
+    if (!dtmAnimate.lastTime) dtmAnimate.lastTime = timestamp;
+
+    const dt = (timestamp - dtmAnimate.lastTime) / 1000;
+    dtmAnimate.lastTime = timestamp;
+    const max = dailyChartPoints.length - 1;
+
+    dtmPosition += TM_BASE_SPEED * TM_SPEEDS[dtmSpeedIdx] * dtmDirection * dt;
+
+    if (dtmDirection === 1 && dtmPosition >= max) { dtmPosition = max; dtmStopPlayback(); }
+    if (dtmDirection === -1 && dtmPosition <= 0) { dtmPosition = 0; dtmStopPlayback(); }
+
+    updateDailyTimeMachine(dtmPosition);
+    if (dtmPlaying) dtmAnimFrame = requestAnimationFrame(dtmAnimate);
+  }
+
+  function dtmStartPlayback(dir) {
+    saveCompassState();
+    dtmDirection = dir;
+    const max = dailyChartPoints.length - 1;
+    if (dir === 1 && dtmPosition >= max) dtmPosition = 0;
+    if (dir === -1 && dtmPosition <= 0) dtmPosition = max;
+
+    dtmPlaying = true;
+    dtmAnimate.lastTime = null;
+
+    const needle = document.getElementById('compass-needle');
+    if (needle) needle.classList.add('no-transition');
+
+    const playBtn = document.getElementById('dtm-play');
+    const playIcon = document.getElementById('dtm-play-icon');
+    const revBtn = document.getElementById('dtm-rev');
+    const fwdBtn = document.getElementById('dtm-fwd');
+    if (playBtn) playBtn.classList.add('active');
+    if (dir === 1 && fwdBtn) fwdBtn.classList.add('active');
+    if (dir === -1 && revBtn) revBtn.classList.add('active');
+    if (playIcon) playIcon.innerHTML = '<rect fill="currentColor" x="6" y="4" width="4" height="16"/><rect fill="currentColor" x="14" y="4" width="4" height="16"/>';
+
+    dtmAnimFrame = requestAnimationFrame(dtmAnimate);
+  }
+
+  function dtmStopPlayback() {
+    dtmPlaying = false;
+    if (dtmAnimFrame) cancelAnimationFrame(dtmAnimFrame);
+
+    const needle = document.getElementById('compass-needle');
+    if (needle) needle.classList.remove('no-transition');
+
+    ['dtm-play', 'dtm-rev', 'dtm-fwd'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    });
+    const playIcon = document.getElementById('dtm-play-icon');
+    if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
+  }
+
+  function initDailyTimeMachineControls(container) {
+    const pts = dailyChartPoints;
+    const max = pts.length - 1;
+    if (max < 0) return;
+    const last = pts[max];
+
+    const tmArea = container.querySelector('.tm-controls');
+    if (!tmArea) return;
+
+    tmArea.innerHTML = `
+      <div class="calc-slider-wrap">
+        <input type="range" class="calc-slider" id="dtm-slider" min="0" max="${max}" value="${max}" step="1">
+      </div>
+      <div class="calc-slider-info">
+        <span class="calc-decade" id="dtm-date">${formatDate(last.date)}</span>
+        <span class="calc-score" id="dtm-score" style="color:${COLOR_HEX[last.color] || '#888'}">${degreeToScore(last.degree)}</span>
+        <span class="calc-tier" id="dtm-tier">${CHARGE_LABELS[last.color]}</span>
+      </div>
+      <div class="calc-playback">
+        <button class="calc-play-btn" id="dtm-rev" title="Play backward">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+        </button>
+        <button class="calc-play-btn" id="dtm-play" title="Play forward">
+          <svg viewBox="0 0 24 24" width="14" height="14" id="dtm-play-icon"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="calc-play-btn" id="dtm-fwd" title="Play forward fast">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+        </button>
+        <div class="calc-progress"><div class="calc-progress-fill" id="dtm-progress" style="width:100%"></div></div>
+        <button class="calc-speed-btn" id="dtm-speed">1x</button>
+        <button class="calc-reset" id="dtm-reset" style="display:none;">Reset</button>
+      </div>
+    `;
+
+    const slider = document.getElementById('dtm-slider');
+    document.getElementById('dtm-play').addEventListener('click', () => {
+      if (dtmPlaying) { dtmStopPlayback(); return; }
+      dtmStartPlayback(1);
+    });
+    document.getElementById('dtm-rev').addEventListener('click', () => {
+      if (dtmPlaying && dtmDirection === -1) { dtmStopPlayback(); return; }
+      dtmStopPlayback();
+      dtmStartPlayback(-1);
+    });
+    document.getElementById('dtm-fwd').addEventListener('click', () => {
+      if (dtmPlaying && dtmDirection === 1) { dtmStopPlayback(); return; }
+      dtmStopPlayback();
+      dtmStartPlayback(1);
+    });
+    document.getElementById('dtm-speed').addEventListener('click', () => {
+      dtmSpeedIdx = (dtmSpeedIdx + 1) % TM_SPEEDS.length;
+      document.getElementById('dtm-speed').textContent = TM_SPEEDS[dtmSpeedIdx] + 'x';
+    });
+
+    // Slider scrub
+    slider.addEventListener('mousedown', () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle) needle.classList.add('no-transition');
+    });
+    slider.addEventListener('touchstart', () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle) needle.classList.add('no-transition');
+    });
+    const endScrub = () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle && !dtmPlaying) needle.classList.remove('no-transition');
+    };
+    slider.addEventListener('mouseup', endScrub);
+    slider.addEventListener('touchend', endScrub);
+    slider.addEventListener('input', () => {
+      saveCompassState();
+      dtmStopPlayback();
+      dtmPosition = parseInt(slider.value);
+      updateDailyTimeMachine(dtmPosition);
+    });
+
+    // Reset
+    document.getElementById('dtm-reset').addEventListener('click', () => {
+      dtmStopPlayback();
+      restoreCompassState();
+      dtmPosition = max;
+      updateDailyTimeMachine(dtmPosition);
+      document.getElementById('dtm-reset').style.display = 'none';
+    });
+  }
 
   function renderCalculator(driftData) {
     const container = document.getElementById('era-calculator');
@@ -1034,19 +1533,23 @@ const App = (() => {
       });
     });
 
-    // Check hash on load, default to history
-    const hash = window.location.hash.slice(1) || 'history';
-    setActiveSection(hash);
+    // Check hash on load, default to history — but don't set hash if none present
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      setActiveSection(hash);
+    } else {
+      setActiveSection('history', false);
+    }
   }
 
-  function setActiveSection(section) {
+  function setActiveSection(section, updateHash = true) {
     document.querySelectorAll('.nav-tab').forEach(t => {
       t.classList.toggle('active', t.dataset.section === section);
     });
     document.querySelectorAll('.section-content').forEach(s => {
       s.classList.toggle('active', s.id === `section-${section}`);
     });
-    window.location.hash = section;
+    if (updateHash) window.location.hash = section;
 
     // Lazy-load section data
     if (section === 'history') loadDrift();

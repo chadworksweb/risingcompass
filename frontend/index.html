@@ -31,17 +31,31 @@
 
     <!-- ROW 1 RIGHT: Aggregate Charge Index + Calculator -->
     <div class="card" id="era-panel">
-      <div class="card-header">Aggregate Charge Index <span style="font-weight:400;font-size:0.65rem;color:var(--rc-text-dim);letter-spacing:0.04em;text-transform:none;">— where we are now</span></div>
-      <div id="charge-container" style="margin-bottom:1rem;"></div>
-      <div class="era-chart-calc">
-        <div id="trajectory-container"></div>
-        <div class="calc-overlay" id="calc-overlay">
-          <div id="era-calculator"></div>
-        </div>
-        <button class="calc-overlay-toggle" id="calc-overlay-toggle">
-          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm4 12H8v-1c0-1.33 2.67-2 4-2s4 .67 4 2v1z"/></svg>
-          <span>Calculator</span>
+      <div class="era-tabs">
+        <button class="era-tab active" data-era="aggregate">
+          <span class="era-tab-title">Aggregate Charge Index</span>
+          <span class="era-tab-tagline">where we've been and where we are</span>
         </button>
+        <button class="era-tab" data-era="daily">
+          <span class="era-tab-title">Daily Charge</span>
+          <span class="era-tab-tagline">trailing 365 days, day by day</span>
+        </button>
+      </div>
+      <div id="charge-container" style="margin-bottom:1rem;"></div>
+      <div class="era-content active" id="era-aggregate">
+        <div class="era-chart-calc">
+          <div id="trajectory-container"></div>
+          <div class="calc-overlay" id="calc-overlay">
+            <div id="era-calculator"></div>
+          </div>
+          <button class="calc-overlay-toggle" id="calc-overlay-toggle">
+            <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm4 12H8v-1c0-1.33 2.67-2 4-2s4 .67 4 2v1z"/></svg>
+            <span>Calculator</span>
+          </button>
+        </div>
+      </div>
+      <div class="era-content" id="era-daily">
+        <div id="daily-chart-container"></div>
       </div>
     </div>
 
@@ -179,6 +193,7 @@
     </div>
   </nav>
 
+  <div class="elevated-library-bg rc-inverted">
   <section class="elevated-library" id="elevated-library">
     <div class="elevated-header">
       <h2 class="elevated-title">Want a dose of positively charged music?</h2>
@@ -212,6 +227,7 @@
       </div>
     </div>
   </section>
+  </div>
 
   <footer class="site-footer">
     <p>The Rising Compass — A <a href="https://chadrising.com">chadrising.com</a> project</p>

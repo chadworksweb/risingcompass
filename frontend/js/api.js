@@ -25,5 +25,6 @@ const API = (() => {
     getWeeklyAlbumsHistory: (page = 1) => get(`/api/weekly-albums/history?page=${page}`),
     getWeeklyAlbumsReading: (date) => get(`/api/weekly-albums/reading/${date}`),
     getLibrary: () => get('/api/library'),
+    getDailyChart: (days) => get(`/api/compass/daily-chart${days ? '?days=' + days : ''}`),
   };
 })();

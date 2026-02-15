@@ -94,6 +94,8 @@ Respond with ONLY a JSON object (no markdown, no code blocks, no extra text):
     "message_analysis": "Max 20 words. What the song is about. No clauses, no dashes, no elaboration.",
     "expression_analysis": "Max 20 words. How the message is delivered. No clauses, no dashes, no elaboration.",
     "intention_analysis": "Max 20 words. What it activates in the listener. No clauses, no dashes, no elaboration.",
+
+IMPORTANT: Never use the word "contaminated" or "contamination" in charge_summary, message_analysis, expression_analysis, or intention_analysis. Contamination is tracked separately via its own field and icon. If you must describe something being undermined, use "tainted" — but this should be rare.
     "confidence": 0.0-1.0
 }
 

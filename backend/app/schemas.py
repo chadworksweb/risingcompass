@@ -459,6 +459,14 @@ class MisreadStatusUpdate(BaseModel):
     status: str  # reviewed / accepted / rejected / flagged
 
 
+class DailyChartPoint(BaseModel):
+    date: datetime.date
+    compass_degree: float
+    charge_level: str
+
+    model_config = {"from_attributes": True}
+
+
 class MisreadBanOut(BaseModel):
     id: int
     created_at: datetime.datetime

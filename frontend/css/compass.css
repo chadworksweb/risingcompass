@@ -108,7 +108,8 @@
 .compass-date-text {
   font-family: var(--rc-font-mono);
   font-size: 0.7rem;
-  fill: var(--rc-text-dim);
+  fill: #fff;
+  font-weight: 700;
   text-anchor: middle;
   letter-spacing: 0.08em;
 }
@@ -118,7 +119,8 @@
   text-align: center;
   font-family: var(--rc-font-mono);
   font-size: 0.68rem;
-  color: var(--rc-text-dim);
+  color: #fff;
+  font-weight: 700;
   letter-spacing: 0.08em;
   margin-top: 0.2rem;
   flex-shrink: 0;

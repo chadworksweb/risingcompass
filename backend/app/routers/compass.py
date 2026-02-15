@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from datetime import date
+from sqlalchemy import func, extract
+from datetime import date, timedelta
 
 from app.database import get_db
 from app.models import Song, DailyReading, ReadingSong, WeeklyAlbumReading
-from app.schemas import CompassCurrent, DailyReadingOut, DailyReadingSummary, PaginatedReadings
+from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyReadingSummary, PaginatedReadings
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
@@ -88,6 +88,20 @@ def get_history(page: int = 1, per_page: int = 10, db: Session = Depends(get_db)
     )
 
     return PaginatedReadings(items=items, total=total, page=page, pages=pages)
+
+
+@router.get("/daily-chart", response_model=list[DailyChartPoint])
+def get_daily_chart(days: int = 365, db: Session = Depends(get_db)):
+    """Lightweight chart data: trailing N days of daily readings."""
+    cutoff = date.today() - timedelta(days=days)
+
+    readings = (
+        db.query(DailyReading.date, DailyReading.compass_degree, DailyReading.charge_level)
+        .filter(DailyReading.date >= cutoff)
+        .order_by(DailyReading.date.asc())
+        .all()
+    )
+    return [DailyChartPoint(date=r.date, compass_degree=r.compass_degree, charge_level=r.charge_level) for r in readings]
 
 
 @router.get("/reading/{reading_date}", response_model=DailyReadingOut)
