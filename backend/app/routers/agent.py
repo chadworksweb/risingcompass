@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, Song
 from app.schemas import (
     BackfillResult, BackfillSongOut,
+    CalibrateRequest, CalibrateResult,
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, SongFeedIn, SongOut,
 )
@@ -293,8 +294,8 @@ def backfill_year(
         lyrics = fetch_lyrics(song.title, song.artist)
         lyrics_available = lyrics is not None
 
-        # Classify fresh — db=None to skip cache lookup
-        result = classify_song(song.title, song.artist, lyrics=lyrics, db=None)
+        # Classify fresh — skip cache but use db for few-shot examples
+        result = classify_song(song.title, song.artist, lyrics=lyrics, db=db, target_year=year, skip_cache=True)
 
         # Update song in place
         song.rubric_color = result["rubric_color"]
@@ -333,3 +334,54 @@ def backfill_year(
         skipped_calibrated=calibrated_count,
         songs=results,
     )
+
+
+@router.post("/calibrate", response_model=CalibrateResult, dependencies=[Depends(verify_admin_key)])
+def calibrate_songs(data: CalibrateRequest, db: Session = Depends(get_db)):
+    """Apply human-calibrated tiers and charge values to songs, marking them calibrated.
+
+    Takes a list of song IDs with corrected rubric_color and charge_value.
+    Updates the Song table and sets calibrated=True.
+    """
+    updated = []
+    for item in data.songs:
+        song = db.query(Song).filter(Song.id == item.id).first()
+        if not song:
+            raise HTTPException(status_code=404, detail=f"Song ID {item.id} not found")
+        song.rubric_color = item.rubric_color
+        song.charge_value = item.charge_value
+        if item.charge_summary is not None:
+            song.charge_summary = item.charge_summary
+        if item.message_analysis is not None:
+            song.message_analysis = item.message_analysis
+        if item.expression_analysis is not None:
+            song.expression_analysis = item.expression_analysis
+        if item.intention_analysis is not None:
+            song.intention_analysis = item.intention_analysis
+        if item.contaminated is not None:
+            song.contaminated = item.contaminated
+        if item.contamination_note is not None:
+            song.contamination_note = item.contamination_note
+        song.calibrated = True
+        updated.append(song)
+
+    db.commit()
+    for s in updated:
+        db.refresh(s)
+
+    return CalibrateResult(
+        calibrated=len(updated),
+        songs=updated,
+    )
+
+
+@router.delete("/songs/{song_id}", dependencies=[Depends(verify_admin_key)])
+def delete_song(song_id: int, db: Session = Depends(get_db)):
+    """Delete a song from the Song table."""
+    song = db.query(Song).filter(Song.id == song_id).first()
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found")
+    title, artist = song.title, song.artist
+    db.delete(song)
+    db.commit()
+    return {"deleted": song_id, "title": title, "artist": artist}

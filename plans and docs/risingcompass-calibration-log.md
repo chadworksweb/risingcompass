@@ -194,6 +194,31 @@ And then the compass caught its own calibrator reaching for Elevated out of emot
 
 This is the mirror working exactly as designed. And it happened naturally, in the course of calibration, without anyone trying to make a point. The data made the point itself.
 
+### The AI as Cultural Mirror (Backfill 1960-1964, 2026-02-15)
+
+**Blog post concept — expand this.**
+
+During 1960s backfill, the AI consistently projected modern cynicism onto innocent early-60s pop. Jim Reeves gently asking his lover to stay became a "possessive ultimatum." A Beach Boys song about being popular in different towns became a "conquest catalog." A teen crush song became "objectification and conquest mentality." Running Bear's forbidden love metaphor became "glorifying death."
+
+Every single error went in the same direction: the AI read sinister subtext into songs that were exactly what they appeared to be.
+
+This isn't a bug. It's a measurement. The AI was trained on internet text — the same internet that taught a generation to deconstruct everything, find the problematic angle, and assume the worst reading is the real one. The AI absorbed that lens and applied it to music that predates the lens by 60 years.
+
+The key insight: **this is exactly what the internet does to real people.** The same cultural machine that taught Claude to see "possessive pursuit" in "Stuck on You" teaches real humans the same thing. The AI's errors are a direct, measurable artifact of how internet discourse rewires interpretation.
+
+Rising Compass can now PROVE this. We have:
+- The AI's unprompted classifications (cynical modern readings)
+- The face-value human calibrations (what the songs actually say)
+- The delta between them (measurable cultural drift)
+
+The agent isn't failing — it's showing us exactly how far the cultural lens has drifted from reality. And if an AI trained on the entire internet can't hear a 1960s love song without projecting possession and control onto it, what chance does a human raised on the same internet have?
+
+And the irony cuts both ways. The same culture that taught us to deconstruct innocent 1960s love songs into "possessive ultimatums" simultaneously takes modern lyrics at face value — songs that explicitly describe objectification, substance abuse, ego worship, and contempt get celebrated as "bangers" or "empowerment anthems." The critical lens only points backward. Forward-facing, it goes blind.
+
+The compass doesn't flip. It reads lyrics the same way regardless of era. That's why 2024 Billboard came back 0 Elevated, 8 Corrupted — and 1960 came back 4 Elevated, 0 Corrupted. Not because old = good and new = bad. Because the lyrics say what they say. The culture taught us to interrogate the harmless and celebrate the harmful. The compass just holds the mirror steady.
+
+That's the blog post. The AI as diagnostic tool for cultural brainwashing — and the double standard it exposes.
+
 ---
 
 ## Philosophical Foundation: Why the Rubric Is Objective
@@ -297,10 +322,71 @@ The agent defaults to tier midpoints (-45, +45, -88) rather than spreading value
 | #9 | 20 | 13 | 65% | 7 corrections. Romance blind spot dominant. |
 | #12 | 20 | ~6 | ~30% | Worst performance. Billboard songs exposed every blind spot. 6 false Elevated, 5 missed Corrupted. |
 | #15 | 20 | TBD | TBD | 8 repeats from calibration (correct by definition). 12 new — 2 corrected so far, 10 pending. |
+| Backfill 1960 | 10 | 3 | 30% | 6 wrong — all over-cynical. Read possessiveness/death-glorification into sincere 1960s pop. Missing song (The Twist) added manually. |
+| Backfill 1961 | 9 | 1 | 11% | 8 wrong. Over-elevated every breakup song. Michael (Ascended) was only correct tier. |
+| Backfill 1962 | 7 | 0 | 0% | All wrong. Called 2 Degraded and 1 Elevated when everything was Decent. |
+| Backfill 1963 | 10 | 0 | 0% | All wrong. 4 Elevated should be Decent, 2 Degraded should be Decent, 2 Degraded correct tier wrong charge. |
+| **--- Rule 11 + era-weighted few-shot + backfill bug fix added here ---** | | | | |
 
 **Accuracy is measured on NEW songs only** (repeats pulled from calibration don't count as agent decisions).
 
 The drop from Draft #9 to #12 isn't regression — it's harder material. Daily Spotify charts have more variety; Billboard year-end top 20 is concentrated mainstream, which maximizes the cultural blind spots the agent carries.
+
+---
+
+## Backfill Calibration Workflow
+
+Step-by-step process for calibrating a backfill year. Repeat for each year.
+
+### 1. Agent classifies
+```
+POST /api/admin/agent/backfill/{year}?limit=10
+```
+Returns agent's classification for all uncalibrated songs in that year.
+
+### 2. Human assigns tiers
+Review each song against original research. Assign tier labels one at a time:
+- Ascended / Elevated / Decent / Degraded / Corrupted
+
+### 3. Rank within tiers
+For each tier that has multiple songs:
+- Agent estimates most and least extreme (positions 1 and N)
+- Human fills in the remaining positions
+- Display format:
+  1. [agent pick or human override]
+  2. .
+  3. .
+  4. [agent pick or human override]
+- "On the bench" lists unplaced songs below
+
+If all songs in a tier are roughly equal, say so — assign near-identical charges (e.g., three songs at 0, one at +5, one at -5).
+
+### 4. Compute charge values
+Spread evenly across the tier's range based on rank position:
+- **Ascended:** +75 to +100
+- **Elevated:** +25 to +74
+- **Decent:** -24 to +24
+- **Degraded:** -25 to -74
+- **Corrupted:** -75 to -100
+
+### 5. Fix summaries and M/E/I
+Agent summaries often reflect the wrong tier's framing (e.g., cynical summary on a Decent song). Rewrite charge_summary, message_analysis, expression_analysis, and intention_analysis to match the corrected tier. M/E/I max ~20 words each.
+
+### 6. Push calibration
+```
+POST /api/admin/agent/calibrate
+```
+Send corrected tiers, charges, summaries, and M/E/I. Endpoint sets `calibrated=True`.
+
+### 7. Add missing songs
+If a song from the year's top 10 is missing from the DB:
+```
+POST /api/admin/agent/songs
+```
+Then include it in the calibrate call.
+
+### 8. Log results
+Update this file with agent accuracy and any new blind spots identified.
 
 ---
 

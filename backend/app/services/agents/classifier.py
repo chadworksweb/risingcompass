@@ -57,17 +57,21 @@ def classify_song(
     artist: str,
     lyrics: str | None = None,
     db: Session | None = None,
+    target_year: int | None = None,
+    skip_cache: bool = False,
 ) -> dict:
     """Classify a single song using the Rising Compass rubric via Claude.
 
     If the song already exists in the Song table with a calibrated charge_value,
     returns the existing classification instead of reclassifying.
+    Set skip_cache=True to force reclassification (backfill mode) while still
+    using the db for few-shot examples.
 
     Returns a dict with rubric_color, contaminated, contamination_note,
     charge_summary, message_analysis, expression_analysis, intention_analysis, confidence.
     """
     # Check for existing calibrated classification first
-    if db:
+    if db and not skip_cache:
         existing = _lookup_existing(title, artist, db)
         if existing:
             return existing
@@ -75,7 +79,7 @@ def classify_song(
     client = Anthropic(api_key=settings.anthropic_api_key)
 
     # Build few-shot examples from existing data
-    examples = build_few_shot_examples(db) if db else ""
+    examples = build_few_shot_examples(db, target_year=target_year) if db else ""
 
     system_prompt, user_prompt = build_classification_prompt(
         title, artist, lyrics=lyrics, examples=examples

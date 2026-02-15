@@ -566,3 +566,23 @@ class BackfillResult(BaseModel):
     reclassified: int
     skipped_calibrated: int
     songs: List[BackfillSongOut]
+
+
+# --- Calibration ---
+class CalibrateSongIn(BaseModel):
+    id: int
+    rubric_color: str
+    charge_value: int  # -100 to +100
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+    contaminated: Optional[bool] = None
+    contamination_note: Optional[str] = None
+
+class CalibrateRequest(BaseModel):
+    songs: List[CalibrateSongIn]
+
+class CalibrateResult(BaseModel):
+    calibrated: int
+    songs: List[SongOut]

@@ -87,6 +87,7 @@ Contamination requires the presence of actual degraded or corrupted artifacts �
 8. Rejecting your own innate knowing — when a song's narrator KNOWS something is wrong (gut feeling, friends warning them, clear red flags) and actively overrides that knowing to stay in the situation — that is corrupted, not degraded. It skips the line. Ignoring your inner compass is self-abuse.
 9. Progressive packaging does not automatically elevate. Social justice, identity politics, queer advocacy, or any noble-sounding cause does not grant a song a free pass. Judge what the song ACTIVATES, not what cause it represents. Ego, contempt, and "I told you so" wrapped in progressive language is still degraded. This is the most common trick the industry uses — and the most common blind spot.
 10. Longing is not elevation. A song that recognizes a pattern, names what's missing, and WANTS something better — but stops at the wanting — is decent, not elevated. Elevated requires actual processing, movement, or transformation. Awareness without motion is the ceiling of decent, not the floor of elevated. Do not mistake wanting to grow for growing.
+11. [TRAINING WHEELS — remove once agent passes 5 consecutive years without correction] Evaluate ALL lyrics at face value and obvious metaphors — regardless of era. Do not project modern critical theory onto older songs: a 1960s love song is not a possession fantasy because it uses language that reads differently today. A song about attraction is not objectification. A song about commitment is not codependence. But this rule applies equally forward: do not soften modern lyrics either. If a 2024 song explicitly describes objectification, substance abuse, or contempt, read it as exactly that. The standard is the same in both directions. The internet taught you to deconstruct the innocent and celebrate the harmful — reject both impulses. Read what the lyrics actually say, nothing more, nothing less.
 """
 
 CLASSIFICATION_FORMAT = """## Required Output Format
@@ -149,23 +150,44 @@ confidence should reflect how well you know the song:
 """
 
 
-def build_few_shot_examples(db: Session) -> str:
+def build_few_shot_examples(db: Session, target_year: int = None) -> str:
     """Pull ~5 examples per tier from the Song table to use as few-shot examples.
 
+    If target_year is provided, prioritizes examples from the same decade.
     Returns a formatted string of example classifications.
     """
     tiers = ["violet", "blue", "green", "yellow", "red"]
     examples = []
 
+    target_decade = f"{(target_year // 10) * 10}s" if target_year else None
+
     for color in tiers:
-        songs = (
-            db.query(Song)
-            .filter(Song.rubric_color == color)
-            .filter(Song.charge_summary.isnot(None))
-            .filter(Song.calibrated.is_(True))
-            .limit(20)
-            .all()
-        )
+        songs = []
+        # Prioritize same-decade examples if target_year provided
+        if target_decade:
+            same_decade = (
+                db.query(Song)
+                .filter(Song.rubric_color == color)
+                .filter(Song.charge_summary.isnot(None))
+                .filter(Song.calibrated.is_(True))
+                .filter(Song.decade == target_decade)
+                .limit(10)
+                .all()
+            )
+            songs.extend(same_decade)
+        # Fill remaining slots with any calibrated examples
+        if len(songs) < 20:
+            other = (
+                db.query(Song)
+                .filter(Song.rubric_color == color)
+                .filter(Song.charge_summary.isnot(None))
+                .filter(Song.calibrated.is_(True))
+                .limit(20 - len(songs))
+                .all()
+            )
+            # Avoid duplicates from same-decade query
+            seen = {(s.title, s.artist) for s in songs}
+            songs.extend(s for s in other if (s.title, s.artist) not in seen)
         for song in songs:
             entry = {
                 "title": song.title,
