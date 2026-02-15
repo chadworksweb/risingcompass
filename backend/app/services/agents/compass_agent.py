@@ -51,27 +51,44 @@ def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
 def _store_classification(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
                           db: Session) -> None:
-    """Store a new classification in the Song table for future reuse."""
-    current_year = date.today().year
-    decade = f"{(current_year // 10) * 10}s"
-
-    song = Song(
-        title=title,
-        artist=artist,
-        year=current_year,
-        decade=decade,
-        chart_position=chart_position,
-        rubric_color=result["rubric_color"],
-        charge_value=result.get("charge_value"),
-        contaminated=result["contaminated"],
-        contamination_note=result["contamination_note"],
-        charge_summary=result["charge_summary"],
-        message_analysis=result.get("message_analysis"),
-        expression_analysis=result.get("expression_analysis"),
-        intention_analysis=result.get("intention_analysis"),
-        chart_source=chart_source,
+    """Store or update a classification in the Song table for future reuse."""
+    existing = (
+        db.query(Song)
+        .filter(func.lower(Song.title) == title.lower())
+        .filter(func.lower(Song.artist) == artist.lower())
+        .first()
     )
-    db.add(song)
+
+    if existing:
+        existing.rubric_color = result["rubric_color"]
+        existing.charge_value = result.get("charge_value")
+        existing.contaminated = result["contaminated"]
+        existing.contamination_note = result["contamination_note"]
+        existing.charge_summary = result["charge_summary"]
+        existing.message_analysis = result.get("message_analysis")
+        existing.expression_analysis = result.get("expression_analysis")
+        existing.intention_analysis = result.get("intention_analysis")
+        existing.chart_source = chart_source
+    else:
+        current_year = date.today().year
+        decade = f"{(current_year // 10) * 10}s"
+        song = Song(
+            title=title,
+            artist=artist,
+            year=current_year,
+            decade=decade,
+            chart_position=chart_position,
+            rubric_color=result["rubric_color"],
+            charge_value=result.get("charge_value"),
+            contaminated=result["contaminated"],
+            contamination_note=result["contamination_note"],
+            charge_summary=result["charge_summary"],
+            message_analysis=result.get("message_analysis"),
+            expression_analysis=result.get("expression_analysis"),
+            intention_analysis=result.get("intention_analysis"),
+            chart_source=chart_source,
+        )
+        db.add(song)
 
 
 def run_compass_agent(
