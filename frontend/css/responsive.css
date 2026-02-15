@@ -55,6 +55,26 @@
     gap: 0.5rem;
   }
 
+  .song-tooltip {
+    left: 5%;
+    right: 5%;
+  }
+
+  .reading-charge-inner {
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+  }
+
+  .reading-charge-meta {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .contam-tooltip {
+    width: 180px;
+    right: -0.3rem;
+  }
+
   .track-assessment {
     display: none;
   }

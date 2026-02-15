@@ -2,20 +2,19 @@
 
 # Legacy fixed degrees per color (used when charge_value is missing)
 COLOR_DEGREES = {
-    "bright_green": 0.0,
-    "green": 45.0,
-    "neutral": 90.0,
-    "yellow": 90.0,
-    "orange": 135.0,
+    "violet": 0.0,
+    "blue": 45.0,
+    "green": 90.0,
+    "yellow": 135.0,
     "red": 180.0,
 }
 
 # Midpoint charge_values per tier (for legacy conversion)
 TIER_MIDPOINTS = {
-    "bright_green": 88,
-    "green": 50,
-    "yellow": 0,
-    "orange": -50,
+    "violet": 88,
+    "blue": 50,
+    "green": 0,
+    "yellow": -50,
     "red": -88,
 }
 
@@ -63,7 +62,7 @@ def compute_degree(songs: list[dict]) -> float:
         if cv is not None:
             deg = charge_to_degree(cv)
         else:
-            color = song.get("rubric_color", "yellow")
+            color = song.get("rubric_color", "green")
             deg = COLOR_DEGREES.get(color, 90.0)
 
         weighted_sum += deg * w

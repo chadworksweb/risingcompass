@@ -216,8 +216,8 @@
 </div>
 
 <script>
-const colors = ['bright_green','green','yellow','orange','red'];
-const colorLabels = {'bright_green':'Bright Green','green':'Green','yellow':'Yellow','orange':'Orange','red':'Red'};
+const colors = ['violet','blue','green','yellow','red'];
+const colorLabels = {'violet':'Violet','blue':'Blue','green':'Green','yellow':'Yellow','red':'Red'};
 
 // Set default dates
 document.getElementById('songDate').valueAsDate = new Date();
@@ -282,7 +282,7 @@ function updateContamVisibility(prefix, pos) {
   const colorSel = document.querySelector(`[data-field="${prefix}-color"][data-pos="${pos}"]`);
   const cb = document.querySelector(`[data-field="${prefix}-contam"][data-pos="${pos}"]`);
   const label = document.getElementById(`${prefix}-contam-label-${pos}`);
-  const topTier = ['bright_green', 'green', 'yellow'].includes(colorSel.value);
+  const topTier = ['violet', 'blue', 'green'].includes(colorSel.value);
   cb.disabled = !topTier;
   if (!topTier) {
     cb.checked = false;

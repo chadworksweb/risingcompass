@@ -27,10 +27,10 @@
   opacity: 1;
 }
 
-.compass-arc.bright_green { stroke: var(--rc-bright-green); }
+.compass-arc.violet { stroke: var(--rc-violet); }
+.compass-arc.blue { stroke: var(--rc-blue); }
 .compass-arc.green { stroke: var(--rc-green); }
 .compass-arc.yellow { stroke: var(--rc-yellow); }
-.compass-arc.orange { stroke: var(--rc-orange); }
 .compass-arc.red { stroke: var(--rc-red); }
 
 /* Tick marks */

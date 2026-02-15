@@ -17,7 +17,7 @@ def _historical_aggregate(db: Session) -> tuple[float, str]:
     """Compute aggregate degree from all historical songs."""
     songs = db.query(Song).all()
     if not songs:
-        return 90.0, "yellow"
+        return 90.0, "green"
     song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in songs]
     deg = compute_degree(song_dicts)
     return deg, degree_to_charge(deg)

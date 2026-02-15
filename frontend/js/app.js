@@ -2,18 +2,18 @@
 
 const App = (() => {
   const COLOR_HEX = {
-    bright_green: '#9933ff',
-    green: '#3388ff',
-    yellow: '#33cc55',
-    orange: '#ffbb33',
+    violet: '#9933ff',
+    blue: '#3388ff',
+    green: '#33cc55',
+    yellow: '#ffbb33',
     red: '#ff3333',
   };
 
   const CHARGE_LABELS = {
-    bright_green: 'Ascended',
-    green: 'Elevated',
-    yellow: 'Decent',
-    orange: 'Degraded',
+    violet: 'Ascended',
+    blue: 'Elevated',
+    green: 'Decent',
+    yellow: 'Degraded',
     red: 'Corrupted',
   };
 
@@ -116,21 +116,58 @@ const App = (() => {
     html += '<ul class="song-list">';
     const sortedSongs = [...data.songs].sort((a, b) => a.position - b.position);
     sortedSongs.forEach(song => {
+      const hasMEI = song.message_analysis || song.expression_analysis || song.intention_analysis;
+      const hasSummary = song.charge_summary || song.contamination_note;
+      const hasTooltip = hasMEI || hasSummary;
+      let tooltipHtml = '';
+      if (hasTooltip) {
+        let lines = '';
+        if (song.message_analysis) lines += `<div class="mei-line"><strong>M</strong> ${escapeHtml(song.message_analysis)}</div>`;
+        if (song.expression_analysis) lines += `<div class="mei-line"><strong>E</strong> ${escapeHtml(song.expression_analysis)}</div>`;
+        if (song.intention_analysis) lines += `<div class="mei-line"><strong>I</strong> ${escapeHtml(song.intention_analysis)}</div>`;
+        if (!hasMEI && song.charge_summary) lines += `<div class="mei-line">${escapeHtml(song.charge_summary)}</div>`;
+        if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
+        tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
+      }
       html += `
-        <li class="song-item">
+        <li class="song-item${hasTooltip ? ' has-tooltip' : ''}">
           <span class="song-pos">${song.position}</span>
           <span class="song-dot ${song.rubric_color}"></span>
           <div class="song-info">
             <div class="song-title">${escapeHtml(song.title)}</div>
             <div class="song-artist">${escapeHtml(song.artist)}</div>
           </div>
-          ${song.contaminated ? '<span class="song-contam">CONTAM</span>' : ''}
+          <div class="song-actions">
+            ${song.contaminated ? '<span class="song-contam">&#x2622;</span>' : ''}
+            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis">&#x1F4AC;</button>' : ''}
+          </div>
+          ${tooltipHtml}
         </li>
       `;
     });
     html += '</ul>';
 
     container.innerHTML = html;
+    initSongTooltips(container);
+  }
+
+  function initSongTooltips(container) {
+    container.querySelectorAll('.song-comment-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = btn.closest('.song-item');
+        const wasActive = item.classList.contains('active');
+        container.querySelectorAll('.song-item.active').forEach(el => el.classList.remove('active'));
+        if (!wasActive) item.classList.add('active');
+      });
+    });
+
+    // Dismiss on click outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.song-comment-btn')) {
+        container.querySelectorAll('.song-item.active').forEach(el => el.classList.remove('active'));
+      }
+    });
   }
 
   function renderAlbumReading(data) {
@@ -214,13 +251,13 @@ const App = (() => {
     let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
     svg += `<defs>
       <linearGradient id="traj-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${COLOR_HEX.bright_green}" />
-        <stop offset="35%" stop-color="${COLOR_HEX.green}" />
-        <stop offset="65%" stop-color="${COLOR_HEX.orange}" />
+        <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
+        <stop offset="35%" stop-color="${COLOR_HEX.blue}" />
+        <stop offset="65%" stop-color="${COLOR_HEX.yellow}" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" />
       </linearGradient>
       <linearGradient id="traj-area-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${COLOR_HEX.bright_green}" stop-opacity="0.2" />
+        <stop offset="0%" stop-color="${COLOR_HEX.violet}" stop-opacity="0.2" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
       </linearGradient>
       <clipPath id="traj-clip"><rect id="traj-clip-rect" x="0" y="0" width="${W}" height="${H}" /></clipPath>
@@ -261,7 +298,7 @@ const App = (() => {
 
     // Hover elements
     svg += `<line id="traj-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
-    svg += `<circle id="traj-hover-dot" cx="0" cy="0" r="4" class="traj-hover-dot" style="display:none" />`;
+    svg += `<circle id="traj-hover-dot" cx="0" cy="0" class="traj-hover-dot" style="display:none" />`;
     svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="traj-hover-area" />`;
     svg += '</svg>';
 
@@ -662,12 +699,12 @@ const App = (() => {
     const panel = document.getElementById('calc-mix');
     if (!panel) return;
 
-    const COLOR_DEGREES = { bright_green: 0, green: 45, yellow: 90, orange: 135, red: 180 };
+    const COLOR_DEGREES = { violet: 0, blue: 45, green: 90, yellow: 135, red: 180 };
     const tiers = [
-      { key: 'bright_green', label: 'Ascended', initial: 0 },
-      { key: 'green', label: 'Elevated', initial: 0 },
+      { key: 'violet', label: 'Ascended', initial: 0 },
+      { key: 'blue', label: 'Elevated', initial: 0 },
       { key: 'yellow', label: 'Decent', initial: 0 },
-      { key: 'orange', label: 'Degraded', initial: 5 },
+      { key: 'yellow', label: 'Degraded', initial: 5 },
       { key: 'red', label: 'Corrupted', initial: 5 },
     ];
 
@@ -875,10 +912,10 @@ const App = (() => {
   }
 
   function degreeToTier(deg) {
-    if (deg <= 22.5) return 'bright_green';
-    if (deg <= 67.5) return 'green';
-    if (deg <= 112.5) return 'yellow';
-    if (deg <= 157.5) return 'orange';
+    if (deg <= 22.5) return 'violet';
+    if (deg <= 67.5) return 'blue';
+    if (deg <= 112.5) return 'green';
+    if (deg <= 157.5) return 'yellow';
     return 'red';
   }
 
@@ -905,9 +942,12 @@ const App = (() => {
         }
         html += `</div>`;
 
+        const INITIAL_SHOW = 20;
         if (col.items.length) {
+          const visibleItems = col.items.slice(0, INITIAL_SHOW);
+          const hasMore = col.items.length > INITIAL_SHOW;
           html += '<ul class="elevated-items">';
-          col.items.forEach(item => {
+          visibleItems.forEach(item => {
             html += `<li class="elevated-item">`;
             if (item.cover_art_url) {
               html += `<img class="elevated-cover" src="${escapeHtml(item.cover_art_url)}" alt="" loading="lazy">`;
@@ -932,6 +972,9 @@ const App = (() => {
             html += `</li>`;
           });
           html += '</ul>';
+          if (hasMore) {
+            html += `<button class="elevated-show-more" data-collection="${escapeHtml(col.name)}" data-shown="${INITIAL_SHOW}">${col.items.length - INITIAL_SHOW} more</button>`;
+          }
         } else {
           html += '<p style="color:var(--rc-text-dim);font-size:0.82rem;padding:1rem 0;">No items in this collection yet.</p>';
         }
@@ -941,6 +984,33 @@ const App = (() => {
       html += '</div>';
 
       container.innerHTML = html;
+
+      // Wire "show more" buttons
+      container.querySelectorAll('.elevated-show-more').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const colName = btn.dataset.collection;
+          const col = collections.find(c => c.name === colName);
+          if (!col) return;
+          const shown = parseInt(btn.dataset.shown);
+          const next = shown + 20;
+          const newItems = col.items.slice(shown, next);
+          const list = btn.previousElementSibling;
+          newItems.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'elevated-item';
+            let inner = '';
+            if (item.cover_art_url) inner += `<img class="elevated-cover" src="${escapeHtml(item.cover_art_url)}" alt="" loading="lazy">`;
+            inner += `<span class="song-dot ${item.rubric_color}"></span>`;
+            inner += `<div class="elevated-item-info"><span class="elevated-item-title">${escapeHtml(item.title)}</span><span class="elevated-item-artist">${escapeHtml(item.artist)}</span></div>`;
+            li.innerHTML = inner;
+            list.appendChild(li);
+          });
+          btn.dataset.shown = next;
+          const remaining = col.items.length - next;
+          if (remaining <= 0) btn.remove();
+          else btn.textContent = `${remaining} more`;
+        });
+      });
     } catch (err) {
       container.innerHTML = '<p style="color:var(--rc-text-dim);text-align:center;">Could not load library.</p>';
     }
@@ -955,9 +1025,9 @@ const App = (() => {
       });
     });
 
-    // Check hash on load
-    const hash = window.location.hash.slice(1);
-    if (hash) setActiveSection(hash);
+    // Check hash on load, default to history
+    const hash = window.location.hash.slice(1) || 'history';
+    setActiveSection(hash);
   }
 
   function setActiveSection(section) {
@@ -986,7 +1056,7 @@ const App = (() => {
       const data = await API.getDrift();
       driftLoaded = true;
 
-      const COLOR_ORDER = ['bright_green', 'green', 'yellow', 'orange', 'red'];
+      const COLOR_ORDER = ['violet', 'blue', 'green', 'yellow', 'red'];
 
       let html = '<div class="decade-cards">';
       data.forEach(d => {

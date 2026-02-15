@@ -13,6 +13,15 @@ const Contamination = (() => {
         <div class="contam-tooltip"><strong>Contaminated songs:</strong> Songs in the top 3 tiers that carry content undercutting or distracting from being 100% pure.</div>
       </div>
     `;
+
+    // Tap support for mobile
+    const badge = document.getElementById('contam-badge');
+    if (badge) {
+      badge.addEventListener('click', () => badge.classList.toggle('active'));
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#contam-badge')) badge.classList.remove('active');
+      });
+    }
   }
 
   function setCount(count, total) {

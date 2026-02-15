@@ -2,10 +2,10 @@
 
 :root {
   /* Tier colors (Chakra Rainbow: violet → blue → green → yellow → red) */
-  --rc-bright-green: #9933ff;
-  --rc-green: #3388ff;
-  --rc-yellow: #33cc55;
-  --rc-orange: #ffbb33;
+  --rc-violet: #9933ff;
+  --rc-blue: #3388ff;
+  --rc-green: #33cc55;
+  --rc-yellow: #ffbb33;
   --rc-red: #ff3333;
 
   /* Background layers (darkest → lightest) */
@@ -243,10 +243,10 @@ body {
   flex-shrink: 0;
 }
 
-.song-dot.bright_green { background: var(--rc-bright-green); box-shadow: var(--rc-glow-sm) var(--rc-bright-green); }
+.song-dot.violet { background: var(--rc-violet); box-shadow: var(--rc-glow-sm) var(--rc-violet); }
+.song-dot.blue { background: var(--rc-blue); }
 .song-dot.green { background: var(--rc-green); }
 .song-dot.yellow { background: var(--rc-yellow); }
-.song-dot.orange { background: var(--rc-orange); }
 .song-dot.red { background: var(--rc-red); box-shadow: var(--rc-glow-sm) var(--rc-red); }
 
 .song-info { flex: 1; min-width: 0; }
@@ -265,10 +265,94 @@ body {
 }
 
 .song-contam {
-  font-size: 0.65rem;
+  font-size: 0.9rem;
   color: var(--rc-red);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  line-height: 1;
+  display: inline-block;
+  transform: scaleY(-1);
+  flex-shrink: 0;
+}
+
+/* Song M E I Tooltip */
+.song-item {
+  position: relative;
+}
+
+.song-tooltip {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 10;
+  background: rgba(235, 235, 245, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 5px;
+  padding: 0.4rem 0.55rem;
+  margin-top: 3px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  animation: tooltip-in 0.15s ease-out;
+}
+
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.song-item.has-tooltip.active .song-tooltip {
+  display: block;
+}
+
+.song-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.song-comment-btn {
+  background: none;
+  border: none;
+  padding: 0.4rem;
+  margin: -0.4rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.15s, filter 0.15s, transform 0.15s;
+  line-height: 1;
+}
+
+.song-comment-btn:hover {
+  opacity: 0.85;
+  filter: brightness(1.3);
+  transform: scale(1.15);
+}
+
+.song-item.active .song-comment-btn {
+  opacity: 0.8;
+}
+
+.mei-line {
+  font-size: 0.72rem;
+  color: rgba(20, 20, 30, 0.8);
+  line-height: 1.45;
+  padding: 0.05rem 0;
+}
+
+.mei-line strong {
+  color: rgba(10, 10, 20, 0.9);
+  font-family: var(--rc-font-mono);
+  margin-right: 0.3rem;
+  font-size: 0.65rem;
+}
+
+.mei-contam {
+  color: #cc2244;
+  margin-top: 0.2rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* === Charge Spectrum === */
@@ -281,10 +365,10 @@ body {
   height: 6px;
   border-radius: var(--rc-radius-xs);
   background: linear-gradient(to right,
-    var(--rc-bright-green),
+    var(--rc-violet),
+    var(--rc-blue),
     var(--rc-green),
     var(--rc-yellow),
-    var(--rc-orange),
     var(--rc-red)
   );
 }
@@ -343,6 +427,8 @@ body {
   flex-shrink: 0;
   font-size: 0.85rem;
   line-height: 1;
+  display: inline-block;
+  transform: scaleY(-1);
 }
 
 .contam-badge.zero .contam-icon {
@@ -378,7 +464,8 @@ body {
   z-index: 10;
 }
 
-.contam-badge:hover .contam-tooltip {
+.contam-badge:hover .contam-tooltip,
+.contam-badge.active .contam-tooltip {
   display: block;
 }
 
@@ -473,7 +560,8 @@ body {
 
 .traj-hover-dot {
   fill: var(--rc-bg-dark);
-  stroke-width: 2;
+  r: 2.8;
+  stroke-width: 1.8;
   pointer-events: none;
 }
 
@@ -1669,4 +1757,24 @@ body {
   color: var(--rc-text-dim);
   opacity: 0.6;
   flex-shrink: 0;
+}
+
+.elevated-show-more {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  margin-top: 0.5rem;
+  background: none;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.elevated-show-more:hover {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
 }

@@ -14,8 +14,8 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 RAW_FILE = DATA_DIR / "raw_post_1174.txt"
 
 COLOR_MAP = {
-    "bright-green": "bright_green",
-    "green": "green",
+    "bright-green": "violet",
+    "green": "blue",
     "red": "red",
 }
 
@@ -108,7 +108,7 @@ def extract_songs(content: str) -> list[dict]:
         card_match = re.match(r'\[aw_card\s+color="([^"]+)"\](.*)', line)
         if card_match and current_year:
             color_raw = card_match.group(1)
-            rubric_color = COLOR_MAP.get(color_raw, "green")
+            rubric_color = COLOR_MAP.get(color_raw, "blue")
 
             # Collect all lines until [/aw_card]
             card_content = card_match.group(2)

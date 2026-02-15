@@ -11,27 +11,27 @@ logger = logging.getLogger(__name__)
 
 # Rising Compass tier system
 COLOR_LABELS = {
-    "bright_green": "Ascended",
-    "green": "Elevated",
-    "yellow": "Decent",
-    "orange": "Degraded",
+    "violet": "Ascended",
+    "blue": "Elevated",
+    "green": "Decent",
+    "yellow": "Degraded",
     "red": "Corrupted",
 }
 
 COLOR_HEX = {
-    "bright_green": "#9933ff",
-    "green": "#3388ff",
-    "yellow": "#33cc55",
-    "orange": "#ffbb33",
+    "violet": "#9933ff",
+    "blue": "#3388ff",
+    "green": "#33cc55",
+    "yellow": "#ffbb33",
     "red": "#ff3333",
 }
 
 # Slightly muted versions for backgrounds on white
 COLOR_BG = {
-    "bright_green": "#f3e8ff",
-    "green": "#e8f0ff",
-    "yellow": "#e8fae8",
-    "orange": "#fff5e0",
+    "violet": "#f3e8ff",
+    "blue": "#e8f0ff",
+    "green": "#e8fae8",
+    "yellow": "#fff5e0",
     "red": "#ffe8e8",
 }
 

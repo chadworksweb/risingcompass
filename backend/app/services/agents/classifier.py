@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 AGENT_MODEL = "claude-sonnet-4-5-20250929"
 
-VALID_COLORS = {"bright_green", "green", "yellow", "orange", "red"}
+VALID_COLORS = {"violet", "blue", "green", "yellow", "red"}
 
 
 def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
@@ -104,12 +104,12 @@ def classify_song(
 
     # Validate rubric_color
     if result.get("rubric_color") not in VALID_COLORS:
-        result["rubric_color"] = "yellow"
+        result["rubric_color"] = "green"
 
-    # Red and orange cannot be contaminated — they are inherently low-frequency
-    color = result.get("rubric_color", "yellow")
+    # Red and yellow cannot be contaminated — they are inherently low-frequency
+    color = result.get("rubric_color", "green")
     contaminated = bool(result.get("contaminated", False))
-    if color in ("red", "orange"):
+    if color in ("red", "yellow"):
         contaminated = False
         result["contamination_note"] = None
 
@@ -132,19 +132,19 @@ def classify_song(
 
 # Tier ranges for charge_value validation
 TIER_RANGES = {
-    "bright_green": (75, 100),
-    "green": (25, 74),
-    "yellow": (-24, 24),
-    "orange": (-74, -25),
+    "violet": (75, 100),
+    "blue": (25, 74),
+    "green": (-24, 24),
+    "yellow": (-74, -25),
     "red": (-100, -75),
 }
 
 # Default midpoints per tier (used when charge_value is missing)
 TIER_MIDPOINTS = {
-    "bright_green": 88,
-    "green": 50,
-    "yellow": 0,
-    "orange": -50,
+    "violet": 88,
+    "blue": 50,
+    "green": 0,
+    "yellow": -50,
     "red": -88,
 }
 
@@ -169,7 +169,7 @@ def _validate_charge_value(raw_value, color: str) -> int:
 def _fallback_result(title: str, artist: str, raw_response: str) -> dict:
     """Return a safe fallback when Claude's response can't be parsed."""
     return {
-        "rubric_color": "yellow",
+        "rubric_color": "green",
         "charge_value": 0,
         "contaminated": False,
         "contamination_note": None,

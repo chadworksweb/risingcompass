@@ -32,6 +32,9 @@ class ReadingSongOut(BaseModel):
     contaminated: bool
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
     chart_source: Optional[str] = None
 
     model_config = {"from_attributes": True}

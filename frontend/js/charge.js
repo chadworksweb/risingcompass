@@ -2,10 +2,10 @@
 
 const Charge = (() => {
   const COLOR_HEX = {
-    bright_green: '#9933ff',
-    green: '#3388ff',
-    yellow: '#33cc55',
-    orange: '#ffbb33',
+    violet: '#9933ff',
+    blue: '#3388ff',
+    green: '#33cc55',
+    yellow: '#ffbb33',
     red: '#ff3333',
   };
 
@@ -32,10 +32,10 @@ const Charge = (() => {
 
     // Map charge color to position on gradient (0% = left/green, 100% = right/red)
     const positions = {
-      bright_green: 0,
-      green: 25,
-      yellow: 50,
-      orange: 75,
+      violet: 0,
+      blue: 25,
+      green: 50,
+      yellow: 75,
       red: 100,
     };
 

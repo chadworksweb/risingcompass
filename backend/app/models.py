@@ -122,7 +122,7 @@ class Collection(Base):
     name = Column(Text, nullable=False)
     slug = Column(String(200), unique=True, nullable=False)
     description = Column(Text)
-    charge_colors = Column(Text)  # Comma-separated: "bright_green,green"
+    charge_colors = Column(Text)  # Comma-separated: "violet,blue"
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
 

@@ -12,16 +12,16 @@ router = APIRouter(prefix="/api/drift", tags=["drift"])
 
 DECADE_ORDER = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"]
 
-# Historical data uses a 3-color system (bright_green, green, red).
-# "Green" in the old system meant "not bad" — a catch-all for everything
-# that wasn't bright_green or red. In the 5-color system, many of those
-# songs would be yellow or orange. We adjust the green mapping upward
+# Historical data uses a 3-color system (violet, blue, red).
+# "Blue" in the old system meant "not bad" — a catch-all for everything
+# that wasn't violet or red. In the 5-color system, many of those
+# songs would be green or yellow. We adjust the blue mapping upward
 # to reflect this coarseness honestly.
 HISTORICAL_DEGREES = {
-    "bright_green": 0.0,
-    "green": 65.0,  # old "not bad" ≈ upper Elevated, nearly Decent
-    "yellow": 90.0,
-    "orange": 135.0,
+    "violet": 0.0,
+    "blue": 65.0,  # old "not bad" ≈ upper Elevated, nearly Decent
+    "green": 90.0,
+    "yellow": 135.0,
     "red": 180.0,
 }
 
@@ -33,7 +33,7 @@ def compute_historical_degree(songs: list[dict]) -> float:
     total_weight = 0
     weighted_sum = 0.0
     for song in songs:
-        color = song.get("rubric_color", "yellow")
+        color = song.get("rubric_color", "green")
         pos = song.get("chart_position", 5)
         deg = HISTORICAL_DEGREES.get(color, 90.0)
         w = position_weight(pos)

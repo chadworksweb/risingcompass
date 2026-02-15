@@ -1,10 +1,10 @@
 """Map compass degree to charge level tier."""
 
 CHARGE_TIERS = [
-    (22.5, "bright_green", "Ascended"),
-    (67.5, "green", "Elevated"),
-    (112.5, "yellow", "Decent"),
-    (157.5, "orange", "Degraded"),
+    (22.5, "violet", "Ascended"),
+    (67.5, "blue", "Elevated"),
+    (112.5, "green", "Decent"),
+    (157.5, "yellow", "Degraded"),
     (180.0, "red", "Corrupted"),
 ]
 
@@ -28,10 +28,10 @@ def degree_to_label(degree: float) -> str:
 def charge_color_to_label(color: str) -> str:
     """Convert a charge color to its label."""
     labels = {
-        "bright_green": "Ascended",
-        "green": "Elevated",
-        "yellow": "Decent",
-        "orange": "Degraded",
+        "violet": "Ascended",
+        "blue": "Elevated",
+        "green": "Decent",
+        "yellow": "Degraded",
         "red": "Corrupted",
     }
     return labels.get(color, "Unknown")
