@@ -11,6 +11,7 @@ from app.models import Song
 from app.services.agents.rising_compass_agent_rubric import (
     build_few_shot_examples,
     build_classification_prompt,
+    truncate_mei,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,9 +44,9 @@ def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
             "contaminated": existing.contaminated,
             "contamination_note": existing.contamination_note,
             "charge_summary": existing.charge_summary,
-            "message_analysis": existing.message_analysis,
-            "expression_analysis": existing.expression_analysis,
-            "intention_analysis": existing.intention_analysis,
+            "message_analysis": truncate_mei(existing.message_analysis),
+            "expression_analysis": truncate_mei(existing.expression_analysis),
+            "intention_analysis": truncate_mei(existing.intention_analysis),
             "confidence": 1.0,  # human-calibrated = full confidence
         }
     return None
@@ -123,9 +124,9 @@ def classify_song(
         "contaminated": contaminated,
         "contamination_note": result.get("contamination_note"),
         "charge_summary": result.get("charge_summary", ""),
-        "message_analysis": result.get("message_analysis", ""),
-        "expression_analysis": result.get("expression_analysis", ""),
-        "intention_analysis": result.get("intention_analysis", ""),
+        "message_analysis": truncate_mei(result.get("message_analysis", "")),
+        "expression_analysis": truncate_mei(result.get("expression_analysis", "")),
+        "intention_analysis": truncate_mei(result.get("intention_analysis", "")),
         "confidence": float(result.get("confidence", 0.5)),
     }
 

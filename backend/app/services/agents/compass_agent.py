@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import AgentDraft, AgentDraftSong, Song
 from app.services.agents.classifier import classify_song, AGENT_MODEL
-from app.services.agents.rising_compass_agent_rubric import build_editorial_prompt
+from app.services.agents.rising_compass_agent_rubric import build_editorial_prompt, truncate_mei
 from app.services.agents.email_notifier import send_draft_email
 from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
@@ -41,9 +41,9 @@ def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
         "contaminated": existing.contaminated or False,
         "contamination_note": existing.contamination_note,
         "charge_summary": existing.charge_summary,
-        "message_analysis": existing.message_analysis,
-        "expression_analysis": existing.expression_analysis,
-        "intention_analysis": existing.intention_analysis,
+        "message_analysis": truncate_mei(existing.message_analysis),
+        "expression_analysis": truncate_mei(existing.expression_analysis),
+        "intention_analysis": truncate_mei(existing.intention_analysis),
         "confidence": 1.0,  # human-reviewed or previously classified
     }
 
@@ -110,7 +110,18 @@ def run_compass_agent(
             if cached["rubric_color"] in ("red", "yellow"):
                 cached["contaminated"] = False
                 cached["contamination_note"] = None
-            logger.info("Cache hit: %s by %s", title, artist)
+
+            # If M/E/I are missing, regenerate them via classifier but keep calibrated values
+            if not cached.get("message_analysis"):
+                logger.info("Cache hit but M/E/I missing, regenerating: %s by %s", title, artist)
+                lyrics = fetch_lyrics(title, artist)
+                fresh = classify_song(title, artist, lyrics=lyrics, db=None)  # db=None skips _lookup_existing
+                cached["message_analysis"] = fresh.get("message_analysis")
+                cached["expression_analysis"] = fresh.get("expression_analysis")
+                cached["intention_analysis"] = fresh.get("intention_analysis")
+            else:
+                logger.info("Cache hit: %s by %s", title, artist)
+
             classified_songs.append({
                 "title": title,
                 "artist": artist,
@@ -196,7 +207,7 @@ def run_compass_agent(
     db.refresh(draft)
 
     # Send email notification
-    send_draft_email(draft, draft.songs, settings)
+    send_draft_email(draft, draft.songs, settings, db=db)
 
     return draft
 

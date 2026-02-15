@@ -639,7 +639,7 @@ body {
 
 .trajectory-label {
   font-family: var(--rc-font-mono);
-  font-size: 0.55rem;
+  font-size: 0.4rem;
   fill: var(--rc-text-dim);
 }
 
@@ -667,6 +667,13 @@ body {
   r: 2.8;
   stroke-width: 1.8;
   pointer-events: none;
+  transition: r 75ms ease-out, opacity 75ms ease-out, filter 75ms ease-out;
+}
+
+.traj-hover-dot.click-pulse {
+  r: 2.1;
+  opacity: 0.77;
+  filter: saturate(0.5);
 }
 
 .traj-tooltip {

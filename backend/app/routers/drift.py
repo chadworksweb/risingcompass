@@ -7,6 +7,7 @@ from app.models import Song
 from app.schemas import DecadeAggregate, YearAggregate
 from app.services.compass_calc import compute_degree, position_weight
 from app.services.charge_calc import degree_to_charge
+from app.constants import CHART_SOURCES
 
 router = APIRouter(prefix="/api/drift", tags=["drift"])
 
@@ -50,24 +51,29 @@ def get_drift(db: Session = Depends(get_db)):
     results = []
 
     for decade in DECADE_ORDER:
-        songs = db.query(Song).filter(Song.decade == decade).all()
-        if not songs:
+        all_songs = db.query(Song).filter(Song.decade == decade).all()
+        if not all_songs:
             continue
 
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in songs]
-        deg = compute_historical_degree(song_dicts)
-        contam = sum(1 for s in songs if s.contaminated)
+        chart_songs = [s for s in all_songs if s.chart_source in CHART_SOURCES]
+        if not chart_songs:
+            continue
 
-        # Count songs per color
+        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in chart_songs]
+        deg = compute_historical_degree(song_dicts)
+        contam = sum(1 for s in chart_songs if s.contaminated)
+
+        # Count songs per color (charting songs only)
         color_counts = {}
-        for s in songs:
+        for s in chart_songs:
             color_counts[s.rubric_color] = color_counts.get(s.rubric_color, 0) + 1
 
         results.append(DecadeAggregate(
             decade=decade,
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
-            song_count=len(songs),
+            chart_song_count=len(chart_songs),
+            total_song_count=len(all_songs),
             contamination_count=contam,
             color_counts=color_counts,
         ))
@@ -110,18 +116,23 @@ def get_drift_years(db: Session = Depends(get_db)):
 
     results = []
     for (year,) in years:
-        songs = db.query(Song).filter(Song.year == year).all()
-        if not songs:
+        all_songs = db.query(Song).filter(Song.year == year).all()
+        if not all_songs:
             continue
 
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in songs]
+        chart_songs = [s for s in all_songs if s.chart_source in CHART_SOURCES]
+        if not chart_songs:
+            continue
+
+        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in chart_songs]
         deg = compute_historical_degree(song_dicts)
 
         results.append(YearAggregate(
             year=year,
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
-            song_count=len(songs),
+            chart_song_count=len(chart_songs),
+            total_song_count=len(all_songs),
         ))
 
     return results

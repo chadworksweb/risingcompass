@@ -156,7 +156,7 @@ def resend_draft_email(draft_id: int, db: Session = Depends(get_db)):
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
 
-    sent = send_draft_email(draft, draft.songs, settings)
+    sent = send_draft_email(draft, draft.songs, settings, db=db)
     if not sent:
         raise HTTPException(status_code=500, detail="Email failed — check SMTP config")
     return {"status": "sent", "to": settings.approval_email}

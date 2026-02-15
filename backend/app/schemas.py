@@ -1,6 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from typing import List, Optional
 import datetime
+
+
+def _degree_to_score(degree: float) -> int:
+    """Convert compass degree (0-180) to charge score (+100 to -100)."""
+    return round((90 - degree) * 100 / 90)
 
 
 # --- Songs ---
@@ -62,6 +67,11 @@ class DailyReadingOut(BaseModel):
     editorial_summary: Optional[str] = None
     songs: List[ReadingSongOut] = []
 
+    @computed_field
+    @property
+    def charge_score(self) -> int:
+        return _degree_to_score(self.compass_degree)
+
     model_config = {"from_attributes": True}
 
 
@@ -72,6 +82,11 @@ class DailyReadingSummary(BaseModel):
     charge_level: str
     contamination_count: int
     editorial_summary: Optional[str] = None
+
+    @computed_field
+    @property
+    def charge_score(self) -> int:
+        return _degree_to_score(self.compass_degree)
 
     model_config = {"from_attributes": True}
 
@@ -167,22 +182,51 @@ class CompassCurrent(BaseModel):
     album_editorial_summary: Optional[str] = None
     album_entries: List[WeeklyAlbumEntryOut] = []
 
+    @computed_field
+    @property
+    def charge_score(self) -> int:
+        return _degree_to_score(self.compass_degree)
+
+    @computed_field
+    @property
+    def historical_score(self) -> int:
+        return _degree_to_score(self.historical_degree)
+
+    @computed_field
+    @property
+    def album_charge_score(self) -> Optional[int]:
+        if self.album_compass_degree is None:
+            return None
+        return _degree_to_score(self.album_compass_degree)
+
 
 # --- Drift (decade aggregates) ---
 class DecadeAggregate(BaseModel):
     decade: str
     compass_degree: float
     charge_level: str
-    song_count: int
+    chart_song_count: int
+    total_song_count: int
     contamination_count: int
     color_counts: dict[str, int] = {}
+
+    @computed_field
+    @property
+    def charge_score(self) -> int:
+        return _degree_to_score(self.compass_degree)
 
 
 class YearAggregate(BaseModel):
     year: int
     compass_degree: float
     charge_level: str
-    song_count: int
+    chart_song_count: int
+    total_song_count: int
+
+    @computed_field
+    @property
+    def charge_score(self) -> int:
+        return _degree_to_score(self.compass_degree)
 
 
 # --- Albums ---
@@ -373,6 +417,13 @@ class DraftOut(BaseModel):
     agent_notes: Optional[str] = None
     songs: List[DraftSongOut] = []
 
+    @computed_field
+    @property
+    def charge_score(self) -> Optional[int]:
+        if self.compass_degree is None:
+            return None
+        return _degree_to_score(self.compass_degree)
+
     model_config = {"from_attributes": True}
 
 
@@ -385,6 +436,13 @@ class DraftSummary(BaseModel):
     charge_level: Optional[str] = None
     contamination_count: int = 0
     editorial_summary: Optional[str] = None
+
+    @computed_field
+    @property
+    def charge_score(self) -> Optional[int]:
+        if self.compass_degree is None:
+            return None
+        return _degree_to_score(self.compass_degree)
 
     model_config = {"from_attributes": True}
 
@@ -463,6 +521,11 @@ class DailyChartPoint(BaseModel):
     date: datetime.date
     compass_degree: float
     charge_level: str
+
+    @computed_field
+    @property
+    def charge_score(self) -> int:
+        return _degree_to_score(self.compass_degree)
 
     model_config = {"from_attributes": True}
 

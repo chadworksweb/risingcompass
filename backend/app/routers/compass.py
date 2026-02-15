@@ -14,8 +14,9 @@ router = APIRouter(prefix="/api/compass", tags=["compass"])
 
 
 def _historical_aggregate(db: Session) -> tuple[float, str]:
-    """Compute aggregate degree from all historical songs."""
-    songs = db.query(Song).all()
+    """Compute aggregate degree from charting songs only."""
+    from app.constants import CHART_SOURCES
+    songs = db.query(Song).filter(Song.chart_source.in_(CHART_SOURCES)).all()
     if not songs:
         return 90.0, "green"
     song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in songs]

@@ -3,6 +3,14 @@
 from sqlalchemy.orm import Session
 from app.models import Song
 
+
+def truncate_mei(text: str | None, max_words: int = 20) -> str | None:
+    """Truncate M/E/I text to max_words."""
+    if not text:
+        return text
+    words = text.split()
+    return ' '.join(words[:max_words]) if len(words) > max_words else text
+
 RUBRIC_DEFINITION = """You are a music classification agent for The Rising Compass — a cultural diagnostic tool that reads the energetic charge of popular music.
 
 ## The Core Rule: Songs, Not Artists
@@ -168,11 +176,11 @@ def build_few_shot_examples(db: Session) -> str:
                 "charge_summary": song.charge_summary,
             }
             if song.message_analysis:
-                entry["message_analysis"] = song.message_analysis
+                entry["message_analysis"] = truncate_mei(song.message_analysis)
             if song.expression_analysis:
-                entry["expression_analysis"] = song.expression_analysis
+                entry["expression_analysis"] = truncate_mei(song.expression_analysis)
             if song.intention_analysis:
-                entry["intention_analysis"] = song.intention_analysis
+                entry["intention_analysis"] = truncate_mei(song.intention_analysis)
             examples.append(entry)
 
     # Also grab a few contaminated examples across tiers

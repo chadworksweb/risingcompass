@@ -42,7 +42,7 @@ def _degree_to_score(degree: float) -> str:
     return f"{'+' if score > 0 else ''}{score}"
 
 
-def send_draft_email(draft, songs: list, config: Settings) -> bool:
+def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
     """Send an HTML email with draft summary for approval.
 
     Returns True if sent successfully, False otherwise.
@@ -51,10 +51,25 @@ def send_draft_email(draft, songs: list, config: Settings) -> bool:
         logger.warning("SMTP not configured — skipping email notification")
         return False
 
+    # Look up which songs are already calibrated
+    uncalibrated_titles = set()
+    if db:
+        from sqlalchemy import func
+        from app.models import Song
+        for s in songs:
+            existing = (
+                db.query(Song)
+                .filter(func.lower(Song.title) == s.title.lower())
+                .filter(Song.calibrated == True)
+                .first()
+            )
+            if not existing:
+                uncalibrated_titles.add(s.title.lower())
+
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
     subject = f"Rising Compass Draft — {draft.date} — {charge_label}"
 
-    html = _build_html(draft, songs, config)
+    html = _build_html(draft, songs, config, uncalibrated_titles=uncalibrated_titles)
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -74,8 +89,10 @@ def send_draft_email(draft, songs: list, config: Settings) -> bool:
         return False
 
 
-def _build_html(draft, songs: list, config: Settings) -> str:
+def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set = None) -> str:
     """Build the HTML email body — white background, Rising Compass brand."""
+    if uncalibrated_titles is None:
+        uncalibrated_titles = set()
     approve_url = f"{config.site_url}/api/admin/agent/drafts/{draft.id}/approve"
     admin_url = f"{config.site_url}/api/admin/dashboard"
 
@@ -94,6 +111,12 @@ def _build_html(draft, songs: list, config: Settings) -> str:
             'font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px;">'
             'contaminated</span>'
         ) if s.contaminated else ""
+
+        new_badge = (
+            '<span style="display:inline-block;background:#ff9500;color:#fff;'
+            'font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;'
+            'margin-left:6px;letter-spacing:0.05em;">NEW — NEEDS CALIBRATION</span>'
+        ) if s.title.lower() in uncalibrated_titles else ""
 
         # Charge value display
         cv = getattr(s, 'charge_value', None)
@@ -116,7 +139,7 @@ def _build_html(draft, songs: list, config: Settings) -> str:
         <tr>
             <td style="padding:30px 8px 10px;color:#999;font-family:'JetBrains Mono',monospace;font-size:13px;width:30px;vertical-align:top;">{s.position}</td>
             <td style="padding:30px 8px 10px;vertical-align:top;">
-                <div style="font-weight:600;color:#1a1a2e;font-size:14px;">{s.title}</div>
+                <div style="font-weight:600;color:#1a1a2e;font-size:14px;">{s.title}{new_badge}</div>
                 <div style="color:#666;font-size:13px;margin-top:2px;">{s.artist}</div>
             </td>
             <td style="padding:30px 8px 10px;vertical-align:top;white-space:nowrap;">

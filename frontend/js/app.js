@@ -326,8 +326,6 @@ const App = (() => {
       const tooltip = document.getElementById('traj-tooltip');
       if (!hoverLine) return;
 
-      saveCompassState();
-
       const rect = svgEl.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
       const svgX = relX * W;
@@ -350,7 +348,7 @@ const App = (() => {
       hoverDot.setAttribute('stroke', hex);
       hoverDot.style.display = '';
 
-      tooltip.innerHTML = `<strong>${d.year}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${d.song_count} songs analyzed</span>`;
+      tooltip.innerHTML = `<strong>${d.year}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${d.chart_song_count} charting songs</span>`;
       tooltip.style.display = 'block';
 
       const wrapRect = wrap.getBoundingClientRect();
@@ -358,11 +356,6 @@ const App = (() => {
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
-
-      // Update compass date to year only
-      setCompassDate(String(d.year));
-      Compass.setDegree(p.degree, p.color);
-      Charge.setLevel(p.color, 0, 0);
     });
 
     wrap.addEventListener('mouseleave', () => {
@@ -372,7 +365,29 @@ const App = (() => {
       if (hoverLine) hoverLine.style.display = 'none';
       if (hoverDot) hoverDot.style.display = 'none';
       if (tooltip) tooltip.style.display = 'none';
-      restoreCompassState();
+    });
+
+    // Click: move compass + charge bar to clicked year
+    wrap.addEventListener('click', (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const svgX = relX * W;
+
+      let nearest = 0, minDist = Infinity;
+      for (let i = 0; i <= maxIdx; i++) {
+        const dist = Math.abs(chartPoints[i].x - svgX);
+        if (dist < minDist) { minDist = dist; nearest = i; }
+      }
+
+      const p = chartPoints[nearest];
+      const d = chartData[nearest];
+      setCompassDate(String(d.year));
+      Compass.setDegree(p.degree, p.color);
+      Charge.setLevel(p.color, 0, 0);
+
+      const dot = document.getElementById('traj-hover-dot');
+      if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
+      pinchLine(chartPoints, nearest, svgEl.querySelector('.trajectory-line'), svgEl.querySelector('.trajectory-area'), padT, chartH);
     });
 
     // Set initial TM position to end
@@ -406,7 +421,7 @@ const App = (() => {
     if (yearEl) yearEl.textContent = nearest.year;
     if (scoreEl) { scoreEl.textContent = degreeToScore(deg); scoreEl.style.color = hex; }
     if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
-    if (countEl) countEl.textContent = `${nearest.song_count} songs`;
+    if (countEl) countEl.textContent = `${nearest.chart_song_count} charting songs`;
     if (progressFill) progressFill.style.width = (pos / max * 100) + '%';
     if (slider) slider.value = Math.round(pos);
     if (resetBtn) resetBtn.style.display = '';
@@ -516,7 +531,7 @@ const App = (() => {
         <span class="calc-decade" id="tm-year">${last.year}</span>
         <span class="calc-score" id="tm-score" style="color:${COLOR_HEX[last.charge_level] || '#888'}">${degreeToScore(last.compass_degree)}</span>
         <span class="calc-tier" id="tm-tier">${CHARGE_LABELS[last.charge_level]}</span>
-        <span class="calc-song-count" id="tm-count">${last.song_count} songs</span>
+        <span class="calc-song-count" id="tm-count">${last.chart_song_count} charting songs</span>
       </div>
       <div class="calc-playback">
         <button class="calc-play-btn" id="tm-rev" title="Play backward">
@@ -861,7 +876,8 @@ const App = (() => {
       dailyChartPoints.forEach((p, i) => {
         if (i % labelInterval === 0 || i === maxIdx) {
           const d = new Date(data[i].date + 'T00:00:00');
-          svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">${d.getDate()}/${d.getMonth() + 1}</text>`;
+          const anchor = i === 0 ? 'start' : i === maxIdx ? 'end' : 'middle';
+          svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}</text>`;
         }
       });
     }
@@ -889,8 +905,6 @@ const App = (() => {
       const hoverDot = document.getElementById('daily-hover-dot');
       const tooltip = document.getElementById('daily-tooltip');
       if (!hoverLine) return;
-
-      saveCompassState();
 
       const rect = svgEl.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
@@ -923,11 +937,6 @@ const App = (() => {
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
-
-      // Update compass date to full formatted date
-      setCompassDate(fdate);
-      Compass.setDegree(p.degree, p.color);
-      Charge.setLevel(p.color, 0, 0);
     });
 
     wrap.addEventListener('mouseleave', () => {
@@ -937,10 +946,9 @@ const App = (() => {
       if (hoverLine) hoverLine.style.display = 'none';
       if (hoverDot) hoverDot.style.display = 'none';
       if (tooltip) tooltip.style.display = 'none';
-      restoreCompassState();
     });
 
-    // Click to load full reading
+    // Click: move compass + needle + charge bar, load full reading
     wrap.addEventListener('click', (e) => {
       const rect = svgEl.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
@@ -951,7 +959,17 @@ const App = (() => {
         const dist = Math.abs(dailyChartPoints[i].x - svgX);
         if (dist < minDist) { minDist = dist; nearest = i; }
       }
-      viewArchiveReading(data[nearest].date);
+
+      const p = dailyChartPoints[nearest];
+      const d = data[nearest];
+      setCompassDate(formatDate(d.date));
+      Compass.setDegree(p.degree, p.color);
+      Charge.setLevel(p.color, 0, 0);
+      viewArchiveReading(d.date);
+
+      const dot = document.getElementById('daily-hover-dot');
+      if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
+      pinchLine(dailyChartPoints, nearest, svgEl.querySelector('.trajectory-line'), svgEl.querySelector('.trajectory-area'), padT, chartH);
     });
 
     dtmPosition = maxIdx;
@@ -1303,11 +1321,11 @@ const App = (() => {
     const panel = document.getElementById('calc-reverse');
     if (!panel) return;
 
-    const songCount = currentDecade.song_count;
+    const songCount = currentDecade.chart_song_count;
     const curDeg = currentDecade.compass_degree;
 
     panel.innerHTML = `
-      <p class="calc-context">The ${currentDecade.decade} sits at <strong>${degreeToScore(curDeg)}</strong> (${CHARGE_LABELS[currentDecade.charge_level]}) across ${songCount} songs.</p>
+      <p class="calc-context">The ${currentDecade.decade} sits at <strong>${degreeToScore(curDeg)}</strong> (${CHARGE_LABELS[currentDecade.charge_level]}) across ${songCount} charting songs.</p>
       <div class="calc-mix-row">
         <div class="calc-mix-group">
           <label>Target</label>
@@ -1417,6 +1435,36 @@ const App = (() => {
       }
       resultEl.innerHTML = '<span style="color:var(--rc-accent)">AI-powered playlist analysis is coming soon. Stay tuned.</span>';
     });
+  }
+
+  // --- Chart click pinch effect ---
+  function pinchLine(points, nearestIdx, lineEl, areaEl, padT, chartH) {
+    const radius = 20; // SVG units (~25px)
+    const strength = 0.35;
+    const target = points[nearestIdx];
+    const pinched = points.map(p => {
+      const dx = Math.abs(p.x - target.x);
+      if (dx > radius) return p;
+      const factor = strength * (1 - dx / radius);
+      return { ...p, x: p.x + (target.x - p.x) * factor };
+    });
+
+    const buildLine = pts => pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const pinchedPath = buildLine(pinched);
+    const last = pinched[pinched.length - 1];
+    const first = pinched[0];
+    const pinchedArea = pinchedPath + ` L ${last.x.toFixed(1)} ${padT + chartH} L ${first.x.toFixed(1)} ${padT + chartH} Z`;
+
+    if (lineEl) lineEl.setAttribute('d', pinchedPath);
+    if (areaEl) areaEl.setAttribute('d', pinchedArea);
+
+    // Restore
+    const origPath = buildLine(points);
+    const origArea = origPath + ` L ${points[points.length - 1].x.toFixed(1)} ${padT + chartH} L ${points[0].x.toFixed(1)} ${padT + chartH} Z`;
+    setTimeout(() => {
+      if (lineEl) lineEl.setAttribute('d', origPath);
+      if (areaEl) areaEl.setAttribute('d', origArea);
+    }, 100);
   }
 
   function degreeToTier(deg) {
@@ -1581,7 +1629,7 @@ const App = (() => {
         COLOR_ORDER.forEach(color => {
           const count = d.color_counts[color] || 0;
           if (count === 0) return;
-          const pct = (count / d.song_count) * 100;
+          const pct = (count / d.chart_song_count) * 100;
           barHtml += `<div class="decade-seg" style="width:${pct.toFixed(1)}%;background:${COLOR_HEX[color]}" title="${count} ${CHARGE_LABELS[color] || color}"></div>`;
         });
 
@@ -1603,7 +1651,7 @@ const App = (() => {
             </div>
             <div class="decade-bar">${barHtml}</div>
             <div class="decade-breakdown">${breakdownParts.join('<span class="decade-sep">/</span>')}</div>
-            <div class="decade-meta">${d.song_count} #1 hits analyzed</div>
+            <div class="decade-meta">${d.chart_song_count} charting songs analyzed${d.total_song_count > d.chart_song_count ? `<br><span class="decade-meta-total">${d.total_song_count} total songs</span>` : ''}</div>
           </div>
         `;
       });
