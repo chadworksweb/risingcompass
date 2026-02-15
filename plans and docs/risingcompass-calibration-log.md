@@ -6,6 +6,18 @@ The agent absorbs the same cultural blind spots as the mass populace. Calibratio
 
 ---
 
+## Three Workflows (Nomenclature)
+
+The system has three distinct data workflows. They are NOT the same thing.
+
+- **Reading** — daily live chart classification. Spotify Top 20 → classify → calibrate → publish as "Today's Charge." This is the only thing that drives the compass needle on the live site. One per day.
+- **Calibration** — training batches for the agent. Billboard year-end, test sets, or any group of songs classified for the purpose of correcting the agent and building training data. Feeds the Song table (few-shot examples) and the aggregate trajectory. NOT a daily reading. Examples: Draft #12 (2024 Billboard), Draft #15 (2025 Billboard).
+- **Backfill** — historical reclassification. 1960 onward, 10 songs/year. Agent classifies, human calibrates. Feeds the Song table and aggregate trajectory. The goal: once the agent nails 5 consecutive years without correction, it runs unsupervised through 2023.
+
+Songs from Calibration and Backfill contribute to the aggregate (trajectory chart, decade data) but NEVER appear as a daily Reading. Songs that repeat across years (e.g., on both 2024 and 2025 Billboard charts) contribute to EVERY year they appear — they don't count once and disappear.
+
+---
+
 ## Calibration Process
 
 1. **Agent classifies** — Spotify top 20 → Genius lyrics → Claude Sonnet 4.5 classifies each song with rubric + few-shot examples from Song table

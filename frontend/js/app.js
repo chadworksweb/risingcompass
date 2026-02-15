@@ -62,11 +62,12 @@ const App = (() => {
       // Set contamination
       Contamination.setCount(data.contamination_count, data.songs.length || 10);
 
-      // Set compass date
-      const dateEl = document.getElementById('compass-date');
-      if (dateEl) {
-        dateEl.textContent = data.has_reading ? formatDate(data.date) : 'Historical Aggregate';
-      }
+      // Set compass date (SVG element inside compass, fallback to HTML div)
+      const dateSvg = document.getElementById('compass-date-svg');
+      const dateHtml = document.getElementById('compass-date');
+      const dateText = data.has_reading ? formatDate(data.date) : 'Historical Aggregate';
+      if (dateSvg) dateSvg.textContent = dateText;
+      if (dateHtml) dateHtml.textContent = dateText;
 
       // Render right panel
       renderReading(data);
@@ -97,6 +98,18 @@ const App = (() => {
 
     let html = '';
     html += `<div class="reading-date">${formatDate(data.date)}</div>`;
+
+    // Daily charge summary
+    const dailyCharge = CHARGE_LABELS[data.charge_level] || data.charge_level;
+    const dailyHex = COLOR_HEX[data.charge_level] || '#888';
+    html += `<div class="reading-charge-bar" style="background:${dailyHex}">
+      <div class="reading-charge-inner">
+        <span class="reading-charge-score">${degreeToScore(data.compass_degree)}</span>
+        <span class="reading-charge-label">${dailyCharge}</span>
+        <span class="reading-charge-meta">${data.songs.length} songs &middot; ${data.contamination_count} contaminated</span>
+      </div>
+    </div>`;
+
     if (data.editorial_summary) {
       html += `<div class="reading-editorial">${escapeHtml(data.editorial_summary)}</div>`;
     }
@@ -125,47 +138,31 @@ const App = (() => {
     const container = document.getElementById('album-reading-content');
     if (!panel || !container) return;
 
-    const readingPanel = document.getElementById('reading-panel');
-    if (!data.has_album_reading) {
-      panel.style.display = 'none';
-      if (readingPanel) readingPanel.style.gridColumn = 'span 2';
-      return;
-    }
-
+    // Album panel is under development — show placeholder with overlay
     panel.style.display = '';
+    const readingPanel = document.getElementById('reading-panel');
     if (readingPanel) readingPanel.style.gridColumn = '';
-    let html = '';
-    html += `<div class="reading-date">Week of ${formatDate(data.album_week_date)}</div>`;
 
-    // Album compass summary
-    const albumCharge = CHARGE_LABELS[data.album_charge_level] || data.album_charge_level;
-    html += `<div style="font-size:0.82rem;color:var(--rc-text-dim);margin-bottom:0.8rem;">
-      Album compass: <strong style="color:${COLOR_HEX[data.album_charge_level] || '#888'}">${degreeToScore(data.album_compass_degree)} ${albumCharge}</strong>
-      — ${data.album_contamination_count} contaminated
-    </div>`;
-
-    if (data.album_editorial_summary) {
-      html += `<div class="reading-editorial">${escapeHtml(data.album_editorial_summary)}</div>`;
-    }
-
-    html += '<ul class="song-list">';
-    const sorted = [...data.album_entries].sort((a, b) => a.position - b.position);
-    sorted.forEach(album => {
-      html += `
-        <li class="song-item">
-          <span class="song-pos">${album.position}</span>
-          <span class="song-dot ${album.rubric_color}"></span>
-          <div class="song-info">
-            <div class="song-title">${escapeHtml(album.title)}</div>
-            <div class="song-artist">${escapeHtml(album.artist)}</div>
-          </div>
-          ${album.contaminated ? '<span class="song-contam">CONTAM</span>' : ''}
-        </li>
-      `;
-    });
-    html += '</ul>';
-
-    container.innerHTML = html;
+    container.innerHTML = `
+      <div style="position:relative;min-height:200px;">
+        <ul class="song-list" style="opacity:0.12;pointer-events:none;">
+          ${Array.from({length: 10}, (_, i) => `
+            <li class="song-item">
+              <span class="song-pos">${i + 1}</span>
+              <span class="song-dot yellow"></span>
+              <div class="song-info">
+                <div class="song-title" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${60 + Math.random() * 30}%;">&nbsp;</div>
+                <div class="song-artist" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${40 + Math.random() * 20}%;margin-top:4px;">&nbsp;</div>
+              </div>
+            </li>
+          `).join('')}
+        </ul>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0.5rem;">
+          <span style="font-size:1.4rem;opacity:0.4;">&#x1F6A7;</span>
+          <span style="font-family:var(--rc-font-mono);font-size:0.82rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--rc-text-dim);">Under Development</span>
+        </div>
+      </div>
+    `;
   }
 
   // --- Ghost Trail (past 30 days on compass) ---

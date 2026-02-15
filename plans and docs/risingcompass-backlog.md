@@ -30,6 +30,8 @@ Connection to existing rubric: this would inform the Expression dimension and co
 - [ ] **Frontend component** — feed section on the site, each entry is a card. Minimal design. Let the data speak.
 - [ ] **Backend model** — CompassMoment or similar. Title, songs involved, narrative, date. Admin creates via API or future admin panel.
 
-## Phase 4: Launch Prep
+## Phase 4: Albums & Launch Prep
 
+- [ ] **Weekly Top 10 Albums reading** — album charge panel with mini compass, editorial, and track-level breakdown. Backend: album reading model, agent classification. Frontend: album-reading-panel populated with real data (currently showing "under development" placeholder).
+- [ ] **Album Deep Dives section** — full album analyses with track-by-track scoring, already wired in frontend + backend but needs content pipeline.
 - [ ] Items TBD as Phase 3 solidifies

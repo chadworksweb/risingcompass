@@ -104,7 +104,16 @@
   text-transform: uppercase;
 }
 
-/* Date below compass */
+/* Date below compass — SVG version (inside compass) */
+.compass-date-text {
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  fill: var(--rc-text-dim);
+  text-anchor: middle;
+  letter-spacing: 0.08em;
+}
+
+/* Date below compass — HTML fallback (hidden when SVG version renders) */
 .compass-date {
   text-align: center;
   font-family: var(--rc-font-mono);
@@ -112,6 +121,7 @@
   color: var(--rc-text-dim);
   letter-spacing: 0.08em;
   margin-top: 0.2rem;
+  flex-shrink: 0;
 }
 
 /* Ghost trail — 30-day light trails */

@@ -97,6 +97,9 @@ const Compass = (() => {
     svg += `<rect class="compass-label-bg" x="${CX - 62}" y="${CY + 66}" width="124" height="29" rx="3" />`;
     svg += `<text class="compass-label-text" id="compass-charge-text" x="${CX}" y="${CY + 86}">LOADING</text>`;
 
+    // Date line — snug below label
+    svg += `<text class="compass-date-text" id="compass-date-svg" x="${CX}" y="${CY + 110}"></text>`;
+
     svg += `</svg>`;
     container.innerHTML = svg;
   }
