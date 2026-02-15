@@ -187,3 +187,16 @@ def update_weekly_album_reading(week_date: str, data: WeeklyAlbumReadingUpdate, 
     db.commit()
     db.refresh(reading)
     return reading
+
+
+# --- Database Backup ---
+
+@router.post("/backup", dependencies=[Depends(verify_admin_key)])
+def trigger_backup():
+    """Manually trigger a database backup."""
+    from app.services.backup import run_backup
+
+    path = run_backup()
+    if not path:
+        raise HTTPException(status_code=500, detail="Backup failed — check logs")
+    return {"status": "ok", "file": path.name}

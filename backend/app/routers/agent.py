@@ -9,13 +9,16 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, Song
 from app.schemas import (
+    BackfillResult, BackfillSongOut,
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, SongFeedIn, SongOut,
 )
 from app.routers.admin import verify_admin_key
 from app.services.agents.compass_agent import run_compass_agent
 from app.services.agents.chart_source import fetch_top_songs
+from app.services.agents.classifier import classify_song
 from app.services.agents.email_notifier import send_draft_email
+from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
@@ -249,3 +252,84 @@ def feed_song(data: SongFeedIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(song)
     return song
+
+
+@router.post("/backfill/{year}", response_model=BackfillResult, dependencies=[Depends(verify_admin_key)])
+def backfill_year(
+    year: int,
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Reclassify uncalibrated songs for a given year using the 5-tier rubric.
+
+    Only processes songs that are NOT calibrated. Fetches lyrics and runs
+    the full classification pipeline. Updates the Song table in place.
+
+    Args:
+        year: The year to backfill (e.g. 1965).
+        limit: Max songs to process per call (default 10, max 50).
+    """
+    # Get uncalibrated songs for this year
+    uncalibrated = (
+        db.query(Song)
+        .filter(Song.year == year)
+        .filter(Song.calibrated.is_(False))
+        .limit(limit)
+        .all()
+    )
+
+    calibrated_count = (
+        db.query(Song)
+        .filter(Song.year == year)
+        .filter(Song.calibrated.is_(True))
+        .count()
+    )
+
+    total_for_year = db.query(Song).filter(Song.year == year).count()
+
+    results = []
+    for song in uncalibrated:
+        # Fetch lyrics
+        lyrics = fetch_lyrics(song.title, song.artist)
+        lyrics_available = lyrics is not None
+
+        # Classify fresh — db=None to skip cache lookup
+        result = classify_song(song.title, song.artist, lyrics=lyrics, db=None)
+
+        # Update song in place
+        song.rubric_color = result["rubric_color"]
+        song.charge_value = result.get("charge_value")
+        song.contaminated = result["contaminated"]
+        song.contamination_note = result.get("contamination_note")
+        song.charge_summary = result.get("charge_summary")
+        song.message_analysis = result.get("message_analysis")
+        song.expression_analysis = result.get("expression_analysis")
+        song.intention_analysis = result.get("intention_analysis")
+        # Do NOT mark calibrated — human must review first
+
+        results.append(BackfillSongOut(
+            id=song.id,
+            title=song.title,
+            artist=song.artist,
+            year=song.year,
+            rubric_color=result["rubric_color"],
+            charge_value=result.get("charge_value"),
+            contaminated=result["contaminated"],
+            contamination_note=result.get("contamination_note"),
+            charge_summary=result.get("charge_summary"),
+            message_analysis=result.get("message_analysis"),
+            expression_analysis=result.get("expression_analysis"),
+            intention_analysis=result.get("intention_analysis"),
+            confidence=result.get("confidence"),
+            lyrics_available=lyrics_available,
+        ))
+
+    db.commit()
+
+    return BackfillResult(
+        year=year,
+        total_songs=total_for_year,
+        reclassified=len(results),
+        skipped_calibrated=calibrated_count,
+        songs=results,
+    )

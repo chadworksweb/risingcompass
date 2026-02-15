@@ -538,3 +538,31 @@ class MisreadBanOut(BaseModel):
     reason: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+# --- Backfill ---
+class BackfillSongOut(BaseModel):
+    id: int
+    title: str
+    artist: str
+    year: int
+    rubric_color: str
+    charge_value: Optional[int] = None
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+    confidence: Optional[float] = None
+    lyrics_available: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class BackfillResult(BaseModel):
+    year: int
+    total_songs: int
+    reclassified: int
+    skipped_calibrated: int
+    songs: List[BackfillSongOut]

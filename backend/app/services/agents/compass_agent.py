@@ -35,6 +35,10 @@ def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
     if not existing or not existing.rubric_color:
         return None
 
+    # Only trust calibrated (human-reviewed) songs as cache hits
+    if not existing.calibrated:
+        return None
+
     return {
         "rubric_color": existing.rubric_color,
         "charge_value": existing.charge_value,
@@ -44,7 +48,7 @@ def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
         "message_analysis": truncate_mei(existing.message_analysis),
         "expression_analysis": truncate_mei(existing.expression_analysis),
         "intention_analysis": truncate_mei(existing.intention_analysis),
-        "confidence": 1.0,  # human-reviewed or previously classified
+        "confidence": 1.0,  # human-reviewed
     }
 
 
