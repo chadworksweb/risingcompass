@@ -46,6 +46,72 @@
 
 ---
 
+## The Compass in Action (Ongoing Public Feed)
+
+Not a blog post — an ongoing feed of moments where the compass reveals something the culture missed. Short, punchy, shareable. Each entry is one moment with minimal commentary. Let the data speak.
+
+These live on risingcompass.com (not chadrising.com) — they ARE the product. The compass showing its work in public.
+
+### Format per entry:
+- The two (or more) songs involved
+- What the culture/press says about them
+- What the compass read
+- One line on why the difference matters
+- No preaching. No agenda. Mirror, not megaphone.
+
+### First Entry: "The Inversion" — Pink Pony Club vs. Love Somebody
+
+Same chart. Same year. Opposite errors.
+
+**Pink Pony Club** (Chappell Roan) — The internet called it a queer anthem of self-discovery. The AI gave it Elevated +68 based on the cultural narrative alone. The compass read the lyrics: someone going to a club. **Decent.**
+
+**Love Somebody** (Morgan Wallen) — Three of his other songs on this chart are Degraded. The AI saw the name and filed it as surface-level longing at -18. The compass read the lyrics: a man recognizing his own pattern of avoidance and wanting something real. First instinct: Elevated. It brought tears. But the compass corrected even that — tears aren't the test. The song longs for growth but stops at the longing. **Max Decent (+24).** The highest point you can reach without actual movement. The calibrator caught himself mid-read and wrote a new rule: longing is not elevation.
+
+The culture elevated what had the right branding. The culture buried what had the wrong name. The compass moved both toward the truth. And then corrected its own calibrator for reaching too far. That's how you know the mirror works — it doesn't spare anyone.
+
+No judgment. Just a reading.
+
+**Priority:** LAUNCH FEATURE — this feed is the compass's public proof of concept. Build as soon as frontend supports it.
+
+---
+
+### Second Entry: "Why Can't You Push Back on This?"
+
+After two years of Billboard Year-End Top 20 — 40 songs, zero Elevated, zero Ascended — we tried to challenge our own rubric. Find a hole. Name a bias. Show where it imposes a value system rather than reads one.
+
+We couldn't. Because the rubric doesn't define what's healthy and what's harmful. We already know. All of us. Jealousy isn't healthy. Contempt isn't love. Substance abuse isn't processing. These aren't opinions. These are things we understood before the first song was ever written.
+
+The compass doesn't have an opinion about what it shows you. A mirror doesn't judge. It just reads.
+
+If you see something different, the rubric is public. Every rule has a source. [Flag an incorrect analysis →]
+
+**Priority:** Publish after "The Inversion" entry. This is the philosophical backbone.
+
+---
+
+## Training the Mirror
+
+### 5. "Training the Mirror: How We Teach an AI to Hear What We've Stopped Hearing"
+
+**Core thesis:** The Compass Agent — an AI that classifies the energetic charge of popular music — absorbs the exact same cultural blind spots as the mass populace. It thinks love songs are automatically good. It gives famous artists the benefit of the doubt. It can't hear sexual innuendo when it's wrapped in vulnerability. Training it is like deprogramming a culture, one song at a time.
+
+**Key angles:**
+- The agent's first pass on the 2024 Billboard Year-End Top 20: it thought 6 songs were Elevated. Zero actually were. The entire Elevated tier was a hallucination. The agent did what most listeners do — assumed popular = positive.
+- Specific blind spots documented across 4+ calibration drafts: romance = elevated, tone over lyrics, artist reputation bias, sexual innuendo gets a pass, underrates corruption severity, materialism overlooked, fear mistaken for love, can't reach Ascended.
+- The Luther example: Kendrick Lamar & SZA. Agent said Elevated +48, "honest processing of toxic relationship cycles." Actual lyrics: sexual innuendo throughout, scattered materialism, "might even settle down" as the ceiling of commitment. Agent heard melancholic R&B and a famous name. The lyrics told a completely different story.
+- The training process: human calibrates every draft, corrects every tier, ranks within tiers, documents why the agent was wrong. Corrections become training data. Blind spots become rubric rules. The rubric has grown from 5 rules to 9+ because of what calibration revealed.
+- The deeper point: if an AI trained on human culture can't hear what's actually being said in a song, what does that tell us about how WE listen? The agent is a mirror of the mirror.
+
+**Tone:** Fascinating, not preachy. This is a story about what happens when you try to teach a machine to do something humans have stopped doing — actually listening.
+
+**Published on:** chadrising.com
+
+**Reference:** Full calibration log with draft-by-draft data at `plans and docs/risingcompass-calibration-log.md`
+
+**Priority:** HIGH — unique angle nobody else has. AI + music criticism + cultural diagnostics. Publishable after Draft #15 calibration completes.
+
+---
+
 ## Methodology / Rubric Deep Dives
 
 ### 2. "The Triple Repeat: One of Popular Music's Worst Offenses"

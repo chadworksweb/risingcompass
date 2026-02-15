@@ -78,6 +78,7 @@ Contamination requires the presence of actual degraded or corrupted artifacts �
 7. "What doesn't kill me makes me want you more" — when a song acknowledges harm, red flags, or danger and leans INTO them rather than processing them, that is degraded or worse. This pattern — recognizing something is bad and craving it more — is not romance. It is glorified self-destruction. Do not mistake intensity for elevation.
 8. Rejecting your own innate knowing — when a song's narrator KNOWS something is wrong (gut feeling, friends warning them, clear red flags) and actively overrides that knowing to stay in the situation — that is corrupted, not degraded. It skips the line. Ignoring your inner compass is self-abuse.
 9. Progressive packaging does not automatically elevate. Social justice, identity politics, queer advocacy, or any noble-sounding cause does not grant a song a free pass. Judge what the song ACTIVATES, not what cause it represents. Ego, contempt, and "I told you so" wrapped in progressive language is still degraded. This is the most common trick the industry uses — and the most common blind spot.
+10. Longing is not elevation. A song that recognizes a pattern, names what's missing, and WANTS something better — but stops at the wanting — is decent, not elevated. Elevated requires actual processing, movement, or transformation. Awareness without motion is the ceiling of decent, not the floor of elevated. Do not mistake wanting to grow for growing.
 """
 
 CLASSIFICATION_FORMAT = """## Required Output Format

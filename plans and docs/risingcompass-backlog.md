@@ -25,6 +25,11 @@ The thesis: these aren't just cheap songwriting. They are techniques — whether
 
 Connection to existing rubric: this would inform the Expression dimension and could act as a contamination-like modifier or a separate axis alongside charge_value.
 
+## "Compass in Action" Public Feed
+- [ ] **Ongoing feed of landmark moments** — short, punchy entries where the compass reveals something the culture missed. Lives on risingcompass.com. Not editorial, not blog posts — the compass showing its work in public. Each entry: the songs, what the culture says, what the compass read, one line on why it matters. Mirror, not megaphone. First entry: Pink Pony Club vs. Love Somebody inversion from Draft #15.
+- [ ] **Frontend component** — feed section on the site, each entry is a card. Minimal design. Let the data speak.
+- [ ] **Backend model** — CompassMoment or similar. Title, songs involved, narrative, date. Admin creates via API or future admin panel.
+
 ## Phase 4: Launch Prep
 
 - [ ] Items TBD as Phase 3 solidifies
