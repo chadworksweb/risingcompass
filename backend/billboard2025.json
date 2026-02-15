@@ -1,0 +1,25 @@
+{
+  "date": "2025-12-31",
+  "songs": [
+    {"title": "Die with a Smile", "artist": "Lady Gaga and Bruno Mars", "position": 1, "chart_source": "billboard_yearend_2025"},
+    {"title": "Luther", "artist": "Kendrick Lamar and SZA", "position": 2, "chart_source": "billboard_yearend_2025"},
+    {"title": "A Bar Song (Tipsy)", "artist": "Shaboozey", "position": 3, "chart_source": "billboard_yearend_2025"},
+    {"title": "Lose Control", "artist": "Teddy Swims", "position": 4, "chart_source": "billboard_yearend_2025"},
+    {"title": "Birds of a Feather", "artist": "Billie Eilish", "position": 5, "chart_source": "billboard_yearend_2025"},
+    {"title": "Beautiful Things", "artist": "Benson Boone", "position": 6, "chart_source": "billboard_yearend_2025"},
+    {"title": "Ordinary", "artist": "Alex Warren", "position": 7, "chart_source": "billboard_yearend_2025"},
+    {"title": "I Had Some Help", "artist": "Post Malone featuring Morgan Wallen", "position": 8, "chart_source": "billboard_yearend_2025"},
+    {"title": "APT.", "artist": "Rosé and Bruno Mars", "position": 9, "chart_source": "billboard_yearend_2025"},
+    {"title": "Pink Pony Club", "artist": "Chappell Roan", "position": 10, "chart_source": "billboard_yearend_2025"},
+    {"title": "Love Somebody", "artist": "Morgan Wallen", "position": 11, "chart_source": "billboard_yearend_2025"},
+    {"title": "Espresso", "artist": "Sabrina Carpenter", "position": 12, "chart_source": "billboard_yearend_2025"},
+    {"title": "I'm the Problem", "artist": "Morgan Wallen", "position": 13, "chart_source": "billboard_yearend_2025"},
+    {"title": "That's So True", "artist": "Gracie Abrams", "position": 14, "chart_source": "billboard_yearend_2025"},
+    {"title": "TV Off", "artist": "Kendrick Lamar featuring Lefty Gunplay", "position": 15, "chart_source": "billboard_yearend_2025"},
+    {"title": "Timeless", "artist": "The Weeknd and Playboi Carti", "position": 16, "chart_source": "billboard_yearend_2025"},
+    {"title": "Not Like Us", "artist": "Kendrick Lamar", "position": 17, "chart_source": "billboard_yearend_2025"},
+    {"title": "Just in Case", "artist": "Morgan Wallen", "position": 18, "chart_source": "billboard_yearend_2025"},
+    {"title": "Taste", "artist": "Sabrina Carpenter", "position": 19, "chart_source": "billboard_yearend_2025"},
+    {"title": "Squabble Up", "artist": "Kendrick Lamar", "position": 20, "chart_source": "billboard_yearend_2025"}
+  ]
+}
