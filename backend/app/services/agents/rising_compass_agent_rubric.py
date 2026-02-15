@@ -65,6 +65,8 @@ Examples of contamination:
 
 Contamination is MORE dangerous than pure degradation because it carries the cover of substance. The listener absorbs the low-frequency payload without conscious detection.
 
+Contamination requires the presence of actual degraded or corrupted artifacts — substance references, objectification, ego payloads, violence, etc. A song that is simply not deep enough to be elevated is NOT contaminated — it's just decent. Fear of lack, needing someone to be complete, or surface-level emotional processing are not contaminants. They are just decent-level depth.
+
 ## Classification Rules
 
 1. A sad song is NOT automatically red or orange. A breakup song that processes grief honestly is green. One that agitates contempt or revenge fantasies is orange or red.
@@ -73,6 +75,9 @@ Contamination is MORE dangerous than pure degradation because it carries the cov
 4. Love songs range the full spectrum — see "Topics Don't Determine Tiers" above. The default assumption that "it's a love song so it must be good" is exactly the blind spot this rubric corrects.
 5. The pairing-off default — songs about romantic relationships, dating, attraction — is NOT automatically elevated. The whole cultural assumption that coupling = good is part of the problem. Unless a relationship song demonstrates growth, healing, or transcendence, it's decent at best.
 6. When in doubt between two adjacent tiers, consider the INTENTION — what does this song activate in the listener?
+7. "What doesn't kill me makes me want you more" — when a song acknowledges harm, red flags, or danger and leans INTO them rather than processing them, that is degraded or worse. This pattern — recognizing something is bad and craving it more — is not romance. It is glorified self-destruction. Do not mistake intensity for elevation.
+8. Rejecting your own innate knowing — when a song's narrator KNOWS something is wrong (gut feeling, friends warning them, clear red flags) and actively overrides that knowing to stay in the situation — that is corrupted, not degraded. It skips the line. Ignoring your inner compass is self-abuse.
+9. Progressive packaging does not automatically elevate. Social justice, identity politics, queer advocacy, or any noble-sounding cause does not grant a song a free pass. Judge what the song ACTIVATES, not what cause it represents. Ego, contempt, and "I told you so" wrapped in progressive language is still degraded. This is the most common trick the industry uses — and the most common blind spot.
 """
 
 CLASSIFICATION_FORMAT = """## Required Output Format
@@ -93,7 +98,7 @@ Respond with ONLY a JSON object (no markdown, no code blocks, no extra text):
 
 ## charge_value: The Per-Song Charge
 
-charge_value is a precise score from +100 (peak Ascended) to -100 (peak Corrupted). It captures nuance WITHIN tiers — a strong green is different from a weak green.
+charge_value is a precise score from +100 (peak Ascended) to -100 (peak Corrupted). The scale is a war-to-peace axis: -100 = all-out war (with self or others), +100 = all-out peace (with self or community, local or universal). Every song falls somewhere on that spectrum. It captures nuance WITHIN tiers — a strong green is different from a weak green.
 
 Tier ranges (charge_value must fall within the tier's range):
 
@@ -146,7 +151,7 @@ def build_few_shot_examples(db: Session) -> str:
             db.query(Song)
             .filter(Song.rubric_color == color)
             .filter(Song.charge_summary.isnot(None))
-            .limit(5)
+            .limit(20)
             .all()
         )
         for song in songs:

@@ -6,7 +6,7 @@ import json
 class Settings(BaseSettings):
     rc_admin_key: str = "change-me"
     database_url: str = "sqlite:///./data/rising_compass.db"
-    cors_origins: str = '["http://localhost:3000","https://risingcompass.com"]'
+    cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","https://risingcompass.com"]'
 
     # Anthropic API
     anthropic_api_key: str = ""

@@ -159,7 +159,7 @@ def _build_html(draft, songs: list, config: Settings) -> str:
                     </td>
                     <td style="padding:0 16px;">
                         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#999;margin-bottom:4px;">Contamination</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:{'#ff3333' if draft.contamination_count > 0 else '#33cc55'};">{draft.contamination_count}<span style="font-size:13px;color:#999;font-weight:400;">/{len(songs)}</span></div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:{'#ff3333' if draft.contamination_count > 0 else '#33cc55'};">{draft.contamination_count}</div>
                     </td>
                 </tr>
             </table>

@@ -7,7 +7,8 @@ from anthropic import Anthropic
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.services.agents.prompts import (
+from app.models import Song
+from app.services.agents.rising_compass_agent_rubric import (
     build_few_shot_examples,
     build_classification_prompt,
 )
@@ -19,6 +20,37 @@ AGENT_MODEL = "claude-sonnet-4-5-20250929"
 VALID_COLORS = {"bright_green", "green", "yellow", "orange", "red"}
 
 
+def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
+    """Check if a song already exists in the Song table with a calibrated classification.
+
+    Returns the existing classification dict if found, None otherwise.
+    Only returns songs that have a charge_value (i.e. have been calibrated).
+    """
+    # Match on title (case-insensitive) — artist names vary across sources
+    existing = (
+        db.query(Song)
+        .filter(Song.title.ilike(title))
+        .filter(Song.charge_value.isnot(None))
+        .order_by(Song.id.desc())  # most recent calibration wins
+        .first()
+    )
+    if existing:
+        logger.info("Using existing calibration for '%s' by %s: %s %s",
+                     title, artist, existing.rubric_color, existing.charge_value)
+        return {
+            "rubric_color": existing.rubric_color,
+            "charge_value": existing.charge_value,
+            "contaminated": existing.contaminated,
+            "contamination_note": existing.contamination_note,
+            "charge_summary": existing.charge_summary,
+            "message_analysis": existing.message_analysis,
+            "expression_analysis": existing.expression_analysis,
+            "intention_analysis": existing.intention_analysis,
+            "confidence": 1.0,  # human-calibrated = full confidence
+        }
+    return None
+
+
 def classify_song(
     title: str,
     artist: str,
@@ -27,9 +59,18 @@ def classify_song(
 ) -> dict:
     """Classify a single song using the Rising Compass rubric via Claude.
 
+    If the song already exists in the Song table with a calibrated charge_value,
+    returns the existing classification instead of reclassifying.
+
     Returns a dict with rubric_color, contaminated, contamination_note,
     charge_summary, message_analysis, expression_analysis, intention_analysis, confidence.
     """
+    # Check for existing calibrated classification first
+    if db:
+        existing = _lookup_existing(title, artist, db)
+        if existing:
+            return existing
+
     client = Anthropic(api_key=settings.anthropic_api_key)
 
     # Build few-shot examples from existing data

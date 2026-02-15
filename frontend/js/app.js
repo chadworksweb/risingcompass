@@ -191,7 +191,7 @@ const App = (() => {
   let tmDirection = 1;
   const TM_SPEEDS = [0.5, 1, 2, 4];
   let tmSpeedIdx = 1;
-  const TM_BASE_SPEED = 3;
+  const TM_BASE_SPEED = 1.5;
 
   function renderTrajectoryChart(data, container) {
     if (!data.length) return;
@@ -419,6 +419,10 @@ const App = (() => {
     tmPlaying = true;
     tmAnimate.lastTime = null;
 
+    // Hide year detail during playback
+    const yearDetail = document.getElementById('tm-year-detail');
+    if (yearDetail) yearDetail.style.display = 'none';
+
     const needle = document.getElementById('compass-needle');
     if (needle) needle.classList.add('no-transition');
 
@@ -447,6 +451,10 @@ const App = (() => {
     });
     const playIcon = document.getElementById('tm-play-icon');
     if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
+
+    // Show year detail stub
+    const yearDetail = document.getElementById('tm-year-detail');
+    if (yearDetail) yearDetail.style.display = '';
   }
 
   function initTimeMachineControls(container) {
@@ -479,6 +487,9 @@ const App = (() => {
         <div class="calc-progress"><div class="calc-progress-fill" id="tm-progress" style="width:100%"></div></div>
         <button class="calc-speed-btn" id="tm-speed">1x</button>
         <button class="calc-reset" id="tm-reset" style="display:none;">Reset</button>
+      </div>
+      <div id="tm-year-detail" class="tm-year-detail" style="margin-top:8px;display:none;">
+        <button class="calc-btn" id="tm-view-year" style="font-size:11px;opacity:0.6;cursor:default;">View songs from this year (coming soon)</button>
       </div>
     `;
 

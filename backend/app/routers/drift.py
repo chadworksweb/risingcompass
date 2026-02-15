@@ -75,6 +75,29 @@ def get_drift(db: Session = Depends(get_db)):
     return results
 
 
+@router.get("/years/{year}/songs")
+def get_year_songs(year: int, db: Session = Depends(get_db)):
+    """Top 10 songs for a specific year, ordered by chart position."""
+    songs = (
+        db.query(Song)
+        .filter(Song.year == year)
+        .order_by(Song.chart_position)
+        .limit(10)
+        .all()
+    )
+    return [
+        {
+            "title": s.title,
+            "artist": s.artist,
+            "rubric_color": s.rubric_color,
+            "charge_value": s.charge_value,
+            "contaminated": s.contaminated,
+            "chart_position": s.chart_position,
+        }
+        for s in songs
+    ]
+
+
 @router.get("/years", response_model=list[YearAggregate])
 def get_drift_years(db: Session = Depends(get_db)):
     """Year-by-year aggregate compass data for Time Machine."""

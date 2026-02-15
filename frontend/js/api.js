@@ -1,8 +1,9 @@
 /* === API Client === */
 
 const API = (() => {
-  const BASE = window.location.hostname === 'localhost'
-    ? 'http://localhost:8000'
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const BASE = isLocal
+    ? `http://${window.location.hostname}:8000`
     : 'https://api.risingcompass.com';
 
   async function get(path) {
@@ -17,6 +18,7 @@ const API = (() => {
     getReading: (date) => get(`/api/compass/reading/${date}`),
     getDrift: () => get('/api/drift'),
     getDriftYears: () => get('/api/drift/years'),
+    getYearSongs: (year) => get(`/api/drift/years/${year}/songs`),
     getAlbums: () => get('/api/albums'),
     getAlbum: (slug) => get(`/api/albums/${slug}`),
     getWeeklyAlbumsCurrent: () => get('/api/weekly-albums/current'),
