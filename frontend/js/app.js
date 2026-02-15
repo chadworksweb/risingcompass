@@ -250,14 +250,16 @@ const App = (() => {
 
     let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
     svg += `<defs>
-      <linearGradient id="traj-grad" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="traj-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
-        <stop offset="35%" stop-color="${COLOR_HEX.blue}" />
-        <stop offset="65%" stop-color="${COLOR_HEX.yellow}" />
+        <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
+        <stop offset="50%" stop-color="${COLOR_HEX.green}" />
+        <stop offset="75%" stop-color="${COLOR_HEX.yellow}" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" />
       </linearGradient>
-      <linearGradient id="traj-area-grad" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="traj-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" stop-opacity="0.2" />
+        <stop offset="50%" stop-color="${COLOR_HEX.green}" stop-opacity="0.05" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
       </linearGradient>
       <clipPath id="traj-clip"><rect id="traj-clip-rect" x="0" y="0" width="${W}" height="${H}" /></clipPath>
