@@ -327,6 +327,12 @@ The agent defaults to tier midpoints (-45, +45, -88) rather than spreading value
 | Backfill 1962 | 7 | 0 | 0% | All wrong. Called 2 Degraded and 1 Elevated when everything was Decent. |
 | Backfill 1963 | 10 | 0 | 0% | All wrong. 4 Elevated should be Decent, 2 Degraded should be Decent, 2 Degraded correct tier wrong charge. |
 | **--- Rule 11 + era-weighted few-shot + backfill bug fix added here ---** | | | | |
+| Backfill 1964 | 10 | 2 | 20% | Hello Dolly! = Corrupted (first). Help!/Crying Chapel correct. |
+| Backfill 1965 | 10 | 2 | 20% | Slight improvement post-fixes. Downtown: agent said Degraded, human said Elevated. |
+| Backfill 1966 | 10 | 5 | 50% | Best backfill yet. Agent nailed Reach Out (+68 exact), 96 Tears, Brokenhearted, Boots, Strangers. Missed Kicks (Elevated→Ascended), California Dreamin'/Cherish/Green Berets (Degraded→Decent), Clarksville (Elevated→Decent). |
+| Backfill 1967 | 10 | 6 | 60% | New high. Agent got To Sir With Love, Windy, I'm a Believer, Light My Fire, Happy Together, Can't Take My Eyes Off You. Over-elevated The Letter/Groovin' (Elevated→Decent). Over-classified Ode to Billie Joe (Ascended→Elevated). Somethin' Stupid (Degraded→Decent) — still reading too much into simple love songs. |
+| Backfill 1968 | 8 | 7 | 87.5% | 2 instrumentals deleted (Love is Blue, Good Bad Ugly). Only miss: Dock of the Bay (Elevated→Decent — just observing, not processing). Nailed Hey Jude + People Got to Be Free as Ascended. |
+| Backfill 1969 | 10 | 5 | 50% | Nailed Aquarius + Everyday People (Ascended). Over-degraded 3 simple songs (I Can't Get Next to You, Dizzy, I'll Never Fall in Love Again → all Decent). Missed Honky Tonk Women (Degraded→Corrupted, drug refs + sexual conquest). First Corrupted in 1960s backfill. |
 
 **Accuracy is measured on NEW songs only** (repeats pulled from calibration don't count as agent decisions).
 
