@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
+import shutil
+import tempfile
 
 from app.database import get_db
 from app.models import DailyReading, ReadingSong, WeeklyAlbumReading, WeeklyAlbumEntry
@@ -189,7 +191,7 @@ def update_weekly_album_reading(week_date: str, data: WeeklyAlbumReadingUpdate, 
     return reading
 
 
-# --- Database Backup ---
+# --- Database Backup & Export ---
 
 @router.post("/backup", dependencies=[Depends(verify_admin_key)])
 def trigger_backup():
@@ -200,3 +202,26 @@ def trigger_backup():
     if not path:
         raise HTTPException(status_code=500, detail="Backup failed — check logs")
     return {"status": "ok", "file": path.name}
+
+
+@router.get("/db-export", dependencies=[Depends(verify_admin_key)])
+def export_database():
+    """Download a snapshot of the current database file.
+
+    Copies the DB to a temp file first to avoid locking issues.
+    Use: curl -H "X-Admin-Key: YOUR_KEY" https://api.risingcompass.net/api/admin/db-export -o rising_compass.db
+    """
+    db_path = Path("data/rising_compass.db")
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="Database file not found")
+
+    # Copy to temp file to avoid read locks on the live DB
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    shutil.copy2(db_path, tmp.name)
+    tmp.close()
+
+    return FileResponse(
+        tmp.name,
+        media_type="application/octet-stream",
+        filename="rising_compass.db",
+    )

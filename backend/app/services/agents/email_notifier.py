@@ -113,9 +113,9 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set =
         ) if s.contaminated else ""
 
         new_badge = (
-            '<span style="display:inline-block;background:#ff9500;color:#fff;'
-            'font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;'
-            'margin-left:6px;letter-spacing:0.05em;">NEW — NEEDS CALIBRATION</span>'
+            '<div style="display:inline-block;background:#fff5e0;color:#cc7700;'
+            'font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;'
+            'margin-top:3px;letter-spacing:0.04em;border:1px solid #ffe0a0;">NEW</div>'
         ) if s.title.lower() in uncalibrated_titles else ""
 
         # Charge value display
@@ -139,8 +139,9 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set =
         <tr>
             <td style="padding:30px 8px 10px;color:#999;font-family:'JetBrains Mono',monospace;font-size:13px;width:30px;vertical-align:top;">{s.position}</td>
             <td style="padding:30px 8px 10px;vertical-align:top;">
-                <div style="font-weight:600;color:#1a1a2e;font-size:14px;">{s.title}{new_badge}</div>
+                <div style="font-weight:600;color:#1a1a2e;font-size:14px;">{s.title}</div>
                 <div style="color:#666;font-size:13px;margin-top:2px;">{s.artist}</div>
+                {new_badge}
             </td>
             <td style="padding:30px 8px 10px;vertical-align:top;white-space:nowrap;">
                 <span style="display:inline-block;background:{bg};color:{color};font-weight:600;font-size:12px;padding:3px 10px;border-radius:4px;">{label}</span>

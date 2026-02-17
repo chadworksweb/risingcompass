@@ -8,18 +8,40 @@ services:
     environment:
       - RC_ADMIN_KEY=${RC_ADMIN_KEY:-change-me}
       - DATABASE_URL=sqlite:///./data/rising_compass.db
-      - CORS_ORIGINS=["http://localhost:3000","https://risingcompass.com"]
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - APPROVAL_EMAIL=${APPROVAL_EMAIL}
+      - SITE_URL=${SITE_URL:-https://api.risingcompass.net}
     restart: unless-stopped
 
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend:/var/www/frontend:ro
+      - certbot-webroot:/var/www/certbot:ro
+      - certbot-certs:/etc/letsencrypt:ro
     depends_on:
       - backend
     restart: unless-stopped
 
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+
 volumes:
   db-data:
+  certbot-webroot:
+  certbot-certs:

@@ -4,7 +4,7 @@ const API = (() => {
   const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   const BASE = isLocal
     ? `http://${window.location.hostname}:8000`
-    : 'https://api.risingcompass.com';
+    : 'https://api.risingcompass.net';
 
   async function get(path) {
     const resp = await fetch(`${BASE}${path}`);

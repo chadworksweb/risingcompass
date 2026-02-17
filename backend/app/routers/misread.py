@@ -97,7 +97,7 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"Report Received — {submission.song_title}"
     msg["From"] = f"The Rising Compass <{settings.smtp_user}>"
-    msg["Reply-To"] = "noreply@risingcompass.com"
+    msg["Reply-To"] = "noreply@risingcompass.net"
     msg["To"] = submission.email
     msg.attach(MIMEText(html, "html"))
 
