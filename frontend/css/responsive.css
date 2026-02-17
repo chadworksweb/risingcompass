@@ -30,22 +30,69 @@
   }
 
   .nav-tabs {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0;
   }
 
   .nav-tab {
-    flex: 1 1 45%;
+    flex: 1;
     padding: 0.7rem 0.8rem;
     font-size: 0.68rem;
     text-align: center;
-    border-radius: 0;
   }
 
   .nav-tab:first-child { border-radius: var(--rc-radius-lg) 0 0 0; }
-  .nav-tab:nth-child(2) { border-radius: 0 var(--rc-radius-lg) 0 0; }
-  .nav-tab:nth-child(3) { border-radius: 0; }
-  .nav-tab:nth-child(4) { border-radius: 0; }
+  .nav-tab:last-child { border-radius: 0 var(--rc-radius-lg) 0 0; }
+
+  .section-content {
+    padding: 1rem;
+    padding-bottom: 2rem;
+  }
+
+  .section-content > .card {
+    overflow-x: hidden;
+  }
+
+  .decade-cards {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .methodology-content h3 {
+    font-size: 0.9rem;
+  }
+
+  .methodology-content p {
+    font-size: 0.82rem;
+  }
+
+  .charge-legend-labels {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .charge-legend-labels span {
+    text-align: left;
+    flex-direction: row;
+    gap: 0.5rem;
+    align-items: baseline;
+  }
+
+  .charge-legend-bar {
+    gap: 3px;
+  }
+
+  .rubric-q {
+    padding: 0.8rem;
+  }
+
+  .rubric-q h5 {
+    font-size: 0.82rem;
+  }
+
+  .rubric-q p {
+    font-size: 0.8rem;
+  }
 
   .drift-chart {
     height: 150px;

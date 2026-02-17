@@ -1601,8 +1601,6 @@ const App = (() => {
 
     // Lazy-load section data
     if (section === 'history') loadDrift();
-    else if (section === 'albums') loadAlbums();
-    else if (section === 'archive') loadArchive();
   }
 
   // --- Drift (Historical Overview) ---

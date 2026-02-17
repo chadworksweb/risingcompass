@@ -7,7 +7,7 @@
 
 set -e
 
-SERVER="root@YOUR_DROPLET_IP"
+SERVER="root@138.197.111.66"
 LOCAL_DB="backend/data/rising_compass.db"
 REMOTE_DIR="/root/rising-compass"
 
