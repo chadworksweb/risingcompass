@@ -99,7 +99,7 @@ Respond with ONLY a JSON object (no markdown, no code blocks, no extra text):
     "charge_value": integer from -100 to +100,
     "contaminated": true/false,
     "contamination_note": "what contaminates it (null if not contaminated)",
-    "charge_summary": "one-line summary of the song's energetic charge",
+    "charge_summary": "one-line summary of what the song is about. Pure subject matter — no contamination flags, no charge judgments, no content warnings.",
     "message_analysis": "Max 20 words. What the song is about. No clauses, no dashes, no elaboration.",
     "expression_analysis": "Max 20 words. How the message is delivered. No clauses, no dashes, no elaboration.",
     "intention_analysis": "Max 20 words. What it activates in the listener. No clauses, no dashes, no elaboration.",
