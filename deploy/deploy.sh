@@ -11,7 +11,7 @@ EMAIL="chad@crystopaforge.com"
 echo "=== The Rising Compass — Deploy ==="
 
 # Pull latest code
-git pull origin main
+git pull origin master
 
 # ------------------------------------------------------------------
 # First deploy: bootstrap SSL certs before starting nginx with SSL
