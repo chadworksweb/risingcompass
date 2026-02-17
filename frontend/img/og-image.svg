@@ -93,7 +93,7 @@
   <line x1="460" y1="156" x2="740" y2="156" stroke="#00d4aa" stroke-width="1.5" opacity="0.5" filter="url(#glow)"/>
 
   <!-- Tagline below compass -->
-  <text x="600" y="440" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="400" font-size="13" fill="#6a6a7e" letter-spacing="2.5">CONSCIOUSNESS DIAGNOSTIC FOR POPULAR MUSIC</text>
+  <text x="600" y="440" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="400" font-size="13" fill="#6a6a7e" letter-spacing="2.5">FREQUENCY DIAGNOSTIC FOR POPULAR MUSIC</text>
 
   <!-- URL -->
   <text x="600" y="530" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="400" font-size="13" fill="#00d4aa" opacity="0.4" letter-spacing="2">risingcompass.net</text>
