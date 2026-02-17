@@ -1,19 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <defs>
-    <!-- Background gradient -->
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0a0a14"/>
       <stop offset="50%" stop-color="#0e0e1a"/>
       <stop offset="100%" stop-color="#0a0a14"/>
     </linearGradient>
-    <!-- Edge vignette -->
-    <radialGradient id="vignette" cx="50%" cy="50%" r="60%">
+    <radialGradient id="vignette" cx="50%" cy="50%" r="55%">
       <stop offset="0%" stop-color="transparent"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.5)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.6)"/>
     </radialGradient>
-    <!-- Glow for accent -->
     <filter id="glow">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-soft">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
@@ -21,40 +22,79 @@
   <!-- Background -->
   <rect width="1200" height="630" fill="url(#bg)"/>
 
-  <!-- Waveform lines: gentle (green) → moderate (yellow) → harsh (red) -->
-  <!-- Layer 1: Violet/Ascended - very gentle, high -->
-  <path d="M0,280 C60,275 120,285 180,278 C240,272 300,288 360,280 C420,273 480,287 540,280 C600,274 660,286 720,280 C780,275 840,285 900,280 C960,276 1020,284 1080,280 L1200,279" fill="none" stroke="#9933ff" stroke-width="1" opacity="0.2"/>
+  <!-- Waveform texture: gentle (left) → harsh (right) -->
+  <!-- Violet - barely there -->
+  <path d="M0,310 C60,305 120,315 180,308 C240,302 300,318 360,310 C420,303 480,317 540,310 C600,304 660,316 720,310 C780,305 840,315 900,310 C960,306 1020,314 1080,310 L1200,309" fill="none" stroke="#9933ff" stroke-width="0.8" opacity="0.12"/>
+  <!-- Blue -->
+  <path d="M0,320 C50,308 100,332 150,315 C200,300 250,340 300,318 C350,298 400,342 450,322 C500,304 550,338 600,325 C650,312 700,336 750,328 C800,318 850,335 900,330 C950,324 1000,334 1050,332 L1200,330" fill="none" stroke="#3388ff" stroke-width="0.8" opacity="0.15"/>
+  <!-- Green -->
+  <path d="M0,335 C40,312 80,358 120,328 C160,300 200,362 240,332 C280,306 320,358 360,335 C400,314 440,356 480,340 C520,324 560,354 600,342 C640,332 680,350 720,345 C760,338 800,350 840,347 L1200,345" fill="none" stroke="#33cc55" stroke-width="1" opacity="0.2"/>
+  <!-- Yellow -->
+  <path d="M0,350 Q30,325 60,355 Q90,380 120,345 Q150,315 180,358 Q210,390 240,342 Q270,305 300,360 Q330,395 360,340 Q390,300 420,365 Q450,400 480,338 Q510,295 540,368 Q570,405 600,335 Q630,290 660,370 Q690,408 720,332 Q750,285 780,374 Q810,412 840,330 Q870,280 900,376 Q930,415 960,328 Q990,278 1020,378 Q1050,418 1080,326 Q1110,276 1140,380 Q1170,420 1200,324" fill="none" stroke="#ffbb33" stroke-width="0.8" opacity="0.18"/>
+  <!-- Red - harsh -->
+  <path d="M0,370 L20,345 L35,385 L50,335 L70,392 L85,328 L105,398 L120,322 L140,402 L155,318 L175,406 L190,315 L210,410 L225,312 L245,412 L260,310 L280,415 L295,308 L315,418 L330,305 L350,420 L365,302 L385,422 L400,300 L420,424 L435,298 L455,426 L470,296 L490,428 L505,294 L525,430 L540,292 L560,432 L575,290 L595,434 L610,288 L630,436 L645,286 L665,438 L680,284 L700,440 L715,282 L735,442 L750,280 L770,444 L785,278 L805,446 L820,276 L840,448 L855,274 L875,450 L890,272 L910,452 L925,270 L945,454 L960,268 L980,456 L995,266 L1015,458 L1030,264 L1050,460 L1065,262 L1085,462 L1100,260 L1120,464 L1135,258 L1155,466 L1170,256 L1190,468 L1200,254" fill="none" stroke="#ff3333" stroke-width="0.7" opacity="0.12"/>
 
-  <!-- Layer 2: Blue - gentle sine -->
-  <path d="M0,300 C50,285 100,315 150,295 C200,278 250,322 300,298 C350,276 400,324 450,300 C500,278 550,322 600,302 C650,284 700,318 750,305 C800,290 850,315 900,308 C950,298 1000,312 1050,310 L1200,308" fill="none" stroke="#3388ff" stroke-width="1.2" opacity="0.25"/>
-
-  <!-- Layer 3: Green/Elevated - smooth wave -->
-  <path d="M0,320 C40,295 80,345 120,310 C160,278 200,352 240,315 C280,282 320,348 360,318 C400,290 440,346 480,322 C520,298 560,344 600,328 C640,310 680,340 720,332 C760,322 800,338 840,335 C880,330 920,338 960,336 C1000,332 1040,338 1080,337 L1200,336" fill="none" stroke="#33cc55" stroke-width="1.5" opacity="0.35"/>
-
-  <!-- Layer 4: Yellow/Decent - moderate oscillation -->
-  <path d="M0,340 C30,310 60,370 90,330 C120,292 150,378 180,335 C210,298 240,372 270,340 C300,310 330,368 360,345 C390,322 420,365 450,350 C480,335 510,360 540,352 C570,342 600,358 630,355 C660,348 690,360 720,358 C750,354 780,362 810,360 C840,356 870,364 900,362 C930,358 960,365 990,363 C1020,360 1050,366 1080,364 C1110,362 1140,366 1170,365 L1200,364" fill="none" stroke="#ffbb33" stroke-width="1.5" opacity="0.4"/>
-
-  <!-- Layer 5: Orange - getting jagged -->
-  <path d="M0,355 Q15,325 30,355 Q45,385 60,350 Q75,318 90,358 Q105,392 120,348 Q135,312 150,360 Q165,398 180,345 Q195,302 210,362 Q225,405 240,342 Q255,295 270,365 Q285,410 300,340 Q315,290 330,368 Q345,415 360,338 Q375,285 390,372 Q405,420 420,335 Q435,278 450,375 Q465,425 480,332 Q495,272 510,378 Q525,430 540,328 Q555,265 570,382 Q585,435 600,325 Q615,260 630,385 Q645,440 660,322 Q675,255 690,388 Q705,445 720,318 Q735,248 750,392 Q765,450 780,315 Q795,245 810,395 Q825,452 840,312 Q855,242 870,398 Q885,455 900,310 Q915,240 930,400 Q945,458 960,308 Q975,238 990,402 Q1005,460 1020,306 Q1035,236 1050,405 Q1065,462 1080,304 Q1095,234 1110,408 Q1125,465 1140,302 Q1155,232 1170,410 Q1185,468 1200,300" fill="none" stroke="#ff8833" stroke-width="1.2" opacity="0.3"/>
-
-  <!-- Layer 6: Red/Corrupted - harsh, jagged, noisy -->
-  <path d="M0,365 L15,340 L25,380 L35,330 L50,390 L60,325 L75,395 L85,320 L100,400 L110,315 L125,405 L135,310 L150,408 L165,305 L175,412 L190,300 L200,415 L215,295 L225,418 L240,290 L250,420 L265,285 L275,422 L290,282 L300,425 L315,278 L325,428 L340,275 L350,430 L365,272 L375,432 L390,270 L400,435 L415,268 L425,437 L440,265 L450,440 L465,262 L475,442 L490,260 L500,445 L515,258 L525,447 L540,255 L550,450 L565,252 L575,452 L590,250 L600,454 L615,248 L625,456 L640,245 L650,458 L665,242 L675,460 L690,240 L700,462 L715,238 L725,464 L740,236 L750,466 L765,234 L775,468 L790,232 L800,470 L815,230 L825,472 L840,228 L850,474 L865,226 L875,476 L890,224 L900,478 L915,222 L925,480 L940,220 L950,482 L965,218 L975,484 L990,216 L1000,486 L1015,214 L1025,488 L1040,212 L1050,490 L1065,210 L1075,492 L1090,208 L1100,494 L1115,206 L1125,496 L1140,204 L1150,498 L1165,202 L1175,500 L1200,198" fill="none" stroke="#ff3333" stroke-width="1" opacity="0.2"/>
-
-  <!-- Subtle horizontal line -->
-  <line x1="0" y1="315" x2="1200" y2="315" stroke="#2a2a3e" stroke-width="0.5" opacity="0.4"/>
-
-  <!-- Vignette overlay -->
+  <!-- Vignette -->
   <rect width="1200" height="630" fill="url(#vignette)"/>
 
-  <!-- Title -->
-  <text x="600" y="240" text-anchor="middle" font-family="'Inter','Segoe UI',sans-serif" font-weight="700" font-size="56" fill="#eeeef4" letter-spacing="2">THE RISING COMPASS</text>
+  <!-- === COMPASS (centered in 1:1 safe zone: x=285-915, 630x630) === -->
+  <!-- Compass center: 600, 310 | Radius: 120 -->
 
-  <!-- Accent line under title -->
-  <line x1="440" y1="260" x2="760" y2="260" stroke="#00d4aa" stroke-width="2" opacity="0.6" filter="url(#glow)"/>
+  <!-- 5 color arcs -->
+  <!-- Ascended (violet): 180° to 144° -->
+  <path d="M 480,310 A 120,120 0 0,1 514.6,242.2" fill="none" stroke="#9933ff" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
+  <!-- Elevated (blue): 144° to 108° -->
+  <path d="M 514.6,242.2 A 120,120 0 0,1 637.1,194.4" fill="none" stroke="#3388ff" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
+  <!-- Decent (green): 108° to 72° -->
+  <path d="M 637.1,194.4 A 120,120 0 0,1 685.4,242.2" fill="none" stroke="#33cc55" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
+  <!-- Degraded (yellow): 72° to 36° -->
+  <path d="M 685.4,242.2 A 120,120 0 0,1 717.1,310" fill="none" stroke="#ffbb33" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
+  <!-- Corrupted (red): 36° to 0° -->
+  <path d="M 717.1,310 A 120,120 0 0,1 720,310" fill="none" stroke="#ff3333" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
 
-  <!-- Tagline -->
-  <text x="600" y="295" text-anchor="middle" font-family="'JetBrains Mono','Consolas',monospace" font-weight="400" font-size="18" fill="#6a6a7e" letter-spacing="3">CONSCIOUSNESS DIAGNOSTIC FOR POPULAR MUSIC</text>
+  <!-- Simpler approach: individual arc segments using proper math -->
+  <!-- CX=600, CY=310, R=120. Half circle from 180° to 0° (left to right) -->
+  <!-- Each tier = 36° of the semicircle -->
+
+  <!-- Redraw arcs properly -->
+  <!-- Clear the bad arcs above by overlaying correct ones -->
+  <rect x="460" y="170" width="280" height="160" fill="#0e0e1a" opacity="0.99"/>
+
+  <!-- Arc segments (SVG angles: 0°=right, going counterclockwise) -->
+  <!-- Ascended: from 180° to 144° -->
+  <path d="M 480,310 A 120,120 0 0,1 502.9,240.0" fill="none" stroke="#9933ff" stroke-width="14" opacity="0.75"/>
+  <!-- Elevated: from 144° to 108° -->
+  <path d="M 502.9,240.0 A 120,120 0 0,1 563.0,196.1" fill="none" stroke="#3388ff" stroke-width="14" opacity="0.75"/>
+  <!-- Decent: from 108° to 72° -->
+  <path d="M 563.0,196.1 A 120,120 0 0,1 637.0,196.1" fill="none" stroke="#33cc55" stroke-width="14" opacity="0.75"/>
+  <!-- Degraded: from 72° to 36° -->
+  <path d="M 637.0,196.1 A 120,120 0 0,1 697.1,240.0" fill="none" stroke="#ffbb33" stroke-width="14" opacity="0.75"/>
+  <!-- Corrupted: from 36° to 0° -->
+  <path d="M 697.1,240.0 A 120,120 0 0,1 720,310" fill="none" stroke="#ff3333" stroke-width="14" opacity="0.75"/>
+
+  <!-- Needle pointing straight up (90° = Decent/neutral) -->
+  <g transform="rotate(0, 600, 310)">
+    <polygon points="600,195 596,310 604,310" fill="#c8c8d8" opacity="0.9"/>
+    <circle cx="600" cy="310" r="7" fill="#00d4aa" opacity="0.9"/>
+  </g>
+
+  <!-- Score box -->
+  <rect x="560" y="328" width="80" height="32" rx="4" fill="#181828" stroke="#2a2a3e" stroke-width="1"/>
+  <text x="600" y="351" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="18" fill="#eeeef4">0</text>
+
+  <!-- Tier label -->
+  <rect x="552" y="366" width="96" height="24" rx="3" fill="#33cc55" fill-opacity="0.15" stroke="#33cc55" stroke-opacity="0.4" stroke-width="1"/>
+  <text x="600" y="383" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="11" fill="#c8c8d8" letter-spacing="1.5">DECENT</text>
+
+  <!-- Title above compass -->
+  <text x="600" y="140" text-anchor="middle" font-family="'Inter','Segoe UI',sans-serif" font-weight="700" font-size="48" fill="#eeeef4" letter-spacing="1">THE RISING COMPASS</text>
+
+  <!-- Accent line -->
+  <line x1="460" y1="156" x2="740" y2="156" stroke="#00d4aa" stroke-width="1.5" opacity="0.5" filter="url(#glow)"/>
+
+  <!-- Tagline below compass -->
+  <text x="600" y="440" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="400" font-size="13" fill="#6a6a7e" letter-spacing="2.5">CONSCIOUSNESS DIAGNOSTIC FOR POPULAR MUSIC</text>
 
   <!-- URL -->
-  <text x="600" y="520" text-anchor="middle" font-family="'JetBrains Mono','Consolas',monospace" font-weight="400" font-size="14" fill="#00d4aa" opacity="0.5" letter-spacing="2">risingcompass.net</text>
+  <text x="600" y="530" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="400" font-size="13" fill="#00d4aa" opacity="0.4" letter-spacing="2">risingcompass.net</text>
 </svg>

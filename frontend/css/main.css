@@ -889,6 +889,24 @@ body {
   border-bottom-color: var(--rc-accent);
 }
 
+.calc-tab-locked {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.calc-tab-soon {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--rc-border);
+  color: var(--rc-text-dim);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 .calc-panel {
   display: none;
 }

@@ -1182,8 +1182,8 @@ const App = (() => {
         <div class="calc-header-row">
           <div class="calc-tabs">
             <button class="calc-tab active" data-calc="mix">What If</button>
-            <button class="calc-tab" data-calc="reverse">Reverse</button>
-            <button class="calc-tab" data-calc="playlist">Playlist</button>
+            <button class="calc-tab calc-tab-locked" data-calc="reverse" disabled>Reverse <span class="calc-tab-soon">Soon</span></button>
+            <button class="calc-tab calc-tab-locked" data-calc="playlist" disabled>Playlist <span class="calc-tab-soon">Soon</span></button>
           </div>
           <button class="calc-close-btn" id="calc-close" title="Close calculator">
             <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -1230,8 +1230,8 @@ const App = (() => {
       { key: 'violet', label: 'Ascended', initial: 0 },
       { key: 'blue', label: 'Elevated', initial: 0 },
       { key: 'yellow', label: 'Decent', initial: 0 },
-      { key: 'yellow', label: 'Degraded', initial: 5 },
-      { key: 'red', label: 'Corrupted', initial: 5 },
+      { key: 'yellow', label: 'Degraded', initial: 0 },
+      { key: 'red', label: 'Corrupted', initial: 0 },
     ];
 
     let rows = '';
