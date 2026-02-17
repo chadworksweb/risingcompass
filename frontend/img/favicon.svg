@@ -1,6 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="6" fill="#0a0a14"/>
-  <circle cx="16" cy="16" r="10" fill="none" stroke="#2a2a3e" stroke-width="1.5"/>
-  <line x1="16" y1="16" x2="16" y2="7" stroke="#00d4aa" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="16" cy="16" r="2" fill="#00d4aa"/>
+
+  <!-- Chunky half-circle gauge: 5 thick color arcs -->
+  <!-- CX=16, CY=20, R=11, stroke-width=6 -->
+  <!-- Ascended (violet): 180° to 144° -->
+  <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Elevated (blue): 144° to 108° -->
+  <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Decent (green): 108° to 72° -->
+  <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Degraded (yellow): 72° to 36° -->
+  <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Corrupted (red): 36° to 0° -->
+  <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+
+  <!-- Bold needle pointing up (Decent/neutral) -->
+  <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+  <!-- Needle cap -->
+  <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
 </svg>
