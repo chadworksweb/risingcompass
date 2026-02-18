@@ -1,9 +1,7 @@
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from html import escape
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -41,9 +39,9 @@ def verify_admin_key(x_admin_key: str = Header(...)):
 
 
 def _send_receipt_email(submission: MisreadSubmission) -> bool:
-    """Send a branded receipt email to the submitter. Fire-and-forget."""
-    if not settings.smtp_user or not settings.smtp_password:
-        logger.warning("SMTP not configured — skipping misread receipt email")
+    """Send a branded receipt email to the submitter via Resend. Fire-and-forget."""
+    if not settings.resend_api_key:
+        logger.warning("Resend not configured — skipping misread receipt email")
         return False
 
     color = submission.song_color or "green"
@@ -94,22 +92,27 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
     </div>
     """
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Report Received — {submission.song_title}"
-    msg["From"] = f"The Rising Compass <{settings.smtp_user}>"
-    msg["Reply-To"] = "noreply@risingcompass.net"
-    msg["To"] = submission.email
-    msg.attach(MIMEText(html, "html"))
-
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-            server.starttls()
-            server.login(settings.smtp_user, settings.smtp_password)
-            server.sendmail(settings.smtp_user, submission.email, msg.as_string())
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.email_from,
+                "to": [submission.email],
+                "reply_to": "noreply@risingcompass.net",
+                "subject": f"Report Received — {submission.song_title}",
+                "html": html,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
         logger.info("Misread receipt email sent to %s for submission #%s", submission.email, submission.id)
         return True
     except Exception:
-        logger.exception("Failed to send misread receipt email")
+        logger.exception("Failed to send misread receipt email via Resend")
         return False
 
 

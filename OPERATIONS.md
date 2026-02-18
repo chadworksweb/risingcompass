@@ -23,6 +23,13 @@ api.risingcompass.net    → nginx → backend:8000
 
 You don't need to do anything unless you get an email.
 
+### Email delivery
+Emails (draft notifications, misread receipts) are sent via **Resend API** over HTTPS — not SMTP. This avoids DigitalOcean's outbound SMTP port blocking.
+- Free tier: 3,000 emails/month (we send ~1/day)
+- Domain verified: `risingcompass.net` in Resend dashboard
+- From address: `compass@risingcompass.net`
+- Config: `RESEND_API_KEY` and `APPROVAL_EMAIL` in `.env`
+
 ---
 
 ## Local Development

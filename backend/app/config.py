@@ -14,11 +14,9 @@ class Settings(BaseSettings):
     # Genius API (lyrics)
     genius_access_token: str = ""
 
-    # Email (Gmail SMTP)
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
+    # Email (Resend API)
+    resend_api_key: str = ""
+    email_from: str = "Rising Compass <compass@risingcompass.net>"
     approval_email: str = ""
 
     # Site URL for approval links in emails

@@ -1,9 +1,8 @@
-"""Gmail SMTP email sender for draft notifications."""
+"""Resend API email sender for draft notifications."""
 
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+
+import httpx
 
 from app.config import Settings
 
@@ -47,8 +46,8 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
 
     Returns True if sent successfully, False otherwise.
     """
-    if not config.smtp_user or not config.smtp_password or not config.approval_email:
-        logger.warning("SMTP not configured — skipping email notification")
+    if not config.resend_api_key or not config.approval_email:
+        logger.warning("Resend not configured — skipping email notification")
         return False
 
     # Look up which songs are already calibrated
@@ -71,21 +70,26 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
 
     html = _build_html(draft, songs, config, uncalibrated_titles=uncalibrated_titles)
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = config.smtp_user
-    msg["To"] = config.approval_email
-    msg.attach(MIMEText(html, "html"))
-
     try:
-        with smtplib.SMTP(config.smtp_host, config.smtp_port) as server:
-            server.starttls()
-            server.login(config.smtp_user, config.smtp_password)
-            server.sendmail(config.smtp_user, config.approval_email, msg.as_string())
-        logger.info("Draft email sent for %s", draft.date)
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {config.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": config.email_from,
+                "to": [config.approval_email],
+                "subject": subject,
+                "html": html,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        logger.info("Draft email sent for %s (Resend ID: %s)", draft.date, resp.json().get("id"))
         return True
     except Exception:
-        logger.exception("Failed to send draft email")
+        logger.exception("Failed to send draft email via Resend")
         return False
 
 
