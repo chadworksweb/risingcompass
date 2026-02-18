@@ -97,7 +97,7 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set =
     """Build the HTML email body — white background, Rising Compass brand."""
     if uncalibrated_titles is None:
         uncalibrated_titles = set()
-    approve_url = f"{config.site_url}/api/admin/agent/drafts/{draft.id}/approve"
+    approve_url = f"{config.site_url}/api/admin/agent/drafts/{draft.id}/approve?key={config.rc_admin_key}"
     admin_url = f"{config.site_url}/api/admin/dashboard"
 
     charge_color = COLOR_HEX.get(draft.charge_level, "#999")

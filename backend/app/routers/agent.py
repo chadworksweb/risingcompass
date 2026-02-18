@@ -14,6 +14,7 @@ from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, SongFeedIn, SongOut,
 )
+from app.config import settings
 from app.routers.admin import verify_admin_key
 from app.services.agents.compass_agent import run_compass_agent
 from app.services.agents.chart_source import fetch_top_songs
@@ -85,6 +86,14 @@ def get_draft(draft_id: int, db: Session = Depends(get_db)):
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     return draft
+
+
+@router.get("/drafts/{draft_id}/approve")
+def approve_draft_via_link(draft_id: int, key: str = Query(...), db: Session = Depends(get_db)):
+    """One-click approve from email link (GET with key in query param)."""
+    if key != settings.rc_admin_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+    return approve_draft(draft_id, db)
 
 
 @router.post("/drafts/{draft_id}/approve", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
