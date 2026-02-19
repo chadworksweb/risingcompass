@@ -25,13 +25,13 @@ def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
     """Check if a song already exists in the CompassSong table with a calibrated classification.
 
     Returns the existing classification dict if found, None otherwise.
-    Only returns songs that have a charge_value (i.e. have been calibrated).
+    Only returns songs that are explicitly marked as calibrated (human-reviewed).
     """
     # Match on title (case-insensitive) — artist names vary across sources
     existing = (
         db.query(CompassSong)
         .filter(CompassSong.title.ilike(title))
-        .filter(CompassSong.charge_value.isnot(None))
+        .filter(CompassSong.calibrated == True)
         .order_by(CompassSong.id.desc())  # most recent calibration wins
         .first()
     )
