@@ -773,6 +773,10 @@ const App = (() => {
   function initEraTabs() {
     document.querySelectorAll('.era-tab').forEach(tab => {
       tab.addEventListener('click', () => {
+        // Lock era-panel height to prevent layout collapse during tab swap
+        const eraPanel = document.getElementById('era-panel');
+        eraPanel.style.minHeight = eraPanel.offsetHeight + 'px';
+
         document.querySelectorAll('.era-tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.era-content').forEach(c => c.classList.remove('active'));
         tab.classList.add('active');
@@ -780,7 +784,10 @@ const App = (() => {
         document.getElementById('era-' + target)?.classList.add('active');
 
         if (target === 'daily' && !dailyChartLoaded) {
-          loadDailyChart();
+          loadDailyChart().then(() => { eraPanel.style.minHeight = ''; });
+        } else {
+          // Content already rendered — release after layout settles
+          requestAnimationFrame(() => { eraPanel.style.minHeight = ''; });
         }
       });
     });
