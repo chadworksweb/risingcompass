@@ -2,6 +2,36 @@
 
 ---
 
+## Keystone
+
+### 0. "Ground News for Music: Why Nobody Is Analyzing What You're Listening To"
+
+**Core thesis:** Ground News changed how millions of people consume news — not by telling them what to think, but by showing them the lens they were looking through. It takes what's already being consumed, rates it on a spectrum, and reveals what's hidden. That same architecture, applied to music and culture, is what The Rising Compass is. Nobody built it until now. This is why it exists and why it matters.
+
+**Key angles:**
+- The parallel is structural, not cosmetic. Ground News aggregates news from 50,000+ sources, rates each on a political bias spectrum (Far Left → Far Right), surfaces blindspots — stories one side buries — and gives factuality scores. Rising Compass aggregates the most-consumed music, rates each on a consciousness charge spectrum (Corrupted → Ascended), surfaces contamination — substance hiding low-frequency payloads — and gives M/E/I breakdowns. Same diagnostic architecture. Different domain.
+- Ground News's killer insight: **you don't know what you're consuming until someone shows you the spectrum.** Most people think they consume balanced news. Ground News proves they don't — not by arguing, but by showing. Most people think the music they listen to is harmless entertainment. Rising Compass proves it isn't — not by preaching, but by reading the charge.
+- The Blindspot → Contamination parallel is the sharpest edge. Ground News's blindspot report reveals stories that one political side covers and the other ignores. The consumer never sees the gap because they're inside it. Rising Compass's contamination counter reveals songs with genuine substance undermined by low-frequency payloads — real nostalgia with drug references woven in, cultural pride with ego threaded through. The listener never detects it because the substance provides cover. Both tools make the invisible visible. That's the value proposition.
+- Ground News arrived at the same posture independently. They state "no political agenda, presenting news as reported without censorship or editorializing." LEAM calls this "build, don't battle." Two tools built for completely different domains, landing on the same philosophy: the instrument doesn't tell you what to consume — it shows you what you're absorbing so you can decide for yourself.
+- The difference that matters: Ground News measures political bias. Rising Compass measures something deeper — the frequency that programs the emotional baseline underneath politics, underneath behavior, underneath everything. News shapes what you think. Music shapes what you feel. Both shape what you do. Only one of them has a diagnostic instrument. Until now.
+- The scale of what's unmeasured: Ground News tracks 50,000 news sources. Who tracks the top 10 songs being absorbed by hundreds of millions of people every day? Sentiment analysis can tell you if a song sounds positive or negative. It can't tell you the difference between a breakup song that processes grief with dignity and one that sparks contempt. That distinction is the gap. Rising Compass is the only instrument that fills it.
+- LEAM as the full vision: Rising Compass is the first instrument. The same diagnostic architecture extends to film, publishing, visual media — every cultural medium the entertainment machine touches. Ground News for news. Rising Compass for music. LEAM for all of arts and media.
+
+**Tone:** Big-picture, foundational. This is the piece that positions Rising Compass in the public's mind. Not defensive, not combative. The parallel to Ground News gives people an immediate frame of reference — they get it in five words. Then the piece shows why the cultural domain is even more fundamental than the political one.
+
+**Published on:** chadrising.com (the voice behind the instrument)
+
+**Priority:** KEYSTONE — this is the positioning piece. Publish before or alongside public launch. Every other blog post assumes the reader already understands what the compass is. This is the piece that makes them understand in 30 seconds.
+
+**References:**
+- [Ground News — Rating System](https://ground.news/rating-system)
+- [Ground News — FAQ](https://ground.news/frequently-asked-questions)
+- [Ground News — Bias Bar](https://ground.news/bias-bar)
+- [Ground News — Wikipedia](https://en.wikipedia.org/wiki/Ground_News)
+- [CJR — Ground News promises to cut through media bias](https://www.cjr.org/analysis/the-business-of-balance-ground-news.php)
+
+---
+
 ## Industry Watchdog
 
 ### 1. "DistroKid Is Selling. This Is Exactly Why Artist World Exists."
