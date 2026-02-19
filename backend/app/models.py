@@ -6,8 +6,8 @@ from datetime import datetime
 from app.database import Base
 
 
-class Song(Base):
-    __tablename__ = "songs"
+class CompassSong(Base):
+    __tablename__ = "compass_songs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(Text, nullable=False)
@@ -101,6 +101,7 @@ class AlbumDeepDive(Base):
     summary = Column(Text)
 
     tracks = relationship("AlbumTrack", back_populates="album", cascade="all, delete-orphan")
+    library_songs = relationship("LibrarySong", back_populates="album", cascade="all, delete-orphan")
 
 
 class AlbumTrack(Base):
@@ -114,6 +115,33 @@ class AlbumTrack(Base):
     assessment = Column(Text)
 
     album = relationship("AlbumDeepDive", back_populates="tracks")
+
+
+class LibrarySong(Base):
+    """Non-chart songs: manual entries, agent-scanned case studies, album deep dive tracks.
+
+    Completely separate from the compass_songs table (which feeds compass/drift).
+    The library frontend can read from both tables, but songs only gets fed by the agent pipeline.
+    """
+    __tablename__ = "library_songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    rubric_color = Column(Text, nullable=False)
+    charge_value = Column(Integer)  # -100 to +100
+    contaminated = Column(Boolean, default=False)
+    contamination_note = Column(Text)
+    charge_summary = Column(Text)
+    message_analysis = Column(Text)
+    expression_analysis = Column(Text)
+    intention_analysis = Column(Text)
+    album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=True)
+    track_number = Column(Integer, nullable=True)  # position within album
+    source = Column(String(20), default="manual")  # manual / agent
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    album = relationship("AlbumDeepDive", back_populates="library_songs")
 
 
 class Collection(Base):

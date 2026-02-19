@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import AgentDraft, AgentDraftSong, Song
+from app.models import AgentDraft, AgentDraftSong, CompassSong
 from app.services.agents.classifier import classify_song, AGENT_MODEL
 from app.services.agents.rising_compass_agent_rubric import build_editorial_prompt, truncate_mei
 from app.services.agents.email_notifier import send_draft_email
@@ -21,15 +21,15 @@ logger = logging.getLogger(__name__)
 
 
 def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
-    """Check if a song has already been classified in the Song table.
+    """Check if a song has already been classified in the CompassSong table.
 
     Uses case-insensitive match on title + artist.
     Returns classification dict or None.
     """
     existing = (
-        db.query(Song)
-        .filter(func.lower(Song.title) == title.lower())
-        .filter(func.lower(Song.artist) == artist.lower())
+        db.query(CompassSong)
+        .filter(func.lower(CompassSong.title) == title.lower())
+        .filter(func.lower(CompassSong.artist) == artist.lower())
         .first()
     )
     if not existing or not existing.rubric_color:
@@ -55,11 +55,11 @@ def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
 def _store_classification(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
                           db: Session) -> None:
-    """Store or update a classification in the Song table for future reuse."""
+    """Store or update a classification in the CompassSong table for future reuse."""
     existing = (
-        db.query(Song)
-        .filter(func.lower(Song.title) == title.lower())
-        .filter(func.lower(Song.artist) == artist.lower())
+        db.query(CompassSong)
+        .filter(func.lower(CompassSong.title) == title.lower())
+        .filter(func.lower(CompassSong.artist) == artist.lower())
         .first()
     )
 
@@ -76,7 +76,7 @@ def _store_classification(title: str, artist: str, chart_position: int,
     else:
         current_year = date.today().year
         decade = f"{(current_year // 10) * 10}s"
-        song = Song(
+        song = CompassSong(
             title=title,
             artist=artist,
             year=current_year,
@@ -99,6 +99,7 @@ def run_compass_agent(
     songs_input: list[dict],
     db: Session,
     reading_date: date | None = None,
+    draft_only: bool = False,
 ) -> AgentDraft:
     """Run the full agent pipeline: classify songs, compute compass, save draft, send email.
 
@@ -108,6 +109,9 @@ def run_compass_agent(
         songs_input: List of dicts with title, artist, position, chart_source.
         db: Database session.
         reading_date: Date for the reading (defaults to today).
+        draft_only: If True, skip writing to the CompassSong table and skip email.
+            Use for case studies / album deep dives that shouldn't pollute
+            the compass or drift data.
 
     Returns:
         The created AgentDraft.
@@ -162,8 +166,9 @@ def run_compass_agent(
 
         result = classify_song(title, artist, lyrics=lyrics, db=db)
 
-        # Store for future reuse
-        _store_classification(title, artist, position, chart_source, result, lyrics_available, db)
+        # Store for future reuse (skip for draft-only / case study mode)
+        if not draft_only:
+            _store_classification(title, artist, position, chart_source, result, lyrics_available, db)
         logger.info("Classified and cached: %s by %s → %s", title, artist, result["rubric_color"])
 
         classified_songs.append({
@@ -227,8 +232,9 @@ def run_compass_agent(
     db.commit()
     db.refresh(draft)
 
-    # Send email notification
-    send_draft_email(draft, draft.songs, settings, db=db)
+    # Send email notification (skip for draft-only / case study mode)
+    if not draft_only:
+        send_draft_email(draft, draft.songs, settings, db=db)
 
     return draft
 

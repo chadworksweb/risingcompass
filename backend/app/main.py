@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import engine, Base
-from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread
+from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread, library_admin
 from app.services.backup import run_backup
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,7 @@ app.include_router(weekly_albums.router)
 app.include_router(library.router)
 app.include_router(agent.router)
 app.include_router(misread.router)
+app.include_router(library_admin.router)
 
 
 @app.get("/api/health")

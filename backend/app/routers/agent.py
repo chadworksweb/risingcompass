@@ -7,12 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, Song
+from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong
 from app.schemas import (
     BackfillResult, BackfillSongOut,
     CalibrateRequest, CalibrateResult,
     DraftOut, DraftTriggerIn, DraftUpdate,
-    PaginatedDrafts, DraftSummary, SongFeedIn, SongOut,
+    PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
 )
 from app.config import settings
 from app.routers.admin import verify_admin_key
@@ -37,7 +37,7 @@ def trigger_classification(data: DraftTriggerIn, db: Session = Depends(get_db)):
     songs_input = [s.model_dump() for s in data.songs]
     reading_date = data.date or date.today()
 
-    draft = run_compass_agent(songs_input, db, reading_date=reading_date)
+    draft = run_compass_agent(songs_input, db, reading_date=reading_date, draft_only=data.draft_only)
     return draft
 
 
@@ -229,9 +229,9 @@ def update_draft(draft_id: int, data: DraftUpdate, db: Session = Depends(get_db)
     return draft
 
 
-@router.post("/songs", response_model=SongOut, dependencies=[Depends(verify_admin_key)])
-def feed_song(data: SongFeedIn, db: Session = Depends(get_db)):
-    """Manually feed a song classification into the Song table.
+@router.post("/songs", response_model=CompassSongOut, dependencies=[Depends(verify_admin_key)])
+def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
+    """Manually feed a song classification into the CompassSong table.
 
     This serves two purposes:
     1. Training data for the agent (few-shot examples)
@@ -242,7 +242,7 @@ def feed_song(data: SongFeedIn, db: Session = Depends(get_db)):
     current_year = data.year or date.today().year
     decade = f"{(current_year // 10) * 10}s"
 
-    song = Song(
+    song = CompassSong(
         title=data.title,
         artist=data.artist,
         year=current_year,
@@ -273,7 +273,7 @@ def backfill_year(
     """Reclassify uncalibrated songs for a given year using the 5-tier rubric.
 
     Only processes songs that are NOT calibrated. Fetches lyrics and runs
-    the full classification pipeline. Updates the Song table in place.
+    the full classification pipeline. Updates the CompassSong table in place.
 
     Args:
         year: The year to backfill (e.g. 1965).
@@ -281,21 +281,21 @@ def backfill_year(
     """
     # Get uncalibrated songs for this year
     uncalibrated = (
-        db.query(Song)
-        .filter(Song.year == year)
-        .filter(Song.calibrated.is_(False))
+        db.query(CompassSong)
+        .filter(CompassSong.year == year)
+        .filter(CompassSong.calibrated.is_(False))
         .limit(limit)
         .all()
     )
 
     calibrated_count = (
-        db.query(Song)
-        .filter(Song.year == year)
-        .filter(Song.calibrated.is_(True))
+        db.query(CompassSong)
+        .filter(CompassSong.year == year)
+        .filter(CompassSong.calibrated.is_(True))
         .count()
     )
 
-    total_for_year = db.query(Song).filter(Song.year == year).count()
+    total_for_year = db.query(CompassSong).filter(CompassSong.year == year).count()
 
     results = []
     for song in uncalibrated:
@@ -350,11 +350,11 @@ def calibrate_songs(data: CalibrateRequest, db: Session = Depends(get_db)):
     """Apply human-calibrated tiers and charge values to songs, marking them calibrated.
 
     Takes a list of song IDs with corrected rubric_color and charge_value.
-    Updates the Song table and sets calibrated=True.
+    Updates the CompassSong table and sets calibrated=True.
     """
     updated = []
     for item in data.songs:
-        song = db.query(Song).filter(Song.id == item.id).first()
+        song = db.query(CompassSong).filter(CompassSong.id == item.id).first()
         if not song:
             raise HTTPException(status_code=404, detail=f"Song ID {item.id} not found")
         song.rubric_color = item.rubric_color
@@ -386,8 +386,8 @@ def calibrate_songs(data: CalibrateRequest, db: Session = Depends(get_db)):
 
 @router.delete("/songs/{song_id}", dependencies=[Depends(verify_admin_key)])
 def delete_song(song_id: int, db: Session = Depends(get_db)):
-    """Delete a song from the Song table."""
-    song = db.query(Song).filter(Song.id == song_id).first()
+    """Delete a song from the CompassSong table."""
+    song = db.query(CompassSong).filter(CompassSong.id == song_id).first()
     if not song:
         raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found")
     title, artist = song.title, song.artist

@@ -4,7 +4,7 @@ from sqlalchemy import func, extract
 from datetime import date, timedelta
 
 from app.database import get_db
-from app.models import Song, DailyReading, ReadingSong, WeeklyAlbumReading
+from app.models import CompassSong, DailyReading, ReadingSong, WeeklyAlbumReading
 from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyReadingSummary, PaginatedReadings
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/compass", tags=["compass"])
 def _historical_aggregate(db: Session) -> tuple[float, str]:
     """Compute aggregate degree from charting songs only."""
     from app.constants import CHART_SOURCES
-    songs = db.query(Song).filter(Song.chart_source.in_(CHART_SOURCES)).all()
+    songs = db.query(CompassSong).filter(CompassSong.chart_source.in_(CHART_SOURCES)).all()
     if not songs:
         return 90.0, "green"
     song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in songs]

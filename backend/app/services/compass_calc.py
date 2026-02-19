@@ -72,3 +72,41 @@ def compute_degree(songs: list[dict]) -> float:
         return 90.0
 
     return round(weighted_sum / total_weight, 1)
+
+
+def compute_live_year_degree(songs: list[dict]) -> float:
+    """
+    Compute weighted average compass degree for a live year (2026+).
+
+    Each song dict needs:
+      - 'charge_value': the charge from its most recent appearance
+      - 'effective_weight': sum of position_weight() across all daily appearances
+
+    Songs with higher effective_weight (more appearances at higher positions)
+    have more influence on the year aggregate.
+
+    Returns degree 0-180.
+    """
+    if not songs:
+        return 90.0
+
+    total_weight = 0
+    weighted_sum = 0.0
+
+    for song in songs:
+        cv = song.get("charge_value")
+        w = song.get("effective_weight", 1)
+
+        if cv is not None:
+            deg = charge_to_degree(cv)
+        else:
+            color = song.get("rubric_color", "green")
+            deg = COLOR_DEGREES.get(color, 90.0)
+
+        weighted_sum += deg * w
+        total_weight += w
+
+    if total_weight == 0:
+        return 90.0
+
+    return round(weighted_sum / total_weight, 1)

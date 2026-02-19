@@ -7,7 +7,7 @@ from anthropic import Anthropic
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Song
+from app.models import CompassSong
 from app.services.agents.rising_compass_agent_rubric import (
     build_few_shot_examples,
     build_classification_prompt,
@@ -22,17 +22,17 @@ VALID_COLORS = {"violet", "blue", "green", "yellow", "red"}
 
 
 def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
-    """Check if a song already exists in the Song table with a calibrated classification.
+    """Check if a song already exists in the CompassSong table with a calibrated classification.
 
     Returns the existing classification dict if found, None otherwise.
     Only returns songs that have a charge_value (i.e. have been calibrated).
     """
     # Match on title (case-insensitive) — artist names vary across sources
     existing = (
-        db.query(Song)
-        .filter(Song.title.ilike(title))
-        .filter(Song.charge_value.isnot(None))
-        .order_by(Song.id.desc())  # most recent calibration wins
+        db.query(CompassSong)
+        .filter(CompassSong.title.ilike(title))
+        .filter(CompassSong.charge_value.isnot(None))
+        .order_by(CompassSong.id.desc())  # most recent calibration wins
         .first()
     )
     if existing:
@@ -62,7 +62,7 @@ def classify_song(
 ) -> dict:
     """Classify a single song using the Rising Compass rubric via Claude.
 
-    If the song already exists in the Song table with a calibrated charge_value,
+    If the song already exists in the CompassSong table with a calibrated charge_value,
     returns the existing classification instead of reclassifying.
     Set skip_cache=True to force reclassification (backfill mode) while still
     using the db for few-shot examples.

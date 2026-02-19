@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Collection, Recommendation, Song, AlbumDeepDive
+from app.models import Collection, Recommendation, CompassSong, AlbumDeepDive
 from app.schemas import (
     CollectionCreate, CollectionUpdate, CollectionOut,
     RecommendationCreate, RecommendationUpdate, RecommendationOut,
@@ -86,9 +86,9 @@ def _build_collection_items(col: Collection, db: Session) -> list[LibraryItemOut
 
     # Songs — deduplicated by title+artist (historical Billboard #1 hits)
     songs = (
-        db.query(Song)
-        .filter(Song.rubric_color.in_(colors))
-        .order_by(Song.title)
+        db.query(CompassSong)
+        .filter(CompassSong.rubric_color.in_(colors))
+        .order_by(CompassSong.title)
         .all()
     )
     for s in songs:

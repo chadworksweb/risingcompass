@@ -54,12 +54,12 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
     uncalibrated_titles = set()
     if db:
         from sqlalchemy import func
-        from app.models import Song
+        from app.models import CompassSong
         for s in songs:
             existing = (
-                db.query(Song)
-                .filter(func.lower(Song.title) == s.title.lower())
-                .filter(Song.calibrated == True)
+                db.query(CompassSong)
+                .filter(func.lower(CompassSong.title) == s.title.lower())
+                .filter(CompassSong.calibrated == True)
                 .first()
             )
             if not existing:

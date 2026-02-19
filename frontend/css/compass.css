@@ -104,14 +104,16 @@
   text-transform: uppercase;
 }
 
-/* Date below compass — SVG version (inside compass) */
+/* Date below compass — matches label text, faded */
 .compass-date-text {
   font-family: var(--rc-font-mono);
-  font-size: 0.7rem;
-  fill: #fff;
-  font-weight: 700;
+  font-size: 0.65rem;
+  fill: var(--rc-text-dim);
   text-anchor: middle;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  opacity: 0.6;
 }
 
 /* Date below compass — HTML fallback (hidden when SVG version renders) */

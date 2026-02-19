@@ -87,6 +87,16 @@ const App = (() => {
     const container = document.getElementById('reading-content');
     if (!container) return;
 
+    // Remove year view button if present
+    const yearBtn = document.getElementById('year-view-btn');
+    if (yearBtn) yearBtn.remove();
+
+    // Restore panel header for daily readings
+    const header = document.querySelector('#reading-panel .card-header');
+    const desc = document.querySelector('#reading-panel .card-desc');
+    if (header) header.textContent = 'Daily Top 20 Songs';
+    if (desc) desc.textContent = "Today's most-heard songs, individually charged.";
+
     if (!data.has_reading) {
       container.innerHTML = `
         <div class="no-reading">
@@ -227,6 +237,7 @@ const App = (() => {
   let currentZoom = 'all';
   let chartPoints = [];
   let chartData = [];
+  let chartHasYTD = false;
   let tmPlaying = false;
   let tmAnimFrame = null;
   let tmPosition = 0;
@@ -245,16 +256,32 @@ const App = (() => {
     const chartH = H - padT - padB;
     const maxIdx = data.length - 1;
 
+    // Detect if the last year is the current calendar year (YTD)
+    const currentCalYear = new Date().getFullYear();
+    const hasYTD = data[maxIdx].year === currentCalYear && maxIdx > 0;
+    chartHasYTD = hasYTD;
+
     chartPoints = data.map((d, i) => ({
       x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
       y: padT + (d.compass_degree / 180) * chartH,
       degree: d.compass_degree,
       year: d.year,
       color: d.charge_level,
+      isYTD: d.year === currentCalYear,
     }));
 
-    const linePath = chartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-    const areaPath = linePath + ` L ${chartPoints[maxIdx].x.toFixed(1)} ${padT + chartH} L ${chartPoints[0].x.toFixed(1)} ${padT + chartH} Z`;
+    // Build line paths — split into solid (completed years) and dashed (YTD segment)
+    const solidPoints = hasYTD ? chartPoints.slice(0, -1) : chartPoints;
+    const solidPath = solidPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const fullLinePath = chartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const areaPath = fullLinePath + ` L ${chartPoints[maxIdx].x.toFixed(1)} ${padT + chartH} L ${chartPoints[0].x.toFixed(1)} ${padT + chartH} Z`;
+
+    let ytdDashPath = '';
+    if (hasYTD) {
+      const prev = chartPoints[maxIdx - 1];
+      const last = chartPoints[maxIdx];
+      ytdDashPath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+    }
 
     let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
     svg += `<defs>
@@ -283,7 +310,10 @@ const App = (() => {
     // Clipped line + area
     svg += `<g clip-path="url(#traj-clip)">`;
     svg += `<path class="trajectory-area" d="${areaPath}" fill="url(#traj-area-grad)" />`;
-    svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#traj-grad)" />`;
+    svg += `<path class="trajectory-line" d="${solidPath}" stroke="url(#traj-grad)" />`;
+    if (hasYTD) {
+      svg += `<path class="trajectory-line trajectory-line-ytd" d="${ytdDashPath}" stroke="url(#traj-grad)" stroke-dasharray="4 3" opacity="0.6" />`;
+    }
     svg += `</g>`;
 
     // X-axis labels
@@ -297,10 +327,19 @@ const App = (() => {
 
     chartPoints.forEach(p => {
       if (labelYears.has(p.year)) {
-        svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">'${String(p.year).slice(2)}</text>`;
+        const labelText = p.isYTD ? 'YTD' : `'${String(p.year).slice(2)}`;
+        svg += `<text class="trajectory-label${p.isYTD ? ' trajectory-label-ytd' : ''}" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">${labelText}</text>`;
         svg += `<line x1="${p.x.toFixed(1)}" y1="${padT + chartH}" x2="${p.x.toFixed(1)}" y2="${padT + chartH + 4}" stroke="var(--rc-text-dim)" stroke-width="0.5" opacity="0.5" />`;
       }
     });
+
+    // YTD open-ring dot (static, pulsing)
+    if (hasYTD) {
+      const ytdPt = chartPoints[maxIdx];
+      const ytdHex = COLOR_HEX[ytdPt.color] || '#888';
+      svg += `<circle class="trajectory-ytd-ring" cx="${ytdPt.x.toFixed(1)}" cy="${ytdPt.y.toFixed(1)}" r="4" fill="none" stroke="${ytdHex}" stroke-width="1.5" opacity="0.7" />`;
+      svg += `<circle class="trajectory-ytd-pulse" cx="${ytdPt.x.toFixed(1)}" cy="${ytdPt.y.toFixed(1)}" r="4" fill="none" stroke="${ytdHex}" stroke-width="1" />`;
+    }
 
     // Moving dot (time machine position indicator)
     const lastPt = chartPoints[maxIdx];
@@ -348,7 +387,9 @@ const App = (() => {
       hoverDot.setAttribute('stroke', hex);
       hoverDot.style.display = '';
 
-      tooltip.innerHTML = `<strong>${d.year}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${d.chart_song_count} charting songs</span>`;
+      const yearLabel = p.isYTD ? `${d.year} YTD` : String(d.year);
+      const songsMeta = p.isYTD ? `${d.chart_song_count} songs \u00B7 updated daily` : `${d.chart_song_count} charting songs`;
+      tooltip.innerHTML = `<strong>${yearLabel}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${songsMeta}</span>`;
       tooltip.style.display = 'block';
 
       const wrapRect = wrap.getBoundingClientRect();
@@ -367,7 +408,7 @@ const App = (() => {
       if (tooltip) tooltip.style.display = 'none';
     });
 
-    // Click: move compass + charge bar to clicked year
+    // Click: move compass + charge bar to clicked year, load songs
     wrap.addEventListener('click', (e) => {
       const rect = svgEl.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
@@ -381,13 +422,15 @@ const App = (() => {
 
       const p = chartPoints[nearest];
       const d = chartData[nearest];
-      setCompassDate(String(d.year));
+      setCompassDate(p.isYTD ? `${d.year} YTD` : String(d.year));
       Compass.setDegree(p.degree, p.color);
       Charge.setLevel(p.color, 0, 0);
 
+      loadYearSongs(d.year, p.degree, p.color);
+
       const dot = document.getElementById('traj-hover-dot');
       if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
-      pinchLine(chartPoints, nearest, svgEl.querySelector('.trajectory-line'), svgEl.querySelector('.trajectory-area'), padT, chartH);
+      pinchLine(chartPoints, nearest, svgEl.querySelector('.trajectory-line'), svgEl.querySelector('.trajectory-area'), padT, chartH, chartHasYTD);
     });
 
     // Set initial TM position to end
@@ -418,10 +461,12 @@ const App = (() => {
     const progressFill = document.getElementById('tm-progress');
     const resetBtn = document.getElementById('tm-reset');
 
-    if (yearEl) yearEl.textContent = nearest.year;
+    const nearestPt = chartPoints[Math.round(Math.min(pos, max))];
+    const isYTD = nearestPt && nearestPt.isYTD;
+    if (yearEl) yearEl.textContent = isYTD ? `${nearest.year} YTD` : nearest.year;
     if (scoreEl) { scoreEl.textContent = degreeToScore(deg); scoreEl.style.color = hex; }
     if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
-    if (countEl) countEl.textContent = `${nearest.chart_song_count} charting songs`;
+    if (countEl) countEl.textContent = isYTD ? `${nearest.chart_song_count} songs \u00B7 updated daily` : `${nearest.chart_song_count} charting songs`;
     if (progressFill) progressFill.style.width = (pos / max * 100) + '%';
     if (slider) slider.value = Math.round(pos);
     if (resetBtn) resetBtn.style.display = '';
@@ -447,7 +492,7 @@ const App = (() => {
     // Drive compass + charge + date
     Compass.setDegree(deg, tier);
     Charge.setLevel(tier, 0, 0);
-    setCompassDate(String(nearest.year));
+    setCompassDate(isYTD ? `${nearest.year} YTD` : String(nearest.year));
   }
 
   function tmAnimate(timestamp) {
@@ -511,9 +556,16 @@ const App = (() => {
     const playIcon = document.getElementById('tm-play-icon');
     if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
 
-    // Show year detail stub
+    // Show year detail with current year info
     const yearDetail = document.getElementById('tm-year-detail');
-    if (yearDetail) yearDetail.style.display = '';
+    if (yearDetail) {
+      yearDetail.style.display = '';
+      const idx = Math.round(tmPosition);
+      const d = chartData[Math.min(idx, chartData.length - 1)];
+      const btn = document.getElementById('tm-view-year');
+      const pt = chartPoints[Math.min(idx, chartPoints.length - 1)];
+      if (btn && d) btn.textContent = pt && pt.isYTD ? `View ${d.year} YTD songs` : `View songs from ${d.year}`;
+    }
   }
 
   function initTimeMachineControls(container) {
@@ -548,7 +600,7 @@ const App = (() => {
         <button class="calc-reset" id="tm-reset" style="display:none;">Reset</button>
       </div>
       <div id="tm-year-detail" class="tm-year-detail" style="margin-top:8px;display:none;">
-        <button class="calc-btn" id="tm-view-year" style="font-size:11px;opacity:0.6;cursor:default;">View songs from this year (coming soon)</button>
+        <button class="calc-btn" id="tm-view-year" style="font-size:11px;">View songs from this year</button>
       </div>
     `;
 
@@ -602,6 +654,13 @@ const App = (() => {
       tmPosition = max;
       updateTimeMachine(tmPosition);
       document.getElementById('tm-reset').style.display = 'none';
+    });
+
+    // View year songs
+    document.getElementById('tm-view-year').addEventListener('click', () => {
+      const idx = Math.round(tmPosition);
+      const d = chartData[Math.min(idx, max)];
+      if (d) loadYearSongs(d.year, d.compass_degree, d.charge_level);
     });
   }
 
@@ -969,7 +1028,7 @@ const App = (() => {
 
       const dot = document.getElementById('daily-hover-dot');
       if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
-      pinchLine(dailyChartPoints, nearest, svgEl.querySelector('.trajectory-line'), svgEl.querySelector('.trajectory-area'), padT, chartH);
+      pinchLine(dailyChartPoints, nearest, svgEl.querySelector('.trajectory-line'), svgEl.querySelector('.trajectory-area'), padT, chartH, false);
     });
 
     dtmPosition = maxIdx;
@@ -1437,8 +1496,261 @@ const App = (() => {
     });
   }
 
+  // --- Year Songs Loading + Rendering ---
+  let yearSongsState = { year: null, songs: [], total: 0, loaded: 0 };
+
+  async function loadYearSongs(year, degree, chargeLevel) {
+    yearSongsState = { year, songs: [], total: 0, loaded: 0 };
+
+    // Show "View songs" button under compass instead of auto-scrolling
+    showYearViewButton(year, degree, chargeLevel);
+
+    // Update reading panel header
+    const header = document.querySelector('#reading-panel .card-header');
+    const desc = document.querySelector('#reading-panel .card-desc');
+    const isCurrentYear = year === new Date().getFullYear();
+    if (year > 2025) {
+      if (header) header.textContent = isCurrentYear ? `${year} — Year to Date` : `${year} — Charting Songs`;
+      if (desc) desc.textContent = isCurrentYear ? 'Live aggregate, updated daily. Weighted by chart position and days on chart.' : 'Frequency-weighted by chart position and days on chart.';
+    } else {
+      if (header) header.textContent = `${year} — Billboard Top Songs`;
+      if (desc) desc.textContent = 'Position-weighted aggregate of the year\u2019s biggest hits.';
+    }
+
+    // Load songs into reading panel (no scroll)
+    const container = document.getElementById('reading-content');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">Loading songs...</div>';
+
+    try {
+      const data = await API.getYearSongs(year, 0, 20);
+      yearSongsState.songs = data.songs;
+      yearSongsState.total = data.total;
+      yearSongsState.loaded = data.songs.length;
+
+      renderYearSongs(year, degree, chargeLevel, container);
+    } catch (err) {
+      console.error('Failed to load year songs:', err);
+      container.innerHTML = '<div class="error-msg">Could not load songs for this year.</div>';
+    }
+  }
+
+  function showYearViewButton(year, degree, chargeLevel) {
+    // Remove existing button if any
+    const existing = document.getElementById('year-view-btn');
+    if (existing) existing.remove();
+
+    const isYTD = year === new Date().getFullYear();
+    const tier = chargeLevel || degreeToTier(degree);
+    const hex = COLOR_HEX[tier] || '#888';
+    const label = isYTD ? `View ${year} YTD Songs` : `View ${year} Songs`;
+
+    const btn = document.createElement('button');
+    btn.id = 'year-view-btn';
+    btn.className = 'year-view-btn';
+    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>`;
+    btn.style.borderColor = hex;
+    btn.style.color = hex;
+
+    btn.addEventListener('click', () => {
+      const panel = document.getElementById('reading-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // Append inside compass panel, below the compass
+    const compassPanel = document.getElementById('compass-panel');
+    if (compassPanel) {
+      compassPanel.appendChild(btn);
+    }
+  }
+
+  function renderYearSongs(year, degree, chargeLevel, container) {
+    const { songs, total, loaded } = yearSongsState;
+    const tier = chargeLevel || degreeToTier(degree);
+    const hex = COLOR_HEX[tier] || '#888';
+    const label = CHARGE_LABELS[tier] || tier;
+    const contamCount = songs.filter(s => s.contaminated).length;
+    const isLive = year > 2025;
+
+    let html = '';
+    // Year charge header
+    html += `<div class="reading-charge-group">
+      <div class="reading-date" style="background:${hex}">${year}</div>
+      <div class="reading-charge-bar" style="background:${hex}">
+        <div class="reading-charge-inner">
+          <span class="reading-charge-score">${degreeToScore(degree)}</span>
+          <span class="reading-charge-label">${label}</span>
+          <span class="reading-charge-meta">${total} songs${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</span>
+        </div>
+      </div>
+    </div>`;
+
+    html += '<ul class="song-list">';
+    songs.forEach((song, i) => {
+      const pos = song.position || (i + 1);
+      const hasMEI = song.message_analysis || song.expression_analysis || song.intention_analysis;
+      const hasSummary = song.charge_summary || song.contamination_note;
+      const hasTooltip = hasMEI || hasSummary;
+      let tooltipHtml = '';
+      if (hasTooltip) {
+        const songHex = COLOR_HEX[song.rubric_color] || '#888';
+        const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
+        const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
+        let lines = `<div class="mei-header"><span class="mei-header-bar" style="background:${songHex}"></span><span class="mei-header-label" style="color:${songHex}">${songScore} ${songLabel}</span></div>`;
+        if (song.charge_summary) lines += `<div class="mei-summary">${escapeHtml(song.charge_summary)}</div>`;
+        if (song.message_analysis) lines += `<div class="mei-line"><strong>M</strong> ${escapeHtml(song.message_analysis)}</div>`;
+        if (song.expression_analysis) lines += `<div class="mei-line"><strong>E</strong> ${escapeHtml(song.expression_analysis)}</div>`;
+        if (song.intention_analysis) lines += `<div class="mei-line"><strong>I</strong> ${escapeHtml(song.intention_analysis)}</div>`;
+        if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
+        tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
+      }
+      html += `
+        <li class="song-item${hasTooltip ? ' has-tooltip' : ''}">
+          <span class="song-pos">${pos}</span>
+          <span class="song-dot ${song.rubric_color}"></span>
+          <div class="song-info">
+            <div class="song-title">${escapeHtml(song.title)}</div>
+            <div class="song-artist">${escapeHtml(song.artist)}${isLive && song.days_on_chart > 1 ? ` <span class="song-days">${song.days_on_chart}d</span>` : ''}</div>
+          </div>
+          <div class="song-actions">
+            ${song.contaminated ? '<span class="song-contam">&#x2622;</span>' : ''}
+            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis">&#x1F4AC;</button>' : ''}
+          </div>
+          ${tooltipHtml}
+        </li>
+      `;
+    });
+    html += '</ul>';
+
+    // Load More / View Full Year button
+    if (loaded < total) {
+      const remaining = total - loaded;
+      if (loaded < 100) {
+        html += `<button class="year-load-more" id="year-load-more">Load More (${remaining} remaining)</button>`;
+      } else {
+        html += `<button class="year-load-more" id="year-view-full">View Full Year (${total} songs)</button>`;
+      }
+    }
+
+    container.innerHTML = html;
+    initSongTooltips(container);
+
+    // Wire load more
+    const loadMoreBtn = document.getElementById('year-load-more');
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', () => loadMoreYearSongs(year, degree, chargeLevel));
+    }
+
+    // Wire full year overlay
+    const viewFullBtn = document.getElementById('year-view-full');
+    if (viewFullBtn) {
+      viewFullBtn.addEventListener('click', () => openYearOverlay(year, degree, chargeLevel));
+    }
+  }
+
+  async function loadMoreYearSongs(year, degree, chargeLevel) {
+    const btn = document.getElementById('year-load-more');
+    if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
+
+    try {
+      const data = await API.getYearSongs(year, yearSongsState.loaded, 20);
+      yearSongsState.songs = yearSongsState.songs.concat(data.songs);
+      yearSongsState.loaded = yearSongsState.songs.length;
+      yearSongsState.total = data.total;
+
+      const container = document.getElementById('reading-content');
+      if (container) renderYearSongs(year, degree, chargeLevel, container);
+    } catch (err) {
+      if (btn) { btn.textContent = 'Failed — try again'; btn.disabled = false; }
+    }
+  }
+
+  async function openYearOverlay(year, degree, chargeLevel) {
+    let overlay = document.getElementById('year-songs-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'year-songs-overlay';
+      overlay.className = 'year-overlay';
+      document.body.appendChild(overlay);
+    }
+
+    const tier = chargeLevel || degreeToTier(degree);
+    const hex = COLOR_HEX[tier] || '#888';
+    const label = CHARGE_LABELS[tier] || tier;
+
+    overlay.innerHTML = `
+      <div class="year-overlay-header">
+        <div class="year-overlay-title">
+          <span class="year-overlay-year">${year}</span>
+          <span class="year-overlay-score" style="color:${hex}">${degreeToScore(degree)} ${label}</span>
+        </div>
+        <button class="year-overlay-close" id="year-overlay-close">&times;</button>
+      </div>
+      <div class="year-overlay-body"><div class="loading">Loading all songs...</div></div>
+    `;
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    document.getElementById('year-overlay-close').addEventListener('click', closeYearOverlay);
+
+    try {
+      const data = await API.getYearSongs(year, 0, 999);
+      const songs = data.songs;
+      const isLive = year > 2025;
+      const contamCount = songs.filter(s => s.contaminated).length;
+
+      // Tier breakdown bar
+      const colorCounts = {};
+      songs.forEach(s => { colorCounts[s.rubric_color] = (colorCounts[s.rubric_color] || 0) + 1; });
+      let barHtml = '';
+      ['violet', 'blue', 'green', 'yellow', 'red'].forEach(color => {
+        const count = colorCounts[color] || 0;
+        if (count === 0) return;
+        const pct = (count / songs.length) * 100;
+        barHtml += `<div class="decade-seg" style="width:${pct.toFixed(1)}%;background:${COLOR_HEX[color]}" title="${count} ${CHARGE_LABELS[color]}"></div>`;
+      });
+
+      let tableHtml = '<table class="year-overlay-table"><thead><tr>';
+      tableHtml += '<th>#</th><th></th><th>Title</th><th>Artist</th>';
+      if (isLive) tableHtml += '<th>Days</th>';
+      tableHtml += '<th>Charge</th>';
+      tableHtml += '</tr></thead><tbody>';
+
+      songs.forEach((s, i) => {
+        const pos = s.position || (i + 1);
+        const cv = s.charge_value != null ? (s.charge_value > 0 ? '+' + s.charge_value : s.charge_value) : '';
+        tableHtml += `<tr>
+          <td class="yo-pos">${pos}</td>
+          <td><span class="song-dot ${s.rubric_color}"></span></td>
+          <td class="yo-title">${escapeHtml(s.title)}</td>
+          <td class="yo-artist">${escapeHtml(s.artist)}</td>
+          ${isLive ? `<td class="yo-days">${s.days_on_chart}</td>` : ''}
+          <td class="yo-charge">${cv}</td>
+        </tr>`;
+      });
+      tableHtml += '</tbody></table>';
+
+      const body = overlay.querySelector('.year-overlay-body');
+      body.innerHTML = `
+        <div class="year-overlay-meta">${songs.length} songs${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</div>
+        <div class="decade-bar" style="margin-bottom:1rem;">${barHtml}</div>
+        ${tableHtml}
+      `;
+    } catch (err) {
+      overlay.querySelector('.year-overlay-body').innerHTML = '<div class="error-msg">Failed to load songs.</div>';
+    }
+  }
+
+  function closeYearOverlay() {
+    const overlay = document.getElementById('year-songs-overlay');
+    if (overlay) {
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  }
+
   // --- Chart click pinch effect ---
-  function pinchLine(points, nearestIdx, lineEl, areaEl, padT, chartH) {
+  function pinchLine(points, nearestIdx, lineEl, areaEl, padT, chartH, ytdSplit) {
     const radius = 20; // SVG units (~25px)
     const strength = 0.35;
     const target = points[nearestIdx];
@@ -1450,17 +1762,22 @@ const App = (() => {
     });
 
     const buildLine = pts => pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-    const pinchedPath = buildLine(pinched);
-    const last = pinched[pinched.length - 1];
-    const first = pinched[0];
-    const pinchedArea = pinchedPath + ` L ${last.x.toFixed(1)} ${padT + chartH} L ${first.x.toFixed(1)} ${padT + chartH} Z`;
+
+    // If YTD split, solid line only goes up to second-to-last point
+    const solidPinched = ytdSplit ? pinched.slice(0, -1) : pinched;
+    const pinchedPath = buildLine(solidPinched);
+    const fullPinched = pinched;
+    const last = fullPinched[fullPinched.length - 1];
+    const first = fullPinched[0];
+    const pinchedArea = buildLine(fullPinched) + ` L ${last.x.toFixed(1)} ${padT + chartH} L ${first.x.toFixed(1)} ${padT + chartH} Z`;
 
     if (lineEl) lineEl.setAttribute('d', pinchedPath);
     if (areaEl) areaEl.setAttribute('d', pinchedArea);
 
     // Restore
-    const origPath = buildLine(points);
-    const origArea = origPath + ` L ${points[points.length - 1].x.toFixed(1)} ${padT + chartH} L ${points[0].x.toFixed(1)} ${padT + chartH} Z`;
+    const solidPoints = ytdSplit ? points.slice(0, -1) : points;
+    const origPath = buildLine(solidPoints);
+    const origArea = buildLine(points) + ` L ${points[points.length - 1].x.toFixed(1)} ${padT + chartH} L ${points[0].x.toFixed(1)} ${padT + chartH} Z`;
     setTimeout(() => {
       if (lineEl) lineEl.setAttribute('d', origPath);
       if (areaEl) areaEl.setAttribute('d', origArea);

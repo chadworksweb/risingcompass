@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.database import engine, SessionLocal, Base
-from app.models import Song, AlbumDeepDive, AlbumTrack
+from app.models import CompassSong, AlbumDeepDive, AlbumTrack
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -27,7 +27,7 @@ def seed_songs(db):
 
     count = 0
     for s in songs_data:
-        song = Song(
+        song = CompassSong(
             title=s["title"],
             artist=s["artist"],
             year=s["year"],
@@ -96,7 +96,7 @@ def main():
         # Clear existing data
         db.query(AlbumTrack).delete()
         db.query(AlbumDeepDive).delete()
-        db.query(Song).delete()
+        db.query(CompassSong).delete()
         db.commit()
 
         seed_songs(db)

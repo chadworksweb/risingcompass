@@ -9,7 +9,7 @@ def _degree_to_score(degree: float) -> int:
 
 
 # --- Songs ---
-class SongOut(BaseModel):
+class CompassSongOut(BaseModel):
     id: int
     title: str
     artist: str
@@ -367,8 +367,60 @@ class LibraryCollectionOut(BaseModel):
     items: List[LibraryItemOut] = []
 
 
+# --- Library Songs (non-chart archive) ---
+class LibrarySongCreate(BaseModel):
+    title: str
+    artist: str
+    rubric_color: str
+    charge_value: Optional[int] = None
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+    album_id: Optional[int] = None
+    track_number: Optional[int] = None
+    source: str = "manual"
+
+
+class LibrarySongUpdate(BaseModel):
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    rubric_color: Optional[str] = None
+    charge_value: Optional[int] = None
+    contaminated: Optional[bool] = None
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+    album_id: Optional[int] = None
+    track_number: Optional[int] = None
+
+
+class LibrarySongOut(BaseModel):
+    id: int
+    title: str
+    artist: str
+    rubric_color: str
+    charge_value: Optional[int] = None
+    contaminated: bool
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message_analysis: Optional[str] = None
+    expression_analysis: Optional[str] = None
+    intention_analysis: Optional[str] = None
+    album_id: Optional[int] = None
+    track_number: Optional[int] = None
+    source: str
+    created_at: Optional[datetime.datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 # --- Manual Song Feed ---
-class SongFeedIn(BaseModel):
+class CompassSongFeedIn(BaseModel):
     title: str
     artist: str
     rubric_color: str
@@ -457,6 +509,7 @@ class DraftTriggerSongIn(BaseModel):
 class DraftTriggerIn(BaseModel):
     songs: List[DraftTriggerSongIn]
     date: Optional[datetime.date] = None
+    draft_only: bool = False  # True = case study mode, skip compass_songs table
 
 
 class DraftSongUpdate(BaseModel):
@@ -585,4 +638,4 @@ class CalibrateRequest(BaseModel):
 
 class CalibrateResult(BaseModel):
     calibrated: int
-    songs: List[SongOut]
+    songs: List[CompassSongOut]

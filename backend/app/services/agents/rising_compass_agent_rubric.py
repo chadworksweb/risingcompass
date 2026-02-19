@@ -1,7 +1,7 @@
 """Rubric definition and few-shot example builder for the Compass Agent."""
 
 from sqlalchemy.orm import Session
-from app.models import Song
+from app.models import CompassSong
 
 
 def truncate_mei(text: str | None, max_words: int = 20) -> str | None:
@@ -151,7 +151,7 @@ confidence should reflect how well you know the song:
 
 
 def build_few_shot_examples(db: Session, target_year: int = None) -> str:
-    """Pull ~5 examples per tier from the Song table to use as few-shot examples.
+    """Pull ~5 examples per tier from the CompassSong table to use as few-shot examples.
 
     If target_year is provided, prioritizes examples from the same decade.
     Returns a formatted string of example classifications.
@@ -166,11 +166,11 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
         # Prioritize same-decade examples if target_year provided
         if target_decade:
             same_decade = (
-                db.query(Song)
-                .filter(Song.rubric_color == color)
-                .filter(Song.charge_summary.isnot(None))
-                .filter(Song.calibrated.is_(True))
-                .filter(Song.decade == target_decade)
+                db.query(CompassSong)
+                .filter(CompassSong.rubric_color == color)
+                .filter(CompassSong.charge_summary.isnot(None))
+                .filter(CompassSong.calibrated.is_(True))
+                .filter(CompassSong.decade == target_decade)
                 .limit(10)
                 .all()
             )
@@ -178,10 +178,10 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
         # Fill remaining slots with any calibrated examples
         if len(songs) < 20:
             other = (
-                db.query(Song)
-                .filter(Song.rubric_color == color)
-                .filter(Song.charge_summary.isnot(None))
-                .filter(Song.calibrated.is_(True))
+                db.query(CompassSong)
+                .filter(CompassSong.rubric_color == color)
+                .filter(CompassSong.charge_summary.isnot(None))
+                .filter(CompassSong.calibrated.is_(True))
                 .limit(20 - len(songs))
                 .all()
             )
@@ -208,10 +208,10 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
 
     # Also grab a few contaminated examples across tiers
     contaminated = (
-        db.query(Song)
-        .filter(Song.contaminated.is_(True))
-        .filter(Song.contamination_note.isnot(None))
-        .filter(Song.calibrated.is_(True))
+        db.query(CompassSong)
+        .filter(CompassSong.contaminated.is_(True))
+        .filter(CompassSong.contamination_note.isnot(None))
+        .filter(CompassSong.calibrated.is_(True))
         .limit(5)
         .all()
     )

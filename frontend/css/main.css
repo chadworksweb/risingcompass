@@ -356,6 +356,39 @@ body {
   opacity: 0.8;
 }
 
+.mei-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.mei-header-bar {
+  width: 3px;
+  height: 1rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.mei-header-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.mei-summary {
+  font-size: 0.72rem;
+  color: rgba(20, 20, 30, 0.7);
+  line-height: 1.45;
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-style: italic;
+}
+
 .mei-line {
   font-size: 0.72rem;
   color: rgba(20, 20, 30, 0.8);
@@ -641,6 +674,28 @@ body {
   font-family: var(--rc-font-mono);
   font-size: 0.4rem;
   fill: var(--rc-text-dim);
+}
+
+.trajectory-label-ytd {
+  fill: var(--rc-accent);
+  font-weight: 700;
+  font-size: 0.42rem;
+}
+
+/* YTD open ring + pulse */
+.trajectory-ytd-ring {
+  pointer-events: none;
+}
+
+.trajectory-ytd-pulse {
+  pointer-events: none;
+  animation: ytd-pulse 2.5s ease-out infinite;
+}
+
+@keyframes ytd-pulse {
+  0% { r: 4; opacity: 0.6; }
+  70% { r: 9; opacity: 0; }
+  100% { r: 9; opacity: 0; }
 }
 
 .trajectory-y-label {
@@ -1670,6 +1725,201 @@ body {
   padding: 1rem;
   color: var(--rc-red);
   font-size: 0.85rem;
+}
+
+/* === Year View Button (inside compass panel) === */
+.year-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius-sm);
+  cursor: pointer;
+  transition: background var(--rc-ease), opacity var(--rc-ease);
+}
+
+.year-view-btn:hover {
+  background: var(--rc-accent-hover);
+}
+
+.year-view-btn svg {
+  animation: bounce-down 1.5s ease-in-out infinite;
+}
+
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+
+/* === Year Songs — Load More + Days Badge === */
+.year-load-more {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  margin-top: 0.5rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+  background: var(--rc-accent-subtle);
+  border: 1px solid rgba(0, 212, 170, 0.25);
+  border-radius: var(--rc-radius-sm);
+  cursor: pointer;
+  transition: background var(--rc-ease), border-color var(--rc-ease);
+}
+
+.year-load-more:hover {
+  background: var(--rc-accent-hover);
+  border-color: var(--rc-accent);
+}
+
+.year-load-more:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.song-days {
+  font-size: 0.7rem;
+  color: var(--rc-text-dim);
+  background: rgba(255,255,255,0.06);
+  padding: 0.1em 0.35em;
+  border-radius: var(--rc-radius-xs);
+  margin-left: 0.3rem;
+}
+
+/* === Year Songs Overlay === */
+.year-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--rc-bg-dark);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.year-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.year-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--rc-border);
+  flex-shrink: 0;
+}
+
+.year-overlay-title {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.year-overlay-year {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+}
+
+.year-overlay-score {
+  font-family: var(--rc-font-mono);
+  font-size: 0.9rem;
+}
+
+.year-overlay-close {
+  background: none;
+  border: none;
+  color: var(--rc-text-dim);
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 0.3rem;
+}
+
+.year-overlay-close:hover {
+  color: var(--rc-text-bright);
+}
+
+.year-overlay-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem 2rem;
+}
+
+.year-overlay-meta {
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.year-overlay-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.year-overlay-table th {
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rc-text-dim);
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--rc-border);
+}
+
+.year-overlay-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--rc-divider);
+  color: var(--rc-text);
+}
+
+.year-overlay-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+
+td.yo-pos {
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+  width: 2rem;
+  text-align: right;
+}
+
+td.yo-title {
+  color: var(--rc-text-bright);
+  font-weight: 500;
+}
+
+td.yo-artist {
+  color: var(--rc-text-dim);
+}
+
+td.yo-days {
+  font-family: var(--rc-font-mono);
+  color: var(--rc-text-dim);
+  text-align: right;
+  width: 3rem;
+}
+
+td.yo-charge {
+  font-family: var(--rc-font-mono);
+  text-align: right;
+  width: 3rem;
 }
 
 /* === Footer === */
