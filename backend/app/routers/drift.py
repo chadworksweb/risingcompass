@@ -80,7 +80,7 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
     reading_sizes = {}
     if reading_ids:
         size_rows = (
-            db.query(ReadingSong.reading_id, func.count(ReadingCompassSong.id))
+            db.query(ReadingSong.reading_id, func.count(ReadingSong.id))
             .filter(ReadingSong.reading_id.in_(reading_ids))
             .group_by(ReadingSong.reading_id)
             .all()
