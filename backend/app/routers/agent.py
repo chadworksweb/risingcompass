@@ -4,6 +4,7 @@ import math
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -26,6 +27,80 @@ from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
+
+COLOR_LABELS = {
+    "violet": "Ascended", "blue": "Elevated", "green": "Decent",
+    "yellow": "Degraded", "red": "Corrupted",
+}
+COLOR_HEX = {
+    "violet": "#9933ff", "blue": "#3388ff", "green": "#33cc55",
+    "yellow": "#ffbb33", "red": "#ff3333",
+}
+
+
+def _degree_to_score(degree: float) -> str:
+    score = round((90 - degree) * 100 / 90)
+    return f"{'+' if score > 0 else ''}{score}"
+
+
+def _build_approval_html(draft) -> str:
+    """Build a styled HTML confirmation page after approving a draft."""
+    charge_color = COLOR_HEX.get(draft.charge_level, "#999")
+    charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
+    score = _degree_to_score(draft.compass_degree)
+    song_count = len(draft.songs) if draft.songs else 0
+
+    return f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reading Published — {draft.date}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:#0a0a14; color:#eeeef4; font-family:'Inter',-apple-system,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }}
+  .card {{ background:#1a1a2e; border-radius:12px; padding:48px; max-width:480px; width:90%; text-align:center; border:1px solid #2a2a4e; }}
+  .check {{ width:64px; height:64px; border-radius:50%; background:rgba(0,212,170,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 24px; }}
+  .check svg {{ width:32px; height:32px; color:#00d4aa; }}
+  h1 {{ font-size:22px; font-weight:600; margin-bottom:8px; }}
+  .date {{ font-size:14px; color:#88ccaa; margin-bottom:32px; }}
+  .metrics {{ display:flex; justify-content:center; gap:32px; margin-bottom:32px; }}
+  .metric {{ text-align:center; }}
+  .metric-label {{ font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:#666; margin-bottom:6px; }}
+  .metric-value {{ font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; }}
+  .editorial {{ font-size:14px; line-height:1.6; color:#aaa; font-style:italic; margin-bottom:32px; padding:0 8px; }}
+  .meta {{ font-size:11px; color:#555; }}
+</style>
+</head><body>
+<div class="card">
+  <div class="check">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+  </div>
+  <h1>Reading Published</h1>
+  <div class="date">{draft.date}</div>
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Charge</div>
+      <div class="metric-value" style="color:{charge_color};">{score}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Level</div>
+      <div class="metric-value" style="color:{charge_color};">{charge_label}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Songs</div>
+      <div class="metric-value" style="color:#eeeef4;">{song_count}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Contaminated</div>
+      <div class="metric-value" style="color:{'#ff3333' if draft.contamination_count > 0 else '#00d4aa'};">{draft.contamination_count}</div>
+    </div>
+  </div>
+  <div class="editorial">{draft.editorial_summary or ''}</div>
+  <div class="meta">Agent: {draft.agent_model or 'unknown'} &middot; The Rising Compass</div>
+</div>
+</body></html>"""
 
 
 @router.post("/classify", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
@@ -88,12 +163,13 @@ def get_draft(draft_id: int, db: Session = Depends(get_db)):
     return draft
 
 
-@router.get("/drafts/{draft_id}/approve")
+@router.get("/drafts/{draft_id}/approve", response_class=HTMLResponse)
 def approve_draft_via_link(draft_id: int, key: str = Query(...), db: Session = Depends(get_db)):
     """One-click approve from email link (GET with key in query param)."""
     if key != settings.rc_admin_key:
         raise HTTPException(status_code=403, detail="Invalid admin key")
-    return approve_draft(draft_id, db)
+    draft = approve_draft(draft_id, db)
+    return _build_approval_html(draft)
 
 
 @router.post("/drafts/{draft_id}/approve", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
