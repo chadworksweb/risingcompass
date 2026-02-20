@@ -1931,7 +1931,9 @@ const App = (() => {
     // Load songs into reading panel (no scroll)
     const container = document.getElementById('reading-content');
     if (!container) return;
-    container.innerHTML = '<div class="loading" role="status">Loading songs...</div>';
+    // Keep old content visible while fetching — crossfade swaps it when ready
+    container.style.opacity = '0.5';
+    container.style.transition = 'opacity 0.15s ease';
     announce(`Loading songs for ${year}.`);
 
     try {
@@ -1943,6 +1945,7 @@ const App = (() => {
       renderYearSongs(year, degree, chargeLevel, container);
     } catch (err) {
       console.error('Failed to load year songs:', err);
+      container.style.opacity = '1';
       container.innerHTML = '<div class="error-msg">Could not load songs for this year.</div>';
     }
   }
