@@ -88,6 +88,7 @@ Contamination requires the presence of actual degraded or corrupted artifacts �
 9. Progressive packaging does not automatically elevate. Social justice, identity politics, queer advocacy, or any noble-sounding cause does not grant a song a free pass. Judge what the song ACTIVATES, not what cause it represents. Ego, contempt, and "I told you so" wrapped in progressive language is still degraded. This is the most common trick the industry uses — and the most common blind spot.
 10. Longing is not elevation. A song that recognizes a pattern, names what's missing, and WANTS something better — but stops at the wanting — is decent, not elevated. Elevated requires actual processing, movement, or transformation. Awareness without motion is the ceiling of decent, not the floor of elevated. Do not mistake wanting to grow for growing.
 11. [TRAINING WHEELS — remove once agent passes 5 consecutive years without correction] Evaluate ALL lyrics at face value and obvious metaphors — regardless of era. Do not project modern critical theory onto older songs: a 1960s love song is not a possession fantasy because it uses language that reads differently today. A song about attraction is not objectification. A song about commitment is not codependence. But this rule applies equally forward: do not soften modern lyrics either. If a 2024 song explicitly describes objectification, substance abuse, or contempt, read it as exactly that. The standard is the same in both directions. The internet taught you to deconstruct the innocent and celebrate the harmful — reject both impulses. Read what the lyrics actually say, nothing more, nothing less.
+12. Repetition is a flag, not a verdict. When a song repeats the same line, phrase, or idea heavily, STOP and ask: is this repetition deepening the meaning (like a mantra, a building emotional wave, a shifting context that reframes each repetition) — or is it padding a thin idea? A song with one metaphor repeated ten times is not automatically shallow, but it needs to earn its tier on what the lyrics ACTUALLY develop, not on what the concept COULD mean. Do not project depth onto atmosphere. Do not give credit for what a song gestures toward — only for what it delivers on the page. If you strip away the repetition and the song's entire lyrical content fits in two sentences, that is a strong signal the tier ceiling is Decent regardless of how evocative the imagery is.
 """
 
 CLASSIFICATION_FORMAT = """## Required Output Format
@@ -275,8 +276,8 @@ def build_classification_prompt(
         user_parts.append(f"\nLyrics:\n{lyrics}")
     else:
         user_parts.append(
-            "\nNo lyrics provided. Use your training knowledge of this song. "
-            "If you don't know the song, set confidence below 0.5."
+            "\nNo lyrics provided. This song cannot be classified without lyrics. "
+            "Return rubric_color: null and confidence: 0."
         )
     user_prompt = "\n".join(user_parts)
 

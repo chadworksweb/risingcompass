@@ -1,7 +1,8 @@
-"""Genius lyrics fetcher — searches Genius API and scrapes lyrics from song pages."""
+"""Lyrics fetcher — tries Genius API first, falls back to AZLyrics scrape."""
 
 import logging
 import re
+import urllib.parse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -14,13 +15,28 @@ GENIUS_SEARCH_URL = "https://api.genius.com/search"
 
 
 def fetch_lyrics(title: str, artist: str) -> str | None:
-    """Fetch lyrics for a song from Genius.
+    """Fetch lyrics for a song, trying Genius first then AZLyrics.
 
-    Searches the Genius API for the song, then scrapes lyrics from the song page.
-    Returns cleaned lyrics text or None if not found.
+    Returns cleaned lyrics text or None if not found from any source.
     """
+    # Try Genius first
+    lyrics = _fetch_from_genius(title, artist)
+    if lyrics:
+        return lyrics
+
+    # Fallback to AZLyrics
+    lyrics = _fetch_from_azlyrics(title, artist)
+    if lyrics:
+        return lyrics
+
+    logger.warning("No lyrics found from any source for %s by %s", title, artist)
+    return None
+
+
+def _fetch_from_genius(title: str, artist: str) -> str | None:
+    """Try fetching lyrics from Genius API + scrape."""
     if not settings.genius_access_token:
-        logger.debug("No Genius token configured — skipping lyrics for %s by %s", title, artist)
+        logger.debug("No Genius token configured — skipping Genius for %s by %s", title, artist)
         return None
 
     try:
@@ -29,13 +45,13 @@ def fetch_lyrics(title: str, artist: str) -> str | None:
             logger.info("No Genius result for %s by %s", title, artist)
             return None
 
-        lyrics = _scrape_lyrics(song_url)
+        lyrics = _scrape_genius_lyrics(song_url)
         if lyrics:
-            logger.info("Fetched lyrics for %s by %s (%d chars)", title, artist, len(lyrics))
+            logger.info("Fetched lyrics from Genius for %s by %s (%d chars)", title, artist, len(lyrics))
         return lyrics
 
     except Exception:
-        logger.exception("Failed to fetch lyrics for %s by %s", title, artist)
+        logger.exception("Failed to fetch lyrics from Genius for %s by %s", title, artist)
         return None
 
 
@@ -63,7 +79,7 @@ def _search_song(title: str, artist: str) -> str | None:
     return hits[0].get("result", {}).get("url")
 
 
-def _scrape_lyrics(url: str) -> str | None:
+def _scrape_genius_lyrics(url: str) -> str | None:
     """Scrape lyrics from a Genius song page."""
     resp = httpx.get(url, timeout=10, follow_redirects=True)
     resp.raise_for_status()
@@ -90,3 +106,49 @@ def _scrape_lyrics(url: str) -> str | None:
     lyrics = re.sub(r"\n{3,}", "\n\n", lyrics)
 
     return lyrics if lyrics else None
+
+
+def _azlyrics_slug(text: str) -> str:
+    """Convert artist or title to AZLyrics URL slug (lowercase, alphanumeric only)."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _fetch_from_azlyrics(title: str, artist: str) -> str | None:
+    """Try fetching lyrics from AZLyrics by constructing the expected URL."""
+    try:
+        # Strip leading "The " for AZLyrics artist slugs
+        artist_clean = re.sub(r"^the\s+", "", artist, flags=re.IGNORECASE)
+        artist_slug = _azlyrics_slug(artist_clean)
+        title_slug = _azlyrics_slug(title)
+
+        url = f"https://www.azlyrics.com/lyrics/{artist_slug}/{title_slug}.html"
+        logger.info("Trying AZLyrics: %s", url)
+
+        resp = httpx.get(
+            url,
+            timeout=10,
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; RisingCompass/1.0)"},
+        )
+        if resp.status_code != 200:
+            logger.info("AZLyrics returned %d for %s by %s", resp.status_code, title, artist)
+            return None
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # AZLyrics puts lyrics in a div that follows the comment "Usage of azlyrics.com..."
+        # It's the div after ringtone div, with no class/id
+        divs = soup.select("div.col-xs-12.col-lg-8.text-center div:not([class])")
+        for div in divs:
+            text = div.get_text(separator="\n").strip()
+            if len(text) > 100:  # lyrics should be substantial
+                lyrics = re.sub(r"\n{3,}", "\n\n", text)
+                logger.info("Fetched lyrics from AZLyrics for %s by %s (%d chars)", title, artist, len(lyrics))
+                return lyrics
+
+        logger.info("No lyrics content found on AZLyrics page for %s by %s", title, artist)
+        return None
+
+    except Exception:
+        logger.exception("Failed to fetch lyrics from AZLyrics for %s by %s", title, artist)
+        return None

@@ -159,16 +159,34 @@ def run_compass_agent(
 
         # Cache miss — fetch lyrics and classify
         lyrics = fetch_lyrics(title, artist)
-        lyrics_available = lyrics is not None
 
-        if not lyrics_available:
-            agent_notes_parts.append(f"No lyrics for \"{title}\" — classified from training knowledge")
+        if not lyrics:
+            # No lyrics from any source — include song unclassified, needs human intervention
+            agent_notes_parts.append(f"No lyrics found for \"{title}\" — awaiting human classification")
+            logger.warning("No lyrics found for %s by %s — song left unclassified", title, artist)
+            classified_songs.append({
+                "title": title,
+                "artist": artist,
+                "position": position,
+                "chart_source": chart_source,
+                "lyrics_available": False,
+                "rubric_color": None,
+                "charge_value": None,
+                "contaminated": False,
+                "contamination_note": None,
+                "charge_summary": "Lyrics not found — awaiting human classification",
+                "message_analysis": None,
+                "expression_analysis": None,
+                "intention_analysis": None,
+                "confidence": 0.0,
+            })
+            continue
 
         result = classify_song(title, artist, lyrics=lyrics, db=db)
 
         # Store for future reuse (skip for draft-only / case study mode)
         if not draft_only:
-            _store_classification(title, artist, position, chart_source, result, lyrics_available, db)
+            _store_classification(title, artist, position, chart_source, result, True, db)
         logger.info("Classified and cached: %s by %s → %s", title, artist, result["rubric_color"])
 
         classified_songs.append({
@@ -176,14 +194,15 @@ def run_compass_agent(
             "artist": artist,
             "position": position,
             "chart_source": chart_source,
-            "lyrics_available": lyrics_available,
+            "lyrics_available": True,
             **result,
         })
 
-    # Compute compass metrics (uses charge_value when available)
+    # Compute compass metrics — exclude unclassified songs (no lyrics found)
     song_dicts = [
         {"rubric_color": s["rubric_color"], "charge_value": s.get("charge_value"), "position": s["position"]}
         for s in classified_songs
+        if s.get("rubric_color") is not None
     ]
     degree = compute_degree(song_dicts)
     charge = degree_to_charge(degree)
