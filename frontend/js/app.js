@@ -2129,11 +2129,37 @@ const App = (() => {
       Charge.setLevel(reading.charge_level, redCount, reading.songs.length);
       Contamination.setCount(reading.contamination_count, reading.songs.length);
       renderReading({ has_reading: true, ...reading });
-      // Scroll to top
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // Show "View Songs" button under compass
+      showDailyViewButton(date, reading.compass_degree, reading.charge_level);
     } catch (err) {
       console.error('Failed to load reading:', err);
     }
+  }
+
+  function showDailyViewButton(date, degree, chargeLevel) {
+    // Remove existing button if any
+    const existing = document.getElementById('year-view-btn');
+    if (existing) existing.remove();
+
+    const tier = chargeLevel || degreeToTier(degree);
+    const hex = COLOR_HEX[tier] || '#888';
+    const label = `View ${formatDate(date)} Songs`;
+
+    const btn = document.createElement('button');
+    btn.id = 'year-view-btn';
+    btn.className = 'year-view-btn';
+    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>`;
+    btn.style.borderColor = hex;
+    btn.style.color = hex;
+
+    btn.addEventListener('click', () => {
+      const panel = document.getElementById('reading-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    const compassPanel = document.getElementById('compass-panel');
+    if (compassPanel) compassPanel.appendChild(btn);
   }
 
   // --- Helpers ---
