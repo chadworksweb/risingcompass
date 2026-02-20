@@ -40,8 +40,8 @@ const Compass = (() => {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Build SVG — expanded viewBox for outer labels
-    let svg = `<svg class="compass-svg" viewBox="0 -10 360 270" xmlns="http://www.w3.org/2000/svg">`;
+    // Build SVG — expanded viewBox for outer labels + date text
+    let svg = `<svg class="compass-svg" viewBox="0 -10 360 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Compass gauge showing current charge level">`;
 
     const arcSpan = 36; // 180/5
     const TIER_LABELS = ['Ascended', 'Elevated', 'Decent', 'Degraded', 'Corrupted'];
@@ -121,16 +121,24 @@ const Compass = (() => {
     }
 
     // Update charge label
+    const labels = {
+      violet: 'ASCENDED',
+      blue: 'ELEVATED',
+      green: 'DECENT',
+      yellow: 'DEGRADED',
+      red: 'CORRUPTED',
+    };
     const chargeText = document.getElementById('compass-charge-text');
     if (chargeText) {
-      const labels = {
-        violet: 'ASCENDED',
-        blue: 'ELEVATED',
-        green: 'DECENT',
-        yellow: 'DEGRADED',
-        red: 'CORRUPTED',
-      };
       chargeText.textContent = labels[chargeLevel] || chargeLevel.toUpperCase();
+    }
+
+    // Update SVG aria-label
+    const svgEl = document.querySelector('.compass-svg');
+    if (svgEl) {
+      const score = Math.round((90 - degree) * 100 / 90);
+      const label = labels[chargeLevel] || chargeLevel;
+      svgEl.setAttribute('aria-label', `Compass: ${(score > 0 ? '+' : '')}${score}, ${label}`);
     }
 
     // Color the label background with the current charge

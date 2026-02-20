@@ -1,5 +1,12 @@
 /* === Main App Logic === */
 
+function announce(msg) {
+  const el = document.getElementById('sr-announce');
+  if (!el) return;
+  el.textContent = '';
+  requestAnimationFrame(() => { el.textContent = msg; });
+}
+
 const App = (() => {
   const COLOR_HEX = {
     violet: '#9933ff',
@@ -25,6 +32,7 @@ const App = (() => {
     initNav();
     initCalcOverlay();
     initEraTabs();
+    initCalendarPicker();
     await loadCurrent();
     loadTrajectory();
     loadGhostTrail();
@@ -39,7 +47,6 @@ const App = (() => {
     btn.addEventListener('click', () => {
       const open = overlay.classList.toggle('open');
       btn.classList.toggle('active', open);
-      btn.querySelector('span').textContent = open ? 'Close Calculator' : 'Calculator';
     });
   }
 
@@ -97,6 +104,12 @@ const App = (() => {
     if (header) header.textContent = 'Daily Top 20 Songs';
     if (desc) desc.textContent = "Today's most-heard songs, individually charged.";
 
+    // Sync calendar picker to this reading's date
+    if (data.has_reading && data.date) {
+      const [y, m, d] = data.date.split('-');
+      syncCalendar(parseInt(y), m, d);
+    }
+
     if (!data.has_reading) {
       container.innerHTML = `
         <div class="no-reading">
@@ -113,12 +126,15 @@ const App = (() => {
     const dailyHex = COLOR_HEX[data.charge_level] || '#888';
     html += `<div class="reading-charge-group">
       <div class="reading-date" style="background:${dailyHex}">${formatDate(data.date)}</div>
-      <div class="reading-charge-bar" style="background:${dailyHex}">
-        <div class="reading-charge-inner">
-          <span class="reading-charge-score">${degreeToScore(data.compass_degree)}</span>
-          <span class="reading-charge-label">${dailyCharge}</span>
-          <span class="reading-charge-meta">${data.songs.length} songs &middot; ${data.contamination_count} contaminated</span>
+      <div class="reading-charge-row">
+        <div class="reading-charge-bar" style="background:${dailyHex}">
+          <div class="reading-charge-inner">
+            <span class="reading-charge-score">${degreeToScore(data.compass_degree)}</span>
+            <span class="reading-charge-label">${dailyCharge}</span>
+            <span class="reading-charge-meta">${data.songs.length} songs &middot; ${data.contamination_count} contaminated</span>
+          </div>
         </div>
+        ${calendarToggleBtnHtml()}
       </div>
     </div>`;
 
@@ -156,8 +172,8 @@ const App = (() => {
             <div class="song-artist">${escapeHtml(song.artist)}</div>
           </div>
           <div class="song-actions">
-            ${song.contaminated ? '<span class="song-contam">&#x2622;</span>' : ''}
-            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis">&#x1F4AC;</button>' : ''}
+            ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
+            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis" aria-label="Read analysis">&#x1F4AC;</button>' : ''}
           </div>
           ${tooltipHtml}
         </li>
@@ -167,23 +183,42 @@ const App = (() => {
 
     container.innerHTML = html;
     initSongTooltips(container);
+    wireCalendarToggle(container);
+
+    // Announce for screen readers
+    if (data.has_reading) {
+      const tier = CHARGE_LABELS[data.charge_level] || data.charge_level;
+      announce(`Reading loaded for ${formatDate(data.date)}. Charge: ${tier}. ${data.songs.length} songs.`);
+    }
   }
 
   function initSongTooltips(container) {
     container.querySelectorAll('.song-comment-btn').forEach(btn => {
+      btn.setAttribute('aria-expanded', 'false');
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const item = btn.closest('.song-item');
         const wasActive = item.classList.contains('active');
-        container.querySelectorAll('.song-item.active').forEach(el => el.classList.remove('active'));
-        if (!wasActive) item.classList.add('active');
+        container.querySelectorAll('.song-item.active').forEach(el => {
+          el.classList.remove('active');
+          const b = el.querySelector('.song-comment-btn');
+          if (b) b.setAttribute('aria-expanded', 'false');
+        });
+        if (!wasActive) {
+          item.classList.add('active');
+          btn.setAttribute('aria-expanded', 'true');
+        }
       });
     });
 
     // Dismiss on click outside
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.song-comment-btn')) {
-        container.querySelectorAll('.song-item.active').forEach(el => el.classList.remove('active'));
+        container.querySelectorAll('.song-item.active').forEach(el => {
+          el.classList.remove('active');
+          const b = el.querySelector('.song-comment-btn');
+          if (b) b.setAttribute('aria-expanded', 'false');
+        });
       }
     });
   }
@@ -213,7 +248,7 @@ const App = (() => {
           `).join('')}
         </ul>
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0.5rem;">
-          <span style="font-size:1.4rem;opacity:0.4;">&#x1F6A7;</span>
+          <span style="font-size:1.4rem;opacity:0.4;" aria-hidden="true">&#x1F6A7;</span>
           <span style="font-family:var(--rc-font-mono);font-size:0.82rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--rc-text-dim);">Under Development</span>
         </div>
       </div>
@@ -231,6 +266,9 @@ const App = (() => {
       // Silent fail — ghost trail is decorative
     }
   }
+
+  // --- Calendar Picker ---
+  let rolodexDatesCache = {};  // { year: ["2026-01-15", ...] }
 
   // --- Trajectory Chart (year-by-year with zoom + Time Machine) ---
   let allYearData = [];
@@ -427,6 +465,7 @@ const App = (() => {
       Charge.setLevel(p.color, 0, 0);
 
       loadYearSongs(d.year, p.degree, p.color);
+      syncCalendar(d.year);
 
       const dot = document.getElementById('traj-hover-dot');
       if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
@@ -468,7 +507,10 @@ const App = (() => {
     if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
     if (countEl) countEl.textContent = isYTD ? `${nearest.chart_song_count} songs \u00B7 updated daily` : `${nearest.chart_song_count} charting songs`;
     if (progressFill) progressFill.style.width = (pos / max * 100) + '%';
-    if (slider) slider.value = Math.round(pos);
+    if (slider) {
+      slider.value = Math.round(pos);
+      slider.setAttribute('aria-valuetext', `${nearest.year}, ${CHARGE_LABELS[tier]}`);
+    }
     if (resetBtn) resetBtn.style.display = '';
 
     // Clip trajectory chart to current position
@@ -563,7 +605,7 @@ const App = (() => {
 
     tmArea.innerHTML = `
       <div class="calc-slider-wrap">
-        <input type="range" class="calc-slider" id="tm-slider" min="0" max="${max}" value="${max}" step="1">
+        <input type="range" class="calc-slider" id="tm-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Time machine year slider" aria-valuetext="${last.year}">
       </div>
       <div class="calc-slider-info">
         <span class="calc-decade" id="tm-year">${last.year}</span>
@@ -572,18 +614,18 @@ const App = (() => {
         <span class="calc-song-count" id="tm-count">${last.chart_song_count} charting songs</span>
       </div>
       <div class="calc-playback">
-        <button class="calc-play-btn" id="tm-rev" title="Play backward">
+        <button class="calc-play-btn" id="tm-rev" title="Play backward" aria-label="Play backward">
           <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
         </button>
-        <button class="calc-play-btn" id="tm-play" title="Play forward">
+        <button class="calc-play-btn" id="tm-play" title="Play forward" aria-label="Play forward">
           <svg viewBox="0 0 24 24" width="14" height="14" id="tm-play-icon"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
         </button>
-        <button class="calc-play-btn" id="tm-fwd" title="Play forward fast">
+        <button class="calc-play-btn" id="tm-fwd" title="Play forward fast" aria-label="Play forward fast">
           <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
         </button>
         <div class="calc-progress"><div class="calc-progress-fill" id="tm-progress" style="width:100%"></div></div>
-        <button class="calc-speed-btn" id="tm-speed">1x</button>
-        <button class="calc-reset" id="tm-reset" style="display:none;">Reset</button>
+        <button class="calc-speed-btn" id="tm-speed" aria-label="Playback speed">1x</button>
+        <button class="calc-reset" id="tm-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
       </div>
     `;
 
@@ -750,8 +792,8 @@ const App = (() => {
   function initEraTabs() {
     document.querySelectorAll('.era-tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        // Lock era-panel height to prevent layout collapse during tab swap
-        const eraPanel = document.getElementById('era-panel');
+        // Lock trajectory-panel height to prevent layout collapse during tab swap
+        const eraPanel = document.getElementById('trajectory-panel');
         eraPanel.style.minHeight = eraPanel.offsetHeight + 'px';
 
         document.querySelectorAll('.era-tab').forEach(t => t.classList.remove('active'));
@@ -759,6 +801,9 @@ const App = (() => {
         tab.classList.add('active');
         const target = tab.dataset.era;
         document.getElementById('era-' + target)?.classList.add('active');
+
+        const tabTitle = tab.querySelector('.era-tab-title');
+        if (tabTitle) announce(`Switched to ${tabTitle.textContent}.`);
 
         if (target === 'daily' && !dailyChartLoaded) {
           loadDailyChart().then(() => { eraPanel.style.minHeight = ''; });
@@ -774,7 +819,7 @@ const App = (() => {
     const container = document.getElementById('daily-chart-container');
     if (!container) return;
 
-    container.innerHTML = '<div class="loading">Loading daily chart...</div>';
+    container.innerHTML = '<div class="loading" role="status">Loading daily chart...</div>';
 
     try {
       const data = await API.getDailyChart();
@@ -1045,7 +1090,10 @@ const App = (() => {
     if (scoreEl) { scoreEl.textContent = degreeToScore(deg); scoreEl.style.color = hex; }
     if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
     if (progressFill) progressFill.style.width = (pos / ptMax * 100) + '%';
-    if (slider) slider.value = Math.round(pos);
+    if (slider) {
+      slider.value = Math.round(pos);
+      slider.setAttribute('aria-valuetext', `${formatDate(nearestPt.date)}, ${CHARGE_LABELS[tier]}`);
+    }
     if (resetBtn) resetBtn.style.display = '';
 
     // Clip chart
@@ -1139,7 +1187,7 @@ const App = (() => {
 
     tmArea.innerHTML = `
       <div class="calc-slider-wrap">
-        <input type="range" class="calc-slider" id="dtm-slider" min="0" max="${max}" value="${max}" step="1">
+        <input type="range" class="calc-slider" id="dtm-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Daily time machine slider" aria-valuetext="${formatDate(last.date)}">
       </div>
       <div class="calc-slider-info">
         <span class="calc-decade" id="dtm-date">${formatDate(last.date)}</span>
@@ -1147,18 +1195,18 @@ const App = (() => {
         <span class="calc-tier" id="dtm-tier">${CHARGE_LABELS[last.color]}</span>
       </div>
       <div class="calc-playback">
-        <button class="calc-play-btn" id="dtm-rev" title="Play backward">
+        <button class="calc-play-btn" id="dtm-rev" title="Play backward" aria-label="Play backward">
           <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
         </button>
-        <button class="calc-play-btn" id="dtm-play" title="Play forward">
+        <button class="calc-play-btn" id="dtm-play" title="Play forward" aria-label="Play forward">
           <svg viewBox="0 0 24 24" width="14" height="14" id="dtm-play-icon"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
         </button>
-        <button class="calc-play-btn" id="dtm-fwd" title="Play forward fast">
+        <button class="calc-play-btn" id="dtm-fwd" title="Play forward fast" aria-label="Play forward fast">
           <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
         </button>
         <div class="calc-progress"><div class="calc-progress-fill" id="dtm-progress" style="width:100%"></div></div>
-        <button class="calc-speed-btn" id="dtm-speed">1x</button>
-        <button class="calc-reset" id="dtm-reset" style="display:none;">Reset</button>
+        <button class="calc-speed-btn" id="dtm-speed" aria-label="Playback speed">1x</button>
+        <button class="calc-reset" id="dtm-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
       </div>
     `;
 
@@ -1480,6 +1528,361 @@ const App = (() => {
     });
   }
 
+  // --- Calendar Picker (drill-up/drill-down) ---
+  // Views: 'day' | 'month' | 'year' | 'decade'
+  let calView = 'day';
+  let calYear = null;
+  let calMonth = null;  // 0-indexed
+  let calDecadeStart = null;
+  let calSelectedDate = null;
+  const CAL_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const CAL_MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  function calendarToggleBtnHtml() {
+    return `<button class="cal-toggle-btn" title="Open calendar picker" aria-label="Open calendar picker">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+    </button>`;
+  }
+
+  function initCalendarPicker() {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.cal-picker') && !e.target.closest('.cal-toggle-btn')) {
+        const cal = document.getElementById('cal-picker');
+        if (cal) cal.remove();
+      }
+    });
+  }
+
+  function openCalendar(anchorBtn) {
+    const oldCal = document.getElementById('cal-picker');
+    if (oldCal) oldCal.remove();
+
+    const group = anchorBtn.closest('.reading-charge-group');
+    if (!group) return;
+
+    const cal = document.createElement('div');
+    cal.id = 'cal-picker';
+    cal.className = 'cal-picker';
+    cal.setAttribute('role', 'dialog');
+    cal.setAttribute('aria-label', 'Date picker');
+    group.appendChild(cal);
+
+    // On narrow screens, anchor left instead of right to stay in viewport
+    const groupRect = group.getBoundingClientRect();
+    if (groupRect.width < 310) {
+      cal.style.right = 'auto';
+      cal.style.left = '0';
+    }
+
+    const now = new Date();
+    if (!calYear) {
+      calYear = now.getFullYear();
+      calMonth = now.getMonth();
+    }
+    calDecadeStart = Math.floor(calYear / 10) * 10;
+    calView = 'day';
+
+    renderCalendar();
+  }
+
+  function calYearRange() {
+    const min = allYearData.length ? allYearData[0].year : 1960;
+    const max = allYearData.length ? allYearData[allYearData.length - 1].year : new Date().getFullYear();
+    return { min, max };
+  }
+
+  function calYearHasData(yr) {
+    return allYearData.some(d => d.year === yr);
+  }
+
+  async function calFetchDates(year) {
+    if (year <= 2025) return new Set();
+    if (!rolodexDatesCache[year]) {
+      try {
+        const resp = await API.getYearDates(year);
+        rolodexDatesCache[year] = resp.dates;
+      } catch (err) {
+        rolodexDatesCache[year] = [];
+      }
+    }
+    return new Set(rolodexDatesCache[year]);
+  }
+
+  async function renderCalendar() {
+    const cal = document.getElementById('cal-picker');
+    if (!cal) return;
+
+    const { min: minYear, max: maxYear } = calYearRange();
+    let html = '';
+
+    if (calView === 'day') {
+      html = await renderCalDay(minYear, maxYear);
+    } else if (calView === 'month') {
+      html = renderCalMonth(minYear, maxYear);
+    } else if (calView === 'year') {
+      html = renderCalYear(minYear, maxYear);
+    } else if (calView === 'decade') {
+      html = renderCalDecade();
+    }
+
+    cal.innerHTML = html;
+    wireCalEvents(cal);
+  }
+
+  async function renderCalDay(minYear, maxYear) {
+    const availableDates = await calFetchDates(calYear);
+    const canPrev = !(calYear <= minYear && calMonth === 0);
+    const canNext = !(calYear >= maxYear && calMonth === 11);
+
+    let html = `<div class="cal-header">
+      <button class="cal-nav" data-action="prev-month" aria-label="Previous month"${canPrev ? '' : ' disabled'}>&lsaquo;</button>
+      <button class="cal-title" data-action="zoom-out">${CAL_MONTHS_FULL[calMonth]} ${calYear}</button>
+      <button class="cal-nav" data-action="next-month" aria-label="Next month"${canNext ? '' : ' disabled'}>&rsaquo;</button>
+    </div>`;
+
+    if (calYear > 2025) {
+      html += '<div class="cal-weekdays">';
+      ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => { html += `<span>${d}</span>`; });
+      html += '</div><div class="cal-grid cal-grid-days">';
+
+      const firstDay = new Date(calYear, calMonth, 1).getDay();
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+      for (let i = 0; i < firstDay; i++) html += '<span class="cal-cell cal-empty"></span>';
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const has = availableDates.has(dateStr);
+        const sel = dateStr === calSelectedDate;
+        const cls = ['cal-cell'];
+        if (has) cls.push('cal-has-data');
+        if (sel) cls.push('cal-selected');
+        html += `<span class="${cls.join(' ')}" data-action="pick-day" data-date="${dateStr}" role="button" tabindex="0" aria-label="${dateStr}">${d}</span>`;
+      }
+      html += '</div>';
+    } else {
+      html += `<div class="cal-hist-msg">Year-level aggregate only.<br>No daily readings before 2026.</div>`;
+    }
+    return html;
+  }
+
+  function renderCalMonth(minYear, maxYear) {
+    const canPrev = calYear > minYear;
+    const canNext = calYear < maxYear;
+
+    let html = `<div class="cal-header">
+      <button class="cal-nav" data-action="prev-year" aria-label="Previous year"${canPrev ? '' : ' disabled'}>&lsaquo;</button>
+      <button class="cal-title" data-action="zoom-out">${calYear}</button>
+      <button class="cal-nav" data-action="next-year" aria-label="Next year"${canNext ? '' : ' disabled'}>&rsaquo;</button>
+    </div>`;
+
+    html += '<div class="cal-grid cal-grid-months">';
+    for (let m = 0; m < 12; m++) {
+      const sel = m === calMonth && calView === 'month';
+      html += `<span class="cal-cell cal-has-data${sel ? ' cal-selected' : ''}" data-action="pick-month" data-month="${m}" role="button" tabindex="0" aria-label="${CAL_MONTHS_FULL[m]}">${CAL_MONTHS_SHORT[m]}</span>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderCalYear(minYear, maxYear) {
+    calDecadeStart = Math.floor(calYear / 10) * 10;
+    const rangeEnd = calDecadeStart + 9;
+    const canPrev = calDecadeStart > Math.floor(minYear / 10) * 10;
+    const canNext = calDecadeStart < Math.floor(maxYear / 10) * 10;
+
+    let html = `<div class="cal-header">
+      <button class="cal-nav" data-action="prev-decade" aria-label="Previous decade"${canPrev ? '' : ' disabled'}>&lsaquo;</button>
+      <button class="cal-title" data-action="zoom-out">${calDecadeStart} &ndash; ${rangeEnd}</button>
+      <button class="cal-nav" data-action="next-decade" aria-label="Next decade"${canNext ? '' : ' disabled'}>&rsaquo;</button>
+    </div>`;
+
+    html += '<div class="cal-grid cal-grid-years">';
+    for (let y = calDecadeStart; y <= rangeEnd; y++) {
+      const has = calYearHasData(y);
+      const sel = y === calYear;
+      const cls = ['cal-cell'];
+      if (has) cls.push('cal-has-data');
+      if (sel) cls.push('cal-selected');
+      html += `<span class="${cls.join(' ')}" data-action="pick-year" data-year="${y}" role="button" tabindex="${has ? '0' : '-1'}">${y}</span>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderCalDecade() {
+    const { min: minYear, max: maxYear } = calYearRange();
+    const firstDecade = Math.floor(minYear / 10) * 10;
+    const lastDecade = Math.floor(maxYear / 10) * 10;
+
+    let html = `<div class="cal-header">
+      <span class="cal-title cal-title-top">${firstDecade}s &ndash; ${lastDecade}s</span>
+    </div>`;
+
+    html += '<div class="cal-grid cal-grid-decades">';
+    for (let d = firstDecade; d <= lastDecade; d += 10) {
+      const sel = d === calDecadeStart;
+      const cls = ['cal-cell', 'cal-has-data'];
+      if (sel) cls.push('cal-selected');
+      html += `<span class="${cls.join(' ')}" data-action="pick-decade" data-decade="${d}" role="button" tabindex="0">${d}s</span>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function calHandleAction(el) {
+    const action = el.dataset.action;
+    switch (action) {
+      case 'zoom-out':
+        if (calView === 'day') { calView = 'month'; announce(`Picking month for ${calYear}.`); }
+        else if (calView === 'month') { calView = 'year'; announce('Picking year.'); }
+        else if (calView === 'year') { calView = 'decade'; announce('Picking decade.'); }
+        renderCalendar();
+        break;
+      case 'prev-month':
+        calMonth--;
+        if (calMonth < 0) { calMonth = 11; calYear--; }
+        renderCalendar();
+        break;
+      case 'next-month':
+        calMonth++;
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        renderCalendar();
+        break;
+      case 'prev-year':
+        calYear--;
+        renderCalendar();
+        break;
+      case 'next-year':
+        calYear++;
+        renderCalendar();
+        break;
+      case 'prev-decade':
+        calDecadeStart -= 10;
+        calYear = calDecadeStart;
+        renderCalendar();
+        break;
+      case 'next-decade':
+        calDecadeStart += 10;
+        calYear = calDecadeStart;
+        renderCalendar();
+        break;
+      case 'pick-day':
+        calSelectedDate = el.dataset.date;
+        if (el.classList.contains('cal-has-data')) {
+          viewArchiveReading(el.dataset.date);
+          announce(`Loading reading for ${el.dataset.date}.`);
+        }
+        renderCalendar();
+        break;
+      case 'pick-month':
+        calMonth = parseInt(el.dataset.month);
+        calView = 'day';
+        announce(`${CAL_MONTHS_FULL[calMonth]} ${calYear}.`);
+        renderCalendar();
+        break;
+      case 'pick-year':
+        calYear = parseInt(el.dataset.year);
+        calDecadeStart = Math.floor(calYear / 10) * 10;
+        calView = 'month';
+        announce(`Picking month for ${calYear}.`);
+        onCalendarYearSelect(calYear);
+        renderCalendar();
+        break;
+      case 'pick-decade':
+        calDecadeStart = parseInt(el.dataset.decade);
+        calYear = calDecadeStart;
+        calView = 'year';
+        announce(`${calDecadeStart}s decade.`);
+        renderCalendar();
+        break;
+    }
+  }
+
+  function wireCalEvents(cal) {
+    // Click handlers
+    cal.querySelectorAll('[data-action]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        calHandleAction(el);
+      });
+    });
+
+    // Enter/Space on span cells
+    cal.querySelectorAll('.cal-cell[tabindex]').forEach(el => {
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          calHandleAction(el);
+        }
+      });
+    });
+
+    // Arrow key navigation within grid
+    cal.querySelectorAll('.cal-grid').forEach(grid => {
+      grid.addEventListener('keydown', (e) => {
+        if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
+        e.preventDefault();
+        const cells = [...grid.querySelectorAll('.cal-cell[tabindex]')];
+        const idx = cells.indexOf(document.activeElement);
+        if (idx === -1) return;
+        const cols = grid.classList.contains('cal-grid-days') ? 7
+          : grid.classList.contains('cal-grid-months') ? 4
+          : grid.classList.contains('cal-grid-years') ? 5 : 3;
+        let next = idx;
+        if (e.key === 'ArrowRight') next = Math.min(idx + 1, cells.length - 1);
+        else if (e.key === 'ArrowLeft') next = Math.max(idx - 1, 0);
+        else if (e.key === 'ArrowDown') next = Math.min(idx + cols, cells.length - 1);
+        else if (e.key === 'ArrowUp') next = Math.max(idx - cols, 0);
+        cells[next].focus();
+      });
+    });
+
+    // Escape to close
+    cal.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        cal.remove();
+      }
+    });
+  }
+
+  function onCalendarYearSelect(year) {
+    const yd = allYearData.find(d => d.year === year);
+    if (yd) {
+      loadYearSongs(year, yd.compass_degree, yd.charge_level);
+      Compass.setDegree(yd.compass_degree, yd.charge_level);
+      Charge.setLevel(yd.charge_level, 0, 0);
+      setCompassDate(String(year));
+    }
+  }
+
+  function syncCalendar(year, month, day) {
+    calYear = year || calYear;
+    if (month) {
+      calMonth = parseInt(month) - 1;
+      if (day) calSelectedDate = `${year}-${month}-${day}`;
+      else calSelectedDate = null;
+    } else {
+      calSelectedDate = null;
+    }
+    if (calYear) calDecadeStart = Math.floor(calYear / 10) * 10;
+  }
+
+  function wireCalendarToggle(container) {
+    const btn = container.querySelector('.cal-toggle-btn');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const existing = document.getElementById('cal-picker');
+      if (existing) {
+        existing.remove();
+      } else {
+        openCalendar(btn);
+      }
+    });
+  }
+
   // --- Year Songs Loading + Rendering ---
   let yearSongsState = { year: null, songs: [], total: 0, loaded: 0 };
 
@@ -1504,7 +1907,8 @@ const App = (() => {
     // Load songs into reading panel (no scroll)
     const container = document.getElementById('reading-content');
     if (!container) return;
-    container.innerHTML = '<div class="loading">Loading songs...</div>';
+    container.innerHTML = '<div class="loading" role="status">Loading songs...</div>';
+    announce(`Loading songs for ${year}.`);
 
     try {
       const data = await API.getYearSongs(year, 0, 20);
@@ -1560,12 +1964,15 @@ const App = (() => {
     // Year charge header
     html += `<div class="reading-charge-group">
       <div class="reading-date" style="background:${hex}">${year}</div>
-      <div class="reading-charge-bar" style="background:${hex}">
-        <div class="reading-charge-inner">
-          <span class="reading-charge-score">${degreeToScore(degree)}</span>
-          <span class="reading-charge-label">${label}</span>
-          <span class="reading-charge-meta">${total} songs${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</span>
+      <div class="reading-charge-row">
+        <div class="reading-charge-bar" style="background:${hex}">
+          <div class="reading-charge-inner">
+            <span class="reading-charge-score">${degreeToScore(degree)}</span>
+            <span class="reading-charge-label">${label}</span>
+            <span class="reading-charge-meta">${total} songs${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</span>
+          </div>
         </div>
+        ${calendarToggleBtnHtml()}
       </div>
     </div>`;
 
@@ -1597,8 +2004,8 @@ const App = (() => {
             <div class="song-artist">${escapeHtml(song.artist)}${isLive && song.days_on_chart > 1 ? ` <span class="song-days">${song.days_on_chart}d</span>` : ''}</div>
           </div>
           <div class="song-actions">
-            ${song.contaminated ? '<span class="song-contam">&#x2622;</span>' : ''}
-            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis">&#x1F4AC;</button>' : ''}
+            ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
+            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis" aria-label="Read analysis">&#x1F4AC;</button>' : ''}
           </div>
           ${tooltipHtml}
         </li>
@@ -1618,6 +2025,11 @@ const App = (() => {
 
     container.innerHTML = html;
     initSongTooltips(container);
+    wireCalendarToggle(container);
+
+    // Announce for screen readers
+    const tierLabel = CHARGE_LABELS[tier] || tier;
+    announce(`${year} songs loaded. ${total} songs. Charge: ${tierLabel}.`);
 
     // Wire load more
     const loadMoreBtn = document.getElementById('year-load-more');
@@ -1655,6 +2067,8 @@ const App = (() => {
       overlay = document.createElement('div');
       overlay.id = 'year-songs-overlay';
       overlay.className = 'year-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
       document.body.appendChild(overlay);
     }
 
@@ -1662,15 +2076,16 @@ const App = (() => {
     const hex = COLOR_HEX[tier] || '#888';
     const label = CHARGE_LABELS[tier] || tier;
 
+    overlay.setAttribute('aria-label', `${year} songs — ${label}`);
     overlay.innerHTML = `
       <div class="year-overlay-header">
         <div class="year-overlay-title">
           <span class="year-overlay-year">${year}</span>
           <span class="year-overlay-score" style="color:${hex}">${degreeToScore(degree)} ${label}</span>
         </div>
-        <button class="year-overlay-close" id="year-overlay-close">&times;</button>
+        <button class="year-overlay-close" id="year-overlay-close" aria-label="Close overlay">&times;</button>
       </div>
-      <div class="year-overlay-body"><div class="loading">Loading all songs...</div></div>
+      <div class="year-overlay-body"><div class="loading" role="status">Loading all songs...</div></div>
     `;
     overlay.classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -1899,6 +2314,9 @@ const App = (() => {
       s.classList.toggle('active', s.id === `section-${section}`);
     });
     if (updateHash) window.location.hash = section;
+
+    const sectionNames = { history: 'Historical Overview', methodology: 'Methodology' };
+    if (sectionNames[section]) announce(`${sectionNames[section]} section.`);
 
     // Lazy-load section data
     if (section === 'history') loadDrift();

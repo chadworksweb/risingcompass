@@ -62,6 +62,8 @@
   <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
+  <a href="#compass-panel" class="skip-nav">Skip to main content</a>
+  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <header class="site-header">
     <h1 class="site-title">The Rising <span>Compass</span></h1>
@@ -77,7 +79,7 @@
     </div>
 
     <!-- ROW 1 RIGHT: Aggregate Charge Index + Calculator -->
-    <div class="card" id="era-panel">
+    <div class="card" id="trajectory-panel">
       <div class="era-tabs">
         <button class="era-tab active" data-era="aggregate">
           <span class="era-tab-title">Aggregate Charge Index</span>
@@ -87,6 +89,11 @@
           <span class="era-tab-title">Daily Charge</span>
           <span class="era-tab-tagline">trailing 365 days, day by day</span>
         </button>
+        <button class="era-tab-icon" id="calc-overlay-toggle" title="Calculator" aria-label="Calculator">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="12" y2="18"/>
+          </svg>
+        </button>
       </div>
       <div id="charge-container" style="margin-bottom:1rem;"></div>
       <div class="era-content active" id="era-aggregate">
@@ -95,10 +102,6 @@
           <div class="calc-overlay" id="calc-overlay">
             <div id="era-calculator"></div>
           </div>
-          <button class="calc-overlay-toggle" id="calc-overlay-toggle">
-            <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm4 12H8v-1c0-1.33 2.67-2 4-2s4 .67 4 2v1z"/></svg>
-            <span>Calculator</span>
-          </button>
         </div>
       </div>
       <div class="era-content" id="era-daily">
@@ -111,7 +114,7 @@
       <div class="card-header">Daily Top 20 Songs</div>
       <p class="card-desc">Today's most-heard songs, individually charged.</p>
       <div id="reading-content">
-        <div class="loading">Loading today's reading...</div>
+        <div class="loading" role="status">Loading today's reading...</div>
       </div>
     </div>
     <div class="card" id="album-reading-panel" style="display:none;">
@@ -139,11 +142,11 @@
     <!-- Methodology Section -->
     <div class="section-content" id="section-methodology">
       <div class="card methodology-content" id="methodology-panel">
-        <h3>What is The Rising Compass?</h3>
+        <h2>What is The Rising Compass?</h2>
         <p>The Rising Compass is a frequency diagnostic tool for popular music. It measures the aggregate vibrational charge of the song lyrics that dominate popular culture — the ones heard most, shared most, and internalized most.</p>
         <p>The compass is a mirror, not an attack. It doesn't judge — it reflects. It shows us what our music is doing to the listener, clearly and without agenda. A mirror doesn't have an opinion about what it shows you. You can look at it or look away.</p>
 
-        <h3>The Five Charge Levels</h3>
+        <h2>The Five Charge Levels</h2>
         <div class="charge-legend">
           <div class="charge-legend-bar">
             <div class="charge-legend-seg" style="background:var(--rc-violet)"></div>
@@ -161,55 +164,55 @@
           </div>
         </div>
 
-        <h3>How the Compass Works</h3>
+        <h2>How the Compass Works</h2>
         <p>Each song in the top 20 is evaluated and assigned a charge color. The compass position is a weighted average — songs ranked higher on the chart carry more weight, because they reach more people. Position #1 has 20x the weight of position #20.</p>
 
-        <h3>Contamination</h3>
+        <h2>Contamination</h2>
         <p>Contamination tracks songs in the top 3 tiers (Ascended, Elevated, Decent) that carry content undercutting their substance. A song can score well overall but still have low-frequency elements woven into the expression — substance references, casual objectification, ego payloads hidden in otherwise genuine processing. Contamination is more dangerous than pure degradation because the listener absorbs the payload without conscious detection.</p>
 
-        <h3>Data Source</h3>
+        <h2>Data Source</h2>
         <p>Historical data comes from an analysis of 650+ Billboard Hot 100 #1 hits spanning 1960-2024, originally published on <a href="https://chadrising.com" target="_blank" style="color:var(--rc-accent);">chadrising.com</a>. Daily readings use current chart data from major streaming platforms.</p>
 
         <hr style="border:none;border-top:1px solid var(--rc-border);margin:2rem 0;">
 
-        <h3>Understanding the Rubric</h3>
+        <h2>Understanding the Rubric</h2>
         <p>The Rising Compass doesn't classify topics. It classifies <strong>message</strong>, <strong>expression</strong>, and <strong>intention</strong>. The same topic — love, struggle, celebration — can land at any tier depending on what it activates in the listener.</p>
 
         <p>This distinction matters because it's the most common source of confusion. People assume certain topics are inherently good or bad. They're not. Topics are neutral. What the song <em>does</em> with the topic is everything.</p>
 
-        <h4>The Three Dimensions</h4>
+        <h3>The Three Dimensions</h3>
         <p><strong>Message</strong> — What the song is about on the surface. The story it tells.</p>
         <p><strong>Expression</strong> — How the message is delivered. What imagery, language, and framing carry it.</p>
         <p><strong>Intention</strong> — What frequency the song activates in the listener. Does it help you <em>process</em> something real — or does it <em>agitate</em> a lower indulgence? The difference between medicine and a narcotic.</p>
 
-        <h4>Why "Decent" and Not "Good"</h4>
+        <h3>Why "Decent" and Not "Good"</h3>
         <p>The middle tier is called <strong>Decent</strong> — not "balanced," not "good," not "healthy." Deliberately. A song that's just entertainment, just filling time, just pleasant background noise — that's fine. It's decent. But the compass exists to show that music <em>can</em> do more. Decent isn't the goal. It's the floor for not doing harm.</p>
 
-        <h4>Common Questions</h4>
+        <h3>Common Questions</h3>
 
         <div class="rubric-faq">
           <div class="rubric-q">
-            <h5>"It's a love song — isn't that automatically good?"</h5>
+            <h4>"It's a love song — isn't that automatically good?"</h4>
             <p>Love is a topic. It can carry any frequency. A love song about growing together and becoming better people is <strong>Elevated</strong>. A love song about "I love you, you love me, we're happy" is <strong>Decent</strong> — pleasant, not harmful, but just treading water. A love song about getting drunk together is <strong>Degraded</strong>. A love song about possession, objectification, or reducing a person to a body is <strong>Corrupted</strong>. Same topic. Four different tiers.</p>
           </div>
 
           <div class="rubric-q">
-            <h5>"What about breakup songs?"</h5>
+            <h4>"What about breakup songs?"</h4>
             <p>A breakup song that processes grief honestly — sits in the pain, learns something, moves through it with dignity — is <strong>Elevated</strong>. A breakup song that agitates contempt, revenge fantasies, or wallows in self-pity is <strong>Degraded</strong> or <strong>Corrupted</strong>. Processing vs. agitating. That's the whole distinction.</p>
           </div>
 
           <div class="rubric-q">
-            <h5>"Party songs are just fun — why are they rated low?"</h5>
+            <h4>"Party songs are just fun — why are they rated low?"</h4>
             <p>They're not — automatically. A party song that's pure fun with no harmful payload is <strong>Decent</strong>. But most chart party songs carry substance celebration, objectification, or ego worship as the actual content. The "party" is the cover. The payload is what we measure.</p>
           </div>
 
           <div class="rubric-q">
-            <h5>"Isn't it normal for songs to be about relationships?"</h5>
+            <h4>"Isn't it normal for songs to be about relationships?"</h4>
             <p>Normal, yes. Automatically elevated, no. The cultural assumption that pairing off, dating, and romantic attraction are inherently positive is part of what the compass examines. A relationship song that demonstrates growth, mutual elevation, or genuine vulnerability earns its way up. One that just describes being in love — surface-level coupling as content — is Decent at best. The bar isn't "is this about love?" The bar is "what does this love <em>do</em>?"</p>
           </div>
 
           <div class="rubric-q">
-            <h5>"A sad song about real pain — how is that not automatically good?"</h5>
+            <h4>"A sad song about real pain — how is that not automatically good?"</h4>
             <p>Struggle and pain are topics, not virtues. A song about struggle that processes it with dignity and helps the listener grow is <strong>Elevated</strong>. A song that glamorizes suffering, wallows without direction, or uses pain as ego currency is <strong>Degraded</strong>. Naming real pain isn't enough. What the song does with that pain is what matters.</p>
           </div>
         </div>
@@ -251,7 +254,7 @@
       </div>
       <div class="elevated-sidebar">
         <div id="library-content">
-          <div class="loading">Loading collections...</div>
+          <div class="loading" role="status">Loading collections...</div>
         </div>
       </div>
     </div>

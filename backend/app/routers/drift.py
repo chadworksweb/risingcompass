@@ -309,3 +309,27 @@ def get_drift_years(db: Session = Depends(get_db)):
     # Sort all results by year
     results.sort(key=lambda r: r.year)
     return results
+
+
+@router.get("/years/{year}/dates")
+def get_year_dates(year: int, db: Session = Depends(get_db)):
+    """Available reading dates for a given year.
+
+    Live years (>2025): returns sorted list of date strings from DailyReading.
+    Historical years (<=2025): returns empty list (no daily data).
+    """
+    if year <= LIVE_YEAR_CUTOFF:
+        return {"dates": []}
+
+    from datetime import date
+    start = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    rows = (
+        db.query(DailyReading.date)
+        .filter(DailyReading.date >= start, DailyReading.date <= end)
+        .order_by(DailyReading.date)
+        .all()
+    )
+
+    return {"dates": [r[0].isoformat() for r in rows]}

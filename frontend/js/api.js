@@ -19,6 +19,7 @@ const API = (() => {
     getDrift: () => get('/api/drift'),
     getDriftYears: () => get('/api/drift/years'),
     getYearSongs: (year, offset = 0, limit = 20) => get(`/api/drift/years/${year}/songs?offset=${offset}&limit=${limit}`),
+    getYearDates: (year) => get(`/api/drift/years/${year}/dates`),
     getAlbums: () => get('/api/albums'),
     getAlbum: (slug) => get(`/api/albums/${slug}`),
     getWeeklyAlbumsCurrent: () => get('/api/weekly-albums/current'),
