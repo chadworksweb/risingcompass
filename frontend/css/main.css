@@ -788,6 +788,7 @@ body {
   display: none;
   position: absolute;
   top: 0;
+  max-width: 100%;
   padding: 0.35rem 0.5rem;
   background: var(--rc-bg-card);
   border: 1px solid var(--rc-border);
@@ -796,6 +797,8 @@ body {
   color: var(--rc-text);
   line-height: 1.4;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: none;
   z-index: 5;
 }
