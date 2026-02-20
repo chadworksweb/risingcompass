@@ -173,7 +173,7 @@ const App = (() => {
           </div>
           <div class="song-actions">
             ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
-            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis" aria-label="Read analysis">&#x1F4AC;</button>' : ''}
+            ${hasTooltip ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
           </div>
           ${tooltipHtml}
         </li>
@@ -321,7 +321,7 @@ const App = (() => {
       ytdDashPath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
     }
 
-    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Charge trajectory chart">`;
     svg += `<defs>
       <linearGradient id="traj-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
@@ -615,13 +615,13 @@ const App = (() => {
       </div>
       <div class="calc-playback">
         <button class="calc-play-btn" id="tm-rev" title="Play backward" aria-label="Play backward">
-          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
         </button>
         <button class="calc-play-btn" id="tm-play" title="Play forward" aria-label="Play forward">
-          <svg viewBox="0 0 24 24" width="14" height="14" id="tm-play-icon"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          <svg viewBox="0 0 24 24" width="14" height="14" id="tm-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
         </button>
         <button class="calc-play-btn" id="tm-fwd" title="Play forward fast" aria-label="Play forward fast">
-          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
         </button>
         <div class="calc-progress"><div class="calc-progress-fill" id="tm-progress" style="width:100%"></div></div>
         <button class="calc-speed-btn" id="tm-speed" aria-label="Playback speed">1x</button>
@@ -913,7 +913,7 @@ const App = (() => {
     const linePath = dailyChartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     const areaPath = linePath + ` L ${dailyChartPoints[maxIdx].x.toFixed(1)} ${padT + chartH} L ${dailyChartPoints[0].x.toFixed(1)} ${padT + chartH} Z`;
 
-    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Charge trajectory chart">`;
     svg += `<defs>
       <linearGradient id="daily-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
@@ -1196,13 +1196,13 @@ const App = (() => {
       </div>
       <div class="calc-playback">
         <button class="calc-play-btn" id="dtm-rev" title="Play backward" aria-label="Play backward">
-          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
         </button>
         <button class="calc-play-btn" id="dtm-play" title="Play forward" aria-label="Play forward">
-          <svg viewBox="0 0 24 24" width="14" height="14" id="dtm-play-icon"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          <svg viewBox="0 0 24 24" width="14" height="14" id="dtm-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
         </button>
         <button class="calc-play-btn" id="dtm-fwd" title="Play forward fast" aria-label="Play forward fast">
-          <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
         </button>
         <div class="calc-progress"><div class="calc-progress-fill" id="dtm-progress" style="width:100%"></div></div>
         <button class="calc-speed-btn" id="dtm-speed" aria-label="Playback speed">1x</button>
@@ -1276,8 +1276,8 @@ const App = (() => {
             <button class="calc-tab calc-tab-locked" data-calc="reverse" disabled>Reverse <span class="calc-tab-soon">Soon</span></button>
             <button class="calc-tab calc-tab-locked" data-calc="playlist" disabled>Playlist <span class="calc-tab-soon">Soon</span></button>
           </div>
-          <button class="calc-close-btn" id="calc-close" title="Close calculator">
-            <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          <button class="calc-close-btn" id="calc-close" title="Close calculator" aria-label="Close calculator">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
           </button>
         </div>
         <div class="calc-panel active" id="calc-mix"></div>
@@ -1496,11 +1496,12 @@ const App = (() => {
 
     panel.innerHTML = `
       <p class="calc-context">Paste your playlist and see its consciousness charge.</p>
+      <label for="playlist-input" class="sr-only">Paste songs, one per line</label>
       <textarea class="calc-textarea" id="playlist-input" placeholder="Paste songs, one per line&#10;&#10;e.g.&#10;Bohemian Rhapsody - Queen&#10;Blinding Lights - The Weeknd&#10;HUMBLE. - Kendrick Lamar" rows="6"></textarea>
       <div class="calc-playlist-footer">
         <span class="calc-line-count" id="playlist-count">0 songs</span>
         <button class="calc-btn calc-btn-disabled" id="playlist-analyze">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h3l4 8H3l4-8h3V9.5A4 4 0 0 1 12 2z"/></svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h3l4 8H3l4-8h3V9.5A4 4 0 0 1 12 2z"/></svg>
           Analyze
         </button>
       </div>
@@ -1540,7 +1541,7 @@ const App = (() => {
 
   function calendarToggleBtnHtml() {
     return `<button class="cal-toggle-btn" title="Open calendar picker" aria-label="Open calendar picker">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
       </svg>
     </button>`;
@@ -1936,7 +1937,7 @@ const App = (() => {
     const btn = document.createElement('button');
     btn.id = 'year-view-btn';
     btn.className = 'year-view-btn';
-    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>`;
+    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
     btn.style.borderColor = hex;
     btn.style.color = hex;
 
@@ -2005,7 +2006,7 @@ const App = (() => {
           </div>
           <div class="song-actions">
             ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
-            ${hasTooltip ? '<button class="song-comment-btn" title="Read analysis" aria-label="Read analysis">&#x1F4AC;</button>' : ''}
+            ${hasTooltip ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
           </div>
           ${tooltipHtml}
         </li>
@@ -2233,8 +2234,8 @@ const App = (() => {
             }
             html += `</div>`;
             if (item.external_url) {
-              html += `<a class="elevated-link" href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener" title="Listen">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              html += `<a class="elevated-link" href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener" title="Listen" aria-label="Listen to ${escapeHtml(item.title)}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               </a>`;
             }
             const sourceLabel = item.source === 'recommendation' ? '' : item.source === 'album_deep_dive' ? 'album' : '';
@@ -2544,7 +2545,7 @@ const App = (() => {
     const btn = document.createElement('button');
     btn.id = 'year-view-btn';
     btn.className = 'year-view-btn';
-    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>`;
+    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
     btn.style.borderColor = hex;
     btn.style.color = hex;
 

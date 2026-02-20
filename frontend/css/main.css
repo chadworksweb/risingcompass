@@ -13,6 +13,7 @@
   --rc-bg-panel: #12121e;
   --rc-bg-card: #181828;
   --rc-border: #2a2a3e;
+  --rc-border-ui: #646490;
 
   /* Text */
   --rc-text: #c8c8d8;
@@ -670,7 +671,7 @@ body {
   font-size: 0.58rem;
   color: var(--rc-text-dim);
   background: none;
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   border-radius: var(--rc-radius-xs);
   padding: 0.1rem 0.4rem;
   cursor: pointer;
@@ -873,7 +874,7 @@ body {
   background: var(--rc-bg-card);
   border: none;
   border-bottom: 2px solid transparent;
-  border-left: 1px solid rgba(0, 212, 170, 0.3);
+  border-left: 1px solid rgba(0, 212, 170, 0.5);
   color: var(--rc-accent);
   cursor: pointer;
   transition: background var(--rc-ease-fast), border-bottom-color var(--rc-ease-fast);
@@ -944,7 +945,7 @@ body {
 
 .era-calc-select {
   background: var(--rc-bg-card);
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   color: var(--rc-text-bright);
   padding: 0.3rem 0.5rem;
   border-radius: var(--rc-radius-sm);
@@ -971,7 +972,7 @@ body {
   justify-content: center;
   width: 40px;
   background: var(--rc-bg-card);
-  border: 1px solid rgba(0, 212, 170, 0.3);
+  border: 1px solid rgba(0, 212, 170, 0.5);
   border-radius: var(--rc-radius-sm);
   color: var(--rc-accent);
   cursor: pointer;
@@ -1038,7 +1039,7 @@ body {
 }
 .cal-nav {
   background: none;
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   border-radius: var(--rc-radius-sm);
   color: var(--rc-text);
   width: 32px;
@@ -1264,7 +1265,7 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   background: var(--rc-bg-card);
   color: var(--rc-text);
   cursor: pointer;
@@ -1303,7 +1304,7 @@ body {
   font-size: 0.6rem;
   color: var(--rc-text-dim);
   background: none;
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   border-radius: var(--rc-radius-xs);
   padding: 0.15rem 0.35rem;
   cursor: pointer;
@@ -1401,7 +1402,7 @@ body {
   font-weight: 700;
   color: var(--rc-text-dim);
   background: var(--rc-bg-card);
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   cursor: pointer;
   transition: color var(--rc-ease-fast), border-color var(--rc-ease-fast);
 }
@@ -1467,7 +1468,7 @@ body {
 .calc-textarea {
   width: 100%;
   background: var(--rc-bg-card);
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   border-radius: var(--rc-radius-md);
   color: var(--rc-text);
   font-family: var(--rc-font-mono);
@@ -1522,7 +1523,7 @@ body {
 
 .calc-btn-disabled {
   opacity: 0.6;
-  border-color: var(--rc-border);
+  border-color: var(--rc-border-ui);
   color: var(--rc-text-dim);
   background: none;
 }
@@ -1988,7 +1989,7 @@ body {
   text-transform: uppercase;
   color: var(--rc-accent);
   background: var(--rc-accent-subtle);
-  border: 1px solid rgba(0, 212, 170, 0.25);
+  border: 1px solid rgba(0, 212, 170, 0.5);
   border-radius: var(--rc-radius-sm);
   cursor: pointer;
   transition: background var(--rc-ease), border-color var(--rc-ease);
@@ -2373,7 +2374,7 @@ td.yo-charge {
   padding: 0.6rem;
   margin-top: 0.5rem;
   background: none;
-  border: 1px solid var(--rc-border);
+  border: 1px solid var(--rc-border-ui);
   border-radius: var(--rc-radius-sm);
   color: var(--rc-text-dim);
   font-family: var(--rc-font-mono);
