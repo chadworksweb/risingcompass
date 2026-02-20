@@ -8,6 +8,11 @@
     margin: 1rem auto;
   }
 
+  .main-dashboard > * {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
   #reading-panel,
   #album-reading-panel {
     grid-column: span 1 !important;

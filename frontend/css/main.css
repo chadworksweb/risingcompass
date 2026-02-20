@@ -760,6 +760,7 @@ body {
 /* === Trajectory Hover === */
 .traj-wrap {
   position: relative;
+  overflow: hidden;
 }
 
 .traj-hover-line {
