@@ -448,10 +448,6 @@ const App = (() => {
 
     // Click: move compass + charge bar to clicked year, load songs
     wrap.addEventListener('click', (e) => {
-      // Hide tooltip on click (mobile has no mouseleave after tap)
-      const tooltip = document.getElementById('traj-tooltip');
-      if (tooltip) tooltip.style.display = 'none';
-
       const rect = svgEl.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
       const svgX = relX * W;
