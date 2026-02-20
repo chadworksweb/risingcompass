@@ -3,7 +3,7 @@
 const Compass = (() => {
   const COLORS = ['violet', 'blue', 'green', 'yellow', 'red'];
   const COLOR_HEX = {
-    violet: '#9933ff',
+    violet: '#aa54ff',
     blue: '#3388ff',
     green: '#33cc55',
     yellow: '#ffbb33',

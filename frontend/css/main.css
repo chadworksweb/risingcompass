@@ -2,7 +2,7 @@
 
 :root {
   /* Tier colors (Chakra Rainbow: violet → blue → green → yellow → red) */
-  --rc-violet: #9933ff;
+  --rc-violet: #aa54ff;
   --rc-blue: #3388ff;
   --rc-green: #33cc55;
   --rc-yellow: #ffbb33;
@@ -16,7 +16,7 @@
 
   /* Text */
   --rc-text: #c8c8d8;
-  --rc-text-dim: #6a6a7e;
+  --rc-text-dim: #808094;
   --rc-text-bright: #eeeef4;
   --rc-accent: #00d4aa;
 
@@ -724,14 +724,14 @@ body {
 
 .trajectory-label {
   font-family: var(--rc-font-mono);
-  font-size: 0.4rem;
+  font-size: 0.5rem;
   fill: var(--rc-text-dim);
 }
 
 .trajectory-label-ytd {
   fill: var(--rc-accent);
   font-weight: 700;
-  font-size: 0.42rem;
+  font-size: 0.52rem;
 }
 
 /* YTD open ring + pulse */
