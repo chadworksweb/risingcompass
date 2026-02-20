@@ -396,6 +396,12 @@ const App = (() => {
     const wrap = chartEl.querySelector('.traj-wrap');
     const svgEl = chartEl.querySelector('.trajectory-svg');
 
+    // Hide stale tooltip on new touch so it doesn't flash at old position
+    wrap.addEventListener('touchstart', () => {
+      const t = document.getElementById('traj-tooltip');
+      if (t) t.style.display = 'none';
+    }, { passive: true });
+
     wrap.addEventListener('mousemove', (e) => {
       if (tmPlaying) return;
       const hoverLine = document.getElementById('traj-hover-line');
@@ -985,6 +991,11 @@ const App = (() => {
     // Hover interaction
     const wrap = chartEl.querySelector('.traj-wrap');
     const svgEl = chartEl.querySelector('.trajectory-svg');
+
+    wrap.addEventListener('touchstart', () => {
+      const t = document.getElementById('daily-tooltip');
+      if (t) t.style.display = 'none';
+    }, { passive: true });
 
     wrap.addEventListener('mousemove', (e) => {
       if (dtmPlaying) return;
