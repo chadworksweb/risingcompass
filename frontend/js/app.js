@@ -10,12 +10,14 @@ function announce(msg) {
 // Crossfade: fade out element, swap content, fade in
 function crossfade(el, newHtml, callback) {
   el.style.transition = 'opacity 0.15s ease';
+  void el.offsetHeight;          // force reflow so browser registers the transition
   el.style.opacity = '0';
   setTimeout(() => {
     el.innerHTML = newHtml;
     if (callback) callback();
+    void el.offsetHeight;        // force reflow before fade-in
     el.style.opacity = '1';
-  }, 150);
+  }, 160);
 }
 
 const App = (() => {
