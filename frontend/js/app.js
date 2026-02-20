@@ -7,6 +7,17 @@ function announce(msg) {
   requestAnimationFrame(() => { el.textContent = msg; });
 }
 
+// Crossfade: fade out element, swap content, fade in
+function crossfade(el, newHtml, callback) {
+  el.style.transition = 'opacity 0.15s ease';
+  el.style.opacity = '0';
+  setTimeout(() => {
+    el.innerHTML = newHtml;
+    if (callback) callback();
+    el.style.opacity = '1';
+  }, 150);
+}
+
 const App = (() => {
   const COLOR_HEX = {
     violet: '#aa54ff',
@@ -181,9 +192,10 @@ const App = (() => {
     });
     html += '</ul>';
 
-    container.innerHTML = html;
-    initSongTooltips(container);
-    wireCalendarToggle(container);
+    crossfade(container, html, () => {
+      initSongTooltips(container);
+      wireCalendarToggle(container);
+    });
 
     // Announce for screen readers
     if (data.has_reading) {
@@ -2033,25 +2045,26 @@ const App = (() => {
       }
     }
 
-    container.innerHTML = html;
-    initSongTooltips(container);
-    wireCalendarToggle(container);
+    crossfade(container, html, () => {
+      initSongTooltips(container);
+      wireCalendarToggle(container);
+
+      // Wire load more
+      const loadMoreBtn = document.getElementById('year-load-more');
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => loadMoreYearSongs(year, degree, chargeLevel));
+      }
+
+      // Wire full year overlay
+      const viewFullBtn = document.getElementById('year-view-full');
+      if (viewFullBtn) {
+        viewFullBtn.addEventListener('click', () => openYearOverlay(year, degree, chargeLevel));
+      }
+    });
 
     // Announce for screen readers
     const tierLabel = CHARGE_LABELS[tier] || tier;
     announce(`${year} songs loaded. ${total} songs. Charge: ${tierLabel}.`);
-
-    // Wire load more
-    const loadMoreBtn = document.getElementById('year-load-more');
-    if (loadMoreBtn) {
-      loadMoreBtn.addEventListener('click', () => loadMoreYearSongs(year, degree, chargeLevel));
-    }
-
-    // Wire full year overlay
-    const viewFullBtn = document.getElementById('year-view-full');
-    if (viewFullBtn) {
-      viewFullBtn.addEventListener('click', () => openYearOverlay(year, degree, chargeLevel));
-    }
   }
 
   async function loadMoreYearSongs(year, degree, chargeLevel) {
