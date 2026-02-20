@@ -523,10 +523,6 @@ const App = (() => {
     tmPlaying = true;
     tmAnimate.lastTime = null;
 
-    // Hide year detail during playback
-    const yearDetail = document.getElementById('tm-year-detail');
-    if (yearDetail) yearDetail.style.display = 'none';
-
     const needle = document.getElementById('compass-needle');
     if (needle) needle.classList.add('no-transition');
 
@@ -556,16 +552,6 @@ const App = (() => {
     const playIcon = document.getElementById('tm-play-icon');
     if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
 
-    // Show year detail with current year info
-    const yearDetail = document.getElementById('tm-year-detail');
-    if (yearDetail) {
-      yearDetail.style.display = '';
-      const idx = Math.round(tmPosition);
-      const d = chartData[Math.min(idx, chartData.length - 1)];
-      const btn = document.getElementById('tm-view-year');
-      const pt = chartPoints[Math.min(idx, chartPoints.length - 1)];
-      if (btn && d) btn.textContent = pt && pt.isYTD ? `View ${d.year} YTD songs` : `View songs from ${d.year}`;
-    }
   }
 
   function initTimeMachineControls(container) {
@@ -598,9 +584,6 @@ const App = (() => {
         <div class="calc-progress"><div class="calc-progress-fill" id="tm-progress" style="width:100%"></div></div>
         <button class="calc-speed-btn" id="tm-speed">1x</button>
         <button class="calc-reset" id="tm-reset" style="display:none;">Reset</button>
-      </div>
-      <div id="tm-year-detail" class="tm-year-detail" style="margin-top:8px;display:none;">
-        <button class="calc-btn" id="tm-view-year" style="font-size:11px;">View songs from this year</button>
       </div>
     `;
 
@@ -656,12 +639,6 @@ const App = (() => {
       document.getElementById('tm-reset').style.display = 'none';
     });
 
-    // View year songs
-    document.getElementById('tm-view-year').addEventListener('click', () => {
-      const idx = Math.round(tmPosition);
-      const d = chartData[Math.min(idx, max)];
-      if (d) loadYearSongs(d.year, d.compass_degree, d.charge_level);
-    });
   }
 
   function applyZoom(container) {
