@@ -427,14 +427,13 @@ const App = (() => {
 
       const yearLabel = p.isYTD ? `${d.year} YTD` : String(d.year);
       const songsMeta = p.isYTD ? `${d.chart_song_count} songs \u00B7 updated daily` : `${d.chart_song_count} charting songs`;
-      tooltip.innerHTML = `<strong>${yearLabel}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${songsMeta}</span>`;
-      tooltip.style.display = 'block';
-
       const wrapRect = wrap.getBoundingClientRect();
       const pixelX = e.clientX - wrapRect.left;
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
+      tooltip.innerHTML = `<strong>${yearLabel}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${songsMeta}</span>`;
+      tooltip.style.display = 'block';
     });
 
     wrap.addEventListener('mouseleave', () => {
@@ -1017,14 +1016,13 @@ const App = (() => {
       hoverDot.style.display = '';
 
       const fdate = formatDate(d.date);
-      tooltip.innerHTML = `<strong>${fdate}</strong><br><span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}`;
-      tooltip.style.display = 'block';
-
       const wrapRect = wrap.getBoundingClientRect();
       const pixelX = e.clientX - wrapRect.left;
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
+      tooltip.innerHTML = `<strong>${fdate}</strong><br><span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}`;
+      tooltip.style.display = 'block';
     });
 
     wrap.addEventListener('mouseleave', () => {
