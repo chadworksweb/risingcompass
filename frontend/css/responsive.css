@@ -107,6 +107,10 @@
     gap: 0.5rem;
   }
 
+  .traj-tooltip {
+    white-space: normal;
+  }
+
   .song-tooltip {
     left: 5%;
     right: 5%;
