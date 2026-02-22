@@ -458,6 +458,7 @@ class DraftSongOut(BaseModel):
 
 class DraftOut(BaseModel):
     id: int
+    label: Optional[str] = None
     created_at: datetime.datetime
     status: str
     date: datetime.date
@@ -481,6 +482,7 @@ class DraftOut(BaseModel):
 
 class DraftSummary(BaseModel):
     id: int
+    label: Optional[str] = None
     created_at: datetime.datetime
     status: str
     date: datetime.date

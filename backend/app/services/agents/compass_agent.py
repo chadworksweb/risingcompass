@@ -20,6 +20,23 @@ from app.services.contamination import count_contaminated
 logger = logging.getLogger(__name__)
 
 
+def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "compass_song") -> str:
+    """Generate a human-readable draft label like compass_song_2026-02-22_draft.
+
+    Appends b, c, d... modifier when multiple drafts exist for the same date+type.
+    """
+    prefix = f"{draft_type}_{reading_date.isoformat()}"
+    existing_count = (
+        db.query(AgentDraft)
+        .filter(AgentDraft.label.like(f"{prefix}%"))
+        .count()
+    )
+    if existing_count == 0:
+        return f"{prefix}_draft"
+    modifier = chr(ord("a") + existing_count)
+    return f"{prefix}{modifier}_draft"
+
+
 def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
     """Check if a song has already been classified in the CompassSong table.
 
@@ -215,7 +232,9 @@ def run_compass_agent(
     agent_notes = "; ".join(agent_notes_parts) if agent_notes_parts else None
 
     # Save draft to DB
+    label = _generate_draft_label(db, reading_date)
     draft = AgentDraft(
+        label=label,
         date=reading_date,
         status="pending",
         compass_degree=degree,

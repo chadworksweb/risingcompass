@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 GENIUS_SEARCH_URL = "https://api.genius.com/search"
 
+_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+}
+
 
 def fetch_lyrics(title: str, artist: str) -> str | None:
     """Fetch lyrics for a song, trying Genius first then AZLyrics.
@@ -81,7 +87,7 @@ def _search_song(title: str, artist: str) -> str | None:
 
 def _scrape_genius_lyrics(url: str) -> str | None:
     """Scrape lyrics from a Genius song page."""
-    resp = httpx.get(url, timeout=10, follow_redirects=True)
+    resp = httpx.get(url, timeout=10, follow_redirects=True, headers=_BROWSER_HEADERS)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -128,7 +134,7 @@ def _fetch_from_azlyrics(title: str, artist: str) -> str | None:
             url,
             timeout=10,
             follow_redirects=True,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; RisingCompass/1.0)"},
+            headers=_BROWSER_HEADERS,
         )
         if resp.status_code != 200:
             logger.info("AZLyrics returned %d for %s by %s", resp.status_code, title, artist)

@@ -38,6 +38,23 @@ COLOR_HEX = {
 }
 
 
+def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:
+    """Look up a draft by label or numeric ID. Raises 404 if not found."""
+    # Try label first
+    draft = db.query(AgentDraft).filter(AgentDraft.label == draft_ref).first()
+    if draft:
+        return draft
+    # Fall back to numeric ID for backwards compat
+    try:
+        draft_id = int(draft_ref)
+        draft = db.query(AgentDraft).filter(AgentDraft.id == draft_id).first()
+    except ValueError:
+        pass
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return draft
+
+
 def _degree_to_score(degree: float) -> str:
     score = round((90 - degree) * 100 / 90)
     return f"{'+' if score > 0 else ''}{score}"
@@ -154,30 +171,25 @@ def list_drafts(
     )
 
 
-@router.get("/drafts/{draft_id}", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
-def get_draft(draft_id: int, db: Session = Depends(get_db)):
-    """Get a single draft with all songs."""
-    draft = db.query(AgentDraft).filter(AgentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
-    return draft
+@router.get("/drafts/{draft_ref}", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+def get_draft(draft_ref: str, db: Session = Depends(get_db)):
+    """Get a single draft with all songs. Accepts label or numeric ID."""
+    return _resolve_draft(draft_ref, db)
 
 
-@router.get("/drafts/{draft_id}/approve", response_class=HTMLResponse)
-def approve_draft_via_link(draft_id: int, key: str = Query(...), db: Session = Depends(get_db)):
+@router.get("/drafts/{draft_ref}/approve", response_class=HTMLResponse)
+def approve_draft_via_link(draft_ref: str, key: str = Query(...), db: Session = Depends(get_db)):
     """One-click approve from email link (GET with key in query param)."""
     if key != settings.rc_admin_key:
         raise HTTPException(status_code=403, detail="Invalid admin key")
-    draft = approve_draft(draft_id, db)
+    draft = approve_draft(draft_ref, db)
     return _build_approval_html(draft)
 
 
-@router.post("/drafts/{draft_id}/approve", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
-def approve_draft(draft_id: int, db: Session = Depends(get_db)):
+@router.post("/drafts/{draft_ref}/approve", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     """Approve a draft and publish it as a DailyReading."""
-    draft = db.query(AgentDraft).filter(AgentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
+    draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail=f"Draft is already {draft.status}")
 
@@ -221,12 +233,10 @@ def approve_draft(draft_id: int, db: Session = Depends(get_db)):
     return draft
 
 
-@router.post("/drafts/{draft_id}/reject", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
-def reject_draft(draft_id: int, db: Session = Depends(get_db)):
+@router.post("/drafts/{draft_ref}/reject", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+def reject_draft(draft_ref: str, db: Session = Depends(get_db)):
     """Mark a draft as rejected."""
-    draft = db.query(AgentDraft).filter(AgentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
+    draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail=f"Draft is already {draft.status}")
 
@@ -236,14 +246,12 @@ def reject_draft(draft_id: int, db: Session = Depends(get_db)):
     return draft
 
 
-@router.post("/drafts/{draft_id}/resend-email", dependencies=[Depends(verify_admin_key)])
-def resend_draft_email(draft_id: int, db: Session = Depends(get_db)):
+@router.post("/drafts/{draft_ref}/resend-email", dependencies=[Depends(verify_admin_key)])
+def resend_draft_email(draft_ref: str, db: Session = Depends(get_db)):
     """Resend the notification email for an existing draft."""
     from app.config import settings
 
-    draft = db.query(AgentDraft).filter(AgentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
+    draft = _resolve_draft(draft_ref, db)
 
     sent = send_draft_email(draft, draft.songs, settings, db=db)
     if not sent:
@@ -251,12 +259,10 @@ def resend_draft_email(draft_id: int, db: Session = Depends(get_db)):
     return {"status": "sent", "to": settings.approval_email}
 
 
-@router.put("/drafts/{draft_id}", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
-def update_draft(draft_id: int, data: DraftUpdate, db: Session = Depends(get_db)):
+@router.put("/drafts/{draft_ref}", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db)):
     """Edit a draft before approving — change colors, summaries, etc."""
-    draft = db.query(AgentDraft).filter(AgentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
+    draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail=f"Cannot edit a {draft.status} draft")
 

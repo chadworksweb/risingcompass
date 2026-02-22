@@ -179,6 +179,7 @@ class AgentDraft(Base):
     __tablename__ = "agent_drafts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    label = Column(Text, unique=True, nullable=True)  # e.g. compass_song_2026-02-22_draft
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(20), default="pending")  # pending / approved / rejected / published
     date = Column(Date, nullable=False)
