@@ -2,10 +2,10 @@
 
 import logging
 import re
-import urllib.parse
 
 import httpx
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 from app.config import settings
 
@@ -86,11 +86,21 @@ def _search_song(title: str, artist: str) -> str | None:
 
 
 def _scrape_genius_lyrics(url: str) -> str | None:
-    """Scrape lyrics from a Genius song page."""
-    resp = httpx.get(url, timeout=10, follow_redirects=True, headers=_BROWSER_HEADERS)
-    resp.raise_for_status()
+    """Scrape lyrics from a Genius song page using Playwright headless browser."""
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url, timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=15000)
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+            html = page.content()
+            browser.close()
+    except Exception:
+        logger.exception("Playwright failed to load Genius page: %s", url)
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
 
     # Genius wraps lyrics in div[data-lyrics-container]
     containers = soup.select("div[data-lyrics-container='true']")
@@ -106,8 +116,7 @@ def _scrape_genius_lyrics(url: str) -> str | None:
 
     lyrics = "\n".join(parts).strip()
 
-    # Clean up: remove section headers like [Verse 1], [Chorus], etc.
-    # Keep them — they provide structural context for the classifier
+    # Keep section headers — they provide structural context for the classifier
     # But remove excessive blank lines
     lyrics = re.sub(r"\n{3,}", "\n\n", lyrics)
 
