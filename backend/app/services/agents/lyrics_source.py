@@ -92,7 +92,8 @@ def _scrape_genius_lyrics(url: str) -> str | None:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             page.goto(url, timeout=30000)
-            page.wait_for_load_state("networkidle", timeout=15000)
+            # Wait for lyrics container instead of networkidle (Genius ad scripts never settle)
+            page.wait_for_selector("div[data-lyrics-container='true']", timeout=15000)
 
             html = page.content()
             browser.close()
