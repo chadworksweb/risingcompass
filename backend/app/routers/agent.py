@@ -204,8 +204,69 @@ def get_draft(draft_ref: str, db: Session = Depends(get_db)):
 
 
 @router.get("/drafts/{draft_ref}/approve", response_class=HTMLResponse)
-def approve_draft_via_link(draft_ref: str, key: str = Query(...), db: Session = Depends(get_db)):
-    """One-click approve from email link (GET with key in query param)."""
+def approve_draft_confirm_page(draft_ref: str, key: str = Query(...), db: Session = Depends(get_db)):
+    """Show a confirmation page instead of auto-approving.
+
+    Email clients prefetch GET links for security scanning, which was
+    causing drafts to be approved without human intent. Now the GET
+    shows a confirm button that POSTs to actually approve.
+    """
+    if key != settings.rc_admin_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+    draft = _resolve_draft(draft_ref, db)
+
+    if draft.status != "pending":
+        return _build_approval_html(draft)
+
+    charge_color = COLOR_HEX.get(draft.charge_level, "#999")
+    charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
+    score = _degree_to_score(draft.compass_degree)
+    post_url = f"/api/admin/agent/drafts/{draft_ref}/approve?key={key}"
+
+    return f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Confirm Reading — {draft.date}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:#0a0a14; color:#eeeef4; font-family:'Inter',-apple-system,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }}
+  .card {{ background:#1a1a2e; border-radius:12px; padding:48px; max-width:480px; width:90%; text-align:center; border:1px solid #2a2a4e; }}
+  h1 {{ font-size:22px; font-weight:600; margin-bottom:8px; }}
+  .date {{ font-size:14px; color:#88ccaa; margin-bottom:24px; }}
+  .metrics {{ display:flex; justify-content:center; gap:32px; margin-bottom:32px; }}
+  .metric {{ text-align:center; }}
+  .metric-label {{ font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:#666; margin-bottom:6px; }}
+  .metric-value {{ font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; }}
+  .btn {{ display:inline-block; padding:14px 48px; background:#00d4aa; color:#0a0a14; font-weight:700; font-size:16px; border:none; border-radius:8px; cursor:pointer; text-decoration:none; margin-top:8px; }}
+  .btn:hover {{ background:#00eebb; }}
+  .label {{ font-size:12px; color:#555; margin-top:20px; font-family:'JetBrains Mono',monospace; }}
+</style>
+</head><body>
+<div class="card">
+  <h1>Publish This Reading?</h1>
+  <div class="date">{draft.date}</div>
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Charge</div>
+      <div class="metric-value" style="color:{charge_color};">{score}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Level</div>
+      <div class="metric-value" style="color:{charge_color};">{charge_label}</div>
+    </div>
+  </div>
+  <form method="POST" action="/api/admin/agent/drafts/{draft_ref}/publish?key={key}">
+    <button type="submit" class="btn">Approve &amp; Publish</button>
+  </form>
+  <div class="label">{draft.label}</div>
+</div>
+</body></html>"""
+
+
+@router.post("/drafts/{draft_ref}/publish", response_class=HTMLResponse)
+def publish_draft_via_form(draft_ref: str, key: str = Query(...), db: Session = Depends(get_db)):
+    """POST approval from the email confirmation page (form submit with key in query)."""
     if key != settings.rc_admin_key:
         raise HTTPException(status_code=403, detail="Invalid admin key")
     draft = approve_draft(draft_ref, db)
