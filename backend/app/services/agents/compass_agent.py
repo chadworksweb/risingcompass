@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import AgentDraft, AgentDraftSong, CompassSong
 from app.services.agents.classifier import classify_song, AGENT_MODEL
-from app.services.agents.rising_compass_agent_rubric import build_editorial_prompt, truncate_mei
+from app.services.agents.compass_agent_rubric import build_editorial_prompt, truncate_mei
 from app.services.agents.email_notifier import send_draft_email
 from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree

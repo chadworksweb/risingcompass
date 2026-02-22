@@ -25,7 +25,7 @@ Songs from Calibration and Backfill contribute to the aggregate (trajectory char
 3. **Rankings within tiers** — Songs ranked from least to most extreme within each tier; charge_values spread evenly across tier range
 4. **Corrections pushed** — Updated tiers and charge_values pushed to both the Draft AND the Song table (training data for future classifications)
 5. **Blind spots documented** — What the agent missed and why, tracked here
-6. **Rubric updated** — If a blind spot reveals a systemic pattern, a new rule is added to `rising_compass_agent_rubric.py`
+6. **Rubric updated** — If a blind spot reveals a systemic pattern, a new rule is added to `compass_agent_rubric.py`
 
 **Goal:** Agent nails 5 consecutive years of historical classification (10 songs/year) without human correction. Then it runs unsupervised through 2023.
 

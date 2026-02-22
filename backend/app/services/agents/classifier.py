@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import CompassSong
-from app.services.agents.rising_compass_agent_rubric import (
+from app.services.agents.compass_agent_rubric import (
     build_few_shot_examples,
     build_classification_prompt,
     truncate_mei,
