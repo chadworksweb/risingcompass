@@ -1,7 +1,10 @@
 """Admin endpoints for the Compass Agent — trigger, list, view, approve, reject, edit drafts."""
 
+import logging
 import math
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -135,15 +138,38 @@ def trigger_classification(data: DraftTriggerIn, db: Session = Depends(get_db)):
 
 @router.post("/classify-live", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
 def classify_live(db: Session = Depends(get_db)):
-    """Fetch today's Spotify Global Top 10 and classify them.
+    """Fetch today's Spotify Top 50 USA and classify them.
 
-    No input needed — pulls live chart data and runs the full pipeline.
+    The chart is pinned: once fetched for a given day, subsequent calls
+    reuse the same song list (from the first draft) so the reading is
+    stable regardless of intra-day playlist shuffling.
     """
-    songs = fetch_top_songs(count=20)
-    if not songs:
-        raise HTTPException(status_code=502, detail="Failed to fetch chart data from Spotify")
+    today = date.today()
 
-    draft = run_compass_agent(songs, db, reading_date=date.today())
+    # Pin chart: reuse song list from first draft of the day if one exists
+    existing_draft = (
+        db.query(AgentDraft)
+        .filter(AgentDraft.date == today)
+        .order_by(AgentDraft.id.asc())
+        .first()
+    )
+    if existing_draft and existing_draft.songs:
+        songs = [
+            {
+                "title": s.title,
+                "artist": s.artist,
+                "position": s.position,
+                "chart_source": s.chart_source or "spotify_top50_usa",
+            }
+            for s in sorted(existing_draft.songs, key=lambda s: s.position)
+        ]
+        logger.info("Chart pinned: reusing %d songs from %s", len(songs), existing_draft.label)
+    else:
+        songs = fetch_top_songs(count=20)
+        if not songs:
+            raise HTTPException(status_code=502, detail="Failed to fetch chart data from Spotify")
+
+    draft = run_compass_agent(songs, db, reading_date=today)
     return draft
 
 
