@@ -2,6 +2,7 @@
 
 import logging
 import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -35,8 +36,25 @@ def run_backup() -> Path | None:
         logger.exception("Failed to back up database")
         return None
 
+    # Verify backup is valid SQLite
+    if not _verify_backup(backup_path):
+        logger.error("Backup verification FAILED: %s", backup_path)
+        return None
+
+    logger.info("Backup verified: %s", backup_path)
     _prune_old_backups()
     return backup_path
+
+
+def _verify_backup(backup_path: Path) -> bool:
+    """Verify a backup file is valid SQLite with expected tables."""
+    try:
+        conn = sqlite3.connect(str(backup_path))
+        conn.execute("SELECT count(*) FROM compass_songs")
+        conn.close()
+        return True
+    except Exception:
+        return False
 
 
 def _prune_old_backups() -> None:

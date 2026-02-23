@@ -162,11 +162,19 @@ const App = (() => {
       const hasTooltip = hasMEI || hasSummary;
       let tooltipHtml = '';
       if (hasTooltip) {
-        let lines = '';
+        const songHex = COLOR_HEX[song.rubric_color] || '#888';
+        const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
+        const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
+
+        // Charge header — inline styled (no CSS classes)
+        let lines = `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem;padding-bottom:0.3rem;border-bottom:1px solid rgba(0,0,0,0.08)"><span style="width:3px;height:14px;border-radius:1.5px;flex-shrink:0;background:${songHex}"></span><span style="font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;color:${songHex}">${songScore} ${songLabel}</span></div>`;
+
+        // Summary line
+        if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
+
         if (song.message_analysis) lines += `<div class="mei-line"><strong>M</strong> ${escapeHtml(song.message_analysis)}</div>`;
         if (song.expression_analysis) lines += `<div class="mei-line"><strong>E</strong> ${escapeHtml(song.expression_analysis)}</div>`;
         if (song.intention_analysis) lines += `<div class="mei-line"><strong>I</strong> ${escapeHtml(song.intention_analysis)}</div>`;
-        if (!hasMEI && song.charge_summary) lines += `<div class="mei-line">${escapeHtml(song.charge_summary)}</div>`;
         if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
         const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color, pos: song.position });
         if (song.message_analysis) disputeParams.set('ma', song.message_analysis);
@@ -2014,8 +2022,8 @@ const App = (() => {
         const songHex = COLOR_HEX[song.rubric_color] || '#888';
         const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
         const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
-        let lines = `<div class="mei-header"><span class="mei-header-bar" style="background:${songHex}"></span><span class="mei-header-label" style="color:${songHex}">${songScore} ${songLabel}</span></div>`;
-        if (song.charge_summary) lines += `<div class="mei-summary">${escapeHtml(song.charge_summary)}</div>`;
+        let lines = `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem;padding-bottom:0.3rem;border-bottom:1px solid rgba(0,0,0,0.08)"><span style="width:3px;height:14px;border-radius:1.5px;flex-shrink:0;background:${songHex}"></span><span style="font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;color:${songHex}">${songScore} ${songLabel}</span></div>`;
+        if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
         if (song.message_analysis) lines += `<div class="mei-line"><strong>M</strong> ${escapeHtml(song.message_analysis)}</div>`;
         if (song.expression_analysis) lines += `<div class="mei-line"><strong>E</strong> ${escapeHtml(song.expression_analysis)}</div>`;
         if (song.intention_analysis) lines += `<div class="mei-line"><strong>I</strong> ${escapeHtml(song.intention_analysis)}</div>`;

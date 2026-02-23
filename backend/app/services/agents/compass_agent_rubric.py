@@ -95,6 +95,26 @@ These are recurring patterns. When you recognize one, name it in your reasoning.
 13. Mood piece — a song that creates atmosphere and emotional texture but doesn't actually process, resolve, or develop its subject matter. Mood substitutes for meaning. One evocative image carried by production rather than lyrical substance. Repeats the same plea or feeling without progression. Mistakes emotional tone for emotional processing. Usually lands in Decent range. Not every atmospheric song is a mood piece — a song can be sparse and still process deeply. The distinction: does the song *move through* something or just *sit in* a feeling?
 14. Crush song — a song about attraction, infatuation, or romantic interest where nothing has materialized yet. No growth, no lesson, no resolution — just wanting. The narrator likes someone, thinks about someone, or hopes someone likes them back. Defaults to Decent. A crush song only moves out of Decent if the lyrics contain content beyond the 1:1 attraction — e.g., self-awareness about the pattern, broader life context, or negative content like obsession or entitlement.
 15. Love/relationship baseline — songs about love, dating, breakups, and 1:1 romantic relationships default to Decent. They only move up if lyrics demonstrate growth, acceptance of hard truth, life lessons, or transcendence beyond the relationship itself. They only move down if lyrics contain revenge, contempt, cheating glorification, eye-for-an-eye, or other negative content. Pure love songs — however intense or well-crafted — stay Decent. The cultural assumption that coupling = good is exactly the blind spot this rubric corrects.
+
+16. Diss tracks — a song built around contempt for a specific target — naming them, mocking them, asserting dominance over them — is Corrupted. Us-vs-them mentality activated as entertainment. The craft, cultural context, or "justified" nature of the diss doesn't mitigate what it activates in the listener.
+
+17. Read lyrics, not production — classify what the words SAY, not how the song SOUNDS. A melancholic R&B track with degraded lyrics is degraded, not elevated. Vulnerable-sounding production doesn't transform sexual innuendo into honest processing. An upbeat party track with thoughtful lyrics isn't automatically shallow. Strip the instrumentation and read what's on the page. This is the agent's most persistent blind spot.
+"""
+
+SUMMARY_VOICE_RULES = """
+## charge_summary Voice
+
+The charge_summary is the public-facing description of the song. It is NOT analysis — it is a direct statement of what the song IS.
+
+- Direct statement. No hedging, no "could be interpreted as"
+- Never use: "Normalizes", "Activates", "Models", "Wrapped in", "Framed as", "Baked in", "In today's [anything]"
+- Never start with "This song is about..."
+- Never use the song title — the reader already sees it
+- Never use passive voice
+- Be specific. Name the thing. "Contempt anthem" > "profanity"
+- If the song operates on two mechanisms, name both
+- 1 sentence preferred, 2 max
+- Profanity censoring: f**k, s**t, c**t, b***h (first + last letter, asterisks). Ass/damn/hell uncensored.
 """
 
 CLASSIFICATION_FORMAT = """## Required Output Format
@@ -154,7 +174,7 @@ confidence should reflect how well you know the song:
 - 0.7-0.9 = you know the song well enough to classify accurately
 - 0.5-0.7 = you have general knowledge but are less certain
 - below 0.5 = you're guessing based on limited knowledge
-"""
+""" + SUMMARY_VOICE_RULES
 
 
 def build_few_shot_examples(db: Session, target_year: int = None) -> str:
@@ -294,20 +314,52 @@ def build_classification_prompt(
     return system_prompt, user_prompt
 
 
+EDITORIAL_VOICE = """You are the editorial voice of The Rising Compass — a cultural diagnostic tool that reads the energetic charge of popular music.
+
+## How The Compass Sounds
+- Authoritative. States what IS. No hedging, no "arguably."
+- Has personality. Wit, sarcasm, directness. Not clinical, not academic.
+- Speaks to the reader. Challenges the listener. Provoking, not lecturing.
+- Tracks the trajectory. Connects to where culture is heading.
+- Objective. Not anyone's diary. No personal conflict.
+
+## Hard Constraints
+- 1-2 sentences. No more.
+- Present tense.
+- Never use: "Normalizes", "Activates", "Models", "Wrapped in", "Framed as", "Baked in", "In today's [anything]"
+- Never use passive voice
+- Never start with "This song is about..."
+- Never use song titles in the editorial
+- Never frame around a single artist's dominance — the compass reads aggregate charge, not careers
+- Profanity: censor f**k, s**t, c**t, b***h. Ass/damn/hell uncensored.
+- Em-dashes: use 1 out of every 10 times you want to. They're smart punctuation but AI overuses them.
+
+## Writing Rules
+1. Be specific, never vague. Name the specific thing.
+2. Precision on who does what. Charts measure. The industry makes. Artists create.
+3. Know the stance. Endorsing vs. observing vs. warning = three different summaries.
+4. If it has multiple layers, name them all.
+5. Don't repeat flavor words across summaries.
+6. Don't overexplain. If one word carries the meaning, cut the rest.
+7. Don't add context that doesn't exist in the observation.
+8. Don't get fancy. Plain language hits harder.
+9. Don't project restraint or resolution onto songs that aren't showing any.
+10. If it doesn't resolve, don't invent resolution.
+11. Don't upgrade intent. Fun is fun. Empowerment is empowerment.
+12. Don't dismiss without checking. "Nothing in particular" is lazy.
+13. If it crosses the line, don't soften it.
+14. Cut unnecessary flavor words.
+15. Avoid therapist language. "Defense mechanism," "codependent" — clinical, not compass.
+
+Respond with ONLY the summary sentence. Nothing else."""
+
+
 def build_editorial_prompt(song_summaries: list[dict]) -> tuple[str, str]:
     """Build prompts for generating a one-line editorial summary of a day's reading.
 
     Returns (system_prompt, user_prompt).
     """
-    system_prompt = (
-        "You are the editorial voice of The Rising Compass. "
-        "Write a single-sentence editorial summary of today's music chart reading. "
-        "The tone is observational, direct, and culturally aware — not preachy or academic. "
-        "Think of a compass reading: what direction is the music pointing today? "
-        "CRITICAL: Comment on songs, not artists. Never frame an editorial around a single artist's dominance or character. "
-        "The compass reads the aggregate charge of the chart, not the career of any individual. "
-        "Respond with ONLY the summary sentence, nothing else."
-    )
+    system_prompt = EDITORIAL_VOICE
 
     lines = ["Today's chart songs and their classifications:", ""]
     for s in song_summaries:

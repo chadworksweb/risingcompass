@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, UniqueConstraint
+    CheckConstraint, Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -54,6 +54,9 @@ class ReadingSong(Base):
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
     charge_summary = Column(Text)
+    message_analysis = Column(Text)
+    expression_analysis = Column(Text)
+    intention_analysis = Column(Text)
     chart_source = Column(Text, default="spotify")
 
     reading = relationship("DailyReading", back_populates="songs")
@@ -177,11 +180,18 @@ class Recommendation(Base):
 
 class AgentDraft(Base):
     __tablename__ = "agent_drafts"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="valid_draft_status",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     label = Column(Text, unique=True, nullable=True)  # e.g. compass_song_2026-02-22_draft
+    draft_type = Column(Text, default="daily")  # daily / manual
     created_at = Column(DateTime, default=datetime.utcnow)
-    status = Column(String(20), default="pending")  # pending / approved / rejected / published
+    status = Column(String(20), default="pending")  # pending / approved / rejected
     date = Column(Date, nullable=False)
     compass_degree = Column(Float)
     charge_level = Column(Text)
@@ -189,6 +199,7 @@ class AgentDraft(Base):
     editorial_summary = Column(Text)
     agent_model = Column(Text)
     agent_notes = Column(Text)
+    agent_warnings = Column(Text)  # JSON-encoded list of warning strings
 
     songs = relationship("AgentDraftSong", back_populates="draft", cascade="all, delete-orphan")
 

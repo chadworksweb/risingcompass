@@ -33,4 +33,4 @@ fi
 curl -s -f -H "X-Admin-Key: $ADMIN_KEY" "$API/api/admin/db-export" -o "$LOCAL_DB"
 
 echo "Done. Production DB saved to $LOCAL_DB"
-echo "Song count: $(sqlite3 "$LOCAL_DB" 'SELECT COUNT(*) FROM songs;' 2>/dev/null || echo 'install sqlite3 to verify')"
+echo "Song count: $(sqlite3 "$LOCAL_DB" 'SELECT COUNT(*) FROM compass_songs;' 2>/dev/null || echo 'install sqlite3 to verify')"

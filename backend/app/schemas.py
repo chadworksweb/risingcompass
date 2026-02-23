@@ -1,3 +1,5 @@
+import json
+
 from pydantic import BaseModel, computed_field
 from typing import List, Optional
 import datetime
@@ -459,6 +461,7 @@ class DraftSongOut(BaseModel):
 class DraftOut(BaseModel):
     id: int
     label: Optional[str] = None
+    draft_type: Optional[str] = "daily"
     created_at: datetime.datetime
     status: str
     date: datetime.date
@@ -468,6 +471,7 @@ class DraftOut(BaseModel):
     editorial_summary: Optional[str] = None
     agent_model: Optional[str] = None
     agent_notes: Optional[str] = None
+    agent_warnings: Optional[str] = None
     songs: List[DraftSongOut] = []
 
     @computed_field
@@ -477,12 +481,23 @@ class DraftOut(BaseModel):
             return None
         return _degree_to_score(self.compass_degree)
 
+    @computed_field
+    @property
+    def warnings(self) -> List[str]:
+        if not self.agent_warnings:
+            return []
+        try:
+            return json.loads(self.agent_warnings)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
     model_config = {"from_attributes": True}
 
 
 class DraftSummary(BaseModel):
     id: int
     label: Optional[str] = None
+    draft_type: Optional[str] = "daily"
     created_at: datetime.datetime
     status: str
     date: datetime.date

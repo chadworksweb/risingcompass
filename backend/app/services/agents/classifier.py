@@ -4,6 +4,7 @@ import json
 import logging
 
 from anthropic import Anthropic
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -16,7 +17,7 @@ from app.services.agents.compass_agent_rubric import (
 
 logger = logging.getLogger(__name__)
 
-AGENT_MODEL = "claude-sonnet-4-5-20250929"
+AGENT_MODEL = settings.agent_model
 
 VALID_COLORS = {"violet", "blue", "green", "orange", "red"}
 
@@ -27,10 +28,11 @@ def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
     Returns the existing classification dict if found, None otherwise.
     Only returns songs that are explicitly marked as calibrated (human-reviewed).
     """
-    # Match on title (case-insensitive) — artist names vary across sources
+    # Match on title + artist (case-insensitive)
     existing = (
         db.query(CompassSong)
         .filter(CompassSong.title.ilike(title))
+        .filter(func.lower(CompassSong.artist) == artist.lower())
         .filter(CompassSong.calibrated == True)
         .order_by(CompassSong.id.desc())  # most recent calibration wins
         .first()
@@ -172,10 +174,14 @@ def _validate_charge_value(raw_value, color: str) -> int:
 
 
 def _fallback_result(title: str, artist: str, raw_response: str) -> dict:
-    """Return a safe fallback when Claude's response can't be parsed."""
+    """Return an explicit failure when Claude's response can't be parsed.
+
+    rubric_color=None signals the song needs human intervention rather than
+    silently defaulting to green/0.
+    """
     return {
-        "rubric_color": "green",
-        "charge_value": 0,
+        "rubric_color": None,
+        "charge_value": None,
         "contaminated": False,
         "contamination_note": None,
         "charge_summary": f"Classification failed — manual review needed for {title} by {artist}",

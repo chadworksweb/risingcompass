@@ -5,11 +5,13 @@ services:
       - "8000:8000"
     volumes:
       - db-data:/app/data
+      - /root/rising-compass-backups:/app/data/backups
     environment:
       - RC_ADMIN_KEY=${RC_ADMIN_KEY:-change-me}
       - DATABASE_URL=sqlite:///./data/rising_compass.db
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AGENT_MODEL=${AGENT_MODEL:-claude-sonnet-4-5-20250929}
       - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - EMAIL_FROM=${EMAIL_FROM:-Rising Compass <compass@risingcompass.net>}

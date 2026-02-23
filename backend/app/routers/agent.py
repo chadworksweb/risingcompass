@@ -124,7 +124,7 @@ def trigger_classification(data: DraftTriggerIn, db: Session = Depends(get_db)):
     songs_input = [s.model_dump() for s in data.songs]
     reading_date = data.date or date.today()
 
-    draft = run_compass_agent(songs_input, db, reading_date=reading_date, draft_only=data.draft_only)
+    draft = run_compass_agent(songs_input, db, reading_date=reading_date, draft_only=data.draft_only, draft_type="manual")
     return draft
 
 
@@ -138,13 +138,15 @@ def classify_live(db: Session = Depends(get_db)):
     """
     today = date.today()
 
-    # Pin chart: reuse song list from first draft of the day if one exists
+    # Pin chart: reuse song list from first daily draft of the day if one exists
     existing_draft = (
         db.query(AgentDraft)
         .filter(AgentDraft.date == today)
+        .filter(AgentDraft.draft_type == "daily")
         .order_by(AgentDraft.id.asc())
         .first()
     )
+    chart_pinned = False
     if existing_draft and existing_draft.songs:
         songs = [
             {
@@ -155,13 +157,31 @@ def classify_live(db: Session = Depends(get_db)):
             }
             for s in sorted(existing_draft.songs, key=lambda s: s.position)
         ]
+        chart_pinned = True
         logger.info("Chart pinned: reusing %d songs from %s", len(songs), existing_draft.label)
     else:
         songs = fetch_top_songs(count=20)
         if not songs:
             raise HTTPException(status_code=502, detail="Failed to fetch chart data from Spotify")
 
-    draft = run_compass_agent(songs, db, reading_date=today)
+    draft = run_compass_agent(songs, db, reading_date=today, draft_type="daily")
+
+    # Surface chart pinning in agent_notes and warnings
+    if chart_pinned:
+        pin_msg = f"chart_pinned: reusing {len(songs)} songs from {existing_draft.label}"
+        # Append to agent_notes
+        if draft.agent_notes:
+            draft.agent_notes += f"; {pin_msg}"
+        else:
+            draft.agent_notes = pin_msg
+        # Append to warnings
+        import json
+        existing_warnings = json.loads(draft.agent_warnings) if draft.agent_warnings else []
+        existing_warnings.append(pin_msg)
+        draft.agent_warnings = json.dumps(existing_warnings)
+        db.commit()
+        db.refresh(draft)
+
     return draft
 
 
@@ -302,6 +322,9 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
             contaminated=song.contaminated,
             contamination_note=song.contamination_note,
             charge_summary=song.charge_summary,
+            message_analysis=song.message_analysis,
+            expression_analysis=song.expression_analysis,
+            intention_analysis=song.intention_analysis,
             chart_source=song.chart_source,
         )
         db.add(rs)
@@ -373,6 +396,11 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
                 existing.expression_analysis = update.expression_analysis
             if update.intention_analysis is not None:
                 existing.intention_analysis = update.intention_analysis
+
+            # Enforce: red/orange cannot be contaminated
+            if existing.rubric_color in ("red", "orange"):
+                existing.contaminated = False
+                existing.contamination_note = None
 
         # Recalculate compass metrics after edits (uses charge_value when available)
         song_dicts = [

@@ -1,5 +1,6 @@
 """Compass Agent orchestrator — runs the full classification pipeline."""
 
+import json
 import logging
 from datetime import date
 
@@ -117,6 +118,7 @@ def run_compass_agent(
     db: Session,
     reading_date: date | None = None,
     draft_only: bool = False,
+    draft_type: str = "daily",
 ) -> AgentDraft:
     """Run the full agent pipeline: classify songs, compute compass, save draft, send email.
 
@@ -138,6 +140,7 @@ def run_compass_agent(
 
     classified_songs = []
     agent_notes_parts = []
+    warnings = []
 
     for song_in in songs_input:
         title = song_in["title"]
@@ -215,6 +218,13 @@ def run_compass_agent(
             **result,
         })
 
+    # Collect per-song warnings
+    for s in classified_songs:
+        if not s["lyrics_available"]:
+            warnings.append(f"no_lyrics: {s['title']}")
+        if s.get("confidence") is not None and s["confidence"] < 0.5:
+            warnings.append(f"low_confidence: {s['title']} ({s['confidence']})")
+
     # Compute compass metrics — exclude unclassified songs (no lyrics found)
     song_dicts = [
         {"rubric_color": s["rubric_color"], "charge_value": s.get("charge_value"), "position": s["position"]}
@@ -232,9 +242,10 @@ def run_compass_agent(
     agent_notes = "; ".join(agent_notes_parts) if agent_notes_parts else None
 
     # Save draft to DB
-    label = _generate_draft_label(db, reading_date)
+    label = _generate_draft_label(db, reading_date, draft_type=draft_type)
     draft = AgentDraft(
         label=label,
+        draft_type=draft_type,
         date=reading_date,
         status="pending",
         compass_degree=degree,
@@ -243,6 +254,7 @@ def run_compass_agent(
         editorial_summary=editorial,
         agent_model=AGENT_MODEL,
         agent_notes=agent_notes,
+        agent_warnings=json.dumps(warnings) if warnings else None,
     )
     db.add(draft)
     db.flush()
@@ -272,7 +284,12 @@ def run_compass_agent(
 
     # Send email notification (skip for draft-only / case study mode)
     if not draft_only:
-        send_draft_email(draft, draft.songs, settings, db=db)
+        email_sent = send_draft_email(draft, draft.songs, settings, db=db)
+        if not email_sent:
+            warnings.append("email_failed: notification not sent")
+            draft.agent_warnings = json.dumps(warnings) if warnings else None
+            db.commit()
+            db.refresh(draft)
 
     return draft
 
