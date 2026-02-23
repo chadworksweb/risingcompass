@@ -58,11 +58,16 @@ def _clean_artist_for_search(artist: str) -> str:
 
 
 def _clean_title_for_search(title: str) -> str:
-    """Strip parenthetical/bracketed features from title for search APIs.
+    """Strip featured artist credits from title for search APIs.
 
     'Good Flirts (feat. Kendrick Lamar & Momo Boyd)' -> 'Good Flirts'
+    'Stateside + Zara Larsson' -> 'Stateside'
     """
-    return re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip()
+    # Strip (parenthetical) and [bracketed] features
+    cleaned = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip()
+    # Strip '+ Artist Name' suffix (Spotify format)
+    cleaned = re.sub(r"\s*\+\s+.+$", "", cleaned).strip()
+    return cleaned
 
 
 def _fetch_from_lyrics_ovh(title: str, artist: str) -> str | None:
