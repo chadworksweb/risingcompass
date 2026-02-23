@@ -5,34 +5,9 @@ import logging
 import httpx
 
 from app.config import Settings
+from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG
 
 logger = logging.getLogger(__name__)
-
-# Rising Compass tier system
-COLOR_LABELS = {
-    "violet": "Ascended",
-    "blue": "Elevated",
-    "green": "Decent",
-    "orange": "Degraded",
-    "red": "Corrupted",
-}
-
-COLOR_HEX = {
-    "violet": "#9933ff",
-    "blue": "#3388ff",
-    "green": "#33cc55",
-    "orange": "#ffbb33",
-    "red": "#ff3333",
-}
-
-# Slightly muted versions for backgrounds on white
-COLOR_BG = {
-    "violet": "#f3e8ff",
-    "blue": "#e8f0ff",
-    "green": "#e8fae8",
-    "orange": "#fff5e0",
-    "red": "#ffe8e8",
-}
 
 
 def _degree_to_score(degree: float) -> str:

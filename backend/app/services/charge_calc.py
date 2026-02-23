@@ -15,23 +15,3 @@ def degree_to_charge(degree: float) -> str:
         if degree <= threshold:
             return color
     return "red"
-
-
-def degree_to_label(degree: float) -> str:
-    """Return human-readable charge label for a given degree."""
-    for threshold, _color, label in CHARGE_TIERS:
-        if degree <= threshold:
-            return label
-    return "Corrupted"
-
-
-def charge_color_to_label(color: str) -> str:
-    """Convert a charge color to its label."""
-    labels = {
-        "violet": "Ascended",
-        "blue": "Elevated",
-        "green": "Decent",
-        "orange": "Degraded",
-        "red": "Corrupted",
-    }
-    return labels.get(color, "Unknown")

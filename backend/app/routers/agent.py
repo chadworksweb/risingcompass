@@ -28,17 +28,9 @@ from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
+from app.constants import COLOR_LABELS, COLOR_HEX
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
-
-COLOR_LABELS = {
-    "violet": "Ascended", "blue": "Elevated", "green": "Decent",
-    "orange": "Degraded", "red": "Corrupted",
-}
-COLOR_HEX = {
-    "violet": "#9933ff", "blue": "#3388ff", "green": "#33cc55",
-    "orange": "#ffbb33", "red": "#ff3333",
-}
 
 
 def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:

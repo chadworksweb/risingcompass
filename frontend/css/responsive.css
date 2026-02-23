@@ -26,10 +26,6 @@
     max-width: 280px;
   }
 
-  .compass-degree-text {
-    font-size: 1.6rem;
-  }
-
   .card {
     padding: 1rem;
   }
@@ -91,16 +87,12 @@
     padding: 0.8rem;
   }
 
-  .rubric-q h5 {
+  .rubric-q h4 {
     font-size: 0.82rem;
   }
 
   .rubric-q p {
     font-size: 0.8rem;
-  }
-
-  .drift-chart {
-    height: 150px;
   }
 
   .song-item {
@@ -129,10 +121,6 @@
 
   .track-assessment {
     display: none;
-  }
-
-  .color-legend {
-    grid-template-columns: 1fr;
   }
 
   .archive-item {

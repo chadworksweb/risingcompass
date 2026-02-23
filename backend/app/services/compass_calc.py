@@ -9,15 +9,6 @@ COLOR_DEGREES = {
     "red": 180.0,
 }
 
-# Midpoint charge_values per tier (for legacy conversion)
-TIER_MIDPOINTS = {
-    "violet": 88,
-    "blue": 50,
-    "green": 0,
-    "orange": -50,
-    "red": -88,
-}
-
 
 def charge_to_degree(charge_value: int) -> float:
     """Convert a charge_value (+100 to -100) to internal degree (0 to 180)."""

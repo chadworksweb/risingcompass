@@ -409,39 +409,6 @@ body {
   opacity: 0.8;
 }
 
-.mei-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.3rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-.mei-header-bar {
-  width: 3px;
-  height: 1rem;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.mei-header-label {
-  font-family: var(--rc-font-mono);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-}
-
-.mei-summary {
-  font-size: 0.72rem;
-  color: rgba(20, 20, 30, 0.7);
-  line-height: 1.45;
-  margin-bottom: 0.3rem;
-  padding-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  font-style: italic;
-}
-
 .mei-line {
   font-size: 0.72rem;
   color: rgba(20, 20, 30, 0.8);
