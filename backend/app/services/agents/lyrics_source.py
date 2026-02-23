@@ -79,7 +79,7 @@ def _fetch_from_lyrics_ovh(title: str, artist: str) -> str | None:
         url = f"{LYRICS_OVH_URL}/{urllib.parse.quote(clean_artist)}/{urllib.parse.quote(clean_title)}"
         logger.info("Trying lyrics.ovh: %s / %s", clean_artist, clean_title)
 
-        resp = httpx.get(url, timeout=10, follow_redirects=True)
+        resp = httpx.get(url, timeout=30, follow_redirects=True)
         if resp.status_code != 200:
             logger.info("lyrics.ovh returned %d for %s by %s", resp.status_code, title, artist)
             return None
