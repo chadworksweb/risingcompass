@@ -21,13 +21,13 @@ LIVE_YEAR_CUTOFF = 2025
 # Historical data uses a 3-color system (violet, blue, red).
 # "Blue" in the old system meant "not bad" — a catch-all for everything
 # that wasn't violet or red. In the 5-color system, many of those
-# songs would be green or yellow. We adjust the blue mapping upward
+# songs would be green or orange. We adjust the blue mapping upward
 # to reflect this coarseness honestly.
 HISTORICAL_DEGREES = {
     "violet": 0.0,
     "blue": 65.0,  # old "not bad" ≈ upper Elevated, nearly Decent
     "green": 90.0,
-    "yellow": 135.0,
+    "orange": 135.0,
     "red": 180.0,
 }
 

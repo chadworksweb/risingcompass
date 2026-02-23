@@ -25,7 +25,7 @@ const App = (() => {
     violet: '#aa54ff',
     blue: '#3388ff',
     green: '#33cc55',
-    yellow: '#ffbb33',
+    orange: '#ffbb33',
     red: '#ff3333',
   };
 
@@ -33,7 +33,7 @@ const App = (() => {
     violet: 'Ascended',
     blue: 'Elevated',
     green: 'Decent',
-    yellow: 'Degraded',
+    orange: 'Degraded',
     red: 'Corrupted',
   };
 
@@ -253,7 +253,7 @@ const App = (() => {
           ${Array.from({length: 10}, (_, i) => `
             <li class="song-item">
               <span class="song-pos">${i + 1}</span>
-              <span class="song-dot yellow"></span>
+              <span class="song-dot orange"></span>
               <div class="song-info">
                 <div class="song-title" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${60 + Math.random() * 30}%;">&nbsp;</div>
                 <div class="song-artist" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${40 + Math.random() * 20}%;margin-top:4px;">&nbsp;</div>
@@ -341,7 +341,7 @@ const App = (() => {
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
         <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" />
-        <stop offset="75%" stop-color="${COLOR_HEX.yellow}" />
+        <stop offset="75%" stop-color="${COLOR_HEX.orange}" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" />
       </linearGradient>
       <linearGradient id="traj-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
@@ -938,7 +938,7 @@ const App = (() => {
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
         <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" />
-        <stop offset="75%" stop-color="${COLOR_HEX.yellow}" />
+        <stop offset="75%" stop-color="${COLOR_HEX.orange}" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" />
       </linearGradient>
       <linearGradient id="daily-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
@@ -1339,12 +1339,12 @@ const App = (() => {
     const panel = document.getElementById('calc-mix');
     if (!panel) return;
 
-    const COLOR_DEGREES = { violet: 0, blue: 45, green: 90, yellow: 135, red: 180 };
+    const COLOR_DEGREES = { violet: 0, blue: 45, green: 90, orange: 135, red: 180 };
     const tiers = [
       { key: 'violet', label: 'Ascended', initial: 0 },
       { key: 'blue', label: 'Elevated', initial: 0 },
-      { key: 'yellow', label: 'Decent', initial: 0 },
-      { key: 'yellow', label: 'Degraded', initial: 0 },
+      { key: 'green', label: 'Decent', initial: 0 },
+      { key: 'orange', label: 'Degraded', initial: 0 },
       { key: 'red', label: 'Corrupted', initial: 0 },
     ];
 
@@ -2130,7 +2130,7 @@ const App = (() => {
       const colorCounts = {};
       songs.forEach(s => { colorCounts[s.rubric_color] = (colorCounts[s.rubric_color] || 0) + 1; });
       let barHtml = '';
-      ['violet', 'blue', 'green', 'yellow', 'red'].forEach(color => {
+      ['violet', 'blue', 'green', 'orange', 'red'].forEach(color => {
         const count = colorCounts[color] || 0;
         if (count === 0) return;
         const pct = (count / songs.length) * 100;
@@ -2215,7 +2215,7 @@ const App = (() => {
     if (deg <= 22.5) return 'violet';
     if (deg <= 67.5) return 'blue';
     if (deg <= 112.5) return 'green';
-    if (deg <= 157.5) return 'yellow';
+    if (deg <= 157.5) return 'orange';
     return 'red';
   }
 
@@ -2361,7 +2361,7 @@ const App = (() => {
       const data = await API.getDrift();
       driftLoaded = true;
 
-      const COLOR_ORDER = ['violet', 'blue', 'green', 'yellow', 'red'];
+      const COLOR_ORDER = ['violet', 'blue', 'green', 'orange', 'red'];
 
       let html = '<div class="decade-cards">';
       data.forEach(d => {
@@ -2467,7 +2467,7 @@ const App = (() => {
         html += `
           <li class="track-item">
             <span class="track-num">${t.track_number}</span>
-            <span class="song-dot ${t.charge_color || 'yellow'}"></span>
+            <span class="song-dot ${t.charge_color || 'orange'}"></span>
             <span>${escapeHtml(t.name)}</span>
             ${t.assessment ? `<span class="track-assessment">${escapeHtml(t.assessment)}</span>` : ''}
           </li>

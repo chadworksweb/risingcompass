@@ -5,7 +5,7 @@ const Charge = (() => {
     violet: '#aa54ff',
     blue: '#3388ff',
     green: '#33cc55',
-    yellow: '#ffbb33',
+    orange: '#ffbb33',
     red: '#ff3333',
   };
 
@@ -35,7 +35,7 @@ const Charge = (() => {
       violet: 0,
       blue: 25,
       green: 50,
-      yellow: 75,
+      orange: 75,
       red: 100,
     };
 

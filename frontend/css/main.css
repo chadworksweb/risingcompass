@@ -1,11 +1,11 @@
 /* === The Rising Compass — Core Styles === */
 
 :root {
-  /* Tier colors (Chakra Rainbow: violet → blue → green → yellow → red) */
+  /* Tier colors (Chakra Rainbow: violet → blue → green → orange → red) */
   --rc-violet: #aa54ff;
   --rc-blue: #3388ff;
   --rc-green: #33cc55;
-  --rc-yellow: #ffbb33;
+  --rc-orange: #ffbb33;
   --rc-red: #ff3333;
 
   /* Background layers (darkest → lightest) */
@@ -320,7 +320,7 @@ body {
 .song-dot.violet { background: var(--rc-violet); box-shadow: var(--rc-glow-sm) var(--rc-violet); }
 .song-dot.blue { background: var(--rc-blue); }
 .song-dot.green { background: var(--rc-green); }
-.song-dot.yellow { background: var(--rc-yellow); }
+.song-dot.orange { background: var(--rc-orange); }
 .song-dot.red { background: var(--rc-red); box-shadow: var(--rc-glow-sm) var(--rc-red); }
 
 .song-info { flex: 1; min-width: 0; }
@@ -494,7 +494,7 @@ body {
     var(--rc-violet),
     var(--rc-blue),
     var(--rc-green),
-    var(--rc-yellow),
+    var(--rc-orange),
     var(--rc-red)
   );
 }

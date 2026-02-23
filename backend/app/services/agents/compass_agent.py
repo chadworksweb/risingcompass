@@ -148,8 +148,8 @@ def run_compass_agent(
         # Check cache first
         cached = _lookup_cached(title, artist, db)
         if cached:
-            # Enforce red/yellow contamination rule on cached data too
-            if cached["rubric_color"] in ("red", "yellow"):
+            # Enforce red/orange contamination rule on cached data too
+            if cached["rubric_color"] in ("red", "orange"):
                 cached["contaminated"] = False
                 cached["contamination_note"] = None
 

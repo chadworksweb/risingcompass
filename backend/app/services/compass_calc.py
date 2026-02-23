@@ -5,7 +5,7 @@ COLOR_DEGREES = {
     "violet": 0.0,
     "blue": 45.0,
     "green": 90.0,
-    "yellow": 135.0,
+    "orange": 135.0,
     "red": 180.0,
 }
 
@@ -14,7 +14,7 @@ TIER_MIDPOINTS = {
     "violet": 88,
     "blue": 50,
     "green": 0,
-    "yellow": -50,
+    "orange": -50,
     "red": -88,
 }
 

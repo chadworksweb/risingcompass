@@ -1,12 +1,12 @@
 /* === SVG Compass Gauge === */
 
 const Compass = (() => {
-  const COLORS = ['violet', 'blue', 'green', 'yellow', 'red'];
+  const COLORS = ['violet', 'blue', 'green', 'orange', 'red'];
   const COLOR_HEX = {
     violet: '#aa54ff',
     blue: '#3388ff',
     green: '#33cc55',
-    yellow: '#ffbb33',
+    orange: '#ffbb33',
     red: '#ff3333',
   };
 
@@ -125,7 +125,7 @@ const Compass = (() => {
       violet: 'ASCENDED',
       blue: 'ELEVATED',
       green: 'DECENT',
-      yellow: 'DEGRADED',
+      orange: 'DEGRADED',
       red: 'CORRUPTED',
     };
     const chargeText = document.getElementById('compass-charge-text');

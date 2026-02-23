@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 AGENT_MODEL = "claude-sonnet-4-5-20250929"
 
-VALID_COLORS = {"violet", "blue", "green", "yellow", "red"}
+VALID_COLORS = {"violet", "blue", "green", "orange", "red"}
 
 
 def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
@@ -111,10 +111,10 @@ def classify_song(
     if result.get("rubric_color") not in VALID_COLORS:
         result["rubric_color"] = "green"
 
-    # Red and yellow cannot be contaminated — they are inherently low-frequency
+    # Red and orange cannot be contaminated — they are inherently low-frequency
     color = result.get("rubric_color", "green")
     contaminated = bool(result.get("contaminated", False))
-    if color in ("red", "yellow"):
+    if color in ("red", "orange"):
         contaminated = False
         result["contamination_note"] = None
 
@@ -140,7 +140,7 @@ TIER_RANGES = {
     "violet": (75, 100),
     "blue": (25, 74),
     "green": (-24, 24),
-    "yellow": (-74, -25),
+    "orange": (-74, -25),
     "red": (-100, -75),
 }
 
@@ -149,7 +149,7 @@ TIER_MIDPOINTS = {
     "violet": 88,
     "blue": 50,
     "green": 0,
-    "yellow": -50,
+    "orange": -50,
     "red": -88,
 }
 

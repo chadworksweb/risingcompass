@@ -19,15 +19,15 @@ logger = logging.getLogger(__name__)
 
 COLOR_LABELS = {
     "violet": "Ascended", "blue": "Elevated", "green": "Decent",
-    "yellow": "Degraded", "red": "Corrupted",
+    "orange": "Degraded", "red": "Corrupted",
 }
 COLOR_HEX = {
     "violet": "#9933ff", "blue": "#3388ff", "green": "#33cc55",
-    "yellow": "#ffbb33", "red": "#ff3333",
+    "orange": "#ffbb33", "red": "#ff3333",
 }
 COLOR_BG = {
     "violet": "#f3e8ff", "blue": "#e8f0ff", "green": "#e8fae8",
-    "yellow": "#fff5e0", "red": "#ffe8e8",
+    "orange": "#fff5e0", "red": "#ffe8e8",
 }
 
 router = APIRouter(tags=["misread"])

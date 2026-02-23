@@ -33,11 +33,11 @@ router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
 
 COLOR_LABELS = {
     "violet": "Ascended", "blue": "Elevated", "green": "Decent",
-    "yellow": "Degraded", "red": "Corrupted",
+    "orange": "Degraded", "red": "Corrupted",
 }
 COLOR_HEX = {
     "violet": "#9933ff", "blue": "#3388ff", "green": "#33cc55",
-    "yellow": "#ffbb33", "red": "#ff3333",
+    "orange": "#ffbb33", "red": "#ff3333",
 }
 
 

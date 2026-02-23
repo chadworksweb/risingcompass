@@ -13,7 +13,7 @@ COLOR_LABELS = {
     "violet": "Ascended",
     "blue": "Elevated",
     "green": "Decent",
-    "yellow": "Degraded",
+    "orange": "Degraded",
     "red": "Corrupted",
 }
 
@@ -21,7 +21,7 @@ COLOR_HEX = {
     "violet": "#9933ff",
     "blue": "#3388ff",
     "green": "#33cc55",
-    "yellow": "#ffbb33",
+    "orange": "#ffbb33",
     "red": "#ff3333",
 }
 
@@ -30,7 +30,7 @@ COLOR_BG = {
     "violet": "#f3e8ff",
     "blue": "#e8f0ff",
     "green": "#e8fae8",
-    "yellow": "#fff5e0",
+    "orange": "#fff5e0",
     "red": "#ffe8e8",
 }
 

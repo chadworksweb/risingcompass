@@ -40,7 +40,7 @@ Each tier is defined not just by content but by its **effect on the listener** �
 **green (Decent):** Moves the listener laterally. Light entertainment that neither serves nor harms. Fills time. Not the problem — but not the solution either. "Decent" is deliberate — this tier is not "balanced" or "healthy." It's adequate. A shrug. Music can do more than this, and the compass exists to show that.
 *Listener effects:* Entertains. Distracts. Keeps complacent. Placates.
 
-**yellow (Degraded):** Ego, materialism, shallow pursuit. Not overtly harmful on the surface but not serving the listener. Self-centered frequency.
+**orange (Degraded):** Ego, materialism, shallow pursuit. Not overtly harmful on the surface but not serving the listener. Self-centered frequency.
 *Listener effects:* Indulges, bypasses, skips over, pushes down, avoids, ignores. Stirs up: anger, fear, sadness, isolation, loneliness, lack, limitation, division, self-doubt, doubt, rejection. Superficial thoughts. Light or covert abuse of self or others. Materialism. Ego trip.
 
 **red (Corrupted):** Activates the lowest frequencies. Sexual objectification, substance celebration, possession, contempt, degradation.
@@ -53,7 +53,7 @@ We do NOT classify topics. We classify message, expression, and intention. The s
 **Love songs are the clearest example:**
 - Love + "we make each other better, we grow together" → **elevated** (blue). The love is a vehicle for growth.
 - Love + "I love you, you love me, we're happy" → **decent** (green). It's fine. It's just filling time. Surface-level romance.
-- Love + "let's get drunk and forget everything" → **degraded** (yellow). The love is a cover for escapism and substance celebration.
+- Love + "let's get drunk and forget everything" → **degraded** (orange). The love is a cover for escapism and substance celebration.
 - Love + "I own you / let's fuck / you're mine" → **corrupted** (red). The love is a cover for objectification and possession.
 - Love + "our connection heals us and extends outward to our community" → **ascended** (violet). The love transcends the couple.
 
@@ -63,7 +63,7 @@ We do NOT classify topics. We classify message, expression, and intention. The s
 
 **Contaminated** is NOT a separate tier — it is a modifier that can ONLY attach to **violet, blue, or green** songs.
 
-Red and yellow songs CANNOT be contaminated. They are inherently low-frequency — there is no genuine substance being undermined. Contamination specifically means a song that HAS genuine substance but that substance is undermined by low-frequency elements woven into the expression or intention. If the song is already yellow or red, it is simply degraded or corrupted — not contaminated.
+Red and orange songs CANNOT be contaminated. They are inherently low-frequency — there is no genuine substance being undermined. Contamination specifically means a song that HAS genuine substance but that substance is undermined by low-frequency elements woven into the expression or intention. If the song is already orange or red, it is simply degraded or corrupted — not contaminated.
 
 Examples of contamination:
 - A blue song with real nostalgia contaminated by drug references
@@ -77,9 +77,9 @@ Contamination requires the presence of actual degraded or corrupted artifacts �
 
 ## Classification Rules
 
-1. A sad song is NOT automatically red or yellow. A breakup song that processes grief honestly is blue. One that agitates contempt or revenge fantasies is yellow or red.
-2. A party song is NOT automatically green. If it's pure fun with no harmful payload, it's green. If it celebrates substance abuse or objectification, it's yellow or red.
-3. A song about struggle is NOT automatically blue. If it processes the struggle with dignity, it's blue. If it wallows or glamorizes suffering, it's yellow.
+1. A sad song is NOT automatically red or orange. A breakup song that processes grief honestly is blue. One that agitates contempt or revenge fantasies is orange or red.
+2. A party song is NOT automatically green. If it's pure fun with no harmful payload, it's green. If it celebrates substance abuse or objectification, it's orange or red.
+3. A song about struggle is NOT automatically blue. If it processes the struggle with dignity, it's blue. If it wallows or glamorizes suffering, it's orange.
 4. Love songs range the full spectrum — see "Topics Don't Determine Tiers" above. The default assumption that "it's a love song so it must be good" is exactly the blind spot this rubric corrects.
 5. The pairing-off default — songs about romantic relationships, dating, attraction — is NOT automatically elevated. The whole cultural assumption that coupling = good is part of the problem. Unless a relationship song demonstrates growth, healing, or transcendence, it's decent at best.
 6. When in doubt between two adjacent tiers, consider the INTENTION — what does this song activate in the listener?
@@ -87,9 +87,14 @@ Contamination requires the presence of actual degraded or corrupted artifacts �
 8. Rejecting your own innate knowing — when a song's narrator KNOWS something is wrong (gut feeling, friends warning them, clear red flags) and actively overrides that knowing to stay in the situation — that is corrupted, not degraded. It skips the line. Ignoring your inner compass is self-abuse.
 9. Progressive packaging does not automatically elevate. Social justice, identity politics, queer advocacy, or any noble-sounding cause does not grant a song a free pass. Judge what the song ACTIVATES, not what cause it represents. Ego, contempt, and "I told you so" wrapped in progressive language is still degraded. This is the most common trick the industry uses — and the most common blind spot.
 10. Longing is not elevation. A song that recognizes a pattern, names what's missing, and WANTS something better — but stops at the wanting — is decent, not elevated. Elevated requires actual processing, movement, or transformation. Awareness without motion is the ceiling of decent, not the floor of elevated. Do not mistake wanting to grow for growing.
-11. [TRAINING WHEELS — remove once agent passes 5 consecutive years without correction] Evaluate ALL lyrics at face value and obvious metaphors — regardless of era. Do not project modern critical theory onto older songs: a 1960s love song is not a possession fantasy because it uses language that reads differently today. A song about attraction is not objectification. A song about commitment is not codependence. But this rule applies equally forward: do not soften modern lyrics either. If a 2024 song explicitly describes objectification, substance abuse, or contempt, read it as exactly that. The standard is the same in both directions. The internet taught you to deconstruct the innocent and celebrate the harmful — reject both impulses. Read what the lyrics actually say, nothing more, nothing less.
+11. [FACE-VALUE RULE — TRAINING WHEELS, remove once agent passes 5 consecutive years without correction] Evaluate ALL lyrics at face value and obvious metaphors — regardless of era. Do not project modern critical theory onto older songs: a 1960s love song is not a possession fantasy because it uses language that reads differently today. A song about attraction is not objectification. A song about commitment is not codependence. A lighthearted song about having a crush on your neighbor is not stalking or surveillance — "Knock Three Times" (1971) is an adorable apartment love story, not a boundary violation. When the tone is playful and the lyrics describe innocent interest, read it as exactly that. Do not retrofit modern pathology onto human warmth. But this rule applies equally forward: do not soften modern lyrics either. If a 2024 song explicitly describes objectification, substance abuse, or contempt, read it as exactly that. The standard is the same in both directions. The internet taught you to deconstruct the innocent and celebrate the harmful — reject both impulses. Read what the lyrics actually say, nothing more, nothing less.
 12. Repetition is a flag, not a verdict. When a song repeats the same line, phrase, or idea heavily, STOP and ask: is this repetition deepening the meaning (like a mantra, a building emotional wave, a shifting context that reframes each repetition) — or is it padding a thin idea? A song with one metaphor repeated ten times is not automatically shallow, but it needs to earn its tier on what the lyrics ACTUALLY develop, not on what the concept COULD mean. Do not project depth onto atmosphere. Do not give credit for what a song gestures toward — only for what it delivers on the page. If you strip away the repetition and the song's entire lyrical content fits in two sentences, that is a strong signal the tier ceiling is Decent regardless of how evocative the imagery is.
+## Song Archetypes
+These are recurring patterns. When you recognize one, name it in your reasoning. Archetypes suggest a default tier but do not override lyrical evidence.
+
 13. Mood piece — a song that creates atmosphere and emotional texture but doesn't actually process, resolve, or develop its subject matter. Mood substitutes for meaning. One evocative image carried by production rather than lyrical substance. Repeats the same plea or feeling without progression. Mistakes emotional tone for emotional processing. Usually lands in Decent range. Not every atmospheric song is a mood piece — a song can be sparse and still process deeply. The distinction: does the song *move through* something or just *sit in* a feeling?
+14. Crush song — a song about attraction, infatuation, or romantic interest where nothing has materialized yet. No growth, no lesson, no resolution — just wanting. The narrator likes someone, thinks about someone, or hopes someone likes them back. Defaults to Decent. A crush song only moves out of Decent if the lyrics contain content beyond the 1:1 attraction — e.g., self-awareness about the pattern, broader life context, or negative content like obsession or entitlement.
+15. Love/relationship baseline — songs about love, dating, breakups, and 1:1 romantic relationships default to Decent. They only move up if lyrics demonstrate growth, acceptance of hard truth, life lessons, or transcendence beyond the relationship itself. They only move down if lyrics contain revenge, contempt, cheating glorification, eye-for-an-eye, or other negative content. Pure love songs — however intense or well-crafted — stay Decent. The cultural assumption that coupling = good is exactly the blind spot this rubric corrects.
 """
 
 CLASSIFICATION_FORMAT = """## Required Output Format
@@ -97,7 +102,7 @@ CLASSIFICATION_FORMAT = """## Required Output Format
 Respond with ONLY a JSON object (no markdown, no code blocks, no extra text):
 
 {
-    "rubric_color": "violet|blue|green|yellow|red",
+    "rubric_color": "violet|blue|green|orange|red",
     "charge_value": integer from -100 to +100,
     "contaminated": true/false,
     "contamination_note": "what contaminates it (null if not contaminated)",
@@ -130,7 +135,7 @@ Tier ranges (charge_value must fall within the tier's range):
   - +1 to +24: Leans slightly positive. Pleasant, mildly uplifting, but no real substance.
   - -24 to 0: Leans slightly negative. Filler. Pure distraction. Keeps you complacent.
 
-- **Degraded** (yellow): -25 to -74
+- **Degraded** (orange): -25 to -74
   - -25 to -39: Mild ego, light avoidance. Borderline decent — the harm is subtle.
   - -40 to -54: Clear ego validation, materialism, or emotional bypass. Stirs up self-doubt, superficial thinking.
   - -55 to -74: Heavy degradation. Active indulgence of fear, isolation, covert abuse. One step from corrupted.
@@ -140,7 +145,7 @@ Tier ranges (charge_value must fall within the tier's range):
   - -85 to -94: Deep corruption. Violence, self-destruction, dehumanization as entertainment.
   - -95 to -100: Peak destruction. Sociopathic, catatonic, total rejection of dignity. The worst music can do to a listener.
 
-CRITICAL: Every song MUST have a distinct charge_value. Do NOT default to tier midpoints. If you are classifying 7 yellow songs, they should have 7 different charge_values spread across the -25 to -74 range based on their individual severity. A conquest catalog (-62) is not the same as mild ego validation (-31). Use the intra-tier descriptions above to place each song precisely.
+CRITICAL: Every song MUST have a distinct charge_value. Do NOT default to tier midpoints. If you are classifying 7 orange songs, they should have 7 different charge_values spread across the -25 to -74 range based on their individual severity. A conquest catalog (-62) is not the same as mild ego validation (-31). Use the intra-tier descriptions above to place each song precisely.
 
 ## confidence
 
@@ -158,7 +163,7 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
     If target_year is provided, prioritizes examples from the same decade.
     Returns a formatted string of example classifications.
     """
-    tiers = ["violet", "blue", "green", "yellow", "red"]
+    tiers = ["violet", "blue", "green", "orange", "red"]
     examples = []
 
     target_decade = f"{(target_year // 10) * 10}s" if target_year else None
@@ -177,16 +182,20 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
                 .all()
             )
             songs.extend(same_decade)
-        # Fill remaining slots with any calibrated examples
+        # Fill remaining slots with earlier/same-era examples only during backfill
         if len(songs) < 20:
-            other = (
+            query = (
                 db.query(CompassSong)
                 .filter(CompassSong.rubric_color == color)
                 .filter(CompassSong.charge_summary.isnot(None))
                 .filter(CompassSong.calibrated.is_(True))
-                .limit(20 - len(songs))
-                .all()
             )
+            # When backfilling historical years, only use same decade or earlier
+            # to prevent modern classifications from biasing the agent
+            if target_year and target_year < 2020:
+                max_decade = f"{(target_year // 10) * 10}s"
+                query = query.filter(CompassSong.decade <= max_decade)
+            other = query.limit(20 - len(songs)).all()
             # Avoid duplicates from same-decade query
             seen = {(s.title, s.artist) for s in songs}
             songs.extend(s for s in other if (s.title, s.artist) not in seen)
