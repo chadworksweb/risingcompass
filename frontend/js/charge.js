@@ -26,11 +26,12 @@ const Charge = (() => {
     `;
   }
 
-  function setLevel(chargeColor, redCount, totalSongs) {
+  function setLevel(chargeColor, redCount, totalSongs, degree) {
     const point = document.getElementById('charge-point');
     if (!point) return;
 
-    // Map charge color to position on gradient (0% = left/green, 100% = right/red)
+    // Use precise degree when available (0°=Ascended/left, 180°=Corrupted/right)
+    // Fall back to discrete tier positions when degree not provided
     const positions = {
       violet: 0,
       blue: 25,
@@ -39,7 +40,7 @@ const Charge = (() => {
       red: 100,
     };
 
-    const pct = positions[chargeColor] ?? 50;
+    const pct = (degree != null) ? (degree / 180) * 100 : (positions[chargeColor] ?? 50);
     const hex = COLOR_HEX[chargeColor] || '#888';
 
     point.style.left = pct + '%';

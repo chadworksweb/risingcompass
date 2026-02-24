@@ -78,7 +78,7 @@ const App = (() => {
 
       // Set charge bar
       const redCount = data.songs.filter(s => s.rubric_color === 'red').length;
-      Charge.setLevel(charge, redCount, data.songs.length);
+      Charge.setLevel(charge, redCount, data.songs.length, degree);
 
       // Set contamination
       Contamination.setCount(data.contamination_count, data.songs.length || 10);
@@ -166,8 +166,8 @@ const App = (() => {
         const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
         const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
 
-        // Charge header — inline styled (no CSS classes)
-        let lines = `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem;padding-bottom:0.3rem;border-bottom:1px solid rgba(0,0,0,0.08)"><span style="width:3px;height:14px;border-radius:1.5px;flex-shrink:0;background:${songHex}"></span><span style="font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;color:${songHex}">${songScore} ${songLabel}</span></div>`;
+        // Charge header — color block background with black text (matches reading-date style)
+        let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
 
         // Summary line
         if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
@@ -486,7 +486,7 @@ const App = (() => {
       const d = chartData[nearest];
       setCompassDate(p.isYTD ? `${d.year} YTD` : String(d.year));
       Compass.setDegree(p.degree, p.color);
-      Charge.setLevel(p.color, 0, 0);
+      Charge.setLevel(p.color, 0, 0, p.degree);
 
       loadYearSongs(d.year, p.degree, p.color);
       syncCalendar(d.year);
@@ -557,7 +557,7 @@ const App = (() => {
 
     // Drive compass + charge + date
     Compass.setDegree(deg, tier);
-    Charge.setLevel(tier, 0, 0);
+    Charge.setLevel(tier, 0, 0, deg);
     setCompassDate(isYTD ? `${nearest.year} YTD` : String(nearest.year));
   }
 
@@ -786,7 +786,7 @@ const App = (() => {
   function restoreCompassState() {
     if (savedDegree !== null) {
       Compass.setDegree(savedDegree, savedCharge);
-      Charge.setLevel(savedCharge, 0, 0);
+      Charge.setLevel(savedCharge, 0, 0, savedDegree);
     }
     if (savedDateText) {
       const dateEl = document.getElementById('compass-date-svg');
@@ -1080,7 +1080,7 @@ const App = (() => {
       const d = data[nearest];
       setCompassDate(formatDate(d.date));
       Compass.setDegree(p.degree, p.color);
-      Charge.setLevel(p.color, 0, 0);
+      Charge.setLevel(p.color, 0, 0, p.degree);
       viewArchiveReading(d.date);
 
       const dot = document.getElementById('daily-hover-dot');
@@ -1143,7 +1143,7 @@ const App = (() => {
 
     // Drive compass
     Compass.setDegree(deg, tier);
-    Charge.setLevel(tier, 0, 0);
+    Charge.setLevel(tier, 0, 0, deg);
     setCompassDate(formatDate(nearestPt.date));
   }
 
@@ -1881,7 +1881,7 @@ const App = (() => {
     if (yd) {
       loadYearSongs(year, yd.compass_degree, yd.charge_level);
       Compass.setDegree(yd.compass_degree, yd.charge_level);
-      Charge.setLevel(yd.charge_level, 0, 0);
+      Charge.setLevel(yd.charge_level, 0, 0, yd.compass_degree);
       setCompassDate(String(year));
     }
   }
@@ -2019,7 +2019,7 @@ const App = (() => {
         const songHex = COLOR_HEX[song.rubric_color] || '#888';
         const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
         const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
-        let lines = `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem;padding-bottom:0.3rem;border-bottom:1px solid rgba(0,0,0,0.08)"><span style="width:3px;height:14px;border-radius:1.5px;flex-shrink:0;background:${songHex}"></span><span style="font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;color:${songHex}">${songScore} ${songLabel}</span></div>`;
+        let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
         if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
         if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
@@ -2551,7 +2551,7 @@ const App = (() => {
       // Update compass + panels with this reading
       Compass.setDegree(reading.compass_degree, reading.charge_level);
       const redCount = reading.songs.filter(s => s.rubric_color === 'red').length;
-      Charge.setLevel(reading.charge_level, redCount, reading.songs.length);
+      Charge.setLevel(reading.charge_level, redCount, reading.songs.length, reading.compass_degree);
       Contamination.setCount(reading.contamination_count, reading.songs.length);
       renderReading({ has_reading: true, ...reading });
 
