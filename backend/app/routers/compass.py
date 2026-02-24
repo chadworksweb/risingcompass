@@ -1,16 +1,49 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
 from datetime import date, timedelta
 
 from app.database import get_db
 from app.models import CompassSong, DailyReading, ReadingSong, WeeklyAlbumReading
-from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyReadingSummary, PaginatedReadings
+from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyReadingSummary, PaginatedReadings, ReadingSongOut
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
 
 router = APIRouter(prefix="/api/compass", tags=["compass"])
+
+
+def _song_out(rs: ReadingSong) -> ReadingSongOut:
+    """Build ReadingSongOut by joining ReadingSong with its linked CompassSong."""
+    cs = rs.compass_song
+    return ReadingSongOut(
+        id=rs.id,
+        title=rs.title,
+        artist=rs.artist,
+        position=rs.position,
+        rubric_color=cs.rubric_color if cs else None,
+        charge_value=cs.charge_value if cs else None,
+        contaminated=cs.contaminated if cs else False,
+        contamination_note=cs.contamination_note if cs else None,
+        charge_summary=cs.charge_summary if cs else None,
+        message_analysis=cs.message_analysis if cs else None,
+        expression_analysis=cs.expression_analysis if cs else None,
+        intention_analysis=cs.intention_analysis if cs else None,
+        chart_source=rs.chart_source,
+    )
+
+
+def _reading_with_songs(reading: DailyReading) -> DailyReadingOut:
+    """Build DailyReadingOut with songs resolved through compass_song FK."""
+    return DailyReadingOut(
+        id=reading.id,
+        date=reading.date,
+        compass_degree=reading.compass_degree,
+        charge_level=reading.charge_level,
+        contamination_count=reading.contamination_count,
+        editorial_summary=reading.editorial_summary,
+        songs=[_song_out(rs) for rs in reading.songs],
+    )
 
 
 def _historical_aggregate(db: Session) -> tuple[float, str]:
@@ -29,8 +62,13 @@ def get_current(db: Session = Depends(get_db)):
     """Today's reading (or most recent), plus historical aggregate."""
     hist_deg, hist_charge = _historical_aggregate(db)
 
-    # Most recent daily song reading
-    reading = db.query(DailyReading).order_by(DailyReading.date.desc()).first()
+    # Most recent daily song reading (eager-load songs → compass_song)
+    reading = (
+        db.query(DailyReading)
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .order_by(DailyReading.date.desc())
+        .first()
+    )
 
     # Most recent weekly album reading
     album_reading = db.query(WeeklyAlbumReading).order_by(WeeklyAlbumReading.week_date.desc()).first()
@@ -66,7 +104,7 @@ def get_current(db: Session = Depends(get_db)):
         charge_level=reading.charge_level,
         contamination_count=reading.contamination_count,
         editorial_summary=reading.editorial_summary,
-        songs=reading.songs,
+        songs=[_song_out(rs) for rs in reading.songs],
         historical_degree=hist_deg,
         historical_charge=hist_charge,
         **album_kwargs,
@@ -88,6 +126,7 @@ def get_history(page: int = 1, per_page: int = 10, db: Session = Depends(get_db)
         .all()
     )
 
+    # PaginatedReadings uses DailyReadingSummary (no songs), so from_attributes is fine
     return PaginatedReadings(items=items, total=total, page=page, pages=pages)
 
 
@@ -108,7 +147,12 @@ def get_daily_chart(days: int = 365, db: Session = Depends(get_db)):
 @router.get("/reading/{reading_date}", response_model=DailyReadingOut)
 def get_reading(reading_date: date, db: Session = Depends(get_db)):
     """Specific date reading with songs."""
-    reading = db.query(DailyReading).filter(DailyReading.date == reading_date).first()
+    reading = (
+        db.query(DailyReading)
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .filter(DailyReading.date == reading_date)
+        .first()
+    )
     if not reading:
         raise HTTPException(status_code=404, detail="No reading for this date")
-    return reading
+    return _reading_with_songs(reading)

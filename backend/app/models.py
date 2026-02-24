@@ -33,6 +33,7 @@ class DailyReading(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     date = Column(Date, unique=True, nullable=False)
+    label = Column(Text)
     compass_degree = Column(Float, nullable=False)
     charge_level = Column(Text, nullable=False)
     contamination_count = Column(Integer, nullable=False, default=0)
@@ -46,20 +47,14 @@ class ReadingSong(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     reading_id = Column(Integer, ForeignKey("daily_readings.id"), nullable=False)
+    compass_song_id = Column(Integer, ForeignKey("compass_songs.id"), nullable=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
     position = Column(Integer, nullable=False)
-    rubric_color = Column(Text, nullable=False)
-    charge_value = Column(Integer)  # -100 to +100 per-song charge
-    contaminated = Column(Boolean, default=False)
-    contamination_note = Column(Text)
-    charge_summary = Column(Text)
-    message_analysis = Column(Text)
-    expression_analysis = Column(Text)
-    intention_analysis = Column(Text)
     chart_source = Column(Text, default="spotify")
 
     reading = relationship("DailyReading", back_populates="songs")
+    compass_song = relationship("CompassSong")
 
 
 class WeeklyAlbumReading(Base):

@@ -34,9 +34,9 @@ class ReadingSongOut(BaseModel):
     title: str
     artist: str
     position: int
-    rubric_color: str
+    rubric_color: Optional[str] = None
     charge_value: Optional[int] = None
-    contaminated: bool
+    contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
     message_analysis: Optional[str] = None

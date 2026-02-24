@@ -63,10 +63,11 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
     start = date(year, 1, 1)
     end = date(year, 12, 31)
 
-    # Get all reading songs for this year with their reading dates
+    # Get all reading songs for this year with their reading dates, joining CompassSong
     rows = (
-        db.query(ReadingSong, DailyReading.date)
+        db.query(ReadingSong, DailyReading.date, CompassSong)
         .join(DailyReading, ReadingSong.reading_id == DailyReading.id)
+        .outerjoin(CompassSong, ReadingSong.compass_song_id == CompassSong.id)
         .filter(DailyReading.date >= start, DailyReading.date <= end)
         .order_by(DailyReading.date)
         .all()
@@ -76,7 +77,7 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
         return []
 
     # Precompute song count per reading to avoid N+1 queries
-    reading_ids = set(rs.reading_id for rs, _ in rows)
+    reading_ids = set(rs.reading_id for rs, _, _ in rows)
     reading_sizes = {}
     if reading_ids:
         size_rows = (
@@ -89,7 +90,7 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
 
     # Group by (title_lower, artist_lower)
     groups: dict[tuple[str, str], dict] = {}
-    for rs, reading_date in rows:
+    for rs, reading_date, cs in rows:
         key = (rs.title.strip().lower(), rs.artist.strip().lower())
 
         total_in_reading = reading_sizes.get(rs.reading_id, 20)
@@ -99,11 +100,11 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
             groups[key] = {
                 "title": rs.title,
                 "artist": rs.artist,
-                "rubric_color": rs.rubric_color,
-                "charge_value": rs.charge_value,
-                "contaminated": rs.contaminated,
-                "contamination_note": rs.contamination_note,
-                "charge_summary": rs.charge_summary,
+                "rubric_color": cs.rubric_color if cs else None,
+                "charge_value": cs.charge_value if cs else None,
+                "contaminated": cs.contaminated if cs else False,
+                "contamination_note": cs.contamination_note if cs else None,
+                "charge_summary": cs.charge_summary if cs else None,
                 "days_on_chart": 1,
                 "effective_weight": pw,
                 "position": rs.position,
@@ -116,11 +117,11 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
             # Update to most recent appearance
             if reading_date >= g["_latest_date"]:
                 g["_latest_date"] = reading_date
-                g["rubric_color"] = rs.rubric_color
-                g["charge_value"] = rs.charge_value
-                g["contaminated"] = rs.contaminated
-                g["contamination_note"] = rs.contamination_note
-                g["charge_summary"] = rs.charge_summary
+                g["rubric_color"] = cs.rubric_color if cs else g["rubric_color"]
+                g["charge_value"] = cs.charge_value if cs else g["charge_value"]
+                g["contaminated"] = cs.contaminated if cs else g["contaminated"]
+                g["contamination_note"] = cs.contamination_note if cs else g["contamination_note"]
+                g["charge_summary"] = cs.charge_summary if cs else g["charge_summary"]
                 g["position"] = rs.position
 
     # Clean up internal field and sort by days_on_chart desc

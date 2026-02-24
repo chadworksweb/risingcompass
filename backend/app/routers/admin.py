@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pathlib import Path
 import shutil
 import tempfile
 
 from app.database import get_db
-from app.models import DailyReading, ReadingSong, WeeklyAlbumReading, WeeklyAlbumEntry
+from app.models import CompassSong, DailyReading, ReadingSong, WeeklyAlbumReading, WeeklyAlbumEntry
 from app.schemas import (
     ReadingCreate, ReadingUpdate, DailyReadingOut,
     WeeklyAlbumReadingCreate, WeeklyAlbumReadingUpdate, WeeklyAlbumReadingOut,
@@ -16,6 +16,7 @@ from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
 from app.config import settings
+from app.routers.compass import _reading_with_songs
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -44,8 +45,10 @@ def create_reading(data: ReadingCreate, db: Session = Depends(get_db)):
     charge = degree_to_charge(degree)
     contam = count_contaminated(song_dicts)
 
+    label = f"reading_{data.date.isoformat()}"
     reading = DailyReading(
         date=data.date,
+        label=label,
         compass_degree=degree,
         charge_level=charge,
         contamination_count=contam,
@@ -55,22 +58,35 @@ def create_reading(data: ReadingCreate, db: Session = Depends(get_db)):
     db.flush()
 
     for s in data.songs:
+        cs = (
+            db.query(CompassSong)
+            .filter(
+                CompassSong.title.ilike(s.title),
+                CompassSong.artist.ilike(s.artist),
+            )
+            .order_by(CompassSong.id.desc())
+            .first()
+        )
         rs = ReadingSong(
             reading_id=reading.id,
+            compass_song_id=cs.id if cs else None,
             title=s.title,
             artist=s.artist,
             position=s.position,
-            rubric_color=s.rubric_color,
-            contaminated=s.contaminated,
-            contamination_note=s.contamination_note,
-            charge_summary=s.charge_summary,
             chart_source=s.chart_source,
         )
         db.add(rs)
 
     db.commit()
-    db.refresh(reading)
-    return reading
+
+    # Re-query with eager loading for proper serialization
+    reading = (
+        db.query(DailyReading)
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .filter(DailyReading.id == reading.id)
+        .first()
+    )
+    return _reading_with_songs(reading)
 
 
 @router.put("/reading/{reading_date}", response_model=DailyReadingOut, dependencies=[Depends(verify_admin_key)])
@@ -93,22 +109,35 @@ def update_reading(reading_date: str, data: ReadingUpdate, db: Session = Depends
         reading.contamination_count = count_contaminated(song_dicts)
 
         for s in data.songs:
+            cs = (
+                db.query(CompassSong)
+                .filter(
+                    CompassSong.title.ilike(s.title),
+                    CompassSong.artist.ilike(s.artist),
+                )
+                .order_by(CompassSong.id.desc())
+                .first()
+            )
             rs = ReadingSong(
                 reading_id=reading.id,
+                compass_song_id=cs.id if cs else None,
                 title=s.title,
                 artist=s.artist,
                 position=s.position,
-                rubric_color=s.rubric_color,
-                contaminated=s.contaminated,
-                contamination_note=s.contamination_note,
-                charge_summary=s.charge_summary,
                 chart_source=s.chart_source,
             )
             db.add(rs)
 
     db.commit()
-    db.refresh(reading)
-    return reading
+
+    # Re-query with eager loading for proper serialization
+    reading = (
+        db.query(DailyReading)
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .filter(DailyReading.date == reading_date)
+        .first()
+    )
+    return _reading_with_songs(reading)
 
 
 # --- Weekly Album Reading endpoints ---

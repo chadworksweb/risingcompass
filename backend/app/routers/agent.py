@@ -301,8 +301,10 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
         )
 
     # Create DailyReading from draft
+    label = f"reading_{draft.date.isoformat()}"
     reading = DailyReading(
         date=draft.date,
+        label=label,
         compass_degree=draft.compass_degree,
         charge_level=draft.charge_level,
         contamination_count=draft.contamination_count,
@@ -312,19 +314,22 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     db.flush()
 
     for song in draft.songs:
+        # Look up CompassSong by (title, artist) — pick highest ID when dupes exist
+        cs = (
+            db.query(CompassSong)
+            .filter(
+                CompassSong.title.ilike(song.title),
+                CompassSong.artist.ilike(song.artist),
+            )
+            .order_by(CompassSong.id.desc())
+            .first()
+        )
         rs = ReadingSong(
             reading_id=reading.id,
+            compass_song_id=cs.id if cs else None,
             title=song.title,
             artist=song.artist,
             position=song.position,
-            rubric_color=song.rubric_color,
-            charge_value=song.charge_value,
-            contaminated=song.contaminated,
-            contamination_note=song.contamination_note,
-            charge_summary=song.charge_summary,
-            message_analysis=song.message_analysis,
-            expression_analysis=song.expression_analysis,
-            intention_analysis=song.intention_analysis,
             chart_source=song.chart_source,
         )
         db.add(rs)
