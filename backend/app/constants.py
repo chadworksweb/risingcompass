@@ -15,6 +15,11 @@ COLOR_BG = {
 # Chart sources that represent popular music consciousness.
 # Any chart_source in this set = charting song.
 # "manual" (and any future non-chart source) = non-chart.
+TIER_LABELS_REVERSE = {
+    "Ascended": "violet", "Elevated": "blue", "Decent": "green",
+    "Degraded": "orange", "Corrupted": "red",
+}
+
 CHART_SOURCES = {
     "billboard_hot_100",
     "billboard_200",

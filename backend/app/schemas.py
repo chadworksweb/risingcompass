@@ -1,6 +1,6 @@
 import json
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 from typing import List, Optional
 import datetime
 
@@ -656,3 +656,77 @@ class CalibrateRequest(BaseModel):
 class CalibrateResult(BaseModel):
     calibrated: int
     songs: List[CompassSongOut]
+
+
+# --- Music Frequency Analyzer ---
+class AnalyzerSongIn(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    artist: str = Field(..., min_length=1, max_length=200)
+
+
+class AnalyzerSessionCreate(BaseModel):
+    songs: list[AnalyzerSongIn] = Field(..., min_length=1, max_length=10)
+    weighted: bool = True
+
+
+class AnalyzerSessionOut(BaseModel):
+    session_id: str
+    song_count: int
+    stream_url: str
+    expires_at: datetime.datetime
+
+
+class AnalyzerSongResult(BaseModel):
+    index: int
+    title: str
+    artist: str
+    status: str  # "scored" | "no_lyrics" | "error"
+    tier: Optional[str] = None  # color: "violet", "blue", etc.
+    tier_label: Optional[str] = None  # "Ascended", "Elevated", etc.
+    charge: Optional[int] = None  # -100 to +100
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    message: Optional[str] = None  # M/E/I
+    expression: Optional[str] = None
+    intention: Optional[str] = None
+    confidence: float = 0.0
+    lyrics_found: bool = False
+
+
+class AnalyzerAggregate(BaseModel):
+    compass_degree: float
+    charge_score: int
+    charge_level: str  # color
+    charge_label: str  # tier name
+    tier_distribution: dict[str, int]
+    contamination_count: int
+    total_songs: int
+    classified_songs: int
+    unclassified_songs: int
+
+
+class AnalyzerSessionStatus(BaseModel):
+    session_id: str
+    status: str  # "pending" | "processing" | "completed" | "error"
+    total_songs: int
+    completed_songs: int
+    songs: list[AnalyzerSongResult] = []
+    aggregate: Optional[AnalyzerAggregate] = None
+    narrative: Optional[str] = None
+
+
+class PlaylistResolveIn(BaseModel):
+    spotify_url: str = Field(..., min_length=1)
+
+
+class PlaylistTrackOut(BaseModel):
+    title: str
+    artist: str
+
+
+class PlaylistResolveOut(BaseModel):
+    playlist_name: str
+    playlist_owner: str
+    track_count: int
+    tracks: list[PlaylistTrackOut]

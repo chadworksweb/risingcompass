@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     # Site URL for approval links in emails
     site_url: str = "http://localhost:8000"
 
+    # Spotify API (for analyzer playlist resolution)
+    spotify_client_id: str = ""
+    spotify_client_secret: str = ""
+
+    # Analyzer settings
+    analyzer_max_songs: int = 10
+    analyzer_session_ttl: int = 1800  # 30 minutes
+
     @property
     def cors_origin_list(self) -> List[str]:
         return json.loads(self.cors_origins)

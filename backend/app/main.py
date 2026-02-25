@@ -5,11 +5,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.database import engine, Base
 from app.migrate import run_migrations
-from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread, library_admin
+from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread, library_admin, analyzer
 from app.services.backup import run_backup
 
 logger = logging.getLogger(__name__)
@@ -30,11 +32,14 @@ async def _daily_backup_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan — starts daily backup task."""
-    task = asyncio.create_task(_daily_backup_loop())
+    """App lifespan — starts daily backup task and analyzer session cleanup."""
+    backup_task = asyncio.create_task(_daily_backup_loop())
+    cleanup_task = asyncio.create_task(analyzer.session_cleanup_loop())
     logger.info("Daily backup scheduler started")
+    logger.info("Analyzer session cleanup scheduler started")
     yield
-    task.cancel()
+    backup_task.cancel()
+    cleanup_task.cancel()
 
 
 app = FastAPI(title="The Rising Compass", version="1.0.0", lifespan=lifespan)
@@ -56,6 +61,12 @@ app.include_router(library.router)
 app.include_router(agent.router)
 app.include_router(misread.router)
 app.include_router(library_admin.router)
+app.include_router(analyzer.router)
+
+
+# slowapi exception handler for rate limiting
+app.state.limiter = analyzer.limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.get("/api/health")
