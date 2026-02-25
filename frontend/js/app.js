@@ -308,7 +308,7 @@ const App = (() => {
     chartData = data;
 
     const W = 320, H = 120;
-    const padL = 30, padR = 10, padT = 10, padB = 22;
+    const padL = 30, padR = 16, padT = 10, padB = 22;
     const chartW = W - padL - padR;
     const chartH = H - padT - padB;
     const maxIdx = data.length - 1;
@@ -400,7 +400,7 @@ const App = (() => {
 
     // Moving dot (time machine position indicator)
     const lastPt = chartPoints[maxIdx];
-    svg += `<circle id="traj-tm-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
+    svg += `<circle id="traj-timemachine-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
 
     // Hover elements
     svg += `<line id="traj-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
@@ -516,20 +516,12 @@ const App = (() => {
     const nearest = chartData[Math.round(pos)];
 
     // Update info display
-    const yearEl = document.getElementById('tm-year');
-    const scoreEl = document.getElementById('tm-score');
-    const tierEl = document.getElementById('tm-tier');
-    const countEl = document.getElementById('tm-count');
-    const slider = document.getElementById('tm-slider');
-    const progressFill = document.getElementById('tm-progress');
-    const resetBtn = document.getElementById('tm-reset');
+    const slider = document.getElementById('timemachine-slider');
+    const progressFill = document.getElementById('timemachine-progress');
+    const resetBtn = document.getElementById('timemachine-reset');
 
     const nearestPt = chartPoints[Math.round(Math.min(pos, max))];
     const isYTD = nearestPt && nearestPt.isYTD;
-    if (yearEl) yearEl.textContent = isYTD ? `${nearest.year} YTD` : nearest.year;
-    if (scoreEl) { scoreEl.textContent = degreeToScore(deg); scoreEl.style.color = hex; }
-    if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
-    if (countEl) countEl.textContent = isYTD ? `${nearest.chart_song_count} songs \u00B7 updated daily` : `${nearest.chart_song_count} charting songs`;
     if (progressFill) progressFill.style.width = (pos / max * 100) + '%';
     if (slider) {
       slider.value = Math.round(pos);
@@ -546,7 +538,7 @@ const App = (() => {
     }
 
     // Move the dot to current position
-    const tmDot = document.getElementById('traj-tm-dot');
+    const tmDot = document.getElementById('traj-timemachine-dot');
     if (tmDot && chartPoints.length) {
       const px = chartPoints[Math.min(i, max)].x + (chartPoints[Math.min(i + 1, max)].x - chartPoints[Math.min(i, max)].x) * frac;
       const py = chartPoints[Math.min(i, max)].y + (chartPoints[Math.min(i + 1, max)].y - chartPoints[Math.min(i, max)].y) * frac;
@@ -592,10 +584,10 @@ const App = (() => {
     const needle = document.getElementById('compass-needle');
     if (needle) needle.classList.add('no-transition');
 
-    const playBtn = document.getElementById('tm-play');
-    const playIcon = document.getElementById('tm-play-icon');
-    const revBtn = document.getElementById('tm-rev');
-    const fwdBtn = document.getElementById('tm-fwd');
+    const playBtn = document.getElementById('timemachine-play');
+    const playIcon = document.getElementById('timemachine-play-icon');
+    const revBtn = document.getElementById('timemachine-rev');
+    const fwdBtn = document.getElementById('timemachine-fwd');
     if (playBtn) playBtn.classList.add('active');
     if (dir === 1 && fwdBtn) fwdBtn.classList.add('active');
     if (dir === -1 && revBtn) revBtn.classList.add('active');
@@ -611,11 +603,11 @@ const App = (() => {
     const needle = document.getElementById('compass-needle');
     if (needle) needle.classList.remove('no-transition');
 
-    ['tm-play', 'tm-rev', 'tm-fwd'].forEach(id => {
+    ['timemachine-play', 'timemachine-rev', 'timemachine-fwd'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.classList.remove('active');
     });
-    const playIcon = document.getElementById('tm-play-icon');
+    const playIcon = document.getElementById('timemachine-play-icon');
     if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
 
   }
@@ -624,54 +616,48 @@ const App = (() => {
     const max = chartData.length - 1;
     const last = chartData[max];
 
-    const tmArea = container.querySelector('.tm-controls');
+    const tmArea = container.querySelector('.timemachine-controls');
     if (!tmArea) return;
 
     tmArea.innerHTML = `
-      <div class="calc-slider-wrap">
-        <input type="range" class="calc-slider" id="tm-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Time machine year slider" aria-valuetext="${last.year}">
+      <div class="timemachine-wrap">
+        <input type="range" class="timemachine-slider" id="timemachine-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Time machine year slider" aria-valuetext="${last.year}">
       </div>
-      <div class="calc-slider-info">
-        <span class="calc-decade" id="tm-year">${last.year}</span>
-        <span class="calc-score" id="tm-score" style="color:${COLOR_HEX[last.charge_level] || '#888'}">${degreeToScore(last.compass_degree)}</span>
-        <span class="calc-tier" id="tm-tier">${CHARGE_LABELS[last.charge_level]}</span>
-        <span class="calc-song-count" id="tm-count">${last.chart_song_count} charting songs</span>
-      </div>
-      <div class="calc-playback">
-        <button class="calc-play-btn" id="tm-rev" title="Play backward" aria-label="Play backward">
+      <div class="timemachine-playback">
+        <button class="timemachine-play-btn" id="timemachine-rev" title="Play backward" aria-label="Play backward">
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
         </button>
-        <button class="calc-play-btn" id="tm-play" title="Play forward" aria-label="Play forward">
-          <svg viewBox="0 0 24 24" width="14" height="14" id="tm-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        <button class="timemachine-play-btn" id="timemachine-play" title="Play forward" aria-label="Play forward">
+          <svg viewBox="0 0 24 24" width="14" height="14" id="timemachine-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
         </button>
-        <button class="calc-play-btn" id="tm-fwd" title="Play forward fast" aria-label="Play forward fast">
+        <button class="timemachine-play-btn" id="timemachine-fwd" title="Play forward fast" aria-label="Play forward fast">
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
         </button>
-        <div class="calc-progress"><div class="calc-progress-fill" id="tm-progress" style="width:100%"></div></div>
-        <button class="calc-speed-btn" id="tm-speed" aria-label="Playback speed">1x</button>
-        <button class="calc-reset" id="tm-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
+        <div class="timemachine-progress"><div class="timemachine-progress-fill" id="timemachine-progress" style="width:100%"></div></div>
+        <button class="timemachine-speed-btn" id="timemachine-speed" aria-label="Playback speed">1x</button>
+        <button class="timemachine-reset" id="timemachine-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
       </div>
     `;
 
     // Wire up controls
-    const slider = document.getElementById('tm-slider');
-    document.getElementById('tm-play').addEventListener('click', () => {
+    const slider = document.getElementById('timemachine-slider');
+    document.getElementById('timemachine-play').addEventListener('click', () => {
       if (tmPlaying) { tmStopPlayback(); return; }
       tmStartPlayback(1);
     });
-    document.getElementById('tm-rev').addEventListener('click', () => {
+    document.getElementById('timemachine-rev').addEventListener('click', () => {
       if (tmPlaying && tmDirection === -1) { tmStopPlayback(); return; }
       tmStopPlayback();
       tmStartPlayback(-1);
     });
-    document.getElementById('tm-fwd').addEventListener('click', () => {
+    document.getElementById('timemachine-fwd').addEventListener('click', () => {
       if (tmPlaying && tmDirection === 1) { tmStopPlayback(); return; }
       tmStopPlayback();
       tmStartPlayback(1);
     });
-    document.getElementById('tm-speed').addEventListener('click', () => {
+    document.getElementById('timemachine-speed').addEventListener('click', () => {
       tmSpeedIdx = (tmSpeedIdx + 1) % TM_SPEEDS.length;
-      document.getElementById('tm-speed').textContent = TM_SPEEDS[tmSpeedIdx] + 'x';
+      document.getElementById('timemachine-speed').textContent = TM_SPEEDS[tmSpeedIdx] + 'x';
     });
 
     // Slider scrub
@@ -697,12 +683,12 @@ const App = (() => {
     });
 
     // Reset
-    document.getElementById('tm-reset').addEventListener('click', () => {
+    document.getElementById('timemachine-reset').addEventListener('click', () => {
       tmStopPlayback();
       restoreCompassState();
       tmPosition = max;
       updateTimeMachine(tmPosition);
-      document.getElementById('tm-reset').style.display = 'none';
+      document.getElementById('timemachine-reset').style.display = 'none';
     });
 
   }
@@ -747,7 +733,7 @@ const App = (() => {
           <button class="traj-zoom-btn" data-zoom="10">10Y</button>
         </div>
         <div class="traj-chart-area"></div>
-        <div class="tm-controls"></div>
+        <div class="timemachine-controls"></div>
       `;
 
       container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
@@ -864,7 +850,7 @@ const App = (() => {
           <button class="traj-zoom-btn" data-zoom="w">W</button>
         </div>
         <div class="traj-chart-area"></div>
-        <div class="tm-controls"></div>
+        <div class="timemachine-controls"></div>
       `;
 
       container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
@@ -921,7 +907,7 @@ const App = (() => {
     if (!data.length) return;
 
     const W = 320, H = 120;
-    const padL = 30, padR = 10, padT = 10, padB = 22;
+    const padL = 30, padR = 16, padT = 10, padB = 22;
     const chartW = W - padL - padR;
     const chartH = H - padT - padB;
     const maxIdx = data.length - 1;
@@ -967,36 +953,47 @@ const App = (() => {
     svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#daily-grad)" />`;
     svg += `</g>`;
 
-    // X-axis labels — month abbreviations or day numbers depending on data span
+    // X-axis labels — boundary-based (stock chart style)
+    // Labels snap to natural time boundaries, then thin to fit.
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const daySpan = maxIdx > 0 ? (new Date(data[maxIdx].date) - new Date(data[0].date)) / 86400000 : 0;
+    const minLabelGap = 40; // minimum viewBox units between labels
 
-    if (daySpan > 60) {
-      // Show month labels
-      const shownMonths = new Set();
-      dailyChartPoints.forEach((p, i) => {
-        const d = new Date(data[i].date + 'T00:00:00');
-        const m = d.getMonth();
-        if (!shownMonths.has(m)) {
-          shownMonths.add(m);
-          svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">${MONTHS[m]}</text>`;
+    // Collect boundary candidates from the data
+    const boundaries = [];
+    let prevDate = null;
+    dailyChartPoints.forEach((p, i) => {
+      const d = new Date(data[i].date + 'T00:00:00');
+      if (daySpan > 90) {
+        // Month boundaries: label first data point of each month
+        if (!prevDate || d.getMonth() !== prevDate.getMonth() || d.getFullYear() !== prevDate.getFullYear()) {
+          boundaries.push({ x: p.x, label: MONTHS[d.getMonth()], i });
         }
-      });
-    } else {
-      // Show select day labels
-      const labelInterval = Math.max(1, Math.ceil(data.length / 8));
-      dailyChartPoints.forEach((p, i) => {
-        if (i % labelInterval === 0 || i === maxIdx) {
-          const d = new Date(data[i].date + 'T00:00:00');
-          const anchor = i === 0 ? 'start' : i === maxIdx ? 'end' : 'middle';
-          svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}</text>`;
+      } else if (daySpan > 14) {
+        // Week boundaries: label Mondays (or first data point of each week)
+        if (!prevDate || Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 604800000) !== Math.floor((prevDate - new Date(prevDate.getFullYear(), 0, 1)) / 604800000)) {
+          boundaries.push({ x: p.x, label: `${MONTHS[d.getMonth()]} ${d.getDate()}`, i });
         }
-      });
-    }
+      } else {
+        // Short spans: every data point is a candidate
+        boundaries.push({ x: p.x, label: `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`, i });
+      }
+      prevDate = d;
+    });
+
+    // Thin boundaries: greedily place labels with minimum gap
+    let lastPlacedX = -Infinity;
+    boundaries.forEach(b => {
+      if (b.x - lastPlacedX >= minLabelGap) {
+        const anchor = b.x <= padL + 10 ? 'start' : b.x >= W - padR - 10 ? 'end' : 'middle';
+        svg += `<text class="trajectory-label" x="${b.x.toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${b.label}</text>`;
+        lastPlacedX = b.x;
+      }
+    });
 
     // Moving dot
     const lastPt = dailyChartPoints[maxIdx];
-    svg += `<circle id="daily-tm-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
+    svg += `<circle id="daily-timemachine-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
 
     // Hover elements
     svg += `<line id="daily-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
@@ -1107,16 +1104,10 @@ const App = (() => {
     const hex = COLOR_HEX[tier] || '#888';
     const nearestPt = pts[Math.round(Math.min(pos, ptMax))];
 
-    const dateEl = document.getElementById('dtm-date');
-    const scoreEl = document.getElementById('dtm-score');
-    const tierEl = document.getElementById('dtm-tier');
-    const slider = document.getElementById('dtm-slider');
-    const progressFill = document.getElementById('dtm-progress');
-    const resetBtn = document.getElementById('dtm-reset');
+    const slider = document.getElementById('daily-timemachine-slider');
+    const progressFill = document.getElementById('daily-timemachine-progress');
+    const resetBtn = document.getElementById('daily-timemachine-reset');
 
-    if (dateEl) dateEl.textContent = formatDate(nearestPt.date);
-    if (scoreEl) { scoreEl.textContent = degreeToScore(deg); scoreEl.style.color = hex; }
-    if (tierEl) tierEl.textContent = CHARGE_LABELS[tier];
     if (progressFill) progressFill.style.width = (pos / ptMax * 100) + '%';
     if (slider) {
       slider.value = Math.round(pos);
@@ -1132,7 +1123,7 @@ const App = (() => {
     }
 
     // Move dot
-    const tmDot = document.getElementById('daily-tm-dot');
+    const tmDot = document.getElementById('daily-timemachine-dot');
     if (tmDot && pts.length) {
       const px = a.x + (b.x - a.x) * frac;
       const py = a.y + (b.y - a.y) * frac;
@@ -1177,10 +1168,10 @@ const App = (() => {
     const needle = document.getElementById('compass-needle');
     if (needle) needle.classList.add('no-transition');
 
-    const playBtn = document.getElementById('dtm-play');
-    const playIcon = document.getElementById('dtm-play-icon');
-    const revBtn = document.getElementById('dtm-rev');
-    const fwdBtn = document.getElementById('dtm-fwd');
+    const playBtn = document.getElementById('daily-timemachine-play');
+    const playIcon = document.getElementById('daily-timemachine-play-icon');
+    const revBtn = document.getElementById('daily-timemachine-rev');
+    const fwdBtn = document.getElementById('daily-timemachine-fwd');
     if (playBtn) playBtn.classList.add('active');
     if (dir === 1 && fwdBtn) fwdBtn.classList.add('active');
     if (dir === -1 && revBtn) revBtn.classList.add('active');
@@ -1196,11 +1187,11 @@ const App = (() => {
     const needle = document.getElementById('compass-needle');
     if (needle) needle.classList.remove('no-transition');
 
-    ['dtm-play', 'dtm-rev', 'dtm-fwd'].forEach(id => {
+    ['daily-timemachine-play', 'daily-timemachine-rev', 'daily-timemachine-fwd'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.classList.remove('active');
     });
-    const playIcon = document.getElementById('dtm-play-icon');
+    const playIcon = document.getElementById('daily-timemachine-play-icon');
     if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
   }
 
@@ -1210,52 +1201,47 @@ const App = (() => {
     if (max < 0) return;
     const last = pts[max];
 
-    const tmArea = container.querySelector('.tm-controls');
+    const tmArea = container.querySelector('.timemachine-controls');
     if (!tmArea) return;
 
     tmArea.innerHTML = `
-      <div class="calc-slider-wrap">
-        <input type="range" class="calc-slider" id="dtm-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Daily time machine slider" aria-valuetext="${formatDate(last.date)}">
+      <div class="timemachine-wrap">
+        <input type="range" class="timemachine-slider" id="daily-timemachine-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Daily time machine slider" aria-valuetext="${formatDate(last.date)}">
       </div>
-      <div class="calc-slider-info">
-        <span class="calc-decade" id="dtm-date">${formatDate(last.date)}</span>
-        <span class="calc-score" id="dtm-score" style="color:${COLOR_HEX[last.color] || '#888'}">${degreeToScore(last.degree)}</span>
-        <span class="calc-tier" id="dtm-tier">${CHARGE_LABELS[last.color]}</span>
-      </div>
-      <div class="calc-playback">
-        <button class="calc-play-btn" id="dtm-rev" title="Play backward" aria-label="Play backward">
+      <div class="timemachine-playback">
+        <button class="timemachine-play-btn" id="daily-timemachine-rev" title="Play backward" aria-label="Play backward">
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
         </button>
-        <button class="calc-play-btn" id="dtm-play" title="Play forward" aria-label="Play forward">
-          <svg viewBox="0 0 24 24" width="14" height="14" id="dtm-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        <button class="timemachine-play-btn" id="daily-timemachine-play" title="Play forward" aria-label="Play forward">
+          <svg viewBox="0 0 24 24" width="14" height="14" id="daily-timemachine-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
         </button>
-        <button class="calc-play-btn" id="dtm-fwd" title="Play forward fast" aria-label="Play forward fast">
+        <button class="timemachine-play-btn" id="daily-timemachine-fwd" title="Play forward fast" aria-label="Play forward fast">
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
         </button>
-        <div class="calc-progress"><div class="calc-progress-fill" id="dtm-progress" style="width:100%"></div></div>
-        <button class="calc-speed-btn" id="dtm-speed" aria-label="Playback speed">1x</button>
-        <button class="calc-reset" id="dtm-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
+        <div class="timemachine-progress"><div class="timemachine-progress-fill" id="daily-timemachine-progress" style="width:100%"></div></div>
+        <button class="timemachine-speed-btn" id="daily-timemachine-speed" aria-label="Playback speed">1x</button>
+        <button class="timemachine-reset" id="daily-timemachine-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
       </div>
     `;
 
-    const slider = document.getElementById('dtm-slider');
-    document.getElementById('dtm-play').addEventListener('click', () => {
+    const slider = document.getElementById('daily-timemachine-slider');
+    document.getElementById('daily-timemachine-play').addEventListener('click', () => {
       if (dtmPlaying) { dtmStopPlayback(); return; }
       dtmStartPlayback(1);
     });
-    document.getElementById('dtm-rev').addEventListener('click', () => {
+    document.getElementById('daily-timemachine-rev').addEventListener('click', () => {
       if (dtmPlaying && dtmDirection === -1) { dtmStopPlayback(); return; }
       dtmStopPlayback();
       dtmStartPlayback(-1);
     });
-    document.getElementById('dtm-fwd').addEventListener('click', () => {
+    document.getElementById('daily-timemachine-fwd').addEventListener('click', () => {
       if (dtmPlaying && dtmDirection === 1) { dtmStopPlayback(); return; }
       dtmStopPlayback();
       dtmStartPlayback(1);
     });
-    document.getElementById('dtm-speed').addEventListener('click', () => {
+    document.getElementById('daily-timemachine-speed').addEventListener('click', () => {
       dtmSpeedIdx = (dtmSpeedIdx + 1) % TM_SPEEDS.length;
-      document.getElementById('dtm-speed').textContent = TM_SPEEDS[dtmSpeedIdx] + 'x';
+      document.getElementById('daily-timemachine-speed').textContent = TM_SPEEDS[dtmSpeedIdx] + 'x';
     });
 
     // Slider scrub
@@ -1281,12 +1267,12 @@ const App = (() => {
     });
 
     // Reset
-    document.getElementById('dtm-reset').addEventListener('click', () => {
+    document.getElementById('daily-timemachine-reset').addEventListener('click', () => {
       dtmStopPlayback();
       restoreCompassState();
       dtmPosition = max;
       updateDailyTimeMachine(dtmPosition);
-      document.getElementById('dtm-reset').style.display = 'none';
+      document.getElementById('daily-timemachine-reset').style.display = 'none';
     });
   }
 
