@@ -21,9 +21,6 @@ class CompassSong(Base):
     contamination_note = Column(Text)
     charge_summary = Column(Text)
     why_classification = Column(Text)
-    message_analysis = Column(Text)
-    expression_analysis = Column(Text)
-    intention_analysis = Column(Text)
     chart_source = Column(Text, default="billboard_hot_100")
     calibrated = Column(Boolean, default=False)
 
@@ -131,9 +128,6 @@ class LibrarySong(Base):
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
     charge_summary = Column(Text)
-    message_analysis = Column(Text)
-    expression_analysis = Column(Text)
-    intention_analysis = Column(Text)
     album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=True)
     track_number = Column(Integer, nullable=True)  # position within album
     source = Column(String(20), default="manual")  # manual / agent
@@ -212,9 +206,6 @@ class AgentDraftSong(Base):
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
     charge_summary = Column(Text)
-    message_analysis = Column(Text)
-    expression_analysis = Column(Text)
-    intention_analysis = Column(Text)
     chart_source = Column(Text, default="spotify")
     confidence = Column(Float)
     lyrics_available = Column(Boolean, default=False)

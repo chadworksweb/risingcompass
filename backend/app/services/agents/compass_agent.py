@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import AgentDraft, AgentDraftSong, CompassSong
 from app.services.agents.classifier import classify_song, AGENT_MODEL
-from app.services.agents.compass_agent_rubric import build_editorial_prompt, truncate_mei
+from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
 from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
@@ -63,9 +63,6 @@ def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
         "contaminated": existing.contaminated or False,
         "contamination_note": existing.contamination_note,
         "charge_summary": existing.charge_summary,
-        "message_analysis": truncate_mei(existing.message_analysis),
-        "expression_analysis": truncate_mei(existing.expression_analysis),
-        "intention_analysis": truncate_mei(existing.intention_analysis),
         "confidence": 1.0,  # human-reviewed
     }
 
@@ -87,9 +84,6 @@ def _store_classification(title: str, artist: str, chart_position: int,
         existing.contaminated = result["contaminated"]
         existing.contamination_note = result["contamination_note"]
         existing.charge_summary = result["charge_summary"]
-        existing.message_analysis = result.get("message_analysis")
-        existing.expression_analysis = result.get("expression_analysis")
-        existing.intention_analysis = result.get("intention_analysis")
         existing.chart_source = chart_source
     else:
         current_year = date.today().year
@@ -105,9 +99,6 @@ def _store_classification(title: str, artist: str, chart_position: int,
             contaminated=result["contaminated"],
             contamination_note=result["contamination_note"],
             charge_summary=result["charge_summary"],
-            message_analysis=result.get("message_analysis"),
-            expression_analysis=result.get("expression_analysis"),
-            intention_analysis=result.get("intention_analysis"),
             chart_source=chart_source,
         )
         db.add(song)
@@ -156,16 +147,7 @@ def run_compass_agent(
                 cached["contaminated"] = False
                 cached["contamination_note"] = None
 
-            # If M/E/I are missing, regenerate them via classifier but keep calibrated values
-            if not cached.get("message_analysis"):
-                logger.info("Cache hit but M/E/I missing, regenerating: %s by %s", title, artist)
-                lyrics = fetch_lyrics(title, artist)
-                fresh = classify_song(title, artist, lyrics=lyrics, db=None)  # db=None skips _lookup_existing
-                cached["message_analysis"] = fresh.get("message_analysis")
-                cached["expression_analysis"] = fresh.get("expression_analysis")
-                cached["intention_analysis"] = fresh.get("intention_analysis")
-            else:
-                logger.info("Cache hit: %s by %s", title, artist)
+            logger.info("Cache hit: %s by %s", title, artist)
 
             classified_songs.append({
                 "title": title,
@@ -177,8 +159,8 @@ def run_compass_agent(
             })
             continue
 
-        # Cache miss — fetch lyrics and classify
-        lyrics = fetch_lyrics(title, artist)
+        # Cache miss — use manual lyrics if provided, otherwise fetch
+        lyrics = song_in.get("lyrics") or fetch_lyrics(title, artist)
 
         if not lyrics:
             # No lyrics from any source — include song unclassified, needs human intervention
@@ -195,9 +177,6 @@ def run_compass_agent(
                 "contaminated": False,
                 "contamination_note": None,
                 "charge_summary": "Lyrics not found — awaiting human classification",
-                "message_analysis": None,
-                "expression_analysis": None,
-                "intention_analysis": None,
                 "confidence": 0.0,
             })
             continue
@@ -270,9 +249,6 @@ def run_compass_agent(
             contaminated=s["contaminated"],
             contamination_note=s["contamination_note"],
             charge_summary=s["charge_summary"],
-            message_analysis=s["message_analysis"],
-            expression_analysis=s["expression_analysis"],
-            intention_analysis=s["intention_analysis"],
             chart_source=s["chart_source"],
             confidence=s["confidence"],
             lyrics_available=s["lyrics_available"],

@@ -35,9 +35,6 @@ def _build_song_result(index: int, title: str, artist: str, classification: dict
         "contaminated": classification.get("contaminated", False) if status == "scored" else False,
         "contamination_note": classification.get("contamination_note") if status == "scored" else None,
         "charge_summary": classification.get("charge_summary") if status == "scored" else None,
-        "message": classification.get("message_analysis") if status == "scored" else None,
-        "expression": classification.get("expression_analysis") if status == "scored" else None,
-        "intention": classification.get("intention_analysis") if status == "scored" else None,
         "confidence": classification.get("confidence", 0.0) if status == "scored" else 0.0,
         "lyrics_found": lyrics_found,
     }

@@ -12,7 +12,6 @@ from app.models import CompassSong
 from app.services.agents.compass_agent_rubric import (
     build_few_shot_examples,
     build_classification_prompt,
-    truncate_mei,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,9 +45,6 @@ def _lookup_existing(title: str, artist: str, db: Session) -> dict | None:
             "contaminated": existing.contaminated,
             "contamination_note": existing.contamination_note,
             "charge_summary": existing.charge_summary,
-            "message_analysis": truncate_mei(existing.message_analysis),
-            "expression_analysis": truncate_mei(existing.expression_analysis),
-            "intention_analysis": truncate_mei(existing.intention_analysis),
             "confidence": 1.0,  # human-calibrated = full confidence
         }
     return None
@@ -69,8 +65,8 @@ def classify_song(
     Set skip_cache=True to force reclassification (backfill mode) while still
     using the db for few-shot examples.
 
-    Returns a dict with rubric_color, contaminated, contamination_note,
-    charge_summary, message_analysis, expression_analysis, intention_analysis, confidence.
+    Returns a dict with rubric_color, charge_value, contaminated, contamination_note,
+    charge_summary, confidence.
     """
     # Check for existing calibrated classification first
     if db and not skip_cache:
@@ -130,9 +126,6 @@ def classify_song(
         "contaminated": contaminated,
         "contamination_note": result.get("contamination_note"),
         "charge_summary": result.get("charge_summary", ""),
-        "message_analysis": truncate_mei(result.get("message_analysis", "")),
-        "expression_analysis": truncate_mei(result.get("expression_analysis", "")),
-        "intention_analysis": truncate_mei(result.get("intention_analysis", "")),
         "confidence": float(result.get("confidence", 0.5)),
     }
 
@@ -185,8 +178,5 @@ def _fallback_result(title: str, artist: str, raw_response: str) -> dict:
         "contaminated": False,
         "contamination_note": None,
         "charge_summary": f"Classification failed — manual review needed for {title} by {artist}",
-        "message_analysis": None,
-        "expression_analysis": None,
-        "intention_analysis": None,
         "confidence": 0.0,
     }

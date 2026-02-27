@@ -39,9 +39,6 @@ class ReadingSongOut(BaseModel):
     contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     chart_source: Optional[str] = None
 
     model_config = {"from_attributes": True}
@@ -378,9 +375,6 @@ class LibrarySongCreate(BaseModel):
     contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     album_id: Optional[int] = None
     track_number: Optional[int] = None
     source: str = "manual"
@@ -394,9 +388,6 @@ class LibrarySongUpdate(BaseModel):
     contaminated: Optional[bool] = None
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     album_id: Optional[int] = None
     track_number: Optional[int] = None
 
@@ -410,9 +401,6 @@ class LibrarySongOut(BaseModel):
     contaminated: bool
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     album_id: Optional[int] = None
     track_number: Optional[int] = None
     source: str
@@ -430,9 +418,6 @@ class CompassSongFeedIn(BaseModel):
     contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     year: Optional[int] = None
     chart_source: str = "manual"
 
@@ -448,9 +433,6 @@ class DraftSongOut(BaseModel):
     contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     chart_source: Optional[str] = None
     confidence: Optional[float] = None
     lyrics_available: bool = False
@@ -521,6 +503,7 @@ class DraftTriggerSongIn(BaseModel):
     artist: str
     position: int
     chart_source: str = "spotify"
+    lyrics: Optional[str] = None  # Manual lyrics — skips fetch when provided
 
 
 class DraftTriggerIn(BaseModel):
@@ -535,9 +518,6 @@ class DraftSongUpdate(BaseModel):
     contaminated: Optional[bool] = None
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
 
 
 class DraftUpdate(BaseModel):
@@ -621,9 +601,6 @@ class BackfillSongOut(BaseModel):
     contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     confidence: Optional[float] = None
     lyrics_available: bool = False
 
@@ -644,9 +621,6 @@ class CalibrateSongIn(BaseModel):
     rubric_color: str
     charge_value: int  # -100 to +100
     charge_summary: Optional[str] = None
-    message_analysis: Optional[str] = None
-    expression_analysis: Optional[str] = None
-    intention_analysis: Optional[str] = None
     contaminated: Optional[bool] = None
     contamination_note: Optional[str] = None
 

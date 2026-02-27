@@ -26,9 +26,6 @@ def _song_out(rs: ReadingSong) -> ReadingSongOut:
         contaminated=cs.contaminated if cs else False,
         contamination_note=cs.contamination_note if cs else None,
         charge_summary=cs.charge_summary if cs else None,
-        message_analysis=cs.message_analysis if cs else None,
-        expression_analysis=cs.expression_analysis if cs else None,
-        intention_analysis=cs.intention_analysis if cs else None,
         chart_source=rs.chart_source,
     )
 

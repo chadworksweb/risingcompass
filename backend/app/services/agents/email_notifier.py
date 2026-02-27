@@ -102,18 +102,6 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set =
         cv = getattr(s, 'charge_value', None)
         cv_str = f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:{color};font-weight:700;">{("+" if cv and cv > 0 else "")}{cv}</span>' if cv is not None else ''
 
-        # M/E/I breakdown — 3-column table
-        msg = getattr(s, 'message_analysis', None) or ''
-        exp = getattr(s, 'expression_analysis', None) or ''
-        intent = getattr(s, 'intention_analysis', None) or ''
-        mei_html = ''
-        if msg or exp or intent:
-            mei_cell = 'style="padding:6px 8px;font-size:11px;line-height:1.4;color:#777;vertical-align:top;width:33%;"'
-            mei_header = 'style="padding:4px 8px 2px;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#555;font-weight:700;vertical-align:top;width:33%;"'
-            mei_html = f'''<table style="width:100%;border-collapse:collapse;margin-top:8px;border-top:1px solid #f0f0f0;">
-                <tr><td {mei_header}>Message</td><td {mei_header}>Expression</td><td {mei_header}>Intention</td></tr>
-                <tr><td {mei_cell}>{msg}</td><td {mei_cell}>{exp}</td><td {mei_cell}>{intent}</td></tr>
-            </table>'''
 
         song_rows += f"""
         <tr>
@@ -130,11 +118,6 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set =
             </td>
             <td style="padding:30px 8px 10px;color:#555;font-size:13px;line-height:1.4;vertical-align:top;">
                 {s.charge_summary or ''}
-            </td>
-        </tr>
-        <tr>
-            <td colspan="4" style="padding:0 8px 8px;border-bottom:1px solid #eee;">
-                {mei_html}
             </td>
         </tr>
         <tr>

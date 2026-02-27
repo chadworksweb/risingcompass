@@ -395,13 +395,6 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
                 existing.contamination_note = update.contamination_note
             if update.charge_summary is not None:
                 existing.charge_summary = update.charge_summary
-            if update.message_analysis is not None:
-                existing.message_analysis = update.message_analysis
-            if update.expression_analysis is not None:
-                existing.expression_analysis = update.expression_analysis
-            if update.intention_analysis is not None:
-                existing.intention_analysis = update.intention_analysis
-
             # Enforce: red/orange cannot be contaminated
             if existing.rubric_color in ("red", "orange"):
                 existing.contaminated = False
@@ -447,9 +440,6 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
         contaminated=data.contaminated,
         contamination_note=data.contamination_note,
         charge_summary=data.charge_summary,
-        message_analysis=data.message_analysis,
-        expression_analysis=data.expression_analysis,
-        intention_analysis=data.intention_analysis,
         chart_source=data.chart_source,
     )
     db.add(song)
@@ -506,9 +496,6 @@ def backfill_year(
         song.contaminated = result["contaminated"]
         song.contamination_note = result.get("contamination_note")
         song.charge_summary = result.get("charge_summary")
-        song.message_analysis = result.get("message_analysis")
-        song.expression_analysis = result.get("expression_analysis")
-        song.intention_analysis = result.get("intention_analysis")
         # Do NOT mark calibrated — human must review first
 
         results.append(BackfillSongOut(
@@ -521,9 +508,6 @@ def backfill_year(
             contaminated=result["contaminated"],
             contamination_note=result.get("contamination_note"),
             charge_summary=result.get("charge_summary"),
-            message_analysis=result.get("message_analysis"),
-            expression_analysis=result.get("expression_analysis"),
-            intention_analysis=result.get("intention_analysis"),
             confidence=result.get("confidence"),
             lyrics_available=lyrics_available,
         ))
@@ -555,12 +539,6 @@ def calibrate_songs(data: CalibrateRequest, db: Session = Depends(get_db)):
         song.charge_value = item.charge_value
         if item.charge_summary is not None:
             song.charge_summary = item.charge_summary
-        if item.message_analysis is not None:
-            song.message_analysis = item.message_analysis
-        if item.expression_analysis is not None:
-            song.expression_analysis = item.expression_analysis
-        if item.intention_analysis is not None:
-            song.intention_analysis = item.intention_analysis
         if item.contaminated is not None:
             song.contaminated = item.contaminated
         if item.contamination_note is not None:

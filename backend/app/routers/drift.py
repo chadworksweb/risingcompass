@@ -230,9 +230,6 @@ def get_year_songs(
                     "contaminated": s.contaminated,
                     "contamination_note": s.contamination_note,
                     "charge_summary": s.charge_summary,
-                    "message_analysis": s.message_analysis,
-                    "expression_analysis": s.expression_analysis,
-                    "intention_analysis": s.intention_analysis,
                     "position": s.chart_position,
                     "days_on_chart": 1,
                 }
