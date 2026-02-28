@@ -18,6 +18,7 @@ from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
 )
+from app.auth import create_approval_token, verify_approval_token
 from app.config import settings
 from app.routers.admin import verify_admin_key
 from app.services.agents.compass_agent import run_compass_agent
@@ -216,15 +217,16 @@ def get_draft(draft_ref: str, db: Session = Depends(get_db)):
 
 
 @router.get("/drafts/{draft_ref}/approve", response_class=HTMLResponse)
-def approve_draft_confirm_page(draft_ref: str, key: str = Query(...), db: Session = Depends(get_db)):
+def approve_draft_confirm_page(draft_ref: str, token: str = Query(...), db: Session = Depends(get_db)):
     """Show a confirmation page instead of auto-approving.
 
     Email clients prefetch GET links for security scanning, which was
     causing drafts to be approved without human intent. Now the GET
     shows a confirm button that POSTs to actually approve.
+    Uses HMAC tokens instead of admin key in URL.
     """
-    if key != settings.rc_admin_key:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
+    if not verify_approval_token(draft_ref, token):
+        raise HTTPException(status_code=403, detail="Invalid or expired approval link")
     draft = _resolve_draft(draft_ref, db)
 
     if draft.status != "pending":
@@ -233,7 +235,6 @@ def approve_draft_confirm_page(draft_ref: str, key: str = Query(...), db: Sessio
     charge_color = COLOR_HEX.get(draft.charge_level, "#999")
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
     score = _degree_to_score(draft.compass_degree)
-    post_url = f"/api/admin/agent/drafts/{draft_ref}/approve?key={key}"
 
     return f"""<!DOCTYPE html>
 <html><head>
@@ -268,7 +269,7 @@ def approve_draft_confirm_page(draft_ref: str, key: str = Query(...), db: Sessio
       <div class="metric-value" style="color:{charge_color};">{charge_label}</div>
     </div>
   </div>
-  <form method="POST" action="/api/admin/agent/drafts/{draft_ref}/publish?key={key}">
+  <form method="POST" action="/api/admin/agent/drafts/{draft_ref}/publish?token={token}">
     <button type="submit" class="btn">Approve &amp; Publish</button>
   </form>
   <div class="label">{draft.label}</div>
@@ -277,10 +278,10 @@ def approve_draft_confirm_page(draft_ref: str, key: str = Query(...), db: Sessio
 
 
 @router.post("/drafts/{draft_ref}/publish", response_class=HTMLResponse)
-def publish_draft_via_form(draft_ref: str, key: str = Query(...), db: Session = Depends(get_db)):
-    """POST approval from the email confirmation page (form submit with key in query)."""
-    if key != settings.rc_admin_key:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
+def publish_draft_via_form(draft_ref: str, token: str = Query(...), db: Session = Depends(get_db)):
+    """POST approval from the email confirmation page (form submit with token in query)."""
+    if not verify_approval_token(draft_ref, token):
+        raise HTTPException(status_code=403, detail="Invalid or expired approval link")
     draft = approve_draft(draft_ref, db)
     return _build_approval_html(draft)
 
@@ -290,14 +291,14 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     """Approve a draft and publish it as a DailyReading."""
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
-        raise HTTPException(status_code=400, detail=f"Draft is already {draft.status}")
+        raise HTTPException(status_code=400, detail="Draft cannot be approved in its current state")
 
     # Check for existing reading on this date
     existing = db.query(DailyReading).filter(DailyReading.date == draft.date).first()
     if existing:
         raise HTTPException(
             status_code=409,
-            detail=f"A reading already exists for {draft.date}. Delete it first or reject this draft.",
+            detail=f"A reading already exists for {draft.date}",
         )
 
     # Create DailyReading from draft
@@ -345,7 +346,7 @@ def reject_draft(draft_ref: str, db: Session = Depends(get_db)):
     """Mark a draft as rejected."""
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
-        raise HTTPException(status_code=400, detail=f"Draft is already {draft.status}")
+        raise HTTPException(status_code=400, detail="Draft cannot be rejected in its current state")
 
     draft.status = "rejected"
     db.commit()
@@ -362,7 +363,7 @@ def resend_draft_email(draft_ref: str, db: Session = Depends(get_db)):
 
     sent = send_draft_email(draft, draft.songs, settings, db=db)
     if not sent:
-        raise HTTPException(status_code=500, detail="Email failed — check SMTP config")
+        raise HTTPException(status_code=500, detail="Email notification failed")
     return {"status": "sent", "to": settings.approval_email}
 
 
@@ -371,7 +372,7 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
     """Edit a draft before approving — change colors, summaries, etc."""
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
-        raise HTTPException(status_code=400, detail=f"Cannot edit a {draft.status} draft")
+        raise HTTPException(status_code=400, detail="Draft cannot be edited in its current state")
 
     if data.editorial_summary is not None:
         draft.editorial_summary = data.editorial_summary

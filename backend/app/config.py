@@ -1,10 +1,11 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 from typing import List
 import json
 
 
 class Settings(BaseSettings):
-    rc_admin_key: str = "change-me"
+    rc_admin_key: str = ""  # REQUIRED — app won't start without it
     database_url: str = "sqlite:///./data/rising_compass.db"
     cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","https://risingcompass.net","https://api.risingcompass.net"]'
 
@@ -30,6 +31,12 @@ class Settings(BaseSettings):
     # Analyzer settings
     analyzer_max_songs: int = 10
     analyzer_session_ttl: int = 1800  # 30 minutes
+
+    @model_validator(mode="after")
+    def _validate_required_secrets(self):
+        if not self.rc_admin_key or self.rc_admin_key == "change-me":
+            raise ValueError("RC_ADMIN_KEY must be set to a strong secret (not 'change-me')")
+        return self
 
     @property
     def cors_origin_list(self) -> List[str]:

@@ -3,8 +3,9 @@ import logging
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -48,8 +49,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Admin-Key", "Authorization"],
 )
 
 app.include_router(compass.router)
@@ -64,9 +65,16 @@ app.include_router(library_admin.router)
 app.include_router(analyzer.router)
 
 
-# slowapi exception handler for rate limiting
+# slowapi rate limiter (defined in analyzer.py, shared across routers)
 app.state.limiter = analyzer.limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler — log details server-side, return generic message to client."""
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/api/health")

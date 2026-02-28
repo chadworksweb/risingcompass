@@ -45,15 +45,15 @@ class ReadingSongOut(BaseModel):
 
 
 class ReadingSongIn(BaseModel):
-    title: str
-    artist: str
+    title: str = Field(..., max_length=300)
+    artist: str = Field(..., max_length=300)
     position: int
-    rubric_color: str
+    rubric_color: str = Field(..., max_length=20)
     charge_value: Optional[int] = None
     contaminated: bool = False
-    contamination_note: Optional[str] = None
-    charge_summary: Optional[str] = None
-    chart_source: str = "spotify"
+    contamination_note: Optional[str] = Field(None, max_length=1000)
+    charge_summary: Optional[str] = Field(None, max_length=2000)
+    chart_source: str = Field("spotify", max_length=50)
 
 
 # --- Daily Readings ---
@@ -411,15 +411,15 @@ class LibrarySongOut(BaseModel):
 
 # --- Manual Song Feed ---
 class CompassSongFeedIn(BaseModel):
-    title: str
-    artist: str
-    rubric_color: str
+    title: str = Field(..., max_length=300)
+    artist: str = Field(..., max_length=300)
+    rubric_color: str = Field(..., max_length=20)
     charge_value: int  # -100 to +100
     contaminated: bool = False
-    contamination_note: Optional[str] = None
-    charge_summary: Optional[str] = None
+    contamination_note: Optional[str] = Field(None, max_length=1000)
+    charge_summary: Optional[str] = Field(None, max_length=2000)
     year: Optional[int] = None
-    chart_source: str = "manual"
+    chart_source: str = Field("manual", max_length=50)
 
 
 # --- Agent Drafts ---
@@ -499,10 +499,10 @@ class DraftSummary(BaseModel):
 
 
 class DraftTriggerSongIn(BaseModel):
-    title: str
-    artist: str
+    title: str = Field(..., max_length=300)
+    artist: str = Field(..., max_length=300)
     position: int
-    chart_source: str = "spotify"
+    chart_source: str = Field("spotify", max_length=50)
     lyrics: Optional[str] = None  # Manual lyrics — skips fetch when provided
 
 
@@ -534,15 +534,15 @@ class PaginatedDrafts(BaseModel):
 
 # --- Misread Submissions ---
 class MisreadSubmissionCreate(BaseModel):
-    song_title: str
-    song_artist: str
-    song_color: str
+    song_title: str = Field(..., max_length=300)
+    song_artist: str = Field(..., max_length=300)
+    song_color: str = Field(..., max_length=20)
     song_position: Optional[int] = None
-    first_name: str
-    last_name: str
-    email: str
-    message: str
-    device_id: Optional[str] = None
+    first_name: str = Field(..., max_length=100)
+    last_name: str = Field(..., max_length=100)
+    email: str = Field(..., max_length=254)
+    message: str = Field(..., max_length=5000)
+    device_id: Optional[str] = Field(None, max_length=200)
 
 
 class MisreadSubmissionOut(BaseModel):

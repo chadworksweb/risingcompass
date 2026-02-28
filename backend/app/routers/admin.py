@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from pathlib import Path
+import os
 import shutil
 import tempfile
 
@@ -229,15 +230,16 @@ def trigger_backup():
 
     path = run_backup()
     if not path:
-        raise HTTPException(status_code=500, detail="Backup failed — check logs")
+        raise HTTPException(status_code=500, detail="Backup failed")
     return {"status": "ok", "file": path.name}
 
 
 @router.get("/db-export", dependencies=[Depends(verify_admin_key)])
-def export_database():
+def export_database(background_tasks: BackgroundTasks):
     """Download a snapshot of the current database file.
 
     Copies the DB to a temp file first to avoid locking issues.
+    Temp file is cleaned up automatically after response is sent.
     Use: curl -H "X-Admin-Key: YOUR_KEY" https://api.risingcompass.net/api/admin/db-export -o rising_compass.db
     """
     db_path = Path("data/rising_compass.db")
@@ -248,6 +250,8 @@ def export_database():
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
     shutil.copy2(db_path, tmp.name)
     tmp.close()
+
+    background_tasks.add_task(os.unlink, tmp.name)
 
     return FileResponse(
         tmp.name,

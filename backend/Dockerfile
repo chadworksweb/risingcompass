@@ -21,6 +21,10 @@ COPY . .
 # Create data directory for SQLite
 RUN mkdir -p data
 
+# Run as non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -287,7 +287,7 @@ async def _get_spotify_token() -> str | None:
                 timeout=10.0,
             )
         if resp.status_code != 200:
-            logger.error("Spotify token request failed: %d %s", resp.status_code, resp.text)
+            logger.error("Spotify token request failed: HTTP %d", resp.status_code)
             return None
 
         data = resp.json()

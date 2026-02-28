@@ -2,7 +2,7 @@ import logging
 from html import escape
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
@@ -15,15 +15,12 @@ from app.schemas import (
 )
 from app.config import settings
 from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG
+from app.routers.admin import verify_admin_key
+from app.routers.analyzer import limiter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["misread"])
-
-
-def verify_admin_key(x_admin_key: str = Header(...)):
-    if x_admin_key != settings.rc_admin_key:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
 
 
 def _send_receipt_email(submission: MisreadSubmission) -> bool:
@@ -119,6 +116,7 @@ def _is_banned(db: Session, device_id: Optional[str], ip: Optional[str]) -> bool
 # --- Public Endpoints ---
 
 @router.post("/api/misread", response_model=MisreadSubmissionOut, status_code=201)
+@limiter.limit("5/hour")
 def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session = Depends(get_db)):
     """Submit a misread classification report."""
     ip = request.client.host if request.client else None
