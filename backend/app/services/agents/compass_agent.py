@@ -5,12 +5,11 @@ import logging
 from datetime import date
 
 from anthropic import Anthropic
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import AgentDraft, AgentDraftSong, CompassSong
-from app.services.agents.classifier import classify_song, AGENT_MODEL
+from app.services.agents.classifier import classify_song, lookup_calibrated, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
 from app.services.agents.lyrics_source import fetch_lyrics
@@ -36,35 +35,6 @@ def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "co
         return f"{prefix}_draft"
     modifier = chr(ord("a") + existing_count)
     return f"{prefix}{modifier}_draft"
-
-
-def _lookup_cached(title: str, artist: str, db: Session) -> dict | None:
-    """Check if a song has already been classified in the CompassSong table.
-
-    Uses case-insensitive match on title + artist.
-    Returns classification dict or None.
-    """
-    existing = (
-        db.query(CompassSong)
-        .filter(func.lower(CompassSong.title) == title.lower())
-        .filter(func.lower(CompassSong.artist) == artist.lower())
-        .first()
-    )
-    if not existing or not existing.rubric_color:
-        return None
-
-    # Only trust calibrated (human-reviewed) songs as cache hits
-    if not existing.calibrated:
-        return None
-
-    return {
-        "rubric_color": existing.rubric_color,
-        "charge_value": existing.charge_value,
-        "contaminated": existing.contaminated or False,
-        "contamination_note": existing.contamination_note,
-        "charge_summary": existing.charge_summary,
-        "confidence": 1.0,  # human-reviewed
-    }
 
 
 def _store_classification(title: str, artist: str, chart_position: int,
@@ -140,7 +110,7 @@ def run_compass_agent(
         chart_source = song_in.get("chart_source", "spotify")
 
         # Check cache first
-        cached = _lookup_cached(title, artist, db)
+        cached = lookup_calibrated(title, artist, db)
         if cached:
             # Enforce red/orange contamination rule on cached data too
             if cached["rubric_color"] in ("red", "orange"):

@@ -27,7 +27,7 @@ from app.services.agents.classifier import classify_song
 from app.services.agents.email_notifier import send_draft_email
 from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
-from app.services.charge_calc import degree_to_charge
+from app.services.charge_calc import degree_to_charge, degree_to_score_display
 from app.services.contamination import count_contaminated
 from app.constants import COLOR_LABELS, COLOR_HEX
 
@@ -51,16 +51,11 @@ def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:
     return draft
 
 
-def _degree_to_score(degree: float) -> str:
-    score = round((90 - degree) * 100 / 90)
-    return f"{'+' if score > 0 else ''}{score}"
-
-
 def _build_approval_html(draft) -> str:
     """Build a styled HTML confirmation page after approving a draft."""
     charge_color = COLOR_HEX.get(draft.charge_level, "#999")
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
-    score = _degree_to_score(draft.compass_degree)
+    score = degree_to_score_display(draft.compass_degree)
     song_count = len(draft.songs) if draft.songs else 0
 
     return f"""<!DOCTYPE html>
@@ -176,7 +171,6 @@ def classify_live(db: Session = Depends(get_db)):
         else:
             draft.agent_notes = pin_msg
         # Append to warnings
-        import json
         existing_warnings = json.loads(draft.agent_warnings) if draft.agent_warnings else []
         existing_warnings.append(pin_msg)
         draft.agent_warnings = json.dumps(existing_warnings)
@@ -234,7 +228,7 @@ def approve_draft_confirm_page(draft_ref: str, token: str = Query(...), db: Sess
 
     charge_color = COLOR_HEX.get(draft.charge_level, "#999")
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
-    score = _degree_to_score(draft.compass_degree)
+    score = degree_to_score_display(draft.compass_degree)
 
     return f"""<!DOCTYPE html>
 <html><head>
@@ -357,8 +351,6 @@ def reject_draft(draft_ref: str, db: Session = Depends(get_db)):
 @router.post("/drafts/{draft_ref}/resend-email", dependencies=[Depends(verify_admin_key)])
 def resend_draft_email(draft_ref: str, db: Session = Depends(get_db)):
     """Resend the notification email for an existing draft."""
-    from app.config import settings
-
     draft = _resolve_draft(draft_ref, db)
 
     sent = send_draft_email(draft, draft.songs, settings, db=db)

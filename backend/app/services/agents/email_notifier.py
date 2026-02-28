@@ -1,19 +1,15 @@
 """Resend API email sender for draft notifications."""
 
 import logging
+from typing import Optional
 
 import httpx
 
 from app.config import Settings
 from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG
+from app.services.charge_calc import degree_to_score_display
 
 logger = logging.getLogger(__name__)
-
-
-def _degree_to_score(degree: float) -> str:
-    """Convert internal degree to display score (+100 to -100)."""
-    score = round((90 - degree) * 100 / 90)
-    return f"{'+' if score > 0 else ''}{score}"
 
 
 def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
@@ -68,7 +64,7 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
         return False
 
 
-def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set = None) -> str:
+def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: Optional[set] = None) -> str:
     """Build the HTML email body — white background, Rising Compass brand."""
     if uncalibrated_titles is None:
         uncalibrated_titles = set()
@@ -141,7 +137,7 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: set =
                 <tr>
                     <td style="padding:0 16px 0 0;">
                         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#999;margin-bottom:4px;">Charge</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:{charge_color};">{_degree_to_score(draft.compass_degree)}</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:{charge_color};">{degree_to_score_display(draft.compass_degree)}</div>
                     </td>
                     <td style="padding:0 16px;">
                         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#999;margin-bottom:4px;">Charge</div>

@@ -49,6 +49,7 @@ def fetch_top_songs(count: int = 20, _retries: int = 3) -> list[dict]:
     Retries up to _retries times if fewer than count songs are found.
     Returns list of dicts with title, artist, position, chart_source.
     """
+    songs = []
     for attempt in range(1, _retries + 1):
         try:
             with sync_playwright() as p:
@@ -79,5 +80,5 @@ def fetch_top_songs(count: int = 20, _retries: int = 3) -> list[dict]:
         except Exception:
             logger.exception("Attempt %d/%d: failed to fetch Spotify playlist", attempt, _retries)
 
-    logger.error("All %d attempts failed to fetch %d songs (last got %d)", _retries, count, len(songs) if 'songs' in dir() else 0)
-    return songs if 'songs' in dir() else []
+    logger.error("All %d attempts failed to fetch %d songs (last got %d)", _retries, count, len(songs))
+    return songs

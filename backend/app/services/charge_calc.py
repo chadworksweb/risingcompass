@@ -1,4 +1,4 @@
-"""Map compass degree to charge level tier."""
+"""Compass degree conversion utilities — charge level and score."""
 
 CHARGE_TIERS = [
     (22.5, "violet", "Ascended"),
@@ -15,3 +15,14 @@ def degree_to_charge(degree: float) -> str:
         if degree <= threshold:
             return color
     return "red"
+
+
+def degree_to_score(degree: float) -> int:
+    """Convert compass degree (0-180) to charge score (+100 to -100)."""
+    return round((90 - degree) * 100 / 90)
+
+
+def degree_to_score_display(degree: float) -> str:
+    """Convert compass degree to display string with +/- prefix."""
+    score = degree_to_score(degree)
+    return f"{'+' if score > 0 else ''}{score}"

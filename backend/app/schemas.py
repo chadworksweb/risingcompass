@@ -1,13 +1,10 @@
 import json
+from typing import Optional
 
 from pydantic import BaseModel, Field, computed_field
-from typing import List, Optional
 import datetime
 
-
-def _degree_to_score(degree: float) -> int:
-    """Convert compass degree (0-180) to charge score (+100 to -100)."""
-    return round((90 - degree) * 100 / 90)
+from app.services.charge_calc import degree_to_score as _degree_to_score
 
 
 # --- Songs ---
@@ -23,7 +20,6 @@ class CompassSongOut(BaseModel):
     contaminated: bool
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    why_classification: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -64,7 +60,7 @@ class DailyReadingOut(BaseModel):
     charge_level: str
     contamination_count: int
     editorial_summary: Optional[str] = None
-    songs: List[ReadingSongOut] = []
+    songs: list[ReadingSongOut] = []
 
     @computed_field
     @property
@@ -93,12 +89,12 @@ class DailyReadingSummary(BaseModel):
 class ReadingCreate(BaseModel):
     date: datetime.date
     editorial_summary: Optional[str] = None
-    songs: List[ReadingSongIn]
+    songs: list[ReadingSongIn]
 
 
 class ReadingUpdate(BaseModel):
     editorial_summary: Optional[str] = None
-    songs: Optional[List[ReadingSongIn]] = None
+    songs: Optional[list[ReadingSongIn]] = None
 
 
 # --- Weekly Album Readings ---
@@ -134,7 +130,7 @@ class WeeklyAlbumReadingOut(BaseModel):
     charge_level: str
     contamination_count: int
     editorial_summary: Optional[str] = None
-    albums: List[WeeklyAlbumEntryOut] = []
+    albums: list[WeeklyAlbumEntryOut] = []
 
     model_config = {"from_attributes": True}
 
@@ -153,12 +149,12 @@ class WeeklyAlbumReadingSummary(BaseModel):
 class WeeklyAlbumReadingCreate(BaseModel):
     week_date: datetime.date
     editorial_summary: Optional[str] = None
-    albums: List[WeeklyAlbumEntryIn]
+    albums: list[WeeklyAlbumEntryIn]
 
 
 class WeeklyAlbumReadingUpdate(BaseModel):
     editorial_summary: Optional[str] = None
-    albums: Optional[List[WeeklyAlbumEntryIn]] = None
+    albums: Optional[list[WeeklyAlbumEntryIn]] = None
 
 
 # --- Compass Current ---
@@ -169,7 +165,7 @@ class CompassCurrent(BaseModel):
     charge_level: str
     contamination_count: int
     editorial_summary: Optional[str] = None
-    songs: List[ReadingSongOut] = []
+    songs: list[ReadingSongOut] = []
     historical_degree: float
     historical_charge: str
     # Weekly album reading (if any)
@@ -179,7 +175,7 @@ class CompassCurrent(BaseModel):
     album_charge_level: Optional[str] = None
     album_contamination_count: int = 0
     album_editorial_summary: Optional[str] = None
-    album_entries: List[WeeklyAlbumEntryOut] = []
+    album_entries: list[WeeklyAlbumEntryOut] = []
 
     @computed_field
     @property
@@ -246,7 +242,7 @@ class AlbumOut(BaseModel):
     release_year: Optional[int] = None
     overall_color: Optional[str] = None
     summary: Optional[str] = None
-    tracks: List[AlbumTrackOut] = []
+    tracks: list[AlbumTrackOut] = []
 
     model_config = {"from_attributes": True}
 
@@ -264,14 +260,14 @@ class AlbumSummary(BaseModel):
 
 # --- Paginated ---
 class PaginatedReadings(BaseModel):
-    items: List[DailyReadingSummary]
+    items: list[DailyReadingSummary]
     total: int
     page: int
     pages: int
 
 
 class PaginatedWeeklyAlbumReadings(BaseModel):
-    items: List[WeeklyAlbumReadingSummary]
+    items: list[WeeklyAlbumReadingSummary]
     total: int
     page: int
     pages: int
@@ -363,7 +359,7 @@ class LibraryCollectionOut(BaseModel):
     name: str
     slug: str
     description: Optional[str] = None
-    items: List[LibraryItemOut] = []
+    items: list[LibraryItemOut] = []
 
 
 # --- Library Songs (non-chart archive) ---
@@ -454,7 +450,7 @@ class DraftOut(BaseModel):
     agent_model: Optional[str] = None
     agent_notes: Optional[str] = None
     agent_warnings: Optional[str] = None
-    songs: List[DraftSongOut] = []
+    songs: list[DraftSongOut] = []
 
     @computed_field
     @property
@@ -465,7 +461,7 @@ class DraftOut(BaseModel):
 
     @computed_field
     @property
-    def warnings(self) -> List[str]:
+    def warnings(self) -> list[str]:
         if not self.agent_warnings:
             return []
         try:
@@ -507,7 +503,7 @@ class DraftTriggerSongIn(BaseModel):
 
 
 class DraftTriggerIn(BaseModel):
-    songs: List[DraftTriggerSongIn]
+    songs: list[DraftTriggerSongIn]
     date: Optional[datetime.date] = None
     draft_only: bool = False  # True = case study mode, skip compass_songs table
 
@@ -522,11 +518,11 @@ class DraftSongUpdate(BaseModel):
 
 class DraftUpdate(BaseModel):
     editorial_summary: Optional[str] = None
-    songs: Optional[List[DraftSongUpdate]] = None
+    songs: Optional[list[DraftSongUpdate]] = None
 
 
 class PaginatedDrafts(BaseModel):
-    items: List[DraftSummary]
+    items: list[DraftSummary]
     total: int
     page: int
     pages: int
@@ -612,7 +608,7 @@ class BackfillResult(BaseModel):
     total_songs: int
     reclassified: int
     skipped_calibrated: int
-    songs: List[BackfillSongOut]
+    songs: list[BackfillSongOut]
 
 
 # --- Calibration ---
@@ -625,11 +621,11 @@ class CalibrateSongIn(BaseModel):
     contamination_note: Optional[str] = None
 
 class CalibrateRequest(BaseModel):
-    songs: List[CalibrateSongIn]
+    songs: list[CalibrateSongIn]
 
 class CalibrateResult(BaseModel):
     calibrated: int
-    songs: List[CompassSongOut]
+    songs: list[CompassSongOut]
 
 
 # --- Music Frequency Analyzer ---
@@ -661,9 +657,6 @@ class AnalyzerSongResult(BaseModel):
     contaminated: bool = False
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
-    message: Optional[str] = None  # M/E/I
-    expression: Optional[str] = None
-    intention: Optional[str] = None
     confidence: float = 0.0
     lyrics_found: bool = False
 

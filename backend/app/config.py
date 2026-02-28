@@ -1,7 +1,7 @@
+import json
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
-from typing import List
-import json
 
 
 class Settings(BaseSettings):
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         return self
 
     @property
-    def cors_origin_list(self) -> List[str]:
+    def cors_origin_list(self) -> list[str]:
         return json.loads(self.cors_origins)
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
