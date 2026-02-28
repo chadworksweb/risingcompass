@@ -27,6 +27,7 @@ services:
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend:/var/www/frontend:ro
+      - /root/chadrising:/var/www/chadrising:ro
       - certbot-webroot:/var/www/certbot:ro
       - certbot-certs:/etc/letsencrypt:ro
     depends_on:
