@@ -13,7 +13,6 @@ from app.models import AgentDraft, AgentDraftSong, CompassSong
 from app.services.agents.classifier import classify_song, lookup_calibrated, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
-from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
@@ -130,8 +129,8 @@ def run_compass_agent(
             })
             continue
 
-        # Cache miss — use manual lyrics if provided, otherwise fetch
-        lyrics = song_in.get("lyrics") or fetch_lyrics(title, artist)
+        # Cache miss — use manual lyrics if provided
+        lyrics = song_in.get("lyrics")
 
         if not lyrics:
             # No lyrics from any source — include song unclassified, needs human intervention

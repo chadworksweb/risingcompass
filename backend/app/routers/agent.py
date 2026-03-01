@@ -1,5 +1,6 @@
 """Admin endpoints for the Compass Agent — trigger, list, view, approve, reject, edit drafts."""
 
+import json
 import logging
 import math
 from datetime import date
@@ -17,15 +18,15 @@ from app.schemas import (
     CalibrateRequest, CalibrateResult,
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
+    SupplyLyricsIn,
 )
 from app.auth import create_approval_token, verify_approval_token
 from app.config import settings
 from app.routers.admin import verify_admin_key
-from app.services.agents.compass_agent import run_compass_agent
+from app.services.agents.compass_agent import run_compass_agent, _store_classification
 from app.services.agents.chart_source import fetch_top_songs
 from app.services.agents.classifier import classify_song
 from app.services.agents.email_notifier import send_draft_email
-from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
 from app.services.contamination import count_contaminated
@@ -287,6 +288,15 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft cannot be approved in its current state")
 
+    # Block approval if any songs still need lyrics/classification
+    unclassified = [s for s in draft.songs if s.rubric_color is None]
+    if unclassified:
+        missing = [f"{s.title} by {s.artist}" for s in unclassified]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot approve: {len(missing)} song(s) still need lyrics: {', '.join(missing)}",
+        )
+
     # Check for existing reading on this date
     existing = db.query(DailyReading).filter(DailyReading.date == draft.date).first()
     if existing:
@@ -409,6 +419,74 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
     return draft
 
 
+@router.post("/drafts/{draft_ref}/songs/{song_id}/lyrics", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
+    """Supply lyrics for an unclassified song in a draft, triggering classification.
+
+    After classification, stores the result in CompassSong for future cache hits
+    and recalculates draft metrics if all songs are now classified.
+    """
+    draft = _resolve_draft(draft_ref, db)
+    if draft.status != "pending":
+        raise HTTPException(status_code=400, detail="Draft is not pending")
+
+    # Find the specific draft song
+    draft_song = next((s for s in draft.songs if s.id == song_id), None)
+    if not draft_song:
+        raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
+
+    # Classify with the supplied lyrics
+    result = classify_song(draft_song.title, draft_song.artist, lyrics=data.lyrics, db=db)
+
+    # Update the draft song
+    draft_song.rubric_color = result["rubric_color"]
+    draft_song.charge_value = result.get("charge_value")
+    draft_song.contaminated = result["contaminated"]
+    draft_song.contamination_note = result["contamination_note"]
+    draft_song.charge_summary = result["charge_summary"]
+    draft_song.confidence = result.get("confidence")
+    draft_song.lyrics_available = True
+
+    # Store in CompassSong table for future cache hits
+    _store_classification(
+        draft_song.title, draft_song.artist, draft_song.position,
+        draft_song.chart_source or "spotify", result, True, db,
+    )
+
+    # Recalculate draft metrics if all songs are now classified
+    all_classified = all(s.rubric_color is not None for s in draft.songs)
+    if all_classified:
+        song_dicts = [
+            {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
+            for s in draft.songs
+        ]
+        draft.compass_degree = compute_degree(song_dicts)
+        draft.charge_level = degree_to_charge(draft.compass_degree)
+        draft.contamination_count = count_contaminated(
+            [{"contaminated": s.contaminated} for s in draft.songs]
+        )
+
+        # Regenerate editorial now that all songs have data
+        from app.services.agents.compass_agent import _generate_editorial
+        classified_dicts = [
+            {
+                "title": s.title, "artist": s.artist, "position": s.position,
+                "rubric_color": s.rubric_color, "charge_value": s.charge_value,
+                "contaminated": s.contaminated, "contamination_note": s.contamination_note,
+                "charge_summary": s.charge_summary, "confidence": s.confidence,
+                "lyrics_available": s.lyrics_available, "chart_source": s.chart_source,
+            }
+            for s in draft.songs
+        ]
+        editorial = _generate_editorial(classified_dicts)
+        if editorial:
+            draft.editorial_summary = editorial
+
+    db.commit()
+    db.refresh(draft)
+    return draft
+
+
 @router.post("/songs", response_model=CompassSongOut, dependencies=[Depends(verify_admin_key)])
 def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
     """Manually feed a song classification into the CompassSong table.
@@ -447,16 +525,15 @@ def backfill_year(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
-    """Reclassify uncalibrated songs for a given year using the 5-tier rubric.
+    """List uncalibrated songs for a given year that need lyrics + reclassification.
 
-    Only processes songs that are NOT calibrated. Fetches lyrics and runs
-    the full classification pipeline. Updates the CompassSong table in place.
+    No longer auto-fetches lyrics. Returns the list so the user can supply
+    lyrics via the supply-lyrics endpoint or the calibrate endpoint.
 
     Args:
         year: The year to backfill (e.g. 1965).
-        limit: Max songs to process per call (default 10, max 50).
+        limit: Max songs to return per call (default 10, max 50).
     """
-    # Get uncalibrated songs for this year
     uncalibrated = (
         db.query(CompassSong)
         .filter(CompassSong.year == year)
@@ -476,41 +553,24 @@ def backfill_year(
 
     results = []
     for song in uncalibrated:
-        # Fetch lyrics
-        lyrics = fetch_lyrics(song.title, song.artist)
-        lyrics_available = lyrics is not None
-
-        # Classify fresh — skip cache but use db for few-shot examples
-        result = classify_song(song.title, song.artist, lyrics=lyrics, db=db, target_year=year, skip_cache=True)
-
-        # Update song in place
-        song.rubric_color = result["rubric_color"]
-        song.charge_value = result.get("charge_value")
-        song.contaminated = result["contaminated"]
-        song.contamination_note = result.get("contamination_note")
-        song.charge_summary = result.get("charge_summary")
-        # Do NOT mark calibrated — human must review first
-
         results.append(BackfillSongOut(
             id=song.id,
             title=song.title,
             artist=song.artist,
             year=song.year,
-            rubric_color=result["rubric_color"],
-            charge_value=result.get("charge_value"),
-            contaminated=result["contaminated"],
-            contamination_note=result.get("contamination_note"),
-            charge_summary=result.get("charge_summary"),
-            confidence=result.get("confidence"),
-            lyrics_available=lyrics_available,
+            rubric_color=song.rubric_color or "unknown",
+            charge_value=song.charge_value,
+            contaminated=song.contaminated or False,
+            contamination_note=song.contamination_note,
+            charge_summary=song.charge_summary,
+            confidence=None,
+            lyrics_available=False,
         ))
-
-    db.commit()
 
     return BackfillResult(
         year=year,
         total_songs=total_for_year,
-        reclassified=len(results),
+        reclassified=0,
         skipped_calibrated=calibrated_count,
         songs=results,
     )

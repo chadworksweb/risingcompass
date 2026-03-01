@@ -37,7 +37,10 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
                 uncalibrated_titles.add(s.title.lower())
 
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
+    needs_lyrics = [s for s in songs if s.rubric_color is None]
     subject = f"Rising Compass Draft — {draft.date} — {charge_label}"
+    if needs_lyrics:
+        subject += f" ({len(needs_lyrics)} song{'s' if len(needs_lyrics) != 1 else ''} need lyrics)"
 
     html = _build_html(draft, songs, config, uncalibrated_titles=uncalibrated_titles)
 
@@ -79,12 +82,32 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: Optio
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
     charge_bg = COLOR_BG.get(draft.charge_level, "#f5f5f5")
 
+    # Build needs-lyrics callout
+    needs_lyrics_songs = [s for s in songs if s.rubric_color is None]
+    needs_lyrics_section = ""
+    if needs_lyrics_songs:
+        nl_items = "".join(
+            f'<li style="padding:4px 0;font-size:14px;color:#1a1a2e;">'
+            f'<strong>{s.title}</strong> — {s.artist} '
+            f'<span style="color:#999;font-size:12px;">(#{s.position})</span></li>'
+            for s in needs_lyrics_songs
+        )
+        needs_lyrics_section = f"""
+        <div style="padding:16px 28px;border-bottom:1px solid #eee;">
+            <div style="background:#fff5e0;border:1px solid #ffe0a0;border-radius:6px;padding:16px 20px;">
+                <div style="font-size:13px;font-weight:700;color:#cc7700;margin-bottom:8px;">\u26A0 {len(needs_lyrics_songs)} song{'s' if len(needs_lyrics_songs) != 1 else ''} need lyrics before approval</div>
+                <ul style="margin:0;padding:0 0 0 18px;">{nl_items}</ul>
+                <div style="font-size:12px;color:#999;margin-top:10px;">Supply lyrics via POST /drafts/{draft_ref}/songs/&lt;id&gt;/lyrics</div>
+            </div>
+        </div>"""
+
     # Build song rows
     song_rows = ""
     for s in songs:
-        color = COLOR_HEX.get(s.rubric_color, "#999")
-        label = COLOR_LABELS.get(s.rubric_color, s.rubric_color or "?")
-        bg = COLOR_BG.get(s.rubric_color, "#f5f5f5")
+        is_needs_lyrics = s.rubric_color is None
+        color = "#cc7700" if is_needs_lyrics else COLOR_HEX.get(s.rubric_color, "#999")
+        label = "NEEDS LYRICS" if is_needs_lyrics else COLOR_LABELS.get(s.rubric_color, s.rubric_color or "?")
+        bg = "#fff5e0" if is_needs_lyrics else COLOR_BG.get(s.rubric_color, "#f5f5f5")
         contam_badge = (
             '<span style="display:inline-block;background:#ffe8e8;color:#ff3333;'
             'font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px;">'
@@ -156,6 +179,8 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: Optio
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#999;margin-bottom:6px;">Editorial</div>
             <div style="font-size:15px;line-height:1.5;color:#1a1a2e;font-style:italic;">{draft.editorial_summary or 'No editorial generated.'}</div>
         </div>
+
+        {needs_lyrics_section}
 
         <!-- Songs table -->
         <div style="padding:20px 28px;">

@@ -494,6 +494,10 @@ class DraftSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SupplyLyricsIn(BaseModel):
+    lyrics: str = Field(..., min_length=50)
+
+
 class DraftTriggerSongIn(BaseModel):
     title: str = Field(..., max_length=300)
     artist: str = Field(..., max_length=300)
