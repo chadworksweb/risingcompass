@@ -52,6 +52,25 @@ def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:
     return draft
 
 
+def _cleanup_day_drafts(reading_date, db: Session) -> int:
+    """Delete all drafts and their songs for a given date.
+
+    Called after a draft is approved and its data has been written to
+    daily_readings + reading_songs + compass_songs. Drafts are transient
+    and should not persist after their data is in use.
+    """
+    drafts = db.query(AgentDraft).filter(AgentDraft.date == reading_date).all()
+    count = 0
+    for draft in drafts:
+        db.query(AgentDraftSong).filter(AgentDraftSong.draft_id == draft.id).delete()
+        db.delete(draft)
+        count += 1
+    if count:
+        db.commit()
+        logger.info("Cleaned up %d draft(s) for %s", count, reading_date)
+    return count
+
+
 def _build_approval_html(draft) -> str:
     """Build a styled HTML confirmation page after approving a draft."""
     charge_color = COLOR_HEX.get(draft.charge_level, "#999")
@@ -342,7 +361,14 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     draft.status = "approved"
     db.commit()
     db.refresh(draft)
-    return draft
+
+    # Snapshot response before cleanup deletes the draft
+    response = DraftOut.model_validate(draft)
+
+    # Cleanup: delete all drafts for this date and their songs
+    _cleanup_day_drafts(draft.date, db)
+
+    return response
 
 
 @router.post("/drafts/{draft_ref}/reject", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
