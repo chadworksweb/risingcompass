@@ -84,22 +84,33 @@ def classify_song(
 
     response = client.messages.create(
         model=AGENT_MODEL,
-        max_tokens=1024,
+        max_tokens=2048,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )
 
     raw = response.content[0].text.strip()
 
+    # Split reasoning from JSON — reasoning comes first, JSON starts at first {
+    reasoning = ""
+    json_str = raw
+    brace_idx = raw.find("{")
+    if brace_idx > 0:
+        reasoning = raw[:brace_idx].strip()
+        json_str = raw[brace_idx:]
+
+    if reasoning:
+        logger.info("Agent reasoning for '%s' by %s:\n%s", title, artist, reasoning)
+
     # Strip markdown code fences if Claude wraps the JSON
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-        if raw.endswith("```"):
-            raw = raw[:-3]
-        raw = raw.strip()
+    if json_str.startswith("```"):
+        json_str = json_str.split("\n", 1)[1] if "\n" in json_str else json_str[3:]
+        if json_str.endswith("```"):
+            json_str = json_str[:-3]
+        json_str = json_str.strip()
 
     try:
-        result = json.loads(raw)
+        result = json.loads(json_str)
     except json.JSONDecodeError:
         logger.error("Failed to parse Claude response for %s by %s: %s", title, artist, raw)
         return _fallback_result(title, artist, raw)

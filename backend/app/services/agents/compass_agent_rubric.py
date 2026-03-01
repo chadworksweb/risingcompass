@@ -174,10 +174,23 @@ The charge_summary is the public-facing description of the song. It is NOT analy
 - Profanity censoring: f**k, s**t, c**t, b***h (first + last letter, asterisks). Ass/damn/hell uncensored.
 """
 
-CLASSIFICATION_FORMAT = """## Required Output Format
+CLASSIFICATION_FORMAT = """## Required Output
 
-Respond with ONLY a JSON object (no markdown, no code blocks, no extra text):
+FIRST, write your reasoning in this exact structure:
 
+STARTING POSITION: Decent (0)
+
+CASE FOR MOVING UP:
+[Cite specific lyrics that meet Elevated or Ascended tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Elevated tenet 4"). If none, write "No evidence."]
+
+CASE FOR MOVING DOWN:
+[Cite specific lyrics that meet Degraded or Corrupted tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Degraded tenet 1"). If none, write "No evidence."]
+
+VERDICT: [tier] ([charge_value]) because [1-sentence reason referencing the evidence above]
+
+THEN, output the JSON object on a new line starting with {
+
+JSON fields:
 {
     "rubric_color": "violet|blue|green|orange|red",
     "charge_value": integer from -100 to +100,
@@ -187,6 +200,8 @@ Respond with ONLY a JSON object (no markdown, no code blocks, no extra text):
 IMPORTANT: Never use the word "contaminated" or "contamination" in charge_summary. Contamination is tracked separately via its own field and icon.
     "confidence": 0.0-1.0
 }
+
+REMEMBER: If your reasoning above does not cite specific lyrics for moving away from Decent, the song IS Decent. Do not override your own analysis.
 
 ## charge_value: The Per-Song Charge
 
@@ -251,12 +266,12 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
                 .filter(CompassSong.charge_summary.isnot(None))
                 .filter(CompassSong.calibrated.is_(True))
                 .filter(CompassSong.decade == target_decade)
-                .limit(10)
+                .limit(5)
                 .all()
             )
             songs.extend(same_decade)
         # Fill remaining slots with earlier/same-era examples only during backfill
-        if len(songs) < 20:
+        if len(songs) < 5:
             query = (
                 db.query(CompassSong)
                 .filter(CompassSong.rubric_color == color)
@@ -268,7 +283,7 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
             if target_year and target_year < 2020:
                 max_decade = f"{(target_year // 10) * 10}s"
                 query = query.filter(CompassSong.decade <= max_decade)
-            other = query.limit(20 - len(songs)).all()
+            other = query.limit(5 - len(songs)).all()
             # Avoid duplicates from same-decade query
             seen = {(s.title, s.artist) for s in songs}
             songs.extend(s for s in other if (s.title, s.artist) not in seen)
@@ -290,7 +305,7 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
         .filter(CompassSong.contaminated.is_(True))
         .filter(CompassSong.contamination_note.isnot(None))
         .filter(CompassSong.calibrated.is_(True))
-        .limit(5)
+        .limit(3)
         .all()
     )
     for song in contaminated:
@@ -311,7 +326,12 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
         return ""
 
     import json
-    lines = ["## Calibration Examples (from human-classified songs)", ""]
+    lines = [
+        "## Calibration Examples (from human-classified songs)",
+        "",
+        "These are human-calibrated reference points. Use them to calibrate your sense of where the tiers fall, NOT as templates to pattern-match against. Apply the tenets to the actual lyrics in front of you.",
+        "",
+    ]
     for ex in examples:
         lines.append(f"**{ex['title']}** by {ex['artist']}")
         cv = ex.get('charge_value')
