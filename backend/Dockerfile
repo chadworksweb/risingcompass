@@ -13,9 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Chromium browser
-RUN playwright install chromium
-
 COPY . .
 
 # Create data directory for SQLite
@@ -24,6 +21,9 @@ RUN mkdir -p data
 # Run as non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
+
+# Install Playwright Chromium browser (as appuser so browsers go to appuser's cache)
+RUN playwright install chromium
 
 EXPOSE 8000
 
