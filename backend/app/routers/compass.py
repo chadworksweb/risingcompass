@@ -27,6 +27,7 @@ def _song_out(rs: ReadingSong) -> ReadingSongOut:
         contamination_note=cs.contamination_note if cs else None,
         charge_summary=cs.charge_summary if cs else None,
         chart_source=rs.chart_source,
+        instrumental=cs.instrumental if cs else False,
     )
 
 

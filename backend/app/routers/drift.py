@@ -105,6 +105,7 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
                 "contaminated": cs.contaminated if cs else False,
                 "contamination_note": cs.contamination_note if cs else None,
                 "charge_summary": cs.charge_summary if cs else None,
+                "instrumental": cs.instrumental if cs else False,
                 "days_on_chart": 1,
                 "effective_weight": pw,
                 "position": rs.position,
@@ -148,20 +149,22 @@ def get_drift(db: Session = Depends(get_db)):
         if not chart_songs:
             continue
 
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in chart_songs]
+        # Exclude instrumentals from aggregate calculations
+        scored_songs = [s for s in chart_songs if not s.instrumental]
+        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in scored_songs]
         deg = compute_historical_degree(song_dicts)
-        contam = sum(1 for s in chart_songs if s.contaminated)
+        contam = sum(1 for s in scored_songs if s.contaminated)
 
-        # Count songs per color (charting songs only)
+        # Count songs per color (scored songs only — excludes instrumentals)
         color_counts = {}
-        for s in chart_songs:
+        for s in scored_songs:
             color_counts[s.rubric_color] = color_counts.get(s.rubric_color, 0) + 1
 
         results.append(DecadeAggregate(
             decade=decade,
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
-            chart_song_count=len(chart_songs),
+            chart_song_count=len(scored_songs),
             total_song_count=len(all_songs),
             contamination_count=contam,
             color_counts=color_counts,
@@ -198,6 +201,7 @@ def get_year_songs(
                     "contaminated": s["contaminated"],
                     "contamination_note": s["contamination_note"],
                     "charge_summary": s["charge_summary"],
+                    "instrumental": s.get("instrumental", False),
                     "position": s["position"],
                     "days_on_chart": s["days_on_chart"],
                 }
@@ -232,6 +236,7 @@ def get_year_songs(
                     "charge_summary": s.charge_summary,
                     "position": s.chart_position,
                     "days_on_chart": 1,
+                    "instrumental": s.instrumental or False,
                 }
                 for s in songs
             ],
@@ -267,14 +272,16 @@ def get_drift_years(db: Session = Depends(get_db)):
         if not chart_songs:
             continue
 
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in chart_songs]
+        # Exclude instrumentals from aggregate calculations
+        scored_songs = [s for s in chart_songs if not s.instrumental]
+        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in scored_songs]
         deg = compute_historical_degree(song_dicts)
 
         results.append(YearAggregate(
             year=year,
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
-            chart_song_count=len(chart_songs),
+            chart_song_count=len(scored_songs),
             total_song_count=len(all_songs),
         ))
 

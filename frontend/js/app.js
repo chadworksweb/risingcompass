@@ -181,10 +181,11 @@ const App = (() => {
         lines += `<div class="mei-dispute"><a href="/misread-submission.html?${disputeParams.toString()}">Did we get it wrong?</a></div>`;
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
+      const instrClass = song.instrumental ? ' instrumental' : '';
       html += `
-        <li class="song-item${hasTooltip ? ' has-tooltip' : ''}">
+        <li class="song-item${hasTooltip ? ' has-tooltip' : ''}${instrClass}">
           <span class="song-pos">${song.position}</span>
-          <span class="song-dot ${song.rubric_color}"></span>
+          <span class="song-dot ${song.instrumental ? '' : song.rubric_color}"></span>
           <div class="song-info">
             <div class="song-title">${escapeHtml(song.title)}</div>
             <div class="song-artist">${escapeHtml(song.artist)}</div>
@@ -198,6 +199,12 @@ const App = (() => {
       `;
     });
     html += '</ul>';
+
+    // Instrumental disclosure
+    const instrCount = sortedSongs.filter(s => s.instrumental).length;
+    if (instrCount > 0) {
+      html += `<div class="instrumental-note">${instrCount} instrumental${instrCount > 1 ? 's' : ''} — does not contribute to the compass reading.</div>`;
+    }
 
     crossfade(container, html, () => {
       initSongTooltips(container);
@@ -2114,14 +2121,15 @@ const App = (() => {
       const isLive = year > 2025;
       const contamCount = songs.filter(s => s.contaminated).length;
 
-      // Tier breakdown bar
+      // Tier breakdown bar (exclude instrumentals)
+      const scoredSongs = songs.filter(s => !s.instrumental);
       const colorCounts = {};
-      songs.forEach(s => { colorCounts[s.rubric_color] = (colorCounts[s.rubric_color] || 0) + 1; });
+      scoredSongs.forEach(s => { colorCounts[s.rubric_color] = (colorCounts[s.rubric_color] || 0) + 1; });
       let barHtml = '';
       ['violet', 'blue', 'green', 'orange', 'red'].forEach(color => {
         const count = colorCounts[color] || 0;
         if (count === 0) return;
-        const pct = (count / songs.length) * 100;
+        const pct = (count / scoredSongs.length) * 100;
         barHtml += `<div class="decade-seg" style="width:${pct.toFixed(1)}%;background:${COLOR_HEX[color]}" title="${count} ${CHARGE_LABELS[color]}"></div>`;
       });
 
@@ -2131,13 +2139,16 @@ const App = (() => {
       tableHtml += '<th>Charge</th>';
       tableHtml += '</tr></thead><tbody>';
 
+      const instrCount = songs.filter(s => s.instrumental).length;
+
       songs.forEach((s, i) => {
         const pos = s.position || (i + 1);
-        const cv = s.charge_value != null ? (s.charge_value > 0 ? '+' + s.charge_value : s.charge_value) : '';
-        tableHtml += `<tr>
+        const cv = s.instrumental ? '' : (s.charge_value != null ? (s.charge_value > 0 ? '+' + s.charge_value : s.charge_value) : '');
+        const instrCls = s.instrumental ? ' class="instrumental"' : '';
+        tableHtml += `<tr${instrCls}>
           <td class="yo-pos">${pos}</td>
-          <td><span class="song-dot ${s.rubric_color}"></span></td>
-          <td class="yo-title">${escapeHtml(s.title)}</td>
+          <td><span class="song-dot ${s.instrumental ? '' : s.rubric_color}"></span></td>
+          <td class="yo-title">${escapeHtml(s.title)}${s.instrumental ? ' <em class="instr-tag">(instrumental)</em>' : ''}</td>
           <td class="yo-artist">${escapeHtml(s.artist)}</td>
           ${isLive ? `<td class="yo-days">${s.days_on_chart}</td>` : ''}
           <td class="yo-charge">${cv}</td>
@@ -2145,11 +2156,14 @@ const App = (() => {
       });
       tableHtml += '</tbody></table>';
 
+      const instrNote = instrCount > 0 ? `<div class="instrumental-note">${instrCount} instrumental${instrCount > 1 ? 's' : ''} — does not contribute to the compass reading.</div>` : '';
+
       const body = overlay.querySelector('.year-overlay-body');
       body.innerHTML = `
-        <div class="year-overlay-meta">${songs.length} songs${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</div>
+        <div class="year-overlay-meta">${scoredSongs.length} songs${instrCount ? ' + ' + instrCount + ' instrumental' + (instrCount > 1 ? 's' : '') : ''}${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</div>
         <div class="decade-bar" style="margin-bottom:1rem;">${barHtml}</div>
         ${tableHtml}
+        ${instrNote}
       `;
     } catch (err) {
       overlay.querySelector('.year-overlay-body').innerHTML = '<div class="error-msg">Failed to load songs.</div>';

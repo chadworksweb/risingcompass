@@ -23,6 +23,7 @@ class CompassSong(Base):
     why_classification = Column(Text)
     chart_source = Column(Text, default="billboard_hot_100")
     calibrated = Column(Boolean, default=False)
+    instrumental = Column(Boolean, default=False)
 
 
 class DailyReading(Base):

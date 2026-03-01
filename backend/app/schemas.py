@@ -20,6 +20,7 @@ class CompassSongOut(BaseModel):
     contaminated: bool
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
+    instrumental: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -36,6 +37,7 @@ class ReadingSongOut(BaseModel):
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
     chart_source: Optional[str] = None
+    instrumental: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -603,6 +605,7 @@ class BackfillSongOut(BaseModel):
     charge_summary: Optional[str] = None
     confidence: Optional[float] = None
     lyrics_available: bool = False
+    instrumental: bool = False
 
     model_config = {"from_attributes": True}
 

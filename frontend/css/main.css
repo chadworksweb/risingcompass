@@ -323,6 +323,23 @@ body {
 .song-dot.orange { background: var(--rc-orange); }
 .song-dot.red { background: var(--rc-red); box-shadow: var(--rc-glow-sm) var(--rc-red); }
 
+/* Instrumentals — greyed out, no compass contribution */
+.song-item.instrumental { opacity: 0.4; }
+.song-item.instrumental .song-dot { background: var(--rc-text-dim); box-shadow: none; }
+.song-item.instrumental .song-title::after {
+  content: ' (instrumental)';
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  font-style: italic;
+}
+.instrumental-note {
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  font-style: italic;
+  padding: 0.5rem 0 0;
+  text-align: center;
+}
+
 .song-info { flex: 1; min-width: 0; }
 
 .song-title {
@@ -2083,6 +2100,10 @@ td.yo-days {
   text-align: right;
   width: 3rem;
 }
+
+tr.instrumental td { opacity: 0.4; }
+tr.instrumental .song-dot { background: var(--rc-text-dim) !important; box-shadow: none !important; }
+.instr-tag { font-size: 0.7rem; color: var(--rc-text-dim); }
 
 td.yo-charge {
   font-family: var(--rc-font-mono);
