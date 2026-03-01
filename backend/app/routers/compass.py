@@ -44,13 +44,27 @@ def _reading_with_songs(reading: DailyReading) -> DailyReadingOut:
 
 
 def _historical_aggregate(db: Session) -> tuple[float, str]:
-    """Compute aggregate degree from charting songs only."""
+    """Compute aggregate degree from charting songs only.
+
+    Uses HISTORICAL_DEGREES for uncalibrated songs (old 3-tier "blue" = 65,
+    not the 5-tier center of 45) so the aggregate isn't artificially positive.
+    """
     from app.constants import CHART_SOURCES
+    HISTORICAL_DEGREES = {
+        "violet": 0.0,
+        "blue": 65.0,  # old 3-tier "not bad" ≈ upper Elevated, nearly Decent
+        "green": 90.0,
+        "orange": 135.0,
+        "red": 180.0,
+    }
     songs = db.query(CompassSong).filter(CompassSong.chart_source.in_(CHART_SOURCES)).all()
     if not songs:
         return 90.0, "green"
-    song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in songs]
-    deg = compute_degree(song_dicts)
+    song_dicts = [
+        {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "chart_position": s.chart_position}
+        for s in songs
+    ]
+    deg = compute_degree(song_dicts, color_degrees=HISTORICAL_DEGREES)
     return deg, degree_to_charge(deg)
 
 

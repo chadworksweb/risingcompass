@@ -25,7 +25,7 @@ def position_weight(position: int, total: int = 20) -> int:
     return max(1, total + 1 - position)
 
 
-def compute_degree(songs: list[dict]) -> float:
+def compute_degree(songs: list[dict], color_degrees: dict | None = None) -> float:
     """
     Compute weighted average compass degree from a list of songs.
 
@@ -35,11 +35,16 @@ def compute_degree(songs: list[dict]) -> float:
     Each song dict needs 'rubric_color' and 'position' (or 'chart_position').
     Optionally 'charge_value' for precise scoring.
 
+    Args:
+        color_degrees: Override color-to-degree mapping for the fallback.
+                       Use HISTORICAL_DEGREES when mixing old 3-tier data.
+
     Returns degree 0-180.
     """
     if not songs:
         return 90.0  # neutral if no data
 
+    fallback = color_degrees or COLOR_DEGREES
     total_weight = 0
     weighted_sum = 0.0
     total = len(songs)
@@ -54,7 +59,7 @@ def compute_degree(songs: list[dict]) -> float:
             deg = charge_to_degree(cv)
         else:
             color = song.get("rubric_color", "green")
-            deg = COLOR_DEGREES.get(color, 90.0)
+            deg = fallback.get(color, 90.0)
 
         weighted_sum += deg * w
         total_weight += w
