@@ -5,6 +5,7 @@ import logging
 from datetime import date
 
 from anthropic import Anthropic
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
