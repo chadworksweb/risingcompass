@@ -125,6 +125,9 @@ Examples of contamination:
 
 Contamination requires the presence of specific lyrical content that meets Degraded or Corrupted tenet criteria. A song that is simply not deep enough to be Elevated is NOT contaminated — it's just Decent.
 
+## Rules
+
+R1. Hyperbolic romantic language is not literal. "I'd die for you," "risk it all," "sacrifice my life," "swim across the sea" -- these are standard pop romance intensifiers, not evidence of identity erasure or self-abandonment. Unless the lyrics demonstrate ACTUAL loss of self, boundaries, or agency beyond standard devotion language, hyperbolic romance stays in Decent territory. Do not penalize a love song for speaking the way love songs speak.
 
 """
 
