@@ -1983,6 +1983,7 @@ const App = (() => {
     const hex = COLOR_HEX[tier] || '#888';
     const label = CHARGE_LABELS[tier] || tier;
     const contamCount = songs.filter(s => s.contaminated).length;
+    const yearInstrCount = songs.filter(s => s.instrumental).length;
     const isLive = year > 2025;
 
     let html = '';
@@ -1994,7 +1995,7 @@ const App = (() => {
           <div class="reading-charge-inner">
             <span class="reading-charge-score">${degreeToScore(degree)}</span>
             <span class="reading-charge-label">${label}</span>
-            <span class="reading-charge-meta">${total} songs${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</span>
+            <span class="reading-charge-meta">${total - yearInstrCount} songs${yearInstrCount ? ' + ' + yearInstrCount + ' instrumental' + (yearInstrCount > 1 ? 's' : '') : ''}${contamCount ? ' \u00B7 ' + contamCount + ' contaminated' : ''}</span>
           </div>
         </div>
         ${calendarToggleBtnHtml()}
@@ -2017,10 +2018,11 @@ const App = (() => {
         if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
+      const instrClass = song.instrumental ? ' instrumental' : '';
       html += `
-        <li class="song-item${hasTooltip ? ' has-tooltip' : ''}">
+        <li class="song-item${hasTooltip ? ' has-tooltip' : ''}${instrClass}">
           <span class="song-pos">${pos}</span>
-          <span class="song-dot ${song.rubric_color}"></span>
+          <span class="song-dot ${song.instrumental ? '' : song.rubric_color}"></span>
           <div class="song-info">
             <div class="song-title">${escapeHtml(song.title)}</div>
             <div class="song-artist">${escapeHtml(song.artist)}${isLive && song.days_on_chart > 1 ? ` <span class="song-days">${song.days_on_chart}d</span>` : ''}</div>
@@ -2034,6 +2036,12 @@ const App = (() => {
       `;
     });
     html += '</ul>';
+
+    // Instrumental disclosure
+    const instrCount = songs.filter(s => s.instrumental).length;
+    if (instrCount > 0) {
+      html += `<div class="instrumental-note">${instrCount} instrumental${instrCount > 1 ? 's' : ''} — does not contribute to the compass reading.</div>`;
+    }
 
     // Load More / View Full Year button
     if (loaded < total) {
