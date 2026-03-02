@@ -32,20 +32,14 @@ if [ "$BACKEND_CHANGED" = true ]; then
     ssh "$SERVER" "cd $REMOTE_DIR && docker compose up -d --build --no-deps backend"
     # Restart nginx to pick up new backend container IP
     echo "=== Restarting nginx (new backend IP) ==="
-    ssh "$SERVER" "cd $REMOTE_DIR && docker compose restart nginx"
+    ssh "$SERVER" "cd /root/proxy && docker compose restart nginx"
 fi
 
 if [ "$FRONTEND_CHANGED" = true ]; then
     # Frontend is volume-mounted — git pull already updated it.
-    # Only need nginx restart if nginx.conf changed.
-    if echo "$CHANGED" | grep -q "^deploy/nginx.conf"; then
-        echo ""
-        echo "=== Restarting nginx (config changed) ==="
-        ssh "$SERVER" "cd $REMOTE_DIR && docker compose restart nginx"
-    else
-        echo ""
-        echo "=== Frontend updated (volume-mounted, no restart needed) ==="
-    fi
+    # Nginx config now lives in /root/proxy/nginx/conf.d/ (not in this repo).
+    echo ""
+    echo "=== Frontend updated (volume-mounted, no restart needed) ==="
 fi
 
 if [ "$BACKEND_CHANGED" = false ] && [ "$FRONTEND_CHANGED" = false ]; then
