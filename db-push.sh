@@ -9,7 +9,7 @@
 
 set -e
 
-SERVER="root@138.197.111.66"
+SERVER="deploy@138.197.111.66"
 LOCAL_DB="backend/data/rising_compass.db"
 
 # Tables that are SAFE to push (local is the source of truth)
@@ -96,7 +96,7 @@ case "$choice" in
         echo "Uploading full database..."
         scp "$LOCAL_DB" "$SERVER:/tmp/rising_compass.db"
         echo "Backing up production DB, then replacing..."
-        ssh "$SERVER" << 'FULLEOF'
+        ssh "$SERVER" "sudo bash -s" << 'FULLEOF'
 cd /root/rising-compass
 docker compose exec -T backend python -c "from app.services.backup import run_backup; p = run_backup(); print(f'Backup: {p}')"
 docker compose stop backend
@@ -135,7 +135,7 @@ echo "Uploading local database..."
 scp "$LOCAL_DB" "$SERVER:/tmp/rising_compass_local.db"
 
 echo "Backing up production DB, then merging tables..."
-ssh "$SERVER" << MERGEEOF
+ssh "$SERVER" "sudo bash -s" << MERGEEOF
 cd /root/rising-compass
 
 # Backup first

@@ -3,14 +3,14 @@
 # Usage: bash deploy.sh
 set -euo pipefail
 
-SERVER="root@138.197.111.66"
+SERVER="deploy@138.197.111.66"
 REMOTE_DIR="/root/rising-compass"
 
 echo "=== Pulling latest code ==="
-ssh "$SERVER" "cd $REMOTE_DIR && git pull origin master"
+ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git pull origin master'"
 
 # Detect what changed in the pull
-CHANGED=$(ssh "$SERVER" "cd $REMOTE_DIR && git diff --name-only HEAD~1 HEAD")
+CHANGED=$(ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git diff --name-only HEAD~1 HEAD'")
 
 BACKEND_CHANGED=false
 FRONTEND_CHANGED=false
@@ -29,10 +29,10 @@ echo "Frontend changed: $FRONTEND_CHANGED"
 if [ "$BACKEND_CHANGED" = true ]; then
     echo ""
     echo "=== Rebuilding backend ==="
-    ssh "$SERVER" "cd $REMOTE_DIR && docker compose up -d --build --no-deps backend"
+    ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && docker compose up -d --build --no-deps backend'"
     # Restart nginx to pick up new backend container IP
     echo "=== Restarting nginx (new backend IP) ==="
-    ssh "$SERVER" "cd /root/proxy && docker compose restart nginx"
+    ssh "$SERVER" "sudo bash -c 'cd /root/proxy && docker compose restart nginx'"
 fi
 
 if [ "$FRONTEND_CHANGED" = true ]; then
