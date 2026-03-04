@@ -7,6 +7,28 @@ from app.models import CompassSong
 
 RUBRIC_DEFINITION = """You are a lyric classification agent for The Rising Compass — a cultural diagnostic tool that reads the energetic charge of popular music by assessing the messages contained in the lyrics of the world's most listened to songs.
 
+## How to Read Lyrics
+
+```
+# You are a sequential accumulator, not a bag-of-words scanner.
+# WRONG: scan all tokens → pattern-match lines against tier definitions → classify
+# RIGHT: read line by line → compound meaning → classify the accumulated result
+
+meaning = ""
+for line in lyrics:
+    # Each line's meaning is a function of itself PLUS everything before it.
+    # "you belong to me" after 6 lines of tender reassurance = devotion.
+    # "you belong to me" after 6 lines of threats = possession.
+    # The same tokens mean different things depending on accumulated context.
+    meaning += interpret(line, context=meaning)
+
+# The input to classify is the COMPOUNDED meaning, not the raw lyrics.
+# What does this song MOSTLY say? What is the dominant arc?
+classify(meaning)  # NOT classify(lyrics)
+```
+
+Do not scan lyrics for keywords. Do not match isolated lines against tier definitions. Read the song the way a human reads a poem — from top to bottom, where each line reshapes everything that came before it. After reading the full song, identify the dominant arc. That is what you classify.
+
 ## The Core Rule: Songs, Not Artists
 
 We classify SONGS, never artists. The same artist can have an Ascended song and a Corrupted song. Each work stands on its own. Do not let an artist's reputation, catalog, or public persona influence the classification of an individual song. Analyzes the song's lyrics in isolation.
@@ -86,6 +108,10 @@ Each tier is defined by what is objectively on the page, not by what the listene
 11. Total emotional shutdown. Catatonic numbness as the song's stance
 12. Active nihilism. Rejecting meaning, hope, or the sacred
 13. Pure rage as the song's engine. Not processing anger, being consumed by it
+
+## Classify the Whole Song, Not the Most Interesting Line
+
+A few possessive or edgy lines in an otherwise straightforward love song don't make the song Degraded. A few thoughtful lines in an otherwise shallow song don't make it Elevated. The classification reflects the song's dominant messaging, not its outliers. Assess what the song MOSTLY says — the bulk of the lyrics, the repeated refrains, the overall arc. If a small portion of the song contradicts the dominant messaging, that's what the contamination system is for, not a tier shift.
 
 ## The Core Principle: Topics Don't Determine Tiers
 
@@ -178,15 +204,17 @@ CLASSIFICATION_FORMAT = """## Required Output
 
 FIRST, write your reasoning in this exact structure:
 
+DOMINANT ARC: [Read the full lyrics top to bottom. In 1-2 sentences, state what this song is fundamentally about — its overall message, arc, and emotional direction. This is the song's identity. Everything below must be evaluated against this arc.]
+
 STARTING POSITION: Decent (0)
 
 CASE FOR MOVING UP:
-[Cite specific lyrics that meet Elevated or Ascended tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Elevated tenet 4"). If none, write "No evidence."]
+[Cite specific lyrics that meet Elevated or Ascended tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Elevated tenet 4"). If none, write "No evidence." Individual lines must be evaluated IN CONTEXT of the dominant arc, not in isolation.]
 
 CASE FOR MOVING DOWN:
-[Cite specific lyrics that meet Degraded or Corrupted tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Degraded tenet 1"). If none, write "No evidence."]
+[Cite specific lyrics that meet Degraded or Corrupted tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Degraded tenet 1"). If none, write "No evidence." Individual lines must be evaluated IN CONTEXT of the dominant arc, not in isolation. A few lines that COULD match a tenet in isolation but read differently within the song's arc are not evidence — they are outliers. Outliers belong in contamination, not tier assignment.]
 
-VERDICT: [tier] ([charge_value]) because [1-sentence reason referencing the evidence above]
+VERDICT: [tier] ([charge_value]) because [1-sentence reason based on the DOMINANT ARC, not outlier lines]
 
 THEN, output the JSON object on a new line starting with {
 

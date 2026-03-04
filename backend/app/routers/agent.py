@@ -545,6 +545,88 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
     return song
 
 
+@router.post("/backfill/{year}/classify", response_model=BackfillResult, dependencies=[Depends(verify_admin_key)])
+def backfill_classify(
+    year: int,
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Auto-fetch lyrics and classify uncalibrated songs for a given year.
+
+    Backfill-only endpoint. Uses lyrics_source.fetch_lyrics() to grab lyrics,
+    then classifies via Claude. Songs remain calibrated=False for human review.
+    The daily pipeline is unaffected — this is a separate path.
+    """
+    from app.services.agents.lyrics_source import fetch_lyrics
+
+    uncalibrated = (
+        db.query(CompassSong)
+        .filter(CompassSong.year == year)
+        .filter(CompassSong.calibrated.is_(False))
+        .limit(limit)
+        .all()
+    )
+
+    results = []
+    classified_count = 0
+    failed_lyrics_count = 0
+
+    for song in uncalibrated:
+        lyrics = fetch_lyrics(song.title, song.artist)
+        if not lyrics:
+            failed_lyrics_count += 1
+            results.append(BackfillSongOut(
+                id=song.id,
+                title=song.title,
+                artist=song.artist,
+                year=song.year,
+                rubric_color=song.rubric_color or "unknown",
+                charge_value=song.charge_value,
+                contaminated=song.contaminated or False,
+                contamination_note=song.contamination_note,
+                charge_summary=song.charge_summary,
+                confidence=None,
+                lyrics_available=False,
+            ))
+            continue
+
+        result = classify_song(
+            song.title, song.artist,
+            lyrics=lyrics, db=db,
+            skip_cache=True, target_year=year,
+        )
+
+        _store_classification(
+            song.title, song.artist, song.chart_position or 0,
+            song.chart_source or "billboard", result, True, db,
+        )
+
+        classified_count += 1
+        results.append(BackfillSongOut(
+            id=song.id,
+            title=song.title,
+            artist=song.artist,
+            year=song.year,
+            rubric_color=result["rubric_color"],
+            charge_value=result.get("charge_value"),
+            contaminated=result["contaminated"],
+            contamination_note=result["contamination_note"],
+            charge_summary=result["charge_summary"],
+            confidence=result.get("confidence"),
+            lyrics_available=True,
+        ))
+
+    total_for_year = db.query(CompassSong).filter(CompassSong.year == year).count()
+
+    return BackfillResult(
+        year=year,
+        total_songs=total_for_year,
+        reclassified=classified_count,
+        skipped_calibrated=0,
+        songs=results,
+    )
+
+
 @router.post("/backfill/{year}", response_model=BackfillResult, dependencies=[Depends(verify_admin_key)])
 def backfill_year(
     year: int,

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # Anthropic API
     anthropic_api_key: str = ""
-    agent_model: str = "claude-sonnet-4-5-20250929"
+    agent_model: str = "claude-opus-4-6"
 
     # Genius API (lyrics)
     genius_access_token: str = ""
