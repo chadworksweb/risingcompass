@@ -197,6 +197,7 @@ The charge_summary is the public-facing description of the song. It is NOT analy
 - Be specific. Name the thing. "Contempt anthem" > "profanity"
 - If the song operates on two mechanisms, name both
 - 1 sentence preferred, 2 max
+- Never describe a song by what it LACKS. Say what the song IS, not what it isn't. "Without depth" or "without examining" is only relevant when defending a tier move — it has no place in a public-facing summary.
 - Profanity censoring: f**k, s**t, c**t, b***h (first + last letter, asterisks). Ass/damn/hell uncensored.
 """
 
