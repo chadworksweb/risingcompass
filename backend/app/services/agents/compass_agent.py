@@ -41,6 +41,10 @@ def _store_classification(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
                           db: Session) -> None:
     """Store or update a classification in the CompassSong table for future reuse."""
+    # Skip storing if classification failed (rubric_color is None)
+    if result.get("rubric_color") is None:
+        return
+
     existing = (
         db.query(CompassSong)
         .filter(func.lower(CompassSong.title) == title.lower())

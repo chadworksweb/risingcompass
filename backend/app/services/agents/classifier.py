@@ -105,9 +105,10 @@ def classify_song(
     # Strip markdown code fences if Claude wraps the JSON
     if json_str.startswith("```"):
         json_str = json_str.split("\n", 1)[1] if "\n" in json_str else json_str[3:]
-        if json_str.endswith("```"):
-            json_str = json_str[:-3]
-        json_str = json_str.strip()
+    # Also strip trailing ``` (may remain after splitting reasoning at first {)
+    if json_str.rstrip().endswith("```"):
+        json_str = json_str.rstrip()[:-3]
+    json_str = json_str.strip()
 
     try:
         result = json.loads(json_str)
