@@ -23,11 +23,11 @@ def _song_out(rs: ReadingSong) -> ReadingSongOut:
         position=rs.position,
         rubric_color=cs.rubric_color if cs else None,
         charge_value=cs.charge_value if cs else None,
-        contaminated=cs.contaminated if cs else False,
+        contaminated=bool(cs.contaminated) if cs else False,
         contamination_note=cs.contamination_note if cs else None,
         charge_summary=cs.charge_summary if cs else None,
         chart_source=rs.chart_source,
-        instrumental=cs.instrumental if cs else False,
+        instrumental=bool(cs.instrumental) if cs else False,
     )
 
 
