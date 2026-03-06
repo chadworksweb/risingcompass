@@ -29,7 +29,7 @@ from app.services.agents.classifier import classify_song
 from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
-from app.services.contamination import count_contaminated
+from app.services.contamination import count_contaminated, enforce_contamination_rule
 from app.constants import COLOR_LABELS, COLOR_HEX
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
@@ -424,10 +424,9 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
                 existing.contamination_note = update.contamination_note
             if update.charge_summary is not None:
                 existing.charge_summary = update.charge_summary
-            # Enforce: red/orange cannot be contaminated
-            if existing.rubric_color in ("red", "orange"):
-                existing.contaminated = False
-                existing.contamination_note = None
+            tmp = enforce_contamination_rule({"rubric_color": existing.rubric_color, "contaminated": existing.contaminated, "contamination_note": existing.contamination_note})
+            existing.contaminated = tmp["contaminated"]
+            existing.contamination_note = tmp["contamination_note"]
 
         # Recalculate compass metrics after edits (uses charge_value when available)
         song_dicts = [

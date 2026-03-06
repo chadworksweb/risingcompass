@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import CompassSong
+from app.services.contamination import enforce_contamination_rule
 from app.services.agents.compass_agent_rubric import (
     build_few_shot_examples,
     build_classification_prompt,
@@ -108,10 +109,8 @@ def classify_song(
     if reasoning:
         logger.info("Agent reasoning for '%s' by %s:\n%s", title, artist, reasoning)
 
-    # Strip markdown code fences if Claude wraps the JSON
-    if json_str.startswith("```"):
-        json_str = json_str.split("\n", 1)[1] if "\n" in json_str else json_str[3:]
-    # Also strip trailing ``` (may remain after splitting reasoning at first {)
+    # Strip trailing ``` if Claude wraps JSON in fences (opening fence is already
+    # before the first { and was stripped by the reasoning split above)
     if json_str.rstrip().endswith("```"):
         json_str = json_str.rstrip()[:-3]
     json_str = json_str.strip()
@@ -126,12 +125,9 @@ def classify_song(
     if result.get("rubric_color") not in VALID_COLORS:
         result["rubric_color"] = "green"
 
-    # Red and orange cannot be contaminated — they are inherently low-frequency
+    enforce_contamination_rule(result)
     color = result.get("rubric_color", "green")
     contaminated = bool(result.get("contaminated", False))
-    if color in ("red", "orange"):
-        contaminated = False
-        result["contamination_note"] = None
 
     # Validate and clamp charge_value to tier range
     charge_value = _validate_charge_value(result.get("charge_value"), color)

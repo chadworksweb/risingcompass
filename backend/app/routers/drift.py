@@ -9,7 +9,7 @@ from app.services.compass_calc import (
     compute_degree, position_weight, charge_to_degree, compute_live_year_degree,
 )
 from app.services.charge_calc import degree_to_charge
-from app.constants import CHART_SOURCES
+from app.constants import CHART_SOURCES, HISTORICAL_DEGREES
 
 router = APIRouter(prefix="/api/drift", tags=["drift"])
 
@@ -17,19 +17,6 @@ DECADE_ORDER = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"]
 
 # Cutoff: years <= this use CompassSong table, years > this use ReadingSong/DailyReading
 LIVE_YEAR_CUTOFF = 2025
-
-# Historical data uses a 3-color system (violet, blue, red).
-# "Blue" in the old system meant "not bad" — a catch-all for everything
-# that wasn't violet or red. In the 5-color system, many of those
-# songs would be green or orange. We adjust the blue mapping upward
-# to reflect this coarseness honestly.
-HISTORICAL_DEGREES = {
-    "violet": 0.0,
-    "blue": 65.0,  # old "not bad" ≈ upper Elevated, nearly Decent
-    "green": 90.0,
-    "orange": 135.0,
-    "red": 180.0,
-}
 
 
 def compute_historical_degree(songs: list[dict]) -> float:
@@ -141,11 +128,10 @@ def get_drift(db: Session = Depends(get_db)):
     results = []
 
     for decade in DECADE_ORDER:
-        all_songs = db.query(CompassSong).filter(CompassSong.decade == decade).all()
-        if not all_songs:
-            continue
-
-        chart_songs = [s for s in all_songs if s.chart_source in CHART_SOURCES]
+        chart_songs = db.query(CompassSong).filter(
+            CompassSong.decade == decade,
+            CompassSong.chart_source.in_(CHART_SOURCES),
+        ).all()
         if not chart_songs:
             continue
 
@@ -264,11 +250,10 @@ def get_drift_years(db: Session = Depends(get_db)):
     )
 
     for (year,) in years:
-        all_songs = db.query(CompassSong).filter(CompassSong.year == year).all()
-        if not all_songs:
-            continue
-
-        chart_songs = [s for s in all_songs if s.chart_source in CHART_SOURCES]
+        chart_songs = db.query(CompassSong).filter(
+            CompassSong.year == year,
+            CompassSong.chart_source.in_(CHART_SOURCES),
+        ).all()
         if not chart_songs:
             continue
 

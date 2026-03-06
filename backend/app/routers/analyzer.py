@@ -214,6 +214,8 @@ async def resolve_playlist(body: PlaylistResolveIn, request: Request):
             _spotify_token["access_token"] = None
             _spotify_token["expires_at"] = 0
             token = await _get_spotify_token()
+            if not token:
+                raise HTTPException(502, "Spotify authentication failed — check API credentials")
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     f"https://api.spotify.com/v1/playlists/{playlist_id}",

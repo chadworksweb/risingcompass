@@ -28,6 +28,16 @@ def verify_admin_key(x_admin_key: str = Header(...)):
         raise HTTPException(status_code=403, detail="Invalid admin key")
 
 
+def _find_compass_song(title: str, artist: str, db: Session) -> CompassSong | None:
+    """Case-insensitive lookup of the most recent CompassSong by title + artist."""
+    return (
+        db.query(CompassSong)
+        .filter(CompassSong.title.ilike(title), CompassSong.artist.ilike(artist))
+        .order_by(CompassSong.id.desc())
+        .first()
+    )
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     """Serve admin HTML form for entering daily readings."""
@@ -59,15 +69,7 @@ def create_reading(data: ReadingCreate, db: Session = Depends(get_db)):
     db.flush()
 
     for s in data.songs:
-        cs = (
-            db.query(CompassSong)
-            .filter(
-                CompassSong.title.ilike(s.title),
-                CompassSong.artist.ilike(s.artist),
-            )
-            .order_by(CompassSong.id.desc())
-            .first()
-        )
+        cs = _find_compass_song(s.title, s.artist, db)
         rs = ReadingSong(
             reading_id=reading.id,
             compass_song_id=cs.id if cs else None,
@@ -110,15 +112,7 @@ def update_reading(reading_date: str, data: ReadingUpdate, db: Session = Depends
         reading.contamination_count = count_contaminated(song_dicts)
 
         for s in data.songs:
-            cs = (
-                db.query(CompassSong)
-                .filter(
-                    CompassSong.title.ilike(s.title),
-                    CompassSong.artist.ilike(s.artist),
-                )
-                .order_by(CompassSong.id.desc())
-                .first()
-            )
+            cs = _find_compass_song(s.title, s.artist, db)
             rs = ReadingSong(
                 reading_id=reading.id,
                 compass_song_id=cs.id if cs else None,

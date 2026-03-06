@@ -157,32 +157,6 @@ R1. Hyperbolic romantic language is not literal. "I'd die for you," "risk it all
 
 """
 
-# COMMENTED OUT FOR TESTING — tenets-only experiment 2026-02-27
-# Uncomment if agent needs these guardrails back after testing.
-#
-# ## Classification Rules
-#
-# 1. A sad song is NOT automatically red or orange. A breakup song that processes grief honestly is blue. One that agitates contempt or revenge fantasies is orange or red.
-# 2. A party song is NOT automatically green. If it's pure fun with no harmful content, it's green. If it celebrates substance abuse or objectification, it's orange or red.
-# 3. A song about struggle is NOT automatically blue. If it processes the struggle with dignity, it's blue. If it wallows or glamorizes suffering, it's orange.
-# 4. Love songs range the full spectrum — see "Topics Don't Determine Tiers" above. The default assumption that "it's a love song so it must be good" is exactly the blind spot this rubric corrects.
-# 5. The pairing-off default — songs about romantic relationships, dating, attraction — is NOT automatically elevated. The whole cultural assumption that coupling = good is part of the problem. Unless a relationship song demonstrates growth, healing, or transcendence, it's decent at best.
-# 6. [DELETED — contradicts objective framework]
-# 7. "What doesn't kill me makes me want you more" — when a song acknowledges harm, red flags, or danger and leans INTO them rather than processing them, that is degraded or worse. This pattern — recognizing something is bad and craving it more — is not romance. It is glorified self-destruction. Do not mistake intensity for elevation.
-# 8. Rejecting your own innate knowing — when a song's narrator KNOWS something is wrong (gut feeling, friends warning them, clear red flags) and actively overrides that knowing to stay in the situation — that is corrupted, not degraded. It skips the line. Ignoring your inner compass is self-abuse.
-# 9. Progressive packaging does not automatically elevate. Social justice, identity politics, queer advocacy, or any noble-sounding cause does not grant a song a free pass. Judge what the lyrics CONTAIN, not what cause they represent. Ego, contempt, and "I told you so" wrapped in progressive language is still degraded.
-# 10. Longing is not elevation. A song that recognizes a pattern, names what's missing, and WANTS something better — but stops at the wanting — is decent, not elevated. Elevated requires actual processing, movement, or transformation. Awareness without motion is the ceiling of decent, not the floor of elevated.
-# 11. [FACE-VALUE RULE — TRAINING WHEELS] Evaluate ALL lyrics at face value and obvious metaphors — regardless of era. Do not project modern critical theory onto older songs. Do not retrofit modern pathology onto human warmth. But this rule applies equally forward: do not soften modern lyrics either. Read what the lyrics actually say, nothing more, nothing less.
-# 12. Repetition is a flag, not a verdict. If you strip away the repetition and the song's entire lyrical content fits in two sentences, that is a strong signal the tier ceiling is Decent regardless of how evocative the imagery is.
-#
-# ## Song Archetypes
-#
-# 13. Mood piece — atmosphere and emotional texture without processing or developing. Mood substitutes for meaning. Usually Decent.
-# 14. Crush song — attraction/infatuation where nothing has materialized. No growth, no lesson. Defaults to Decent.
-# 15. Love/relationship baseline — 1:1 romantic relationships default to Decent. Only move up if lyrics go beyond the relationship. Only move down if lyrics contain revenge, contempt, etc.
-# 16. Diss tracks — contempt for a specific target is Corrupted. Craft and context don't mitigate.
-# 17. [PROMOTED TO CORE — "Read Lyrics, Not Production" section]
-
 
 SUMMARY_VOICE_RULES = """
 ## charge_summary Voice

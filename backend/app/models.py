@@ -45,7 +45,7 @@ class ReadingSong(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     reading_id = Column(Integer, ForeignKey("daily_readings.id"), nullable=False)
-    compass_song_id = Column(Integer, ForeignKey("compass_songs.id"), nullable=True)
+    compass_song_id = Column(Integer, ForeignKey("compass_songs.id", ondelete="SET NULL"), nullable=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
     position = Column(Integer, nullable=False)

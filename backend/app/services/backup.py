@@ -49,9 +49,8 @@ def run_backup() -> Path | None:
 def _verify_backup(backup_path: Path) -> bool:
     """Verify a backup file is valid SQLite with expected tables."""
     try:
-        conn = sqlite3.connect(str(backup_path))
-        conn.execute("SELECT count(*) FROM compass_songs")
-        conn.close()
+        with sqlite3.connect(str(backup_path)) as conn:
+            conn.execute("SELECT count(*) FROM compass_songs")
         return True
     except Exception:
         return False

@@ -15,7 +15,7 @@ from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
-from app.services.contamination import count_contaminated
+from app.services.contamination import count_contaminated, enforce_contamination_rule
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +116,7 @@ def run_compass_agent(
         # Check cache first (calibrated or uncalibrated)
         cached = lookup_calibrated(title, artist, db, calibrated_only=False)
         if cached:
-            # Enforce red/orange contamination rule on cached data too
-            if cached["rubric_color"] in ("red", "orange"):
-                cached["contaminated"] = False
-                cached["contamination_note"] = None
+            enforce_contamination_rule(cached)
 
             logger.info("Cache hit: %s by %s", title, artist)
 

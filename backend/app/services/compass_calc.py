@@ -15,11 +15,6 @@ def charge_to_degree(charge_value: int) -> float:
     return round(90.0 - (charge_value * 0.9), 1)
 
 
-def degree_to_charge(degree: float) -> int:
-    """Convert internal degree (0-180) to charge_value (+100 to -100)."""
-    return round((90.0 - degree) * 100.0 / 90.0)
-
-
 def position_weight(position: int, total: int = 20) -> int:
     """Higher chart position = more weight. Position 1 → total, position N → 1."""
     return max(1, total + 1 - position)
@@ -37,7 +32,7 @@ def compute_degree(songs: list[dict], color_degrees: dict | None = None) -> floa
 
     Args:
         color_degrees: Override color-to-degree mapping for the fallback.
-                       Use HISTORICAL_DEGREES when mixing old 3-tier data.
+                       Use constants.HISTORICAL_DEGREES when mixing old 3-tier data.
 
     Returns degree 0-180.
     """

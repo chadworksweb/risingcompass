@@ -9,6 +9,7 @@ from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyR
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
+from app.constants import CHART_SOURCES, HISTORICAL_DEGREES
 
 router = APIRouter(prefix="/api/compass", tags=["compass"])
 
@@ -50,14 +51,6 @@ def _historical_aggregate(db: Session) -> tuple[float, str]:
     Uses HISTORICAL_DEGREES for uncalibrated songs (old 3-tier "blue" = 65,
     not the 5-tier center of 45) so the aggregate isn't artificially positive.
     """
-    from app.constants import CHART_SOURCES
-    HISTORICAL_DEGREES = {
-        "violet": 0.0,
-        "blue": 65.0,  # old 3-tier "not bad" ≈ upper Elevated, nearly Decent
-        "green": 90.0,
-        "orange": 135.0,
-        "red": 180.0,
-    }
     songs = db.query(CompassSong).filter(CompassSong.chart_source.in_(CHART_SOURCES)).all()
     if not songs:
         return 90.0, "green"

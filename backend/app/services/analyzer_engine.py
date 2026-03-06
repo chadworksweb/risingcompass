@@ -2,8 +2,6 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
-
 from anthropic import Anthropic
 from sqlalchemy.orm import Session
 
@@ -14,7 +12,6 @@ from app.services.agents.compass_agent_rubric import build_narrative_prompt
 from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
-from app.services.contamination import count_contaminated
 
 logger = logging.getLogger(__name__)
 

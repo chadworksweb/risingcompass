@@ -29,3 +29,14 @@ CHART_SOURCES = {
     "spotify_top50_usa",
     "spotify_global_daily",
 }
+
+# Degree mapping for uncalibrated (pre-5-tier) songs. Old 3-tier system had
+# no violet tier, so most songs were green or orange. Blue is mapped to 65
+# (upper Elevated, nearly Decent) to reflect that coarseness honestly.
+HISTORICAL_DEGREES = {
+    "violet": 0.0,
+    "blue": 65.0,
+    "green": 90.0,
+    "orange": 135.0,
+    "red": 180.0,
+}
