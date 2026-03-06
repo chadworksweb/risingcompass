@@ -61,7 +61,7 @@ async def run_analysis(session: dict, db: Session, on_event):
     lyrics_needed = []  # (index, title, artist) for songs that need lyrics
 
     for i, song in enumerate(songs_input):
-        cached = lookup_calibrated(song["title"], song["artist"], db)
+        cached = lookup_calibrated(song["title"], song["artist"], db, calibrated_only=False)
         if cached:
             cache_results[i] = cached
             logger.info("Analyzer cache hit: %s by %s", song["title"], song["artist"])

@@ -21,31 +21,37 @@ AGENT_MODEL = settings.agent_model
 VALID_COLORS = {"violet", "blue", "green", "orange", "red"}
 
 
-def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
-    """Look up a calibrated (human-reviewed) classification from the CompassSong table.
+def lookup_calibrated(title: str, artist: str, db: Session, calibrated_only: bool = True) -> dict | None:
+    """Look up an existing classification from the CompassSong table.
 
     Case-insensitive match on title + artist. Returns classification dict or None.
-    Used as cache hit in both daily pipeline and analyzer.
+
+    Args:
+        calibrated_only: If True (default), only return human-reviewed classifications.
+            Set False to also return uncalibrated (agent-classified) results — used by
+            the daily pipeline so returning chart songs reuse prior classifications
+            without requiring lyrics to be re-supplied.
     """
-    existing = (
+    query = (
         db.query(CompassSong)
         .filter(func.lower(CompassSong.title) == title.lower())
         .filter(func.lower(CompassSong.artist) == artist.lower())
-        .filter(CompassSong.calibrated == True)
-        .order_by(CompassSong.id.desc())
-        .first()
     )
+    if calibrated_only:
+        query = query.filter(CompassSong.calibrated == True)
+    existing = query.order_by(CompassSong.id.desc()).first()
     if not existing or not existing.rubric_color:
         return None
-    logger.info("Using calibrated classification for '%s' by %s: %s %s",
-                title, artist, existing.rubric_color, existing.charge_value)
+    cache_type = "calibrated" if existing.calibrated else "cached"
+    logger.info("Using %s classification for '%s' by %s: %s %s",
+                cache_type, title, artist, existing.rubric_color, existing.charge_value)
     return {
         "rubric_color": existing.rubric_color,
         "charge_value": existing.charge_value,
         "contaminated": existing.contaminated or False,
         "contamination_note": existing.contamination_note,
         "charge_summary": existing.charge_summary,
-        "confidence": 1.0,
+        "confidence": 1.0 if existing.calibrated else 0.9,
     }
 
 
@@ -67,9 +73,9 @@ def classify_song(
     Returns a dict with rubric_color, charge_value, contaminated, contamination_note,
     charge_summary, confidence.
     """
-    # Check for existing calibrated classification first
+    # Check for existing classification first (calibrated preferred, uncalibrated accepted)
     if db and not skip_cache:
-        existing = lookup_calibrated(title, artist, db)
+        existing = lookup_calibrated(title, artist, db, calibrated_only=False)
         if existing:
             return existing
 

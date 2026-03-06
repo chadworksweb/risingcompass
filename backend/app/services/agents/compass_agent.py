@@ -113,8 +113,8 @@ def run_compass_agent(
         position = song_in["position"]
         chart_source = song_in.get("chart_source", "spotify")
 
-        # Check cache first
-        cached = lookup_calibrated(title, artist, db)
+        # Check cache first (calibrated or uncalibrated)
+        cached = lookup_calibrated(title, artist, db, calibrated_only=False)
         if cached:
             # Enforce red/orange contamination rule on cached data too
             if cached["rubric_color"] in ("red", "orange"):
