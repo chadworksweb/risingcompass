@@ -2640,7 +2640,7 @@ const App = (() => {
     const title = document.getElementById('tier-popup-title');
     const desc = document.getElementById('tier-popup-desc');
 
-    document.querySelectorAll('.tier-btn').forEach(btn => {
+    document.querySelectorAll('.charge-legend-seg[data-tier]').forEach(btn => {
       btn.addEventListener('click', function() {
         const t = TIER_DATA[this.dataset.tier];
         if (!t) return;

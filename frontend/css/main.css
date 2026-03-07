@@ -1709,8 +1709,29 @@ body {
 
 .charge-legend-seg {
   flex: 1;
-  height: 10px;
+  height: auto;
+  padding: 0.5rem 0.25rem;
   border-radius: var(--rc-radius-md);
+  border: none;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #000;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.15s;
+}
+
+.charge-legend-seg:hover,
+.charge-legend-seg:focus-visible {
+  filter: brightness(1.2);
+  transform: scaleY(1.15);
+  outline: none;
+}
+
+.charge-legend-seg:active {
+  transform: scaleY(1.05);
 }
 
 .charge-legend-labels {
@@ -1770,45 +1791,6 @@ body {
   border-top: none !important;
   margin-top: 0 !important;
   padding-top: 0 !important;
-}
-
-/* === Tier Buttons + Popup === */
-.tier-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 1rem 0;
-  justify-content: center;
-}
-
-.tier-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.85rem;
-  border: 1px solid var(--tier-color, var(--rc-border));
-  border-radius: 999px;
-  background: transparent;
-  color: var(--rc-text-bright);
-  font-size: 0.8rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-
-.tier-btn:hover,
-.tier-btn:focus-visible {
-  background: color-mix(in srgb, var(--tier-color) 15%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tier-color) 30%, transparent);
-  outline: none;
-}
-
-.tier-btn .tier-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 
 /* Popup overlay */
