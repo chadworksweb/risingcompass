@@ -252,3 +252,20 @@ def export_database(background_tasks: BackgroundTasks):
         media_type="application/octet-stream",
         filename="rising_compass.db",
     )
+
+
+@router.post("/deploy", dependencies=[Depends(verify_admin_key)])
+def deploy_frontend():
+    """Pull latest code from git. Frontend is volume-mounted so git pull is enough."""
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "pull", "origin", "master"],
+        cwd="/root/rising-compass",
+        capture_output=True, text=True, timeout=30,
+    )
+    return {
+        "status": "ok" if result.returncode == 0 else "error",
+        "stdout": result.stdout.strip(),
+        "stderr": result.stderr.strip(),
+    }
