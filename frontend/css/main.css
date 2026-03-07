@@ -1721,7 +1721,7 @@ body {
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
   pointer-events: none;
   z-index: 1;
-  animation: tierSweep 4s ease-in-out infinite;
+  animation: tierSweep 6s ease-in-out infinite;
   mix-blend-mode: overlay;
 }
 
