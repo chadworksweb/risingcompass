@@ -1772,33 +1772,117 @@ body {
   padding-top: 0 !important;
 }
 
-/* === Tier Explainer === */
-.tier-explainer {
+/* === Tier Buttons + Popup === */
+.tier-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin: 1rem 0;
+  justify-content: center;
 }
 
-.tier-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  font-size: 0.85rem;
-  line-height: 1.6;
-  color: var(--rc-text);
-}
-
-.tier-row strong {
+.tier-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--tier-color, var(--rc-border));
+  border-radius: 999px;
+  background: transparent;
   color: var(--rc-text-bright);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
 }
 
-.tier-dot {
+.tier-btn:hover,
+.tier-btn:focus-visible {
+  background: color-mix(in srgb, var(--tier-color) 15%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tier-color) 30%, transparent);
+  outline: none;
+}
+
+.tier-btn .tier-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-  margin-top: 0.45rem;
+}
+
+/* Popup overlay */
+.tier-popup {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0,0,0,0.55);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.tier-popup.active {
+  display: flex;
+}
+
+.tier-popup-inner {
+  position: relative;
+  max-width: 380px;
+  width: 100%;
+  background: var(--rc-card-bg, #1a1a2e);
+  border: 1px solid var(--rc-border);
+  border-radius: 12px;
+  padding: 1.5rem 1.25rem 1.25rem;
+  text-align: center;
+  animation: tierPopIn 0.2s ease-out;
+}
+
+@keyframes tierPopIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.tier-popup-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.65rem;
+  background: none;
+  border: none;
+  color: var(--rc-text-muted);
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.2rem;
+}
+
+.tier-popup-close:hover {
+  color: var(--rc-text-bright);
+}
+
+.tier-popup-dot-wrap {
+  margin-bottom: 0.5rem;
+}
+
+.tier-popup-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.tier-popup-inner h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: var(--rc-text-bright);
+}
+
+.tier-popup-inner p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--rc-text);
 }
 
 /* === Rubric Explainer / FAQ === */

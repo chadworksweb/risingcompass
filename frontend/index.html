@@ -168,36 +168,34 @@
             </div>
           </div>
 
-          <div class="tier-explainer">
-            <div class="tier-row">
+          <div class="tier-buttons">
+            <button class="tier-btn" data-tier="ascended" style="--tier-color:var(--rc-violet)">
               <span class="tier-dot" style="background:var(--rc-violet)"></span>
-              <div>
-                <strong>Ascended</strong> — Collective perspective. The lyrics speak from, to, or about something larger than any one person. Community, humanity, the divine. Universal love, prophetic witness, collective healing. The song's purpose is selfless.
-              </div>
-            </div>
-            <div class="tier-row">
+              Ascended
+            </button>
+            <button class="tier-btn" data-tier="elevated" style="--tier-color:var(--rc-blue)">
               <span class="tier-dot" style="background:var(--rc-blue)"></span>
-              <div>
-                <strong>Elevated</strong> — Self without ego. Honest internal work on the page. The narrator questions their own behavior, takes accountability, processes through something with visible movement. Growth demonstrated, not just wished for. Vulnerability without performance.
-              </div>
-            </div>
-            <div class="tier-row">
+              Elevated
+            </button>
+            <button class="tier-btn" data-tier="decent" style="--tier-color:var(--rc-green)">
               <span class="tier-dot" style="background:var(--rc-green)"></span>
-              <div>
-                <strong>Decent</strong> — Catch-all. The lyrics don't push in either direction. Pleasant, fun, romantic, sad, nostalgic — but no internal work being done and no ego being served. The song is what it is. This is the baseline for popular music, and it's not a failure.
-              </div>
-            </div>
-            <div class="tier-row">
+              Decent
+            </button>
+            <button class="tier-btn" data-tier="degraded" style="--tier-color:var(--rc-orange)">
               <span class="tier-dot" style="background:var(--rc-orange)"></span>
-              <div>
-                <strong>Degraded</strong> — Ego self. The lyrics serve the narrator's ego, promote avoidance, or steer away from growth. Surface-level status markers as aspiration. Manipulation framed as love. Wallowing without movement. Blame without accountability.
-              </div>
-            </div>
-            <div class="tier-row">
+              Degraded
+            </button>
+            <button class="tier-btn" data-tier="corrupted" style="--tier-color:var(--rc-red)">
               <span class="tier-dot" style="background:var(--rc-red)"></span>
-              <div>
-                <strong>Corrupted</strong> — Ego black-hole. The lyrics actively destroy, dehumanize, or consume. Explicit objectification, substance celebration as identity, violence as entertainment, possession as desire. The song's core stance is destruction — of self, of others, of meaning itself.
-              </div>
+              Corrupted
+            </button>
+          </div>
+          <div class="tier-popup" id="tier-popup">
+            <div class="tier-popup-inner">
+              <button class="tier-popup-close" aria-label="Close">&times;</button>
+              <div class="tier-popup-dot-wrap"><span class="tier-popup-dot" id="tier-popup-dot"></span></div>
+              <h4 id="tier-popup-title"></h4>
+              <p id="tier-popup-desc"></p>
             </div>
           </div>
 
