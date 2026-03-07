@@ -473,10 +473,11 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
     draft_song.lyrics_available = True
 
     # Store in CompassSong table for future cache hits
-    _store_classification(
+    cs_id = _store_classification(
         draft_song.title, draft_song.artist, draft_song.position,
         draft_song.chart_source or "spotify", result, True, db,
     )
+    draft_song.compass_song_id = cs_id
 
     # Recalculate draft metrics if all songs are now classified
     all_classified = all(s.rubric_color is not None for s in draft.songs)

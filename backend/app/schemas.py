@@ -423,6 +423,7 @@ class CompassSongFeedIn(BaseModel):
 # --- Agent Drafts ---
 class DraftSongOut(BaseModel):
     id: int
+    compass_song_id: Optional[int] = None
     title: str
     artist: str
     position: int

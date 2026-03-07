@@ -47,6 +47,7 @@ def lookup_calibrated(title: str, artist: str, db: Session, calibrated_only: boo
     logger.info("Using %s classification for '%s' by %s: %s %s",
                 cache_type, title, artist, existing.rubric_color, existing.charge_value)
     return {
+        "compass_song_id": existing.id,
         "rubric_color": existing.rubric_color,
         "charge_value": existing.charge_value,
         "contaminated": existing.contaminated or False,

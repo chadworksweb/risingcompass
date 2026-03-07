@@ -39,11 +39,14 @@ def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "co
 
 def _store_classification(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
-                          db: Session) -> None:
-    """Store or update a classification in the CompassSong table for future reuse."""
+                          db: Session) -> int | None:
+    """Store or update a classification in the CompassSong table for future reuse.
+
+    Returns the compass_songs.id for the stored/updated row, or None if skipped.
+    """
     # Skip storing if classification failed (rubric_color is None)
     if result.get("rubric_color") is None:
-        return
+        return None
 
     existing = (
         db.query(CompassSong)
@@ -59,6 +62,8 @@ def _store_classification(title: str, artist: str, chart_position: int,
         existing.contamination_note = result["contamination_note"]
         existing.charge_summary = result["charge_summary"]
         existing.chart_source = chart_source
+        db.flush()
+        return existing.id
     else:
         current_year = date.today().year
         decade = f"{(current_year // 10) * 10}s"
@@ -76,6 +81,8 @@ def _store_classification(title: str, artist: str, chart_position: int,
             chart_source=chart_source,
         )
         db.add(song)
+        db.flush()
+        return song.id
 
 
 def run_compass_agent(
@@ -142,6 +149,7 @@ def run_compass_agent(
                 "artist": artist,
                 "position": position,
                 "chart_source": chart_source,
+                "compass_song_id": None,
                 "lyrics_available": False,
                 "rubric_color": None,
                 "charge_value": None,
@@ -155,8 +163,9 @@ def run_compass_agent(
         result = classify_song(title, artist, lyrics=lyrics, db=db)
 
         # Store for future reuse (skip for draft-only / case study mode)
+        cs_id = None
         if not draft_only:
-            _store_classification(title, artist, position, chart_source, result, True, db)
+            cs_id = _store_classification(title, artist, position, chart_source, result, True, db)
         logger.info("Classified and cached: %s by %s → %s", title, artist, result["rubric_color"])
 
         classified_songs.append({
@@ -164,6 +173,7 @@ def run_compass_agent(
             "artist": artist,
             "position": position,
             "chart_source": chart_source,
+            "compass_song_id": cs_id,
             "lyrics_available": True,
             **result,
         })
@@ -212,6 +222,7 @@ def run_compass_agent(
     for s in classified_songs:
         draft_song = AgentDraftSong(
             draft_id=draft.id,
+            compass_song_id=s.get("compass_song_id"),
             title=s["title"],
             artist=s["artist"],
             position=s["position"],

@@ -199,6 +199,7 @@ class AgentDraftSong(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     draft_id = Column(Integer, ForeignKey("agent_drafts.id"), nullable=False)
+    compass_song_id = Column(Integer, ForeignKey("compass_songs.id", ondelete="SET NULL"), nullable=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
     position = Column(Integer, nullable=False)
@@ -212,6 +213,7 @@ class AgentDraftSong(Base):
     lyrics_available = Column(Boolean, default=False)
 
     draft = relationship("AgentDraft", back_populates="songs")
+    compass_song = relationship("CompassSong")
 
 
 class MisreadSubmission(Base):
