@@ -1707,27 +1707,51 @@ body {
   gap: 6px;
 }
 
+.charge-legend-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.charge-legend-bar::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: translateX(-100%);
+  animation: tierSweep 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes tierSweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 .charge-legend-seg {
   flex: 1;
   height: auto;
-  padding: 0.5rem 0.25rem;
+  padding: 0.65rem 0.25rem;
   border-radius: var(--rc-radius-md);
   border: none;
   font-family: inherit;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: #000;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
   cursor: pointer;
-  transition: filter 0.15s, transform 0.15s;
+  transition: filter 0.3s ease, transform 0.3s ease;
+  position: relative;
 }
 
 .charge-legend-seg:hover,
 .charge-legend-seg:focus-visible {
-  filter: brightness(1.2);
+  filter: brightness(1.25);
   transform: scaleY(1.15);
   outline: none;
+  z-index: 2;
 }
 
 .charge-legend-seg:active {
