@@ -338,19 +338,9 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     db.flush()
 
     for song in draft.songs:
-        # Look up CompassSong by (title, artist) — pick highest ID when dupes exist
-        cs = (
-            db.query(CompassSong)
-            .filter(
-                CompassSong.title.ilike(song.title),
-                CompassSong.artist.ilike(song.artist),
-            )
-            .order_by(CompassSong.id.desc())
-            .first()
-        )
         rs = ReadingSong(
             reading_id=reading.id,
-            compass_song_id=cs.id if cs else None,
+            compass_song_id=song.compass_song_id,
             title=song.title,
             artist=song.artist,
             position=song.position,
