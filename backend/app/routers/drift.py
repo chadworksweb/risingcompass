@@ -151,7 +151,7 @@ def get_drift(db: Session = Depends(get_db)):
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
             chart_song_count=len(scored_songs),
-            total_song_count=len(all_songs),
+            total_song_count=len(chart_songs),
             contamination_count=contam,
             color_counts=color_counts,
         ))
@@ -267,7 +267,7 @@ def get_drift_years(db: Session = Depends(get_db)):
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
             chart_song_count=len(scored_songs),
-            total_song_count=len(all_songs),
+            total_song_count=len(chart_songs),
         ))
 
     # Live years from DailyReading/ReadingSong
