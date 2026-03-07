@@ -1707,35 +1707,29 @@ body {
   gap: 6px;
 }
 
-.charge-legend-seg {
-  overflow: hidden;
+.charge-legend-bar {
+  position: relative;
 }
 
-.charge-legend-seg::before {
+.charge-legend-bar::after {
   content: '';
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 25%;
+  height: 100%;
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
   pointer-events: none;
   z-index: 1;
   animation: tierSweep 4s ease-in-out infinite;
-  /* Each segment is 1/5 of the bar; sweep width ~40% of bar = 2x a segment.
-     So translate range spans from -200% (fully left of this seg) to +200% (fully right).
-     We use animation-delay to offset each segment so the sweep appears continuous. */
+  mix-blend-mode: overlay;
 }
 
-.charge-legend-seg:nth-child(1)::before { animation-delay: 0s; }
-.charge-legend-seg:nth-child(2)::before { animation-delay: 0.35s; }
-.charge-legend-seg:nth-child(3)::before { animation-delay: 0.7s; }
-.charge-legend-seg:nth-child(4)::before { animation-delay: 1.05s; }
-.charge-legend-seg:nth-child(5)::before { animation-delay: 1.4s; }
-
 @keyframes tierSweep {
-  0%        { transform: translateX(-200%); }
-  40%       { transform: translateX(200%); }
-  50%       { transform: translateX(200%); }
-  90%       { transform: translateX(-200%); }
-  100%      { transform: translateX(-200%); }
+  0%        { left: -25%; }
+  45%       { left: 100%; }
+  55%       { left: 100%; }
+  100%      { left: -25%; }
 }
 
 .charge-legend-seg {
