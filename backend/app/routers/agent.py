@@ -414,6 +414,8 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
                 existing.contamination_note = update.contamination_note
             if update.charge_summary is not None:
                 existing.charge_summary = update.charge_summary
+            if update.compass_song_id is not None:
+                existing.compass_song_id = update.compass_song_id
             tmp = enforce_contamination_rule({"rubric_color": existing.rubric_color, "contaminated": existing.contaminated, "contamination_note": existing.contamination_note})
             existing.contaminated = tmp["contaminated"]
             existing.contamination_note = tmp["contamination_note"]

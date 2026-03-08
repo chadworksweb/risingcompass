@@ -521,6 +521,7 @@ class DraftSongUpdate(BaseModel):
     contaminated: Optional[bool] = None
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
+    compass_song_id: Optional[int] = None
 
 
 class DraftUpdate(BaseModel):
