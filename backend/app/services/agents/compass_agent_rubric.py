@@ -266,8 +266,8 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
             same_decade = (
                 db.query(CompassSong)
                 .filter(CompassSong.rubric_color == color)
+                .filter(CompassSong.charge_value.isnot(None))
                 .filter(CompassSong.charge_summary.isnot(None))
-                .filter(CompassSong.calibrated.is_(True))
                 .filter(CompassSong.decade == target_decade)
                 .limit(5)
                 .all()
@@ -278,8 +278,8 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
             query = (
                 db.query(CompassSong)
                 .filter(CompassSong.rubric_color == color)
+                .filter(CompassSong.charge_value.isnot(None))
                 .filter(CompassSong.charge_summary.isnot(None))
-                .filter(CompassSong.calibrated.is_(True))
             )
             # When backfilling historical years, only use same decade or earlier
             # to prevent modern classifications from biasing the agent
@@ -307,7 +307,7 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
         db.query(CompassSong)
         .filter(CompassSong.contaminated.is_(True))
         .filter(CompassSong.contamination_note.isnot(None))
-        .filter(CompassSong.calibrated.is_(True))
+        .filter(CompassSong.charge_summary.isnot(None))
         .limit(3)
         .all()
     )
@@ -330,9 +330,9 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
 
     import json
     lines = [
-        "## Calibration Examples (from human-classified songs)",
+        "## Reference Examples (from classified songs)",
         "",
-        "These are human-calibrated reference points. Use them to calibrate your sense of where the tiers fall, NOT as templates to pattern-match against. Apply the tenets to the actual lyrics in front of you.",
+        "These are reference points. Use them to calibrate your sense of where the tiers fall, NOT as templates to pattern-match against. Apply the tenets to the actual lyrics in front of you.",
         "",
     ]
     for ex in examples:
@@ -378,7 +378,7 @@ def build_classification_prompt(
     return system_prompt, user_prompt
 
 
-ANALYZER_NARRATIVE_VOICE = """You are the diagnostic voice of The Rising Compass Music Frequency Analyzer — a tool that reads the energetic charge of someone's personal music.
+ANALYZER_NARRATIVE_VOICE = """You are the diagnostic voice of The Rising Compass Lyrical Charger — a tool that reads the energetic charge of someone's personal music.
 
 ## How the Analyzer Sounds
 - Direct. Tells the person what their music says about them. No hedging.

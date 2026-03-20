@@ -15,7 +15,6 @@ from app.database import get_db
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong
 from app.schemas import (
     BackfillResult, BackfillSongOut,
-    CalibrateRequest, CalibrateResult,
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
     SupplyLyricsIn,
@@ -133,7 +132,7 @@ def _build_approval_html(draft) -> str:
 
 @router.post("/classify", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
 def trigger_classification(data: DraftTriggerIn, db: Session = Depends(get_db)):
-    """Trigger classification on a list of songs (calibration mode).
+    """Trigger classification on a list of songs.
 
     Creates an AgentDraft with Claude-generated classifications.
     """
@@ -543,18 +542,21 @@ def backfill_classify(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
-    """Auto-fetch lyrics and classify uncalibrated songs for a given year.
+    """Auto-fetch lyrics and classify incomplete songs for a given year.
 
     Backfill-only endpoint. Uses lyrics_source.fetch_lyrics() to grab lyrics,
-    then classifies via Claude. Songs remain calibrated=False for human review.
-    The daily pipeline is unaffected — this is a separate path.
+    then classifies via Claude. The daily pipeline is unaffected.
     """
     from app.services.agents.lyrics_source import fetch_lyrics
 
-    uncalibrated = (
+    incomplete = (
         db.query(CompassSong)
         .filter(CompassSong.year == year)
-        .filter(CompassSong.calibrated.is_(False))
+        .filter(
+            (CompassSong.rubric_color.is_(None))
+            | (CompassSong.charge_value.is_(None))
+            | (CompassSong.charge_summary.is_(None))
+        )
         .limit(limit)
         .all()
     )
@@ -563,7 +565,7 @@ def backfill_classify(
     classified_count = 0
     failed_lyrics_count = 0
 
-    for song in uncalibrated:
+    for song in incomplete:
         lyrics = fetch_lyrics(song.title, song.artist)
         if not lyrics:
             failed_lyrics_count += 1
@@ -614,7 +616,7 @@ def backfill_classify(
         year=year,
         total_songs=total_for_year,
         reclassified=classified_count,
-        skipped_calibrated=0,
+        skipped_classified=0,
         songs=results,
     )
 
@@ -625,34 +627,40 @@ def backfill_year(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
-    """List uncalibrated songs for a given year that need lyrics + reclassification.
+    """List incomplete songs for a given year that need lyrics + classification.
 
     No longer auto-fetches lyrics. Returns the list so the user can supply
-    lyrics via the supply-lyrics endpoint or the calibrate endpoint.
+    lyrics via the supply-lyrics endpoint.
 
     Args:
         year: The year to backfill (e.g. 1965).
         limit: Max songs to return per call (default 10, max 50).
     """
-    uncalibrated = (
+    incomplete = (
         db.query(CompassSong)
         .filter(CompassSong.year == year)
-        .filter(CompassSong.calibrated.is_(False))
+        .filter(
+            (CompassSong.rubric_color.is_(None))
+            | (CompassSong.charge_value.is_(None))
+            | (CompassSong.charge_summary.is_(None))
+        )
         .limit(limit)
         .all()
     )
 
-    calibrated_count = (
+    classified_count = (
         db.query(CompassSong)
         .filter(CompassSong.year == year)
-        .filter(CompassSong.calibrated.is_(True))
+        .filter(CompassSong.rubric_color.isnot(None))
+        .filter(CompassSong.charge_value.isnot(None))
+        .filter(CompassSong.charge_summary.isnot(None))
         .count()
     )
 
     total_for_year = db.query(CompassSong).filter(CompassSong.year == year).count()
 
     results = []
-    for song in uncalibrated:
+    for song in incomplete:
         results.append(BackfillSongOut(
             id=song.id,
             title=song.title,
@@ -671,41 +679,8 @@ def backfill_year(
         year=year,
         total_songs=total_for_year,
         reclassified=0,
-        skipped_calibrated=calibrated_count,
+        skipped_classified=classified_count,
         songs=results,
-    )
-
-
-@router.post("/calibrate", response_model=CalibrateResult, dependencies=[Depends(verify_admin_key)])
-def calibrate_songs(data: CalibrateRequest, db: Session = Depends(get_db)):
-    """Apply human-calibrated tiers and charge values to songs, marking them calibrated.
-
-    Takes a list of song IDs with corrected rubric_color and charge_value.
-    Updates the CompassSong table and sets calibrated=True.
-    """
-    updated = []
-    for item in data.songs:
-        song = db.query(CompassSong).filter(CompassSong.id == item.id).first()
-        if not song:
-            raise HTTPException(status_code=404, detail=f"Song ID {item.id} not found")
-        song.rubric_color = item.rubric_color
-        song.charge_value = item.charge_value
-        if item.charge_summary is not None:
-            song.charge_summary = item.charge_summary
-        if item.contaminated is not None:
-            song.contaminated = item.contaminated
-        if item.contamination_note is not None:
-            song.contamination_note = item.contamination_note
-        song.calibrated = True
-        updated.append(song)
-
-    db.commit()
-    for s in updated:
-        db.refresh(s)
-
-    return CalibrateResult(
-        calibrated=len(updated),
-        songs=updated,
     )
 
 

@@ -21,8 +21,8 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
         logger.warning("Resend not configured — skipping email notification")
         return False
 
-    # Look up which songs are already calibrated
-    uncalibrated_titles = set()
+    # Look up which songs are not fully classified (missing color, score, or summary)
+    incomplete_titles = set()
     if db:
         from sqlalchemy import func
         from app.models import CompassSong
@@ -30,11 +30,13 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
             existing = (
                 db.query(CompassSong)
                 .filter(func.lower(CompassSong.title) == s.title.lower())
-                .filter(CompassSong.calibrated == True)
+                .filter(CompassSong.rubric_color.isnot(None))
+                .filter(CompassSong.charge_value.isnot(None))
+                .filter(CompassSong.charge_summary.isnot(None))
                 .first()
             )
             if not existing:
-                uncalibrated_titles.add(s.title.lower())
+                incomplete_titles.add(s.title.lower())
 
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
     needs_lyrics = [s for s in songs if s.rubric_color is None]
@@ -42,7 +44,7 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
     if needs_lyrics:
         subject += f" ({len(needs_lyrics)} song{'s' if len(needs_lyrics) != 1 else ''} need lyrics)"
 
-    html = _build_html(draft, songs, config, uncalibrated_titles=uncalibrated_titles)
+    html = _build_html(draft, songs, config, incomplete_titles=incomplete_titles)
 
     try:
         resp = httpx.post(
@@ -67,10 +69,10 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
         return False
 
 
-def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: Optional[set] = None) -> str:
+def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optional[set] = None) -> str:
     """Build the HTML email body — white background, Rising Compass brand."""
-    if uncalibrated_titles is None:
-        uncalibrated_titles = set()
+    if incomplete_titles is None:
+        incomplete_titles = set()
     from app.auth import create_approval_token
 
     draft_ref = draft.label or str(draft.id)
@@ -114,11 +116,11 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: Optio
             'contaminated</span>'
         ) if s.contaminated else ""
 
-        new_badge = (
-            '<div style="display:inline-block;background:#fff5e0;color:#cc7700;'
+        incomplete_badge = (
+            '<div style="display:inline-block;background:#ffe8e8;color:#cc0000;'
             'font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;'
-            'margin-top:3px;letter-spacing:0.04em;border:1px solid #ffe0a0;">NEW</div>'
-        ) if s.title.lower() in uncalibrated_titles else ""
+            'margin-top:3px;letter-spacing:0.04em;border:1px solid #ffb0b0;">INCOMPLETE</div>'
+        ) if s.title.lower() in incomplete_titles else ""
 
         # Charge value display
         cv = getattr(s, 'charge_value', None)
@@ -131,7 +133,7 @@ def _build_html(draft, songs: list, config: Settings, uncalibrated_titles: Optio
             <td style="padding:30px 8px 10px;vertical-align:top;">
                 <div style="font-weight:600;color:#1a1a2e;font-size:14px;">{s.title}</div>
                 <div style="color:#666;font-size:13px;margin-top:2px;">{s.artist}</div>
-                {new_badge}
+                {incomplete_badge}
             </td>
             <td style="padding:30px 8px 10px;vertical-align:top;white-space:nowrap;">
                 <span style="display:inline-block;background:{bg};color:{color};font-weight:600;font-size:12px;padding:3px 10px;border-radius:4px;">{label}</span>

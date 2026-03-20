@@ -1,4 +1,4 @@
-"""Analyzer engine — orchestrates parallel lyrics fetch + sequential classification."""
+"""Lyrical Charger engine — orchestrates parallel lyrics fetch + sequential classification."""
 
 import asyncio
 import logging
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.constants import COLOR_LABELS
-from app.services.agents.classifier import classify_song, lookup_calibrated, AGENT_MODEL
+from app.services.agents.classifier import classify_song, lookup_classified, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_narrative_prompt
 from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
@@ -58,7 +58,7 @@ async def run_analysis(session: dict, db: Session, on_event):
     lyrics_needed = []  # (index, title, artist) for songs that need lyrics
 
     for i, song in enumerate(songs_input):
-        cached = lookup_calibrated(song["title"], song["artist"], db, calibrated_only=False)
+        cached = lookup_classified(song["title"], song["artist"], db)
         if cached:
             cache_results[i] = cached
             logger.info("Analyzer cache hit: %s by %s", song["title"], song["artist"])

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import AgentDraft, AgentDraftSong, CompassSong
-from app.services.agents.classifier import classify_song, lookup_calibrated, AGENT_MODEL
+from app.services.agents.classifier import classify_song, lookup_classified, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
@@ -120,8 +120,8 @@ def run_compass_agent(
         position = song_in["position"]
         chart_source = song_in.get("chart_source", "spotify")
 
-        # Check cache first (calibrated or uncalibrated)
-        cached = lookup_calibrated(title, artist, db, calibrated_only=False)
+        # Check cache first
+        cached = lookup_classified(title, artist, db)
         if cached:
             enforce_contamination_rule(cached)
 
@@ -161,6 +161,16 @@ def run_compass_agent(
             continue
 
         result = classify_song(title, artist, lyrics=lyrics, db=db)
+
+        # Flag incomplete classifications — missing color, score, or summary
+        if not result.get("rubric_color") or result.get("charge_value") is None or not result.get("charge_summary"):
+            missing = [f for f, v in [
+                ("rubric_color", result.get("rubric_color")),
+                ("charge_value", result.get("charge_value")),
+                ("charge_summary", result.get("charge_summary")),
+            ] if not v and v != 0]
+            logger.error("INCOMPLETE classification for %s by %s — missing: %s", title, artist, ", ".join(missing))
+            warnings.append(f"incomplete: {title} (missing {', '.join(missing)})")
 
         # Store for future reuse (skip for draft-only / case study mode)
         cs_id = None

@@ -48,7 +48,7 @@ def _reading_with_songs(reading: DailyReading) -> DailyReadingOut:
 def _historical_aggregate(db: Session) -> tuple[float, str]:
     """Compute aggregate degree from charting songs only.
 
-    Uses HISTORICAL_DEGREES for uncalibrated songs (old 3-tier "blue" = 65,
+    Uses HISTORICAL_DEGREES for legacy songs (old 3-tier "blue" = 65,
     not the 5-tier center of 45) so the aggregate isn't artificially positive.
     """
     songs = db.query(CompassSong).filter(CompassSong.chart_source.in_(CHART_SOURCES)).all()

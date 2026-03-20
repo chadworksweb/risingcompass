@@ -616,28 +616,11 @@ class BackfillResult(BaseModel):
     year: int
     total_songs: int
     reclassified: int
-    skipped_calibrated: int
+    skipped_classified: int
     songs: list[BackfillSongOut]
 
 
-# --- Calibration ---
-class CalibrateSongIn(BaseModel):
-    id: int
-    rubric_color: str
-    charge_value: int  # -100 to +100
-    charge_summary: Optional[str] = None
-    contaminated: Optional[bool] = None
-    contamination_note: Optional[str] = None
-
-class CalibrateRequest(BaseModel):
-    songs: list[CalibrateSongIn]
-
-class CalibrateResult(BaseModel):
-    calibrated: int
-    songs: list[CompassSongOut]
-
-
-# --- Music Frequency Analyzer ---
+# --- Lyrical Charger ---
 class AnalyzerSongIn(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)

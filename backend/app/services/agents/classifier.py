@@ -22,30 +22,33 @@ AGENT_MODEL = settings.agent_model
 VALID_COLORS = {"violet", "blue", "green", "orange", "red"}
 
 
-def lookup_calibrated(title: str, artist: str, db: Session, calibrated_only: bool = True) -> dict | None:
+def lookup_classified(title: str, artist: str, db: Session) -> dict | None:
     """Look up an existing classification from the CompassSong table.
 
     Case-insensitive match on title + artist. Returns classification dict or None.
-
-    Args:
-        calibrated_only: If True (default), only return human-reviewed classifications.
-            Set False to also return uncalibrated (agent-classified) results — used by
-            the daily pipeline so returning chart songs reuse prior classifications
-            without requiring lyrics to be re-supplied.
+    A song is fully classified when it has rubric_color, charge_value, and charge_summary.
+    Incomplete records (missing any of the three) return None so the song gets reclassified.
     """
-    query = (
+    existing = (
         db.query(CompassSong)
         .filter(func.lower(CompassSong.title) == title.lower())
         .filter(func.lower(CompassSong.artist) == artist.lower())
+        .order_by(CompassSong.id.desc())
+        .first()
     )
-    if calibrated_only:
-        query = query.filter(CompassSong.calibrated == True)
-    existing = query.order_by(CompassSong.id.desc()).first()
-    if not existing or not existing.rubric_color:
+    if not existing:
         return None
-    cache_type = "calibrated" if existing.calibrated else "cached"
-    logger.info("Using %s classification for '%s' by %s: %s %s",
-                cache_type, title, artist, existing.rubric_color, existing.charge_value)
+    if not existing.rubric_color or existing.charge_value is None or not existing.charge_summary:
+        logger.warning("Incomplete classification for '%s' by %s (id=%s) — missing %s",
+                       title, artist, existing.id,
+                       ", ".join(f for f, v in [
+                           ("rubric_color", existing.rubric_color),
+                           ("charge_value", existing.charge_value),
+                           ("charge_summary", existing.charge_summary),
+                       ] if not v and v != 0))
+        return None
+    logger.info("Using cached classification for '%s' by %s: %s %s",
+                title, artist, existing.rubric_color, existing.charge_value)
     return {
         "compass_song_id": existing.id,
         "rubric_color": existing.rubric_color,
@@ -53,7 +56,7 @@ def lookup_calibrated(title: str, artist: str, db: Session, calibrated_only: boo
         "contaminated": existing.contaminated or False,
         "contamination_note": existing.contamination_note,
         "charge_summary": existing.charge_summary,
-        "confidence": 1.0 if existing.calibrated else 0.9,
+        "confidence": 1.0,
     }
 
 
@@ -67,7 +70,7 @@ def classify_song(
 ) -> dict:
     """Classify a single song using the Rising Compass rubric via Claude.
 
-    If the song already exists in the CompassSong table with a calibrated charge_value,
+    If the song already exists in the CompassSong table with a rubric_color,
     returns the existing classification instead of reclassifying.
     Set skip_cache=True to force reclassification (backfill mode) while still
     using the db for few-shot examples.
@@ -75,9 +78,9 @@ def classify_song(
     Returns a dict with rubric_color, charge_value, contaminated, contamination_note,
     charge_summary, confidence.
     """
-    # Check for existing classification first (calibrated preferred, uncalibrated accepted)
+    # Check for existing classification first
     if db and not skip_cache:
-        existing = lookup_calibrated(title, artist, db, calibrated_only=False)
+        existing = lookup_classified(title, artist, db)
         if existing:
             return existing
 
