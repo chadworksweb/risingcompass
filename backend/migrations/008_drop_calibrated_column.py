@@ -43,6 +43,9 @@ def up(conn):
     col_names = ", ".join(c["name"] for c in keep)
     col_defs_str = ",\n            ".join(col_defs)
 
+    # Disable FK checks for the table rebuild
+    conn.execute(text("PRAGMA foreign_keys = OFF"))
+
     # Clean up partial run if the temp table already exists
     conn.execute(text("DROP TABLE IF EXISTS compass_songs_new"))
 
@@ -57,3 +60,6 @@ def up(conn):
     """))
     conn.execute(text("DROP TABLE compass_songs"))
     conn.execute(text("ALTER TABLE compass_songs_new RENAME TO compass_songs"))
+
+    # Re-enable FK checks
+    conn.execute(text("PRAGMA foreign_keys = ON"))
