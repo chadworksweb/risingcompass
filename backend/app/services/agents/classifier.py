@@ -38,7 +38,7 @@ def lookup_classified(title: str, artist: str, db: Session) -> dict | None:
     )
     if not existing:
         return None
-    if not existing.rubric_color or existing.charge_value is None or not existing.charge_summary:
+    if not existing.rubric_color or existing.charge_value is None or existing.charge_summary is None:
         logger.warning("Incomplete classification for '%s' by %s (id=%s) — missing %s",
                        title, artist, existing.id,
                        ", ".join(f for f, v in [
