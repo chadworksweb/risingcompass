@@ -345,6 +345,10 @@
   const API_BASE = isLocal
     ? `http://${window.location.hostname}:8000`
     : 'https://api.risingcompass.net';
+  const API_KEY = isLocal
+    ? ''
+    : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
+  const API_HEADERS = API_KEY ? { 'X-Api-Key': API_KEY } : {};
 
   const COLOR_HEX = {
     violet: '#aa54ff',
@@ -419,7 +423,7 @@
 
   async function checkBan() {
     try {
-      const resp = await fetch(`${API_BASE}/api/misread/check?device_id=${encodeURIComponent(deviceId)}`);
+      const resp = await fetch(`${API_BASE}/api/misread/check?device_id=${encodeURIComponent(deviceId)}`, { headers: API_HEADERS });
       if (resp.ok) {
         const data = await resp.json();
         if (data.banned) {
@@ -464,7 +468,7 @@
     try {
       const resp = await fetch(`${API_BASE}/api/misread`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
         body: JSON.stringify(body),
       });
 

@@ -6,8 +6,14 @@ const API = (() => {
     ? `http://${window.location.hostname}:8000`
     : 'https://api.risingcompass.net';
 
+  const API_KEY = isLocal
+    ? ''
+    : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
+
   async function get(path) {
-    const resp = await fetch(`${BASE}${path}`);
+    const headers = {};
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    const resp = await fetch(`${BASE}${path}`, { headers });
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
     return resp.json();
   }
