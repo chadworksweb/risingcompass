@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     spotify_client_secret: str = ""
 
     # Lyrical Charger settings
-    analyzer_max_songs: int = 10
     analyzer_session_ttl: int = 1800  # 30 minutes
 
     @model_validator(mode="after")

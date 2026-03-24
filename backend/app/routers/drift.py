@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models import CompassSong, DailyReading, ReadingSong
 from app.schemas import DecadeAggregate, YearAggregate
 from app.services.compass_calc import (
-    compute_degree, position_weight, charge_to_degree, compute_live_year_degree,
+    compute_degree, position_weight, compute_live_year_degree,
 )
 from app.services.charge_calc import degree_to_charge
 from app.constants import CHART_SOURCES, HISTORICAL_DEGREES
