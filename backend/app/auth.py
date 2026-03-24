@@ -1,13 +1,26 @@
-"""HMAC token utilities for email approval links.
+"""Auth utilities: API key verification and HMAC token generation.
 
-Generates time-limited, signed tokens so the admin key never appears in URLs.
+verify_api_key — dependency for public API endpoints (consumer access).
+HMAC tokens — time-limited, signed tokens for email approval links.
 """
 
 import hashlib
 import hmac
 import time
 
+from fastapi import Header, HTTPException
+
 from app.config import settings
+
+
+def verify_api_key(x_api_key: str = Header(...)):
+    """Require a valid API key via X-Api-Key header.
+
+    Used on all public endpoints. Consumers (RC frontend, Lyric Transformer,
+    Lyrical Charger) must send this key. Admin endpoints use X-Admin-Key instead.
+    """
+    if not hmac.compare_digest(x_api_key, settings.rc_api_key):
+        raise HTTPException(status_code=403, detail="Invalid API key")
 
 
 def create_approval_token(draft_ref: str, ttl: int = 86400) -> str:

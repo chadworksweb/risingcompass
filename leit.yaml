@@ -1,0 +1,20 @@
+project: rising-compass
+type: docker
+droplet: le-projects-01
+
+transfer:
+  method: git
+  remote_path: /srv/rising-compass/
+  branch: master
+
+docker:
+  action: rebuild
+  service: backend
+
+health_check:
+  url: https://risingcompass.net
+  expect: 200
+
+backup:
+  type: sqlite
+  path: /srv/rising-compass/data/compass.db

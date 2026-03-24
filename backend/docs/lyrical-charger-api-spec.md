@@ -1,8 +1,8 @@
-# Music Frequency Analyzer — API Specification
+# Lyrical Charger — API Specification
 
 ## Context
 
-CRW (chadrising.com) needs a public "Music Frequency Analyzer" that lets users submit their own music and get real-time Rising Compass classifications. This extends the existing Rising Compass FastAPI backend with new public endpoints that reuse the classification engine without polluting the compass/drift data pipeline.
+CRW (chadrising.com) needs a public "Lyrical Charger" that lets users submit their own music and get real-time Rising Compass classifications. This extends the existing Rising Compass FastAPI backend with new public endpoints that reuse the classification engine without polluting the compass/drift data pipeline.
 
 **Guiding constraint:** No job queue. SSE streaming delivers per-song results in real time. Real-world timing (30s–2min for 10 songs) makes this viable without background workers.
 
@@ -404,7 +404,7 @@ The existing `EDITORIAL_VOICE` is tuned for daily chart readings ("where culture
 ### ANALYZER_NARRATIVE_VOICE
 
 ```
-You are the diagnostic voice of The Rising Compass Music Frequency Analyzer — a tool that reads the energetic charge of someone's personal music.
+You are the diagnostic voice of The Rising Compass Lyrical Charger — a tool that reads the energetic charge of someone's personal music.
 
 ## How the Analyzer Sounds
 - Direct. Tells the person what their music says about them. No hedging.

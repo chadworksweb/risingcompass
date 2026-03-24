@@ -145,7 +145,7 @@ docker compose exec -T backend python -c "from app.services.backup import run_ba
 VOLUME_PATH=\$(docker volume inspect rising-compass_db-data -f '{{.Mountpoint}}')
 cp /tmp/rising_compass_local.db "\$VOLUME_PATH/local_import.db"
 
-# Merge tables using explicit column names (safe against column order changes)
+# Merge tables: upsert from local, preserve production-only rows
 docker compose exec -T backend python -c "
 import sqlite3
 conn = sqlite3.connect('/app/data/rising_compass.db')
@@ -154,15 +154,45 @@ conn.execute('BEGIN')
 tables = '${TABLES_TO_PUSH}'.split()
 for t in tables:
     cols = [row[1] for row in conn.execute(f'PRAGMA table_info({t})').fetchall()]
-    col_list = ', '.join(cols)
-    conn.execute(f'DELETE FROM {t}')
-    conn.execute(f'INSERT INTO {t} ({col_list}) SELECT {col_list} FROM local_db.{t}')
-    count = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
-    print(f'  {t}: replaced with {count} rows')
+    cols_no_id = [c for c in cols if c != 'id']
+    col_list_no_id = ', '.join(cols_no_id)
+    before = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+    local_count = conn.execute(f'SELECT COUNT(*) FROM local_db.{t}').fetchone()[0]
+
+    if t == 'compass_songs':
+        # compass_songs: match on (title, artist) — both local and production write to this table
+        # Update existing matches with local data, insert new ones, leave production-only rows alone
+        updated = 0
+        inserted = 0
+        local_rows = conn.execute(f'SELECT {col_list_no_id} FROM local_db.{t}').fetchall()
+        for row in local_rows:
+            # row[0]=title, row[1]=artist (first two cols after id)
+            title_val = row[0]
+            artist_val = row[1]
+            existing = conn.execute('SELECT id FROM compass_songs WHERE lower(title)=lower(?) AND lower(artist)=lower(?)', (title_val, artist_val)).fetchone()
+            if existing:
+                sets = ', '.join([f'{c}=?' for c in cols_no_id])
+                conn.execute(f'UPDATE {t} SET {sets} WHERE id=?', list(row) + [existing[0]])
+                updated += 1
+            else:
+                placeholders = ', '.join(['?' for _ in cols_no_id])
+                conn.execute(f'INSERT INTO {t} ({col_list_no_id}) VALUES ({placeholders})', row)
+                inserted += 1
+        after = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+        prod_only = after - local_count
+        print(f'  {t}: {updated} updated, {inserted} inserted, {prod_only} production-only preserved ({after} total)')
+    else:
+        # Other safe tables: full replace (local is sole source of truth)
+        col_list = ', '.join(cols)
+        conn.execute(f'DELETE FROM {t}')
+        conn.execute(f'INSERT INTO {t} ({col_list}) SELECT {col_list} FROM local_db.{t}')
+        after = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+        print(f'  {t}: replaced with {after} rows')
+
 conn.execute('COMMIT')
 conn.execute('DETACH DATABASE local_db')
 conn.close()
-print('Merge complete.')
+print('Merge complete. Production-only rows preserved.')
 "
 
 # Clean up

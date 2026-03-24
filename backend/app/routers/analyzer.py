@@ -1,4 +1,4 @@
-"""Music Frequency Analyzer — public endpoints for user-submitted song analysis."""
+"""Lyrical Charger — public endpoints for user-submitted song analysis."""
 
 import asyncio
 import json

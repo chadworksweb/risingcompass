@@ -9,6 +9,9 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from fastapi import Depends
+
+from app.auth import verify_api_key
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
@@ -56,12 +59,12 @@ async def _daily_backup_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan — starts daily backup task and analyzer session cleanup."""
+    """App lifespan — starts daily backup task and Lyrical Charger session cleanup."""
     _cleanup_orphan_drafts()
     backup_task = asyncio.create_task(_daily_backup_loop())
     cleanup_task = asyncio.create_task(analyzer.session_cleanup_loop())
     logger.info("Daily backup scheduler started")
-    logger.info("Analyzer session cleanup scheduler started")
+    logger.info("Lyrical Charger session cleanup scheduler started")
     yield
     backup_task.cancel()
     cleanup_task.cancel()
@@ -74,19 +77,23 @@ app.add_middleware(
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Key", "Authorization"],
+    allow_headers=["Content-Type", "X-Admin-Key", "X-Api-Key", "Authorization"],
 )
 
-app.include_router(compass.router)
-app.include_router(drift.router)
-app.include_router(albums.router)
+# Public routers — require X-Api-Key header
+_api_key_dep = [Depends(verify_api_key)]
+app.include_router(compass.router, dependencies=_api_key_dep)
+app.include_router(drift.router, dependencies=_api_key_dep)
+app.include_router(albums.router, dependencies=_api_key_dep)
+app.include_router(weekly_albums.router, dependencies=_api_key_dep)
+app.include_router(library.router, dependencies=_api_key_dep)
+app.include_router(misread.router, dependencies=_api_key_dep)
+app.include_router(analyzer.router, dependencies=_api_key_dep)
+
+# Admin routers — use X-Admin-Key (handled per-endpoint)
 app.include_router(admin.router)
-app.include_router(weekly_albums.router)
-app.include_router(library.router)
 app.include_router(agent.router)
-app.include_router(misread.router)
 app.include_router(library_admin.router)
-app.include_router(analyzer.router)
 
 
 # slowapi rate limiter (defined in analyzer.py, shared across routers)

@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     rc_admin_key: str = ""  # REQUIRED — app won't start without it
+    rc_api_key: str = ""  # REQUIRED — consumer API key for public endpoints
     database_url: str = "sqlite:///./data/rising_compass.db"
     cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","https://risingcompass.net","https://api.risingcompass.net"]'
 
@@ -24,11 +25,11 @@ class Settings(BaseSettings):
     # Site URL for approval links in emails
     site_url: str = "http://localhost:8000"
 
-    # Spotify API (for analyzer playlist resolution)
+    # Spotify API (for Lyrical Charger playlist resolution)
     spotify_client_id: str = ""
     spotify_client_secret: str = ""
 
-    # Analyzer settings
+    # Lyrical Charger settings
     analyzer_max_songs: int = 10
     analyzer_session_ttl: int = 1800  # 30 minutes
 
@@ -36,6 +37,8 @@ class Settings(BaseSettings):
     def _validate_required_secrets(self):
         if not self.rc_admin_key or self.rc_admin_key == "change-me":
             raise ValueError("RC_ADMIN_KEY must be set to a strong secret (not 'change-me')")
+        if not self.rc_api_key or self.rc_api_key == "change-me":
+            raise ValueError("RC_API_KEY must be set to a strong secret (not 'change-me')")
         return self
 
     @property
