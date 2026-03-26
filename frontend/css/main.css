@@ -2278,6 +2278,73 @@ td.yo-charge {
   text-decoration: none;
 }
 
+/* === Lyrical Charger Promo === */
+.lc-promo {
+  max-width: var(--rc-max-width);
+  margin: 3rem auto 0;
+  padding: 0 var(--rc-card-padding);
+}
+
+.lc-promo-inner {
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+  padding: 3rem var(--rc-card-padding);
+  text-align: center;
+}
+
+.lc-promo-headline {
+  font-size: 1.4rem;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  color: var(--rc-text-bright);
+  margin-bottom: 1rem;
+}
+
+.lc-promo-desc {
+  font-size: 0.88rem;
+  color: var(--rc-text);
+  line-height: 1.7;
+  max-width: 620px;
+  margin: 0 auto 0.8rem;
+}
+
+.lc-promo-note {
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  margin-bottom: 2rem;
+}
+
+.lc-promo-cta {
+  display: inline-block;
+  padding: 0.85rem 2.5rem;
+  background: var(--rc-accent-subtle);
+  color: var(--rc-accent);
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius-sm);
+  font-family: var(--rc-font);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background var(--rc-ease);
+}
+
+.lc-promo-cta:hover {
+  background: var(--rc-accent-hover);
+}
+
+@media (max-width: 768px) {
+  .lc-promo-inner {
+    padding: 2rem 1.2rem;
+  }
+
+  .lc-promo-headline {
+    font-size: 1.2rem;
+  }
+}
+
 /* === Elevated Library === */
 .elevated-library-bg {
   background: var(--rc-accent);
