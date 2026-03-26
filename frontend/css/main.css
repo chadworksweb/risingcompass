@@ -2286,24 +2286,40 @@ td.yo-charge {
 }
 
 .lc-promo-inner {
-  background: var(--rc-bg-panel);
-  border: 1px solid var(--rc-border);
+  background: #eeeef4;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--rc-radius-lg);
   padding: 3rem var(--rc-card-padding);
   text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.lc-promo-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/img/lc-promo-bg.webp') center center / cover no-repeat;
+  opacity: 0.18;
+  z-index: 0;
+}
+
+.lc-promo-inner > * {
+  position: relative;
+  z-index: 1;
 }
 
 .lc-promo-headline {
   font-size: 1.4rem;
-  font-weight: 300;
+  font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--rc-text-bright);
+  color: #0a0a14;
   margin-bottom: 1rem;
 }
 
 .lc-promo-desc {
   font-size: 0.88rem;
-  color: var(--rc-text);
+  color: #1a1a2e;
   line-height: 1.7;
   max-width: 620px;
   margin: 0 auto 0.8rem;
@@ -2311,16 +2327,16 @@ td.yo-charge {
 
 .lc-promo-note {
   font-size: 0.72rem;
-  color: var(--rc-text-dim);
+  color: rgba(10, 10, 20, 0.5);
   margin-bottom: 2rem;
 }
 
 .lc-promo-cta {
   display: inline-block;
   padding: 0.85rem 2.5rem;
-  background: var(--rc-accent-subtle);
+  background: #0a0a14;
   color: var(--rc-accent);
-  border: 1px solid var(--rc-accent);
+  border: 1px solid #0a0a14;
   border-radius: var(--rc-radius-sm);
   font-family: var(--rc-font);
   font-size: 0.88rem;
@@ -2328,11 +2344,12 @@ td.yo-charge {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
-  transition: background var(--rc-ease);
+  transition: background var(--rc-ease), box-shadow var(--rc-ease);
 }
 
 .lc-promo-cta:hover {
-  background: var(--rc-accent-hover);
+  background: #2a2a3e;
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.15);
 }
 
 @media (max-width: 768px) {
