@@ -58,6 +58,7 @@ const resultIdentity = $('#result-identity');
 const resultClassification = $('#result-classification');
 const resultSummary = $('#result-summary');
 const resultContamination = $('#result-contamination');
+const resultMisread = $('#result-misread');
 const btnAgain = $('#btn-again');
 
 // --- State ---
@@ -303,6 +304,14 @@ function renderResults(data) {
   } else {
     resultContamination.classList.add('hidden');
   }
+
+  // Misread link
+  const misreadParams = new URLSearchParams();
+  misreadParams.set('title', data.title || '');
+  misreadParams.set('artist', data.artist || '');
+  misreadParams.set('color', data.tier || '');
+  if (data.charge_summary) misreadParams.set('cs', data.charge_summary);
+  resultMisread.innerHTML = `<a href="/misread-submission.html?${misreadParams.toString()}" class="misread-link">Did we get it wrong?</a>`;
 }
 
 // ============================================================

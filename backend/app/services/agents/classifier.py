@@ -96,6 +96,7 @@ def classify_song(
     response = client.messages.create(
         model=AGENT_MODEL,
         max_tokens=2048,
+        temperature=0,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )

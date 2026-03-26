@@ -747,6 +747,24 @@ main {
   line-height: 1.6;
 }
 
+/* Misread link */
+.result-misread {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.misread-link {
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--rc-ease);
+}
+
+.misread-link:hover {
+  color: var(--rc-accent);
+}
+
 /* CTA */
 .result-cta {
   padding: 2rem 0;
