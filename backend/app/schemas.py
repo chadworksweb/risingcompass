@@ -689,3 +689,27 @@ class PlaylistResolveOut(BaseModel):
     playlist_owner: str
     track_count: int
     tracks: list[PlaylistTrackOut]
+
+
+# --- Lyrical Charger v2: Direct lyrics classification ---
+class LyricsClassifyIn(BaseModel):
+    lyrics: str = Field(..., min_length=20, max_length=20000)
+    title: str = Field(..., min_length=1, max_length=200)
+    artist: str = Field(..., min_length=1, max_length=200)
+
+
+class LyricsClassifyOut(BaseModel):
+    status: str  # "scored" | "error"
+    tier: Optional[str] = None
+    tier_label: Optional[str] = None
+    charge: Optional[int] = None
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    confidence: float = 0.0
+    title: Optional[str] = None
+    artist: Optional[str] = None
+
+
+class SongSearchOut(BaseModel):
+    message: str

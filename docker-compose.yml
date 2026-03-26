@@ -12,7 +12,7 @@ services:
       - DATABASE_URL=sqlite:///./data/rising_compass.db
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - AGENT_MODEL=${AGENT_MODEL:-claude-sonnet-4-5-20250929}
+      - AGENT_MODEL=${AGENT_MODEL:-claude-opus-4-6}
       - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - EMAIL_FROM=${EMAIL_FROM:-Rising Compass <compass@risingcompass.net>}

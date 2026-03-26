@@ -215,6 +215,27 @@ class AgentDraftSong(Base):
     compass_song = relationship("CompassSong")
 
 
+class SubmittedSong(Base):
+    """Crowd-submitted song classifications from Lyrical Charger.
+
+    Separate from compass_songs (chart data) and library_songs (editorial).
+    This is the public contribution layer — building the world's lyrical charge database.
+    """
+    __tablename__ = "submitted_songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(Text, nullable=True)  # optional — paste-lyrics may not have metadata
+    artist = Column(Text, nullable=True)
+    rubric_color = Column(Text, nullable=False)
+    charge_value = Column(Integer)
+    contaminated = Column(Boolean, default=False)
+    contamination_note = Column(Text)
+    charge_summary = Column(Text)
+    confidence = Column(Float)
+    source = Column(String(20), default="paste_lyrics")  # paste_lyrics | search (future)
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+
+
 class MisreadSubmission(Base):
     __tablename__ = "misread_submissions"
 

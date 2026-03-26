@@ -21,8 +21,12 @@ from app.schemas import (
     AnalyzerSessionCreate, AnalyzerSessionOut,
     AnalyzerSessionStatus, AnalyzerSongResult, AnalyzerAggregate,
     PlaylistResolveIn, PlaylistResolveOut, PlaylistTrackOut,
+    LyricsClassifyIn, LyricsClassifyOut, SongSearchOut,
 )
+from app.models import SubmittedSong
+from app.constants import COLOR_LABELS
 from app.services.analyzer_engine import run_analysis
+from app.services.agents.classifier import classify_song
 
 logger = logging.getLogger(__name__)
 
@@ -299,3 +303,100 @@ async def _get_spotify_token() -> str | None:
     except Exception:
         logger.exception("Failed to get Spotify token")
         return None
+
+
+# ------------------------------------------------------------------
+# 5. POST /api/analyzer/classify-lyrics — Direct lyrics classification
+# ------------------------------------------------------------------
+def _validate_lyrics(text: str) -> str | None:
+    """Return an error message if the lyrics look bogus, or None if they pass."""
+    lines = [l for l in text.strip().splitlines() if l.strip()]
+    if len(lines) < 4:
+        return "Lyrics must have at least 4 lines for a meaningful classification."
+
+    # Mostly alphabetic (at least 60% letters after stripping whitespace)
+    alpha_chars = sum(1 for c in text if c.isalpha())
+    total_chars = sum(1 for c in text if not c.isspace())
+    if total_chars > 0 and alpha_chars / total_chars < 0.6:
+        return "That doesn't look like song lyrics. Paste the actual words of the song."
+
+    # Not all caps (allows some caps, blocks full walls of caps)
+    upper_alpha = sum(1 for c in text if c.isupper())
+    if alpha_chars > 20 and upper_alpha / alpha_chars > 0.85:
+        return "Please paste lyrics in normal case, not all caps."
+
+    # Minimum unique words (catches repeated gibberish)
+    words = re.findall(r"[a-zA-Z']+", text.lower())
+    if len(set(words)) < 10:
+        return "These lyrics don't have enough variety for a meaningful classification."
+
+    return None
+
+
+@router.post("/classify-lyrics", response_model=LyricsClassifyOut)
+@limiter.limit("5/hour")
+async def classify_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
+    """Classify raw lyrics text. Stores the classification (not the lyrics)."""
+    if not body.title or not body.title.strip():
+        raise HTTPException(422, "Song title is required.")
+    if not body.artist or not body.artist.strip():
+        raise HTTPException(422, "Artist is required.")
+
+    lyrics_error = _validate_lyrics(body.lyrics)
+    if lyrics_error:
+        raise HTTPException(422, lyrics_error)
+
+    title = body.title.strip()
+    artist = body.artist.strip()
+
+    db = SessionLocal()
+    try:
+        classification = await asyncio.to_thread(
+            classify_song, title, artist, body.lyrics, db
+        )
+
+        color = classification.get("rubric_color")
+        if color is None:
+            return LyricsClassifyOut(status="error", title=title, artist=artist)
+
+        # Store classification in submitted_songs (lyrics are NOT stored)
+        submitted = SubmittedSong(
+            title=title,
+            artist=artist,
+            rubric_color=color,
+            charge_value=classification.get("charge_value"),
+            contaminated=classification.get("contaminated", False),
+            contamination_note=classification.get("contamination_note"),
+            charge_summary=classification.get("charge_summary"),
+            confidence=classification.get("confidence"),
+            source="paste_lyrics",
+        )
+        db.add(submitted)
+        db.commit()
+
+        return LyricsClassifyOut(
+            status="scored",
+            tier=color,
+            tier_label=COLOR_LABELS.get(color),
+            charge=classification.get("charge_value"),
+            contaminated=classification.get("contaminated", False),
+            contamination_note=classification.get("contamination_note"),
+            charge_summary=classification.get("charge_summary"),
+            confidence=classification.get("confidence", 0.0),
+            title=title,
+            artist=artist,
+        )
+    except Exception:
+        logger.exception("Classification failed for submitted lyrics")
+        raise HTTPException(500, "Classification failed — try again")
+    finally:
+        db.close()
+
+
+# ------------------------------------------------------------------
+# 6. POST /api/analyzer/search-songs — Musixmatch song search (stub)
+# ------------------------------------------------------------------
+@router.post("/search-songs", response_model=SongSearchOut, status_code=501)
+async def search_songs(request: Request):
+    """Song search via Musixmatch — not yet implemented."""
+    return SongSearchOut(message="Song search is coming soon. Use paste lyrics for now.")
