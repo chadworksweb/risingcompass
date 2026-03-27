@@ -1,6 +1,12 @@
 services:
   backend:
     build: ./backend
+    container_name: rc-backend
+    networks:
+      default:
+      le-proxy:
+        aliases:
+          - rc-backend
     ports:
       - "8000:8000"
     volumes:
@@ -44,6 +50,10 @@ services:
       - certbot-certs:/etc/letsencrypt
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     restart: unless-stopped
+
+networks:
+  le-proxy:
+    external: true
 
 volumes:
   db-data:
