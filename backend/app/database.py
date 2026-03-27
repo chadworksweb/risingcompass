@@ -3,7 +3,14 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.config import settings
 
 if settings.is_turso:
-    engine = create_engine(settings.effective_database_url, echo=False)
+    engine = create_engine(
+        settings.effective_database_url,
+        connect_args={
+            "auth_token": settings.turso_auth_token,
+            "secure": True,
+        },
+        echo=False,
+    )
 else:
     engine = create_engine(
         settings.effective_database_url,
