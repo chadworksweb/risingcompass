@@ -1,10 +1,12 @@
-"""Daily SQLite database backup — copies DB file with date stamp, prunes old backups."""
+"""Database backup — file copy for SQLite, no-op for Turso (managed backups)."""
 
 import logging
 import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,12 @@ def run_backup() -> Path | None:
     """Copy the database file to backups/ with a date-stamped name.
 
     Returns the backup path on success, None on failure.
+    Skips when running on Turso (Turso handles its own backups).
     """
+    if settings.is_turso:
+        logger.info("Turso mode — skipping file-based backup (managed by Turso)")
+        return None
+
     if not DB_PATH.exists():
         logger.error("Database not found at %s", DB_PATH)
         return None
