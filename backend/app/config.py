@@ -48,7 +48,9 @@ class Settings(BaseSettings):
     def effective_database_url(self) -> str:
         """Return Turso URL if configured, otherwise local SQLite."""
         if self.turso_database_url and self.turso_auth_token:
-            return f"{self.turso_database_url}?authToken={self.turso_auth_token}&secure=true"
+            # sqlalchemy-libsql expects sqlite+libsql:// scheme
+            host = self.turso_database_url.replace("libsql://", "")
+            return f"sqlite+libsql://{host}?authToken={self.turso_auth_token}&secure=true"
         return self.database_url
 
     @property
