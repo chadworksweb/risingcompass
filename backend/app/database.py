@@ -3,15 +3,24 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.config import settings
 
 if settings.is_turso:
-    engine = create_engine(settings.effective_database_url, echo=False)
+    import libsql_experimental as libsql
+
+    def _turso_connection():
+        url = settings.turso_database_url
+        token = settings.turso_auth_token
+        return libsql.connect(url, auth_token=token)
+
+    engine = create_engine(
+        "sqlite+libsql://",
+        creator=_turso_connection,
+        echo=False,
+    )
 else:
     engine = create_engine(
         settings.effective_database_url,
         connect_args={"check_same_thread": False},
     )
 
-
-if not settings.is_turso:
     @event.listens_for(engine, "connect")
     def _set_foreign_keys(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
