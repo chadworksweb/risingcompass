@@ -50,7 +50,7 @@ class Settings(BaseSettings):
         if self.turso_database_url and self.turso_auth_token:
             # sqlalchemy-libsql expects sqlite+libsql:// scheme
             host = self.turso_database_url.replace("libsql://", "")
-            return f"sqlite+libsql://{host}"
+            return f"sqlite+libsql://{host}?authToken={self.turso_auth_token}&secure=true"
         return self.database_url
 
     @property
