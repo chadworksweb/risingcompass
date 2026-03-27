@@ -7,7 +7,6 @@ if settings.is_turso:
         settings.effective_database_url,
         connect_args={
             "auth_token": settings.turso_auth_token,
-            "secure": True,
         },
         echo=False,
     )
