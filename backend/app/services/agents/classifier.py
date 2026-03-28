@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 
 from anthropic import Anthropic
 from sqlalchemy import func
@@ -36,6 +37,21 @@ def lookup_classified(title: str, artist: str, db: Session) -> dict | None:
         .order_by(CompassSong.id.desc())
         .first()
     )
+
+    # Fallback: match ignoring punctuation (apostrophes stripped by shell escaping)
+    if not existing:
+        stripped = re.sub(r"[^\w\s]", "", title.lower())
+        candidates = (
+            db.query(CompassSong)
+            .filter(func.lower(CompassSong.artist) == artist.lower())
+            .order_by(CompassSong.id.desc())
+            .all()
+        )
+        for c in candidates:
+            if re.sub(r"[^\w\s]", "", c.title.lower()) == stripped:
+                existing = c
+                break
+
     if not existing:
         return None
     if not existing.rubric_color or existing.charge_value is None or existing.charge_summary is None:

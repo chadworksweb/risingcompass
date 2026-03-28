@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from datetime import date
 
 from anthropic import Anthropic
@@ -54,6 +55,19 @@ def _store_classification(title: str, artist: str, chart_position: int,
         .filter(func.lower(CompassSong.artist) == artist.lower())
         .first()
     )
+
+    # Fallback: match ignoring punctuation (apostrophes stripped by shell escaping)
+    if not existing:
+        stripped = re.sub(r"[^\w\s]", "", title.lower())
+        candidates = (
+            db.query(CompassSong)
+            .filter(func.lower(CompassSong.artist) == artist.lower())
+            .all()
+        )
+        for c in candidates:
+            if re.sub(r"[^\w\s]", "", c.title.lower()) == stripped:
+                existing = c
+                break
 
     if existing:
         existing.rubric_color = result["rubric_color"]
