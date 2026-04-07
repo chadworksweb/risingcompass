@@ -711,5 +711,53 @@ class LyricsClassifyOut(BaseModel):
     artist: Optional[str] = None
 
 
+class SongSearchIn(BaseModel):
+    query: str = Field(..., min_length=1, max_length=200)
+    artist: str = Field("", max_length=200)
+
+
+class SongSearchResult(BaseModel):
+    track_id: int
+    title: str
+    artist: str
+    album: str = ""
+    has_lyrics: bool = True
+
+
 class SongSearchOut(BaseModel):
-    message: str
+    results: list[SongSearchResult] = []
+    message: str = ""
+
+
+class SearchClassifyIn(BaseModel):
+    track_id: int
+    title: str = Field(..., min_length=1, max_length=200)
+    artist: str = Field(..., min_length=1, max_length=200)
+
+
+# --- Submitted Songs Admin ---
+
+class SubmittedSongOut(BaseModel):
+    id: int
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    rubric_color: str
+    charge_value: Optional[int] = None
+    contaminated: bool
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    confidence: Optional[float] = None
+    source: str
+    ip_address: Optional[str] = None
+    submitted_at: Optional[datetime.datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class SubmissionStatsOut(BaseModel):
+    total: int
+    today: int
+    by_color: dict[str, int]
+    by_source: dict[str, int]
+    contaminated_count: int
+    avg_confidence: Optional[float] = None

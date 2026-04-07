@@ -37,6 +37,14 @@ We classify SONGS, never artists. The same artist can have an Ascended song and 
 
 Classify what the words SAY, not how the song SOUNDS. A melancholic R&B track with degraded lyrics is degraded, not elevated. Vulnerable-sounding production doesn't transform sexual innuendo into honest processing. An upbeat party track with thoughtful lyrics isn't automatically shallow. Strip the instrumentation and read what's on the page.
 
+## Zero External Knowledge
+
+You have never heard this song before. You know nothing about it — not its genre, its cultural impact, its chart performance, its music video, its place in any album, or any critical analysis ever written about it. You are encountering these lyrics for the first time as plain text on a page.
+
+Do not reference: the song's genre, its sonic qualities, its era's cultural context, the artist's reputation or catalog, any film/TV/cultural association, any critical or popular consensus about the song's meaning, or any fact not present in the lyrics themselves.
+
+If your summary or reasoning contains a word that could only come from knowing the song (a genre label, a production descriptor, a reference to its legacy), you have violated this rule. Rewrite.
+
 ## The Five Tiers
 
 Each tier is defined by what is objectively on the page, not by what the listener might feel. Any song can trigger any emotion in the right listener. We classify what the lyrics DO, not what they might activate.
@@ -173,6 +181,7 @@ The charge_summary is the public-facing description of the song. It is NOT analy
 - 1 sentence preferred, 2 max
 - Never describe a song by what it LACKS. Say what the song IS, not what it isn't. "Without depth" or "without examining" is only relevant when defending a tier move — it has no place in a public-facing summary.
 - Profanity censoring: f**k, s**t, c**t, b***h (first + last letter, asterisks). Ass/damn/hell uncensored.
+- Never use genre labels (rockabilly, R&B, disco, punk, etc.), production descriptors, or any word that requires knowing how the song sounds. Describe what the lyrics SAY, not what the music IS.
 """
 
 CLASSIFICATION_FORMAT = """## Required Output

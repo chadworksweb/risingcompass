@@ -232,7 +232,8 @@ class SubmittedSong(Base):
     contamination_note = Column(Text)
     charge_summary = Column(Text)
     confidence = Column(Float)
-    source = Column(String(20), default="paste_lyrics")  # paste_lyrics | search (future)
+    source = Column(String(20), default="paste_lyrics")  # paste_lyrics | search
+    ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6, for abuse detection
     submitted_at = Column(DateTime, default=datetime.utcnow)
 
 

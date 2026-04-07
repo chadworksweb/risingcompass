@@ -73,6 +73,30 @@
   .filter-bar { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
   .filter-btn { padding: 0.3rem 0.8rem; font-size: 0.8rem; background: none; border: 1px solid var(--border); color: #888; border-radius: 4px; cursor: pointer; }
   .filter-btn.active { color: var(--accent); border-color: var(--accent); }
+  /* LC Submissions */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; margin-bottom: 1.5rem; }
+  .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; text-align: center; }
+  .stat-card .val { font-size: 1.6rem; font-weight: bold; color: var(--accent); }
+  .stat-card .label { font-size: 0.75rem; color: #888; margin-top: 0.2rem; }
+  .color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.3rem; vertical-align: middle; }
+  .color-dot.violet { background: #aa54ff; }
+  .color-dot.blue { background: #3388ff; }
+  .color-dot.green { background: #33cc55; }
+  .color-dot.orange { background: #ffbb33; }
+  .color-dot.red { background: #ff3333; }
+  .sub-row { display: grid; grid-template-columns: 40px 1.5fr 1fr 90px 60px 70px 100px 120px; gap: 0.5rem; align-items: center; padding: 0.6rem 0.8rem; background: var(--panel); border-radius: 4px; margin-bottom: 0.4rem; font-size: 0.85rem; }
+  .sub-header { display: grid; grid-template-columns: 40px 1.5fr 1fr 90px 60px 70px 100px 120px; gap: 0.5rem; font-size: 0.75rem; color: #666; padding: 0 0.8rem; margin-bottom: 0.3rem; }
+  .sub-row .actions { display: flex; gap: 0.3rem; }
+  .sub-charge { font-weight: bold; }
+  .sub-charge.positive { color: #33cc55; }
+  .sub-charge.negative { color: #ff3333; }
+  .sub-charge.zero { color: #888; }
+  .contam-tag { font-size: 0.7rem; background: #2a0a0a; color: var(--red); padding: 0.1rem 0.4rem; border-radius: 3px; }
+  .confidence-bar { display: inline-block; width: 40px; height: 6px; background: #1a1a2a; border-radius: 3px; overflow: hidden; vertical-align: middle; margin-right: 0.3rem; }
+  .confidence-bar .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+  .pagination { display: flex; gap: 0.5rem; margin-top: 1rem; align-items: center; }
+  .pagination button { padding: 0.3rem 0.8rem; font-size: 0.8rem; }
+  .pagination .page-info { font-size: 0.8rem; color: #888; }
 </style>
 </head>
 <body>
@@ -91,6 +115,7 @@
   <button class="tab-btn" onclick="switchTab('collections')">Collections</button>
   <button class="tab-btn" onclick="switchTab('recs')">Recommendations</button>
   <button class="tab-btn" onclick="switchTab('misread')">Misread Reports</button>
+  <button class="tab-btn" onclick="switchTab('submissions')">LC Submissions</button>
 </div>
 
 <!-- Daily Songs Tab -->
@@ -258,6 +283,33 @@
   <div id="banList"></div>
 </div>
 
+<!-- LC Submissions Tab -->
+<div class="tab-panel" id="tab-submissions">
+  <div class="stats-grid" id="subStats">
+    <div class="stat-card"><div class="val" id="statTotal">—</div><div class="label">Total</div></div>
+    <div class="stat-card"><div class="val" id="statToday">—</div><div class="label">Today</div></div>
+    <div class="stat-card"><div class="val" id="statContam">—</div><div class="label">Contaminated</div></div>
+    <div class="stat-card"><div class="val" id="statConfidence">—</div><div class="label">Avg Confidence</div></div>
+  </div>
+  <div id="subColorBreakdown" style="margin-bottom:1rem;"></div>
+
+  <div class="filter-bar" id="subFilters">
+    <button class="filter-btn active" onclick="filterSubs('')">All</button>
+    <button class="filter-btn" onclick="filterSubs('violet')"><span class="color-dot violet"></span>Violet</button>
+    <button class="filter-btn" onclick="filterSubs('blue')"><span class="color-dot blue"></span>Blue</button>
+    <button class="filter-btn" onclick="filterSubs('green')"><span class="color-dot green"></span>Green</button>
+    <button class="filter-btn" onclick="filterSubs('orange')"><span class="color-dot orange"></span>Orange</button>
+    <button class="filter-btn" onclick="filterSubs('red')"><span class="color-dot red"></span>Red</button>
+  </div>
+
+  <div class="sub-header">
+    <span>ID</span><span>Title</span><span>Artist</span><span>Color</span><span>Charge</span><span>Conf.</span><span>IP</span><span>Actions</span>
+  </div>
+  <div id="subList"></div>
+  <div class="pagination" id="subPagination"></div>
+  <div class="status-msg" id="subStatus"></div>
+</div>
+
 <script>
 const colors = ['violet','blue','green','orange','red'];
 const colorLabels = {'violet':'Violet','blue':'Blue','green':'Green','orange':'Orange','red':'Red'};
@@ -279,6 +331,7 @@ function switchTab(tab) {
   if (tab === 'collections') loadCollections();
   if (tab === 'recs') loadCollectionDropdown();
   if (tab === 'misread') { loadMisread(); loadBans(); }
+  if (tab === 'submissions') { loadSubStats(); loadSubs(); }
 }
 
 // Generate entry rows for a container
@@ -808,6 +861,126 @@ async function removeBan(id) {
     if (!resp.ok) throw new Error(await resp.text());
     loadBans();
   } catch (e) { showMsg(document.getElementById('misreadStatus'), e.message, 'error'); }
+}
+
+// --- LC Submissions ---
+
+let currentSubFilter = '';
+let subOffset = 0;
+const subLimit = 50;
+
+function filterSubs(color) {
+  currentSubFilter = color;
+  subOffset = 0;
+  document.querySelectorAll('#subFilters .filter-btn').forEach(b => {
+    const isAll = color === '' && b.textContent.trim() === 'All';
+    const isColor = b.textContent.trim().toLowerCase() === color;
+    b.classList.toggle('active', isAll || isColor);
+  });
+  loadSubs();
+}
+
+async function loadSubStats() {
+  const key = document.getElementById('adminKey').value.trim();
+  if (!key) return;
+  try {
+    const resp = await fetch('/api/admin/submissions/stats', { headers: { 'X-Admin-Key': key } });
+    if (!resp.ok) throw new Error(await resp.text());
+    const s = await resp.json();
+    document.getElementById('statTotal').textContent = s.total;
+    document.getElementById('statToday').textContent = s.today;
+    document.getElementById('statContam').textContent = s.contaminated_count;
+    document.getElementById('statConfidence').textContent = s.avg_confidence !== null ? (s.avg_confidence * 100).toFixed(1) + '%' : '—';
+
+    const breakdown = document.getElementById('subColorBreakdown');
+    const colorOrder = ['violet', 'blue', 'green', 'orange', 'red'];
+    breakdown.innerHTML = colorOrder
+      .filter(c => s.by_color[c])
+      .map(c => `<span style="margin-right:1rem;font-size:0.85rem;"><span class="color-dot ${c}"></span>${colorLabels[c]}: ${s.by_color[c]}</span>`)
+      .join('');
+  } catch (e) { /* stats are non-critical */ }
+}
+
+async function loadSubs() {
+  const key = document.getElementById('adminKey').value.trim();
+  const el = document.getElementById('subList');
+  if (!key) { el.innerHTML = '<p style="color:#666;">Enter admin key first.</p>'; return; }
+  try {
+    let url = `/api/admin/submissions?limit=${subLimit}&offset=${subOffset}`;
+    if (currentSubFilter) url += `&color=${currentSubFilter}`;
+    const resp = await fetch(url, { headers: { 'X-Admin-Key': key } });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderSubs(data);
+  } catch (e) { showMsg(document.getElementById('subStatus'), e.message, 'error'); }
+}
+
+function renderSubs(list) {
+  const el = document.getElementById('subList');
+  if (!list.length) { el.innerHTML = '<p style="color:#666;">No submissions found.</p>'; renderSubPagination(0); return; }
+  el.innerHTML = list.map(s => {
+    const chargeClass = s.charge_value > 0 ? 'positive' : s.charge_value < 0 ? 'negative' : 'zero';
+    const chargeStr = s.charge_value !== null ? (s.charge_value > 0 ? '+' : '') + s.charge_value : '—';
+    const confPct = s.confidence !== null ? Math.round(s.confidence * 100) : 0;
+    const dateStr = s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '';
+    return `
+      <div class="sub-row">
+        <span style="color:#666;">${s.id}</span>
+        <span>${esc(s.title || '(no title)')}${s.contaminated ? ' <span class="contam-tag">CONTAM</span>' : ''}</span>
+        <span>${esc(s.artist || '(no artist)')}</span>
+        <span><span class="color-dot ${s.rubric_color}"></span>${colorLabels[s.rubric_color] || s.rubric_color}</span>
+        <span class="sub-charge ${chargeClass}">${chargeStr}</span>
+        <span><span class="confidence-bar"><span class="fill" style="width:${confPct}%"></span></span>${confPct}%</span>
+        <span style="font-size:0.75rem;color:#888;">${s.ip_address ? esc(s.ip_address) : '—'}</span>
+        <span class="actions">
+          <button class="btn-sm" onclick="promoteSub(${s.id})" title="Promote to Library">Promote</button>
+          <button class="btn-sm btn-danger" onclick="deleteSub(${s.id})" title="Delete">Del</button>
+        </span>
+      </div>`;
+  }).join('');
+  renderSubPagination(list.length);
+}
+
+function renderSubPagination(count) {
+  const el = document.getElementById('subPagination');
+  const page = Math.floor(subOffset / subLimit) + 1;
+  el.innerHTML = `
+    ${subOffset > 0 ? `<button class="btn-sm" onclick="subPage(-1)">Prev</button>` : ''}
+    <span class="page-info">Page ${page} &middot; showing ${count} results</span>
+    ${count >= subLimit ? `<button class="btn-sm" onclick="subPage(1)">Next</button>` : ''}
+  `;
+}
+
+function subPage(dir) {
+  subOffset = Math.max(0, subOffset + dir * subLimit);
+  loadSubs();
+}
+
+async function deleteSub(id) {
+  if (!confirm(`Delete submission #${id}? This cannot be undone.`)) return;
+  const statusEl = document.getElementById('subStatus');
+  try {
+    const resp = await fetch(`/api/admin/submissions/${id}`, { method: 'DELETE', headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, `Submission #${id} deleted`, 'success');
+    loadSubs();
+    loadSubStats();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+async function promoteSub(id) {
+  if (!confirm(`Promote submission #${id} to the library? This copies the classification into library_songs.`)) return;
+  const statusEl = document.getElementById('subStatus');
+  try {
+    const resp = await fetch(`/api/admin/submissions/${id}/promote`, { method: 'POST', headers: adminHeaders() });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(errText);
+    }
+    const data = await resp.json();
+    showMsg(statusEl, `Promoted "${data.title}" — ${data.artist} to library (ID ${data.library_song_id})`, 'success');
+    loadSubs();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
 }
 </script>
 </body>

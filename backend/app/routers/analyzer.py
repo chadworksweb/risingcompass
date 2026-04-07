@@ -21,12 +21,14 @@ from app.schemas import (
     AnalyzerSessionCreate, AnalyzerSessionOut,
     AnalyzerSessionStatus, AnalyzerSongResult, AnalyzerAggregate,
     PlaylistResolveIn, PlaylistResolveOut, PlaylistTrackOut,
-    LyricsClassifyIn, LyricsClassifyOut, SongSearchOut,
+    LyricsClassifyIn, LyricsClassifyOut,
+    SongSearchIn, SongSearchOut, SearchClassifyIn,
 )
 from app.models import SubmittedSong
 from app.constants import COLOR_LABELS
 from app.services.analyzer_engine import run_analysis
 from app.services.agents.classifier import classify_song
+from app.services import musixmatch
 
 logger = logging.getLogger(__name__)
 
@@ -370,6 +372,7 @@ async def classify_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
             charge_summary=classification.get("charge_summary"),
             confidence=classification.get("confidence"),
             source="paste_lyrics",
+            ip_address=get_remote_address(request),
         )
         db.add(submitted)
         db.commit()
@@ -394,9 +397,82 @@ async def classify_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
 
 
 # ------------------------------------------------------------------
-# 6. POST /api/analyzer/search-songs — Musixmatch song search (stub)
+# 6. POST /api/analyzer/search-songs — Musixmatch song search
 # ------------------------------------------------------------------
-@router.post("/search-songs", response_model=SongSearchOut, status_code=501)
-async def search_songs(request: Request):
-    """Song search via Musixmatch — not yet implemented."""
-    return SongSearchOut(message="Song search is coming soon. Use paste lyrics for now.")
+@router.post("/search-songs", response_model=SongSearchOut)
+@limiter.limit("20/hour")
+async def search_songs(body: SongSearchIn, request: Request):
+    """Search for songs via Musixmatch. Returns empty list if API key not configured."""
+    if not musixmatch.is_configured():
+        return SongSearchOut(results=[], message="Song search is not yet available. Paste lyrics directly for now.")
+
+    results = await musixmatch.search_tracks(body.query, body.artist)
+    if not results:
+        return SongSearchOut(results=[], message="No songs found. Try a different search.")
+
+    return SongSearchOut(results=results)
+
+
+# ------------------------------------------------------------------
+# 7. POST /api/analyzer/classify-search — Classify a song found via search
+# ------------------------------------------------------------------
+@router.post("/classify-search", response_model=LyricsClassifyOut)
+@limiter.limit("5/hour")
+async def classify_search(body: SearchClassifyIn, request: Request):
+    """Fetch lyrics for a Musixmatch track and classify them."""
+    if not musixmatch.is_configured():
+        raise HTTPException(501, "Song search is not yet available.")
+
+    lyrics = await musixmatch.get_lyrics(body.track_id)
+    if not lyrics:
+        raise HTTPException(404, "Lyrics not available for this track.")
+
+    lyrics_error = _validate_lyrics(lyrics)
+    if lyrics_error:
+        raise HTTPException(422, f"Retrieved lyrics are too short or invalid: {lyrics_error}")
+
+    title = body.title.strip()
+    artist = body.artist.strip()
+
+    db = SessionLocal()
+    try:
+        classification = await asyncio.to_thread(
+            classify_song, title, artist, lyrics, db
+        )
+
+        color = classification.get("rubric_color")
+        if color is None:
+            return LyricsClassifyOut(status="error", title=title, artist=artist)
+
+        submitted = SubmittedSong(
+            title=title,
+            artist=artist,
+            rubric_color=color,
+            charge_value=classification.get("charge_value"),
+            contaminated=classification.get("contaminated", False),
+            contamination_note=classification.get("contamination_note"),
+            charge_summary=classification.get("charge_summary"),
+            confidence=classification.get("confidence"),
+            source="search",
+            ip_address=get_remote_address(request),
+        )
+        db.add(submitted)
+        db.commit()
+
+        return LyricsClassifyOut(
+            status="scored",
+            tier=color,
+            tier_label=COLOR_LABELS.get(color),
+            charge=classification.get("charge_value"),
+            contaminated=classification.get("contaminated", False),
+            contamination_note=classification.get("contamination_note"),
+            charge_summary=classification.get("charge_summary"),
+            confidence=classification.get("confidence", 0.0),
+            title=title,
+            artist=artist,
+        )
+    except Exception:
+        logger.exception("Classification failed for search track %d", body.track_id)
+        raise HTTPException(500, "Classification failed — try again")
+    finally:
+        db.close()

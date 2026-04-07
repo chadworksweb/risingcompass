@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     spotify_client_id: str = ""
     spotify_client_secret: str = ""
 
+    # Musixmatch API (song search + lyrics for Lyrical Charger)
+    musixmatch_api_key: str = ""
+
     # Lyrical Charger settings
     analyzer_session_ttl: int = 1800  # 30 minutes
 
