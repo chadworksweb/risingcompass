@@ -237,6 +237,32 @@ class SubmittedSong(Base):
     submitted_at = Column(DateTime, default=datetime.utcnow)
 
 
+class AlbumClassification(Base):
+    """Computed album-level classification — mean of constituent song charges.
+
+    Not editorial (that's album_deep_dives). This is the badge-serving layer.
+    """
+    __tablename__ = "album_classifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    rubric_color = Column(Text, nullable=False)
+    charge_value = Column(Integer, nullable=False)  # mean of track charges
+    charge_summary = Column(Text)
+    track_count = Column(Integer, nullable=False, default=0)
+    contamination_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "title", "artist",
+            name="uq_album_classifications_title_artist",
+        ),
+    )
+
+
 class MisreadSubmission(Base):
     __tablename__ = "misread_submissions"
 
