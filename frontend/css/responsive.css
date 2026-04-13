@@ -45,6 +45,22 @@
   .nav-tab:first-child { border-radius: var(--rc-radius-lg) 0 0 0; }
   .nav-tab:last-child { border-radius: 0 var(--rc-radius-lg) 0 0; }
 
+  .era-tabs {
+    margin: -1rem -1rem 1rem;
+  }
+
+  .era-tab {
+    padding: 0.55rem 0.6rem;
+  }
+
+  .era-tab-title {
+    font-size: 0.72rem;
+  }
+
+  .era-tab-tagline {
+    display: none;
+  }
+
   .section-content {
     padding: 1rem;
     padding-bottom: 2rem;
