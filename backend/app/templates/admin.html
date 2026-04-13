@@ -116,6 +116,7 @@
   <button class="tab-btn" onclick="switchTab('recs')">Recommendations</button>
   <button class="tab-btn" onclick="switchTab('misread')">Misread Reports</button>
   <button class="tab-btn" onclick="switchTab('submissions')">LC Submissions</button>
+  <button class="tab-btn" onclick="switchTab('stream')">CL Stream</button>
 </div>
 
 <!-- Daily Songs Tab -->
@@ -310,6 +311,43 @@
   <div class="status-msg" id="subStatus"></div>
 </div>
 
+<!-- CL Stream Tab -->
+<div class="tab-panel" id="tab-stream">
+  <h2 class="section-title">Add to Stream</h2>
+  <div class="form-group">
+    <label>Tidal URL <span style="color:#555;font-size:0.8rem;">— or leave blank and fill title/artist below</span></label>
+    <input type="text" id="streamUrl" placeholder="https://tidal.com/browse/track/...">
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+    <div class="form-group">
+      <label>Title <span style="color:#555;font-size:0.8rem;">optional if URL resolves</span></label>
+      <input type="text" id="streamTitle" placeholder="Song title">
+    </div>
+    <div class="form-group">
+      <label>Artist <span style="color:#555;font-size:0.8rem;">optional if URL resolves</span></label>
+      <input type="text" id="streamArtist" placeholder="Artist name">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Why this song <span style="color:#e28a6c;font-size:0.8rem;">required</span></label>
+    <textarea id="streamNote" placeholder="Why did this song catch your ear? What's it doing?" style="min-height:80px;"></textarea>
+  </div>
+  <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.5rem;">
+    <button onclick="addToStream()" id="streamSubmitBtn">Add to Stream</button>
+    <span id="streamSpinner" style="display:none;color:#888;font-size:0.85rem;">Calibrating...</span>
+  </div>
+  <div class="status-msg" id="streamStatus"></div>
+
+  <h2 class="section-title" style="margin-top:2rem;">Stream Feed</h2>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterStream(null, this)">All</button>
+    <button class="filter-btn" onclick="filterStream('calibrated', this)">Calibrated</button>
+    <button class="filter-btn" onclick="filterStream('promoted', this)">Promoted</button>
+    <button class="filter-btn" onclick="filterStream('failed', this)">Failed</button>
+  </div>
+  <div id="streamFeed"></div>
+</div>
+
 <script>
 const colors = ['violet','blue','green','orange','red'];
 const colorLabels = {'violet':'Violet','blue':'Blue','green':'Green','orange':'Orange','red':'Red'};
@@ -332,6 +370,7 @@ function switchTab(tab) {
   if (tab === 'recs') loadCollectionDropdown();
   if (tab === 'misread') { loadMisread(); loadBans(); }
   if (tab === 'submissions') { loadSubStats(); loadSubs(); }
+  if (tab === 'stream') loadStream();
 }
 
 // Generate entry rows for a container
@@ -981,6 +1020,124 @@ async function promoteSub(id) {
     showMsg(statusEl, `Promoted "${data.title}" — ${data.artist} to library (ID ${data.library_song_id})`, 'success');
     loadSubs();
   } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+// --- CL Stream ---
+
+let streamStatusFilter = null;
+
+async function addToStream() {
+  const statusEl = document.getElementById('streamStatus');
+  const btn = document.getElementById('streamSubmitBtn');
+  const spinner = document.getElementById('streamSpinner');
+  statusEl.className = 'status-msg';
+  const adminKey = document.getElementById('adminKey').value.trim();
+  if (!adminKey) { showMsg(statusEl, 'Admin key required', 'error'); return; }
+
+  const source_url = document.getElementById('streamUrl').value.trim() || null;
+  const title = document.getElementById('streamTitle').value.trim() || null;
+  const artist = document.getElementById('streamArtist').value.trim() || null;
+  const note = document.getElementById('streamNote').value.trim();
+
+  if (!note) { showMsg(statusEl, 'The why note is required', 'error'); return; }
+  if (!source_url && (!title || !artist)) { showMsg(statusEl, 'Provide a Tidal URL or both title and artist', 'error'); return; }
+
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  try {
+    const body = { note };
+    if (source_url) body.source_url = source_url;
+    if (title) body.title = title;
+    if (artist) body.artist = artist;
+
+    const resp = await fetch('/api/admin/stream', {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || resp.statusText);
+    }
+    const data = await resp.json();
+    const colorDot = data.rubric_color ? `<span class="color-dot ${data.rubric_color}"></span>` : '';
+    showMsg(statusEl,
+      `Added: "${data.title}" by ${data.artist} ${colorDot} ${data.rubric_color || 'unresolved'} (${data.charge_value ?? '—'}) — ${data.status}`,
+      'success'
+    );
+    // Clear form
+    document.getElementById('streamUrl').value = '';
+    document.getElementById('streamTitle').value = '';
+    document.getElementById('streamArtist').value = '';
+    document.getElementById('streamNote').value = '';
+    loadStream();
+  } catch (e) {
+    showMsg(statusEl, e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function filterStream(status, btn) {
+  streamStatusFilter = status;
+  document.querySelectorAll('#tab-stream .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadStream();
+}
+
+async function loadStream() {
+  const adminKey = document.getElementById('adminKey').value.trim();
+  if (!adminKey) return;
+  const url = '/api/admin/stream' + (streamStatusFilter ? `?status=${streamStatusFilter}` : '');
+  try {
+    const resp = await fetch(url, { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const items = await resp.json();
+    const feed = document.getElementById('streamFeed');
+    if (!items.length) { feed.innerHTML = '<p style="color:#555;font-size:0.85rem;padding:0.5rem 0;">No entries yet.</p>'; return; }
+    feed.innerHTML = items.map(s => {
+      const color = s.rubric_color || 'none';
+      const dot = s.rubric_color ? `<span class="color-dot ${color}"></span>` : '';
+      const charge = s.charge_value != null ? (s.charge_value > 0 ? `+${s.charge_value}` : `${s.charge_value}`) : '—';
+      const contam = s.contaminated ? `<span class="contam-tag">contam</span>` : '';
+      const date = s.created_at ? new Date(s.created_at).toLocaleDateString() : '';
+      const promoteBtn = s.status !== 'promoted'
+        ? `<button class="btn-sm" onclick="promoteStream(${s.id}, 'library')">→ Library</button>
+           <button class="btn-sm" onclick="promoteStream(${s.id}, 'compass')">→ Compass</button>`
+        : `<span style="color:#555;font-size:0.8rem;">Promoted to ${s.promoted_to}</span>`;
+      return `<div class="misread-item" style="margin-bottom:0.6rem;">
+        <div class="misread-song">${dot} ${s.title} <span style="font-weight:normal;color:#888;">by ${s.artist}</span> <span class="sub-charge ${s.charge_value > 0 ? 'positive' : s.charge_value < 0 ? 'negative' : 'zero'}">${charge}</span> ${contam}</div>
+        <div class="misread-meta">${date} · ${s.source_platform || 'manual'} · <span class="status-badge ${s.status}">${s.status}</span></div>
+        <div class="misread-msg" style="font-style:italic;color:#aaa;">"${s.note}"</div>
+        ${s.charge_summary ? `<div style="font-size:0.82rem;color:#888;margin-top:0.3rem;">${s.charge_summary}</div>` : ''}
+        <div class="misread-actions">${promoteBtn} <button class="btn-sm btn-danger" onclick="deleteStream(${s.id})">Delete</button></div>
+      </div>`;
+    }).join('');
+  } catch (e) { console.error(e); }
+}
+
+async function promoteStream(id, target) {
+  const adminKey = document.getElementById('adminKey').value.trim();
+  if (!adminKey) return;
+  try {
+    const resp = await fetch(`/api/admin/stream/${id}/promote`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ target }),
+    });
+    if (!resp.ok) { const e = await resp.json().catch(() => ({})); alert(e.detail || 'Promote failed'); return; }
+    loadStream();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteStream(id) {
+  if (!confirm('Delete this stream entry?')) return;
+  try {
+    const resp = await fetch(`/api/admin/stream/${id}`, { method: 'DELETE', headers: adminHeaders() });
+    if (!resp.ok) return;
+    loadStream();
+  } catch (e) { console.error(e); }
 }
 </script>
 </body>
