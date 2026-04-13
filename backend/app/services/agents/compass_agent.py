@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import AgentDraft, AgentDraftSong, CompassSong
-from app.services.agents.classifier import classify_song, lookup_classified, AGENT_MODEL
+from app.services.agents.calibrator import calibrate_song, lookup_calibrated, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
@@ -38,7 +38,7 @@ def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "co
     return f"{prefix}{modifier}_draft"
 
 
-def _store_classification(title: str, artist: str, chart_position: int,
+def _store_calibration(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
                           db: Session) -> int | None:
     """Store or update a classification in the CompassSong table for future reuse.
@@ -106,9 +106,9 @@ def run_compass_agent(
     draft_only: bool = False,
     draft_type: str = "daily",
 ) -> AgentDraft:
-    """Run the full agent pipeline: classify songs, compute compass, save draft, send email.
+    """Run the full agent pipeline: calibrate songs, compute compass, save draft, send email.
 
-    Songs are classified once and cached. Returning chart songs reuse stored classifications.
+    Songs are calibrated once and cached. Returning chart songs reuse stored calibrations.
 
     Args:
         songs_input: List of dicts with title, artist, position, chart_source.
@@ -135,7 +135,7 @@ def run_compass_agent(
         chart_source = song_in.get("chart_source", "spotify")
 
         # Check cache first
-        cached = lookup_classified(title, artist, db)
+        cached = lookup_calibrated(title, artist, db)
         if cached:
             enforce_contamination_rule(cached)
 
@@ -174,7 +174,7 @@ def run_compass_agent(
             })
             continue
 
-        result = classify_song(title, artist, lyrics=lyrics, db=db)
+        result = calibrate_song(title, artist, lyrics=lyrics, db=db)
 
         # Flag incomplete classifications — missing color, score, or summary
         if not result.get("rubric_color") or result.get("charge_value") is None or not result.get("charge_summary"):
@@ -189,7 +189,7 @@ def run_compass_agent(
         # Store for future reuse (skip for draft-only / case study mode)
         cs_id = None
         if not draft_only:
-            cs_id = _store_classification(title, artist, position, chart_source, result, True, db)
+            cs_id = _store_calibration(title, artist, position, chart_source, result, True, db)
         logger.info("Classified and cached: %s by %s → %s", title, artist, result["rubric_color"])
 
         classified_songs.append({

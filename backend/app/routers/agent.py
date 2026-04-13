@@ -22,9 +22,9 @@ from app.schemas import (
 from app.auth import create_approval_token, verify_approval_token
 from app.config import settings
 from app.routers.admin import verify_admin_key
-from app.services.agents.compass_agent import run_compass_agent, _store_classification
+from app.services.agents.compass_agent import run_compass_agent, _store_calibration
 from app.services.agents.chart_source import fetch_top_songs
-from app.services.agents.classifier import classify_song
+from app.services.agents.calibrator import calibrate_song
 from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
@@ -130,11 +130,11 @@ def _build_approval_html(draft) -> str:
 </body></html>"""
 
 
-@router.post("/classify", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
-def trigger_classification(data: DraftTriggerIn, db: Session = Depends(get_db)):
-    """Trigger classification on a list of songs.
+@router.post("/calibrate", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+def trigger_calibration(data: DraftTriggerIn, db: Session = Depends(get_db)):
+    """Trigger calibration on a list of songs.
 
-    Creates an AgentDraft with Claude-generated classifications.
+    Creates an AgentDraft with Claude-generated calibrations.
     """
     songs_input = [s.model_dump() for s in data.songs]
     reading_date = data.date or date.today()
@@ -143,9 +143,9 @@ def trigger_classification(data: DraftTriggerIn, db: Session = Depends(get_db)):
     return draft
 
 
-@router.post("/classify-live", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
-def classify_live(db: Session = Depends(get_db)):
-    """Fetch today's Spotify Top 50 USA and classify them.
+@router.post("/calibrate-live", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+def calibrate_live(db: Session = Depends(get_db)):
+    """Fetch today's Spotify Top 50 USA and calibrate them.
 
     The chart is pinned: once fetched for a given day, subsequent calls
     reuse the same song list (from the first draft) so the reading is
@@ -437,10 +437,10 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
 
 @router.post("/drafts/{draft_ref}/songs/{song_id}/lyrics", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
 def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
-    """Supply lyrics for an unclassified song in a draft, triggering classification.
+    """Supply lyrics for an uncalibrated song in a draft, triggering calibration.
 
-    After classification, stores the result in CompassSong for future cache hits
-    and recalculates draft metrics if all songs are now classified.
+    After calibration, stores the result in CompassSong for future cache hits
+    and recalculates draft metrics if all songs are now calibrated.
     """
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
@@ -452,7 +452,7 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
         raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
 
     # Classify with the supplied lyrics
-    result = classify_song(draft_song.title, draft_song.artist, lyrics=data.lyrics, db=db)
+    result = calibrate_song(draft_song.title, draft_song.artist, lyrics=data.lyrics, db=db)
 
     # Update the draft song
     draft_song.rubric_color = result["rubric_color"]
@@ -464,7 +464,7 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
     draft_song.lyrics_available = True
 
     # Store in CompassSong table for future cache hits
-    cs_id = _store_classification(
+    cs_id = _store_calibration(
         draft_song.title, draft_song.artist, draft_song.position,
         draft_song.chart_source or "spotify", result, True, db,
     )
@@ -506,7 +506,7 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
 
 @router.post("/songs", response_model=CompassSongOut, dependencies=[Depends(verify_admin_key)])
 def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
-    """Manually feed a song classification into the CompassSong table.
+    """Manually feed a song calibration into the CompassSong table.
 
     This serves two purposes:
     1. Training data for the agent (few-shot examples)
@@ -536,16 +536,16 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
     return song
 
 
-@router.post("/backfill/{year}/classify", response_model=BackfillResult, dependencies=[Depends(verify_admin_key)])
-def backfill_classify(
+@router.post("/backfill/{year}/calibrate", response_model=BackfillResult, dependencies=[Depends(verify_admin_key)])
+def backfill_calibrate(
     year: int,
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
-    """Auto-fetch lyrics and classify incomplete songs for a given year.
+    """Auto-fetch lyrics and calibrate incomplete songs for a given year.
 
     Backfill-only endpoint. Uses lyrics_source.fetch_lyrics() to grab lyrics,
-    then classifies via Claude. The daily pipeline is unaffected.
+    then calibrates via Claude. The daily pipeline is unaffected.
     """
     from app.services.agents.lyrics_source import fetch_lyrics
 
@@ -584,13 +584,13 @@ def backfill_classify(
             ))
             continue
 
-        result = classify_song(
+        result = calibrate_song(
             song.title, song.artist,
             lyrics=lyrics, db=db,
             skip_cache=True, target_year=year,
         )
 
-        _store_classification(
+        _store_calibration(
             song.title, song.artist, song.chart_position or 0,
             song.chart_source or "billboard", result, True, db,
         )

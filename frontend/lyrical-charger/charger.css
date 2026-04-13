@@ -438,33 +438,109 @@ main {
   margin-top: 0.5rem;
 }
 
-/* Search stub */
-.search-stub {
-  text-align: center;
-  padding: 3rem 1rem;
-}
-
-.stub-icon {
-  color: var(--rc-text-dim);
+/* Search tab */
+.search-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.6rem;
   margin-bottom: 1rem;
-  opacity: 0.5;
 }
 
-.stub-title {
+.search-fields input {
+  padding: 0.6rem 0.8rem;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text);
+  border-radius: 4px;
+  font-family: var(--rc-font);
   font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--rc-text-dim);
-  margin-bottom: 0.5rem;
 }
 
-.stub-desc {
+.search-fields input:focus {
+  border-color: var(--rc-accent);
+  outline: none;
+}
+
+.btn-search {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.search-status {
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+  margin-bottom: 0.8rem;
+  text-align: center;
+}
+
+.search-status.hidden { display: none; }
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.search-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--rc-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.search-result-item:hover {
+  border-color: var(--rc-accent);
+  background: rgba(0, 212, 170, 0.05);
+}
+
+.search-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-result-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--rc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-result-artist {
   font-size: 0.78rem;
   color: var(--rc-text-dim);
-  max-width: 340px;
-  margin: 0 auto;
-  line-height: 1.6;
+  margin-top: 0.15rem;
+}
+
+.search-result-album {
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  opacity: 0.7;
+}
+
+.search-result-action {
+  flex-shrink: 0;
+  margin-left: 0.8rem;
+  font-size: 0.75rem;
+  color: var(--rc-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .search-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Consent notice */

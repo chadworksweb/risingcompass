@@ -27,7 +27,7 @@ from app.schemas import (
 from app.models import SubmittedSong
 from app.constants import COLOR_LABELS
 from app.services.analyzer_engine import run_analysis
-from app.services.agents.classifier import classify_song
+from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
 
 logger = logging.getLogger(__name__)
@@ -308,13 +308,13 @@ async def _get_spotify_token() -> str | None:
 
 
 # ------------------------------------------------------------------
-# 5. POST /api/analyzer/classify-lyrics — Direct lyrics classification
+# 5. POST /api/analyzer/calibrate-lyrics — Direct lyrics calibration
 # ------------------------------------------------------------------
 def _validate_lyrics(text: str) -> str | None:
     """Return an error message if the lyrics look bogus, or None if they pass."""
     lines = [l for l in text.strip().splitlines() if l.strip()]
     if len(lines) < 4:
-        return "Lyrics must have at least 4 lines for a meaningful classification."
+        return "Lyrics must have at least 4 lines for a meaningful calibration."
 
     # Mostly alphabetic (at least 60% letters after stripping whitespace)
     alpha_chars = sum(1 for c in text if c.isalpha())
@@ -330,15 +330,15 @@ def _validate_lyrics(text: str) -> str | None:
     # Minimum unique words (catches repeated gibberish)
     words = re.findall(r"[a-zA-Z']+", text.lower())
     if len(set(words)) < 10:
-        return "These lyrics don't have enough variety for a meaningful classification."
+        return "These lyrics don't have enough variety for a meaningful calibration."
 
     return None
 
 
-@router.post("/classify-lyrics", response_model=LyricsClassifyOut)
+@router.post("/calibrate-lyrics", response_model=LyricsClassifyOut)
 @limiter.limit("5/hour")
-async def classify_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
-    """Classify raw lyrics text. Stores the classification (not the lyrics)."""
+async def calibrate_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
+    """Calibrate raw lyrics text. Stores the calibration (not the lyrics)."""
     if not body.title or not body.title.strip():
         raise HTTPException(422, "Song title is required.")
     if not body.artist or not body.artist.strip():
@@ -354,7 +354,7 @@ async def classify_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
     db = SessionLocal()
     try:
         classification = await asyncio.to_thread(
-            classify_song, title, artist, body.lyrics, db
+            calibrate_song, title, artist, body.lyrics, db
         )
 
         color = classification.get("rubric_color")
@@ -414,12 +414,12 @@ async def search_songs(body: SongSearchIn, request: Request):
 
 
 # ------------------------------------------------------------------
-# 7. POST /api/analyzer/classify-search — Classify a song found via search
+# 7. POST /api/analyzer/calibrate-search — Calibrate a song found via search
 # ------------------------------------------------------------------
-@router.post("/classify-search", response_model=LyricsClassifyOut)
+@router.post("/calibrate-search", response_model=LyricsClassifyOut)
 @limiter.limit("5/hour")
-async def classify_search(body: SearchClassifyIn, request: Request):
-    """Fetch lyrics for a Musixmatch track and classify them."""
+async def calibrate_search(body: SearchClassifyIn, request: Request):
+    """Fetch lyrics for a Musixmatch track and calibrate them."""
     if not musixmatch.is_configured():
         raise HTTPException(501, "Song search is not yet available.")
 
@@ -437,7 +437,7 @@ async def classify_search(body: SearchClassifyIn, request: Request):
     db = SessionLocal()
     try:
         classification = await asyncio.to_thread(
-            classify_song, title, artist, lyrics, db
+            calibrate_song, title, artist, lyrics, db
         )
 
         color = classification.get("rubric_color")

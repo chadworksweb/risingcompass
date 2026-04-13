@@ -1,8 +1,8 @@
 """Badge API — public lookup endpoints for embedded Rising Compass badges.
 
 Song lookup: searches compass_songs, library_songs, submitted_songs.
-Album lookup: returns stored album classification (computed mean of tracks).
-Album classify: computes + stores album classification from track lookups.
+Album lookup: returns stored album calibration (computed mean of tracks).
+Album calibrate: computes + stores album calibration from track lookups.
 """
 
 import re
@@ -110,9 +110,9 @@ class AlbumClassifyRequest(BaseModel):
     track_titles: list[str]
 
 
-@router.post("/album-classify")
-def album_classify(req: AlbumClassifyRequest):
-    """Compute and store an album classification from its track classifications.
+@router.post("/album-calibrate")
+def album_calibrate(req: AlbumClassifyRequest):
+    """Compute and store an album calibration from its track calibrations.
 
     Looks up each track, computes mean charge, derives tier, upserts into
     album_classifications. Tracks not found are skipped (but counted).

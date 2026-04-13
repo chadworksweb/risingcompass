@@ -25,9 +25,9 @@ docker compose up -d --build
 # ------------------------------------------------------------------
 # Set up daily reading cron (idempotent)
 # ------------------------------------------------------------------
-CRON_CMD="0 8 * * * curl -s -X POST \"http://localhost:8000/api/admin/agent/classify-live\" -H \"X-Admin-Key: \$(grep RC_ADMIN_KEY $(pwd)/.env | cut -d= -f2)\" > /dev/null 2>&1"
+CRON_CMD="0 8 * * * curl -s -X POST \"http://localhost:8000/api/admin/agent/calibrate-live\" -H \"X-Admin-Key: \$(grep RC_ADMIN_KEY $(pwd)/.env | cut -d= -f2)\" > /dev/null 2>&1"
 
-if ! crontab -l 2>/dev/null | grep -q "classify-live"; then
+if ! crontab -l 2>/dev/null | grep -q "calibrate-live"; then
     echo ""
     echo "Setting up daily reading cron (08:00 UTC)..."
     (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
@@ -57,5 +57,5 @@ echo "Admin:    https://$API_DOMAIN/api/admin/dashboard"
 echo ""
 echo "--- Post-deploy checklist ---"
 echo "1. curl https://$API_DOMAIN/api/health"
-echo "2. Test classify-live → email → approve flow"
+echo "2. Test calibrate-live → email → approve flow"
 echo "3. Verify cron: crontab -l"

@@ -68,17 +68,15 @@
           <p class="input-hint">Paste the complete lyrics. The more complete they are, the more accurate the reading.</p>
         </div>
 
-        <!-- Search by Song (stubbed) -->
+        <!-- Search by Song -->
         <div id="tab-search" class="tab-panel">
-          <div class="search-stub">
-            <div class="stub-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-            </div>
-            <p class="stub-title">Song search is coming soon</p>
-            <p class="stub-desc">Search any song by title and we'll pull the lyrics automatically. For now, paste lyrics directly.</p>
+          <div class="search-fields">
+            <input type="text" id="search-query" placeholder="Song title" spellcheck="false" maxlength="200">
+            <input type="text" id="search-artist" placeholder="Artist (optional)" spellcheck="false" maxlength="200">
+            <button id="btn-search" class="btn btn-search" disabled>Search</button>
           </div>
+          <div id="search-status" class="search-status hidden"></div>
+          <div id="search-results" class="search-results"></div>
         </div>
 
         <div id="error-message" class="error-bar hidden"></div>

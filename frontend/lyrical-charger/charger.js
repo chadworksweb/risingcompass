@@ -45,6 +45,12 @@ const inputTitle = $('#input-title');
 const inputArtist = $('#input-artist');
 const lyricsInput = $('#lyrics-input');
 
+const searchQuery = $('#search-query');
+const searchArtist = $('#search-artist');
+const btnSearch = $('#btn-search');
+const searchStatus = $('#search-status');
+const searchResults = $('#search-results');
+
 const consentCheck = $('#consent-check');
 const btnSubmit = $('#btn-submit');
 const errorMessage = $('#error-message');
@@ -63,6 +69,7 @@ const btnAgain = $('#btn-again');
 
 // --- State ---
 let activeTab = 'paste';
+let selectedTrack = null;  // { track_id, title, artist }
 
 // ============================================================
 // Screen Management
@@ -84,8 +91,10 @@ tabs.forEach((tab) => {
     tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === target));
     tabPaste.classList.toggle('active', target === 'paste');
     tabSearch.classList.toggle('active', target === 'search');
+    selectedTrack = null;
     hideError();
     validateSubmit();
+    if (target === 'search') validateSearch();
   });
 });
 
@@ -104,16 +113,23 @@ function validateSubmit() {
     const hasLyrics = lyrics.length >= 20;
     const consented = consentCheck.checked;
     valid = hasTitle && hasArtist && hasLyrics && consented;
+  } else if (activeTab === 'search') {
+    valid = selectedTrack !== null && consentCheck.checked;
   }
-  // Search tab has no submit — it's stubbed
 
   btnSubmit.disabled = !valid;
+}
+
+function validateSearch() {
+  btnSearch.disabled = searchQuery.value.trim().length < 1;
 }
 
 lyricsInput.addEventListener('input', validateSubmit);
 inputTitle.addEventListener('input', validateSubmit);
 inputArtist.addEventListener('input', validateSubmit);
 consentCheck.addEventListener('change', validateSubmit);
+searchQuery.addEventListener('input', validateSearch);
+searchQuery.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btnSearch.disabled) doSearch(); });
 
 // ============================================================
 // Progress Bar
@@ -179,7 +195,15 @@ function stopProgress() {
 // ============================================================
 // Submit
 // ============================================================
-btnSubmit.addEventListener('click', submitLyrics);
+btnSubmit.addEventListener('click', handleSubmit);
+
+function handleSubmit() {
+  if (activeTab === 'search' && selectedTrack) {
+    submitSearch();
+  } else {
+    submitLyrics();
+  }
+}
 
 async function submitLyrics() {
   hideError();
@@ -208,7 +232,7 @@ async function submitLyrics() {
     const headers = { 'Content-Type': 'application/json' };
     if (API_KEY) headers['X-Api-Key'] = API_KEY;
 
-    const resp = await fetch(`${API_BASE}/classify-lyrics`, {
+    const resp = await fetch(`${API_BASE}/calibrate-lyrics`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ lyrics, title, artist }),
@@ -243,6 +267,163 @@ async function submitLyrics() {
 
     completeProgress();
     // Brief pause on 100% before showing results
+    await new Promise((r) => setTimeout(r, 600));
+
+    renderResults(data);
+    showScreen('screen-results');
+  } catch (e) {
+    stopProgress();
+    showError('Connection error. Check your internet and try again.');
+    showScreen('screen-entry');
+    btnSubmit.disabled = false;
+  }
+}
+
+// ============================================================
+// Search Flow
+// ============================================================
+btnSearch.addEventListener('click', doSearch);
+
+async function doSearch() {
+  hideError();
+  btnSearch.disabled = true;
+  searchResults.innerHTML = '';
+  searchStatus.classList.remove('hidden');
+  searchStatus.textContent = 'Searching...';
+  selectedTrack = null;
+  validateSubmit();
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+
+    const resp = await fetch(`${API_BASE}/search-songs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query: searchQuery.value.trim(),
+        artist: searchArtist.value.trim(),
+      }),
+    });
+
+    if (resp.status === 429) {
+      searchStatus.textContent = 'Too many searches. Try again later.';
+      btnSearch.disabled = false;
+      return;
+    }
+
+    if (!resp.ok) {
+      searchStatus.textContent = 'Search failed. Try again.';
+      btnSearch.disabled = false;
+      return;
+    }
+
+    const data = await resp.json();
+
+    if (data.message && (!data.results || data.results.length === 0)) {
+      searchStatus.textContent = data.message;
+      btnSearch.disabled = false;
+      return;
+    }
+
+    searchStatus.classList.add('hidden');
+    renderSearchResults(data.results);
+  } catch (e) {
+    searchStatus.textContent = 'Connection error. Check your internet.';
+  }
+
+  btnSearch.disabled = false;
+}
+
+function renderSearchResults(results) {
+  searchResults.innerHTML = results.map(r => `
+    <div class="search-result-item" data-track-id="${r.track_id}" data-title="${esc(r.title)}" data-artist="${esc(r.artist)}">
+      <div class="search-result-info">
+        <div class="search-result-title">${esc(r.title)}</div>
+        <div class="search-result-artist">${esc(r.artist)}</div>
+        ${r.album ? `<div class="search-result-album">${esc(r.album)}</div>` : ''}
+      </div>
+      <div class="search-result-action">Classify</div>
+    </div>
+  `).join('');
+
+  // Click handlers
+  searchResults.querySelectorAll('.search-result-item').forEach(item => {
+    item.addEventListener('click', () => selectTrack(item));
+  });
+}
+
+function selectTrack(item) {
+  // Deselect previous
+  searchResults.querySelectorAll('.search-result-item').forEach(el => {
+    el.style.borderColor = '';
+    el.style.background = '';
+  });
+  // Select this one
+  item.style.borderColor = 'var(--rc-accent)';
+  item.style.background = 'rgba(0, 212, 170, 0.08)';
+
+  selectedTrack = {
+    track_id: parseInt(item.dataset.trackId),
+    title: item.dataset.title,
+    artist: item.dataset.artist,
+  };
+  validateSubmit();
+}
+
+async function submitSearch() {
+  hideError();
+  btnSubmit.disabled = true;
+
+  showScreen('screen-processing');
+  startProgress();
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+
+    const resp = await fetch(`${API_BASE}/calibrate-search`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(selectedTrack),
+    });
+
+    if (resp.status === 429) {
+      stopProgress();
+      showError("You've submitted several readings recently. Try again in an hour.");
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    if (resp.status === 404) {
+      stopProgress();
+      showError('Lyrics not available for this track. Try pasting lyrics directly.');
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    if (!resp.ok) {
+      stopProgress();
+      const data = await resp.json().catch(() => ({}));
+      showError(data.detail || 'Classification failed. Try again.');
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    const data = await resp.json();
+
+    if (data.status === 'error') {
+      stopProgress();
+      showError('Could not classify this song. Try a different one.');
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    completeProgress();
     await new Promise((r) => setTimeout(r, 600));
 
     renderResults(data);
@@ -321,8 +502,14 @@ btnAgain.addEventListener('click', () => {
   lyricsInput.value = '';
   inputTitle.value = '';
   inputArtist.value = '';
+  searchQuery.value = '';
+  searchArtist.value = '';
+  searchResults.innerHTML = '';
+  searchStatus.classList.add('hidden');
+  selectedTrack = null;
   consentCheck.checked = false;
   btnSubmit.disabled = true;
+  btnSearch.disabled = true;
   hideError();
   showScreen('screen-entry');
 });

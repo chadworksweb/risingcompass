@@ -281,6 +281,32 @@ class MisreadSubmission(Base):
     status = Column(String(20), default="pending")  # pending / reviewed / accepted / rejected / flagged
 
 
+class StreamSong(Base):
+    """CL Stream — personal feed of songs encountered in the wild.
+
+    The point is the *why* — why this song caught your ear, why it matters.
+    Songs land here first, get auto-calibrated, then can be promoted to
+    library_songs (official non-chart archive).
+    """
+    __tablename__ = "stream_songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    note = Column(Text, nullable=False)  # The why — required
+    source_url = Column(Text)  # Tidal/Spotify/YouTube link
+    source_platform = Column(String(30))  # tidal / spotify / manual
+    rubric_color = Column(Text)
+    charge_value = Column(Integer)
+    contaminated = Column(Boolean, default=False)
+    contamination_note = Column(Text)
+    charge_summary = Column(Text)
+    confidence = Column(Float)
+    status = Column(String(20), default="calibrated")  # calibrated / promoted / failed
+    promoted_to = Column(String(20))  # library / compass — set on promotion
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class MisreadBan(Base):
     __tablename__ = "misread_bans"
 

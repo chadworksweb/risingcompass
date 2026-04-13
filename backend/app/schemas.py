@@ -754,6 +754,39 @@ class SubmittedSongOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# --- CL Stream ---
+class StreamSongIn(BaseModel):
+    """Accepts either title+artist OR a Tidal/Spotify URL. Note is always required."""
+    title: Optional[str] = Field(None, max_length=300)
+    artist: Optional[str] = Field(None, max_length=300)
+    note: str = Field(..., min_length=1, max_length=2000)
+    source_url: Optional[str] = Field(None, max_length=500)
+
+
+class StreamSongOut(BaseModel):
+    id: int
+    title: str
+    artist: str
+    note: str
+    source_url: Optional[str] = None
+    source_platform: Optional[str] = None
+    rubric_color: Optional[str] = None
+    charge_value: Optional[int] = None
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    confidence: Optional[float] = None
+    status: str
+    promoted_to: Optional[str] = None
+    created_at: Optional[datetime.datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class StreamPromoteIn(BaseModel):
+    target: str = Field(..., pattern="^(library|compass)$")
+
+
 class SubmissionStatsOut(BaseModel):
     total: int
     today: int
