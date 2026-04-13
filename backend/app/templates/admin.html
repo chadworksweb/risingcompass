@@ -97,17 +97,44 @@
   .pagination { display: flex; gap: 0.5rem; margin-top: 1rem; align-items: center; }
   .pagination button { padding: 0.3rem 0.8rem; font-size: 0.8rem; }
   .pagination .page-info { font-size: 0.8rem; color: #888; }
+  /* Login overlay */
+  .login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .login-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 2.5rem 2rem; width: 100%; max-width: 360px; }
+  .login-box h2 { color: var(--accent); font-size: 1.1rem; margin-bottom: 0.3rem; }
+  .login-box p { font-size: 0.82rem; color: #666; margin-bottom: 1.5rem; }
+  .login-box input { margin-bottom: 1rem; }
+  .login-error { color: var(--red); font-size: 0.82rem; margin-top: 0.5rem; display: none; }
+  /* Logout button */
+  .logout-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; background: none; border: 1px solid var(--border); color: #666; border-radius: 4px; cursor: pointer; z-index: 100; }
+  .logout-btn:hover { border-color: var(--red); color: var(--red); }
+  /* Admin panel hidden until logged in */
+  .admin-panel { display: none; }
+  .admin-panel.visible { display: block; }
 </style>
 </head>
 <body>
-<h1>The Rising Compass — Admin</h1>
 
-<div class="admin-key-row">
-  <div class="form-group">
-    <label>Admin Key</label>
-    <input type="password" id="adminKey" placeholder="Enter admin key">
+<!-- Login overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>The Rising Compass</h2>
+    <p>Admin access</p>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginKey" placeholder="Enter admin key" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="loginError">Incorrect key.</div>
   </div>
 </div>
+
+<!-- Hidden key input — populated from localStorage, used by all existing JS -->
+<input type="hidden" id="adminKey">
+
+<button class="logout-btn" onclick="doLogout()">Sign out</button>
+
+<div class="admin-panel" id="adminPanel">
+<h1>The Rising Compass — Admin</h1>
 
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('songs')">Daily Songs</button>
@@ -347,8 +374,54 @@
   </div>
   <div id="streamFeed"></div>
 </div>
+</div><!-- /.admin-panel -->
 
 <script>
+// --- Auth ---
+const STORAGE_KEY = 'rc_admin_key';
+
+function doLogin() {
+  const key = document.getElementById('loginKey').value.trim();
+  if (!key) return;
+  // Verify against a lightweight admin endpoint
+  fetch('/api/admin/misread?limit=1', { headers: { 'X-Admin-Key': key } }).then(r => {
+    if (r.ok || r.status === 404) {
+      localStorage.setItem(STORAGE_KEY, key);
+      document.getElementById('adminKey').value = key;
+      showAdminPanel();
+    } else {
+      const errEl = document.getElementById('loginError');
+      errEl.style.display = 'block';
+      errEl.textContent = r.status === 403 ? 'Incorrect key.' : `Error ${r.status}`;
+    }
+  }).catch(() => {
+    document.getElementById('loginError').style.display = 'block';
+  });
+}
+
+function doLogout() {
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById('adminKey').value = '';
+  document.getElementById('adminPanel').classList.remove('visible');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('loginKey').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+function showAdminPanel() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('adminPanel').classList.add('visible');
+}
+
+// On load: restore session if key exists
+(function initAuth() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    document.getElementById('adminKey').value = saved;
+    showAdminPanel();
+  }
+})();
+
 const colors = ['violet','blue','green','orange','red'];
 const colorLabels = {'violet':'Violet','blue':'Blue','green':'Green','orange':'Orange','red':'Red'};
 
