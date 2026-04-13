@@ -759,7 +759,7 @@ class StreamSongIn(BaseModel):
     """Accepts either title+artist OR a Tidal/Spotify URL. Note is always required."""
     title: Optional[str] = Field(None, max_length=300)
     artist: Optional[str] = Field(None, max_length=300)
-    note: str = Field(..., min_length=1, max_length=2000)
+    note: Optional[str] = Field(None, max_length=2000)
     source_url: Optional[str] = Field(None, max_length=500)
 
 

@@ -293,7 +293,7 @@ class StreamSong(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
-    note = Column(Text, nullable=False)  # The why — required
+    note = Column(Text)  # The why — optional
     source_url = Column(Text)  # Tidal/Spotify/YouTube link
     source_platform = Column(String(30))  # tidal / spotify / manual
     rubric_color = Column(Text)

@@ -329,7 +329,7 @@
     </div>
   </div>
   <div class="form-group">
-    <label>Why this song <span style="color:#e28a6c;font-size:0.8rem;">required</span></label>
+    <label>Why this song <span style="color:#555;font-size:0.8rem;">optional</span></label>
     <textarea id="streamNote" placeholder="Why did this song catch your ear? What's it doing?" style="min-height:80px;"></textarea>
   </div>
   <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.5rem;">
@@ -1039,7 +1039,6 @@ async function addToStream() {
   const artist = document.getElementById('streamArtist').value.trim() || null;
   const note = document.getElementById('streamNote').value.trim();
 
-  if (!note) { showMsg(statusEl, 'The why note is required', 'error'); return; }
   if (!source_url && (!title || !artist)) { showMsg(statusEl, 'Provide a Tidal URL or both title and artist', 'error'); return; }
 
   btn.disabled = true;
