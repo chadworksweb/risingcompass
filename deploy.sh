@@ -50,7 +50,7 @@ fi
 # Quick smoke test
 echo ""
 echo "=== Smoke test ==="
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.risingcompass.net/api/compass/current)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.risingcompass.net/api/health)
 if [ "$STATUS" = "200" ]; then
     echo "API OK (200)"
 else
