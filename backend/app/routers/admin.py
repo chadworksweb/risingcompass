@@ -41,7 +41,7 @@ def _find_compass_song(title: str, artist: str, db: Session) -> CompassSong | No
 @router.get("/dashboard", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     """Serve admin HTML form for entering daily readings."""
-    return templates.TemplateResponse("admin.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="admin.html")
 
 
 @router.post("/reading", response_model=DailyReadingOut, dependencies=[Depends(verify_admin_key)])
