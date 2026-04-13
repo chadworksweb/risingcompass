@@ -384,7 +384,7 @@ function doLogin() {
   const key = document.getElementById('loginKey').value.trim();
   if (!key) return;
   // Verify against a lightweight admin endpoint
-  fetch('/api/admin/misread?limit=1', { headers: { 'X-Admin-Key': key } }).then(r => {
+  fetch('/api/admin/stream?limit=1', { headers: { 'X-Admin-Key': key } }).then(r => {
     if (r.ok || r.status === 404) {
       localStorage.setItem(STORAGE_KEY, key);
       document.getElementById('adminKey').value = key;
