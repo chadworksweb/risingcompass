@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/badge", tags=["badge"])
 
 
-def _find_classification(title: str, artist: str, db) -> dict | None:
-    """Search all classification tables for a match. Returns dict or None."""
+def _find_calibration(title: str, artist: str, db) -> dict | None:
+    """Search all calibration tables for a match. Returns dict or None."""
     title_lower = title.lower()
     artist_lower = artist.lower()
     title_stripped = re.sub(r"[^\w\s]", "", title_lower)
@@ -87,15 +87,15 @@ def badge_lookup(
     title: str = Query(..., min_length=1),
     artist: str = Query(..., min_length=1),
 ):
-    """Look up a song's Rising Compass classification for badge display.
+    """Look up a song's Rising Compass calibration for badge display.
 
-    Returns tier, charge, summary, and hex color. Does not classify — lookup only.
+    Returns tier, charge, summary, and hex color. Does not calibrate — lookup only.
     """
     db = SessionLocal()
     try:
-        result = _find_classification(title.strip(), artist.strip(), db)
+        result = _find_calibration(title.strip(), artist.strip(), db)
         if not result:
-            raise HTTPException(404, "No classification found for this song")
+            raise HTTPException(404, "No calibration found for this song")
         return result
     finally:
         db.close()
@@ -104,14 +104,14 @@ def badge_lookup(
 # --- Album endpoints ---
 
 
-class AlbumClassifyRequest(BaseModel):
+class AlbumCalibrateRequest(BaseModel):
     title: str
     artist: str
     track_titles: list[str]
 
 
 @router.post("/album-calibrate")
-def album_calibrate(req: AlbumClassifyRequest):
+def album_calibrate(req: AlbumCalibrateRequest):
     """Compute and store an album calibration from its track calibrations.
 
     Looks up each track, computes mean charge, derives tier, upserts into
@@ -127,7 +127,7 @@ def album_calibrate(req: AlbumClassifyRequest):
         missing = []
 
         for track_title in req.track_titles:
-            result = _find_classification(track_title.strip(), artist, db)
+            result = _find_calibration(track_title.strip(), artist, db)
             if result:
                 charges.append(result["charge"])
                 if result.get("contaminated"):
@@ -138,16 +138,16 @@ def album_calibrate(req: AlbumClassifyRequest):
         if not charges:
             raise HTTPException(
                 400,
-                f"No classified tracks found for album '{title}' by '{artist}'. "
+                f"No calibrated tracks found for album '{title}' by '{artist}'. "
                 f"Missing: {missing}",
             )
 
         avg_charge = round(sum(charges) / len(charges))
         rubric_color, tier_label, tier_hex = _derive_tier(avg_charge)
 
-        summary = f"Album aggregate across {len(charges)} classified tracks."
+        summary = f"Album aggregate across {len(charges)} calibrated tracks."
         if missing:
-            summary += f" {len(missing)} tracks unclassified."
+            summary += f" {len(missing)} tracks uncalibrated."
         if contaminated_count:
             summary += f" {contaminated_count} contaminated."
 
@@ -201,7 +201,7 @@ def album_lookup(
     title: str = Query(..., min_length=1),
     artist: str = Query(..., min_length=1),
 ):
-    """Look up a stored album classification for badge display."""
+    """Look up a stored album calibration for badge display."""
     db = SessionLocal()
     try:
         row = (
@@ -211,7 +211,7 @@ def album_lookup(
             .first()
         )
         if not row:
-            raise HTTPException(404, "No album classification found")
+            raise HTTPException(404, "No album calibration found")
 
         tier_label = COLOR_LABELS.get(row.rubric_color, "")
         tier_hex = COLOR_HEX.get(row.rubric_color, "#999")

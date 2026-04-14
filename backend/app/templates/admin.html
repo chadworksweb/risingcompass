@@ -1081,7 +1081,7 @@ async function deleteSub(id) {
 }
 
 async function promoteSub(id) {
-  if (!confirm(`Promote submission #${id} to the library? This copies the classification into library_songs.`)) return;
+  if (!confirm(`Promote submission #${id} to the library? This copies the calibration into library_songs.`)) return;
   const statusEl = document.getElementById('subStatus');
   try {
     const resp = await fetch(`/api/admin/submissions/${id}/promote`, { method: 'POST', headers: adminHeaders() });

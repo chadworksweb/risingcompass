@@ -49,7 +49,7 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
                 Hi {escape(submission.first_name)},
             </p>
             <p style="font-size:14px;color:#444;line-height:1.6;margin:0 0 24px;">
-                We've received your report about the classification of the song below. Our team will review it. This is a confirmation only — no reply is needed or monitored.
+                We've received your report about the calibration of the song below. Our team will review it. This is a confirmation only — no reply is needed or monitored.
             </p>
 
             <!-- Song card -->
@@ -66,7 +66,7 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
             </div>
 
             <p style="font-size:13px;color:#999;line-height:1.5;margin:0;">
-                If the evidence supports a different reading, we'll update the classification. You won't receive a follow-up email — check the compass for any changes.
+                If the evidence supports a different reading, we'll update the calibration. You won't receive a follow-up email — check the compass for any changes.
             </p>
         </div>
 
@@ -118,7 +118,7 @@ def _is_banned(db: Session, device_id: Optional[str], ip: Optional[str]) -> bool
 @router.post("/api/misread", response_model=MisreadSubmissionOut, status_code=201)
 @limiter.limit("5/hour")
 def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session = Depends(get_db)):
-    """Submit a misread classification report."""
+    """Submit a misread calibration report."""
     ip = request.client.host if request.client else None
 
     if _is_banned(db, data.device_id, ip):

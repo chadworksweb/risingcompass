@@ -737,8 +737,8 @@ main {
   margin-top: 2px;
 }
 
-/* Classification display */
-.result-classification {
+/* Calibration display */
+.result-calibration {
   text-align: center;
   padding: 2rem 0;
 }

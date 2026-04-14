@@ -35,7 +35,7 @@ We calibrate SONGS, never artists. The same artist can have an Ascended song and
 
 ## Read Lyrics, Not Production
 
-Classify what the words SAY, not how the song SOUNDS. A melancholic R&B track with degraded lyrics is degraded, not elevated. Vulnerable-sounding production doesn't transform sexual innuendo into honest processing. An upbeat party track with thoughtful lyrics isn't automatically shallow. Strip the instrumentation and read what's on the page.
+Calibrate what the words SAY, not how the song SOUNDS. A melancholic R&B track with degraded lyrics is degraded, not elevated. Vulnerable-sounding production doesn't transform sexual innuendo into honest processing. An upbeat party track with thoughtful lyrics isn't automatically shallow. Strip the instrumentation and read what's on the page.
 
 ## Zero External Knowledge
 
@@ -184,7 +184,7 @@ The charge_summary is the public-facing description of the song. It is NOT analy
 - Never use genre labels (rockabilly, R&B, disco, punk, etc.), production descriptors, or any word that requires knowing how the song sounds. Describe what the lyrics SAY, not what the music IS.
 """
 
-CLASSIFICATION_FORMAT = """## Required Output
+CALIBRATION_FORMAT = """## Required Output
 
 FIRST, write your reasoning in this exact structure:
 
@@ -261,7 +261,7 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
     """Pull ~5 examples per tier from the CompassSong table to use as few-shot examples.
 
     If target_year is provided, prioritizes examples from the same decade.
-    Returns a formatted string of example classifications.
+    Returns a formatted string of example calibrations.
     """
     tiers = ["violet", "blue", "green", "orange", "red"]
     examples = []
@@ -291,7 +291,7 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
                 .filter(CompassSong.charge_summary.isnot(None))
             )
             # When backfilling historical years, only use same decade or earlier
-            # to prevent modern classifications from biasing the agent
+            # to prevent modern calibrations from biasing the agent
             if target_year and target_year < 2020:
                 max_decade = f"{(target_year // 10) * 10}s"
                 query = query.filter(CompassSong.decade <= max_decade)
@@ -339,7 +339,7 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
 
     import json
     lines = [
-        "## Reference Examples (from classified songs)",
+        "## Reference Examples (from calibrated songs)",
         "",
         "These are reference points. Use them to calibrate your sense of where the tiers fall, NOT as templates to pattern-match against. Apply the tenets to the actual lyrics in front of you.",
         "",
@@ -358,28 +358,28 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
     return "\n".join(lines)
 
 
-def build_classification_prompt(
+def build_calibration_prompt(
     song_title: str,
     song_artist: str,
     lyrics: str | None = None,
     examples: str | None = None,
 ) -> tuple[str, str]:
-    """Build system and user prompts for song classification.
+    """Build system and user prompts for song calibration.
 
     Returns (system_prompt, user_prompt).
     """
     system_parts = [RUBRIC_DEFINITION]
     if examples:
         system_parts.append(examples)
-    system_parts.append(CLASSIFICATION_FORMAT)
+    system_parts.append(CALIBRATION_FORMAT)
     system_prompt = "\n".join(system_parts)
 
-    user_parts = [f'Classify this song: "{song_title}" by {song_artist}']
+    user_parts = [f'Calibrate this song: "{song_title}" by {song_artist}']
     if lyrics:
         user_parts.append(f"\nLyrics:\n{lyrics}")
     else:
         user_parts.append(
-            "\nNo lyrics provided. This song cannot be classified without lyrics. "
+            "\nNo lyrics provided. This song cannot be calibrated without lyrics. "
             "Return rubric_color: null and confidence: 0."
         )
     user_prompt = "\n".join(user_parts)
@@ -455,7 +455,7 @@ EDITORIAL_VOICE = """You are the editorial voice of The Rising Compass — a cul
 - Objective. Not anyone's diary. No personal conflict.
 
 ## Data Boundary Rules
-You receive a single day's song list with classifications and charge data. That is the ONLY information you have. You must stay inside it.
+You receive a single day's song list with calibrations and charge data. That is the ONLY information you have. You must stay inside it.
 - **No artist names.** Never mention any artist by name. The compass reads energy, not careers.
 - **No song titles.** Never reference individual tracks.
 - **No counting.** Never count how many songs fit a pattern ("3 of 10," "half the chart," "most songs"). Read the charge, not the stats.
@@ -499,7 +499,7 @@ def build_editorial_prompt(song_summaries: list[dict]) -> tuple[str, str]:
     """
     system_prompt = EDITORIAL_VOICE
 
-    lines = ["Today's chart songs and their classifications:", ""]
+    lines = ["Today's chart songs and their calibrations:", ""]
     for s in song_summaries:
         line = f"#{s['position']} \"{s['title']}\" by {s['artist']} — {s['rubric_color']}"
         if s.get("contaminated"):

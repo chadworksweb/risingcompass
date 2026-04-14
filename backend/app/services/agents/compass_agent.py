@@ -1,4 +1,4 @@
-"""Compass Agent orchestrator — runs the full classification pipeline."""
+"""Compass Agent orchestrator — runs the full calibration pipeline."""
 
 import json
 import logging
@@ -41,11 +41,11 @@ def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "co
 def _store_calibration(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
                           db: Session) -> int | None:
-    """Store or update a classification in the CompassSong table for future reuse.
+    """Store or update a calibration in the CompassSong table for future reuse.
 
     Returns the compass_songs.id for the stored/updated row, or None if skipped.
     """
-    # Skip storing if classification failed (rubric_color is None)
+    # Skip storing if calibration failed (rubric_color is None)
     if result.get("rubric_color") is None:
         return None
 
@@ -124,7 +124,7 @@ def run_compass_agent(
     if reading_date is None:
         reading_date = date.today()
 
-    classified_songs = []
+    calibrated_songs = []
     agent_notes_parts = []
     warnings = []
 
@@ -141,12 +141,12 @@ def run_compass_agent(
 
             logger.info("Cache hit: %s by %s", title, artist)
 
-            classified_songs.append({
+            calibrated_songs.append({
                 "title": title,
                 "artist": artist,
                 "position": position,
                 "chart_source": chart_source,
-                "lyrics_available": True,  # was classified before
+                "lyrics_available": True,  # was calibrated before
                 **cached,
             })
             continue
@@ -155,10 +155,10 @@ def run_compass_agent(
         lyrics = song_in.get("lyrics")
 
         if not lyrics:
-            # No lyrics from any source — include song unclassified, needs human intervention
-            agent_notes_parts.append(f"No lyrics found for \"{title}\" — awaiting human classification")
-            logger.warning("No lyrics found for %s by %s — song left unclassified", title, artist)
-            classified_songs.append({
+            # No lyrics from any source — include song uncalibrated, needs human intervention
+            agent_notes_parts.append(f"No lyrics found for \"{title}\" — awaiting human calibration")
+            logger.warning("No lyrics found for %s by %s — song left uncalibrated", title, artist)
+            calibrated_songs.append({
                 "title": title,
                 "artist": artist,
                 "position": position,
@@ -169,30 +169,30 @@ def run_compass_agent(
                 "charge_value": None,
                 "contaminated": False,
                 "contamination_note": None,
-                "charge_summary": "Lyrics not found — awaiting human classification",
+                "charge_summary": "Lyrics not found — awaiting human calibration",
                 "confidence": 0.0,
             })
             continue
 
         result = calibrate_song(title, artist, lyrics=lyrics, db=db)
 
-        # Flag incomplete classifications — missing color, score, or summary
+        # Flag incomplete calibrations — missing color, score, or summary
         if not result.get("rubric_color") or result.get("charge_value") is None or not result.get("charge_summary"):
             missing = [f for f, v in [
                 ("rubric_color", result.get("rubric_color")),
                 ("charge_value", result.get("charge_value")),
                 ("charge_summary", result.get("charge_summary")),
             ] if not v and v != 0]
-            logger.error("INCOMPLETE classification for %s by %s — missing: %s", title, artist, ", ".join(missing))
+            logger.error("INCOMPLETE calibration for %s by %s — missing: %s", title, artist, ", ".join(missing))
             warnings.append(f"incomplete: {title} (missing {', '.join(missing)})")
 
         # Store for future reuse (skip for draft-only / case study mode)
         cs_id = None
         if not draft_only:
             cs_id = _store_calibration(title, artist, position, chart_source, result, True, db)
-        logger.info("Classified and cached: %s by %s → %s", title, artist, result["rubric_color"])
+        logger.info("Calibrated and cached: %s by %s → %s", title, artist, result["rubric_color"])
 
-        classified_songs.append({
+        calibrated_songs.append({
             "title": title,
             "artist": artist,
             "position": position,
@@ -203,24 +203,24 @@ def run_compass_agent(
         })
 
     # Collect per-song warnings
-    for s in classified_songs:
+    for s in calibrated_songs:
         if not s["lyrics_available"]:
             warnings.append(f"no_lyrics: {s['title']}")
         if s.get("confidence") is not None and s["confidence"] < 0.5:
             warnings.append(f"low_confidence: {s['title']} ({s['confidence']})")
 
-    # Compute compass metrics — exclude unclassified songs (no lyrics found)
+    # Compute compass metrics — exclude uncalibrated songs (no lyrics found)
     song_dicts = [
         {"rubric_color": s["rubric_color"], "charge_value": s.get("charge_value"), "position": s["position"]}
-        for s in classified_songs
+        for s in calibrated_songs
         if s.get("rubric_color") is not None
     ]
     degree = compute_degree(song_dicts)
     charge = degree_to_charge(degree)
-    contam = count_contaminated(classified_songs)
+    contam = count_contaminated(calibrated_songs)
 
     # Generate editorial summary
-    editorial = _generate_editorial(classified_songs)
+    editorial = _generate_editorial(calibrated_songs)
 
     # Assemble agent notes
     agent_notes = "; ".join(agent_notes_parts) if agent_notes_parts else None
@@ -243,7 +243,7 @@ def run_compass_agent(
     db.add(draft)
     db.flush()
 
-    for s in classified_songs:
+    for s in calibrated_songs:
         draft_song = AgentDraftSong(
             draft_id=draft.id,
             compass_song_id=s.get("compass_song_id"),
@@ -276,14 +276,14 @@ def run_compass_agent(
     return draft
 
 
-def _generate_editorial(classified_songs: list[dict]) -> str | None:
+def _generate_editorial(calibrated_songs: list[dict]) -> str | None:
     """Generate a one-line editorial summary using Claude."""
     if not settings.anthropic_api_key:
         return None
 
     try:
         client = Anthropic(api_key=settings.anthropic_api_key)
-        system_prompt, user_prompt = build_editorial_prompt(classified_songs)
+        system_prompt, user_prompt = build_editorial_prompt(calibrated_songs)
 
         response = client.messages.create(
             model=AGENT_MODEL,

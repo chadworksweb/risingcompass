@@ -1,4 +1,4 @@
-"""Lyrical Charger engine — orchestrates parallel lyrics fetch + sequential classification."""
+"""Lyrical Charger engine — orchestrates parallel lyrics fetch + sequential calibration."""
 
 import asyncio
 import logging
@@ -16,10 +16,10 @@ from app.services.charge_calc import degree_to_charge
 logger = logging.getLogger(__name__)
 
 
-def _build_song_result(index: int, title: str, artist: str, classification: dict,
+def _build_song_result(index: int, title: str, artist: str, calibration: dict,
                        status: str, lyrics_found: bool) -> dict:
-    """Build a standardized song result dict from classifier output."""
-    tier = classification.get("rubric_color") if status == "scored" else None
+    """Build a standardized song result dict from calibrator output."""
+    tier = calibration.get("rubric_color") if status == "scored" else None
     return {
         "index": index,
         "title": title,
@@ -27,11 +27,11 @@ def _build_song_result(index: int, title: str, artist: str, classification: dict
         "status": status,
         "tier": tier,
         "tier_label": COLOR_LABELS.get(tier) if tier else None,
-        "charge": classification.get("charge_value") if status == "scored" else None,
-        "contaminated": classification.get("contaminated", False) if status == "scored" else False,
-        "contamination_note": classification.get("contamination_note") if status == "scored" else None,
-        "charge_summary": classification.get("charge_summary") if status == "scored" else None,
-        "confidence": classification.get("confidence", 0.0) if status == "scored" else 0.0,
+        "charge": calibration.get("charge_value") if status == "scored" else None,
+        "contaminated": calibration.get("contaminated", False) if status == "scored" else False,
+        "contamination_note": calibration.get("contamination_note") if status == "scored" else None,
+        "charge_summary": calibration.get("charge_summary") if status == "scored" else None,
+        "confidence": calibration.get("confidence", 0.0) if status == "scored" else 0.0,
         "lyrics_found": lyrics_found,
     }
 
@@ -54,7 +54,7 @@ async def run_analysis(session: dict, db: Session, on_event):
     await on_event("session_start", {"total_songs": total, "status": "processing"})
 
     # 2. Check cache + parallel lyrics fetch for uncached songs
-    cache_results = {}  # index -> classification dict
+    cache_results = {}  # index -> calibration dict
     lyrics_needed = []  # (index, title, artist) for songs that need lyrics
 
     for i, song in enumerate(songs_input):
@@ -81,7 +81,7 @@ async def run_analysis(session: dict, db: Session, on_event):
     # weighted=True: position = index + 1 (first = highest weight)
     # weighted=False: position = 1 for all (equal weight)
 
-    # 4. Sequential classification + streaming
+    # 4. Sequential calibration + streaming
     all_results = []
     for i, song in enumerate(songs_input):
         title = song["title"]
@@ -105,18 +105,18 @@ async def run_analysis(session: dict, db: Session, on_event):
             await on_event("song_result", result)
             continue
 
-        # Classify via Claude
+        # Calibrate via Claude
         try:
-            classification = await asyncio.to_thread(
+            calibration = await asyncio.to_thread(
                 calibrate_song, title, artist, lyrics, db
             )
-            # If classifier returned rubric_color=None, that's a parse failure
-            if classification.get("rubric_color") is None:
-                result = _build_song_result(i, title, artist, classification, "error", True)
+            # If calibrator returned rubric_color=None, that's a parse failure
+            if calibration.get("rubric_color") is None:
+                result = _build_song_result(i, title, artist, calibration, "error", True)
             else:
-                result = _build_song_result(i, title, artist, classification, "scored", True)
+                result = _build_song_result(i, title, artist, calibration, "scored", True)
         except Exception:
-            logger.exception("Classification error for %s by %s", title, artist)
+            logger.exception("Calibration error for %s by %s", title, artist)
             result = _build_song_result(i, title, artist, {}, "error", True)
 
         all_results.append(result)
@@ -124,8 +124,8 @@ async def run_analysis(session: dict, db: Session, on_event):
 
     # 5. Compute aggregate (only scored songs)
     scored = [r for r in all_results if r["status"] == "scored"]
-    classified_count = len(scored)
-    unclassified_count = total - classified_count
+    calibrated_count = len(scored)
+    uncalibrated_count = total - calibrated_count
 
     if scored:
         song_dicts = []
@@ -157,8 +157,8 @@ async def run_analysis(session: dict, db: Session, on_event):
             "tier_distribution": tier_dist,
             "contamination_count": contam_count,
             "total_songs": total,
-            "classified_songs": classified_count,
-            "unclassified_songs": unclassified_count,
+            "calibrated_songs": calibrated_count,
+            "uncalibrated_songs": uncalibrated_count,
         }
     else:
         aggregate = {
@@ -169,8 +169,8 @@ async def run_analysis(session: dict, db: Session, on_event):
             "tier_distribution": {"ascended": 0, "elevated": 0, "decent": 0, "degraded": 0, "corrupted": 0},
             "contamination_count": 0,
             "total_songs": total,
-            "classified_songs": 0,
-            "unclassified_songs": unclassified_count,
+            "calibrated_songs": 0,
+            "uncalibrated_songs": uncalibrated_count,
         }
 
     await on_event("aggregate", aggregate)

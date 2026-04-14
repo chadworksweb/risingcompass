@@ -615,8 +615,8 @@ class BackfillSongOut(BaseModel):
 class BackfillResult(BaseModel):
     year: int
     total_songs: int
-    reclassified: int
-    skipped_classified: int
+    recalibrated: int
+    skipped_calibrated: int
     songs: list[BackfillSongOut]
 
 
@@ -661,8 +661,8 @@ class AnalyzerAggregate(BaseModel):
     tier_distribution: dict[str, int]
     contamination_count: int
     total_songs: int
-    classified_songs: int
-    unclassified_songs: int
+    calibrated_songs: int
+    uncalibrated_songs: int
 
 
 class AnalyzerSessionStatus(BaseModel):
@@ -691,14 +691,14 @@ class PlaylistResolveOut(BaseModel):
     tracks: list[PlaylistTrackOut]
 
 
-# --- Lyrical Charger v2: Direct lyrics classification ---
-class LyricsClassifyIn(BaseModel):
+# --- Lyrical Charger v2: Direct lyrics calibration ---
+class LyricsCalibrateIn(BaseModel):
     lyrics: str = Field(..., min_length=20, max_length=20000)
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)
 
 
-class LyricsClassifyOut(BaseModel):
+class LyricsCalibrateOut(BaseModel):
     status: str  # "scored" | "error"
     tier: Optional[str] = None
     tier_label: Optional[str] = None
@@ -729,7 +729,7 @@ class SongSearchOut(BaseModel):
     message: str = ""
 
 
-class SearchClassifyIn(BaseModel):
+class SearchCalibrateIn(BaseModel):
     track_id: int
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)

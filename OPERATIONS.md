@@ -17,7 +17,7 @@ api.risingcompass.net    → nginx → backend:8000
 
 ## Day-to-Day: What Happens Automatically
 
-- **10:00 UTC daily** — cron triggers `classify-live` → agent classifies today's top songs → creates draft reading → emails you for review
+- **8:00 UTC daily** — cron triggers `calibrate-live` → agent calibrates today's top songs → creates draft reading → emails you for review
 - **You review** — click approve link in email (or reject/edit via admin dashboard)
 - **3:00 UTC daily** — certbot checks if SSL certs need renewal
 
@@ -75,7 +75,7 @@ Then deploy (see below).
 curl -X POST "https://api.risingcompass.net/api/admin/agent/backfill/1970?limit=10" \
   -H "X-Admin-Key: YOUR_KEY"
 ```
-This classifies the top 10 songs of that year. Does NOT auto-calibrate.
+This calibrates the top 10 songs of that year. Does NOT auto-approve.
 
 ### Calibrate songs after reviewing
 ```bash

@@ -61,7 +61,7 @@ const procStage = $('#proc-stage');
 const procDetail = $('#proc-detail');
 
 const resultIdentity = $('#result-identity');
-const resultClassification = $('#result-classification');
+const resultCalibration = $('#result-calibration');
 const resultSummary = $('#result-summary');
 const resultContamination = $('#result-contamination');
 const resultMisread = $('#result-misread');
@@ -138,7 +138,7 @@ const STAGES = [
   { pct: 8,  label: 'Validating input',           detail: 'Checking lyrics structure...' },
   { pct: 18, label: 'Reading lyrics',              detail: 'Parsing line by line...' },
   { pct: 30, label: 'Loading rubric',              detail: '58 tenets across 5 tiers...' },
-  { pct: 50, label: 'Classifying',                 detail: 'Building case from zero...' },
+  { pct: 50, label: 'Calibrating',                 detail: 'Building case from zero...' },
   { pct: 70, label: 'Evaluating contamination',    detail: 'Checking for hidden payloads...' },
   { pct: 82, label: 'Calculating charge',          detail: 'Mapping position within tier...' },
   { pct: 90, label: 'Generating summary',          detail: 'Writing charge summary...' },
@@ -167,7 +167,7 @@ function startProgress() {
   currentStage = 0;
 
   // Advance through stages on a schedule
-  // Early stages go fast, classification stage lingers
+  // Early stages go fast, calibration stage lingers
   function advanceStage() {
     if (currentStage >= STAGES.length) return;
 
@@ -175,7 +175,7 @@ function startProgress() {
     setProgress(stage.pct, stage.label, stage.detail);
     currentStage++;
 
-    // Delay increases as we get deeper — classification is the long wait
+    // Delay increases as we get deeper — calibration is the long wait
     const delay = currentStage <= 2 ? 600 : currentStage <= 4 ? 2500 : 3000;
     progressTimer = setTimeout(advanceStage, delay);
   }
@@ -185,7 +185,7 @@ function startProgress() {
 
 function completeProgress() {
   if (progressTimer) clearTimeout(progressTimer);
-  setProgress(100, 'Complete', 'Classification ready.');
+  setProgress(100, 'Complete', 'Calibration ready.');
 }
 
 function stopProgress() {
@@ -249,7 +249,7 @@ async function submitLyrics() {
     if (!resp.ok) {
       stopProgress();
       const data = await resp.json().catch(() => ({}));
-      showError(data.detail || 'Classification failed. Try again.');
+      showError(data.detail || 'Calibration failed. Try again.');
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -259,7 +259,7 @@ async function submitLyrics() {
 
     if (data.status === 'error') {
       stopProgress();
-      showError('Could not classify these lyrics. Try different lyrics or check formatting.');
+      showError('Could not calibrate these lyrics. Try different lyrics or check formatting.');
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -343,7 +343,7 @@ function renderSearchResults(results) {
         <div class="search-result-artist">${esc(r.artist)}</div>
         ${r.album ? `<div class="search-result-album">${esc(r.album)}</div>` : ''}
       </div>
-      <div class="search-result-action">Classify</div>
+      <div class="search-result-action">Calibrate</div>
     </div>
   `).join('');
 
@@ -407,7 +407,7 @@ async function submitSearch() {
     if (!resp.ok) {
       stopProgress();
       const data = await resp.json().catch(() => ({}));
-      showError(data.detail || 'Classification failed. Try again.');
+      showError(data.detail || 'Calibration failed. Try again.');
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -417,7 +417,7 @@ async function submitSearch() {
 
     if (data.status === 'error') {
       stopProgress();
-      showError('Could not classify this song. Try a different one.');
+      showError('Could not calibrate this song. Try a different one.');
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -452,14 +452,14 @@ function renderResults(data) {
     resultIdentity.style.display = 'none';
   }
 
-  // Classification badge + charge
+  // Calibration badge + charge
   const color = TIER_COLORS[data.tier] || 'green';
   const label = data.tier_label || TIER_LABELS[data.tier] || 'Decent';
   const charge = data.charge != null ? data.charge : 0;
   const sign = charge >= 0 ? '+' : '';
   const chargeClass = getChargeClass(charge);
 
-  resultClassification.innerHTML = `
+  resultCalibration.innerHTML = `
     <div class="tier-badge">
       <span class="tier-badge-dot" style="background: var(--tier-${color})"></span>
       <span class="tier-badge-label">${label}</span>
@@ -496,7 +496,7 @@ function renderResults(data) {
 }
 
 // ============================================================
-// Classify Another
+// Calibrate Another
 // ============================================================
 btnAgain.addEventListener('click', () => {
   lyricsInput.value = '';

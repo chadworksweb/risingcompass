@@ -2,7 +2,7 @@
 
 ## Context
 
-CRW (chadrising.com) needs a public "Lyrical Charger" that lets users submit their own music and get real-time Rising Compass classifications. This extends the existing Rising Compass FastAPI backend with new public endpoints that reuse the classification engine without polluting the compass/drift data pipeline.
+CRW (chadrising.com) needs a public "Lyrical Charger" that lets users submit their own music and get real-time Rising Compass calibrations. This extends the existing Rising Compass FastAPI backend with new public endpoints that reuse the calibration engine without polluting the compass/drift data pipeline.
 
 **Guiding constraint:** No job queue. SSE streaming delivers per-song results in real time. Real-world timing (30s–2min for 10 songs) makes this viable without background workers.
 
@@ -81,7 +81,7 @@ class AnalyzerSessionOut(BaseModel):
 
 ## 2. GET /api/analyzer/sessions/{session_id}/stream
 
-SSE (Server-Sent Events) endpoint. When the client connects, processing begins. Each song's classification is emitted as it completes. After all songs, the aggregate and narrative are emitted.
+SSE (Server-Sent Events) endpoint. When the client connects, processing begins. Each song's calibration is emitted as it completes. After all songs, the aggregate and narrative are emitted.
 
 The frontend opens this with `new EventSource(stream_url)`.
 
@@ -96,7 +96,7 @@ data: {"total_songs": 3, "status": "processing"}
 ```
 
 #### Event: `song_processing`
-Emitted when a song begins processing (before lyrics fetch / classification).
+Emitted when a song begins processing (before lyrics fetch / calibration).
 
 ```
 event: song_processing
@@ -104,14 +104,14 @@ data: {"index": 0, "title": "Bohemian Rhapsody", "artist": "Queen"}
 ```
 
 #### Event: `song_result`
-Emitted when a song's classification is complete (or fails). Every song produces exactly one `song_result` — the `status` field distinguishes outcomes.
+Emitted when a song's calibration is complete (or fails). Every song produces exactly one `song_result` — the `status` field distinguishes outcomes.
 
 **Status values:**
-- `"scored"` — fully classified with tier + charge
-- `"no_lyrics"` — lyrics not found from any source, cannot classify
-- `"error"` — lyrics found but classification failed (Claude API error, JSON parse failure, etc.)
+- `"scored"` — fully calibrated with tier + charge
+- `"no_lyrics"` — lyrics not found from any source, cannot calibrate
+- `"error"` — lyrics found but calibration failed (Claude API error, JSON parse failure, etc.)
 
-Successful classification:
+Successful calibration:
 ```
 event: song_result
 data: {
@@ -155,7 +155,7 @@ data: {
 }
 ```
 
-Classification error (lyrics found, scoring failed):
+Calibration error (lyrics found, scoring failed):
 ```
 event: song_result
 data: {
@@ -178,7 +178,7 @@ data: {
 ```
 
 #### Event: `aggregate`
-Emitted after all songs are classified. Contains the frequency profile.
+Emitted after all songs are calibrated. Contains the frequency profile.
 
 ```
 event: aggregate
@@ -196,8 +196,8 @@ data: {
   },
   "contamination_count": 0,
   "total_songs": 3,
-  "classified_songs": 3,
-  "unclassified_songs": 0
+  "calibrated_songs": 3,
+  "uncalibrated_songs": 0
 }
 ```
 
@@ -271,8 +271,8 @@ class AnalyzerAggregate(BaseModel):
     tier_distribution: dict[str, int]  # {ascended: N, elevated: N, ...}
     contamination_count: int
     total_songs: int
-    classified_songs: int
-    unclassified_songs: int
+    calibrated_songs: int
+    uncalibrated_songs: int
 ```
 
 ---
@@ -321,8 +321,8 @@ Fetch session status and results. Used for:
     "tier_distribution": {"ascended": 1, "elevated": 1, "decent": 0, "degraded": 1, "corrupted": 0},
     "contamination_count": 0,
     "total_songs": 3,
-    "classified_songs": 3,
-    "unclassified_songs": 0
+    "calibrated_songs": 3,
+    "uncalibrated_songs": 0
   },
   "narrative": "Your music skews toward honest processing..."
 }
@@ -485,16 +485,16 @@ def build_narrative_prompt(song_results: list[dict], aggregate: dict) -> tuple[s
    For each song (in order):
      a. Emit song_processing event
      b. If cache hit → use cached result, emit song_result (status="scored")
-     c. If cache miss + lyrics found → try classify_song(title, artist, lyrics, db)
+     c. If cache miss + lyrics found → try calibrate_song(title, artist, lyrics, db)
         - Success → emit song_result (status="scored")
         - Exception (Claude API failure, JSON parse error) → emit song_result (status="error")
      d. If cache miss + no lyrics → emit song_result (status="no_lyrics")
      e. Songs with status="error" or "no_lyrics" are excluded from aggregate calculation
 
 5. COMPUTE AGGREGATE
-   - compute_degree(classified_songs)
+   - compute_degree(calibrated_songs)
    - degree_to_charge(degree)
-   - count_contaminated(classified_songs)
+   - count_contaminated(calibrated_songs)
    - Build tier_distribution from results
    - Emit aggregate event
 
@@ -506,10 +506,10 @@ def build_narrative_prompt(song_results: list[dict], aggregate: dict) -> tuple[s
 7. Emit complete event, close stream
 ```
 
-### Why parallel lyrics + sequential classification:
+### Why parallel lyrics + sequential calibration:
 - Lyrics fetching is I/O-bound (HTTP calls). Parallelizing eliminates the dominant bottleneck.
-- Classification is CPU/API-bound (Claude calls). Streaming results one-by-one gives the frontend smooth per-song updates.
-- For 20 songs: parallel lyrics fetch takes ~2-3s total (lyrics.ovh responds in 1-2s). Then classification streams at ~3-5s per uncached song. **Total: ~15-60s for 20 songs** depending on cache hit ratio.
+- Calibration is CPU/API-bound (Claude calls). Streaming results one-by-one gives the frontend smooth per-song updates.
+- For 20 songs: parallel lyrics fetch takes ~2-3s total (lyrics.ovh responds in 1-2s). Then calibration streams at ~3-5s per uncached song. **Total: ~15-60s for 20 songs** depending on cache hit ratio.
 
 ---
 
@@ -573,7 +573,7 @@ Implementation: `slowapi` Limiter instance with `get_remote_address` key functio
 | File | Purpose |
 |------|---------|
 | `app/routers/analyzer.py` | All 4 endpoints, SSE streaming logic, session management, rate limiter |
-| `app/services/analyzer_engine.py` | Orchestrator — parallel lyrics fetch, sequential classification, aggregate computation |
+| `app/services/analyzer_engine.py` | Orchestrator — parallel lyrics fetch, sequential calibration, aggregate computation |
 
 ### Modified Files
 
@@ -590,12 +590,12 @@ Implementation: `slowapi` Limiter instance with `get_remote_address` key functio
 
 | File | What's Reused |
 |------|--------------|
-| `app/services/agents/classifier.py` | `classify_song()` — called per-song, same as today |
+| `app/services/agents/calibrator.py` | `calibrate_song()` — called per-song, same as today |
 | `app/services/agents/lyrics_source.py` | `fetch_lyrics()` — wrapped in `asyncio.to_thread()` for parallel I/O |
 | `app/services/compass_calc.py` | `compute_degree()` — works with any number of songs |
 | `app/services/charge_calc.py` | `degree_to_charge()` |
 | `app/services/contamination.py` | `count_contaminated()` |
-| `app/services/agents/compass_agent_rubric.py` | `build_few_shot_examples()` — provides classification context |
+| `app/services/agents/compass_agent_rubric.py` | `build_few_shot_examples()` — provides calibration context |
 | `app/services/agents/compass_agent.py` | `_lookup_cached()` — calibrated song cache |
 
 ### What's NOT Reused
@@ -638,7 +638,7 @@ CORS_ORIGINS=["http://localhost:3000","https://risingcompass.net","https://api.r
 
 1. Schemas + session storage + `POST /sessions` endpoint
 2. `POST /resolve-playlist` (Spotify client credentials)
-3. `analyzer_engine.py` — parallel lyrics + sequential classification
+3. `analyzer_engine.py` — parallel lyrics + sequential calibration
 4. `GET /sessions/{id}/stream` — SSE streaming with engine
 5. `GET /sessions/{id}` — status/reconnect endpoint
 6. Narrative prompt + generation

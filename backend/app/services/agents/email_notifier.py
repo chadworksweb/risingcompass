@@ -21,7 +21,7 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
         logger.warning("Resend not configured — skipping email notification")
         return False
 
-    # Look up which songs are not fully classified (missing color, score, or summary)
+    # Look up which songs are not fully calibrated (missing color, score, or summary)
     incomplete_titles = set()
     if db:
         from sqlalchemy import func

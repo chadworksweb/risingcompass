@@ -306,10 +306,10 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft cannot be approved in its current state")
 
-    # Block approval if any songs still need lyrics/classification
-    unclassified = [s for s in draft.songs if s.rubric_color is None]
-    if unclassified:
-        missing = [f"{s.title} by {s.artist}" for s in unclassified]
+    # Block approval if any songs still need lyrics/calibration
+    uncalibrated = [s for s in draft.songs if s.rubric_color is None]
+    if uncalibrated:
+        missing = [f"{s.title} by {s.artist}" for s in uncalibrated]
         raise HTTPException(
             status_code=400,
             detail=f"Cannot approve: {len(missing)} song(s) still need lyrics: {', '.join(missing)}",
@@ -451,7 +451,7 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
     if not draft_song:
         raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
 
-    # Classify with the supplied lyrics
+    # Calibrate with the supplied lyrics
     result = calibrate_song(draft_song.title, draft_song.artist, lyrics=data.lyrics, db=db)
 
     # Update the draft song
@@ -470,9 +470,9 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
     )
     draft_song.compass_song_id = cs_id
 
-    # Recalculate draft metrics if all songs are now classified
-    all_classified = all(s.rubric_color is not None for s in draft.songs)
-    if all_classified:
+    # Recalculate draft metrics if all songs are now calibrated
+    all_calibrated = all(s.rubric_color is not None for s in draft.songs)
+    if all_calibrated:
         song_dicts = [
             {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
             for s in draft.songs
@@ -485,7 +485,7 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
 
         # Regenerate editorial now that all songs have data
         from app.services.agents.compass_agent import _generate_editorial
-        classified_dicts = [
+        calibrated_dicts = [
             {
                 "title": s.title, "artist": s.artist, "position": s.position,
                 "rubric_color": s.rubric_color, "charge_value": s.charge_value,
@@ -495,7 +495,7 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
             }
             for s in draft.songs
         ]
-        editorial = _generate_editorial(classified_dicts)
+        editorial = _generate_editorial(calibrated_dicts)
         if editorial:
             draft.editorial_summary = editorial
 
@@ -562,7 +562,7 @@ def backfill_calibrate(
     )
 
     results = []
-    classified_count = 0
+    calibrated_count = 0
     failed_lyrics_count = 0
 
     for song in incomplete:
@@ -595,7 +595,7 @@ def backfill_calibrate(
             song.chart_source or "billboard", result, True, db,
         )
 
-        classified_count += 1
+        calibrated_count += 1
         results.append(BackfillSongOut(
             id=song.id,
             title=song.title,
@@ -615,8 +615,8 @@ def backfill_calibrate(
     return BackfillResult(
         year=year,
         total_songs=total_for_year,
-        reclassified=classified_count,
-        skipped_classified=0,
+        recalibrated=calibrated_count,
+        skipped_calibrated=0,
         songs=results,
     )
 
@@ -627,7 +627,7 @@ def backfill_year(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
-    """List incomplete songs for a given year that need lyrics + classification.
+    """List incomplete songs for a given year that need lyrics + calibration.
 
     No longer auto-fetches lyrics. Returns the list so the user can supply
     lyrics via the supply-lyrics endpoint.
@@ -648,7 +648,7 @@ def backfill_year(
         .all()
     )
 
-    classified_count = (
+    calibrated_count = (
         db.query(CompassSong)
         .filter(CompassSong.year == year)
         .filter(CompassSong.rubric_color.isnot(None))
@@ -678,8 +678,8 @@ def backfill_year(
     return BackfillResult(
         year=year,
         total_songs=total_for_year,
-        reclassified=0,
-        skipped_classified=classified_count,
+        recalibrated=0,
+        skipped_calibrated=calibrated_count,
         songs=results,
     )
 

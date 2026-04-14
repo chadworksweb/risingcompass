@@ -13,7 +13,7 @@ from app.models import CompassSong
 from app.services.contamination import enforce_contamination_rule
 from app.services.agents.compass_agent_rubric import (
     build_few_shot_examples,
-    build_classification_prompt,
+    build_calibration_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
     if not existing:
         return None
     if not existing.rubric_color or existing.charge_value is None or existing.charge_summary is None:
-        logger.warning("Incomplete classification for '%s' by %s (id=%s) — missing %s",
+        logger.warning("Incomplete calibration for '%s' by %s (id=%s) — missing %s",
                        title, artist, existing.id,
                        ", ".join(f for f, v in [
                            ("rubric_color", existing.rubric_color),
@@ -63,7 +63,7 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
                            ("charge_summary", existing.charge_summary),
                        ] if not v and v != 0))
         return None
-    logger.info("Using cached classification for '%s' by %s: %s %s",
+    logger.info("Using cached calibration for '%s' by %s: %s %s",
                 title, artist, existing.rubric_color, existing.charge_value)
     return {
         "compass_song_id": existing.id,
@@ -94,7 +94,7 @@ def calibrate_song(
     Returns a dict with rubric_color, charge_value, contaminated, contamination_note,
     charge_summary, confidence.
     """
-    # Check for existing classification first
+    # Check for existing calibration first
     if db and not skip_cache:
         existing = lookup_calibrated(title, artist, db)
         if existing:
@@ -105,7 +105,7 @@ def calibrate_song(
     # Build few-shot examples from existing data
     examples = build_few_shot_examples(db, target_year=target_year) if db else ""
 
-    system_prompt, user_prompt = build_classification_prompt(
+    system_prompt, user_prompt = build_calibration_prompt(
         title, artist, lyrics=lyrics, examples=examples
     )
 

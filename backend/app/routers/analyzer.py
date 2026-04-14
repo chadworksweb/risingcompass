@@ -21,8 +21,8 @@ from app.schemas import (
     AnalyzerSessionCreate, AnalyzerSessionOut,
     AnalyzerSessionStatus, AnalyzerSongResult, AnalyzerAggregate,
     PlaylistResolveIn, PlaylistResolveOut, PlaylistTrackOut,
-    LyricsClassifyIn, LyricsClassifyOut,
-    SongSearchIn, SongSearchOut, SearchClassifyIn,
+    LyricsCalibrateIn, LyricsCalibrateOut,
+    SongSearchIn, SongSearchOut, SearchCalibrateIn,
 )
 from app.models import SubmittedSong
 from app.constants import COLOR_LABELS
@@ -335,9 +335,9 @@ def _validate_lyrics(text: str) -> str | None:
     return None
 
 
-@router.post("/calibrate-lyrics", response_model=LyricsClassifyOut)
+@router.post("/calibrate-lyrics", response_model=LyricsCalibrateOut)
 @limiter.limit("5/hour")
-async def calibrate_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
+async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
     """Calibrate raw lyrics text. Stores the calibration (not the lyrics)."""
     if not body.title or not body.title.strip():
         raise HTTPException(422, "Song title is required.")
@@ -353,45 +353,45 @@ async def calibrate_lyrics_endpoint(body: LyricsClassifyIn, request: Request):
 
     db = SessionLocal()
     try:
-        classification = await asyncio.to_thread(
+        calibration = await asyncio.to_thread(
             calibrate_song, title, artist, body.lyrics, db
         )
 
-        color = classification.get("rubric_color")
+        color = calibration.get("rubric_color")
         if color is None:
-            return LyricsClassifyOut(status="error", title=title, artist=artist)
+            return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Store classification in submitted_songs (lyrics are NOT stored)
+        # Store calibration in submitted_songs (lyrics are NOT stored)
         submitted = SubmittedSong(
             title=title,
             artist=artist,
             rubric_color=color,
-            charge_value=classification.get("charge_value"),
-            contaminated=classification.get("contaminated", False),
-            contamination_note=classification.get("contamination_note"),
-            charge_summary=classification.get("charge_summary"),
-            confidence=classification.get("confidence"),
+            charge_value=calibration.get("charge_value"),
+            contaminated=calibration.get("contaminated", False),
+            contamination_note=calibration.get("contamination_note"),
+            charge_summary=calibration.get("charge_summary"),
+            confidence=calibration.get("confidence"),
             source="paste_lyrics",
             ip_address=get_remote_address(request),
         )
         db.add(submitted)
         db.commit()
 
-        return LyricsClassifyOut(
+        return LyricsCalibrateOut(
             status="scored",
             tier=color,
             tier_label=COLOR_LABELS.get(color),
-            charge=classification.get("charge_value"),
-            contaminated=classification.get("contaminated", False),
-            contamination_note=classification.get("contamination_note"),
-            charge_summary=classification.get("charge_summary"),
-            confidence=classification.get("confidence", 0.0),
+            charge=calibration.get("charge_value"),
+            contaminated=calibration.get("contaminated", False),
+            contamination_note=calibration.get("contamination_note"),
+            charge_summary=calibration.get("charge_summary"),
+            confidence=calibration.get("confidence", 0.0),
             title=title,
             artist=artist,
         )
     except Exception:
-        logger.exception("Classification failed for submitted lyrics")
-        raise HTTPException(500, "Classification failed — try again")
+        logger.exception("Calibration failed for submitted lyrics")
+        raise HTTPException(500, "Calibration failed — try again")
     finally:
         db.close()
 
@@ -416,9 +416,9 @@ async def search_songs(body: SongSearchIn, request: Request):
 # ------------------------------------------------------------------
 # 7. POST /api/analyzer/calibrate-search — Calibrate a song found via search
 # ------------------------------------------------------------------
-@router.post("/calibrate-search", response_model=LyricsClassifyOut)
+@router.post("/calibrate-search", response_model=LyricsCalibrateOut)
 @limiter.limit("5/hour")
-async def calibrate_search(body: SearchClassifyIn, request: Request):
+async def calibrate_search(body: SearchCalibrateIn, request: Request):
     """Fetch lyrics for a Musixmatch track and calibrate them."""
     if not musixmatch.is_configured():
         raise HTTPException(501, "Song search is not yet available.")
@@ -436,43 +436,43 @@ async def calibrate_search(body: SearchClassifyIn, request: Request):
 
     db = SessionLocal()
     try:
-        classification = await asyncio.to_thread(
+        calibration = await asyncio.to_thread(
             calibrate_song, title, artist, lyrics, db
         )
 
-        color = classification.get("rubric_color")
+        color = calibration.get("rubric_color")
         if color is None:
-            return LyricsClassifyOut(status="error", title=title, artist=artist)
+            return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
         submitted = SubmittedSong(
             title=title,
             artist=artist,
             rubric_color=color,
-            charge_value=classification.get("charge_value"),
-            contaminated=classification.get("contaminated", False),
-            contamination_note=classification.get("contamination_note"),
-            charge_summary=classification.get("charge_summary"),
-            confidence=classification.get("confidence"),
+            charge_value=calibration.get("charge_value"),
+            contaminated=calibration.get("contaminated", False),
+            contamination_note=calibration.get("contamination_note"),
+            charge_summary=calibration.get("charge_summary"),
+            confidence=calibration.get("confidence"),
             source="search",
             ip_address=get_remote_address(request),
         )
         db.add(submitted)
         db.commit()
 
-        return LyricsClassifyOut(
+        return LyricsCalibrateOut(
             status="scored",
             tier=color,
             tier_label=COLOR_LABELS.get(color),
-            charge=classification.get("charge_value"),
-            contaminated=classification.get("contaminated", False),
-            contamination_note=classification.get("contamination_note"),
-            charge_summary=classification.get("charge_summary"),
-            confidence=classification.get("confidence", 0.0),
+            charge=calibration.get("charge_value"),
+            contaminated=calibration.get("contaminated", False),
+            contamination_note=calibration.get("contamination_note"),
+            charge_summary=calibration.get("charge_summary"),
+            confidence=calibration.get("confidence", 0.0),
             title=title,
             artist=artist,
         )
     except Exception:
-        logger.exception("Classification failed for search track %d", body.track_id)
-        raise HTTPException(500, "Classification failed — try again")
+        logger.exception("Calibration failed for search track %d", body.track_id)
+        raise HTTPException(500, "Calibration failed — try again")
     finally:
         db.close()
