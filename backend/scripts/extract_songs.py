@@ -128,11 +128,11 @@ def extract_songs(content: str) -> list[dict]:
                 i += 1
                 continue
 
-            # Find "Why:" classification
-            why_classification = None
+            # Find "Why:" calibration
+            why_calibration = None
             why_match = re.search(r'(?:Why|WHY):\s*(.+?)(?:\n|$|<)', card_content, re.IGNORECASE)
             if why_match:
-                why_classification = strip_html(why_match.group(1)).strip().rstrip('.')
+                why_calibration = strip_html(why_match.group(1)).strip().rstrip('.')
 
             # Get analysis text — everything after the title line
             analysis_text = card_content
@@ -162,9 +162,9 @@ def extract_songs(content: str) -> list[dict]:
                 "chart_position": position,
                 "rubric_color": rubric_color,
                 "contaminated": contaminated,
-                "contamination_note": why_classification if contaminated else None,
+                "contamination_note": why_calibration if contaminated else None,
                 "charge_summary": charge_summary,
-                "why_classification": why_classification,
+                "why_calibration": why_calibration,
                 "chart_source": "billboard_hot_100",
             })
 

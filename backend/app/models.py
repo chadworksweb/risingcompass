@@ -20,7 +20,7 @@ class CompassSong(Base):
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
     charge_summary = Column(Text)
-    why_classification = Column(Text)
+    why_calibration = Column(Text)
     chart_source = Column(Text, default="billboard_hot_100")
     instrumental = Column(Boolean, default=False)
 
@@ -216,7 +216,7 @@ class AgentDraftSong(Base):
 
 
 class SubmittedSong(Base):
-    """Crowd-submitted song classifications from Lyrical Charger.
+    """Crowd-submitted song calibrations from Lyrical Charger.
 
     Separate from compass_songs (chart data) and library_songs (editorial).
     This is the public contribution layer — building the world's lyrical charge database.
@@ -237,12 +237,12 @@ class SubmittedSong(Base):
     submitted_at = Column(DateTime, default=datetime.utcnow)
 
 
-class AlbumClassification(Base):
-    """Computed album-level classification — mean of constituent song charges.
+class AlbumCalibration(Base):
+    """Computed album-level calibration — mean of constituent song charges.
 
     Not editorial (that's album_deep_dives). This is the badge-serving layer.
     """
-    __tablename__ = "album_classifications"
+    __tablename__ = "album_calibrations"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(Text, nullable=False)
@@ -258,7 +258,7 @@ class AlbumClassification(Base):
     __table_args__ = (
         UniqueConstraint(
             "title", "artist",
-            name="uq_album_classifications_title_artist",
+            name="uq_album_calibrations_title_artist",
         ),
     )
 

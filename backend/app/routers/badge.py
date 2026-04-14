@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 
 from app.database import SessionLocal
-from app.models import CompassSong, LibrarySong, SubmittedSong, AlbumClassification
+from app.models import CompassSong, LibrarySong, SubmittedSong, AlbumCalibration
 from app.constants import COLOR_LABELS, COLOR_HEX
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ def album_calibrate(req: AlbumCalibrateRequest):
     """Compute and store an album calibration from its track calibrations.
 
     Looks up each track, computes mean charge, derives tier, upserts into
-    album_classifications. Tracks not found are skipped (but counted).
+    album_calibrations. Tracks not found are skipped (but counted).
     """
     db = SessionLocal()
     try:
@@ -153,9 +153,9 @@ def album_calibrate(req: AlbumCalibrateRequest):
 
         # Upsert
         existing = (
-            db.query(AlbumClassification)
-            .filter(func.lower(AlbumClassification.title) == title.lower())
-            .filter(func.lower(AlbumClassification.artist) == artist.lower())
+            db.query(AlbumCalibration)
+            .filter(func.lower(AlbumCalibration.title) == title.lower())
+            .filter(func.lower(AlbumCalibration.artist) == artist.lower())
             .first()
         )
 
@@ -167,7 +167,7 @@ def album_calibrate(req: AlbumCalibrateRequest):
             existing.contamination_count = contaminated_count
             existing.updated_at = datetime.utcnow()
         else:
-            existing = AlbumClassification(
+            existing = AlbumCalibration(
                 title=title,
                 artist=artist,
                 rubric_color=rubric_color,
@@ -205,9 +205,9 @@ def album_lookup(
     db = SessionLocal()
     try:
         row = (
-            db.query(AlbumClassification)
-            .filter(func.lower(AlbumClassification.title) == title.lower())
-            .filter(func.lower(AlbumClassification.artist) == artist.lower())
+            db.query(AlbumCalibration)
+            .filter(func.lower(AlbumCalibration.title) == title.lower())
+            .filter(func.lower(AlbumCalibration.artist) == artist.lower())
             .first()
         )
         if not row:

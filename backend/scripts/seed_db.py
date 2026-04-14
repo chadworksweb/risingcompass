@@ -37,7 +37,7 @@ def seed_songs(db):
             contaminated=s.get("contaminated", False),
             contamination_note=s.get("contamination_note"),
             charge_summary=s.get("charge_summary"),
-            why_classification=s.get("why_classification"),
+            why_calibration=s.get("why_calibration") or s.get("why_classification"),
             chart_source=s.get("chart_source", "billboard_hot_100"),
         )
         db.add(song)
