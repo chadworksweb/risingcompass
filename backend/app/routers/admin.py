@@ -236,10 +236,6 @@ def export_database(background_tasks: BackgroundTasks):
     Temp file is cleaned up automatically after response is sent.
     Use: curl -H "X-Admin-Key: YOUR_KEY" https://api.risingcompass.net/api/admin/db-export -o rising_compass.db
     """
-    from app.config import settings
-    if settings.is_turso:
-        raise HTTPException(status_code=410, detail="Database is on Turso — use Turso dashboard for exports")
-
     db_path = Path("data/rising_compass.db")
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="Database file not found")

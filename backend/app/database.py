@@ -2,30 +2,18 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.config import settings
 
-if settings.is_turso:
-    import libsql_experimental as libsql
+engine = create_engine(
+    settings.database_url,
+    connect_args={"check_same_thread": False},
+)
 
-    def _turso_connection():
-        url = settings.turso_database_url
-        token = settings.turso_auth_token
-        return libsql.connect(url, auth_token=token)
 
-    engine = create_engine(
-        "sqlite+libsql://",
-        creator=_turso_connection,
-        echo=False,
-    )
-else:
-    engine = create_engine(
-        settings.effective_database_url,
-        connect_args={"check_same_thread": False},
-    )
+@event.listens_for(engine, "connect")
+def _set_foreign_keys(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
-    @event.listens_for(engine, "connect")
-    def _set_foreign_keys(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 

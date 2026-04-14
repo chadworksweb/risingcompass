@@ -8,10 +8,6 @@ class Settings(BaseSettings):
     rc_admin_key: str = ""  # REQUIRED — app won't start without it
     rc_api_key: str = ""  # REQUIRED — consumer API key for public endpoints
     database_url: str = "sqlite:///./data/rising_compass.db"
-
-    # Turso (libSQL) — when set, overrides database_url
-    turso_database_url: str = ""
-    turso_auth_token: str = ""
     cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","https://risingcompass.net","https://api.risingcompass.net"]'
 
     # Anthropic API
@@ -46,19 +42,6 @@ class Settings(BaseSettings):
         if not self.rc_api_key or self.rc_api_key == "change-me":
             raise ValueError("RC_API_KEY must be set to a strong secret (not 'change-me')")
         return self
-
-    @property
-    def effective_database_url(self) -> str:
-        """Return Turso URL if configured, otherwise local SQLite."""
-        if self.turso_database_url and self.turso_auth_token:
-            # sqlalchemy-libsql expects sqlite+libsql:// scheme
-            host = self.turso_database_url.replace("libsql://", "")
-            return f"sqlite+libsql://{host}?authToken={self.turso_auth_token}&secure=true"
-        return self.database_url
-
-    @property
-    def is_turso(self) -> bool:
-        return bool(self.turso_database_url and self.turso_auth_token)
 
     @property
     def cors_origin_list(self) -> list[str]:
