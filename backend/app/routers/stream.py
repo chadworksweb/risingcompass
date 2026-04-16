@@ -18,6 +18,7 @@ from app.schemas import StreamSongIn, StreamSongOut, StreamPromoteIn
 from app.routers.admin import verify_admin_key
 from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
+from app.services.artist_linker import try_link_song
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +195,8 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
     song.promoted_to = body.target
     db.commit()
     db.refresh(song)
+    db.refresh(entry)
+    try_link_song(entry.title, entry.artist, body.target, entry.id, db)
     return song
 
 

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Artist Search — The Rising Compass</title>
+  <meta name="description" content="Search any artist and see their lyrical charge trajectory. The Rising Compass classifies music by what the lyrics transmit, not genre or popularity.">
+  <meta property="og:title" content="Artist Search — The Rising Compass">
+  <meta property="og:description" content="Search any artist and see their lyrical charge trajectory over time.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/artists/">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="artists.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <header class="artists-header">
+    <a href="/" class="back-link" aria-label="Back to Rising Compass">
+      <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+        <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+        <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+      </svg>
+      <span>The Rising Compass</span>
+    </a>
+    <h1 class="artists-title">Search</h1>
+  </header>
+
+  <main id="main">
+    <div class="search-container">
+      <input
+        type="search"
+        id="search-input"
+        class="search-input"
+        placeholder="Search artists or songs..."
+        autocomplete="off"
+        autofocus
+      >
+    </div>
+
+    <div id="results-container" class="results-container">
+      <!-- Populated by JS -->
+    </div>
+
+    <div id="empty-state" class="empty-state" hidden>
+      <p class="empty-message">No results found.</p>
+      <p class="empty-cta">Help build the database. <a href="/lyrical-charger/">Submit lyrics via Lyrical Charger</a>.</p>
+    </div>
+
+    <div id="initial-state" class="initial-state">
+      <p>Search for any artist to see their lyrical charge trajectory, or search for a song to see its effects label.</p>
+    </div>
+  </main>
+
+  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="artists-api.js"></script>
+  <script src="artists.js"></script>
+</body>
+</html>

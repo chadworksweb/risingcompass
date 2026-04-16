@@ -307,6 +307,75 @@ class StreamSong(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Artist(Base):
+    """First-class artist entity for trajectory tracking."""
+    __tablename__ = "artists"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(Text, nullable=False)
+    slug = Column(String(250), unique=True, nullable=False)
+    musicbrainz_id = Column(Text)
+    spotify_id = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    releases = relationship("Release", back_populates="artist", cascade="all, delete-orphan")
+
+
+class Release(Base):
+    """A release (single, EP, or album) linked to an artist."""
+    __tablename__ = "releases"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    artist_id = Column(Integer, ForeignKey("artists.id"), nullable=False)
+    title = Column(Text, nullable=False)
+    release_type = Column(String(20), nullable=False)  # single / ep / album
+    release_date = Column(Date)
+    release_year = Column(Integer)
+    rubric_color = Column(Text)
+    charge_value = Column(Integer)  # mean of constituent song charges
+    track_count = Column(Integer, default=0)
+    calibrated_count = Column(Integer, default=0)
+    contamination_count = Column(Integer, default=0)
+    musicbrainz_id = Column(Text)
+    spotify_id = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("artist_id", "title", name="uq_releases_artist_title"),
+    )
+
+    artist = relationship("Artist", back_populates="releases")
+    songs = relationship("ReleaseSong", back_populates="release", cascade="all, delete-orphan")
+
+
+class ReleaseSong(Base):
+    """Links a release to a calibrated song across the three song tables."""
+    __tablename__ = "release_songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    release_id = Column(Integer, ForeignKey("releases.id"), nullable=False)
+    song_source = Column(String(20), nullable=False)  # compass / library / submitted
+    song_id = Column(Integer, nullable=False)
+    track_number = Column(Integer)
+
+    release = relationship("Release", back_populates="songs")
+
+
+class SongSlug(Base):
+    """Lookup table mapping URL slugs to songs across the three song tables."""
+    __tablename__ = "song_slugs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(String(300), unique=True, nullable=False)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    song_source = Column(String(20))  # compass / library / submitted
+    song_id = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class MisreadBan(Base):
     __tablename__ = "misread_bans"
 

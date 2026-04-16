@@ -1,0 +1,535 @@
+/* === Artists & Songs Pages === */
+
+body {
+  background: var(--rc-bg-dark);
+  color: var(--rc-text);
+  font-family: var(--rc-font);
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* --- Skip nav --- */
+.skip-nav {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--rc-accent);
+  color: var(--rc-bg-dark);
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+}
+.skip-nav:focus { left: 0; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- Header --- */
+.artists-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--rc-border);
+  background: var(--rc-bg-panel);
+}
+
+.back-link {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--rc-text-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color var(--rc-ease);
+}
+.back-link:hover { color: var(--rc-accent); }
+.back-link svg { flex-shrink: 0; }
+.back-arrow { font-size: 1.1rem; }
+
+.artists-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  margin: 0;
+}
+
+.artist-page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  margin: 0;
+}
+
+/* --- Search --- */
+.search-container {
+  max-width: 640px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  color: var(--rc-text-bright);
+  font-family: var(--rc-font);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color var(--rc-ease);
+  box-sizing: border-box;
+}
+.search-input::placeholder { color: var(--rc-text-dim); }
+.search-input:focus { border-color: var(--rc-accent); }
+
+/* --- Results --- */
+.results-container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.results-section { margin-bottom: 2rem; }
+
+.results-heading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rc-text-dim);
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--rc-border);
+}
+
+.results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.result-item {
+  border-bottom: 1px solid var(--rc-divider);
+}
+
+.result-item a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.5rem;
+  text-decoration: none;
+  color: var(--rc-text);
+  transition: background var(--rc-ease);
+  border-radius: var(--rc-radius-sm);
+}
+.result-item a:hover { background: var(--rc-accent-hover); }
+
+.result-name {
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  flex: 1;
+}
+
+.result-meta {
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+}
+
+.result-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.result-artist-name {
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+}
+
+.result-tier {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--rc-font-mono);
+}
+
+.result-unindexed .result-unindexed-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.5rem;
+}
+
+.result-cta {
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+}
+.result-cta a { color: var(--rc-accent); }
+
+/* --- Empty / Initial states --- */
+.empty-state, .initial-state {
+  max-width: 640px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+  text-align: center;
+  color: var(--rc-text-dim);
+}
+
+.empty-message { font-size: 1rem; margin-bottom: 0.5rem; }
+.empty-cta { font-size: 0.85rem; }
+.empty-cta a { color: var(--rc-accent); }
+
+/* --- Stats Bar --- */
+.stats-bar {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  max-width: 900px;
+  margin: 1.5rem auto 0;
+  overflow-x: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.75rem 1rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  min-width: 100px;
+}
+
+.stat-card--charge {
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.stat-card--breakdown { flex: 1; }
+
+.stat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stat-value {
+  font-family: var(--rc-font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tier-pills {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.tier-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+/* --- Trajectory Chart --- */
+.trajectory-section {
+  max-width: 900px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+}
+
+.trajectory-chart {
+  position: relative;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.trajectory-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+}
+
+.chart-dot {
+  cursor: pointer;
+  transition: r 0.15s ease;
+}
+.chart-dot:hover {
+  filter: brightness(1.3);
+}
+
+.chart-tooltip {
+  position: fixed;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  padding: 0.5rem 0.75rem;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.tt-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--rc-text-bright);
+}
+
+.tt-meta {
+  font-size: 0.75rem;
+  color: var(--rc-text-dim);
+  margin-top: 0.15rem;
+}
+
+.tt-charge {
+  font-family: var(--rc-font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
+}
+
+.chart-empty {
+  text-align: center;
+  color: var(--rc-text-dim);
+  padding: 2rem;
+}
+
+/* --- Release List --- */
+.release-list {
+  max-width: 900px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+}
+
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rc-text-dim);
+  margin: 0 0 1rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--rc-border);
+}
+
+.release-card {
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  transition: border-color 0.3s ease;
+}
+
+.release-card.release-highlight {
+  border-color: var(--rc-accent);
+}
+
+.release-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.release-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.release-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.release-title {
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  font-size: 0.95rem;
+}
+
+.release-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+}
+
+.release-type {
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.release-charge {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.release-charge-value {
+  font-family: var(--rc-font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.release-charge-tier {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.release-stats {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--rc-text-dim);
+}
+
+.release-contam { color: var(--rc-orange); }
+
+.release-expand {
+  display: block;
+  margin-top: 0.5rem;
+  background: none;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  color: var(--rc-text-dim);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  transition: color var(--rc-ease), border-color var(--rc-ease);
+}
+.release-expand:hover {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+}
+
+/* --- Song list inside release --- */
+.release-songs {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--rc-border);
+  padding-top: 0.5rem;
+}
+
+.song-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.song-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--rc-divider);
+}
+
+.song-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.song-info { flex: 1; }
+
+.song-title {
+  font-size: 0.85rem;
+  color: var(--rc-text);
+}
+
+.song-charge {
+  font-family: var(--rc-font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* --- Zero state --- */
+.zero-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  max-width: 500px;
+  margin: 2rem auto;
+}
+
+.zero-state h2 {
+  color: var(--rc-text-bright);
+  margin: 0 0 0.5rem;
+}
+
+.zero-state p {
+  color: var(--rc-text-dim);
+  margin: 0 0 1.5rem;
+}
+
+.cta-button {
+  display: inline-block;
+  padding: 0.65rem 1.5rem;
+  background: var(--rc-accent);
+  color: var(--rc-bg-dark);
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: var(--rc-radius-md);
+  transition: opacity var(--rc-ease);
+}
+.cta-button:hover { opacity: 0.85; }
+
+/* --- Error --- */
+.error-message {
+  color: var(--rc-red);
+  font-size: 0.85rem;
+  padding: 0.5rem;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .artists-header { padding: 0.75rem 1rem; }
+  .artist-page-title { font-size: 1.2rem; }
+  .search-container { margin: 1.5rem auto; padding: 0 1rem; }
+  .results-container { padding: 0 1rem; }
+  .stats-bar { padding: 0.75rem 1rem; gap: 0.5rem; }
+  .stat-card { min-width: 80px; padding: 0.5rem 0.6rem; }
+  .stat-value { font-size: 1rem; }
+  .trajectory-section { padding: 0 1rem; }
+  .release-list { padding: 0 1rem; }
+}
+
+@media (max-width: 480px) {
+  .stats-bar { flex-wrap: wrap; }
+  .stat-card { flex: 1 1 45%; }
+  .release-header { flex-wrap: wrap; }
+}

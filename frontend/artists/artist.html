@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">Artist Trajectory — The Rising Compass</title>
+  <meta id="meta-description" name="description" content="Lyrical charge trajectory for this artist, classified by The Rising Compass.">
+  <meta id="og-title" property="og:title" content="Artist Trajectory — The Rising Compass">
+  <meta id="og-description" property="og:description" content="Lyrical charge trajectory classified by The Rising Compass.">
+  <meta property="og:type" content="website">
+  <meta id="og-url" property="og:url" content="https://risingcompass.net/artists/artist.html">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="artists.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <header class="artists-header">
+    <a href="/artists/" class="back-link" aria-label="Back to search">
+      <span class="back-arrow">&larr;</span>
+      <span>Search</span>
+    </a>
+    <h1 id="artist-name" class="artist-page-title">Loading...</h1>
+  </header>
+
+  <main id="main">
+
+    <!-- Trajectory Chart -->
+    <section class="trajectory-section" aria-label="Charge trajectory chart">
+      <div id="trajectory-chart" class="trajectory-chart"></div>
+    </section>
+
+    <!-- Stats Bar -->
+    <section id="stats-bar" class="stats-bar" aria-label="Catalog statistics">
+      <!-- Populated by JS -->
+    </section>
+
+    <!-- Release List -->
+    <section id="release-list" class="release-list" aria-label="Releases">
+      <!-- Populated by JS -->
+    </section>
+
+    <!-- Zero-data state -->
+    <div id="zero-state" class="zero-state" hidden>
+      <h2>No classified songs yet</h2>
+      <p>We haven't classified any songs by this artist. Help build the database.</p>
+      <a href="/lyrical-charger/" class="cta-button">Submit lyrics via Lyrical Charger</a>
+    </div>
+
+    <!-- JSON-LD structured data (injected by JS) -->
+    <script id="json-ld" type="application/ld+json"></script>
+
+  </main>
+
+  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="artists-api.js"></script>
+  <script src="artists.js"></script>
+</body>
+</html>

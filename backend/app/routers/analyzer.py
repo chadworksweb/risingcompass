@@ -29,6 +29,7 @@ from app.constants import COLOR_LABELS
 from app.services.analyzer_engine import run_analysis
 from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
+from app.services.artist_linker import try_link_song
 
 logger = logging.getLogger(__name__)
 
@@ -376,6 +377,8 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
         )
         db.add(submitted)
         db.commit()
+        db.refresh(submitted)
+        try_link_song(title, artist, "submitted", submitted.id, db)
 
         return LyricsCalibrateOut(
             status="scored",
@@ -458,6 +461,8 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request):
         )
         db.add(submitted)
         db.commit()
+        db.refresh(submitted)
+        try_link_song(title, artist, "submitted", submitted.id, db)
 
         return LyricsCalibrateOut(
             status="scored",

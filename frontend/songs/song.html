@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">Song Effects Label — The Rising Compass</title>
+  <meta id="meta-description" name="description" content="Lyrical effects label for this song, classified by The Rising Compass.">
+  <meta id="og-title" property="og:title" content="Song Effects Label — The Rising Compass">
+  <meta id="og-description" property="og:description" content="What this song's lyrics do to the listener, classified by The Rising Compass.">
+  <meta property="og:type" content="website">
+  <meta id="og-url" property="og:url" content="https://risingcompass.net/songs/song.html">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../artists/artists.css">
+  <link rel="stylesheet" href="songs.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <header class="artists-header">
+    <a href="/artists/" class="back-link" aria-label="Back to search">
+      <span class="back-arrow">&larr;</span>
+      <span>Search</span>
+    </a>
+  </header>
+
+  <main id="main">
+
+    <!-- Section 1: What does this song do? -->
+    <section class="song-section song-section--hero" aria-label="Song classification">
+      <div class="song-hero">
+        <div id="song-tier-badge" class="song-tier-badge"></div>
+        <h1 id="song-title" class="song-page-title">Loading...</h1>
+        <p id="song-artist" class="song-page-artist"></p>
+      </div>
+    </section>
+
+    <!-- Section 2: Lyrical Effects -->
+    <section class="song-section" id="section-effects" hidden>
+      <h2>What Might This Song Do to the Listener?</h2>
+      <p id="effects-direct-answer" class="direct-answer"></p>
+      <div id="effects-prose" class="prose"></div>
+    </section>
+
+    <!-- Section 3: Contamination -->
+    <section class="song-section" id="section-contamination" hidden>
+      <h2 id="contam-heading">Contamination Status</h2>
+      <p id="contam-answer" class="direct-answer"></p>
+    </section>
+
+    <!-- Section 4: Classification Details -->
+    <section class="song-section" id="section-details" hidden>
+      <h2>Classification Details</h2>
+      <table class="details-table" id="details-table"></table>
+    </section>
+
+    <!-- Section 5: About -->
+    <section class="song-section" id="section-about" hidden>
+      <h2>How Is This Song Classified?</h2>
+      <p class="direct-answer">The Rising Compass classifies songs based exclusively on lyric content using a 58-tenet rubric. No genre, no popularity, no artist reputation. Just the words and what they transmit.</p>
+      <ul class="key-points">
+        <li>Classification is performed by AI (Claude) calibrated against the 58-tenet rubric</li>
+        <li>Five tiers: Ascended, Elevated, Decent, Degraded, Corrupted</li>
+        <li>Charge ranges from +100 (highest consciousness) to -100 (lowest)</li>
+        <li>Contamination flags higher-tier songs undermined by lower-tier content</li>
+      </ul>
+      <p><a href="/#methodology" class="accent-link">Read the full methodology</a></p>
+    </section>
+
+    <!-- Not found state -->
+    <div id="not-found" class="zero-state" hidden>
+      <h2>Song not found</h2>
+      <p>This song hasn't been classified yet.</p>
+      <a href="/lyrical-charger/" class="cta-button">Submit lyrics via Lyrical Charger</a>
+    </div>
+
+    <!-- JSON-LD -->
+    <script id="json-ld" type="application/ld+json"></script>
+
+  </main>
+
+  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="../artists/artists-api.js"></script>
+  <script src="songs.js"></script>
+</body>
+</html>

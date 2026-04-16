@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
-from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread, library_admin, analyzer, submissions_admin, badge, stream
+from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs
 from app.services.backup import run_backup
 
 logger = logging.getLogger(__name__)
@@ -90,6 +90,8 @@ app.include_router(library.router, dependencies=_api_key_dep)
 app.include_router(misread.router, dependencies=_api_key_dep)
 app.include_router(analyzer.router, dependencies=_api_key_dep)
 app.include_router(badge.router, dependencies=_api_key_dep)
+app.include_router(artists.router, dependencies=_api_key_dep)
+app.include_router(songs.router, dependencies=_api_key_dep)
 
 # Admin routers — use X-Admin-Key (handled per-endpoint)
 app.include_router(admin.router)
@@ -97,6 +99,7 @@ app.include_router(agent.router)
 app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)
 app.include_router(stream.router)
+app.include_router(artists_admin.router)
 
 
 # slowapi rate limiter (defined in analyzer.py, shared across routers)

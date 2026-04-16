@@ -23,6 +23,7 @@ from app.auth import create_approval_token, verify_approval_token
 from app.config import settings
 from app.routers.admin import verify_admin_key
 from app.services.agents.compass_agent import run_compass_agent, _store_calibration
+from app.services.artist_linker import try_link_song
 from app.services.agents.chart_source import fetch_top_songs
 from app.services.agents.calibrator import calibrate_song
 from app.services.agents.email_notifier import send_draft_email
@@ -533,6 +534,7 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
     db.add(song)
     db.commit()
     db.refresh(song)
+    try_link_song(song.title, song.artist, "compass", song.id, db)
     return song
 
 
