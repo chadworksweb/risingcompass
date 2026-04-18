@@ -722,7 +722,26 @@ const App = (() => {
     const container = document.getElementById('trajectory-container');
     if (!container) return;
 
-    container.innerHTML = '<div class="trajectory-loading" role="status" aria-label="Loading aggregate trajectory"><div class="rc-spinner"></div></div>';
+    container.innerHTML = `
+      <div class="trajectory-loading" role="status" aria-label="Loading aggregate trajectory">
+        <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="rc-loader-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#9933ff"/>
+              <stop offset="25%" stop-color="#3388ff"/>
+              <stop offset="50%" stop-color="#33cc55"/>
+              <stop offset="75%" stop-color="#ffbb33"/>
+              <stop offset="100%" stop-color="#ff3333"/>
+            </linearGradient>
+          </defs>
+          <circle class="rc-loader-track" cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+          <circle class="rc-loader-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#rc-loader-grad)" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
+          <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round" transform-origin="32 32"/>
+          <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
+        </svg>
+        <div class="rc-loader-label">Loading aggregate</div>
+        <div class="rc-loader-sub">tuning the compass…</div>
+      </div>`;
 
     try {
       const [decadeData, yearData] = await Promise.all([API.getDrift(), API.getDriftYears()]);

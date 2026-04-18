@@ -2059,11 +2059,62 @@ body {
 
 .trajectory-loading {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 240px;
+  gap: 0.6rem;
+  min-height: 280px;
+  padding: 1.5rem 1rem;
 }
 
+.rc-loader {
+  width: 72px;
+  height: 72px;
+  display: block;
+}
+
+.rc-loader-arc {
+  animation: rc-spin 1.4s linear infinite;
+  transform-origin: 32px 32px;
+}
+
+.rc-loader-needle {
+  animation: rc-needle-sweep 2.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.rc-loader-label {
+  margin-top: 0.4rem;
+  color: var(--rc-text, #eeeef4);
+  font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  animation: rc-loader-pulse 1.6s ease-in-out infinite;
+}
+
+.rc-loader-sub {
+  color: var(--rc-text-dim, rgba(255, 255, 255, 0.55));
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  font-style: italic;
+}
+
+@keyframes rc-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rc-needle-sweep {
+  0%   { transform: rotate(-70deg); }
+  50%  { transform: rotate(70deg); }
+  100% { transform: rotate(-70deg); }
+}
+
+@keyframes rc-loader-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* Spinner kept for any other internal callers */
 .rc-spinner {
   width: 22px;
   height: 22px;
@@ -2071,10 +2122,6 @@ body {
   border: 2px solid var(--rc-border, rgba(255, 255, 255, 0.12));
   border-top-color: var(--rc-text-dim, rgba(255, 255, 255, 0.55));
   animation: rc-spin 0.85s linear infinite;
-}
-
-@keyframes rc-spin {
-  to { transform: rotate(360deg); }
 }
 
 .error-msg {

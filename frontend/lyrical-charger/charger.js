@@ -70,6 +70,58 @@ const btnAgain = $('#btn-again');
 // --- State ---
 let activeTab = 'paste';
 let selectedTrack = null;  // { track_id, title, artist }
+let turnstileWidgetId = null;
+
+// --- Bot protection helpers ---
+function getHpValue() {
+  return ($('#hp-website')?.value || '').trim();
+}
+
+function getTurnstileToken() {
+  if (!window.turnstile || turnstileWidgetId === null) return '';
+  try {
+    return window.turnstile.getResponse(turnstileWidgetId) || '';
+  } catch {
+    return '';
+  }
+}
+
+function resetTurnstile() {
+  if (window.turnstile && turnstileWidgetId !== null) {
+    try { window.turnstile.reset(turnstileWidgetId); } catch {}
+  }
+}
+
+async function initBotProtection() {
+  try {
+    const headers = {};
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    const resp = await fetch(`${API_BASE}/config`, { headers });
+    if (!resp.ok) return;
+    const cfg = await resp.json();
+    if (!cfg.turnstile_site_key) return;
+
+    // Inject Turnstile script
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad';
+    script.async = true;
+    script.defer = true;
+    window.onTurnstileLoad = () => {
+      const mount = $('#turnstile-mount');
+      if (!mount) return;
+      mount.classList.remove('hidden');
+      turnstileWidgetId = window.turnstile.render(mount, {
+        sitekey: cfg.turnstile_site_key,
+        theme: 'dark',
+        size: 'flexible',
+      });
+    };
+    document.head.appendChild(script);
+  } catch {
+    // Bot protection is best-effort; swallow errors so the page still works.
+  }
+}
+initBotProtection();
 
 // ============================================================
 // Screen Management
@@ -235,7 +287,11 @@ async function submitLyrics() {
     const resp = await fetch(`${API_BASE}/calibrate-lyrics`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ lyrics, title, artist }),
+      body: JSON.stringify({
+        lyrics, title, artist,
+        hp_website: getHpValue(),
+        turnstile_token: getTurnstileToken(),
+      }),
     });
 
     if (resp.status === 429) {
@@ -385,7 +441,11 @@ async function submitSearch() {
     const resp = await fetch(`${API_BASE}/calibrate-search`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(selectedTrack),
+      body: JSON.stringify({
+        ...selectedTrack,
+        hp_website: getHpValue(),
+        turnstile_token: getTurnstileToken(),
+      }),
     });
 
     if (resp.status === 429) {

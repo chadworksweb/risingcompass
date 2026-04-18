@@ -696,6 +696,10 @@ class LyricsCalibrateIn(BaseModel):
     lyrics: str = Field(..., min_length=20, max_length=20000)
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)
+    # Bot protection — invisible field that legitimate users never fill in.
+    hp_website: str = ""
+    # Cloudflare Turnstile token; ignored unless TURNSTILE_SECRET is configured.
+    turnstile_token: str = ""
 
 
 class LyricsCalibrateOut(BaseModel):
@@ -733,6 +737,8 @@ class SearchCalibrateIn(BaseModel):
     track_id: int
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)
+    hp_website: str = ""
+    turnstile_token: str = ""
 
 
 # --- Submitted Songs Admin ---

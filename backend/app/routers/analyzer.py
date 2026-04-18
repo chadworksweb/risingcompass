@@ -37,6 +37,53 @@ router = APIRouter(prefix="/api/analyzer", tags=["analyzer"])
 
 limiter = Limiter(key_func=get_remote_address)
 
+
+# ------------------------------------------------------------------
+# Bot protection: honeypot field + optional Cloudflare Turnstile
+# ------------------------------------------------------------------
+async def _verify_turnstile(token: str, remote_ip: str | None) -> bool:
+    """Verify a Turnstile token with Cloudflare. Only called when secret is set."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            data = {"secret": settings.turnstile_secret, "response": token}
+            if remote_ip:
+                data["remoteip"] = remote_ip
+            resp = await client.post(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                data=data,
+            )
+        if resp.status_code != 200:
+            logger.warning("Turnstile verify HTTP %d", resp.status_code)
+            return False
+        return bool(resp.json().get("success"))
+    except Exception:
+        logger.exception("Turnstile verification failed")
+        return False
+
+
+async def _check_bot_protection(hp_website: str, turnstile_token: str, request: Request) -> None:
+    """Raise HTTPException if the request fails honeypot or Turnstile checks."""
+    if hp_website.strip():
+        # Honeypot tripped — silent generic 422 so bots don't learn the signal.
+        client_ip = get_remote_address(request)
+        logger.info("Honeypot tripped from %s", client_ip)
+        raise HTTPException(422, "Submission rejected.")
+
+    if settings.turnstile_secret:
+        if not turnstile_token:
+            raise HTTPException(422, "Bot verification required.")
+        ok = await _verify_turnstile(turnstile_token, get_remote_address(request))
+        if not ok:
+            raise HTTPException(422, "Bot verification failed — please try again.")
+
+
+@router.get("/config")
+async def analyzer_config():
+    """Public config for the LC frontend (which bot protection to render, etc.)."""
+    return {
+        "turnstile_site_key": settings.turnstile_site_key,
+    }
+
 # --- In-memory session storage ---
 _sessions: dict[str, dict] = {}
 
@@ -340,6 +387,8 @@ def _validate_lyrics(text: str) -> str | None:
 @limiter.limit("5/hour")
 async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
     """Calibrate raw lyrics text. Stores the calibration (not the lyrics)."""
+    await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+
     if not body.title or not body.title.strip():
         raise HTTPException(422, "Song title is required.")
     if not body.artist or not body.artist.strip():
@@ -423,6 +472,8 @@ async def search_songs(body: SongSearchIn, request: Request):
 @limiter.limit("5/hour")
 async def calibrate_search(body: SearchCalibrateIn, request: Request):
     """Fetch lyrics for a Musixmatch track and calibrate them."""
+    await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+
     if not musixmatch.is_configured():
         raise HTTPException(501, "Song search is not yet available.")
 

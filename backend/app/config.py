@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # Lyrical Charger settings
     analyzer_session_ttl: int = 1800  # 30 minutes
 
+    # Cloudflare Turnstile (bot protection — both keys required to activate)
+    turnstile_site_key: str = ""
+    turnstile_secret: str = ""
+
     @model_validator(mode="after")
     def _validate_required_secrets(self):
         if not self.rc_admin_key or self.rc_admin_key == "change-me":

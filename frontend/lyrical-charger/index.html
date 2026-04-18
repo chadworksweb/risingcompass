@@ -81,6 +81,15 @@
 
         <div id="error-message" class="error-bar hidden"></div>
 
+        <!-- Honeypot — hidden from users; bots fill it in -->
+        <div class="hp-field" aria-hidden="true">
+          <label for="hp-website">Website (leave blank)</label>
+          <input type="text" id="hp-website" name="website" autocomplete="off" tabindex="-1" value="">
+        </div>
+
+        <!-- Turnstile mount point — only renders when site key is configured server-side -->
+        <div id="turnstile-mount" class="turnstile-mount hidden"></div>
+
         <!-- Consent notice -->
         <div class="consent-notice">
           <label class="consent-label">

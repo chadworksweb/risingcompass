@@ -904,6 +904,22 @@ main {
   display: none !important;
 }
 
+/* Honeypot — visually hidden but present in DOM so bots fill it */
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Turnstile widget container */
+.turnstile-mount {
+  margin: 0.75rem 0 0.5rem;
+  display: flex;
+  justify-content: center;
+}
+
 /* ---- Scrollbar (page level) ---- */
 body {
   scrollbar-width: none;
