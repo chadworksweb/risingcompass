@@ -208,9 +208,13 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
         if existing:
             continue
 
+        title = _disambiguate_release_title(artist.id, mb_rel, db)
+        if title is None:
+            continue
+
         release = Release(
             artist_id=artist.id,
-            title=mb_rel["title"],
+            title=title,
             release_type=mb_rel["release_type"],
             release_date=mb_rel["release_date"],
             release_year=mb_rel["release_year"],
@@ -415,6 +419,43 @@ def _get_linked_song_keys(artist: Artist, db) -> set[tuple[str, int]]:
         for link in release.songs:
             keys.add((link.song_source, link.song_id))
     return keys
+
+
+def _disambiguate_release_title(artist_id: int, mb_rel: dict, db) -> str | None:
+    """Pick a title for an MB release-group that doesn't collide with an
+    existing release for the same artist.
+
+    The releases table has UNIQUE(artist_id, title), but MusicBrainz happily
+    returns multiple release-groups sharing a title (e.g. "Let It Be" as
+    both the 1970 single and the 1970 album). Try the bare title first,
+    then progressively more specific suffixes, finally falling back to an
+    MBID fragment. Returns None if nothing fits (shouldn't happen).
+    """
+    base = mb_rel["title"]
+    year = mb_rel.get("release_year")
+    rtype = mb_rel.get("release_type")
+    mbid_suffix = (mb_rel.get("mbid") or "")[:8]
+
+    candidates: list[str] = [base]
+    if rtype:
+        candidates.append(f"{base} ({rtype})")
+    if year:
+        candidates.append(f"{base} ({year})")
+    if year and rtype:
+        candidates.append(f"{base} ({year} {rtype})")
+    if mbid_suffix:
+        candidates.append(f"{base} [{mbid_suffix}]")
+
+    for candidate in candidates:
+        conflict = (
+            db.query(Release)
+            .filter(Release.artist_id == artist_id)
+            .filter(func.lower(Release.title) == candidate.lower())
+            .first()
+        )
+        if not conflict:
+            return candidate
+    return None
 
 
 def _match_track_in_memory(track_title: str, all_songs: list[dict]) -> dict | None:
