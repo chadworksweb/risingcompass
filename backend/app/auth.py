@@ -1,41 +1,63 @@
-"""Auth utilities: API key verification and HMAC token generation.
+"""Auth utilities: API key verification, client resolution, HMAC tokens.
 
-verify_api_key — dependency for public API endpoints (consumer access).
-HMAC tokens — time-limited, signed tokens for email approval links.
+Every X-Api-Key is resolved via services.api_clients.resolve_key against the
+api_client_keys table. The legacy RC_API_KEY / RC_SERVICE_KEY env values are
+seeded into the table at startup so they keep working during rollout.
+
+Both verify dependencies attach request.state.client_id for the API-call
+logging middleware. verify_api_or_service_key also returns the behavior tier
+("public" | "service") so calibrate endpoints can branch.
 """
 
 import hashlib
 import hmac
 import time
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 
 from app.config import settings
+from app.database import SessionLocal
+from app.services.api_clients import resolve_key
 
 
-def verify_api_key(x_api_key: str = Header(...)):
-    """Require a valid API key via X-Api-Key header.
+def _resolve(x_api_key: str):
+    """Return the ApiClient that owns this key, or None."""
+    db = SessionLocal()
+    try:
+        return resolve_key(db, x_api_key)
+    finally:
+        db.close()
 
-    Used on all public endpoints. Consumers (RC frontend, Lyric Transformer,
-    Lyrical Charger) must send this key. Admin endpoints use X-Admin-Key instead.
+
+def verify_api_key(request: Request, x_api_key: str = Header(...)):
+    """Require a valid API key. Accepts any active client.
+
+    Previously only accepted RC_API_KEY (public). With clients in a table, any
+    active client key is acceptable — endpoint-level logic decides behavior.
+    Public-only endpoints that need to reject service callers should depend on
+    verify_api_or_service_key and check the tier.
     """
-    if not hmac.compare_digest(x_api_key, settings.rc_api_key):
+    client = _resolve(x_api_key)
+    if not client:
         raise HTTPException(status_code=403, detail="Invalid API key")
+    request.state.client_id = client.id
+    request.state.client_slug = client.slug
+    request.state.client_behavior = client.behavior
 
 
-def verify_api_or_service_key(x_api_key: str = Header(...)) -> str:
-    """Accept either RC_API_KEY (public) or RC_SERVICE_KEY (first-party).
+def verify_api_or_service_key(request: Request, x_api_key: str = Header(...)) -> str:
+    """Same auth as verify_api_key but returns the client's behavior tier.
 
-    Returns the tier name ("public" | "service") so endpoints can branch on it —
-    service callers skip bot protection, set their own source, and bypass
-    LC activity logging. Used on calibration endpoints that have both public
-    (Lyrical Charger) and first-party (chadlewine.com, internal scripts) callers.
+    Tier values: "public" (bot protection + lc_events on calibrate) or
+    "service" (skipped). Endpoints branch on the return value.
     """
-    if hmac.compare_digest(x_api_key, settings.rc_api_key):
-        return "public"
-    if settings.rc_service_key and hmac.compare_digest(x_api_key, settings.rc_service_key):
-        return "service"
-    raise HTTPException(status_code=403, detail="Invalid API key")
+    client = _resolve(x_api_key)
+    if not client:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    request.state.client_id = client.id
+    request.state.client_slug = client.slug
+    request.state.client_behavior = client.behavior
+    return client.behavior
 
 
 def create_approval_token(draft_ref: str, ttl: int = 86400) -> str:

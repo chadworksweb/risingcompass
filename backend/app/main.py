@@ -49,6 +49,10 @@ Base.metadata.create_all(bind=engine)
 # Apply versioned migrations (handles ALTER TABLE on existing tables)
 run_migrations(engine)
 
+# Bootstrap system API clients + migrate env keys into api_client_keys
+from app.services.api_clients import bootstrap_system_clients
+bootstrap_system_clients()
+
 
 async def _daily_backup_loop():
     """Run a database backup once per day."""
@@ -80,6 +84,53 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-Admin-Key", "X-Api-Key", "Authorization"],
 )
 
+
+@app.middleware("http")
+async def log_api_call(request: Request, call_next):
+    """Log every /api/* call (excluding /api/admin/* and /api/health) to api_call_log.
+
+    client_id comes from request.state (set by auth dependency). Unauth'd or
+    unresolved keys log with client_id=NULL.
+    """
+    import time as _time
+    path = request.url.path
+    should_log = (
+        path.startswith("/api/")
+        and not path.startswith("/api/admin/")
+        and path != "/api/health"
+    )
+    if not should_log:
+        return await call_next(request)
+
+    start = _time.time()
+    response = None
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        try:
+            from app.database import SessionLocal as _SL
+            from app.models import ApiCallLog
+            duration_ms = int((_time.time() - start) * 1000)
+            client_id = getattr(request.state, "client_id", None)
+            ua = (request.headers.get("user-agent") or "")[:250]
+            ip = request.client.host if request.client else None
+            # Honor X-Forwarded-For (uvicorn's proxy-headers already does this,
+            # but request.client.host is the post-translation value).
+            db = _SL()
+            try:
+                db.add(ApiCallLog(
+                    client_id=client_id, method=request.method, path=path[:250],
+                    status=status, ip=ip, user_agent=ua, duration_ms=duration_ms,
+                ))
+                db.commit()
+            finally:
+                db.close()
+        except Exception:
+            logger.exception("api_call_log write failed for %s %s", request.method, path)
+
 # Public routers — require X-Api-Key header
 _api_key_dep = [Depends(verify_api_key)]
 app.include_router(compass.router, dependencies=_api_key_dep)
@@ -103,6 +154,8 @@ app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)
 from app.routers import lc_events_admin
 app.include_router(lc_events_admin.router)
+from app.routers import api_clients_admin
+app.include_router(api_clients_admin.router)
 app.include_router(stream.router)
 app.include_router(artists_admin.router)
 

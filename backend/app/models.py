@@ -402,3 +402,57 @@ class MisreadBan(Base):
     device_id = Column(Text, nullable=True)
     ip_address = Column(Text, nullable=True)
     reason = Column(Text)
+
+
+class ApiClient(Base):
+    """An organization (or internal system) that consumes the RC API.
+
+    behavior determines how the calibrate endpoints treat this client:
+      - "public"  → bot protection + lc_events logging, source forced to "lyrical_charger"
+      - "service" → bot protection skipped, source taken from body, no lc_events
+    """
+    __tablename__ = "api_clients"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(String(64), unique=True, nullable=False)
+    name = Column(Text, nullable=False)
+    contact_email = Column(Text)
+    plan_tier = Column(String(32), default="trial")
+    status = Column(String(16), default="active")  # active | suspended | revoked
+    behavior = Column(String(16), default="service", nullable=False)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    keys = relationship("ApiClientKey", back_populates="client", cascade="all, delete-orphan")
+
+
+class ApiClientKey(Base):
+    """Hashed API key — one client can have many. Raw key is shown only at creation."""
+    __tablename__ = "api_client_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(Integer, ForeignKey("api_clients.id", ondelete="CASCADE"), nullable=False)
+    key_hash = Column(String(64), unique=True, nullable=False)
+    key_prefix = Column(String(12), nullable=False)
+    label = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime)
+    revoked_at = Column(DateTime)
+
+    client = relationship("ApiClient", back_populates="keys")
+
+
+class ApiCallLog(Base):
+    """One row per /api/* request (admin + health excluded). Backs the API Monitor tab."""
+    __tablename__ = "api_call_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(Integer, ForeignKey("api_clients.id", ondelete="SET NULL"))
+    ts = Column(DateTime, default=datetime.utcnow, nullable=False)
+    method = Column(String(8), nullable=False)
+    path = Column(String(255), nullable=False)
+    status = Column(Integer)
+    ip = Column(String(64))
+    user_agent = Column(String(255))
+    duration_ms = Column(Integer)
