@@ -202,7 +202,7 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
         existing = (
             db.query(Release)
             .filter(Release.artist_id == artist.id)
-            .filter(func.lower(Release.title) == mb_rel["title"].lower())
+            .filter(Release.musicbrainz_id == mb_rel["mbid"])
             .first()
         )
         if existing:
