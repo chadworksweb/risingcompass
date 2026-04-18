@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.pool import QueuePool
 from app.config import settings
 
 
@@ -33,7 +34,19 @@ def _build_engine():
         def creator():
             return _LibsqlConnProxy(libsql.connect(database=url, auth_token=token))
 
-        return create_engine("sqlite://", creator=creator)
+        # QueuePool (with pre_ping) reuses libSQL connections across threads
+        # and recycles any whose Hrana stream has been closed server-side —
+        # the default SingletonThreadPool caches one connection per thread
+        # forever, so idle threads hit `stream not found` on their next use.
+        return create_engine(
+            "sqlite://",
+            creator=creator,
+            poolclass=QueuePool,
+            pool_size=5,
+            max_overflow=10,
+            pool_pre_ping=True,
+            pool_recycle=60,
+        )
 
     return create_engine(url, connect_args={"check_same_thread": False})
 

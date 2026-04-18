@@ -61,29 +61,9 @@ async def _daily_backup_loop():
         await asyncio.sleep(86400)  # 24 hours
 
 
-def _warmup_db() -> None:
-    """Open a Turso connection and run a trivial query so the first real
-    request doesn't eat the libSQL handshake + TLS + pool-init cost. Without
-    this, cold-container requests (daily chart, compass/current) routinely
-    took 3–7s on first hit.
-    """
-    try:
-        from app.database import SessionLocal
-        from sqlalchemy import text
-        db = SessionLocal()
-        try:
-            db.execute(text("SELECT 1"))
-        finally:
-            db.close()
-        logger.info("DB warmup complete")
-    except Exception:
-        logger.exception("DB warmup failed (continuing anyway)")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """App lifespan — starts daily backup task and Lyrical Charger session cleanup."""
-    _warmup_db()
     _cleanup_orphan_drafts()
     backup_task = asyncio.create_task(_daily_backup_loop())
     cleanup_task = asyncio.create_task(analyzer.session_cleanup_loop())
