@@ -143,6 +143,7 @@
   <button class="tab-btn" onclick="switchTab('recs')">Recommendations</button>
   <button class="tab-btn" onclick="switchTab('misread')">Misread Reports</button>
   <button class="tab-btn" onclick="switchTab('submissions')">LC Submissions</button>
+  <button class="tab-btn" onclick="switchTab('lcactivity')">LC Activity</button>
   <button class="tab-btn" onclick="switchTab('stream')">CL Stream</button>
 </div>
 
@@ -338,6 +339,52 @@
   <div class="status-msg" id="subStatus"></div>
 </div>
 
+<!-- LC Activity Tab -->
+<div class="tab-panel" id="tab-lcactivity">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="val" id="lcaToday">—</div><div class="label">Events today</div></div>
+    <div class="stat-card"><div class="val" id="lcaWeek">—</div><div class="label">Events 7d</div></div>
+    <div class="stat-card"><div class="val" id="lcaUniqueIps">—</div><div class="label">Unique IPs 7d</div></div>
+    <div class="stat-card"><div class="val" id="lcaTotal">—</div><div class="label">All-time</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+    <div>
+      <h3 style="font-size:0.85rem;color:#888;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">By event type (7d)</h3>
+      <div id="lcaByType" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#bbb;"></div>
+    </div>
+    <div>
+      <h3 style="font-size:0.85rem;color:#888;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">Top IPs (7d)</h3>
+      <div id="lcaTopIps" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#bbb;"></div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:1.5rem;">
+    <h3 style="font-size:0.85rem;color:#888;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">Top referrers (7d)</h3>
+    <div id="lcaTopRefs" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#bbb;"></div>
+  </div>
+
+  <h2 class="section-title">Event Log</h2>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="lcaFilter('')">All</button>
+    <button class="filter-btn" onclick="lcaFilter('page_view')">Page view</button>
+    <button class="filter-btn" onclick="lcaFilter('submission_success')">Success</button>
+    <button class="filter-btn" onclick="lcaFilter('submission_failed_validation')">Validation fail</button>
+    <button class="filter-btn" onclick="lcaFilter('submission_rate_limited')">Rate limited</button>
+    <button class="filter-btn" onclick="lcaFilter('submission_honeypot')">Honeypot</button>
+    <button class="filter-btn" onclick="lcaFilter('submission_turnstile_failed')">Turnstile</button>
+    <button class="filter-btn" onclick="lcaFilter('search_query')">Search</button>
+    <button class="filter-btn" onclick="lcaFilter('session_create')">Session</button>
+  </div>
+  <div style="display:flex;gap:0.5rem;margin-bottom:0.8rem;align-items:center;">
+    <input type="text" id="lcaIpFilter" placeholder="Filter by IP" style="max-width:220px;font-size:0.8rem;" onkeydown="if(event.key==='Enter')loadLcEvents()">
+    <button onclick="loadLcEvents()" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Apply</button>
+    <button onclick="lcaIpClear()" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Clear</button>
+  </div>
+  <div id="lcaEvents"></div>
+  <div class="pagination" id="lcaPagination"></div>
+</div>
+
 <!-- CL Stream Tab -->
 <div class="tab-panel" id="tab-stream">
   <h2 class="section-title">Add to Stream</h2>
@@ -443,6 +490,7 @@ function switchTab(tab) {
   if (tab === 'recs') loadCollectionDropdown();
   if (tab === 'misread') { loadMisread(); loadBans(); }
   if (tab === 'submissions') { loadSubStats(); loadSubs(); }
+  if (tab === 'lcactivity') { loadLcStats(); loadLcEvents(); }
   if (tab === 'stream') loadStream();
 }
 
@@ -1210,6 +1258,108 @@ async function deleteStream(id) {
     if (!resp.ok) return;
     loadStream();
   } catch (e) { console.error(e); }
+}
+
+// --- LC Activity ---
+let lcaEventType = '';
+let lcaOffset = 0;
+const LCA_LIMIT = 50;
+
+function lcaFilter(t) {
+  lcaEventType = t;
+  lcaOffset = 0;
+  document.querySelectorAll('#tab-lcactivity .filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadLcEvents();
+}
+
+function lcaIpClear() {
+  document.getElementById('lcaIpFilter').value = '';
+  loadLcEvents();
+}
+
+async function loadLcStats() {
+  try {
+    const resp = await fetch('/api/admin/lc-events/stats', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const s = await resp.json();
+    document.getElementById('lcaToday').textContent = s.today;
+    document.getElementById('lcaWeek').textContent = s.week;
+    document.getElementById('lcaUniqueIps').textContent = s.unique_ips_week;
+    document.getElementById('lcaTotal').textContent = s.total;
+
+    const byType = document.getElementById('lcaByType');
+    const types = Object.entries(s.by_type_week || {}).sort((a, b) => b[1] - a[1]);
+    byType.innerHTML = types.length
+      ? types.map(([t, c]) => `<div><span style="color:#888;">${c.toString().padStart(4)}</span>  ${t}</div>`).join('')
+      : '<div style="color:#666;">No events yet.</div>';
+
+    const topIps = document.getElementById('lcaTopIps');
+    topIps.innerHTML = (s.top_ips_week || []).length
+      ? s.top_ips_week.map(r => `<div><span style="color:#888;">${r.count.toString().padStart(4)}</span>  <a href="#" onclick="document.getElementById('lcaIpFilter').value='${r.ip}';loadLcEvents();return false;" style="color:#bbb;">${r.ip}</a></div>`).join('')
+      : '<div style="color:#666;">No IPs yet.</div>';
+
+    const topRefs = document.getElementById('lcaTopRefs');
+    topRefs.innerHTML = (s.top_referrers_week || []).length
+      ? s.top_referrers_week.map(r => `<div><span style="color:#888;">${r.count.toString().padStart(4)}</span>  <span style="color:#bbb;">${escHtml(r.referrer)}</span></div>`).join('')
+      : '<div style="color:#666;">No referrers captured yet.</div>';
+  } catch (e) { console.error(e); }
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadLcEvents() {
+  try {
+    let url = `/api/admin/lc-events?limit=${LCA_LIMIT}&offset=${lcaOffset}`;
+    if (lcaEventType) url += `&event_type=${encodeURIComponent(lcaEventType)}`;
+    const ip = document.getElementById('lcaIpFilter').value.trim();
+    if (ip) url += `&ip=${encodeURIComponent(ip)}`;
+    const resp = await fetch(url, { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const el = document.getElementById('lcaEvents');
+    if (!data.events.length) {
+      el.innerHTML = '<p style="color:#666;">No events match.</p>';
+      renderLcaPagination(0);
+      return;
+    }
+    el.innerHTML = data.events.map(e => {
+      const when = e.occurred_at ? e.occurred_at.replace('T', ' ').slice(0, 19) : '—';
+      const ua = (e.user_agent || '').slice(0, 80);
+      const ref = (e.referrer || '').slice(0, 80);
+      const payload = e.payload ? `<pre style="margin:0.3rem 0 0;font-size:0.72rem;color:#888;white-space:pre-wrap;word-break:break-all;">${escHtml(JSON.stringify(e.payload))}</pre>` : '';
+      return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.8rem;margin-bottom:0.4rem;font-size:0.82rem;">
+        <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+          <div><span style="color:var(--accent);font-weight:bold;">${escHtml(e.event_type)}</span> <span style="color:#666;font-size:0.75rem;margin-left:0.5rem;">id ${e.id}</span></div>
+          <div style="color:#888;font-size:0.78rem;">${when}</div>
+        </div>
+        <div style="color:#999;font-size:0.78rem;margin-top:0.2rem;">
+          <strong>IP</strong> ${escHtml(e.ip_address || '—')}
+          ${ref ? ` &nbsp;|&nbsp; <strong>Ref</strong> ${escHtml(ref)}` : ''}
+        </div>
+        <div style="color:#666;font-size:0.74rem;margin-top:0.2rem;">${escHtml(ua)}</div>
+        ${payload}
+      </div>`;
+    }).join('');
+    renderLcaPagination(data.total);
+  } catch (e) { console.error(e); }
+}
+
+function renderLcaPagination(total) {
+  const el = document.getElementById('lcaPagination');
+  const page = Math.floor(lcaOffset / LCA_LIMIT) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / LCA_LIMIT));
+  el.innerHTML = `
+    <button onclick="lcaPage(-1)" ${lcaOffset <= 0 ? 'disabled' : ''}>← Prev</button>
+    <span class="page-info">Page ${page} of ${totalPages} (${total} total)</span>
+    <button onclick="lcaPage(1)" ${lcaOffset + LCA_LIMIT >= total ? 'disabled' : ''}>Next →</button>`;
+}
+
+function lcaPage(dir) {
+  lcaOffset = Math.max(0, lcaOffset + dir * LCA_LIMIT);
+  loadLcEvents();
 }
 </script>
 </body>

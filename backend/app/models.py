@@ -237,6 +237,24 @@ class SubmittedSong(Base):
     submitted_at = Column(DateTime, default=datetime.utcnow)
 
 
+class LcEvent(Base):
+    """Every Lyrical Charger interaction — page views, searches, submissions, failures.
+
+    Built for visibility into who's using the tool, where they came from, and what
+    succeeded vs failed. Backs the "LC Activity" admin tab.
+    """
+    __tablename__ = "lc_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    occurred_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    event_type = Column(String(40), nullable=False)
+    ip_address = Column(String(64))
+    user_agent = Column(String(512))
+    referrer = Column(String(512))
+    payload_json = Column(Text)
+    submission_id = Column(Integer, ForeignKey("submitted_songs.id", ondelete="SET NULL"))
+
+
 class AlbumCalibration(Base):
     """Computed album-level calibration — mean of constituent song charges.
 

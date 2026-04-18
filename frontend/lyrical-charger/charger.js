@@ -92,6 +92,21 @@ function resetTurnstile() {
   }
 }
 
+// --- Page-view beacon ---
+function firePageView() {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    fetch(`${API_BASE}/page-view`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ path: window.location.pathname, title: document.title }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+firePageView();
+
 async function initBotProtection() {
   try {
     const headers = {};

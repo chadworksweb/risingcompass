@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone, timedelta
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -30,6 +30,7 @@ from app.services.analyzer_engine import run_analysis
 from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
+from app.services.lc_events import schedule_event, write_event, extract_request_meta
 
 logger = logging.getLogger(__name__)
 
@@ -61,19 +62,36 @@ async def _verify_turnstile(token: str, remote_ip: str | None) -> bool:
         return False
 
 
-async def _check_bot_protection(hp_website: str, turnstile_token: str, request: Request) -> None:
+def _log_error_event(event_type: str, request: Request, payload: dict | None = None,
+                     submission_id: int | None = None) -> None:
+    """Synchronous event write for HTTPException paths (FastAPI drops BackgroundTasks
+    on HTTPException, so error events must be persisted inline)."""
+    meta = extract_request_meta(request)
+    write_event(event_type, meta["ip"], meta["user_agent"], meta["referrer"],
+                payload=payload, submission_id=submission_id)
+
+
+async def _check_bot_protection(
+    hp_website: str,
+    turnstile_token: str,
+    request: Request,
+) -> None:
     """Raise HTTPException if the request fails honeypot or Turnstile checks."""
     if hp_website.strip():
         # Honeypot tripped — silent generic 422 so bots don't learn the signal.
-        client_ip = get_remote_address(request)
-        logger.info("Honeypot tripped from %s", client_ip)
+        _log_error_event("submission_honeypot", request,
+                         payload={"hp_value_length": len(hp_website)})
         raise HTTPException(422, "Submission rejected.")
 
     if settings.turnstile_secret:
         if not turnstile_token:
+            _log_error_event("submission_turnstile_failed", request,
+                             payload={"reason": "missing_token"})
             raise HTTPException(422, "Bot verification required.")
         ok = await _verify_turnstile(turnstile_token, get_remote_address(request))
         if not ok:
+            _log_error_event("submission_turnstile_failed", request,
+                             payload={"reason": "verification_failed"})
             raise HTTPException(422, "Bot verification failed — please try again.")
 
 
@@ -83,6 +101,24 @@ async def analyzer_config():
     return {
         "turnstile_site_key": settings.turnstile_site_key,
     }
+
+
+@router.post("/page-view")
+@limiter.limit("60/hour")
+async def page_view(request: Request, background_tasks: BackgroundTasks):
+    """Frontend beacon — logs that someone landed on the LC page."""
+    payload = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            payload = {
+                "path": str(body.get("path", ""))[:200],
+                "title": str(body.get("title", ""))[:200],
+            }
+    except Exception:
+        pass
+    schedule_event(background_tasks, "page_view", request, payload=payload)
+    return {"ok": True}
 
 # --- In-memory session storage ---
 _sessions: dict[str, dict] = {}
@@ -113,7 +149,7 @@ async def session_cleanup_loop():
 # ------------------------------------------------------------------
 @router.post("/sessions", status_code=201, response_model=AnalyzerSessionOut)
 @limiter.limit("10/hour")
-async def create_session(body: AnalyzerSessionCreate, request: Request):
+async def create_session(body: AnalyzerSessionCreate, request: Request, background_tasks: BackgroundTasks):
     session_id = secrets.token_hex(5)  # 10-char hex string
     now = datetime.now(timezone.utc)
     ttl = settings.analyzer_session_ttl
@@ -131,6 +167,9 @@ async def create_session(body: AnalyzerSessionCreate, request: Request):
         "expires_at": expires_at,
         "streaming": False,
     }
+
+    schedule_event(background_tasks, "session_create", request,
+                   payload={"session_id": session_id, "song_count": len(body.songs), "weighted": body.weighted})
 
     return AnalyzerSessionOut(
         session_id=session_id,
@@ -385,17 +424,24 @@ def _validate_lyrics(text: str) -> str | None:
 
 @router.post("/calibrate-lyrics", response_model=LyricsCalibrateOut)
 @limiter.limit("5/hour")
-async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
+async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request, background_tasks: BackgroundTasks):
     """Calibrate raw lyrics text. Stores the calibration (not the lyrics)."""
     await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 
     if not body.title or not body.title.strip():
+        _log_error_event("submission_failed_validation", request,
+                         payload={"reason": "missing_title", "source": "paste_lyrics"})
         raise HTTPException(422, "Song title is required.")
     if not body.artist or not body.artist.strip():
+        _log_error_event("submission_failed_validation", request,
+                         payload={"reason": "missing_artist", "source": "paste_lyrics"})
         raise HTTPException(422, "Artist is required.")
 
     lyrics_error = _validate_lyrics(body.lyrics)
     if lyrics_error:
+        _log_error_event("submission_failed_validation", request,
+                         payload={"reason": lyrics_error, "source": "paste_lyrics",
+                                  "title": body.title[:100], "artist": body.artist[:100]})
         raise HTTPException(422, lyrics_error)
 
     title = body.title.strip()
@@ -409,6 +455,9 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
 
         color = calibration.get("rubric_color")
         if color is None:
+            schedule_event(background_tasks, "submission_other_error", request,
+                           payload={"reason": "calibrator_returned_no_color",
+                                    "title": title, "artist": artist, "source": "paste_lyrics"})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
         # Store calibration in submitted_songs (lyrics are NOT stored)
@@ -429,6 +478,13 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
         db.refresh(submitted)
         try_link_song(title, artist, "submitted", submitted.id, db)
 
+        schedule_event(background_tasks, "submission_success", request,
+                       payload={"title": title, "artist": artist, "source": "paste_lyrics",
+                                "tier": color, "charge": calibration.get("charge_value"),
+                                "contaminated": calibration.get("contaminated", False),
+                                "confidence": calibration.get("confidence")},
+                       submission_id=submitted.id)
+
         return LyricsCalibrateOut(
             status="scored",
             tier=color,
@@ -443,6 +499,9 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
         )
     except Exception:
         logger.exception("Calibration failed for submitted lyrics")
+        _log_error_event("submission_other_error", request,
+                         payload={"reason": "calibrator_exception", "title": title,
+                                  "artist": artist, "source": "paste_lyrics"})
         raise HTTPException(500, "Calibration failed — try again")
     finally:
         db.close()
@@ -453,12 +512,18 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request):
 # ------------------------------------------------------------------
 @router.post("/search-songs", response_model=SongSearchOut)
 @limiter.limit("20/hour")
-async def search_songs(body: SongSearchIn, request: Request):
+async def search_songs(body: SongSearchIn, request: Request, background_tasks: BackgroundTasks):
     """Search for songs via Musixmatch. Returns empty list if API key not configured."""
     if not musixmatch.is_configured():
+        schedule_event(background_tasks, "search_query", request,
+                       payload={"query": body.query[:200], "artist": (body.artist or "")[:200],
+                                "result_count": 0, "configured": False})
         return SongSearchOut(results=[], message="Song search is not yet available. Paste lyrics directly for now.")
 
     results = await musixmatch.search_tracks(body.query, body.artist)
+    schedule_event(background_tasks, "search_query", request,
+                   payload={"query": body.query[:200], "artist": (body.artist or "")[:200],
+                            "result_count": len(results), "configured": True})
     if not results:
         return SongSearchOut(results=[], message="No songs found. Try a different search.")
 
@@ -470,7 +535,7 @@ async def search_songs(body: SongSearchIn, request: Request):
 # ------------------------------------------------------------------
 @router.post("/calibrate-search", response_model=LyricsCalibrateOut)
 @limiter.limit("5/hour")
-async def calibrate_search(body: SearchCalibrateIn, request: Request):
+async def calibrate_search(body: SearchCalibrateIn, request: Request, background_tasks: BackgroundTasks):
     """Fetch lyrics for a Musixmatch track and calibrate them."""
     await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 
@@ -479,10 +544,14 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request):
 
     lyrics = await musixmatch.get_lyrics(body.track_id)
     if not lyrics:
+        _log_error_event("submission_other_error", request,
+                         payload={"reason": "lyrics_unavailable", "track_id": body.track_id, "source": "search"})
         raise HTTPException(404, "Lyrics not available for this track.")
 
     lyrics_error = _validate_lyrics(lyrics)
     if lyrics_error:
+        _log_error_event("submission_failed_validation", request,
+                         payload={"reason": lyrics_error, "track_id": body.track_id, "source": "search"})
         raise HTTPException(422, f"Retrieved lyrics are too short or invalid: {lyrics_error}")
 
     title = body.title.strip()
@@ -496,6 +565,9 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request):
 
         color = calibration.get("rubric_color")
         if color is None:
+            schedule_event(background_tasks, "submission_other_error", request,
+                           payload={"reason": "calibrator_returned_no_color",
+                                    "title": title, "artist": artist, "source": "search"})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
         submitted = SubmittedSong(
@@ -515,6 +587,13 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request):
         db.refresh(submitted)
         try_link_song(title, artist, "submitted", submitted.id, db)
 
+        schedule_event(background_tasks, "submission_success", request,
+                       payload={"title": title, "artist": artist, "source": "search",
+                                "tier": color, "charge": calibration.get("charge_value"),
+                                "contaminated": calibration.get("contaminated", False),
+                                "confidence": calibration.get("confidence")},
+                       submission_id=submitted.id)
+
         return LyricsCalibrateOut(
             status="scored",
             tier=color,
@@ -529,6 +608,9 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request):
         )
     except Exception:
         logger.exception("Calibration failed for search track %d", body.track_id)
+        _log_error_event("submission_other_error", request,
+                         payload={"reason": "calibrator_exception", "title": title,
+                                  "artist": artist, "source": "search"})
         raise HTTPException(500, "Calibration failed — try again")
     finally:
         db.close()

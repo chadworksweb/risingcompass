@@ -98,13 +98,31 @@ app.include_router(admin.router)
 app.include_router(agent.router)
 app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)
+from app.routers import lc_events_admin
+app.include_router(lc_events_admin.router)
 app.include_router(stream.router)
 app.include_router(artists_admin.router)
 
 
 # slowapi rate limiter (defined in analyzer.py, shared across routers)
 app.state.limiter = analyzer.limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_with_logging(request: Request, exc: RateLimitExceeded):
+    """Log rate-limit hits to lc_events for any /api/analyzer/* route, then defer to slowapi."""
+    if request.url.path.startswith("/api/analyzer/"):
+        try:
+            from app.services.lc_events import write_event, extract_request_meta
+            meta = extract_request_meta(request)
+            write_event(
+                "submission_rate_limited",
+                meta["ip"], meta["user_agent"], meta["referrer"],
+                payload={"path": request.url.path, "limit": str(exc.detail)},
+            )
+        except Exception:
+            logger.exception("Failed to log rate-limit event")
+    return _rate_limit_exceeded_handler(request, exc)
 
 
 @app.exception_handler(Exception)
