@@ -722,6 +722,8 @@ const App = (() => {
     const container = document.getElementById('trajectory-container');
     if (!container) return;
 
+    container.innerHTML = '<div class="trajectory-loading" role="status" aria-label="Loading aggregate trajectory"><div class="rc-spinner"></div></div>';
+
     try {
       const [decadeData, yearData] = await Promise.all([API.getDrift(), API.getDriftYears()]);
 

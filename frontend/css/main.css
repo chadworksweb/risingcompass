@@ -2057,6 +2057,26 @@ body {
   color: var(--rc-text-dim);
 }
 
+.trajectory-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+.rc-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--rc-border, rgba(255, 255, 255, 0.12));
+  border-top-color: var(--rc-text-dim, rgba(255, 255, 255, 0.55));
+  animation: rc-spin 0.85s linear infinite;
+}
+
+@keyframes rc-spin {
+  to { transform: rotate(360deg); }
+}
+
 .error-msg {
   text-align: center;
   padding: 1rem;
