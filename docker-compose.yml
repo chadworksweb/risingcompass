@@ -26,6 +26,8 @@ services:
       - EMAIL_FROM=${EMAIL_FROM:-Rising Compass <compass@risingcompass.net>}
       - APPROVAL_EMAIL=${APPROVAL_EMAIL}
       - SITE_URL=${SITE_URL:-https://api.risingcompass.net}
+      - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
+      - TURNSTILE_SECRET=${TURNSTILE_SECRET}
     restart: unless-stopped
 
   nginx:
