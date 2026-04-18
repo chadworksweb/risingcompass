@@ -444,7 +444,12 @@ class ApiClientKey(Base):
 
 
 class ApiCallLog(Base):
-    """One row per /api/* request (admin + health excluded). Backs the API Monitor tab."""
+    """One row per /api/* request (admin + health excluded). Backs the API Monitor tab.
+
+    context_json carries the request-specific args — song title/artist, slug,
+    search query, etc. Populated from URL query params automatically, plus any
+    endpoint-supplied context via request.state.call_context.
+    """
     __tablename__ = "api_call_log"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -456,3 +461,4 @@ class ApiCallLog(Base):
     ip = Column(String(64))
     user_agent = Column(String(255))
     duration_ms = Column(Integer)
+    context_json = Column(Text)

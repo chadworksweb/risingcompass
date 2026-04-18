@@ -111,19 +111,39 @@ async def log_api_call(request: Request, call_next):
         return response
     finally:
         try:
+            import json as _json
             from app.database import SessionLocal as _SL
             from app.models import ApiCallLog
             duration_ms = int((_time.time() - start) * 1000)
             client_id = getattr(request.state, "client_id", None)
             ua = (request.headers.get("user-agent") or "")[:250]
             ip = request.client.host if request.client else None
-            # Honor X-Forwarded-For (uvicorn's proxy-headers already does this,
-            # but request.client.host is the post-translation value).
+
+            # Merge URL query params + endpoint-supplied context (request.state.call_context)
+            # to capture what song/artist/slug each call touched.
+            ctx: dict = {}
+            try:
+                qp = dict(request.query_params)
+                for k, v in qp.items():
+                    ctx[k] = v[:200] if isinstance(v, str) else v
+            except Exception:
+                pass
+            endpoint_ctx = getattr(request.state, "call_context", None)
+            if isinstance(endpoint_ctx, dict):
+                for k, v in endpoint_ctx.items():
+                    if isinstance(v, str):
+                        ctx[k] = v[:200]
+                    else:
+                        ctx[k] = v
+            # Also capture path params when set via the endpoint (e.g. {"slug": "bts"}).
+            context_json = _json.dumps(ctx, default=str) if ctx else None
+
             db = _SL()
             try:
                 db.add(ApiCallLog(
                     client_id=client_id, method=request.method, path=path[:250],
                     status=status, ip=ip, user_agent=ua, duration_ms=duration_ms,
+                    context_json=context_json,
                 ))
                 db.commit()
             finally:

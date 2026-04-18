@@ -448,6 +448,14 @@ async def calibrate_lyrics_endpoint(
     skip both and supply their own source tag.
     """
     is_public = tier == "public"
+
+    # Capture the song identity into the call log before anything else can fail.
+    request.state.call_context = {
+        "title": (body.title or "")[:200],
+        "artist": (body.artist or "")[:200],
+        "source": (body.source or "")[:50],
+    }
+
     if is_public:
         await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 
@@ -544,6 +552,10 @@ async def calibrate_lyrics_endpoint(
 @limiter.limit("20/hour")
 async def search_songs(body: SongSearchIn, request: Request, background_tasks: BackgroundTasks):
     """Search for songs via Musixmatch. Returns empty list if API key not configured."""
+    request.state.call_context = {
+        "query": (body.query or "")[:200],
+        "artist": (body.artist or "")[:200],
+    }
     if not musixmatch.is_configured():
         schedule_event(background_tasks, "search_query", request,
                        payload={"query": body.query[:200], "artist": (body.artist or "")[:200],
@@ -573,6 +585,14 @@ async def calibrate_search(
 ):
     """Fetch lyrics for a Musixmatch track and calibrate them."""
     is_public = tier == "public"
+
+    request.state.call_context = {
+        "title": (body.title or "")[:200],
+        "artist": (body.artist or "")[:200],
+        "track_id": body.track_id,
+        "source": (body.source or "")[:50],
+    }
+
     if is_public:
         await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 

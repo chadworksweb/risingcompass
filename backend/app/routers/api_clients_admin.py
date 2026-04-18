@@ -1,5 +1,6 @@
 """Admin endpoints for API client metering — clients, keys, usage."""
 
+import json
 from datetime import datetime, timedelta, date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -185,11 +186,20 @@ def client_calls(
         .offset(offset).limit(limit)
         .all()
     )
-    calls = [{
-        "id": r.id, "ts": r.ts.isoformat() if r.ts else None,
-        "method": r.method, "path": r.path, "status": r.status,
-        "ip": r.ip, "user_agent": r.user_agent, "duration_ms": r.duration_ms,
-    } for r in rows]
+    calls = []
+    for r in rows:
+        ctx = None
+        if r.context_json:
+            try:
+                ctx = json.loads(r.context_json)
+            except Exception:
+                ctx = None
+        calls.append({
+            "id": r.id, "ts": r.ts.isoformat() if r.ts else None,
+            "method": r.method, "path": r.path, "status": r.status,
+            "ip": r.ip, "user_agent": r.user_agent, "duration_ms": r.duration_ms,
+            "context": ctx,
+        })
     return {"total": total, "calls": calls}
 
 

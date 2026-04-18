@@ -1519,13 +1519,30 @@ function renderClientDetail(det, callsData) {
     ? callsData.calls.map(r => {
         const when = r.ts ? new Date(r.ts).toLocaleString() : '—';
         const statusColor = r.status >= 500 ? '#ff3333' : (r.status >= 400 ? '#ffbb33' : '#33cc55');
-        return `<div style="display:grid;grid-template-columns:150px 60px 1fr 60px 80px 90px;gap:0.5rem;padding:0.4rem 0.6rem;font-size:0.78rem;font-family:JetBrains Mono,monospace;">
-          <span style="color:#888;">${when}</span>
-          <span>${escHtml(r.method)}</span>
-          <span>${escHtml(r.path)}</span>
-          <span style="color:${statusColor};">${r.status}</span>
-          <span style="color:#888;">${r.duration_ms}ms</span>
-          <span style="color:#888;">${escHtml(r.ip || '—')}</span>
+        // Render context as a compact inline summary (e.g. title + artist, or slug, or query)
+        let ctxLine = '';
+        if (r.context && typeof r.context === 'object') {
+          const parts = [];
+          if (r.context.title) parts.push(`<span style="color:#eeeef4;">${escHtml(r.context.title)}</span>`);
+          if (r.context.artist) parts.push(`<span style="color:#bbb;">— ${escHtml(r.context.artist)}</span>`);
+          if (!parts.length && r.context.slug) parts.push(`<span style="color:#eeeef4;">slug:${escHtml(r.context.slug)}</span>`);
+          if (!parts.length && r.context.q) parts.push(`<span style="color:#888;">search:"${escHtml(r.context.q)}"</span>`);
+          if (!parts.length && r.context.query) parts.push(`<span style="color:#888;">query:"${escHtml(r.context.query)}"</span>`);
+          if (!parts.length) {
+            const keys = Object.keys(r.context).slice(0, 3);
+            parts.push(`<span style="color:#888;">${keys.map(k => k + '=' + String(r.context[k] ?? '').slice(0,40)).join(' · ')}</span>`);
+          }
+          if (parts.length) ctxLine = `<div style="margin-top:0.15rem;padding-left:150px;font-size:0.76rem;">${parts.join(' ')}</div>`;
+        }
+        return `<div style="padding:0.4rem 0.6rem;font-size:0.78rem;font-family:JetBrains Mono,monospace;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <div style="display:grid;grid-template-columns:150px 60px 1fr 60px 80px 90px;gap:0.5rem;">
+            <span style="color:#888;">${when}</span>
+            <span>${escHtml(r.method)}</span>
+            <span>${escHtml(r.path)}</span>
+            <span style="color:${statusColor};">${r.status}</span>
+            <span style="color:#888;">${r.duration_ms}ms</span>
+            <span style="color:#888;">${escHtml(r.ip || '—')}</span>
+          </div>${ctxLine}
         </div>`;
       }).join('')
     : '<div style="color:#666;font-size:0.82rem;padding:0.4rem 0.6rem;">No calls logged yet.</div>';
