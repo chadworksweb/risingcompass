@@ -47,6 +47,7 @@ const App = (() => {
     initEraTabs();
     initCalendarPicker();
     await loadCurrent();
+    loadDailyChart();
     loadTrajectory();
     loadGhostTrail();
     loadLibrary();

@@ -83,13 +83,13 @@
     <!-- ROW 1 RIGHT: Aggregate Charge Index + Calculator -->
     <div class="card" id="trajectory-panel">
       <div class="era-tabs">
-        <button class="era-tab active" data-era="aggregate">
-          <span class="era-tab-title">Aggregate Charge Index</span>
-          <span class="era-tab-tagline">where we've been and where we are</span>
-        </button>
-        <button class="era-tab" data-era="daily">
+        <button class="era-tab active" data-era="daily">
           <span class="era-tab-title">Daily Charge</span>
           <span class="era-tab-tagline">trailing 365 days, day by day</span>
+        </button>
+        <button class="era-tab" data-era="aggregate">
+          <span class="era-tab-title">Aggregate Charge Index</span>
+          <span class="era-tab-tagline">where we've been and where we are</span>
         </button>
         <button class="era-tab-icon" id="calc-overlay-toggle" title="Calculator" aria-label="Calculator">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -98,16 +98,16 @@
         </button>
       </div>
       <div id="charge-container" style="margin-bottom:1rem;"></div>
-      <div class="era-content active" id="era-aggregate">
+      <div class="era-content active" id="era-daily">
+        <div id="daily-chart-container"></div>
+      </div>
+      <div class="era-content" id="era-aggregate">
         <div class="era-chart-calc">
           <div id="trajectory-container"></div>
           <div class="calc-overlay" id="calc-overlay">
             <div id="era-calculator"></div>
           </div>
         </div>
-      </div>
-      <div class="era-content" id="era-daily">
-        <div id="daily-chart-container"></div>
       </div>
     </div>
 
