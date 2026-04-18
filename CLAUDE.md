@@ -26,3 +26,15 @@ Script auto-detects what changed (backend vs frontend):
 - Backend: `cd backend && .venv\Scripts\uvicorn app.main:app --port 8000`
 - Frontend: `cd frontend && python -m http.server 3005`
 - Backend does NOT auto-reload — kill and restart uvicorn after code changes
+
+## Database
+
+Single hosted Turso (libSQL) DB. Local + prod connect to the same instance — no
+sync, no `db-pull`/`db-push`. Set `DATABASE_URL=libsql://...` and
+`TURSO_AUTH_TOKEN=...` in both local `backend/.env` and prod `/root/rising-compass/.env`.
+
+- DB URL: `libsql://rising-compass-crystopaforge.aws-us-east-1.turso.io`
+- Backups: Turso point-in-time restore (managed); local `backend/data/*.local-backup-*.db`
+  files are pre-Turso archives, kept for safety.
+- Migration tool (one-shot): `backend/scripts/sqlite_to_turso.py <sqlite_path> <url> <token>`
+- Smoke test: `backend/scripts/test_turso_write.py` (writes + drops a test table)
