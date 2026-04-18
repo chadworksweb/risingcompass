@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone, timedelta
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -31,6 +31,7 @@ from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
+from app.auth import verify_api_or_service_key
 
 logger = logging.getLogger(__name__)
 
@@ -422,26 +423,53 @@ def _validate_lyrics(text: str) -> str | None:
     return None
 
 
+def _resolve_source(tier: str, requested: str | None) -> str:
+    """Public callers always get 'lyrical_charger'. Service callers can self-tag
+    (e.g. 'chadlewine'); falls back to 'service' if they don't supply one.
+    Truncated to 30 chars to fit the column."""
+    if tier == "public":
+        return "lyrical_charger"
+    return ((requested or "service").strip() or "service")[:30]
+
+
 @router.post("/calibrate-lyrics", response_model=LyricsCalibrateOut)
 @limiter.limit("5/hour")
-async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request, background_tasks: BackgroundTasks):
-    """Calibrate raw lyrics text. Stores the calibration (not the lyrics)."""
-    await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+async def calibrate_lyrics_endpoint(
+    body: LyricsCalibrateIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    tier: str = Depends(verify_api_or_service_key),
+):
+    """Calibrate raw lyrics text. Stores the calibration (not the lyrics).
+
+    Public callers (RC_API_KEY, e.g. Lyrical Charger web tool) get bot
+    protection + lc_events logging + forced source='lyrical_charger'.
+    Service callers (RC_SERVICE_KEY, e.g. chadlewine.com, internal scripts)
+    skip both and supply their own source tag.
+    """
+    is_public = tier == "public"
+    if is_public:
+        await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+
+    source = _resolve_source(tier, body.source)
 
     if not body.title or not body.title.strip():
-        _log_error_event("submission_failed_validation", request,
-                         payload={"reason": "missing_title", "source": "paste_lyrics"})
+        if is_public:
+            _log_error_event("submission_failed_validation", request,
+                             payload={"reason": "missing_title", "source": source})
         raise HTTPException(422, "Song title is required.")
     if not body.artist or not body.artist.strip():
-        _log_error_event("submission_failed_validation", request,
-                         payload={"reason": "missing_artist", "source": "paste_lyrics"})
+        if is_public:
+            _log_error_event("submission_failed_validation", request,
+                             payload={"reason": "missing_artist", "source": source})
         raise HTTPException(422, "Artist is required.")
 
     lyrics_error = _validate_lyrics(body.lyrics)
     if lyrics_error:
-        _log_error_event("submission_failed_validation", request,
-                         payload={"reason": lyrics_error, "source": "paste_lyrics",
-                                  "title": body.title[:100], "artist": body.artist[:100]})
+        if is_public:
+            _log_error_event("submission_failed_validation", request,
+                             payload={"reason": lyrics_error, "source": source,
+                                      "title": body.title[:100], "artist": body.artist[:100]})
         raise HTTPException(422, lyrics_error)
 
     title = body.title.strip()
@@ -455,12 +483,12 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request, b
 
         color = calibration.get("rubric_color")
         if color is None:
-            schedule_event(background_tasks, "submission_other_error", request,
-                           payload={"reason": "calibrator_returned_no_color",
-                                    "title": title, "artist": artist, "source": "paste_lyrics"})
+            if is_public:
+                schedule_event(background_tasks, "submission_other_error", request,
+                               payload={"reason": "calibrator_returned_no_color",
+                                        "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Store calibration in submitted_songs (lyrics are NOT stored)
         submitted = SubmittedSong(
             title=title,
             artist=artist,
@@ -470,7 +498,7 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request, b
             contamination_note=calibration.get("contamination_note"),
             charge_summary=calibration.get("charge_summary"),
             confidence=calibration.get("confidence"),
-            source="paste_lyrics",
+            source=source,
             ip_address=get_remote_address(request),
         )
         db.add(submitted)
@@ -478,12 +506,13 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request, b
         db.refresh(submitted)
         try_link_song(title, artist, "submitted", submitted.id, db)
 
-        schedule_event(background_tasks, "submission_success", request,
-                       payload={"title": title, "artist": artist, "source": "paste_lyrics",
-                                "tier": color, "charge": calibration.get("charge_value"),
-                                "contaminated": calibration.get("contaminated", False),
-                                "confidence": calibration.get("confidence")},
-                       submission_id=submitted.id)
+        if is_public:
+            schedule_event(background_tasks, "submission_success", request,
+                           payload={"title": title, "artist": artist, "source": source,
+                                    "tier": color, "charge": calibration.get("charge_value"),
+                                    "contaminated": calibration.get("contaminated", False),
+                                    "confidence": calibration.get("confidence")},
+                           submission_id=submitted.id)
 
         return LyricsCalibrateOut(
             status="scored",
@@ -499,9 +528,10 @@ async def calibrate_lyrics_endpoint(body: LyricsCalibrateIn, request: Request, b
         )
     except Exception:
         logger.exception("Calibration failed for submitted lyrics")
-        _log_error_event("submission_other_error", request,
-                         payload={"reason": "calibrator_exception", "title": title,
-                                  "artist": artist, "source": "paste_lyrics"})
+        if is_public:
+            _log_error_event("submission_other_error", request,
+                             payload={"reason": "calibrator_exception", "title": title,
+                                      "artist": artist, "source": source})
         raise HTTPException(500, "Calibration failed — try again")
     finally:
         db.close()
@@ -535,23 +565,34 @@ async def search_songs(body: SongSearchIn, request: Request, background_tasks: B
 # ------------------------------------------------------------------
 @router.post("/calibrate-search", response_model=LyricsCalibrateOut)
 @limiter.limit("5/hour")
-async def calibrate_search(body: SearchCalibrateIn, request: Request, background_tasks: BackgroundTasks):
+async def calibrate_search(
+    body: SearchCalibrateIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    tier: str = Depends(verify_api_or_service_key),
+):
     """Fetch lyrics for a Musixmatch track and calibrate them."""
-    await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+    is_public = tier == "public"
+    if is_public:
+        await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+
+    source = _resolve_source(tier, body.source)
 
     if not musixmatch.is_configured():
         raise HTTPException(501, "Song search is not yet available.")
 
     lyrics = await musixmatch.get_lyrics(body.track_id)
     if not lyrics:
-        _log_error_event("submission_other_error", request,
-                         payload={"reason": "lyrics_unavailable", "track_id": body.track_id, "source": "search"})
+        if is_public:
+            _log_error_event("submission_other_error", request,
+                             payload={"reason": "lyrics_unavailable", "track_id": body.track_id, "source": source})
         raise HTTPException(404, "Lyrics not available for this track.")
 
     lyrics_error = _validate_lyrics(lyrics)
     if lyrics_error:
-        _log_error_event("submission_failed_validation", request,
-                         payload={"reason": lyrics_error, "track_id": body.track_id, "source": "search"})
+        if is_public:
+            _log_error_event("submission_failed_validation", request,
+                             payload={"reason": lyrics_error, "track_id": body.track_id, "source": source})
         raise HTTPException(422, f"Retrieved lyrics are too short or invalid: {lyrics_error}")
 
     title = body.title.strip()
@@ -565,9 +606,10 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request, background
 
         color = calibration.get("rubric_color")
         if color is None:
-            schedule_event(background_tasks, "submission_other_error", request,
-                           payload={"reason": "calibrator_returned_no_color",
-                                    "title": title, "artist": artist, "source": "search"})
+            if is_public:
+                schedule_event(background_tasks, "submission_other_error", request,
+                               payload={"reason": "calibrator_returned_no_color",
+                                        "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
         submitted = SubmittedSong(
@@ -579,7 +621,7 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request, background
             contamination_note=calibration.get("contamination_note"),
             charge_summary=calibration.get("charge_summary"),
             confidence=calibration.get("confidence"),
-            source="search",
+            source=source,
             ip_address=get_remote_address(request),
         )
         db.add(submitted)
@@ -587,12 +629,13 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request, background
         db.refresh(submitted)
         try_link_song(title, artist, "submitted", submitted.id, db)
 
-        schedule_event(background_tasks, "submission_success", request,
-                       payload={"title": title, "artist": artist, "source": "search",
-                                "tier": color, "charge": calibration.get("charge_value"),
-                                "contaminated": calibration.get("contaminated", False),
-                                "confidence": calibration.get("confidence")},
-                       submission_id=submitted.id)
+        if is_public:
+            schedule_event(background_tasks, "submission_success", request,
+                           payload={"title": title, "artist": artist, "source": source,
+                                    "tier": color, "charge": calibration.get("charge_value"),
+                                    "contaminated": calibration.get("contaminated", False),
+                                    "confidence": calibration.get("confidence")},
+                           submission_id=submitted.id)
 
         return LyricsCalibrateOut(
             status="scored",
@@ -608,9 +651,10 @@ async def calibrate_search(body: SearchCalibrateIn, request: Request, background
         )
     except Exception:
         logger.exception("Calibration failed for search track %d", body.track_id)
-        _log_error_event("submission_other_error", request,
-                         payload={"reason": "calibrator_exception", "title": title,
-                                  "artist": artist, "source": "search"})
+        if is_public:
+            _log_error_event("submission_other_error", request,
+                             payload={"reason": "calibrator_exception", "title": title,
+                                      "artist": artist, "source": source})
         raise HTTPException(500, "Calibration failed — try again")
     finally:
         db.close()

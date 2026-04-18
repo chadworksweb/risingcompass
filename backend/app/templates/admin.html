@@ -331,6 +331,16 @@
     <button class="filter-btn" onclick="filterSubs('red')"><span class="color-dot red"></span>Red</button>
   </div>
 
+  <div class="filter-bar" id="subSourceFilters" style="margin-top:-0.5rem;">
+    <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">SOURCE:</span>
+    <button class="filter-btn active" onclick="filterSubsSource('')">All sources</button>
+    <button class="filter-btn" onclick="filterSubsSource('lyrical_charger')">Lyrical Charger</button>
+    <button class="filter-btn" onclick="filterSubsSource('chadlewine')">chadlewine.com</button>
+    <button class="filter-btn" onclick="filterSubsSource('paste_lyrics')">paste_lyrics (legacy)</button>
+    <button class="filter-btn" onclick="filterSubsSource('search')">search (legacy)</button>
+    <button class="filter-btn" onclick="filterSubsSource('batch')">batch (bootstrap)</button>
+  </div>
+
   <div class="sub-header">
     <span>ID</span><span>Title</span><span>Artist</span><span>Color</span><span>Charge</span><span>Conf.</span><span>IP</span><span>Actions</span>
   </div>
@@ -1026,6 +1036,7 @@ async function removeBan(id) {
 // --- LC Submissions ---
 
 let currentSubFilter = '';
+let currentSubSource = '';
 let subOffset = 0;
 const subLimit = 50;
 
@@ -1037,6 +1048,14 @@ function filterSubs(color) {
     const isColor = b.textContent.trim().toLowerCase() === color;
     b.classList.toggle('active', isAll || isColor);
   });
+  loadSubs();
+}
+
+function filterSubsSource(src) {
+  currentSubSource = src;
+  subOffset = 0;
+  document.querySelectorAll('#subSourceFilters .filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
   loadSubs();
 }
 
@@ -1068,6 +1087,7 @@ async function loadSubs() {
   try {
     let url = `/api/admin/submissions?limit=${subLimit}&offset=${subOffset}`;
     if (currentSubFilter) url += `&color=${currentSubFilter}`;
+    if (currentSubSource) url += `&source=${encodeURIComponent(currentSubSource)}`;
     const resp = await fetch(url, { headers: { 'X-Admin-Key': key } });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
@@ -1091,7 +1111,7 @@ function renderSubs(list) {
         <span><span class="color-dot ${s.rubric_color}"></span>${colorLabels[s.rubric_color] || s.rubric_color}</span>
         <span class="sub-charge ${chargeClass}">${chargeStr}</span>
         <span><span class="confidence-bar"><span class="fill" style="width:${confPct}%"></span></span>${confPct}%</span>
-        <span style="font-size:0.75rem;color:#888;">${s.ip_address ? esc(s.ip_address) : '—'}</span>
+        <span style="font-size:0.75rem;color:#888;">${s.ip_address ? esc(s.ip_address) : '—'}<br><span style="color:#555;">${esc(s.source || '—')}</span></span>
         <span class="actions">
           <button class="btn-sm" onclick="promoteSub(${s.id})" title="Promote to Library">Promote</button>
           <button class="btn-sm btn-danger" onclick="deleteSub(${s.id})" title="Delete">Del</button>

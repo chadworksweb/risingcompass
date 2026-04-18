@@ -6,7 +6,8 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     rc_admin_key: str = ""  # REQUIRED — app won't start without it
-    rc_api_key: str = ""  # REQUIRED — consumer API key for public endpoints
+    rc_api_key: str = ""  # REQUIRED — public consumer key (LC web tool, RC frontend)
+    rc_service_key: str = ""  # OPTIONAL — first-party service key (chadlewine, internal scripts)
     database_url: str = "sqlite:///./data/rising_compass.db"
     turso_auth_token: str = ""  # required when database_url is libsql://...
     cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","https://risingcompass.net","https://api.risingcompass.net"]'

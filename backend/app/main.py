@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from fastapi import Depends
 
-from app.auth import verify_api_key
+from app.auth import verify_api_key, verify_api_or_service_key
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
@@ -88,7 +88,10 @@ app.include_router(albums.router, dependencies=_api_key_dep)
 app.include_router(weekly_albums.router, dependencies=_api_key_dep)
 app.include_router(library.router, dependencies=_api_key_dep)
 app.include_router(misread.router, dependencies=_api_key_dep)
-app.include_router(analyzer.router, dependencies=_api_key_dep)
+# Analyzer accepts either public RC_API_KEY (Lyrical Charger) or RC_SERVICE_KEY
+# (first-party callers like chadlewine.com). Endpoints that distinguish
+# behavior re-declare the dependency to capture the tier.
+app.include_router(analyzer.router, dependencies=[Depends(verify_api_or_service_key)])
 app.include_router(badge.router, dependencies=_api_key_dep)
 app.include_router(artists.router, dependencies=_api_key_dep)
 app.include_router(songs.router, dependencies=_api_key_dep)

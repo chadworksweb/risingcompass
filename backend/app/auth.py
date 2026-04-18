@@ -23,6 +23,21 @@ def verify_api_key(x_api_key: str = Header(...)):
         raise HTTPException(status_code=403, detail="Invalid API key")
 
 
+def verify_api_or_service_key(x_api_key: str = Header(...)) -> str:
+    """Accept either RC_API_KEY (public) or RC_SERVICE_KEY (first-party).
+
+    Returns the tier name ("public" | "service") so endpoints can branch on it —
+    service callers skip bot protection, set their own source, and bypass
+    LC activity logging. Used on calibration endpoints that have both public
+    (Lyrical Charger) and first-party (chadlewine.com, internal scripts) callers.
+    """
+    if hmac.compare_digest(x_api_key, settings.rc_api_key):
+        return "public"
+    if settings.rc_service_key and hmac.compare_digest(x_api_key, settings.rc_service_key):
+        return "service"
+    raise HTTPException(status_code=403, detail="Invalid API key")
+
+
 def create_approval_token(draft_ref: str, ttl: int = 86400) -> str:
     """Create an HMAC token valid for `ttl` seconds (default 24h).
 

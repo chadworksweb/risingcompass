@@ -700,6 +700,10 @@ class LyricsCalibrateIn(BaseModel):
     hp_website: str = ""
     # Cloudflare Turnstile token; ignored unless TURNSTILE_SECRET is configured.
     turnstile_token: str = ""
+    # First-party callers (RC_SERVICE_KEY) supply this to tag the submission's
+    # origin (e.g. "chadlewine"). Ignored when the public API key is used —
+    # those are forced to source="lyrical_charger".
+    source: str | None = None
 
 
 class LyricsCalibrateOut(BaseModel):
@@ -739,6 +743,7 @@ class SearchCalibrateIn(BaseModel):
     artist: str = Field(..., min_length=1, max_length=200)
     hp_website: str = ""
     turnstile_token: str = ""
+    source: str | None = None
 
 
 # --- Submitted Songs Admin ---

@@ -15,6 +15,7 @@ services:
     environment:
       - RC_ADMIN_KEY=${RC_ADMIN_KEY:-change-me}
       - RC_API_KEY=${RC_API_KEY:-change-me}
+      - RC_SERVICE_KEY=${RC_SERVICE_KEY}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/rising_compass.db}
       - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
