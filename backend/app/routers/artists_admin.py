@@ -254,15 +254,21 @@ async def resolve_metadata(
     Unmatched songs stay in "Singles & Uncategorized".
     """
     _require_admin(x_admin_key)
+
     db = SessionLocal()
     try:
         artist = db.query(Artist).filter(Artist.slug == slug).first()
         if not artist:
             raise HTTPException(404, "Artist not found")
+        artist_id = artist.id
+    finally:
+        db.close()
 
-        stats = await resolve_artist_releases(artist, db)
-        db.commit()
+    stats = await resolve_artist_releases(artist_id)
 
+    db = SessionLocal()
+    try:
+        artist = db.get(Artist, artist_id)
         return {
             "artist": artist.name,
             "slug": artist.slug,
