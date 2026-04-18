@@ -4,6 +4,9 @@ __pycache__/
 *.db
 backend/data/*.db
 backend/data/*.json
+backend/data/*.local-backup-*
+backend/rc_migration_local*
+backend/data/rc_prod.db
 .venv/
 venv/
 node_modules/
