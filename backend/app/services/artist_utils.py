@@ -198,17 +198,22 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
 
     linked_keys = _get_linked_song_keys(artist, db)
 
+    # Preload existing releases once. Disambiguating per-release via DB queries
+    # costs hundreds of round-trips on catalogs like the Beatles'; resolve it
+    # in memory instead.
+    existing_rows = (
+        db.query(Release.title, Release.musicbrainz_id)
+        .filter(Release.artist_id == artist.id)
+        .all()
+    )
+    existing_titles: set[str] = {row.title.lower() for row in existing_rows}
+    existing_mbids: set[str] = {row.musicbrainz_id for row in existing_rows if row.musicbrainz_id}
+
     for mb_rel in mb_data.get("releases", []):
-        existing = (
-            db.query(Release)
-            .filter(Release.artist_id == artist.id)
-            .filter(Release.musicbrainz_id == mb_rel["mbid"])
-            .first()
-        )
-        if existing:
+        if mb_rel["mbid"] in existing_mbids:
             continue
 
-        title = _disambiguate_release_title(artist.id, mb_rel, db)
+        title = _pick_unique_title(mb_rel, existing_titles)
         if title is None:
             continue
 
@@ -222,6 +227,8 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
         )
         db.add(release)
         db.flush()
+        existing_titles.add(title.lower())
+        existing_mbids.add(mb_rel["mbid"])
         stats["releases_created"] += 1
 
         charges: list[int] = []
@@ -421,39 +428,23 @@ def _get_linked_song_keys(artist: Artist, db) -> set[tuple[str, int]]:
     return keys
 
 
-def _disambiguate_release_title(artist_id: int, mb_rel: dict, db) -> str | None:
-    """Pick a title for an MB release-group that doesn't collide with an
-    existing release for the same artist.
-
-    The releases table has UNIQUE(artist_id, title), but MusicBrainz happily
-    returns multiple release-groups sharing a title (e.g. "Let It Be" as
-    both the 1970 single and the 1970 album). Try the bare title first,
-    then progressively more specific suffixes, finally falling back to an
-    MBID fragment. Returns None if nothing fits (shouldn't happen).
+def _pick_unique_title(mb_rel: dict, taken: set[str]) -> str | None:
+    """Pick a title that doesn't collide with `taken` (lowercased titles
+    already in use for this artist). Try bare title, then year-suffixed,
+    then MBID-suffixed as a last resort.
     """
     base = mb_rel["title"]
     year = mb_rel.get("release_year")
-    rtype = mb_rel.get("release_type")
     mbid_suffix = (mb_rel.get("mbid") or "")[:8]
 
-    candidates: list[str] = [base]
-    if rtype:
-        candidates.append(f"{base} ({rtype})")
+    candidates = [base]
     if year:
         candidates.append(f"{base} ({year})")
-    if year and rtype:
-        candidates.append(f"{base} ({year} {rtype})")
     if mbid_suffix:
         candidates.append(f"{base} [{mbid_suffix}]")
 
     for candidate in candidates:
-        conflict = (
-            db.query(Release)
-            .filter(Release.artist_id == artist_id)
-            .filter(func.lower(Release.title) == candidate.lower())
-            .first()
-        )
-        if not conflict:
+        if candidate.lower() not in taken:
             return candidate
     return None
 
