@@ -10,12 +10,32 @@ const API = (() => {
     ? ''
     : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
 
-  async function get(path) {
+  // Turso cold connections + occasional 502/504 from nginx during container
+  // restarts cause transient failures. Retry twice with short backoff before
+  // giving up on GETs — 4xx won't be retried since those won't improve.
+  async function get(path, { attempts = 3, timeoutMs = 8000 } = {}) {
     const headers = {};
     if (API_KEY) headers['X-Api-Key'] = API_KEY;
-    const resp = await fetch(`${BASE}${path}`, { headers });
-    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
-    return resp.json();
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const resp = await fetch(`${BASE}${path}`, {
+          headers,
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (resp.ok) return resp.json();
+        if (resp.status >= 400 && resp.status < 500) {
+          throw new Error(`API error: ${resp.status}`);
+        }
+        lastErr = new Error(`API error: ${resp.status}`);
+      } catch (err) {
+        lastErr = err;
+      }
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+      }
+    }
+    throw lastErr;
   }
 
   return {
