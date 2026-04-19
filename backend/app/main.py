@@ -85,12 +85,30 @@ app.add_middleware(
 )
 
 
+def _write_api_call_log(client_id, method, path, status, ip, user_agent, duration_ms, context_json):
+    """Persist one api_call_log row. Runs off the event loop via asyncio.to_thread."""
+    from app.database import SessionLocal as _SL
+    from app.models import ApiCallLog
+    db = _SL()
+    try:
+        db.add(ApiCallLog(
+            client_id=client_id, method=method, path=path[:250],
+            status=status, ip=ip, user_agent=user_agent, duration_ms=duration_ms,
+            context_json=context_json,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
 @app.middleware("http")
 async def log_api_call(request: Request, call_next):
     """Log every /api/* call (excluding /api/admin/* and /api/health) to api_call_log.
 
-    client_id comes from request.state (set by auth dependency). Unauth'd or
-    unresolved keys log with client_id=NULL.
+    The DB write is fire-and-forget — it runs in a background task so the HTTP
+    response isn't blocked waiting for the Turso write to commit. Writes through
+    the embedded replica round-trip to the primary (~1s), so blocking every
+    public request on them is not acceptable.
     """
     import time as _time
     path = request.url.path
@@ -103,53 +121,44 @@ async def log_api_call(request: Request, call_next):
         return await call_next(request)
 
     start = _time.time()
-    response = None
-    status = 500
+    response = await call_next(request)
+    status = response.status_code
+
     try:
-        response = await call_next(request)
-        status = response.status_code
-        return response
-    finally:
+        import json as _json
+        import asyncio as _asyncio
+        duration_ms = int((_time.time() - start) * 1000)
+        client_id = getattr(request.state, "client_id", None)
+        ua = (request.headers.get("user-agent") or "")[:250]
+        ip = request.client.host if request.client else None
+
+        ctx: dict = {}
         try:
-            import json as _json
-            from app.database import SessionLocal as _SL
-            from app.models import ApiCallLog
-            duration_ms = int((_time.time() - start) * 1000)
-            client_id = getattr(request.state, "client_id", None)
-            ua = (request.headers.get("user-agent") or "")[:250]
-            ip = request.client.host if request.client else None
-
-            # Merge URL query params + endpoint-supplied context (request.state.call_context)
-            # to capture what song/artist/slug each call touched.
-            ctx: dict = {}
-            try:
-                qp = dict(request.query_params)
-                for k, v in qp.items():
-                    ctx[k] = v[:200] if isinstance(v, str) else v
-            except Exception:
-                pass
-            endpoint_ctx = getattr(request.state, "call_context", None)
-            if isinstance(endpoint_ctx, dict):
-                for k, v in endpoint_ctx.items():
-                    if isinstance(v, str):
-                        ctx[k] = v[:200]
-                    else:
-                        ctx[k] = v
-            # Also capture path params when set via the endpoint (e.g. {"slug": "bts"}).
-            context_json = _json.dumps(ctx, default=str) if ctx else None
-
-            db = _SL()
-            try:
-                db.add(ApiCallLog(
-                    client_id=client_id, method=request.method, path=path[:250],
-                    status=status, ip=ip, user_agent=ua, duration_ms=duration_ms,
-                    context_json=context_json,
-                ))
-                db.commit()
-            finally:
-                db.close()
+            qp = dict(request.query_params)
+            for k, v in qp.items():
+                ctx[k] = v[:200] if isinstance(v, str) else v
         except Exception:
-            logger.exception("api_call_log write failed for %s %s", request.method, path)
+            pass
+        endpoint_ctx = getattr(request.state, "call_context", None)
+        if isinstance(endpoint_ctx, dict):
+            for k, v in endpoint_ctx.items():
+                ctx[k] = v[:200] if isinstance(v, str) else v
+        context_json = _json.dumps(ctx, default=str) if ctx else None
+
+        async def _bg_write():
+            try:
+                await _asyncio.to_thread(
+                    _write_api_call_log,
+                    client_id, request.method, path, status, ip, ua, duration_ms, context_json,
+                )
+            except Exception:
+                logger.exception("api_call_log write failed for %s %s", request.method, path)
+
+        _asyncio.create_task(_bg_write())
+    except Exception:
+        logger.exception("api_call_log scheduling failed for %s %s", request.method, path)
+
+    return response
 
 # Public routers — require X-Api-Key header
 _api_key_dep = [Depends(verify_api_key)]
