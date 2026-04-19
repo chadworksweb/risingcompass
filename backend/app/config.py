@@ -46,6 +46,18 @@ class Settings(BaseSettings):
     turnstile_site_key: str = ""
     turnstile_secret: str = ""
 
+    # Audience Vibe — gap threshold that opens an admin review case.
+    # Roadmap calls this "TBD"; starting at 25 and tunable from .env.
+    vibe_review_threshold: int = 25
+
+    # DO Spaces backup destination
+    do_spaces_key: str = ""
+    do_spaces_secret: str = ""
+    do_spaces_bucket: str = ""
+    do_spaces_region: str = "nyc3"
+    do_spaces_prefix: str = "rising-compass/daily"
+    backup_retention_days: int = 30
+
     @model_validator(mode="after")
     def _validate_required_secrets(self):
         if not self.rc_admin_key or self.rc_admin_key == "change-me":

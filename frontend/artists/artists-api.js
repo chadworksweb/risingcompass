@@ -34,5 +34,30 @@ const ArtistsAPI = (() => {
     },
     searchSongs: (q, limit = 20) => get(`/api/songs?q=${encodeURIComponent(q)}&limit=${limit}`),
     getSong: (slug) => get(`/api/songs/${slug}`),
+    getSongFlagCounts: (slug) => get(`/api/songs/${slug}/flag-counts`),
+    getSongHistory: (slug) => get(`/api/songs/${slug}/history`),
+    getVibeState: (source, songId, deviceId) => {
+      const q = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
+      return get(`/api/vibe/${source}/${songId}${q}`);
+    },
+    pushVibe: async (source, songId, direction, deviceId) => {
+      const headers = { 'Content-Type': 'application/json' };
+      if (API_KEY) headers['X-Api-Key'] = API_KEY;
+      const resp = await fetch(`${BASE}/api/vibe/${source}/${songId}/push`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ direction, device_id: deviceId }),
+      });
+      const text = await resp.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch {}
+      if (!resp.ok) {
+        const detail = (data && data.detail) || `HTTP ${resp.status}`;
+        const err = new Error(detail);
+        err.status = resp.status;
+        throw err;
+      }
+      return data;
+    },
   };
 })();

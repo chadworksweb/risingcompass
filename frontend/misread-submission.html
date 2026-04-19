@@ -272,6 +272,54 @@
       color: var(--rc-red);
       margin-top: 0.5rem;
     }
+
+    /* Report type radio group */
+    .misread-type-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.6rem 0.8rem;
+      background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border);
+      border-radius: var(--rc-radius-sm);
+    }
+
+    .misread-type-group > label.group-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--rc-text-dim);
+      margin-bottom: 0.2rem;
+    }
+
+    .misread-type-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.4rem 0.2rem;
+      cursor: pointer;
+    }
+
+    .misread-type-option input[type="radio"] {
+      margin-top: 0.25rem;
+      accent-color: var(--rc-accent);
+      flex-shrink: 0;
+    }
+
+    .misread-type-option .opt-label {
+      font-size: 0.9rem;
+      color: var(--rc-text-bright);
+      line-height: 1.4;
+    }
+
+    .misread-type-option .opt-hint {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--rc-text-dim);
+      margin-top: 0.15rem;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -300,6 +348,23 @@
 
   <!-- Form (default state) -->
   <form class="misread-form" id="misread-form">
+    <div class="misread-type-group">
+      <label class="group-label">Report Type</label>
+      <label class="misread-type-option">
+        <input type="radio" name="report-type" value="misread" checked>
+        <span>
+          <span class="opt-label">We got it wrong</span>
+          <span class="opt-hint">The compass misread the lyrics — missed context, misinterpreted content, or overlooked something that changes the calibration.</span>
+        </span>
+      </label>
+      <label class="misread-type-option">
+        <input type="radio" name="report-type" value="satirical">
+        <span>
+          <span class="opt-label">This song is satirical</span>
+          <span class="opt-hint">The lyrics depict the behavior in order to expose or mock it, not endorse it. Words only — author identity and character voice are irrelevant. Proof or context required.</span>
+        </span>
+      </label>
+    </div>
     <div class="misread-row">
       <div class="misread-field">
         <label for="first-name">First Name</label>
@@ -315,8 +380,12 @@
       <input type="email" id="email" required placeholder="jane@example.com">
     </div>
     <div class="misread-field">
-      <label for="message">Why do you think this was misread?</label>
+      <label for="message" id="message-label">Why do you think this was misread?</label>
       <textarea id="message" required placeholder="Be specific. Reference lyrics, themes, or context that supports a different calibration."></textarea>
+    </div>
+    <div class="misread-field" id="proof-field" style="display:none;">
+      <label for="proof-context">Proof / Context Supporting Satire</label>
+      <textarea id="proof-context" placeholder="Cite specific lyrics that read as satire, point to public statements about the song, or explain how the lyrical structure exposes rather than endorses what it depicts."></textarea>
     </div>
     <div class="misread-consent">
       By submitting, you consent to your device ID and IP address being recorded for moderation purposes.
@@ -446,11 +515,43 @@
   const form = document.getElementById('misread-form');
   const submitBtn = document.getElementById('submit-btn');
   const errorMsg = document.getElementById('error-msg');
+  const proofField = document.getElementById('proof-field');
+  const proofTextarea = document.getElementById('proof-context');
+  const messageLabel = document.getElementById('message-label');
+  const messageTextarea = document.getElementById('message');
+
+  function getReportType() {
+    const checked = document.querySelector('input[name="report-type"]:checked');
+    return checked ? checked.value : 'misread';
+  }
+
+  function syncFormForType() {
+    const type = getReportType();
+    if (type === 'satirical') {
+      proofField.style.display = '';
+      proofTextarea.required = true;
+      messageLabel.textContent = 'Why do you think this song is satirical?';
+      messageTextarea.placeholder = 'Briefly explain how the song functions as satire — what behavior is being depicted in order to expose or mock it.';
+      submitBtn.textContent = 'Submit Satirical Flag';
+    } else {
+      proofField.style.display = 'none';
+      proofTextarea.required = false;
+      messageLabel.textContent = 'Why do you think this was misread?';
+      messageTextarea.placeholder = 'Be specific. Reference lyrics, themes, or context that supports a different calibration.';
+      submitBtn.textContent = 'Submit Report';
+    }
+  }
+
+  document.querySelectorAll('input[name="report-type"]').forEach(el => {
+    el.addEventListener('change', syncFormForType);
+  });
+  syncFormForType();
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorMsg.style.display = 'none';
     submitBtn.disabled = true;
+    const reportType = getReportType();
     submitBtn.textContent = 'Submitting...';
 
     const body = {
@@ -461,8 +562,10 @@
       first_name: document.getElementById('first-name').value.trim(),
       last_name: document.getElementById('last-name').value.trim(),
       email: document.getElementById('email').value.trim(),
-      message: document.getElementById('message').value.trim(),
+      message: messageTextarea.value.trim(),
       device_id: deviceId,
+      report_type: reportType,
+      proof_context: reportType === 'satirical' ? proofTextarea.value.trim() : null,
     };
 
     try {
@@ -490,7 +593,7 @@
       errorMsg.textContent = err.message;
       errorMsg.style.display = '';
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit Report';
+      syncFormForType();
     }
   });
 })();

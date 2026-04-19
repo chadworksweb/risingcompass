@@ -44,6 +44,12 @@ def admin_dashboard(request: Request):
     return templates.TemplateResponse(request=request, name="admin.html")
 
 
+@router.get("/recalibrate", response_class=HTMLResponse)
+def recalibrate_dashboard(request: Request):
+    """Serve the recalibrate suite admin UI (auth handled client-side via X-Admin-Key)."""
+    return templates.TemplateResponse(request=request, name="recalibrate.html")
+
+
 @router.post("/reading", response_model=DailyReadingOut, dependencies=[Depends(verify_admin_key)])
 def create_reading(data: ReadingCreate, db: Session = Depends(get_db)):
     """Create a new daily reading."""
@@ -219,13 +225,27 @@ def update_weekly_album_reading(week_date: str, data: WeeklyAlbumReadingUpdate, 
 
 @router.post("/backup", dependencies=[Depends(verify_admin_key)])
 def trigger_backup():
-    """Manually trigger a database backup."""
+    """Manually trigger a Turso → DO Spaces backup. Smoke test for the pipeline."""
     from app.services.backup import run_backup
 
-    path = run_backup()
-    if not path:
+    result = run_backup()
+    if not result:
         raise HTTPException(status_code=500, detail="Backup failed")
-    return {"status": "ok", "file": path.name}
+    return {
+        "status": "ok",
+        "key": result.key,
+        "bytes": result.bytes,
+        "verified": result.verified,
+        "pruned": result.pruned,
+    }
+
+
+@router.get("/backup/list", dependencies=[Depends(verify_admin_key)])
+def list_backups(limit: int = 30):
+    """List recent backup objects in DO Spaces under the RC prefix."""
+    from app.services.backup import list_backups as _list
+
+    return {"backups": _list(limit=limit)}
 
 
 @router.get("/db-export", dependencies=[Depends(verify_admin_key)])

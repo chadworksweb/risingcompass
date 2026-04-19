@@ -4,11 +4,14 @@ from html import escape
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from typing import Optional
 
 from app.database import get_db
-from app.models import MisreadSubmission, MisreadBan
+from app.models import (
+    MisreadSubmission, MisreadBan,
+    CompassSong, LibrarySong, SubmittedSong,
+)
 from app.schemas import (
     MisreadSubmissionCreate, MisreadSubmissionOut,
     MisreadStatusUpdate, MisreadBanOut,
@@ -21,6 +24,31 @@ from app.routers.analyzer import limiter
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["misread"])
+
+VALID_REPORT_TYPES = {"misread", "satirical"}
+
+
+def _resolve_polymorphic_song(db: Session, title: str, artist: str) -> tuple[Optional[str], Optional[int]]:
+    """Best-effort polymorphic lookup by case-insensitive (title, artist).
+
+    Order matches the existing precedence in badge.lookup: compass → library →
+    submitted. Returns (None, None) if no match — the string columns remain
+    the source of truth for what the user typed.
+    """
+    title_l = title.strip().lower()
+    artist_l = artist.strip().lower()
+    for source, Model in [
+        ("compass", CompassSong),
+        ("library", LibrarySong),
+        ("submitted", SubmittedSong),
+    ]:
+        q = db.query(Model).filter(func.lower(Model.title) == title_l)
+        if hasattr(Model, "artist"):
+            q = q.filter(func.lower(Model.artist) == artist_l)
+        row = q.first()
+        if row:
+            return source, row.id
+    return None, None
 
 
 def _send_receipt_email(submission: MisreadSubmission) -> bool:
@@ -35,12 +63,39 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
     tier_bg = COLOR_BG.get(color, "#f5f5f5")
     pos_str = ""
 
+    is_satire = submission.report_type == "satirical"
+    header_label = "Satirical Flag Received" if is_satire else "Misread Report Received"
+    intro_text = (
+        "We've received your satirical flag for the song below. Our team will investigate. "
+        "If verified, the song will be re-read under the satire tenet set as part of the recalibration suite. "
+        "This is a confirmation only — no reply is needed or monitored."
+    ) if is_satire else (
+        "We've received your report about the calibration of the song below. Our team will review it. "
+        "This is a confirmation only — no reply is needed or monitored."
+    )
+    type_badge = (
+        '<span style="display:inline-block;background:#fff3e0;color:#cc7700;font-weight:600;font-size:11px;'
+        'padding:3px 10px;border-radius:4px;letter-spacing:0.04em;text-transform:uppercase;margin-left:6px;">Satirical Flag</span>'
+        if is_satire else ""
+    )
+
+    proof_block = ""
+    if is_satire and submission.proof_context:
+        proof_block = (
+            '<div style="margin-bottom:24px;">'
+            '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#999;margin-bottom:6px;">Your Proof / Context</div>'
+            f'<div style="font-size:14px;color:#444;line-height:1.6;padding:12px 16px;background:#fafafa;border-left:3px solid #cc7700;border-radius:0 4px 4px 0;">{escape(submission.proof_context)}</div>'
+            '</div>'
+        )
+
+    subject_prefix = "Satirical Flag" if is_satire else "Report"
+
     html = f"""
     <div style="background:#ffffff;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;">
         <!-- Header -->
         <div style="background:#0a0a14;padding:24px 28px;border-radius:8px 8px 0 0;">
             <div style="font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#00d4aa;margin-bottom:6px;">The Rising Compass</div>
-            <div style="font-size:20px;font-weight:300;color:#eeeef4;">Misread Report Received</div>
+            <div style="font-size:20px;font-weight:300;color:#eeeef4;">{header_label}</div>
         </div>
 
         <!-- Body -->
@@ -49,14 +104,14 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
                 Hi {escape(submission.first_name)},
             </p>
             <p style="font-size:14px;color:#444;line-height:1.6;margin:0 0 24px;">
-                We've received your report about the calibration of the song below. Our team will review it. This is a confirmation only — no reply is needed or monitored.
+                {intro_text}
             </p>
 
             <!-- Song card -->
             <div style="background:#f8f8fa;border:1px solid #eee;border-radius:6px;padding:16px 20px;margin-bottom:24px;">
                 <div style="font-size:16px;font-weight:600;color:#1a1a2e;margin-bottom:4px;">{pos_str}{escape(submission.song_title)}</div>
                 <div style="font-size:14px;color:#666;margin-bottom:10px;">{escape(submission.song_artist)}</div>
-                <span style="display:inline-block;background:{tier_bg};color:{tier_hex};font-weight:600;font-size:12px;padding:3px 10px;border-radius:4px;">Current: {tier_label}</span>
+                <span style="display:inline-block;background:{tier_bg};color:{tier_hex};font-weight:600;font-size:12px;padding:3px 10px;border-radius:4px;">Current: {tier_label}</span>{type_badge}
             </div>
 
             <!-- Their message -->
@@ -64,6 +119,8 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
                 <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#999;margin-bottom:6px;">Your Message</div>
                 <div style="font-size:14px;color:#444;line-height:1.6;padding:12px 16px;background:#fafafa;border-left:3px solid #00d4aa;border-radius:0 4px 4px 0;">{escape(submission.message)}</div>
             </div>
+
+            {proof_block}
 
             <p style="font-size:13px;color:#999;line-height:1.5;margin:0;">
                 If the evidence supports a different reading, we'll update the calibration. You won't receive a follow-up email — check the compass for any changes.
@@ -88,7 +145,7 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
                 "from": settings.email_from,
                 "to": [submission.email],
                 "reply_to": "noreply@risingcompass.net",
-                "subject": f"Report Received — {submission.song_title}",
+                "subject": f"{subject_prefix} Received — {submission.song_title}",
                 "html": html,
             },
             timeout=15,
@@ -118,11 +175,26 @@ def _is_banned(db: Session, device_id: Optional[str], ip: Optional[str]) -> bool
 @router.post("/api/misread", response_model=MisreadSubmissionOut, status_code=201)
 @limiter.limit("5/hour")
 def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session = Depends(get_db)):
-    """Submit a misread calibration report."""
+    """Submit a misread calibration report or a satirical flag."""
     ip = request.client.host if request.client else None
+
+    if data.report_type not in VALID_REPORT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid report_type. Must be one of: {', '.join(sorted(VALID_REPORT_TYPES))}",
+        )
+
+    proof = (data.proof_context or "").strip() or None
+    if data.report_type == "satirical" and not proof:
+        raise HTTPException(
+            status_code=400,
+            detail="Satirical flags require proof / context supporting the satire reading.",
+        )
 
     if _is_banned(db, data.device_id, ip):
         raise HTTPException(status_code=403, detail="You have been banned from submitting reports.")
+
+    song_source, song_id = _resolve_polymorphic_song(db, data.song_title, data.song_artist)
 
     submission = MisreadSubmission(
         song_title=data.song_title,
@@ -135,6 +207,10 @@ def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session 
         message=data.message,
         device_id=data.device_id,
         ip_address=ip,
+        report_type=data.report_type,
+        proof_context=proof,
+        song_source=song_source,
+        song_id=song_id,
     )
     db.add(submission)
     db.commit()
@@ -156,11 +232,22 @@ def check_ban(device_id: str = Query(default=""), request: Request = None, db: S
 # --- Admin Endpoints ---
 
 @router.get("/api/admin/misread", response_model=list[MisreadSubmissionOut], dependencies=[Depends(verify_admin_key)])
-def list_misread(status: Optional[str] = None, db: Session = Depends(get_db)):
-    """List all misread submissions, optionally filtered by status."""
+def list_misread(
+    status: Optional[str] = None,
+    report_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """List all misread submissions, optionally filtered by status and/or report_type."""
     q = db.query(MisreadSubmission)
     if status:
         q = q.filter(MisreadSubmission.status == status)
+    if report_type:
+        if report_type not in VALID_REPORT_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid report_type. Must be one of: {', '.join(sorted(VALID_REPORT_TYPES))}",
+            )
+        q = q.filter(MisreadSubmission.report_type == report_type)
     return q.order_by(MisreadSubmission.created_at.desc()).all()
 
 

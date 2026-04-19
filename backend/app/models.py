@@ -297,6 +297,12 @@ class MisreadSubmission(Base):
     device_id = Column(Text)
     ip_address = Column(Text)
     status = Column(String(20), default="pending")  # pending / reviewed / accepted / rejected / flagged
+    report_type = Column(String(20), nullable=False, default="misread")  # misread / satirical
+    proof_context = Column(Text)  # required when report_type='satirical'
+    # Polymorphic ref into the three song tables; nullable, set by the slug
+    # matcher when the submitted (title, artist) resolves cleanly.
+    song_source = Column(String(20))  # compass / library / submitted
+    song_id = Column(Integer)
 
 
 class StreamSong(Base):
@@ -441,6 +447,138 @@ class ApiClientKey(Base):
     revoked_at = Column(DateTime)
 
     client = relationship("ApiClient", back_populates="keys")
+
+
+class SongRecalibrationProposal(Base):
+    """A pending or resolved AI recalibration proposal.
+
+    Created when an admin invokes a recalibration (currently only the satire
+    type is implemented). Lives between "AI ran" and "admin acted." On accept,
+    a SongRecalibration row is written and this proposal's status flips to
+    'accepted'. On reject, only the proposal is updated — nothing applied.
+    """
+    __tablename__ = "song_recalibration_proposals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest
+    song_source = Column(String(20), nullable=False)
+    song_id = Column(Integer, nullable=False)
+    trigger_source = Column(String(40))  # satirical_flag | vibe_gap | admin_manual
+    trigger_ref_id = Column(Integer)  # FK-shaped pointer back to the trigger row
+    original_charge = Column(Integer)
+    original_color = Column(String(20))
+    proposed_charge = Column(Integer)
+    proposed_color = Column(String(20))
+    proposed_summary = Column(Text)
+    ai_rationale = Column(Text)
+    ai_model = Column(Text)
+    status = Column(String(20), nullable=False, default="pending")  # pending | accepted | rejected
+    review_notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime)
+
+
+class SongRecalibration(Base):
+    """Immutable audit log of every applied recalibration.
+
+    Read by the public song-history endpoint and rendered as small print on
+    the song detail page. The public_summary is the admin-written story of
+    why the calibration changed — the recalibrate suite is honest about its
+    history because that honesty IS the proof of objectivity.
+    """
+    __tablename__ = "song_recalibrations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest
+    song_source = Column(String(20), nullable=False)
+    song_id = Column(Integer, nullable=False)
+    proposal_id = Column(Integer, ForeignKey("song_recalibration_proposals.id", ondelete="SET NULL"))
+    trigger_source = Column(String(40))
+    trigger_ref_id = Column(Integer)
+    before_charge = Column(Integer)
+    before_color = Column(String(20))
+    before_summary = Column(Text)  # snapshot of charge_summary before this recalibration — preserved for safe rollback
+    after_charge = Column(Integer, nullable=False)
+    after_color = Column(String(20), nullable=False)
+    ai_rationale = Column(Text)
+    public_summary = Column(Text, nullable=False)  # the public-facing story
+    internal_notes = Column(Text)
+    flag_count_snapshot = Column(Text)  # JSON: {misread: N, satirical: N} at moment of recalibration
+    vibe_snapshot = Column(Text)  # JSON: {value, pushes_up, pushes_down} (future, when vibe ships)
+    applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AudienceVibeNeedle(Base):
+    """Persistent vibe position for one song. Lives wherever the crowd has
+    pushed it. Never auto-resets — yearly reset is per-person eligibility,
+    not the needle. Polymorphic via (song_source, song_id) like every other
+    cross-table song reference in this codebase.
+    """
+    __tablename__ = "audience_vibe_needles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_source = Column(String(20), nullable=False)
+    song_id = Column(Integer, nullable=False)
+    current_value = Column(Integer, nullable=False, default=0)  # -100..+100
+    pushes_up_total = Column(Integer, nullable=False, default=0)
+    pushes_down_total = Column(Integer, nullable=False, default=0)
+    last_push_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("song_source", "song_id", name="uq_vibe_needles_song"),
+    )
+
+
+class AudienceVibePush(Base):
+    """Append-only timestamped push log. Carries the full trajectory of every
+    needle for future Vibe Trends aggregations. user_id is reserved for when
+    real-account auth ships; v1 gates on device_id + IP per the roadmap.
+
+    Yearly eligibility is enforced via the unique constraint on
+    (song_source, song_id, device_id, push_year): a device can push the same
+    song once per calendar year. Year boundary refreshes everyone's eligibility.
+    """
+    __tablename__ = "audience_vibe_pushes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_source = Column(String(20), nullable=False)
+    song_id = Column(Integer, nullable=False)
+    direction = Column(Integer, nullable=False)  # +1 or -1
+    user_id = Column(Integer)  # nullable — placeholder for future auth
+    device_id = Column(Text)
+    ip_address = Column(Text)
+    push_year = Column(Integer, nullable=False)
+    pushed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "song_source", "song_id", "device_id", "push_year",
+            name="uq_vibe_pushes_device_year",
+        ),
+    )
+
+
+class AudienceVibeReviewCase(Base):
+    """Open when the gap between the compass charge and the vibe needle exceeds
+    the configured threshold. Admin reviews and decides whether to fire a
+    public-interest recalibration. Only one open case per song at a time
+    (enforced in service code).
+    """
+    __tablename__ = "audience_vibe_review_cases"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_source = Column(String(20), nullable=False)
+    song_id = Column(Integer, nullable=False)
+    compass_charge = Column(Integer)
+    compass_color = Column(String(20))
+    vibe_value = Column(Integer, nullable=False)
+    gap = Column(Integer, nullable=False)  # abs(compass_charge - vibe_value)
+    status = Column(String(20), nullable=False, default="open")  # open | acknowledged | recalibrated | dismissed
+    admin_notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    resolved_at = Column(DateTime)
 
 
 class ApiCallLog(Base):

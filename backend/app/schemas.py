@@ -547,6 +547,8 @@ class MisreadSubmissionCreate(BaseModel):
     email: str = Field(..., max_length=254)
     message: str = Field(..., max_length=5000)
     device_id: Optional[str] = Field(None, max_length=200)
+    report_type: str = Field("misread", max_length=20)  # misread | satirical
+    proof_context: Optional[str] = Field(None, max_length=5000)
 
 
 class MisreadSubmissionOut(BaseModel):
@@ -563,6 +565,10 @@ class MisreadSubmissionOut(BaseModel):
     device_id: Optional[str] = None
     ip_address: Optional[str] = None
     status: str
+    report_type: str = "misread"
+    proof_context: Optional[str] = None
+    song_source: Optional[str] = None
+    song_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 

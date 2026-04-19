@@ -1,68 +1,216 @@
-"""Database backup — file copy for SQLite."""
+"""Turso → DigitalOcean Spaces daily backup.
 
+Pipeline:
+  1. Open a fresh libsql embedded replica, sync from Turso → produces a
+     complete local SQLite file of the current database state.
+  2. gzip the file.
+  3. Upload to s3://{bucket}/{prefix}/{YYYY-MM-DD}.db.gz.
+  4. Verify: download the object back, open it, count compass_songs.
+  5. Prune objects under the prefix older than BACKUP_RETENTION_DAYS.
+"""
+
+from __future__ import annotations
+
+import gzip
 import logging
 import shutil
 import sqlite3
-from datetime import datetime
+import tempfile
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import boto3
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Resolve paths relative to the backend/data/ directory
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-DB_PATH = DATA_DIR / "rising_compass.db"
-BACKUP_DIR = DATA_DIR / "backups"
-MAX_BACKUPS = 30  # Keep last 30 days
+
+@dataclass
+class BackupResult:
+    key: str
+    bytes: int
+    verified: bool
+    pruned: int
+
+    @property
+    def name(self) -> str:
+        return self.key.rsplit("/", 1)[-1]
 
 
-def run_backup() -> Path | None:
-    """Copy the database file to backups/ with a date-stamped name.
+def _spaces_client():
+    endpoint = f"https://{settings.do_spaces_region}.digitaloceanspaces.com"
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        region_name=settings.do_spaces_region,
+        aws_access_key_id=settings.do_spaces_key,
+        aws_secret_access_key=settings.do_spaces_secret,
+        config=BotoConfig(signature_version="s3v4", retries={"max_attempts": 3}),
+    )
 
-    Returns the backup path on success, None on failure.
+
+def _dump_turso_to_file(dest: Path) -> None:
+    """Sync Turso → a fresh local SQLite file at `dest`.
+
+    Uses libsql's embedded-replica mode: opening a connection with
+    sync_url + auth_token pulls the full primary state into `dest`.
     """
-    if not DB_PATH.exists():
-        logger.error("Database not found at %s", DB_PATH)
-        return None
+    import libsql
 
-    BACKUP_DIR.mkdir(exist_ok=True)
+    url = settings.database_url
+    token = settings.turso_auth_token
+    if not (url.startswith("libsql://") or url.startswith("https://")):
+        raise RuntimeError(f"backup requires a libsql:// DATABASE_URL, got {url!r}")
+    if not token:
+        raise RuntimeError("TURSO_AUTH_TOKEN is unset")
 
-    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    backup_path = BACKUP_DIR / f"rising_compass_{stamp}.db"
+    if dest.exists():
+        dest.unlink()
 
+    conn = libsql.connect(database=str(dest), sync_url=url, auth_token=token)
     try:
-        shutil.copy2(str(DB_PATH), str(backup_path))
-        logger.info("Database backed up to %s", backup_path)
-    except Exception:
-        logger.exception("Failed to back up database")
-        return None
-
-    # Verify backup is valid SQLite
-    if not _verify_backup(backup_path):
-        logger.error("Backup verification FAILED: %s", backup_path)
-        return None
-
-    logger.info("Backup verified: %s", backup_path)
-    _prune_old_backups()
-    return backup_path
+        conn.sync()
+    finally:
+        conn.close()
 
 
-def _verify_backup(backup_path: Path) -> bool:
-    """Verify a backup file is valid SQLite with expected tables."""
+def _verify_sqlite(path: Path) -> bool:
+    conn = None
     try:
-        with sqlite3.connect(str(backup_path)) as conn:
-            conn.execute("SELECT count(*) FROM compass_songs")
-        return True
+        conn = sqlite3.connect(str(path))
+        row = conn.execute("SELECT count(*) FROM compass_songs").fetchone()
+        return bool(row and row[0] >= 0)
     except Exception:
+        logger.exception("Backup verification failed for %s", path)
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
-def _prune_old_backups() -> None:
-    """Remove oldest backups beyond MAX_BACKUPS."""
-    backups = sorted(BACKUP_DIR.glob("rising_compass_*.db"))
-    if len(backups) <= MAX_BACKUPS:
-        return
+def _prune_old_objects(s3, bucket: str, prefix: str, retention_days: int) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    removed = 0
+    paginator = s3.get_paginator("list_objects_v2")
+    to_delete: list[dict] = []
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix.rstrip("/") + "/"):
+        for obj in page.get("Contents", []) or []:
+            if obj["LastModified"] < cutoff:
+                to_delete.append({"Key": obj["Key"]})
+    # S3 DeleteObjects max 1000 per call
+    for i in range(0, len(to_delete), 1000):
+        chunk = to_delete[i : i + 1000]
+        s3.delete_objects(Bucket=bucket, Delete={"Objects": chunk, "Quiet": True})
+        removed += len(chunk)
+        for obj in chunk:
+            logger.info("Pruned old backup: %s", obj["Key"])
+    return removed
 
-    to_remove = backups[: len(backups) - MAX_BACKUPS]
-    for old in to_remove:
-        old.unlink()
-        logger.info("Pruned old backup: %s", old.name)
+
+def run_backup() -> BackupResult | None:
+    """Dump Turso, upload to DO Spaces, verify, prune. Returns None on failure."""
+    if not (
+        settings.do_spaces_key
+        and settings.do_spaces_secret
+        and settings.do_spaces_bucket
+    ):
+        logger.error("Backup skipped: DO_SPACES_* env vars are not configured")
+        return None
+
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    key = f"{settings.do_spaces_prefix.strip('/')}/{stamp}.db.gz"
+    bucket = settings.do_spaces_bucket
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        tmp_dir = Path(tmp)
+        db_file = tmp_dir / f"rc-{stamp}.db"
+        gz_file = tmp_dir / f"rc-{stamp}.db.gz"
+
+        try:
+            _dump_turso_to_file(db_file)
+        except Exception:
+            logger.exception("Turso dump failed")
+            return None
+
+        if not _verify_sqlite(db_file):
+            logger.error("Pre-upload verify failed on %s", db_file)
+            return None
+
+        with open(db_file, "rb") as src, gzip.open(gz_file, "wb", compresslevel=6) as dst:
+            shutil.copyfileobj(src, dst)
+
+        s3 = _spaces_client()
+        try:
+            s3.upload_file(
+                str(gz_file),
+                bucket,
+                key,
+                ExtraArgs={"ContentType": "application/gzip", "ACL": "private"},
+            )
+        except ClientError:
+            logger.exception("Upload to s3://%s/%s failed", bucket, key)
+            return None
+
+        # Round-trip verification
+        verify_file = tmp_dir / "verify.db"
+        try:
+            gz_dl = tmp_dir / "verify.db.gz"
+            s3.download_file(bucket, key, str(gz_dl))
+            with gzip.open(gz_dl, "rb") as src, open(verify_file, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            verified = _verify_sqlite(verify_file)
+        except Exception:
+            logger.exception("Post-upload verify failed for s3://%s/%s", bucket, key)
+            verified = False
+
+        if not verified:
+            # Delete the bad object rather than leave an unverified backup in place
+            try:
+                s3.delete_object(Bucket=bucket, Key=key)
+            except ClientError:
+                logger.exception("Failed to clean up unverified object s3://%s/%s", bucket, key)
+            return None
+
+        size_bytes = gz_file.stat().st_size
+
+    try:
+        pruned = _prune_old_objects(
+            s3, bucket, settings.do_spaces_prefix, settings.backup_retention_days
+        )
+    except ClientError:
+        logger.exception("Prune failed (backup itself succeeded)")
+        pruned = 0
+
+    logger.info(
+        "Backup ok: s3://%s/%s (%d bytes, pruned %d old)", bucket, key, size_bytes, pruned
+    )
+    return BackupResult(key=key, bytes=size_bytes, verified=True, pruned=pruned)
+
+
+def list_backups(limit: int = 30) -> list[dict]:
+    """List recent backup objects under the configured prefix."""
+    if not (
+        settings.do_spaces_key
+        and settings.do_spaces_secret
+        and settings.do_spaces_bucket
+    ):
+        return []
+    s3 = _spaces_client()
+    prefix = settings.do_spaces_prefix.strip("/") + "/"
+    paginator = s3.get_paginator("list_objects_v2")
+    items: list[dict] = []
+    for page in paginator.paginate(Bucket=settings.do_spaces_bucket, Prefix=prefix):
+        for obj in page.get("Contents", []) or []:
+            items.append(
+                {
+                    "key": obj["Key"],
+                    "bytes": obj["Size"],
+                    "last_modified": obj["LastModified"].isoformat(),
+                }
+            )
+    items.sort(key=lambda x: x["last_modified"], reverse=True)
+    return items[:limit]

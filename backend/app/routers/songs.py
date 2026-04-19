@@ -3,12 +3,12 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 
 from app.database import SessionLocal
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, SongSlug,
-    ReleaseSong, Release, Artist,
+    ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration,
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import generate_song_slug
@@ -16,6 +16,122 @@ from app.services.artist_utils import generate_song_slug
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
+
+
+@router.get("/{slug}/flag-counts")
+def song_flag_counts(slug: str):
+    """Public flag activity for a song. Counts distinct devices to keep the
+    number an honest reflection of how many people flagged it, not how many
+    submissions were made.
+
+    Matches by polymorphic (song_source, song_id) when the misread row was
+    resolved at submit time, OR by case-insensitive (title, artist) strings
+    as a fallback (covers older submissions and edge cases where the slug
+    matcher couldn't resolve).
+    """
+    db = SessionLocal()
+    try:
+        slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
+        if slug_row:
+            title, artist, source, song_id = (
+                slug_row.title, slug_row.artist, slug_row.song_source, slug_row.song_id,
+            )
+        else:
+            song = _find_by_generated_slug(slug, db)
+            if not song:
+                raise HTTPException(404, "Song not found")
+            title = song["title"]
+            artist = song.get("artist") or ""
+            source = song.get("song_source")
+            song_id = song.get("song_id")
+
+        title_l = (title or "").strip().lower()
+        artist_l = (artist or "").strip().lower()
+
+        match_clauses = [and_(
+            func.lower(MisreadSubmission.song_title) == title_l,
+            func.lower(MisreadSubmission.song_artist) == artist_l,
+        )]
+        if source and song_id:
+            match_clauses.append(and_(
+                MisreadSubmission.song_source == source,
+                MisreadSubmission.song_id == song_id,
+            ))
+        match = or_(*match_clauses)
+
+        def _count_distinct_devices(report_type: str) -> int:
+            return db.query(func.count(func.distinct(MisreadSubmission.device_id))).filter(
+                match,
+                MisreadSubmission.report_type == report_type,
+                MisreadSubmission.device_id.isnot(None),
+            ).scalar() or 0
+
+        return {
+            "misread": _count_distinct_devices("misread"),
+            "satirical": _count_distinct_devices("satirical"),
+        }
+    finally:
+        db.close()
+
+
+@router.get("/{slug}/history")
+def song_history(slug: str):
+    """Public recalibration history for a song. Renders as small print on the
+    song page — the recalibrate suite is honest about its history because that
+    honesty IS the proof of objectivity. Lists every applied recalibration
+    chronologically with the admin-written public summary.
+    """
+    db = SessionLocal()
+    try:
+        slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
+        if slug_row:
+            source, song_id = slug_row.song_source, slug_row.song_id
+        else:
+            song = _find_by_generated_slug(slug, db)
+            if not song:
+                raise HTTPException(404, "Song not found")
+            source = song.get("song_source")
+            song_id = song.get("song_id")
+
+        if not (source and song_id):
+            return {"recalibrations": []}
+
+        rows = (
+            db.query(SongRecalibration)
+            .filter(SongRecalibration.song_source == source)
+            .filter(SongRecalibration.song_id == song_id)
+            .order_by(SongRecalibration.applied_at.desc())
+            .all()
+        )
+
+        import json as _json
+        out = []
+        for r in rows:
+            entry = {
+                "id": r.id,
+                "type": r.recalibration_type,
+                "applied_at": r.applied_at.isoformat() if r.applied_at else None,
+                "before": {
+                    "charge": r.before_charge,
+                    "color": r.before_color,
+                    "tier_label": COLOR_LABELS.get(r.before_color, ""),
+                    "tier_hex": COLOR_HEX.get(r.before_color, "#999"),
+                    "summary": r.before_summary,
+                },
+                "after": {
+                    "charge": r.after_charge,
+                    "color": r.after_color,
+                    "tier_label": COLOR_LABELS.get(r.after_color, ""),
+                    "tier_hex": COLOR_HEX.get(r.after_color, "#999"),
+                },
+                "public_summary": r.public_summary,
+                "trigger_source": r.trigger_source,
+                "flag_count_snapshot": _json.loads(r.flag_count_snapshot) if r.flag_count_snapshot else None,
+            }
+            out.append(entry)
+        return {"recalibrations": out}
+    finally:
+        db.close()
 
 
 @router.get("/{slug}")
