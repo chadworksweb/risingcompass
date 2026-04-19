@@ -385,144 +385,105 @@
     `;
   }
 
-  /* ========== TRAJECTORY CHART (SVG) ========== */
+  /* ========== TRAJECTORY CHART (SVG) ==========
+     Mirrors the homepage aggregate trajectory chart (js/app.js
+     renderTrajectoryChart) so styling + scale match: small viewBox,
+     preserveAspectRatio="none", reuses .trajectory-svg / -line / -area /
+     -grid-line / -y-label / -label / -dot classes from main.css.
+  */
 
   function renderTrajectoryChart(trajectory) {
     const container = document.getElementById('trajectory-chart');
     if (!container) return;
-    if (!trajectory || trajectory.length === 0) {
-      container.innerHTML = '<p class="chart-empty">Not enough data to render trajectory.</p>';
-      return;
-    }
 
-    const points = trajectory.filter(r => r.charge_value != null);
-    if (points.length === 0) {
+    const data = (trajectory || []).filter(r => r.charge_value != null);
+    if (data.length === 0) {
       container.innerHTML = '<p class="chart-empty">No classified releases to chart.</p>';
       return;
     }
 
-    const W = 800, H = 300;
-    const PAD = { top: 30, right: 30, bottom: 50, left: 55 };
-    const plotW = W - PAD.left - PAD.right;
-    const plotH = H - PAD.top - PAD.bottom;
+    const W = 320, H = 120;
+    const padL = 30, padR = 16, padT = 10, padB = 22;
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const maxIdx = data.length - 1;
 
-    const xPositions = [];
-    if (points.length === 1) {
-      xPositions.push(plotW / 2);
-    } else {
-      const step = plotW / (points.length - 1);
-      for (let i = 0; i < points.length; i++) xPositions.push(i * step);
-    }
-
-    function yForCharge(charge) {
-      return PAD.top + plotH * (1 - (charge + 100) / 200);
-    }
-
-    const tierBands = [
-      { min: 75, max: 100, color: '#aa54ff' },
-      { min: 25, max: 74, color: '#3388ff' },
-      { min: -24, max: 24, color: '#33cc55' },
-      { min: -74, max: -25, color: '#ffbb33' },
-      { min: -100, max: -75, color: '#ff3333' },
-    ];
-
-    let bandsHtml = '';
-    for (const band of tierBands) {
-      const y1 = yForCharge(band.max);
-      const y2 = yForCharge(band.min);
-      bandsHtml += `<rect x="${PAD.left}" y="${y1}" width="${plotW}" height="${y2 - y1}" fill="${band.color}" opacity="0.06"/>`;
-    }
-
-    const zeroY = yForCharge(0);
-    const zeroLine = `<line x1="${PAD.left}" y1="${zeroY}" x2="${PAD.left + plotW}" y2="${zeroY}" stroke="#444" stroke-dasharray="4,4" opacity="0.5"/>`;
-
-    let yLabels = '';
-    for (const val of [100, 50, 0, -50, -100]) {
-      const y = yForCharge(val);
-      yLabels += `<text x="${PAD.left - 10}" y="${y + 4}" text-anchor="end" fill="#808094" font-size="11">${val > 0 ? '+' : ''}${val}</text>`;
-    }
-
-    let pathD = '';
-    let dotsHtml = '';
-    let labelsHtml = '';
-
-    for (let i = 0; i < points.length; i++) {
-      const x = PAD.left + xPositions[i];
-      const y = yForCharge(points[i].charge_value);
-      const color = COLOR_HEX[points[i].rubric_color] || '#999';
-      const r = points[i].release_type === 'album' ? 7 : points[i].release_type === 'ep' ? 5.5 : 4;
-
-      if (i === 0) pathD += `M ${x} ${y}`;
-      else pathD += ` L ${x} ${y}`;
-
-      dotsHtml += `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="#0a0a14" stroke-width="2" class="chart-dot" data-index="${i}"/>`;
-
-      const label = points[i].release_date
-        ? new Date(points[i].release_date + 'T00:00:00').getFullYear()
-        : points[i].release_year || '';
-      if (i === 0 || i === points.length - 1 || points.length <= 10 || i % Math.ceil(points.length / 8) === 0) {
-        labelsHtml += `<text x="${x}" y="${H - 10}" text-anchor="middle" fill="#808094" font-size="11">${label}</text>`;
-      }
-    }
-
-    const firstX = PAD.left + xPositions[0];
-    const lastX = PAD.left + xPositions[xPositions.length - 1];
-    const bottomY = PAD.top + plotH;
-    const areaD = pathD + ` L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
-
-    const tooltipId = 'chart-tooltip';
-
-    container.innerHTML = `
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
-           aria-label="Artist charge trajectory chart">
-        <defs>
-          <linearGradient id="area-gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.2"/>
-            <stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        ${bandsHtml}
-        ${zeroLine}
-        ${yLabels}
-        <path d="${areaD}" fill="url(#area-gradient)"/>
-        <path d="${pathD}" fill="none" stroke="#00d4aa" stroke-width="2" stroke-linejoin="round"/>
-        ${dotsHtml}
-        ${labelsHtml}
-      </svg>
-      <div id="${tooltipId}" class="chart-tooltip" hidden></div>
-    `;
-
-    const tooltip = document.getElementById(tooltipId);
-    const svgEl = container.querySelector('svg');
-    const dots = container.querySelectorAll('.chart-dot');
-
-    dots.forEach(dot => {
-      dot.addEventListener('mouseenter', () => {
-        const idx = parseInt(dot.dataset.index);
-        const p = points[idx];
-        const color = COLOR_HEX[p.rubric_color] || '#999';
-        const dateStr = p.release_date || (p.release_year ? String(p.release_year) : 'Unknown date');
-        const charge = p.charge_value > 0 ? '+' + p.charge_value : p.charge_value;
-        tooltip.innerHTML = `
-          <div class="tt-title">${escapeHtml(p.title)}</div>
-          <div class="tt-meta">${escapeHtml(p.release_type)} &middot; ${dateStr}</div>
-          <div class="tt-charge" style="color:${color}">${charge} ${escapeHtml(p.tier_label)}</div>
-        `;
-        tooltip.hidden = false;
-
-        const rect = svgEl.getBoundingClientRect();
-        const cx = parseFloat(dot.getAttribute('cx'));
-        const cy = parseFloat(dot.getAttribute('cy'));
-        const scaleX = rect.width / W;
-        const scaleY = rect.height / H;
-        tooltip.style.left = (rect.left + cx * scaleX - tooltip.offsetWidth / 2) + 'px';
-        tooltip.style.top = (rect.top + cy * scaleY - tooltip.offsetHeight - 12) + 'px';
-      });
-
-      dot.addEventListener('mouseleave', () => {
-        tooltip.hidden = true;
-      });
+    // charge_value -100..+100  →  compass_degree 180..0   (y maps 0..chartH)
+    const points = data.map((r, i) => {
+      const degree = 90 - (r.charge_value * 0.9);
+      return {
+        x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
+        y: padT + (degree / 180) * chartH,
+        color: r.rubric_color,
+        release: r,
+      };
     });
+
+    const linePath = points.map((p, i) =>
+      `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+    ).join(' ');
+    const areaPath =
+      linePath +
+      ` L ${points[maxIdx].x.toFixed(1)} ${padT + chartH}` +
+      ` L ${points[0].x.toFixed(1)} ${padT + chartH} Z`;
+
+    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Artist charge trajectory chart">`;
+    svg += `<defs>
+      <linearGradient id="artist-traj-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+        <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
+        <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
+        <stop offset="50%" stop-color="${COLOR_HEX.green}" />
+        <stop offset="75%" stop-color="${COLOR_HEX.orange}" />
+        <stop offset="100%" stop-color="${COLOR_HEX.red}" />
+      </linearGradient>
+      <linearGradient id="artist-traj-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+        <stop offset="0%" stop-color="${COLOR_HEX.violet}" stop-opacity="0.2" />
+        <stop offset="50%" stop-color="${COLOR_HEX.green}" stop-opacity="0.05" />
+        <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
+      </linearGradient>
+    </defs>`;
+
+    // Grid + Y-axis labels
+    [
+      { deg: 0,   label: '+100' },
+      { deg: 45,  label: '' },
+      { deg: 90,  label: '0' },
+      { deg: 135, label: '' },
+      { deg: 180, label: '-100' },
+    ].forEach(({ deg, label }) => {
+      const y = padT + (deg / 180) * chartH;
+      svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
+      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}">${label}</text>`;
+    });
+
+    // Area + line
+    svg += `<path class="trajectory-area" d="${areaPath}" fill="url(#artist-traj-area-grad)" />`;
+    svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#artist-traj-grad)" />`;
+
+    // X-axis labels — first year, last year, optional midpoint
+    const yearOf = (r) =>
+      r.release_year || (r.release_date ? parseInt(r.release_date.slice(0, 4), 10) : null);
+    const firstYear = yearOf(data[0]);
+    const lastYear = yearOf(data[maxIdx]);
+    if (firstYear && lastYear && firstYear !== lastYear) {
+      svg += `<text class="trajectory-label" x="${padL.toFixed(1)}" y="${H - 4}" text-anchor="start">'${String(firstYear).slice(2)}</text>`;
+      svg += `<text class="trajectory-label" x="${(W - padR).toFixed(1)}" y="${H - 4}" text-anchor="end">'${String(lastYear).slice(2)}</text>`;
+      if (lastYear - firstYear >= 8) {
+        const midYear = Math.round((firstYear + lastYear) / 2);
+        svg += `<text class="trajectory-label" x="${(W / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">'${String(midYear).slice(2)}</text>`;
+      }
+    } else if (firstYear) {
+      svg += `<text class="trajectory-label" x="${(W / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${firstYear}</text>`;
+    }
+
+    // Per-release dots
+    for (const p of points) {
+      const hex = COLOR_HEX[p.color] || '#888';
+      svg += `<circle class="trajectory-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${hex}" />`;
+    }
+
+    svg += '</svg>';
+    container.innerHTML = svg;
   }
 
   /* ========== JSON-LD ========== */
