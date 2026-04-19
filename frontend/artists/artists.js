@@ -13,20 +13,20 @@
   };
 
   function escapeHtml(str) {
-    if (!str) return '';
+    if (str == null) return '';
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
   }
 
-  function degreeToScore(degree) {
-    const s = Math.round((90 - degree) * 100 / 90);
-    return (s > 0 ? '+' : '') + s;
-  }
-
   function announce(msg) {
     const el = document.getElementById('sr-announce');
     if (el) el.textContent = msg;
+  }
+
+  function chargeDisplay(v) {
+    if (v == null) return '';
+    return (v > 0 ? '+' : '') + v;
   }
 
   /* ========== SEARCH PAGE ========== */
@@ -121,77 +121,254 @@
     }
   }
 
-  /* ========== ARTIST TRAJECTORY PAGE ========== */
+  /* ========== ARTIST PAGE ========== */
+
+  const TOP_SONGS_PAGE_SIZE = 20;
+  const TOP_SONGS_MAX = 100;
+  const RELEASES_PAGE_SIZE = 10;
+
+  const artistPageState = {
+    slug: null,
+    topSongsOffset: 0,
+    topSongsTotal: 0,
+    releasesOffset: 0,
+    releasesTotal: 0,
+    summary: null,
+    trajectory: null,
+  };
 
   function initArtistPage() {
     const params = new URLSearchParams(window.location.search);
     const slug = params.get('slug');
     if (!slug) return;
+    artistPageState.slug = slug;
 
-    loadArtist(slug);
+    // Kick off all four requests in parallel — each section renders as it returns.
+    loadSummary(slug);
+    loadTrajectory(slug);
+    loadTopSongs(slug, 0);
+    loadReleases(slug, 0);
+
+    const moreBtn = document.getElementById('top-songs-more');
+    if (moreBtn) {
+      moreBtn.addEventListener('click', () => {
+        loadTopSongs(artistPageState.slug, artistPageState.topSongsOffset);
+      });
+    }
+    const releasesMoreBtn = document.getElementById('releases-more');
+    if (releasesMoreBtn) {
+      releasesMoreBtn.addEventListener('click', () => {
+        loadReleases(artistPageState.slug, artistPageState.releasesOffset);
+      });
+    }
   }
 
-  async function loadArtist(slug) {
+  async function loadSummary(slug) {
     try {
-      const data = await ArtistsAPI.getArtist(slug);
-
-      // Update page title and meta
-      document.getElementById('artist-name').textContent = data.name;
-      document.getElementById('page-title').textContent = `${data.name} Lyrical Charge Trajectory — The Rising Compass`;
-      document.getElementById('meta-description').content =
-        `Lyrical charge trajectory for ${data.name}. ${data.stats.total_calibrated_songs} songs classified by The Rising Compass.`;
-      document.getElementById('og-title').content = `${data.name} — Lyrical Charge Trajectory`;
-      document.getElementById('og-description').content =
-        `${data.name} catalog charge: ${data.stats.catalog_charge !== null ? (data.stats.catalog_charge > 0 ? '+' : '') + data.stats.catalog_charge : 'N/A'} (${data.stats.catalog_tier_label || 'Unclassified'}).`;
+      const data = await ArtistsAPI.getArtistSummary(slug);
+      artistPageState.summary = data;
+      renderHeader(data);
+      renderCatalogCompass(data.stats);
+      renderBreakdown(data.stats);
+      maybeInjectJsonLd();
 
       if (data.stats.total_calibrated_songs === 0) {
         document.getElementById('zero-state').hidden = false;
-        return;
       }
-
-      renderStatsBar(data.stats);
-      renderTrajectoryChart(data.trajectory);
-      renderReleaseList(data.trajectory, slug);
-      injectJsonLd(data);
-
-      announce(`Loaded trajectory for ${data.name}`);
     } catch (err) {
-      console.error('Failed to load artist:', err);
+      console.error('Failed to load summary:', err);
       document.getElementById('artist-name').textContent = 'Artist not found';
     }
   }
 
-  function renderStatsBar(stats) {
-    const container = document.getElementById('stats-bar');
-    const tierColor = COLOR_HEX[stats.catalog_tier] || '#999';
-    const chargeDisplay = stats.catalog_charge !== null
-      ? (stats.catalog_charge > 0 ? '+' : '') + stats.catalog_charge
-      : 'N/A';
+  async function loadTrajectory(slug) {
+    try {
+      const data = await ArtistsAPI.getArtistTrajectory(slug);
+      artistPageState.trajectory = data.points || [];
+      renderTrajectoryChart(artistPageState.trajectory);
+      maybeInjectJsonLd();
+    } catch (err) {
+      console.error('Failed to load trajectory:', err);
+      const el = document.getElementById('trajectory-chart');
+      if (el) el.innerHTML = '<p class="chart-empty">Couldn\'t load trajectory.</p>';
+    }
+  }
 
-    let breakdownHtml = '';
-    for (const [color, count] of Object.entries(stats.tier_breakdown)) {
+  async function loadTopSongs(slug, offset) {
+    const list = document.getElementById('top-songs-list');
+    const moreBtn = document.getElementById('top-songs-more');
+    try {
+      const data = await ArtistsAPI.getArtistTopSongs(slug, offset, TOP_SONGS_PAGE_SIZE);
+      artistPageState.topSongsTotal = data.total;
+      artistPageState.topSongsOffset = offset + data.items.length;
+
+      const itemsHtml = data.items.map((s, i) => renderTopSongRow(s, offset + i + 1)).join('');
+
+      if (offset === 0) {
+        if (data.items.length === 0) {
+          list.innerHTML = '<li class="empty-row">No classified songs yet.</li>';
+        } else {
+          list.innerHTML = itemsHtml;
+        }
+      } else {
+        list.insertAdjacentHTML('beforeend', itemsHtml);
+      }
+
+      if (moreBtn) {
+        const shown = artistPageState.topSongsOffset;
+        const remaining = Math.min(artistPageState.topSongsTotal, TOP_SONGS_MAX) - shown;
+        if (remaining > 0) {
+          moreBtn.textContent = `View ${Math.min(TOP_SONGS_PAGE_SIZE, remaining)} more`;
+          moreBtn.hidden = false;
+        } else {
+          moreBtn.hidden = true;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load top songs:', err);
+      if (offset === 0) list.innerHTML = '<li class="error-message">Couldn\'t load top songs.</li>';
+    }
+  }
+
+  async function loadReleases(slug, offset) {
+    const list = document.getElementById('releases-list');
+    const moreBtn = document.getElementById('releases-more');
+    try {
+      const data = await ArtistsAPI.getArtistReleases(slug, offset, RELEASES_PAGE_SIZE, 'desc');
+      artistPageState.releasesTotal = data.total;
+      artistPageState.releasesOffset = offset + data.items.length;
+
+      const itemsHtml = data.items.map(renderReleaseRow).join('');
+
+      if (offset === 0) {
+        if (data.items.length === 0) {
+          list.innerHTML = '<li class="empty-row">No releases indexed yet.</li>';
+        } else {
+          list.innerHTML = itemsHtml;
+        }
+      } else {
+        list.insertAdjacentHTML('beforeend', itemsHtml);
+      }
+
+      if (moreBtn) {
+        const remaining = artistPageState.releasesTotal - artistPageState.releasesOffset;
+        if (remaining > 0) {
+          moreBtn.textContent = `View ${Math.min(RELEASES_PAGE_SIZE, remaining)} more`;
+          moreBtn.hidden = false;
+        } else {
+          moreBtn.hidden = true;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load releases:', err);
+      if (offset === 0) list.innerHTML = '<li class="error-message">Couldn\'t load releases.</li>';
+    }
+  }
+
+  /* ---------- renderers ---------- */
+
+  function renderHeader(data) {
+    document.getElementById('artist-name').textContent = data.name;
+    document.getElementById('page-title').textContent =
+      `${data.name} Lyrical Charge Trajectory — The Rising Compass`;
+    const stats = data.stats || {};
+    const chargeLabel = stats.catalog_charge != null
+      ? `${chargeDisplay(stats.catalog_charge)} (${stats.catalog_tier_label || 'Unclassified'})`
+      : 'N/A';
+    document.getElementById('meta-description').content =
+      `Lyrical charge trajectory for ${data.name}. ${stats.total_calibrated_songs} songs classified. Catalog charge ${chargeLabel}.`;
+    document.getElementById('og-title').content =
+      `${data.name} — Lyrical Charge Trajectory`;
+    document.getElementById('og-description').content =
+      `${data.name} catalog charge: ${chargeLabel}.`;
+    announce(`Loaded trajectory for ${data.name}`);
+  }
+
+  function renderCatalogCompass(stats) {
+    // The Compass component expects a container id. Render once, then drive it.
+    if (typeof Compass !== 'undefined') {
+      Compass.render('artist-compass-container');
+      if (stats.catalog_degree != null && stats.catalog_tier) {
+        Compass.setDegree(stats.catalog_degree, stats.catalog_tier);
+      }
+    }
+    if (typeof Charge !== 'undefined') {
+      Charge.render('artist-charge-container');
+      if (stats.catalog_tier && stats.catalog_degree != null) {
+        // Charge.setLevel(color, redCount, totalSongs, degree)
+        Charge.setLevel(stats.catalog_tier, 0, stats.total_calibrated_songs || 0, stats.catalog_degree);
+      }
+    }
+  }
+
+  function renderBreakdown(stats) {
+    const container = document.getElementById('artist-breakdown');
+    if (!container) return;
+
+    const totalReleases = stats.total_releases || 0;
+    const totalSongs = stats.total_calibrated_songs || 0;
+
+    let pillsHtml = '';
+    for (const [color, count] of Object.entries(stats.tier_breakdown || {})) {
       if (count > 0) {
-        breakdownHtml += `<span class="tier-pill" style="background:${COLOR_HEX[color]}20;color:${COLOR_HEX[color]}">${CHARGE_LABELS[color]} ${count}</span>`;
+        pillsHtml += `<span class="tier-pill" style="background:${COLOR_HEX[color]}20;color:${COLOR_HEX[color]}">${CHARGE_LABELS[color]} ${count}</span>`;
       }
     }
 
     container.innerHTML = `
-      <div class="stat-card">
-        <span class="stat-value">${stats.total_releases}</span>
-        <span class="stat-label">Release${stats.total_releases !== 1 ? 's' : ''}</span>
+      <div class="artist-breakdown-row">
+        <div class="artist-breakdown-stat">
+          <span class="stat-value">${totalReleases}</span>
+          <span class="stat-label">Release${totalReleases !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="artist-breakdown-stat">
+          <span class="stat-value">${totalSongs}</span>
+          <span class="stat-label">Song${totalSongs !== 1 ? 's' : ''} Classified</span>
+        </div>
       </div>
-      <div class="stat-card">
-        <span class="stat-value">${stats.total_calibrated_songs}</span>
-        <span class="stat-label">Songs Classified</span>
-      </div>
-      <div class="stat-card stat-card--charge">
-        <span class="stat-dot" style="background:${tierColor}"></span>
-        <span class="stat-value" style="color:${tierColor}">${chargeDisplay}</span>
-        <span class="stat-label">${stats.catalog_tier_label || ''}</span>
-      </div>
-      <div class="stat-card stat-card--breakdown">
-        <div class="tier-pills">${breakdownHtml}</div>
-      </div>
+      ${pillsHtml ? `<div class="tier-pills">${pillsHtml}</div>` : ''}
+    `;
+  }
+
+  function renderTopSongRow(s, rank) {
+    const color = COLOR_HEX[s.rubric_color] || '#999';
+    const charge = chargeDisplay(s.charge_value);
+    const titleHtml = escapeHtml(s.title);
+    const titleNode = s.slug
+      ? `<a class="song-title-link" href="/songs/song.html?slug=${encodeURIComponent(s.slug)}">${titleHtml}</a>`
+      : `<span class="song-title">${titleHtml}</span>`;
+    return `
+      <li class="song-item artist-top-song-item">
+        <span class="top-song-rank">${rank}</span>
+        <span class="song-dot" style="background:${color}"></span>
+        <div class="song-info">
+          ${titleNode}
+        </div>
+        <span class="song-charge" style="color:${color}">${charge}</span>
+      </li>
+    `;
+  }
+
+  function renderReleaseRow(r) {
+    const color = COLOR_HEX[r.rubric_color] || '#999';
+    const charge = chargeDisplay(r.charge_value);
+    const typeLabel = r.release_type === 'album' ? 'Album'
+      : r.release_type === 'ep' ? 'EP' : 'Single';
+    const dateDisplay = r.release_date || (r.release_year ? String(r.release_year) : '');
+    return `
+      <li class="release-compact-item">
+        <span class="release-dot" style="background:${color}"></span>
+        <div class="release-compact-main">
+          <span class="release-compact-title">${escapeHtml(r.title)}</span>
+          <span class="release-compact-meta">
+            <span class="release-type">${typeLabel}</span>
+            ${dateDisplay ? `<span class="release-date">${dateDisplay}</span>` : ''}
+          </span>
+        </div>
+        <span class="release-compact-charge" style="color:${color}" aria-label="${escapeHtml(r.tier_label || '')}">
+          ${charge || '·'}
+        </span>
+      </li>
     `;
   }
 
@@ -199,12 +376,12 @@
 
   function renderTrajectoryChart(trajectory) {
     const container = document.getElementById('trajectory-chart');
+    if (!container) return;
     if (!trajectory || trajectory.length === 0) {
       container.innerHTML = '<p class="chart-empty">Not enough data to render trajectory.</p>';
       return;
     }
 
-    // Filter to releases with charge data
     const points = trajectory.filter(r => r.charge_value != null);
     if (points.length === 0) {
       container.innerHTML = '<p class="chart-empty">No classified releases to chart.</p>';
@@ -216,23 +393,18 @@
     const plotW = W - PAD.left - PAD.right;
     const plotH = H - PAD.top - PAD.bottom;
 
-    // X positioning: evenly spaced if only release_year, proportional if dates
     const xPositions = [];
     if (points.length === 1) {
       xPositions.push(plotW / 2);
     } else {
       const step = plotW / (points.length - 1);
-      for (let i = 0; i < points.length; i++) {
-        xPositions.push(i * step);
-      }
+      for (let i = 0; i < points.length; i++) xPositions.push(i * step);
     }
 
-    // Y: charge -100 to +100 mapped to plotH (top = +100, bottom = -100)
     function yForCharge(charge) {
       return PAD.top + plotH * (1 - (charge + 100) / 200);
     }
 
-    // Tier background bands
     const tierBands = [
       { min: 75, max: 100, color: '#aa54ff' },
       { min: 25, max: 74, color: '#3388ff' },
@@ -248,18 +420,15 @@
       bandsHtml += `<rect x="${PAD.left}" y="${y1}" width="${plotW}" height="${y2 - y1}" fill="${band.color}" opacity="0.06"/>`;
     }
 
-    // Zero line
     const zeroY = yForCharge(0);
     const zeroLine = `<line x1="${PAD.left}" y1="${zeroY}" x2="${PAD.left + plotW}" y2="${zeroY}" stroke="#444" stroke-dasharray="4,4" opacity="0.5"/>`;
 
-    // Y axis labels
     let yLabels = '';
     for (const val of [100, 50, 0, -50, -100]) {
       const y = yForCharge(val);
       yLabels += `<text x="${PAD.left - 10}" y="${y + 4}" text-anchor="end" fill="#808094" font-size="11">${val > 0 ? '+' : ''}${val}</text>`;
     }
 
-    // Build path and dots
     let pathD = '';
     let dotsHtml = '';
     let labelsHtml = '';
@@ -273,10 +442,8 @@
       if (i === 0) pathD += `M ${x} ${y}`;
       else pathD += ` L ${x} ${y}`;
 
-      // Dot
       dotsHtml += `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="#0a0a14" stroke-width="2" class="chart-dot" data-index="${i}"/>`;
 
-      // X axis label (year or date)
       const label = points[i].release_date
         ? new Date(points[i].release_date + 'T00:00:00').getFullYear()
         : points[i].release_year || '';
@@ -285,16 +452,14 @@
       }
     }
 
-    // Area fill under the line
     const firstX = PAD.left + xPositions[0];
     const lastX = PAD.left + xPositions[xPositions.length - 1];
     const bottomY = PAD.top + plotH;
     const areaD = pathD + ` L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
 
-    // Tooltip (hidden, positioned on hover)
     const tooltipId = 'chart-tooltip';
 
-    const svg = `
+    container.innerHTML = `
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
            aria-label="Artist charge trajectory chart">
         <defs>
@@ -314,15 +479,12 @@
       <div id="${tooltipId}" class="chart-tooltip" hidden></div>
     `;
 
-    container.innerHTML = svg;
-
-    // Tooltip interaction
     const tooltip = document.getElementById(tooltipId);
     const svgEl = container.querySelector('svg');
     const dots = container.querySelectorAll('.chart-dot');
 
     dots.forEach(dot => {
-      dot.addEventListener('mouseenter', (e) => {
+      dot.addEventListener('mouseenter', () => {
         const idx = parseInt(dot.dataset.index);
         const p = points[idx];
         const color = COLOR_HEX[p.rubric_color] || '#999';
@@ -335,7 +497,6 @@
         `;
         tooltip.hidden = false;
 
-        // Position tooltip
         const rect = svgEl.getBoundingClientRect();
         const cx = parseFloat(dot.getAttribute('cx'));
         const cy = parseFloat(dot.getAttribute('cy'));
@@ -348,122 +509,20 @@
       dot.addEventListener('mouseleave', () => {
         tooltip.hidden = true;
       });
-
-      // Click scrolls to release in list
-      dot.addEventListener('click', () => {
-        const idx = parseInt(dot.dataset.index);
-        const releaseEl = document.querySelector(`[data-release-id="${points[idx].id}"]`);
-        if (releaseEl) {
-          releaseEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          releaseEl.classList.add('release-highlight');
-          setTimeout(() => releaseEl.classList.remove('release-highlight'), 1500);
-        }
-      });
-    });
-  }
-
-  /* ========== RELEASE LIST ========== */
-
-  function renderReleaseList(trajectory, artistSlug) {
-    const container = document.getElementById('release-list');
-    if (!trajectory || trajectory.length === 0) return;
-
-    let html = '<h2 class="section-title">Releases</h2>';
-
-    for (const r of trajectory) {
-      const color = COLOR_HEX[r.rubric_color] || '#999';
-      const chargeDisplay = r.charge_value != null
-        ? (r.charge_value > 0 ? '+' : '') + r.charge_value
-        : 'N/A';
-      const dateDisplay = r.release_date || (r.release_year ? String(r.release_year) : '');
-      const typeLabel = r.release_type === 'album' ? 'Album'
-        : r.release_type === 'ep' ? 'EP' : 'Single';
-
-      html += `
-        <div class="release-card" data-release-id="${r.id}">
-          <div class="release-header">
-            <span class="release-dot" style="background:${color}"></span>
-            <div class="release-info">
-              <span class="release-title">${escapeHtml(r.title)}</span>
-              <span class="release-meta">
-                <span class="release-type">${typeLabel}</span>
-                ${dateDisplay ? `<span class="release-date">${dateDisplay}</span>` : ''}
-              </span>
-            </div>
-            <div class="release-charge" style="color:${color}">
-              <span class="release-charge-value">${chargeDisplay}</span>
-              <span class="release-charge-tier">${escapeHtml(r.tier_label)}</span>
-            </div>
-          </div>
-          <div class="release-stats">
-            <span>${r.calibrated_count}/${r.track_count} tracks classified</span>
-            ${r.contamination_count > 0 ? `<span class="release-contam">${r.contamination_count} contaminated</span>` : ''}
-          </div>
-          <div class="release-songs" id="release-songs-${r.id}" hidden>
-            <div class="release-songs-loading">Loading songs...</div>
-          </div>
-          <button class="release-expand" data-release-id="${r.id}" data-artist-slug="${artistSlug}" aria-expanded="false">
-            Show songs
-          </button>
-        </div>
-      `;
-    }
-
-    container.innerHTML = html;
-
-    // Expand/collapse handlers
-    container.querySelectorAll('.release-expand').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const rid = btn.dataset.releaseId;
-        const slug = btn.dataset.artistSlug;
-        const songsContainer = document.getElementById(`release-songs-${rid}`);
-        const expanded = btn.getAttribute('aria-expanded') === 'true';
-
-        if (expanded) {
-          songsContainer.hidden = true;
-          btn.setAttribute('aria-expanded', 'false');
-          btn.textContent = 'Show songs';
-        } else {
-          songsContainer.hidden = false;
-          btn.setAttribute('aria-expanded', 'true');
-          btn.textContent = 'Hide songs';
-
-          // Load songs if not yet loaded
-          if (songsContainer.querySelector('.release-songs-loading')) {
-            try {
-              const data = await ArtistsAPI.getArtistSongs(slug, rid, 0, 50);
-              let songsHtml = '<ul class="song-list">';
-              for (const s of data.items) {
-                const sColor = COLOR_HEX[s.rubric_color] || '#999';
-                const sCharge = s.charge_value != null
-                  ? (s.charge_value > 0 ? '+' : '') + s.charge_value
-                  : '';
-                songsHtml += `<li class="song-item">
-                  <span class="song-dot" style="background:${sColor}"></span>
-                  <div class="song-info">
-                    <span class="song-title">${escapeHtml(s.title)}</span>
-                  </div>
-                  <span class="song-charge" style="color:${sColor}">${sCharge}</span>
-                </li>`;
-              }
-              songsHtml += '</ul>';
-              songsContainer.innerHTML = songsHtml;
-            } catch (err) {
-              songsContainer.innerHTML = '<p class="error-message">Failed to load songs.</p>';
-            }
-          }
-        }
-      });
     });
   }
 
   /* ========== JSON-LD ========== */
 
-  function injectJsonLd(data) {
+  function maybeInjectJsonLd() {
+    // We need both summary and trajectory to paint the full payload.
+    const { summary, trajectory } = artistPageState;
+    if (!summary || !trajectory) return;
+
     const el = document.getElementById('json-ld');
     if (!el) return;
 
-    const releases = (data.trajectory || []).map(r => ({
+    const releases = (trajectory || []).map(r => ({
       '@type': 'MusicAlbum',
       name: r.title,
       albumReleaseType: r.release_type === 'album' ? 'AlbumRelease'
@@ -481,12 +540,12 @@
         { rc: 'https://risingcompass.net/schema/' },
       ],
       '@type': 'MusicGroup',
-      name: data.name,
-      url: `https://risingcompass.net/artists/artist.html?slug=${data.slug}`,
+      name: summary.name,
+      url: `https://risingcompass.net/artists/artist.html?slug=${summary.slug}`,
       additionalProperty: [
-        { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogCharge', name: 'Catalog Charge', value: data.stats.catalog_charge, minValue: -100, maxValue: 100 },
-        { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogTier', name: 'Catalog Classification', value: data.stats.catalog_tier_label },
-        { '@type': 'PropertyValue', propertyID: 'RisingCompassClassifiedSongs', name: 'Total Classified Songs', value: data.stats.total_calibrated_songs },
+        { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogCharge', name: 'Catalog Charge', value: summary.stats.catalog_charge, minValue: -100, maxValue: 100 },
+        { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogTier', name: 'Catalog Classification', value: summary.stats.catalog_tier_label },
+        { '@type': 'PropertyValue', propertyID: 'RisingCompassClassifiedSongs', name: 'Total Classified Songs', value: summary.stats.total_calibrated_songs },
       ],
       album: releases,
     };
@@ -496,7 +555,6 @@
 
   /* ========== INIT ========== */
 
-  // Detect which page we're on
   if (document.getElementById('search-input')) {
     initSearchPage();
   }

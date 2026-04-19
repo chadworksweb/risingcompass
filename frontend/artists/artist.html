@@ -16,6 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/compass.css">
   <link rel="stylesheet" href="artists.css">
 </head>
 <body>
@@ -26,25 +27,54 @@
       <span class="back-arrow">&larr;</span>
       <span>Search</span>
     </a>
-    <h1 id="artist-name" class="artist-page-title">Loading...</h1>
+    <h1 id="artist-name" class="artist-page-title">Loading&hellip;</h1>
   </header>
 
-  <main id="main">
+  <main id="main" class="main-dashboard artist-dashboard">
 
-    <!-- Trajectory Chart -->
-    <section class="trajectory-section" aria-label="Charge trajectory chart">
-      <div id="trajectory-chart" class="trajectory-chart"></div>
-    </section>
+    <!-- LEFT COLUMN: compass → trajectory → top songs -->
+    <div class="artist-left-col">
 
-    <!-- Stats Bar -->
-    <section id="stats-bar" class="stats-bar" aria-label="Catalog statistics">
-      <!-- Populated by JS -->
-    </section>
+      <!-- Compass reading -->
+      <div class="card" id="artist-compass-panel" style="position:relative;">
+        <div class="card-header">Catalog Charge</div>
+        <div id="artist-compass-container"></div>
+        <div id="artist-charge-container" style="margin-top:1rem;"></div>
+        <div id="artist-breakdown" class="artist-breakdown">
+          <div class="loading" role="status">Loading&hellip;</div>
+        </div>
+      </div>
 
-    <!-- Release List -->
-    <section id="release-list" class="release-list" aria-label="Releases">
-      <!-- Populated by JS -->
-    </section>
+      <!-- Trajectory chart -->
+      <div class="card" id="artist-trajectory-panel">
+        <div class="card-header">Trajectory</div>
+        <p class="card-desc">Charge across this artist's releases, oldest to newest.</p>
+        <div id="trajectory-chart" class="trajectory-chart"></div>
+      </div>
+
+      <!-- Top songs (ranked by charge) -->
+      <div class="card" id="artist-top-songs-panel">
+        <div class="card-header">Top Songs</div>
+        <p class="card-desc">Songs from this catalog ranked by lyrical charge.</p>
+        <ul id="top-songs-list" class="song-list artist-top-songs">
+          <li class="loading" role="status">Loading&hellip;</li>
+        </ul>
+        <button id="top-songs-more" class="top-songs-more" type="button" hidden>View 20 more</button>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: latest releases -->
+    <div class="artist-right-col">
+      <div class="card" id="artist-releases-panel">
+        <div class="card-header">Latest Releases</div>
+        <p class="card-desc">Newest first.</p>
+        <ul id="releases-list" class="release-compact-list">
+          <li class="loading" role="status">Loading&hellip;</li>
+        </ul>
+        <button id="releases-more" class="releases-more" type="button" hidden>View more</button>
+      </div>
+    </div>
 
     <!-- Zero-data state -->
     <div id="zero-state" class="zero-state" hidden>
@@ -60,6 +90,8 @@
 
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
+  <script src="../js/compass.js"></script>
+  <script src="../js/charge.js"></script>
   <script src="artists-api.js"></script>
   <script src="artists.js"></script>
 </body>

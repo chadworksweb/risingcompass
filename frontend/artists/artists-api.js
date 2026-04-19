@@ -21,6 +21,12 @@ const ArtistsAPI = (() => {
   return {
     searchArtists: (q, limit = 20) => get(`/api/artists/search?q=${encodeURIComponent(q)}&limit=${limit}`),
     getArtist: (slug) => get(`/api/artists/${slug}`),
+    getArtistSummary: (slug) => get(`/api/artists/${slug}/summary`),
+    getArtistTrajectory: (slug) => get(`/api/artists/${slug}/trajectory`),
+    getArtistReleases: (slug, offset = 0, limit = 10, order = 'desc') =>
+      get(`/api/artists/${slug}/releases?offset=${offset}&limit=${limit}&order=${order}`),
+    getArtistTopSongs: (slug, offset = 0, limit = 20) =>
+      get(`/api/artists/${slug}/top-songs?offset=${offset}&limit=${limit}`),
     getArtistSongs: (slug, releaseId, offset = 0, limit = 20) => {
       let path = `/api/artists/${slug}/songs?offset=${offset}&limit=${limit}`;
       if (releaseId != null) path += `&release_id=${releaseId}`;

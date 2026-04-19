@@ -515,7 +515,162 @@ body {
   padding: 0.5rem;
 }
 
+/* --- Artist page (two-column redesign) --- */
+.artist-dashboard {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.artist-left-col,
+.artist-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rc-gap-panel, 1.5rem);
+  min-width: 0;  /* lets children shrink inside grid */
+}
+
+/* Breakdown under the compass */
+.artist-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.artist-breakdown-row {
+  display: flex;
+  gap: 1.25rem;
+  justify-content: center;
+}
+
+.artist-breakdown-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.artist-breakdown .tier-pills {
+  justify-content: center;
+}
+
+/* Top songs list */
+.artist-top-songs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.artist-top-song-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--rc-divider);
+}
+
+.top-song-rank {
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  min-width: 2.25em;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.song-title-link {
+  color: var(--rc-text-bright);
+  text-decoration: none;
+  font-size: 0.88rem;
+  border-bottom: 1px dashed transparent;
+  transition: border-color var(--rc-ease);
+}
+
+.song-title-link:hover {
+  border-bottom-color: var(--rc-accent);
+}
+
+.top-songs-more,
+.releases-more {
+  display: block;
+  width: 100%;
+  margin-top: 0.75rem;
+  background: none;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font);
+  font-size: 0.82rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: color var(--rc-ease), border-color var(--rc-ease);
+}
+
+.top-songs-more:hover,
+.releases-more:hover {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+}
+
+/* Compact release list (right column) */
+.release-compact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.release-compact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.25rem;
+  border-bottom: 1px solid var(--rc-divider);
+}
+
+.release-compact-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.release-compact-title {
+  color: var(--rc-text-bright);
+  font-size: 0.88rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-compact-meta {
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  display: flex;
+  gap: 0.4rem;
+}
+
+.release-compact-charge {
+  font-family: var(--rc-font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.empty-row {
+  color: var(--rc-text-dim);
+  font-size: 0.85rem;
+  padding: 0.75rem 0;
+  text-align: center;
+  list-style: none;
+}
+
 /* --- Responsive --- */
+@media (max-width: 900px) {
+  .artist-dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .artists-header { padding: 0.75rem 1rem; }
   .artist-page-title { font-size: 1.2rem; }
