@@ -15,6 +15,15 @@ from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import (
     count_songs_by_artist, derive_tier, generate_song_slug,
 )
+from app.services.compass_calc import charge_to_degree
+from app.services.charge_calc import degree_to_charge
+
+
+_SONG_MODEL_MAP = {
+    "compass": CompassSong,
+    "library": LibrarySong,
+    "submitted": SubmittedSong,
+}
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +96,259 @@ def artist_search(
                     })
 
         return {"results": results}
+    finally:
+        db.close()
+
+
+def _song_charges_for_artist(artist_id: int, db) -> list[int]:
+    """All per-song charge_values for this artist's releases, one query per source table.
+
+    Each source table is joined to release_songs in a single query — no N+1.
+    """
+    charges: list[int] = []
+    for source, Model in _SONG_MODEL_MAP.items():
+        rows = (
+            db.query(Model.charge_value)
+            .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
+            .join(Release, ReleaseSong.release_id == Release.id)
+            .filter(Release.artist_id == artist_id)
+            .filter(Model.charge_value.isnot(None))
+            .all()
+        )
+        charges.extend(r[0] for r in rows)
+    return charges
+
+
+@router.get("/{slug}/summary")
+def artist_summary(slug: str):
+    """Lightweight summary — catalog charge, degree, tier, totals, breakdown.
+
+    No release list, no song list. Keeps the artist page header fast to paint.
+    """
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+
+        # Totals + tier breakdown from the releases table directly
+        release_rows = (
+            db.query(Release.rubric_color)
+            .filter(Release.artist_id == artist.id)
+            .all()
+        )
+        total_releases = len(release_rows)
+        tier_breakdown = {"violet": 0, "blue": 0, "green": 0, "orange": 0, "red": 0}
+        for (color,) in release_rows:
+            if color in tier_breakdown:
+                tier_breakdown[color] += 1
+
+        # Catalog charge = mean of individual song charges (not mean-of-means)
+        song_charges = _song_charges_for_artist(artist.id, db)
+        total_calibrated = len(song_charges)
+
+        catalog_charge = None
+        catalog_degree = None
+        catalog_tier = None
+        catalog_tier_label = None
+        catalog_tier_hex = None
+        if song_charges:
+            catalog_charge = round(sum(song_charges) / len(song_charges))
+            catalog_degree = charge_to_degree(catalog_charge)
+            catalog_tier = degree_to_charge(catalog_degree)
+            catalog_tier_label = COLOR_LABELS.get(catalog_tier, "")
+            catalog_tier_hex = COLOR_HEX.get(catalog_tier, "#999")
+
+        return {
+            "name": artist.name,
+            "slug": artist.slug,
+            "stats": {
+                "total_releases": total_releases,
+                "total_calibrated_songs": total_calibrated,
+                "catalog_charge": catalog_charge,
+                "catalog_degree": catalog_degree,
+                "catalog_tier": catalog_tier,
+                "catalog_tier_label": catalog_tier_label,
+                "catalog_tier_hex": catalog_tier_hex,
+                "tier_breakdown": tier_breakdown,
+            },
+        }
+    finally:
+        db.close()
+
+
+@router.get("/{slug}/trajectory")
+def artist_trajectory_points(slug: str):
+    """All releases formatted for the trajectory chart. No song resolution.
+
+    One SELECT — returns only fields stored on the Release row. Fast even for
+    catalogs with hundreds of releases (Beatles etc).
+    """
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+
+        rows = (
+            db.query(Release)
+            .filter(Release.artist_id == artist.id)
+            .order_by(
+                Release.release_date.asc().nullslast(),
+                Release.release_year.asc().nullslast(),
+                Release.title.asc(),
+            )
+            .all()
+        )
+
+        points = [
+            {
+                "id": r.id,
+                "title": r.title,
+                "release_type": r.release_type,
+                "release_date": r.release_date.isoformat() if r.release_date else None,
+                "release_year": r.release_year,
+                "charge_value": r.charge_value,
+                "rubric_color": r.rubric_color,
+                "tier_label": COLOR_LABELS.get(r.rubric_color, ""),
+                "tier_hex": COLOR_HEX.get(r.rubric_color, "#999"),
+            }
+            for r in rows
+        ]
+        return {"points": points}
+    finally:
+        db.close()
+
+
+@router.get("/{slug}/releases")
+def artist_releases(
+    slug: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+):
+    """Paginated release list. Default newest-first for the right-column panel."""
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+
+        base = db.query(Release).filter(Release.artist_id == artist.id)
+        total = base.with_entities(func.count(Release.id)).scalar() or 0
+
+        if order == "desc":
+            base = base.order_by(
+                Release.release_date.desc().nullslast(),
+                Release.release_year.desc().nullslast(),
+                Release.title.asc(),
+            )
+        else:
+            base = base.order_by(
+                Release.release_date.asc().nullslast(),
+                Release.release_year.asc().nullslast(),
+                Release.title.asc(),
+            )
+
+        rows = base.offset(offset).limit(limit).all()
+
+        items = [
+            {
+                "id": r.id,
+                "title": r.title,
+                "release_type": r.release_type,
+                "release_date": r.release_date.isoformat() if r.release_date else None,
+                "release_year": r.release_year,
+                "charge_value": r.charge_value,
+                "rubric_color": r.rubric_color,
+                "tier_label": COLOR_LABELS.get(r.rubric_color, ""),
+                "tier_hex": COLOR_HEX.get(r.rubric_color, "#999"),
+                "track_count": r.track_count,
+                "calibrated_count": r.calibrated_count,
+                "contamination_count": r.contamination_count,
+            }
+            for r in rows
+        ]
+        return {"items": items, "total": total, "offset": offset, "limit": limit}
+    finally:
+        db.close()
+
+
+@router.get("/{slug}/top-songs")
+def artist_top_songs(
+    slug: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Songs across an artist's catalog ranked by charge_value DESC, paginated.
+
+    Merges the three song source tables (compass / library / submitted) via
+    release_songs → releases. Joins song_slugs so each item has a URL slug
+    when one exists.
+    """
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+
+        items: list[dict] = []
+        for source, Model in _SONG_MODEL_MAP.items():
+            # One query per source table, pulling only what the UI needs.
+            # charge_value IS NOT NULL — ranking unclassified songs makes no sense.
+            rows = (
+                db.query(
+                    Model.id,
+                    Model.title,
+                    Model.artist if hasattr(Model, "artist") else None,
+                    Model.rubric_color,
+                    Model.charge_value,
+                    Model.contaminated if hasattr(Model, "contaminated") else None,
+                )
+                .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
+                .join(Release, ReleaseSong.release_id == Release.id)
+                .filter(Release.artist_id == artist.id)
+                .filter(Model.charge_value.isnot(None))
+                .all()
+            )
+            for song_id, title, song_artist, rubric_color, charge_value, contaminated in rows:
+                items.append({
+                    "song_source": source,
+                    "song_id": song_id,
+                    "title": title,
+                    "artist": song_artist or artist.name,
+                    "rubric_color": rubric_color,
+                    "charge_value": charge_value,
+                    "tier_label": COLOR_LABELS.get(rubric_color, ""),
+                    "tier_hex": COLOR_HEX.get(rubric_color, "#999"),
+                    "contaminated": bool(contaminated) if contaminated is not None else False,
+                })
+
+        # Rank merged list, then paginate. For typical catalogs (<=1000 songs)
+        # this in-Python sort is cheaper than a SQL UNION ALL with ORDER BY.
+        items.sort(key=lambda x: (x["charge_value"] is None, -(x["charge_value"] or 0)))
+        total = len(items)
+        page = items[offset:offset + limit]
+
+        # Attach song_slugs in one lookup for the page we're returning
+        if page:
+            keys = [(it["song_source"], it["song_id"]) for it in page]
+            # song_slugs indexes by (song_source, song_id) — query in one IN clause per source
+            slug_map: dict[tuple, str] = {}
+            for source in {k[0] for k in keys}:
+                ids = [k[1] for k in keys if k[0] == source]
+                rows = (
+                    db.query(SongSlug.song_source, SongSlug.song_id, SongSlug.slug)
+                    .filter(SongSlug.song_source == source)
+                    .filter(SongSlug.song_id.in_(ids))
+                    .all()
+                )
+                for s, sid, slug_value in rows:
+                    slug_map[(s, sid)] = slug_value
+            for it in page:
+                it["slug"] = slug_map.get((it["song_source"], it["song_id"]))
+
+        return {"items": page, "total": total, "offset": offset, "limit": limit}
     finally:
         db.close()
 
