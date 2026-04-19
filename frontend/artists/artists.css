@@ -515,18 +515,26 @@ body {
   padding: 0.5rem;
 }
 
-/* --- Artist page (two-column redesign) --- */
-.artist-dashboard {
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-}
-
-.artist-left-col,
-.artist-right-col {
+/* --- Artist page (two-row redesign) --- */
+.artist-main {
+  max-width: var(--rc-max-width, 1200px);
+  margin: var(--rc-gap-dashboard, 2rem) auto;
+  padding: 0 var(--rc-card-padding, 1.5rem);
   display: flex;
   flex-direction: column;
   gap: var(--rc-gap-panel, 1.5rem);
-  min-width: 0;  /* lets children shrink inside grid */
 }
+
+.artist-row {
+  display: grid;
+  gap: var(--rc-gap-panel, 1.5rem);
+  min-width: 0;
+}
+
+.artist-row-1-2 { grid-template-columns: 1fr 2fr; }
+.artist-row-1-1 { grid-template-columns: 1fr 1fr; }
+
+.artist-row > .card { min-width: 0; }
 
 /* Breakdown under the compass */
 .artist-breakdown {
@@ -666,7 +674,8 @@ body {
 
 /* --- Responsive --- */
 @media (max-width: 900px) {
-  .artist-dashboard {
+  .artist-row-1-2,
+  .artist-row-1-1 {
     grid-template-columns: 1fr;
   }
 }

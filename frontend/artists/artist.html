@@ -30,12 +30,10 @@
     <h1 id="artist-name" class="artist-page-title">Loading&hellip;</h1>
   </header>
 
-  <main id="main" class="main-dashboard artist-dashboard">
+  <main id="main" class="artist-main">
 
-    <!-- LEFT COLUMN: compass → trajectory → top songs -->
-    <div class="artist-left-col">
-
-      <!-- Compass reading -->
+    <!-- ROW 1: compass (1/3) + trajectory (2/3) -->
+    <section class="artist-row artist-row-1-2">
       <div class="card" id="artist-compass-panel" style="position:relative;">
         <div class="card-header">Catalog Charge</div>
         <div id="artist-compass-container"></div>
@@ -45,14 +43,15 @@
         </div>
       </div>
 
-      <!-- Trajectory chart -->
       <div class="card" id="artist-trajectory-panel">
         <div class="card-header">Trajectory</div>
         <p class="card-desc">Charge across this artist's releases, oldest to newest.</p>
         <div id="trajectory-chart" class="trajectory-chart"></div>
       </div>
+    </section>
 
-      <!-- Top songs (ranked by charge) -->
+    <!-- ROW 2: top songs (1/2) + latest releases (1/2) -->
+    <section class="artist-row artist-row-1-1">
       <div class="card" id="artist-top-songs-panel">
         <div class="card-header">Top Songs</div>
         <p class="card-desc">Songs from this catalog ranked by lyrical charge.</p>
@@ -62,10 +61,6 @@
         <button id="top-songs-more" class="top-songs-more" type="button" hidden>View 20 more</button>
       </div>
 
-    </div>
-
-    <!-- RIGHT COLUMN: latest releases -->
-    <div class="artist-right-col">
       <div class="card" id="artist-releases-panel">
         <div class="card-header">Latest Releases</div>
         <p class="card-desc">Newest first.</p>
@@ -74,7 +69,7 @@
         </ul>
         <button id="releases-more" class="releases-more" type="button" hidden>View more</button>
       </div>
-    </div>
+    </section>
 
     <!-- Zero-data state -->
     <div id="zero-state" class="zero-state" hidden>

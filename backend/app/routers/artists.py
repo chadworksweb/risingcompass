@@ -293,25 +293,32 @@ def artist_top_songs(
             raise HTTPException(404, "Artist not found")
 
         items: list[dict] = []
+        seen: set[tuple[str, int]] = set()
         for source, Model in _SONG_MODEL_MAP.items():
             # One query per source table, pulling only what the UI needs.
-            # charge_value IS NOT NULL — ranking unclassified songs makes no sense.
+            # DISTINCT because a song linked to multiple releases (single +
+            # album, re-release, compilation) yields one join row per release.
             rows = (
                 db.query(
                     Model.id,
                     Model.title,
-                    Model.artist if hasattr(Model, "artist") else None,
+                    Model.artist,
                     Model.rubric_color,
                     Model.charge_value,
-                    Model.contaminated if hasattr(Model, "contaminated") else None,
+                    Model.contaminated,
                 )
                 .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
                 .join(Release, ReleaseSong.release_id == Release.id)
                 .filter(Release.artist_id == artist.id)
                 .filter(Model.charge_value.isnot(None))
+                .distinct()
                 .all()
             )
             for song_id, title, song_artist, rubric_color, charge_value, contaminated in rows:
+                key = (source, song_id)
+                if key in seen:
+                    continue
+                seen.add(key)
                 items.append({
                     "song_source": source,
                     "song_id": song_id,
