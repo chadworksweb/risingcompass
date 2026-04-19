@@ -85,20 +85,47 @@ app.add_middleware(
 )
 
 
+# Dedicated direct-Turso connection for the log writer thread. Bypasses the
+# embedded replica on purpose: the replica's client-side WAL serializes writes
+# against reads, so logging via the replica wedges every read query for the
+# duration of the commit. Direct writes to the primary are ~100ms and don't
+# touch the replica file at all.
+_log_writer_conn = None
+
+
+def _get_log_writer_conn():
+    global _log_writer_conn
+    if _log_writer_conn is not None:
+        return _log_writer_conn
+    import libsql
+    url = settings.database_url
+    token = settings.turso_auth_token
+    if url.startswith("libsql://") or url.startswith("https://"):
+        _log_writer_conn = libsql.connect(database=url, auth_token=token)
+    else:
+        _log_writer_conn = libsql.connect(database=url)
+    return _log_writer_conn
+
+
 def _write_api_call_log(client_id, method, path, status, ip, user_agent, duration_ms, context_json):
-    """Persist one api_call_log row. Runs on the background writer thread."""
-    from app.database import SessionLocal as _SL
-    from app.models import ApiCallLog
-    db = _SL()
+    """Persist one api_call_log row via a dedicated direct-Turso connection."""
+    conn = _get_log_writer_conn()
     try:
-        db.add(ApiCallLog(
-            client_id=client_id, method=method, path=path[:250],
-            status=status, ip=ip, user_agent=user_agent, duration_ms=duration_ms,
-            context_json=context_json,
-        ))
-        db.commit()
-    finally:
-        db.close()
+        conn.execute(
+            "INSERT INTO api_call_log (client_id, method, path, status, ip, user_agent, duration_ms, context_json, ts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            (client_id, method, path[:250], status, ip, user_agent, duration_ms, context_json),
+        )
+        conn.commit()
+    except Exception:
+        # On any error, drop the connection so the next call reconnects.
+        global _log_writer_conn
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _log_writer_conn = None
+        raise
 
 
 # Background log writer — one queue, one thread. The middleware enqueues and
