@@ -433,7 +433,7 @@ def _resolve_source(tier: str, requested: str | None) -> str:
 
 
 @router.post("/calibrate-lyrics", response_model=LyricsCalibrateOut)
-@limiter.limit("5/hour")
+@limiter.limit("20/day")
 async def calibrate_lyrics_endpoint(
     body: LyricsCalibrateIn,
     request: Request,
@@ -576,7 +576,7 @@ async def search_songs(body: SongSearchIn, request: Request, background_tasks: B
 # 7. POST /api/analyzer/calibrate-search — Calibrate a song found via search
 # ------------------------------------------------------------------
 @router.post("/calibrate-search", response_model=LyricsCalibrateOut)
-@limiter.limit("5/hour")
+@limiter.limit("20/day")
 async def calibrate_search(
     body: SearchCalibrateIn,
     request: Request,

@@ -309,9 +309,12 @@ async function submitLyrics() {
       }),
     });
 
+    // Turnstile tokens are single-use — always reset so the next submission has a fresh one.
+    resetTurnstile();
+
     if (resp.status === 429) {
       stopProgress();
-      showError("You've submitted several readings recently. Try again in an hour.");
+      showError("You've hit the free daily limit (20 readings). Try again tomorrow.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -344,6 +347,7 @@ async function submitLyrics() {
     showScreen('screen-results');
   } catch (e) {
     stopProgress();
+    resetTurnstile();
     showError('Connection error. Check your internet and try again.');
     showScreen('screen-entry');
     btnSubmit.disabled = false;
@@ -463,9 +467,12 @@ async function submitSearch() {
       }),
     });
 
+    // Turnstile tokens are single-use — always reset so the next submission has a fresh one.
+    resetTurnstile();
+
     if (resp.status === 429) {
       stopProgress();
-      showError("You've submitted several readings recently. Try again in an hour.");
+      showError("You've hit the free daily limit (20 readings). Try again tomorrow.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -505,6 +512,7 @@ async function submitSearch() {
     showScreen('screen-results');
   } catch (e) {
     stopProgress();
+    resetTurnstile();
     showError('Connection error. Check your internet and try again.');
     showScreen('screen-entry');
     btnSubmit.disabled = false;
@@ -585,6 +593,7 @@ btnAgain.addEventListener('click', () => {
   consentCheck.checked = false;
   btnSubmit.disabled = true;
   btnSearch.disabled = true;
+  resetTurnstile();
   hideError();
   showScreen('screen-entry');
 });
