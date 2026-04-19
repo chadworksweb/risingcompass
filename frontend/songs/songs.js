@@ -81,11 +81,15 @@
       <span class="badge-tier" style="background:${color}20;color:${color}">${escapeHtml(tierLabel)}</span>
     `;
 
-    // Section 2: Effects
+    // Section 2: Song-specific summary
+    const summarySection = document.getElementById('section-summary');
+    summarySection.hidden = false;
+    document.getElementById('summary-text').textContent =
+      song.charge_summary || `This song is classified as ${tierLabel}.`;
+
+    // Section 3: Effects (currently a tier-generic description)
     const effectsSection = document.getElementById('section-effects');
     effectsSection.hidden = false;
-    document.getElementById('effects-direct-answer').textContent =
-      song.charge_summary || `This song is classified as ${tierLabel}.`;
     document.getElementById('effects-prose').innerHTML =
       `<p>${TIER_EFFECTS[song.rubric_color] || ''}</p>`;
 
@@ -148,7 +152,7 @@
       ],
       '@type': 'MusicRecording',
       name: song.title,
-      url: `https://risingcompass.net/songs/song.html?slug=${song.slug}`,
+      url: `https://risingcompass.net/songs/${song.slug}`,
       byArtist: {
         '@type': 'MusicGroup',
         name: song.artist,

@@ -31,7 +31,7 @@
 
   <main id="main">
 
-    <!-- Section 1: What does this song do? -->
+    <!-- Section 1: Hero — tier badge, title, artist -->
     <section class="song-section song-section--hero" aria-label="Song classification">
       <div class="song-hero">
         <div id="song-tier-badge" class="song-tier-badge"></div>
@@ -40,10 +40,15 @@
       </div>
     </section>
 
-    <!-- Section 2: Lyrical Effects -->
+    <!-- Section 2: Song-specific summary (charge_summary) -->
+    <section class="song-section" id="section-summary" hidden>
+      <h2>Summary</h2>
+      <p id="summary-text" class="direct-answer"></p>
+    </section>
+
+    <!-- Section 3: Lyrical Effects (tier-generic for now; per-song rewrite on the roadmap) -->
     <section class="song-section" id="section-effects" hidden>
       <h2>What Might This Song Do to the Listener?</h2>
-      <p id="effects-direct-answer" class="direct-answer"></p>
       <div id="effects-prose" class="prose"></div>
     </section>
 

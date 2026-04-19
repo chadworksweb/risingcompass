@@ -101,7 +101,7 @@
           for (const s of songs) {
             const dotColor = COLOR_HEX[s.rubric_color] || '#999';
             html += `<li class="result-item result-song">
-              <a href="/songs/song.html?slug=${encodeURIComponent(s.slug)}">
+              <a href="/songs/${encodeURIComponent(s.slug)}">
                 <span class="result-dot" style="background:${dotColor}"></span>
                 <span class="result-name">${escapeHtml(s.title)}</span>
                 <span class="result-artist-name">${escapeHtml(s.artist)}</span>
@@ -348,7 +348,7 @@
     const charge = chargeDisplay(s.charge_value);
     const titleHtml = escapeHtml(s.title);
     const titleNode = s.slug
-      ? `<a class="song-title-link" href="/songs/song.html?slug=${encodeURIComponent(s.slug)}">${titleHtml}</a>`
+      ? `<a class="song-title-link" href="/songs/${encodeURIComponent(s.slug)}">${titleHtml}</a>`
       : `<span class="song-title">${titleHtml}</span>`;
     return `
       <li class="song-item artist-top-song-item">
