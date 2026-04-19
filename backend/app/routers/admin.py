@@ -250,20 +250,26 @@ def list_backups(limit: int = 30):
 
 @router.get("/db-export", dependencies=[Depends(verify_admin_key)])
 def export_database(background_tasks: BackgroundTasks):
-    """Download a snapshot of the current database file.
+    """Download a fresh snapshot of the Turso database as a SQLite file.
 
-    Copies the DB to a temp file first to avoid locking issues.
-    Temp file is cleaned up automatically after response is sent.
+    Opens a throwaway libsql embedded replica, syncs from the primary, and
+    streams the resulting .db file back. Not a substitute for the daily
+    backup (no verification, no S3 upload) — this is the admin ad-hoc
+    export for a one-off local working copy.
+
     Use: curl -H "X-Admin-Key: YOUR_KEY" https://api.risingcompass.net/api/admin/db-export -o rising_compass.db
     """
-    db_path = Path("data/rising_compass.db")
-    if not db_path.exists():
-        raise HTTPException(status_code=404, detail="Database file not found")
+    from app.services.backup import _dump_turso_to_file
 
-    # Copy to temp file to avoid read locks on the live DB
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-    shutil.copy2(db_path, tmp.name)
     tmp.close()
+    tmp_path = Path(tmp.name)
+
+    try:
+        _dump_turso_to_file(tmp_path)
+    except Exception as exc:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Turso dump failed: {exc}") from exc
 
     background_tasks.add_task(os.unlink, tmp.name)
 
