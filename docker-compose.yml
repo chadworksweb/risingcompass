@@ -30,6 +30,12 @@ services:
       - SITE_URL=${SITE_URL:-https://api.risingcompass.net}
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
       - TURNSTILE_SECRET=${TURNSTILE_SECRET}
+      - DO_SPACES_KEY=${DO_SPACES_KEY}
+      - DO_SPACES_SECRET=${DO_SPACES_SECRET}
+      - DO_SPACES_BUCKET=${DO_SPACES_BUCKET:-crystopa-forge-backup1}
+      - DO_SPACES_REGION=${DO_SPACES_REGION:-nyc3}
+      - DO_SPACES_PREFIX=${DO_SPACES_PREFIX:-rising-compass/daily}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
     restart: unless-stopped
 
   nginx:
