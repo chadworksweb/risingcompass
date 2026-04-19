@@ -18,6 +18,8 @@ services:
       - RC_SERVICE_KEY=${RC_SERVICE_KEY}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/rising_compass.db}
       - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
+      - TURSO_REPLICA_PATH=${TURSO_REPLICA_PATH:-}
+      - TURSO_SYNC_INTERVAL=${TURSO_SYNC_INTERVAL:-30}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - AGENT_MODEL=${AGENT_MODEL:-claude-opus-4-6}

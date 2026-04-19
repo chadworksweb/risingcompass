@@ -31,8 +31,20 @@ def _build_engine():
         if not token:
             raise RuntimeError("DATABASE_URL is libsql:// but TURSO_AUTH_TOKEN is unset")
 
-        def creator():
-            return _LibsqlConnProxy(libsql.connect(database=url, auth_token=token))
+        replica_path = settings.turso_replica_path
+        sync_interval = settings.turso_sync_interval
+
+        if replica_path:
+            def creator():
+                return _LibsqlConnProxy(libsql.connect(
+                    database=replica_path,
+                    sync_url=url,
+                    auth_token=token,
+                    sync_interval=sync_interval,
+                ))
+        else:
+            def creator():
+                return _LibsqlConnProxy(libsql.connect(database=url, auth_token=token))
 
         # QueuePool (with pre_ping) reuses libSQL connections across threads
         # and recycles any whose Hrana stream has been closed server-side —

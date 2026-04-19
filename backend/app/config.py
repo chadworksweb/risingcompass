@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     rc_service_key: str = ""  # OPTIONAL — first-party service key (chadlewine, internal scripts)
     database_url: str = "sqlite:///./data/rising_compass.db"
     turso_auth_token: str = ""  # required when database_url is libsql://...
+    # Embedded replica: when set, reads go to a local SQLite file synced
+    # from the Turso primary every turso_sync_interval seconds. Writes still
+    # round-trip to the primary. Unset = connect directly to Turso.
+    turso_replica_path: str = ""
+    turso_sync_interval: int = 30
     cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","https://risingcompass.net","https://api.risingcompass.net"]'
 
     # Anthropic API
