@@ -105,12 +105,14 @@ def _write_api_call_log(client_id, method, path, status, ip, user_agent, duratio
 async def log_api_call(request: Request, call_next):
     """Log every /api/* call (excluding /api/admin/* and /api/health) to api_call_log.
 
-    The DB write is fire-and-forget — it runs in a background task so the HTTP
-    response isn't blocked waiting for the Turso write to commit. Writes through
-    the embedded replica round-trip to the primary (~1s), so blocking every
-    public request on them is not acceptable.
+    The DB write runs as a Starlette BackgroundTask attached to the response — it
+    executes AFTER the response body has been sent to the client, so the user
+    doesn't wait for the Turso write (~1s via embedded replica). asyncio.create_task
+    inside BaseHTTPMiddleware doesn't reliably detach, so we use the documented
+    Response.background hook instead.
     """
     import time as _time
+    from starlette.background import BackgroundTask
     path = request.url.path
     should_log = (
         path.startswith("/api/")
@@ -126,7 +128,6 @@ async def log_api_call(request: Request, call_next):
 
     try:
         import json as _json
-        import asyncio as _asyncio
         duration_ms = int((_time.time() - start) * 1000)
         client_id = getattr(request.state, "client_id", None)
         ua = (request.headers.get("user-agent") or "")[:250]
@@ -145,16 +146,19 @@ async def log_api_call(request: Request, call_next):
                 ctx[k] = v[:200] if isinstance(v, str) else v
         context_json = _json.dumps(ctx, default=str) if ctx else None
 
-        async def _bg_write():
-            try:
-                await _asyncio.to_thread(
-                    _write_api_call_log,
-                    client_id, request.method, path, status, ip, ua, duration_ms, context_json,
-                )
-            except Exception:
-                logger.exception("api_call_log write failed for %s %s", request.method, path)
-
-        _asyncio.create_task(_bg_write())
+        existing_bg = getattr(response, "background", None)
+        log_task = BackgroundTask(
+            _write_api_call_log,
+            client_id, request.method, path, status, ip, ua, duration_ms, context_json,
+        )
+        if existing_bg is None:
+            response.background = log_task
+        else:
+            from starlette.background import BackgroundTasks
+            tasks = BackgroundTasks()
+            tasks.add_task(existing_bg.func, *existing_bg.args, **existing_bg.kwargs)
+            tasks.add_task(log_task.func, *log_task.args, **log_task.kwargs)
+            response.background = tasks
     except Exception:
         logger.exception("api_call_log scheduling failed for %s %s", request.method, path)
 
