@@ -33,8 +33,13 @@
   }
 
   async function init() {
+    // Clean URL: /songs/<slug>. Fall back to ?slug=<slug> for legacy links.
     const params = new URLSearchParams(window.location.search);
-    const slug = params.get('slug');
+    let slug = params.get('slug');
+    if (!slug) {
+      const m = window.location.pathname.match(/^\/songs\/([^/]+)\/?$/);
+      if (m && m[1] !== 'song.html') slug = decodeURIComponent(m[1]);
+    }
     if (!slug) return;
 
     try {
