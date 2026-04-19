@@ -14,6 +14,7 @@ api_client_keys. On startup we ensure three system clients exist:
 import hashlib
 import logging
 import secrets
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -22,6 +23,11 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import SessionLocal
 from app.models import ApiClient, ApiClientKey
+
+
+_LAST_USED_THROTTLE_SECS = 60
+_last_used_cache: dict[int, datetime] = {}
+_last_used_lock = threading.Lock()
 
 
 @dataclass
@@ -73,12 +79,18 @@ def resolve_key(db: Session, raw_key: str) -> ResolvedClient | None:
 
     snapshot = ResolvedClient(id=client.id, slug=client.slug, behavior=client.behavior, status=client.status)
 
-    # Fire-and-forget last-used update
-    try:
-        key.last_used_at = datetime.utcnow()
-        db.commit()
-    except Exception:
-        db.rollback()
+    now = datetime.utcnow()
+    with _last_used_lock:
+        last = _last_used_cache.get(key.id)
+        should_write = last is None or (now - last).total_seconds() >= _LAST_USED_THROTTLE_SECS
+        if should_write:
+            _last_used_cache[key.id] = now
+    if should_write:
+        try:
+            key.last_used_at = now
+            db.commit()
+        except Exception:
+            db.rollback()
 
     return snapshot
 
