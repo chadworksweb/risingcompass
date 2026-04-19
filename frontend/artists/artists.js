@@ -164,20 +164,33 @@
   }
 
   async function loadSummary(slug) {
+    let data;
     try {
-      const data = await ArtistsAPI.getArtistSummary(slug);
-      artistPageState.summary = data;
-      renderHeader(data);
-      renderCatalogCompass(data.stats);
-      renderBreakdown(data.stats);
-      maybeInjectJsonLd();
-
-      if (data.stats.total_calibrated_songs === 0) {
-        document.getElementById('zero-state').hidden = false;
-      }
+      data = await ArtistsAPI.getArtistSummary(slug);
     } catch (err) {
-      console.error('Failed to load summary:', err);
+      console.error('Failed to fetch summary:', err);
       document.getElementById('artist-name').textContent = 'Artist not found';
+      return;
+    }
+
+    artistPageState.summary = data;
+
+    try {
+      renderHeader(data);
+    } catch (err) { console.error('renderHeader failed:', err); }
+    try {
+      renderCatalogCompass(data.stats);
+    } catch (err) { console.error('renderCatalogCompass failed:', err); }
+    try {
+      renderBreakdown(data.stats);
+    } catch (err) { console.error('renderBreakdown failed:', err); }
+    try {
+      maybeInjectJsonLd();
+    } catch (err) { console.error('maybeInjectJsonLd failed:', err); }
+
+    if (data.stats && data.stats.total_calibrated_songs === 0) {
+      const zero = document.getElementById('zero-state');
+      if (zero) zero.hidden = false;
     }
   }
 
