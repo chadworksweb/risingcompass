@@ -11,7 +11,7 @@ services:
       - "8000:8000"
     volumes:
       - db-data:/app/data
-      - /root/rising-compass-backups:/app/data/backups
+      - /root/risingcompass-backups:/app/data/backups
     environment:
       - RC_ADMIN_KEY=${RC_ADMIN_KEY:-change-me}
       - RC_API_KEY=${RC_API_KEY:-change-me}
@@ -34,7 +34,7 @@ services:
       - DO_SPACES_SECRET=${DO_SPACES_SECRET}
       - DO_SPACES_BUCKET=${DO_SPACES_BUCKET:-crystopa-forge-backup1}
       - DO_SPACES_REGION=${DO_SPACES_REGION:-nyc3}
-      - DO_SPACES_PREFIX=${DO_SPACES_PREFIX:-rising-compass/daily}
+      - DO_SPACES_PREFIX=${DO_SPACES_PREFIX:-le-projects-01/risingcompass}
       - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
     restart: unless-stopped
 

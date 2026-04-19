@@ -17,7 +17,6 @@ from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
 from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe
-from app.services.backup import run_backup
 
 logger = logging.getLogger(__name__)
 
@@ -54,23 +53,18 @@ from app.services.api_clients import bootstrap_system_clients
 bootstrap_system_clients()
 
 
-async def _daily_backup_loop():
-    """Run a database backup once per day."""
-    while True:
-        run_backup()
-        await asyncio.sleep(86400)  # 24 hours
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan — starts daily backup task and Lyrical Charger session cleanup."""
+    """App lifespan — Lyrical Charger session cleanup.
+
+    Backups are triggered externally by cron on le-projects-01 (04:45 UTC
+    via /root/risingcompass-backups/backup.sh → POST /api/admin/backup).
+    No in-app scheduler to avoid double-running or unpredictable timing.
+    """
     _cleanup_orphan_drafts()
-    backup_task = asyncio.create_task(_daily_backup_loop())
     cleanup_task = asyncio.create_task(analyzer.session_cleanup_loop())
-    logger.info("Daily backup scheduler started")
     logger.info("Lyrical Charger session cleanup scheduler started")
     yield
-    backup_task.cancel()
     cleanup_task.cancel()
 
 

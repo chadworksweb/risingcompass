@@ -3,10 +3,15 @@
 Pipeline:
   1. Open a fresh libsql embedded replica, sync from Turso → produces a
      complete local SQLite file of the current database state.
-  2. gzip the file.
-  3. Upload to s3://{bucket}/{prefix}/{YYYY-MM-DD}.db.gz.
+  2. gzip the file → /app/data/backups/rising_compass_{YYYY-MM-DD_HHMM}.db.gz
+     (host: /root/risingcompass-backups, scanned by LEIT dashboard).
+  3. Upload to s3://{bucket}/{prefix}/rising_compass_{YYYY-MM-DD_HHMM}.db.gz.
   4. Verify: download the object back, open it, count compass_songs.
-  5. Prune objects under the prefix older than BACKUP_RETENTION_DAYS.
+  5. Prune S3 + local copies older than BACKUP_RETENTION_DAYS.
+
+Triggered by cron on le-projects-01 at 04:45 UTC via
+/root/risingcompass-backups/backup.sh (curl POST /api/admin/backup).
+Not scheduled internally.
 """
 
 from __future__ import annotations
@@ -27,6 +32,11 @@ from botocore.exceptions import ClientError
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Volume-mounted at /root/risingcompass-backups on le-projects-01; scanned
+# by the LEIT dashboard's /root/*-backups/ sweep.
+LOCAL_BACKUP_DIR = Path("/app/data/backups")
+BACKUP_FILENAME_PREFIX = "rising_compass"
 
 
 @dataclass
@@ -111,6 +121,22 @@ def _prune_old_objects(s3, bucket: str, prefix: str, retention_days: int) -> int
     return removed
 
 
+def _prune_local_copies(retention_days: int) -> int:
+    if not LOCAL_BACKUP_DIR.exists():
+        return 0
+    cutoff = datetime.now(timezone.utc).timestamp() - retention_days * 86400
+    removed = 0
+    for path in LOCAL_BACKUP_DIR.glob(f"{BACKUP_FILENAME_PREFIX}_*.db.gz"):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed += 1
+                logger.info("Pruned old local backup: %s", path.name)
+        except OSError:
+            logger.exception("Failed to prune local backup: %s", path)
+    return removed
+
+
 def run_backup() -> BackupResult | None:
     """Dump Turso, upload to DO Spaces, verify, prune. Returns None on failure."""
     if not (
@@ -121,14 +147,15 @@ def run_backup() -> BackupResult | None:
         logger.error("Backup skipped: DO_SPACES_* env vars are not configured")
         return None
 
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    key = f"{settings.do_spaces_prefix.strip('/')}/{stamp}.db.gz"
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
+    filename = f"{BACKUP_FILENAME_PREFIX}_{stamp}.db.gz"
+    key = f"{settings.do_spaces_prefix.strip('/')}/{filename}"
     bucket = settings.do_spaces_bucket
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         tmp_dir = Path(tmp)
         db_file = tmp_dir / f"rc-{stamp}.db"
-        gz_file = tmp_dir / f"rc-{stamp}.db.gz"
+        gz_file = tmp_dir / filename
 
         try:
             _dump_turso_to_file(db_file)
@@ -177,18 +204,29 @@ def run_backup() -> BackupResult | None:
 
         size_bytes = gz_file.stat().st_size
 
+        # Drop a local copy for the LEIT dashboard local-scan + disaster-recovery
+        # restore.sh lookup. Best-effort — an S3-only backup is already a valid
+        # backup, so a local-copy failure is logged but doesn't fail the run.
+        try:
+            LOCAL_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(gz_file, LOCAL_BACKUP_DIR / filename)
+        except OSError:
+            logger.exception("Failed to write local backup copy to %s", LOCAL_BACKUP_DIR)
+
     try:
-        pruned = _prune_old_objects(
+        pruned_s3 = _prune_old_objects(
             s3, bucket, settings.do_spaces_prefix, settings.backup_retention_days
         )
     except ClientError:
-        logger.exception("Prune failed (backup itself succeeded)")
-        pruned = 0
+        logger.exception("S3 prune failed (backup itself succeeded)")
+        pruned_s3 = 0
+    pruned_local = _prune_local_copies(settings.backup_retention_days)
 
     logger.info(
-        "Backup ok: s3://%s/%s (%d bytes, pruned %d old)", bucket, key, size_bytes, pruned
+        "Backup ok: s3://%s/%s (%d bytes, pruned %d S3 / %d local)",
+        bucket, key, size_bytes, pruned_s3, pruned_local,
     )
-    return BackupResult(key=key, bytes=size_bytes, verified=True, pruned=pruned)
+    return BackupResult(key=key, bytes=size_bytes, verified=True, pruned=pruned_s3 + pruned_local)
 
 
 def list_backups(limit: int = 30) -> list[dict]:
