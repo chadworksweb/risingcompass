@@ -86,7 +86,7 @@ app.add_middleware(
 
 
 def _write_api_call_log(client_id, method, path, status, ip, user_agent, duration_ms, context_json):
-    """Persist one api_call_log row. Runs off the event loop via asyncio.to_thread."""
+    """Persist one api_call_log row. Runs on the background writer thread."""
     from app.database import SessionLocal as _SL
     from app.models import ApiCallLog
     db = _SL()
@@ -101,18 +101,51 @@ def _write_api_call_log(client_id, method, path, status, ip, user_agent, duratio
         db.close()
 
 
+# Background log writer — one queue, one thread. The middleware enqueues and
+# returns; the thread drains the queue serially. Necessary because embedded-
+# replica writes take ~1s and Starlette BaseHTTPMiddleware awaits both asyncio
+# tasks and Response.background before sending the response.
+import queue as _queue_mod
+import threading as _thr_mod
+_LOG_QUEUE: _queue_mod.Queue = _queue_mod.Queue(maxsize=10000)
+_log_writer_thread: _thr_mod.Thread | None = None
+_log_writer_lock = _thr_mod.Lock()
+
+
+def _log_writer_loop():
+    while True:
+        item = _LOG_QUEUE.get()
+        if item is None:
+            break
+        try:
+            _write_api_call_log(*item)
+        except Exception:
+            logger.exception("api_call_log write failed in background thread")
+
+
+def _ensure_log_writer():
+    global _log_writer_thread
+    if _log_writer_thread is not None and _log_writer_thread.is_alive():
+        return
+    with _log_writer_lock:
+        if _log_writer_thread is None or not _log_writer_thread.is_alive():
+            _log_writer_thread = _thr_mod.Thread(
+                target=_log_writer_loop, daemon=True, name="api-call-log-writer"
+            )
+            _log_writer_thread.start()
+
+
 @app.middleware("http")
 async def log_api_call(request: Request, call_next):
     """Log every /api/* call (excluding /api/admin/* and /api/health) to api_call_log.
 
-    The DB write runs as a Starlette BackgroundTask attached to the response — it
-    executes AFTER the response body has been sent to the client, so the user
-    doesn't wait for the Turso write (~1s via embedded replica). asyncio.create_task
-    inside BaseHTTPMiddleware doesn't reliably detach, so we use the documented
-    Response.background hook instead.
+    The DB write is handed off to a dedicated background thread via an in-
+    memory queue. Neither asyncio.create_task nor Starlette's BackgroundTask
+    reliably detach from BaseHTTPMiddleware — both were awaited before the
+    response left the server. A raw OS thread draining a queue is the only
+    approach that actually fire-and-forgets under Starlette.
     """
     import time as _time
-    from starlette.background import BackgroundTask
     path = request.url.path
     should_log = (
         path.startswith("/api/")
@@ -146,19 +179,13 @@ async def log_api_call(request: Request, call_next):
                 ctx[k] = v[:200] if isinstance(v, str) else v
         context_json = _json.dumps(ctx, default=str) if ctx else None
 
-        existing_bg = getattr(response, "background", None)
-        log_task = BackgroundTask(
-            _write_api_call_log,
-            client_id, request.method, path, status, ip, ua, duration_ms, context_json,
-        )
-        if existing_bg is None:
-            response.background = log_task
-        else:
-            from starlette.background import BackgroundTasks
-            tasks = BackgroundTasks()
-            tasks.add_task(existing_bg.func, *existing_bg.args, **existing_bg.kwargs)
-            tasks.add_task(log_task.func, *log_task.args, **log_task.kwargs)
-            response.background = tasks
+        _ensure_log_writer()
+        try:
+            _LOG_QUEUE.put_nowait(
+                (client_id, request.method, path, status, ip, ua, duration_ms, context_json)
+            )
+        except _queue_mod.Full:
+            logger.warning("api_call_log queue full — dropping log for %s %s", request.method, path)
     except Exception:
         logger.exception("api_call_log scheduling failed for %s %s", request.method, path)
 
