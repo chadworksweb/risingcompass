@@ -50,7 +50,6 @@ const App = (() => {
     loadDailyChart();
     loadTrajectory();
     loadGhostTrail();
-    loadLibrary();
   }
 
   function initCalcOverlay() {
@@ -2268,103 +2267,6 @@ const App = (() => {
     if (deg <= 112.5) return 'green';
     if (deg <= 157.5) return 'orange';
     return 'red';
-  }
-
-  // --- Elevated Library ---
-  async function loadLibrary() {
-    const container = document.getElementById('library-content');
-    if (!container) return;
-
-    try {
-      const collections = await API.getLibrary();
-
-      if (!collections.length) {
-        container.innerHTML = '<p style="color:var(--rc-text-dim);text-align:center;">No collections yet.</p>';
-        return;
-      }
-
-      let html = '<div class="elevated-collections">';
-      collections.forEach(col => {
-        html += `<div class="elevated-collection">`;
-        html += `<div class="elevated-collection-header">`;
-        html += `<h3 class="elevated-collection-name">${escapeHtml(col.name)}</h3>`;
-        if (col.description) {
-          html += `<p class="elevated-collection-desc">${escapeHtml(col.description)}</p>`;
-        }
-        html += `</div>`;
-
-        const INITIAL_SHOW = 20;
-        if (col.items.length) {
-          const visibleItems = col.items.slice(0, INITIAL_SHOW);
-          const hasMore = col.items.length > INITIAL_SHOW;
-          html += '<ul class="elevated-items">';
-          visibleItems.forEach(item => {
-            html += `<li class="elevated-item">`;
-            if (item.cover_art_url) {
-              html += `<img class="elevated-cover" src="${escapeHtml(item.cover_art_url)}" alt="" loading="lazy">`;
-            }
-            html += `<span class="song-dot ${item.rubric_color}"></span>`;
-            html += `<div class="elevated-item-info">`;
-            html += `<span class="elevated-item-title">${escapeHtml(item.title)}</span>`;
-            html += `<span class="elevated-item-artist">${escapeHtml(item.artist)}</span>`;
-            if (item.editorial_note) {
-              html += `<span class="elevated-item-note">${escapeHtml(item.editorial_note)}</span>`;
-            }
-            html += `</div>`;
-            if (item.external_url) {
-              html += `<a class="elevated-link" href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener" title="Listen" aria-label="Listen to ${escapeHtml(item.title)}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              </a>`;
-            }
-            const sourceLabel = item.source === 'recommendation' ? '' : item.source === 'album_deep_dive' ? 'album' : '';
-            if (sourceLabel) {
-              html += `<span class="elevated-item-source">${sourceLabel}</span>`;
-            }
-            html += `</li>`;
-          });
-          html += '</ul>';
-          if (hasMore) {
-            html += `<button class="elevated-show-more" data-collection="${escapeHtml(col.name)}" data-shown="${INITIAL_SHOW}">${col.items.length - INITIAL_SHOW} more</button>`;
-          }
-        } else {
-          html += '<p style="color:var(--rc-text-dim);font-size:0.82rem;padding:1rem 0;">No items in this collection yet.</p>';
-        }
-
-        html += `</div>`;
-      });
-      html += '</div>';
-
-      container.innerHTML = html;
-
-      // Wire "show more" buttons
-      container.querySelectorAll('.elevated-show-more').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const colName = btn.dataset.collection;
-          const col = collections.find(c => c.name === colName);
-          if (!col) return;
-          const shown = parseInt(btn.dataset.shown);
-          const next = shown + 20;
-          const newItems = col.items.slice(shown, next);
-          const list = btn.previousElementSibling;
-          newItems.forEach(item => {
-            const li = document.createElement('li');
-            li.className = 'elevated-item';
-            let inner = '';
-            if (item.cover_art_url) inner += `<img class="elevated-cover" src="${escapeHtml(item.cover_art_url)}" alt="" loading="lazy">`;
-            inner += `<span class="song-dot ${item.rubric_color}"></span>`;
-            inner += `<div class="elevated-item-info"><span class="elevated-item-title">${escapeHtml(item.title)}</span><span class="elevated-item-artist">${escapeHtml(item.artist)}</span></div>`;
-            li.innerHTML = inner;
-            list.appendChild(li);
-          });
-          btn.dataset.shown = next;
-          const remaining = col.items.length - next;
-          if (remaining <= 0) btn.remove();
-          else btn.textContent = `${remaining} more`;
-        });
-      });
-    } catch (err) {
-      container.innerHTML = '<p style="color:var(--rc-text-dim);text-align:center;">Could not load library.</p>';
-    }
   }
 
   // --- Secondary Nav ---

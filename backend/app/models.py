@@ -136,37 +136,6 @@ class LibrarySong(Base):
     album = relationship("AlbumDeepDive", back_populates="library_songs")
 
 
-class Collection(Base):
-    __tablename__ = "collections"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(Text, nullable=False)
-    slug = Column(String(200), unique=True, nullable=False)
-    description = Column(Text)
-    charge_colors = Column(Text)  # Comma-separated: "violet,blue"
-    is_active = Column(Boolean, default=True)
-    sort_order = Column(Integer, default=0)
-
-    recommendations = relationship("Recommendation", back_populates="collection", cascade="all, delete-orphan")
-
-
-class Recommendation(Base):
-    __tablename__ = "recommendations"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    collection_id = Column(Integer, ForeignKey("collections.id"), nullable=False)
-    title = Column(Text, nullable=False)
-    artist = Column(Text, nullable=False)
-    item_type = Column(String(20), default="song")  # "song" or "album"
-    rubric_color = Column(Text, nullable=False)
-    editorial_note = Column(Text)
-    external_url = Column(Text)
-    cover_art_url = Column(Text)
-    sort_order = Column(Integer, default=0)
-
-    collection = relationship("Collection", back_populates="recommendations")
-
-
 class AgentDraft(Base):
     __tablename__ = "agent_drafts"
     __table_args__ = (

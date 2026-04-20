@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
-from app.routers import compass, drift, albums, admin, weekly_albums, library, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe
+from app.routers import compass, drift, albums, admin, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,6 @@ app.include_router(compass.router, dependencies=_api_key_dep)
 app.include_router(drift.router, dependencies=_api_key_dep)
 app.include_router(albums.router, dependencies=_api_key_dep)
 app.include_router(weekly_albums.router, dependencies=_api_key_dep)
-app.include_router(library.router, dependencies=_api_key_dep)
 app.include_router(misread.router, dependencies=_api_key_dep)
 # Analyzer accepts either public RC_API_KEY (Lyrical Charger) or RC_SERVICE_KEY
 # (first-party callers like chadlewine.com). Endpoints that distinguish
