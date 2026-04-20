@@ -27,23 +27,27 @@ from sqlalchemy import func, or_, and_
 from app.database import get_db
 from app.models import (
     SongRecalibration, SongRecalibrationProposal,
-    CompassSong, LibrarySong, SubmittedSong,
-    MisreadSubmission,
+    CompassSong, LibrarySong, SubmittedSong, StreamSong,
+    MisreadSubmission, CalibrationRun,
 )
 from app.routers.admin import verify_admin_key
-from app.services.agents.recalibrator import recalibrate_song_satire
+from app.services.agents.recalibrator import (
+    recalibrate_song_satire, recalibrate_song_rubric_update,
+)
+from app.services.calibration_corpus import hash_lyrics, log_run
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/recalibrations", tags=["recalibrations"])
 
-VALID_TYPES = {"satire", "public_interest"}
-VALID_TRIGGERS = {"satirical_flag", "vibe_gap", "admin_manual"}
+VALID_TYPES = {"satire", "public_interest", "rubric_update"}
+VALID_TRIGGERS = {"satirical_flag", "vibe_gap", "admin_manual", "rubric_update"}
 
 SONG_MODELS = {
     "compass": CompassSong,
     "library": LibrarySong,
     "submitted": SubmittedSong,
+    "stream": StreamSong,
 }
 
 
@@ -89,6 +93,14 @@ class SatireRecalibrateIn(BaseModel):
     song_id: int
     lyrics: str = Field(..., min_length=20)
     trigger_ref_id: Optional[int] = None  # misread_submissions.id if known
+
+
+class RubricUpdateRecalibrateIn(BaseModel):
+    song_source: str
+    song_id: int
+    lyrics: str = Field(..., min_length=20)
+    rubric_change_slug: str = Field(..., min_length=3, max_length=100)
+    rubric_change_note: str = Field(..., min_length=10, max_length=2000)
 
 
 class AcceptIn(BaseModel):
@@ -154,6 +166,53 @@ def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
 
 
 # --- Endpoints ---
+
+@router.post("/rubric-update", dependencies=[Depends(verify_admin_key)])
+def create_rubric_update_proposal(data: RubricUpdateRecalibrateIn, db: Session = Depends(get_db)):
+    """Re-read a song under the current (updated) standard rubric.
+
+    Creates a proposal the admin can review and accept — same flow as satire
+    except the lens is the plain rubric. Used when a rubric rule or tenet has
+    been added/changed and specific songs need to be re-evaluated against it.
+    """
+    song = _resolve_song(db, data.song_source, data.song_id)
+
+    original_color = getattr(song, "rubric_color", None)
+    original_charge = getattr(song, "charge_value", None)
+
+    try:
+        result = recalibrate_song_rubric_update(
+            title=song.title,
+            artist=getattr(song, "artist", "") or "",
+            lyrics=data.lyrics,
+            db=db,
+        )
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+
+    proposal = SongRecalibrationProposal(
+        recalibration_type="rubric_update",
+        song_source=data.song_source,
+        song_id=data.song_id,
+        trigger_source="rubric_update",
+        trigger_ref_id=None,
+        original_charge=original_charge,
+        original_color=original_color,
+        proposed_charge=result["charge_value"],
+        proposed_color=result["rubric_color"],
+        proposed_summary=result["charge_summary"],
+        ai_rationale=result["ai_rationale"],
+        ai_model=result["ai_model"],
+        rubric_change_slug=data.rubric_change_slug,
+        rubric_change_note=data.rubric_change_note,
+        status="pending",
+    )
+    db.add(proposal)
+    db.commit()
+    db.refresh(proposal)
+
+    return _proposal_to_out(proposal, db)
+
 
 @router.post("/satire", dependencies=[Depends(verify_admin_key)])
 def create_satire_proposal(data: SatireRecalibrateIn, db: Session = Depends(get_db)):
@@ -270,6 +329,8 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
         public_summary=data.public_summary,
         internal_notes=data.internal_notes,
         flag_count_snapshot=json.dumps(flag_counts),
+        rubric_change_slug=p.rubric_change_slug,
+        rubric_change_note=p.rubric_change_note,
     )
     db.add(audit)
 
@@ -278,6 +339,44 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
     song.charge_value = p.proposed_charge
     if p.proposed_summary:
         song.charge_summary = p.proposed_summary
+
+    # rubric_update side-effects: supersede prior calibration_runs so the
+    # consensus engine excludes them, then log the accepted calibration as
+    # a fresh run under the new rubric. Without this, the canonical row
+    # would drift back toward the pre-update consensus as new runs arrive.
+    if p.recalibration_type == "rubric_update":
+        now = datetime.utcnow()
+        slug = p.rubric_change_slug or "rubric_update"
+        prior = (
+            db.query(CalibrationRun)
+            .filter(CalibrationRun.song_source == p.song_source)
+            .filter(CalibrationRun.song_id == p.song_id)
+            .filter(CalibrationRun.superseded.is_(False))
+            .all()
+        )
+        for r in prior:
+            r.superseded = True
+            r.superseded_reason = slug
+            r.superseded_at = now
+
+        log_run(
+            db,
+            title=song.title,
+            artist=getattr(song, "artist", None),
+            calibration={
+                "rubric_color": p.proposed_color,
+                "charge_value": p.proposed_charge,
+                "charge_summary": p.proposed_summary,
+                "contaminated": bool(getattr(song, "contaminated", False)),
+                "contamination_note": getattr(song, "contamination_note", None),
+                "confidence": 1.0,
+            },
+            triggered_by="rubric_update",
+            song_source=p.song_source,
+            song_id=p.song_id,
+            lyrics_hash=None,
+            agent_model=p.ai_model,
+        )
 
     # Resolve the proposal.
     p.status = "accepted"

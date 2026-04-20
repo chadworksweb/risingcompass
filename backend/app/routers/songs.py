@@ -130,6 +130,8 @@ def song_history(slug: str):
                 "public_summary": r.public_summary,
                 "trigger_source": r.trigger_source,
                 "flag_count_snapshot": _json.loads(r.flag_count_snapshot) if r.flag_count_snapshot else None,
+                "rubric_change_slug": r.rubric_change_slug,
+                "rubric_change_note": r.rubric_change_note,
             }
             out.append(entry)
 

@@ -129,12 +129,21 @@
       const afterChg = r.after && r.after.charge != null ? (r.after.charge > 0 ? '+' : '') + r.after.charge : 'N/A';
       const beforeLabel = r.before && r.before.tier_label ? r.before.tier_label : '—';
       const afterLabel = r.after && r.after.tier_label ? r.after.tier_label : '—';
-      const typeLabel = r.type === 'satire' ? 'Satire' : r.type === 'public_interest' ? 'Public Interest' : r.type;
+      const typeLabel = r.type === 'satire' ? 'Satire'
+        : r.type === 'public_interest' ? 'Public Interest'
+        : r.type === 'rubric_update' ? 'Rubric Update'
+        : r.type === 'consensus_drift' ? 'Consensus Drift'
+        : r.type;
 
       let snapshot = '';
       if (r.flag_count_snapshot) {
         const fc = r.flag_count_snapshot;
         snapshot = `<div class="recal-entry-snapshot">At time of recalibration: ${fc.misread || 0} misread reports, ${fc.satirical || 0} satirical flags.</div>`;
+      }
+
+      let rubricChange = '';
+      if (r.rubric_change_note) {
+        rubricChange = `<div class="recal-entry-rubric-change"><strong>Rubric change:</strong> ${escapeHtml(r.rubric_change_note)}</div>`;
       }
 
       return `
@@ -149,6 +158,7 @@
             <span style="color:${afterColor}">${afterChg} ${escapeHtml(afterLabel)}</span>
           </div>
           <p class="recal-entry-summary">${escapeHtml(r.public_summary || '')}</p>
+          ${rubricChange}
           ${snapshot}
         </li>
       `;

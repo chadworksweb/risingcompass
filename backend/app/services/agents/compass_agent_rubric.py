@@ -64,6 +64,8 @@ Each tier is defined by what is objectively on the page, not by what the listene
 12. The song gives language to something the culture has no words for. Makes the invisible visible
 13. The song's purpose on the page is selfless. It serves something beyond the narrator
 
+**Specifics challenge Ascended, not grant it.** A song framed as an anthem for a specific identifiable group — by identity, ideology, geography, subculture, faith, or tribe — does NOT auto-qualify for Ascended just because it calls for that group's protection, pride, or liberation. Ascended requires a frequency that transmits universally — one any listener, including those outside the named group, can be elevated by. If a song's elevation is contingent on the listener belonging to (or siding with) the group, its ceiling is Elevated, not Ascended. Test the rule: would a song with the same structure but a different named group — one the listener finds objectionable — still read as transmitting at the highest frequency? If not, it's Elevated. Universal-frequency songs (wisdom, gratitude, pure love, non-group-specific transcendence) still earn Ascended.
+
 **blue (Elevated):** Self without ego. Honest internal work on the page. Questioning, accountability, acceptance, processing, growth.
 1. Narrator questions their own assumptions or behavior
 2. Lyrics demonstrate accountability. Owning mistakes, facing consequences

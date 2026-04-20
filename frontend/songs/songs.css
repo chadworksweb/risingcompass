@@ -335,6 +335,22 @@
   font-family: var(--rc-font-mono);
 }
 
+.recal-entry-rubric-change {
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+  background: rgba(125, 125, 180, 0.08);
+  border-left: 2px solid var(--rc-text-dim);
+  border-radius: 2px;
+}
+
+.recal-entry-rubric-change strong {
+  color: var(--rc-text-dim);
+  font-weight: 600;
+}
+
 /* --- Audience Vibe --- */
 .vibe-needle-wrap {
   display: flex;

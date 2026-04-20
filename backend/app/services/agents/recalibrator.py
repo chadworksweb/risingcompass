@@ -21,6 +21,7 @@ from app.services.agents.calibrator import (
 )
 from app.services.agents.compass_agent_rubric import (
     RUBRIC_DEFINITION, CALIBRATION_FORMAT, build_few_shot_examples,
+    build_calibration_prompt,
 )
 from app.services.contamination import enforce_contamination_rule
 
@@ -171,4 +172,80 @@ def recalibrate_song_satire(
         "satire_reading_held": (
             color != original_color or charge_value != original_charge
         ) if original_color else True,
+    }
+
+
+def recalibrate_song_rubric_update(
+    title: str,
+    artist: str,
+    lyrics: str,
+    db: Session,
+) -> dict:
+    """Re-read a song under the current (possibly updated) standard rubric.
+
+    Used when a rubric rule or tenet has been added/changed. No lens overlay —
+    just runs calibrate with full reasoning capture. Caller passes the
+    rubric_change_slug/note separately and stores them on the recalibration
+    audit row. Returns a proposal dict matching the satire recalibrator shape
+    so the accept endpoint can apply it uniformly.
+    """
+    if not lyrics or not lyrics.strip():
+        raise ValueError("Lyrics are required for rubric_update recalibration.")
+
+    client = Anthropic(api_key=settings.anthropic_api_key)
+    examples = build_few_shot_examples(db) if db else ""
+
+    system_prompt, user_prompt = build_calibration_prompt(
+        title, artist, lyrics=lyrics, examples=examples,
+    )
+
+    response = client.messages.create(
+        model=AGENT_MODEL,
+        max_tokens=2048,
+        temperature=0,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    raw = response.content[0].text.strip()
+
+    reasoning = ""
+    json_str = raw
+    brace_idx = raw.find("{")
+    if brace_idx > 0:
+        reasoning = raw[:brace_idx].strip()
+        json_str = raw[brace_idx:]
+
+    if reasoning:
+        logger.info("Rubric-update recalibrator reasoning for '%s' by %s:\n%s",
+                    title, artist, reasoning)
+
+    if json_str.rstrip().endswith("```"):
+        json_str = json_str.rstrip()[:-3]
+    json_str = json_str.strip()
+
+    try:
+        result = json.loads(json_str)
+    except json.JSONDecodeError:
+        logger.error("Failed to parse rubric_update response for %s by %s: %s",
+                     title, artist, raw)
+        raise RuntimeError("Rubric-update recalibration agent returned unparseable output.")
+
+    if result.get("rubric_color") not in VALID_COLORS:
+        result["rubric_color"] = "green"
+
+    enforce_contamination_rule(result)
+    color = result.get("rubric_color")
+    contaminated = bool(result.get("contaminated", False))
+    charge_value = _validate_charge_value(result.get("charge_value"), color)
+
+    return {
+        "rubric_color": color,
+        "charge_value": charge_value,
+        "contaminated": contaminated,
+        "contamination_note": result.get("contamination_note"),
+        "charge_summary": result.get("charge_summary", ""),
+        "confidence": float(result.get("confidence", 0.5)),
+        "ai_rationale": reasoning,
+        "ai_model": AGENT_MODEL,
     }

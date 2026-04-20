@@ -220,6 +220,7 @@ def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
         .filter(CalibrationRun.song_source == source)
         .filter(CalibrationRun.song_id == song_id)
         .filter(CalibrationRun.charge_value.isnot(None))
+        .filter(CalibrationRun.superseded.is_(False))
         .all()
     )
     if not runs:

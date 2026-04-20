@@ -453,10 +453,10 @@ class SongRecalibrationProposal(Base):
     __tablename__ = "song_recalibration_proposals"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest
+    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest | rubric_update
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
-    trigger_source = Column(String(40))  # satirical_flag | vibe_gap | admin_manual
+    trigger_source = Column(String(40))  # satirical_flag | vibe_gap | admin_manual | rubric_update
     trigger_ref_id = Column(Integer)  # FK-shaped pointer back to the trigger row
     original_charge = Column(Integer)
     original_color = Column(String(20))
@@ -467,6 +467,8 @@ class SongRecalibrationProposal(Base):
     ai_model = Column(Text)
     status = Column(String(20), nullable=False, default="pending")  # pending | accepted | rejected
     review_notes = Column(Text)
+    rubric_change_slug = Column(String(100))  # rubric_update only: stable id grouping affected songs
+    rubric_change_note = Column(Text)  # rubric_update only: 1-2 sentence description of the rule
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime)
 
@@ -482,7 +484,7 @@ class SongRecalibration(Base):
     __tablename__ = "song_recalibrations"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest
+    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest | rubric_update | consensus_drift
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
     proposal_id = Column(Integer, ForeignKey("song_recalibration_proposals.id", ondelete="SET NULL"))
@@ -498,6 +500,8 @@ class SongRecalibration(Base):
     internal_notes = Column(Text)
     flag_count_snapshot = Column(Text)  # JSON: {misread: N, satirical: N} at moment of recalibration
     vibe_snapshot = Column(Text)  # JSON: {value, pushes_up, pushes_down} (future, when vibe ships)
+    rubric_change_slug = Column(String(100))  # groups songs recalibrated by the same rubric change
+    rubric_change_note = Column(Text)  # 1-2 sentence description of the rubric rule that triggered this
     applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -625,6 +629,9 @@ class CalibrationRun(Base):
     triggered_by = Column(String(40))
     lyrics_hash = Column(String(64))
     run_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    superseded = Column(Boolean, default=False, nullable=False)  # true if a later rubric_update invalidated this run
+    superseded_reason = Column(String(100))  # e.g. rubric_change_slug that invalidated this
+    superseded_at = Column(DateTime)
 
 
 class SongReset(Base):
