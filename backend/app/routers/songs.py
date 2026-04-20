@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Query
 from sqlalchemy import func, or_, and_
 
 from app.database import SessionLocal
@@ -12,6 +12,7 @@ from app.models import (
     CalibrationRun,
 )
 from app.services.calibration_corpus import compute_consensus
+from app.services.song_search import search_unified
 from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import generate_song_slug
 
@@ -214,6 +215,63 @@ def song_calibration_runs(slug: str, limit: int = 50):
             consensus["tier_label"] = COLOR_LABELS.get(consensus["rubric_color"], "")
             consensus["tier_hex"] = COLOR_HEX.get(consensus["rubric_color"], "#999")
         return {"runs": runs, "consensus": consensus}
+    finally:
+        db.close()
+
+
+@router.get("/search")
+def song_search_unified(
+    request: Request,
+    q: str | None = None,
+    source: str | None = Query(None, description="compass | library | submitted | stream"),
+    tier: str | None = Query(None, description="violet | blue | green | orange | red"),
+    charge_min: int | None = None,
+    charge_max: int | None = None,
+    year_min: int | None = None,
+    year_max: int | None = None,
+    contaminated: bool | None = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    offset: int = 0,
+    limit: int = 20,
+):
+    """Unified song search across the four song tables.
+
+    Same filter shape as the admin `all_songs` DB tab, minus PII. Free-tier
+    API keys (plan_tier="free") are capped at 20 results per query and
+    cannot paginate — the first page is the preview, beyond that is paid.
+
+    This is the public-facing endpoint behind the forthcoming Collective
+    Library. Admin equivalent is `/api/admin/db/all_songs`.
+    """
+    plan_tier = getattr(request.state, "plan_tier", None) or "trial"
+    is_free = plan_tier == "free"
+    effective_limit = min(20, max(1, limit)) if is_free else min(200, max(1, limit))
+    effective_offset = 0 if is_free else max(0, offset)
+
+    db = SessionLocal()
+    try:
+        result = search_unified(
+            db,
+            q=q,
+            source=source,
+            tier=tier,
+            charge_min=charge_min,
+            charge_max=charge_max,
+            year_min=year_min,
+            year_max=year_max,
+            contaminated=contaminated,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            offset=effective_offset,
+            limit=effective_limit,
+            include_pii=False,
+            attach_slugs=True,
+        )
+        result["plan_tier"] = plan_tier
+        result["free_tier"] = is_free
+        result["hidden_count"] = max(0, result["total"] - (result["offset"] + len(result["items"])))
+        return result
     finally:
         db.close()
 

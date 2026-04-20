@@ -26,6 +26,7 @@ from app.models import (
     SongSlug, SongRecalibrationProposal, LcEvent,
 )
 from app.routers.admin import verify_admin_key
+from app.services.song_search import search_unified
 
 
 router = APIRouter(
@@ -117,6 +118,28 @@ def list_tables():
             "columns": cols,
             "search_columns": SEARCH_COLUMNS.get(name, []),
         })
+    # Virtual all_songs — a UNION across the four song tables. Columns mirror
+    # what search_unified returns so the admin DB explorer can render it with
+    # the same table-driven UI.
+    out.append({
+        "table": "all_songs",
+        "virtual": True,
+        "columns": [
+            {"name": "song_source", "type": "text", "nullable": False, "primary_key": False},
+            {"name": "id", "type": "integer", "nullable": False, "primary_key": True},
+            {"name": "title", "type": "text", "nullable": True, "primary_key": False},
+            {"name": "artist", "type": "text", "nullable": True, "primary_key": False},
+            {"name": "rubric_color", "type": "text", "nullable": True, "primary_key": False},
+            {"name": "charge_value", "type": "integer", "nullable": True, "primary_key": False},
+            {"name": "contaminated", "type": "boolean", "nullable": True, "primary_key": False},
+            {"name": "contamination_note", "type": "text", "nullable": True, "primary_key": False},
+            {"name": "charge_summary", "type": "text", "nullable": True, "primary_key": False},
+            {"name": "slug", "type": "text", "nullable": True, "primary_key": False},
+            {"name": "year", "type": "integer", "nullable": True, "primary_key": False},
+            {"name": "created_at", "type": "datetime", "nullable": True, "primary_key": False},
+        ],
+        "search_columns": ["title", "artist"],
+    })
     return out
 
 
@@ -131,6 +154,49 @@ def query_table(
     offset: int = 0,
     limit: int = 25,
 ):
+    # Virtual all_songs: UNION across the four song tables with the admin's
+    # full field set (including PII). Regular filter params (col, col__op)
+    # get interpreted by search_unified below.
+    if table == "all_songs":
+        params = request.query_params
+        def _pget(k):
+            v = params.get(k)
+            return v if v not in (None, "") else None
+        def _pget_int(k):
+            v = _pget(k)
+            try:
+                return int(v) if v is not None else None
+            except ValueError:
+                return None
+        result = search_unified(
+            db,
+            q=q,
+            source=_pget("song_source"),
+            tier=_pget("rubric_color"),
+            charge_min=_pget_int("charge_value__gte") or _pget_int("charge_min"),
+            charge_max=_pget_int("charge_value__lte") or _pget_int("charge_max"),
+            year_min=_pget_int("year__gte"),
+            year_max=_pget_int("year__lte"),
+            contaminated=(
+                True if _pget("contaminated") in ("1", "true", "yes")
+                else False if _pget("contaminated") in ("0", "false", "no")
+                else None
+            ),
+            sort_by=sort_by or "created_at",
+            sort_dir=sort_dir,
+            offset=max(0, offset),
+            limit=max(1, min(limit, 500)),
+            include_pii=True,
+            attach_slugs=True,
+        )
+        return {
+            "table": "all_songs",
+            "total": result["total"],
+            "offset": result["offset"],
+            "limit": result["limit"],
+            "rows": result["items"],
+        }
+
     if table not in TABLES:
         raise HTTPException(404, f"Unknown table: {table}")
     limit = max(1, min(limit, 500))

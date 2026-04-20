@@ -43,6 +43,7 @@ def verify_api_key(request: Request, x_api_key: str = Header(...)):
     request.state.client_id = client.id
     request.state.client_slug = client.slug
     request.state.client_behavior = client.behavior
+    request.state.plan_tier = client.plan_tier
 
 
 def verify_api_or_service_key(request: Request, x_api_key: str = Header(...)) -> str:
@@ -57,6 +58,7 @@ def verify_api_or_service_key(request: Request, x_api_key: str = Header(...)) ->
     request.state.client_id = client.id
     request.state.client_slug = client.slug
     request.state.client_behavior = client.behavior
+    request.state.plan_tier = client.plan_tier
     return client.behavior
 
 

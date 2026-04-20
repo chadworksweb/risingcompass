@@ -37,6 +37,7 @@ class ResolvedClient:
     slug: str
     behavior: str
     status: str
+    plan_tier: str = "trial"
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,10 @@ def resolve_key(db: Session, raw_key: str) -> ResolvedClient | None:
     if not client or client.status != "active":
         return None
 
-    snapshot = ResolvedClient(id=client.id, slug=client.slug, behavior=client.behavior, status=client.status)
+    snapshot = ResolvedClient(
+        id=client.id, slug=client.slug, behavior=client.behavior,
+        status=client.status, plan_tier=client.plan_tier or "trial",
+    )
 
     now = datetime.utcnow()
     with _last_used_lock:
