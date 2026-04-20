@@ -482,14 +482,8 @@ function showAdminPanel() {
   if (typeof initDbExplorer === 'function') initDbExplorer();
 }
 
-// On load: restore session if key exists
-(function initAuth() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    document.getElementById('adminKey').value = saved;
-    showAdminPanel();
-  }
-})();
+// initAuth runs at the bottom of the script — needs every `let` it touches
+// (dbTablesMeta and friends) to already be initialized.
 
 const colors = ['violet','blue','green','orange','red'];
 const colorLabels = {'violet':'Violet','blue':'Blue','green':'Green','orange':'Orange','red':'Red'};
@@ -1961,6 +1955,16 @@ document.addEventListener('keydown', (e) => {
       dbRunQuery();
     }
   });
+})();
+
+// On load: restore session if key exists. Must run after every `let`
+// declared above so async callees don't hit the TDZ.
+(function initAuth() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    document.getElementById('adminKey').value = saved;
+    showAdminPanel();
+  }
 })();
 </script>
 </body>
