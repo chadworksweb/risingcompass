@@ -458,21 +458,6 @@ async function submitLyrics() {
     return;
   }
 
-  // Prose warning — the compass is tuned for song lyrics. If the paste reads
-  // like an essay / blog post / monologue, warn and let the user override.
-  let confirmNotLyrics = false;
-  const proseReason = detectProseLike(lyrics);
-  if (proseReason) {
-    const ok = confirm(
-      `${proseReason}\n\nThe compass is calibrated for song lyrics — short lines, repetition, musical structure. Prose (essays, blog posts, speeches) will still get classified, but the rubric may not land right.\n\nClick OK to proceed anyway, or Cancel to go back and check what you pasted.`
-    );
-    if (!ok) {
-      btnSubmit.disabled = false;
-      return;
-    }
-    confirmNotLyrics = true;
-  }
-
   showScreen('screen-processing');
   startProgress();
 
@@ -486,7 +471,6 @@ async function submitLyrics() {
       body: JSON.stringify({
         lyrics, title, artist,
         artists: artistEntries.map(e => ({ name: e.name, role: e.role })),
-        confirm_not_lyrics: confirmNotLyrics,
         hp_website: getHpValue(),
         turnstile_token: getTurnstileToken(),
       }),

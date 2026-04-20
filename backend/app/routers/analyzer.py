@@ -526,18 +526,15 @@ async def calibrate_lyrics_endpoint(
                                       "title": body.title[:100], "artist": body.artist[:100]})
         raise HTTPException(422, lyrics_error)
 
-    # Prose / non-lyrics check. Frontend should already have warned with an
-    # override; backend hard-blocks unconfirmed prose so miscategorized
-    # blog posts, essays, and manifestos can't slip into the song corpus.
-    if not body.confirm_not_lyrics:
-        prose_reason = detect_prose_like(body.lyrics)
-        if prose_reason:
-            if is_public:
-                _log_error_event("submission_failed_validation", request,
-                                 payload={"reason": "prose_like", "detail": prose_reason,
-                                          "source": source,
-                                          "title": body.title[:100], "artist": body.artist[:100]})
-            raise HTTPException(422, f"{prose_reason} If this really is a song's lyrics, resubmit with confirm_not_lyrics=true.")
+    # Prose detection — observe only, do NOT block. We log flagged submissions
+    # so the heuristic can be tuned against real data before a future hard
+    # block. Position A (compass = lyrics) is the eventual destination, but
+    # we need to see what edge cases exist first.
+    prose_reason = detect_prose_like(body.lyrics)
+    if prose_reason and is_public:
+        schedule_event(background_tasks, "submission_prose_flagged", request,
+                       payload={"reason": prose_reason, "source": source,
+                                "title": body.title[:100], "artist": body.artist[:100]})
 
     title = body.title.strip()
     artist = body.artist.strip()
