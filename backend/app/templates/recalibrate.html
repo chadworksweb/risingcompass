@@ -162,6 +162,30 @@
       color: var(--text);
       white-space: pre-wrap;
     }
+
+    .tabs { display: flex; gap: 0.4rem; margin: 0 auto 1rem; max-width: 1400px; }
+    .tab {
+      padding: 0.55rem 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.04em;
+    }
+    .tab:hover { color: var(--text-bright); }
+    .tab.active { background: var(--bg); color: var(--text-bright); border-color: var(--border); position: relative; top: 1px; border-bottom: 1px solid var(--bg); }
+
+    .search-input { margin-bottom: 0.6rem; }
+    .hint {
+      color: var(--text-dim);
+      font-size: 0.78rem;
+      line-height: 1.4;
+      margin: -0.2rem 0 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -177,16 +201,32 @@
   <div id="auth-error" class="alert alert-error" style="display:none;"></div>
 </div>
 
-<div id="app" class="layout" style="display:none;">
+<div id="app-wrap" style="display:none;">
+<nav class="tabs">
+  <div class="tab active" data-tab="satire" id="tab-satire">Satire Flags</div>
+  <div class="tab" data-tab="rubric" id="tab-rubric">Rubric Update</div>
+</nav>
 
-  <aside class="panel">
+<div id="app" class="layout">
+
+  <aside class="panel" id="sidebar-satire">
     <h1>Pending Satirical Flags</h1>
     <p style="color:var(--text-dim);font-size:0.8rem;margin:-0.4rem 0 0.8rem;">Click a flag to begin a satire recalibration.</p>
     <div class="flag-list" id="flag-list"></div>
   </aside>
 
+  <aside class="panel" id="sidebar-rubric" style="display:none;">
+    <h1>Song Picker</h1>
+    <p style="color:var(--text-dim);font-size:0.8rem;margin:-0.4rem 0 0.8rem;">Search any song across compass / library / submitted / stream to recalibrate under the current rubric.</p>
+    <div class="search-input">
+      <input type="text" id="rubric-search" placeholder="Title or artist...">
+    </div>
+    <div class="flag-list" id="rubric-song-list"></div>
+  </aside>
+
   <main class="panel">
     <div id="empty-state" class="empty">Select a satirical flag from the left to begin.</div>
+    <div id="rubric-empty-state" class="empty" style="display:none;">Search for a song to the left, then paste lyrics + describe the rubric change to run a rubric-update recalibration.</div>
 
     <div id="recal-panel" style="display:none;">
       <h1 id="rp-title"></h1>
@@ -240,7 +280,65 @@
         <div id="prop-success" class="alert alert-success" style="display:none;"></div>
       </div>
     </div>
+
+    <div id="rubric-panel" style="display:none;">
+      <h1 id="ru-title"></h1>
+      <p style="color:var(--text-dim);margin:-0.4rem 0 0.8rem;">
+        <span id="ru-artist"></span> &middot;
+        <span class="tier-pill" id="ru-current-tier"></span>
+      </p>
+
+      <div class="field" style="margin-top:1rem;">
+        <label for="ru-slug">Rubric Change Slug</label>
+        <p class="hint">Short kebab-case id grouping every song affected by this rubric change. Example: <code>specific-group-anthem-ceiling</code>. Reuse the same slug across multiple songs touched by the same rule.</p>
+        <input type="text" id="ru-slug" placeholder="specific-group-anthem-ceiling">
+      </div>
+
+      <div class="field">
+        <label for="ru-note">Rubric Change Note</label>
+        <p class="hint">1–2 sentences naming the rule that was added or changed. Renders publicly on every affected song's history.</p>
+        <textarea id="ru-note" style="min-height:80px;" placeholder="Anthems for a specific identifiable group do not auto-qualify for Ascended; ceiling is Elevated unless the frequency transmits universally."></textarea>
+      </div>
+
+      <div class="field">
+        <label for="ru-lyrics">Lyrics (paste — never persisted)</label>
+        <textarea id="ru-lyrics" class="lyrics" placeholder="Paste the full lyrics. Lyrics are sent to the recalibrator and discarded — nothing is stored on the server."></textarea>
+      </div>
+
+      <button class="primary" id="ru-run">Run Rubric-Update Recalibration</button>
+      <div id="ru-error" class="alert alert-error" style="display:none;"></div>
+
+      <div id="ru-proposal" class="proposal" style="display:none;">
+        <h2 style="margin-top:0;">AI Proposal</h2>
+        <div class="shift">
+          <span class="tier-pill" id="ru-prop-before"></span>
+          <span class="arrow">&rarr;</span>
+          <span class="tier-pill" id="ru-prop-after"></span>
+        </div>
+
+        <h3>Proposed Summary</h3>
+        <p id="ru-prop-summary" style="color:var(--text-bright);font-size:0.95rem;"></p>
+
+        <h3>AI Reasoning (raw)</h3>
+        <textarea class="rationale" id="ru-prop-rationale" readonly></textarea>
+
+        <h3 style="margin-top:1.2rem;">Public-Facing Story</h3>
+        <p class="hint">Required. Explains to readers why this song was re-read. Draft suggestion is pre-filled from the rubric change note — edit freely.</p>
+        <textarea id="ru-prop-public-summary"></textarea>
+
+        <h3 style="margin-top:1rem;">Internal Notes (private)</h3>
+        <textarea id="ru-prop-internal-notes" style="min-height:60px;" placeholder="Optional admin-only notes."></textarea>
+
+        <div style="display:flex;gap:0.6rem;margin-top:1rem;">
+          <button class="primary" id="ru-prop-accept">Apply Recalibration</button>
+          <button class="danger" id="ru-prop-reject">Reject Proposal</button>
+        </div>
+        <div id="ru-prop-error" class="alert alert-error" style="display:none;"></div>
+        <div id="ru-prop-success" class="alert alert-success" style="display:none;"></div>
+      </div>
+    </div>
   </main>
+</div>
 </div>
 
 <script>
@@ -295,7 +393,7 @@
       await api('GET', '/api/admin/misread?status=pending');
       sessionStorage.setItem('rc-admin-key', ADMIN_KEY);
       $('auth-screen').style.display = 'none';
-      $('app').style.display = 'grid';
+      $('app-wrap').style.display = '';
       loadFlags();
     } catch (e) {
       $('auth-error').textContent = `Auth failed: ${e.message}`;
@@ -490,6 +588,190 @@
     d.textContent = s;
     return d.innerHTML;
   }
+
+  // --- Tab switching ---
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const which = t.dataset.tab;
+      $('sidebar-satire').style.display = which === 'satire' ? '' : 'none';
+      $('sidebar-rubric').style.display = which === 'rubric' ? '' : 'none';
+      if (which === 'satire') {
+        $('recal-panel').style.display = activeFlag ? '' : 'none';
+        $('empty-state').style.display = activeFlag ? 'none' : '';
+        $('rubric-panel').style.display = 'none';
+        $('rubric-empty-state').style.display = 'none';
+      } else {
+        $('recal-panel').style.display = 'none';
+        $('empty-state').style.display = 'none';
+        $('rubric-panel').style.display = activeRubricSong ? '' : 'none';
+        $('rubric-empty-state').style.display = activeRubricSong ? 'none' : '';
+      }
+    });
+  });
+
+  // --- Rubric Update ---
+  let activeRubricSong = null;
+  let activeRubricProposal = null;
+  let rubricSearchTimer = null;
+
+  $('rubric-search').addEventListener('input', () => {
+    clearTimeout(rubricSearchTimer);
+    rubricSearchTimer = setTimeout(doRubricSearch, 250);
+  });
+
+  async function doRubricSearch() {
+    const q = $('rubric-search').value.trim();
+    if (q.length < 2) {
+      $('rubric-song-list').innerHTML = '<div class="empty">Type 2+ characters to search.</div>';
+      return;
+    }
+    $('rubric-song-list').innerHTML = '<div class="empty">Searching...</div>';
+    try {
+      const res = await api('GET', `/api/admin/db/all_songs?q=${encodeURIComponent(q)}&limit=30`);
+      const rows = (res && res.rows) || [];
+      if (!rows.length) {
+        $('rubric-song-list').innerHTML = '<div class="empty">No matches.</div>';
+        return;
+      }
+      $('rubric-song-list').innerHTML = '';
+      rows.forEach(r => {
+        const el = document.createElement('div');
+        el.className = 'flag-item';
+        const color = r.rubric_color || null;
+        const chg = (r.charge_value != null) ? ((r.charge_value > 0 ? '+' : '') + r.charge_value) : '—';
+        el.innerHTML = `
+          <div class="ft-title">${escapeHtml(r.title || '(no title)')}</div>
+          <div class="ft-artist">${escapeHtml(r.artist || '')}</div>
+          <div class="ft-meta">${r.song_source}/${r.id} &middot; ${color ? tierPill(color, r.charge_value) : '<span class="tier-pill">uncalibrated</span>'}</div>
+        `;
+        el.addEventListener('click', () => selectRubricSong(r, el));
+        $('rubric-song-list').appendChild(el);
+      });
+    } catch (e) {
+      $('rubric-song-list').innerHTML = `<div class="alert alert-error">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function selectRubricSong(row, el) {
+    document.querySelectorAll('#rubric-song-list .flag-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    activeRubricSong = row;
+    activeRubricProposal = null;
+    $('rubric-empty-state').style.display = 'none';
+    $('rubric-panel').style.display = '';
+    $('ru-proposal').style.display = 'none';
+    $('ru-error').style.display = 'none';
+    $('ru-prop-error').style.display = 'none';
+    $('ru-prop-success').style.display = 'none';
+
+    $('ru-title').textContent = row.title || '(no title)';
+    $('ru-artist').textContent = row.artist || '';
+    setTierPill($('ru-current-tier'), row.rubric_color, row.charge_value);
+    $('ru-lyrics').value = '';
+    $('ru-prop-public-summary').value = '';
+    $('ru-prop-internal-notes').value = '';
+  }
+
+  $('ru-run').addEventListener('click', async () => {
+    if (!activeRubricSong) return;
+    const slug = $('ru-slug').value.trim();
+    const note = $('ru-note').value.trim();
+    const lyrics = $('ru-lyrics').value.trim();
+    if (slug.length < 3) return showRuError('Rubric change slug required (3+ chars, kebab-case).');
+    if (note.length < 10) return showRuError('Rubric change note required (10+ chars — 1–2 sentences).');
+    if (lyrics.length < 20) return showRuError('Paste the lyrics first (20+ chars).');
+
+    $('ru-error').style.display = 'none';
+    $('ru-run').disabled = true;
+    $('ru-run').textContent = 'Running... (can take 20–60s)';
+    try {
+      const proposal = await api('POST', '/api/admin/recalibrations/rubric-update', {
+        song_source: activeRubricSong.song_source,
+        song_id: activeRubricSong.id,
+        lyrics: lyrics,
+        rubric_change_slug: slug,
+        rubric_change_note: note,
+      });
+      activeRubricProposal = proposal;
+      renderRubricProposal(proposal, note);
+    } catch (e) {
+      showRuError(e.message);
+    } finally {
+      $('ru-run').disabled = false;
+      $('ru-run').textContent = 'Run Rubric-Update Recalibration';
+    }
+  });
+
+  function showRuError(msg) {
+    $('ru-error').textContent = msg;
+    $('ru-error').style.display = '';
+  }
+
+  function renderRubricProposal(p, note) {
+    $('ru-proposal').style.display = '';
+    setTierPill($('ru-prop-before'), p.original_color, p.original_charge);
+    setTierPill($('ru-prop-after'), p.proposed_color, p.proposed_charge);
+    $('ru-prop-summary').textContent = p.proposed_summary || '(no summary returned)';
+    $('ru-prop-rationale').value = p.ai_rationale || '';
+    $('ru-prop-public-summary').value = note ? `The rubric was updated: ${note}` : '';
+    $('ru-prop-internal-notes').value = '';
+    $('ru-prop-error').style.display = 'none';
+    $('ru-prop-success').style.display = 'none';
+  }
+
+  $('ru-prop-accept').addEventListener('click', async () => {
+    if (!activeRubricProposal) return;
+    const summary = $('ru-prop-public-summary').value.trim();
+    const internal = $('ru-prop-internal-notes').value.trim();
+    if (summary.length < 20) {
+      $('ru-prop-error').textContent = 'A public-facing story is required (20+ chars).';
+      $('ru-prop-error').style.display = '';
+      return;
+    }
+    $('ru-prop-error').style.display = 'none';
+    $('ru-prop-accept').disabled = true;
+    $('ru-prop-reject').disabled = true;
+    try {
+      const result = await api('POST', `/api/admin/recalibrations/${activeRubricProposal.id}/accept`, {
+        public_summary: summary,
+        internal_notes: internal || null,
+      });
+      $('ru-prop-success').textContent = `Applied. Audit row #${result.audit_id}. Song now ${result.after.color} (${result.after.charge >= 0 ? '+' : ''}${result.after.charge}). Prior calibration_runs superseded.`;
+      $('ru-prop-success').style.display = '';
+      activeRubricProposal = null;
+      // Refresh search so the moved song shows its new tier
+      doRubricSearch();
+    } catch (e) {
+      $('ru-prop-error').textContent = e.message;
+      $('ru-prop-error').style.display = '';
+    } finally {
+      $('ru-prop-accept').disabled = false;
+      $('ru-prop-reject').disabled = false;
+    }
+  });
+
+  $('ru-prop-reject').addEventListener('click', async () => {
+    if (!activeRubricProposal) return;
+    const notes = prompt('Optional review notes (why you rejected the proposal):') || '';
+    $('ru-prop-accept').disabled = true;
+    $('ru-prop-reject').disabled = true;
+    try {
+      await api('POST', `/api/admin/recalibrations/${activeRubricProposal.id}/reject`, {
+        review_notes: notes || null,
+      });
+      $('ru-prop-success').textContent = 'Proposal rejected. Song unchanged.';
+      $('ru-prop-success').style.display = '';
+      activeRubricProposal = null;
+    } catch (e) {
+      $('ru-prop-error').textContent = e.message;
+      $('ru-prop-error').style.display = '';
+    } finally {
+      $('ru-prop-accept').disabled = false;
+      $('ru-prop-reject').disabled = false;
+    }
+  });
 })();
 </script>
 
