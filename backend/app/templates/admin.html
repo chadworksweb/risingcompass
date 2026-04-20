@@ -185,6 +185,12 @@
   .db-actions-menu-item.armed { background: var(--red); color: #ffffff; }
   .db-actions-menu-item.armed:hover { background: #9a2e18; }
   .db-actions-menu-item.merge-source { color: var(--accent-strong); font-weight: 600; }
+  /* Draggable column headers */
+  .db-results th[draggable="true"] { cursor: grab; }
+  .db-results th[draggable="true"]:active { cursor: grabbing; }
+  .db-results th.db-drag-dragging { opacity: 0.4; }
+  .db-results th.db-drag-target-left { box-shadow: inset 3px 0 0 var(--accent); }
+  .db-results th.db-drag-target-right { box-shadow: inset -3px 0 0 var(--accent); }
   /* Charge column — colored by tier */
   .db-results td.db-td-charge { font-family: monospace; font-weight: 700; text-align: right; white-space: nowrap; }
   .db-results td.db-td-charge.color-violet { color: var(--tier-violet); }
@@ -1225,6 +1231,51 @@ const DB_SORT_BY_TABLE = {
   // compass_songs has no creation timestamp; let the backend fall back to id DESC
   compass_songs: null,
 };
+
+// Per-table column order, persisted in localStorage. Shape:
+//   { "all_songs": ["id", "title", "rubric_color", "charge", ...], ... }
+// "charge" is the synthetic column — shows up only when the table has
+// both rubric_color and charge_value.
+const DB_COLUMN_ORDER_KEY = 'rc-admin-db-colorder';
+let dbColumnOrder = {};
+try {
+  dbColumnOrder = JSON.parse(localStorage.getItem(DB_COLUMN_ORDER_KEY) || '{}') || {};
+} catch { dbColumnOrder = {}; }
+
+function _dbSaveColumnOrder() {
+  try {
+    localStorage.setItem(DB_COLUMN_ORDER_KEY, JSON.stringify(dbColumnOrder));
+  } catch {}
+}
+
+// Returns a flat ordered list of column descriptors for the active table.
+// Real columns: {name, type, ...}; synthetic: {name: 'charge', synthetic: true}.
+function dbEffectiveCols(meta) {
+  const real = meta.columns || [];
+  const names = real.map(c => c.name);
+  const showCharge = names.includes('rubric_color') && names.includes('charge_value');
+
+  // Natural default order: real columns + synthetic 'charge' inserted
+  // right after rubric_color.
+  const natural = [];
+  real.forEach(c => {
+    natural.push(c);
+    if (showCharge && c.name === 'rubric_color') {
+      natural.push({ name: 'charge', synthetic: true, type: 'integer' });
+    }
+  });
+
+  // Apply persisted order: keep real-col objects, drop any saved name that
+  // no longer exists, append any natural col missing from the saved list.
+  const saved = dbColumnOrder[meta.table];
+  if (!Array.isArray(saved) || !saved.length) return natural;
+  const byName = new Map(natural.map(c => [c.name, c]));
+  const out = [];
+  saved.forEach(n => { if (byName.has(n)) { out.push(byName.get(n)); byName.delete(n); } });
+  // Append anything new that wasn't in the saved order.
+  byName.forEach(c => out.push(c));
+  return out;
+}
 let dbOffset = 0;
 let dbLoadedRows = [];  // accumulator for the load-more pattern
 let dbLastData = null;  // most recent API response (for re-render without refetch)
@@ -1410,29 +1461,22 @@ function renderDbResults(data) {
   const thead = table.querySelector('thead');
   const tbody = table.querySelector('tbody');
 
-  const cols = meta.columns;
   const isResettable = DB_RESETTABLE.has(dbActiveTable);
   const isDeletable = DB_DELETABLE.has(dbActiveTable);
   const isMergeable = DB_MERGEABLE.has(dbActiveTable);
   const hasActions = isResettable || isDeletable || isMergeable;
 
-  // Inject a synthetic "charge" column right after rubric_color when both
-  // rubric_color and charge_value exist on this table. Renders the charge
-  // in the tier color. Leaves rubric_color intact.
-  const colNames = cols.map(c => c.name);
-  const showCharge = colNames.includes('rubric_color') && colNames.includes('charge_value');
-  const colSpan = cols.length + (hasActions ? 1 : 0) + (showCharge ? 1 : 0);
+  const orderedCols = dbEffectiveCols(meta);
+  const colSpan = orderedCols.length + (hasActions ? 1 : 0);
 
   let head = '<tr>';
   if (hasActions) head += '<th class="db-th db-th-actions">actions</th>';
-  head += cols.map(c => {
-    const arrow = dbSort.by === c.name ? (dbSort.dir === 'desc' ? ' ▾' : ' ▴') : '';
-    const th = `<th onclick="dbToggleSort('${c.name}')" class="db-th" title="Click to sort">${c.name}${arrow}</th>`;
-    if (showCharge && c.name === 'rubric_color') {
-      const chargeArrow = dbSort.by === 'charge_value' ? (dbSort.dir === 'desc' ? ' ▾' : ' ▴') : '';
-      return th + `<th onclick="dbToggleSort('charge_value')" class="db-th" title="Click to sort">charge${chargeArrow}</th>`;
-    }
-    return th;
+  head += orderedCols.map(c => {
+    // Synthetic 'charge' sorts by charge_value; everything else sorts by its
+    // own column name. Both are click-to-sort AND draggable to reorder.
+    const sortCol = c.synthetic && c.name === 'charge' ? 'charge_value' : c.name;
+    const arrow = dbSort.by === sortCol ? (dbSort.dir === 'desc' ? ' ▾' : ' ▴') : '';
+    return `<th draggable="true" data-col="${c.name}" ondragstart="dbColDragStart(event)" ondragover="dbColDragOver(event)" ondragleave="dbColDragLeave(event)" ondrop="dbColDrop(event)" ondragend="dbColDragEnd(event)" onclick="dbHeaderClick(event, '${sortCol}')" class="db-th" title="Drag to reorder · click to sort">${c.name}${arrow}</th>`;
   }).join('') + '</tr>';
   thead.innerHTML = head;
 
@@ -1482,23 +1526,21 @@ function renderDbResults(data) {
         }
         html += `</div></div></td>`;
       }
-      html += cols.map(c => {
-        const v = row[c.name];
-        const display = v == null ? '<span class="db-null">—</span>' : esc(String(v));
-        const cls = DB_COLOR_COLS.has(c.name) && v ? `color-${esc(String(v))}` : '';
-        const wide = DB_WIDE_COLS.has(c.name) ? 'db-td-wide' : '';
-        const cell = `<td class="${wide} ${cls}" title="${v == null ? '' : esc(String(v))}">${display}</td>`;
-        // Inject the synthetic charge cell right after rubric_color, tinted
-        // with the same tier color so the number reads as part of the tier.
-        if (showCharge && c.name === 'rubric_color') {
+      html += orderedCols.map(c => {
+        // Synthetic charge cell — tier-colored signed number.
+        if (c.synthetic && c.name === 'charge') {
           const cv = row.charge_value;
           const colorCls = row.rubric_color ? `color-${esc(String(row.rubric_color))}` : '';
           const cvDisplay = cv == null
             ? '<span class="db-null">—</span>'
             : ((cv > 0 ? '+' : '') + cv);
-          return cell + `<td class="db-td-charge ${colorCls}">${cvDisplay}</td>`;
+          return `<td class="db-td-charge ${colorCls}">${cvDisplay}</td>`;
         }
-        return cell;
+        const v = row[c.name];
+        const display = v == null ? '<span class="db-null">—</span>' : esc(String(v));
+        const cls = DB_COLOR_COLS.has(c.name) && v ? `color-${esc(String(v))}` : '';
+        const wide = DB_WIDE_COLS.has(c.name) ? 'db-td-wide' : '';
+        return `<td class="${wide} ${cls}" title="${v == null ? '' : esc(String(v))}">${display}</td>`;
       }).join('');
       html += '</tr>';
       return html;
@@ -1747,6 +1789,89 @@ function dbToggleSort(col) {
   }
   dbOffset = 0;
   dbRunQuery();
+}
+
+// Click on a header — but only sort if this wasn't the tail-end of a drag.
+// dragend fires before the subsequent synthetic click in some browsers;
+// _dbDragJustEnded is a short-lived flag that suppresses the sort.
+let _dbDragJustEnded = false;
+function dbHeaderClick(ev, sortCol) {
+  if (_dbDragJustEnded) { _dbDragJustEnded = false; return; }
+  dbToggleSort(sortCol);
+}
+
+// --- Column drag-and-drop reordering ---
+let _dbDraggingCol = null;
+
+function dbColDragStart(ev) {
+  const th = ev.currentTarget;
+  _dbDraggingCol = th.dataset.col;
+  th.classList.add('db-drag-dragging');
+  // Firefox requires setData; the payload itself isn't used.
+  try { ev.dataTransfer.setData('text/plain', _dbDraggingCol); } catch {}
+  ev.dataTransfer.effectAllowed = 'move';
+}
+
+function dbColDragOver(ev) {
+  if (!_dbDraggingCol) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  const th = ev.currentTarget;
+  if (th.dataset.col === _dbDraggingCol) return;
+  // Paint a left-or-right drop indicator based on cursor X.
+  const rect = th.getBoundingClientRect();
+  const left = (ev.clientX - rect.left) < rect.width / 2;
+  th.classList.toggle('db-drag-target-left', left);
+  th.classList.toggle('db-drag-target-right', !left);
+}
+
+function dbColDragLeave(ev) {
+  const th = ev.currentTarget;
+  th.classList.remove('db-drag-target-left', 'db-drag-target-right');
+}
+
+function dbColDrop(ev) {
+  ev.preventDefault();
+  const th = ev.currentTarget;
+  const targetCol = th.dataset.col;
+  const sourceCol = _dbDraggingCol;
+  th.classList.remove('db-drag-target-left', 'db-drag-target-right');
+  if (!sourceCol || !targetCol || sourceCol === targetCol) return;
+
+  const meta = dbTableMeta();
+  const current = dbEffectiveCols(meta).map(c => c.name);
+  const srcIdx = current.indexOf(sourceCol);
+  const tgtIdx = current.indexOf(targetCol);
+  if (srcIdx < 0 || tgtIdx < 0) return;
+
+  // Determine whether to drop before (left half) or after (right half) target
+  const rect = th.getBoundingClientRect();
+  const dropBefore = (ev.clientX - rect.left) < rect.width / 2;
+
+  current.splice(srcIdx, 1);
+  const adjIdx = current.indexOf(targetCol);
+  const insertAt = dropBefore ? adjIdx : adjIdx + 1;
+  current.splice(insertAt, 0, sourceCol);
+
+  dbColumnOrder[meta.table] = current;
+  _dbSaveColumnOrder();
+
+  // Suppress the synthetic click-on-same-element that some browsers emit
+  // after drop, so the sort toggle doesn't fire.
+  _dbDragJustEnded = true;
+  setTimeout(() => { _dbDragJustEnded = false; }, 50);
+
+  if (dbLastData) renderDbResults(dbLastData);
+}
+
+function dbColDragEnd(ev) {
+  ev.currentTarget.classList.remove('db-drag-dragging');
+  document.querySelectorAll('.db-drag-target-left, .db-drag-target-right')
+    .forEach(th => th.classList.remove('db-drag-target-left', 'db-drag-target-right'));
+  _dbDraggingCol = null;
+  // Same suppression — some browsers fire click after drag end on the source
+  _dbDragJustEnded = true;
+  setTimeout(() => { _dbDragJustEnded = false; }, 50);
 }
 
 // Row actions kebab menu — one open at a time, closes on outside click or
