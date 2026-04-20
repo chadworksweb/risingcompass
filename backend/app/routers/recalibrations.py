@@ -24,8 +24,24 @@ Lenses: standard (plain rubric), satire (satire lens overlay).
 
 import json
 import logging
+import re
+import unicodedata
 from datetime import datetime
 from typing import Optional
+
+
+def _slugify_rubric_change(note: str) -> str:
+    """Derive a stable kebab-case slug from a plain-English rubric note.
+
+    Takes the first ~8 words, lowercases, strips punctuation, collapses
+    whitespace to single hyphens. Max 80 chars. Admins never see the slug —
+    it's only the DB-level grouping key.
+    """
+    text = unicodedata.normalize("NFKD", note or "").encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"[^a-zA-Z0-9\s]", "", text).lower().strip()
+    words = text.split()[:8]
+    slug = "-".join(words) or "rubric-change"
+    return slug[:80]
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -100,6 +116,12 @@ class StartRecalibrateIn(BaseModel):
     """Unified start request. Pipeline says what triggered it; lens says how
     the agent re-reads. Pipeline-specific fields are optional and validated
     conditionally below.
+
+    For pipeline=rubric_update, send EITHER:
+      - rubric_change_slug: selects an existing change (the admin's dropdown
+        picked one that's already been applied to other songs), OR
+      - rubric_change_note: a plain-English 1-2 sentence description. The
+        server derives the slug from the note.
     """
     song_source: str
     song_id: int
@@ -168,11 +190,40 @@ def start_recalibration(data: StartRecalibrateIn, db: Session = Depends(get_db))
         raise HTTPException(400, f"Invalid lens. Must be one of: {sorted(VALID_LENSES)}")
     if data.pipeline == "consensus_drift":
         raise HTTPException(400, "consensus_drift is written by the corpus engine, not started by admins")
+    # Normalize rubric-change inputs. Admin UIs pass plain-English notes;
+    # existing slug selections pass the slug. For reuse we fill the missing
+    # side from whichever source exists.
+    rc_slug = (data.rubric_change_slug or "").strip() or None
+    rc_note = (data.rubric_change_note or "").strip() or None
     if data.pipeline == "rubric_update":
-        if not data.rubric_change_slug or len(data.rubric_change_slug) < 3:
-            raise HTTPException(400, "rubric_change_slug required (3+ chars) when pipeline=rubric_update")
-        if not data.rubric_change_note or len(data.rubric_change_note) < 10:
-            raise HTTPException(400, "rubric_change_note required (10+ chars) when pipeline=rubric_update")
+        if not rc_slug and not rc_note:
+            raise HTTPException(400, "Provide rubric_change_note (new) or rubric_change_slug (existing) when pipeline=rubric_update")
+        if rc_slug and not rc_note:
+            # Selected an existing change — look up its most recent note so
+            # the audit row carries the canonical description.
+            prior = (
+                db.query(SongRecalibration.rubric_change_note)
+                .filter(SongRecalibration.rubric_change_slug == rc_slug)
+                .filter(SongRecalibration.rubric_change_note.isnot(None))
+                .order_by(SongRecalibration.applied_at.desc())
+                .first()
+            )
+            if prior and prior[0]:
+                rc_note = prior[0]
+            else:
+                prior_p = (
+                    db.query(SongRecalibrationProposal.rubric_change_note)
+                    .filter(SongRecalibrationProposal.rubric_change_slug == rc_slug)
+                    .filter(SongRecalibrationProposal.rubric_change_note.isnot(None))
+                    .order_by(SongRecalibrationProposal.created_at.desc())
+                    .first()
+                )
+                if prior_p and prior_p[0]:
+                    rc_note = prior_p[0]
+        if not rc_slug and rc_note:
+            rc_slug = _slugify_rubric_change(rc_note)
+        if not rc_note or len(rc_note) < 10:
+            raise HTTPException(400, "rubric_change_note required (10+ chars) for new rubric changes")
 
     song = _resolve_song(db, data.song_source, data.song_id)
     original_color = getattr(song, "rubric_color", None)
@@ -213,8 +264,8 @@ def start_recalibration(data: StartRecalibrateIn, db: Session = Depends(get_db))
         proposed_summary=result["charge_summary"],
         ai_rationale=result["ai_rationale"],
         ai_model=result["ai_model"],
-        rubric_change_slug=data.rubric_change_slug if data.pipeline == "rubric_update" else None,
-        rubric_change_note=data.rubric_change_note if data.pipeline == "rubric_update" else None,
+        rubric_change_slug=rc_slug if data.pipeline == "rubric_update" else None,
+        rubric_change_note=rc_note if data.pipeline == "rubric_update" else None,
         status="pending",
     )
     db.add(proposal)
@@ -222,6 +273,56 @@ def start_recalibration(data: StartRecalibrateIn, db: Session = Depends(get_db))
     db.refresh(proposal)
 
     return _proposal_to_out(proposal, db)
+
+
+@router.get("/pipelines/rubric-changes", dependencies=[Depends(verify_admin_key)])
+def list_rubric_changes(db: Session = Depends(get_db)):
+    """List all distinct rubric changes the admin can reuse.
+
+    Each rubric change is identified by its slug. For each slug, we return
+    the most recent note (the public-facing 1-2 sentence description) and
+    the latest time it was used. Powers the rubric-change dropdown in the
+    recalibrate UI so admins pick an existing change (or create a new one)
+    without handling slug strings directly.
+    """
+    items = {}
+    q = (
+        db.query(
+            SongRecalibration.rubric_change_slug,
+            SongRecalibration.rubric_change_note,
+            SongRecalibration.applied_at,
+        )
+        .filter(SongRecalibration.rubric_change_slug.isnot(None))
+        .order_by(SongRecalibration.applied_at.desc())
+    )
+    for slug, note, applied_at in q.all():
+        if not slug:
+            continue
+        if slug not in items:
+            items[slug] = {
+                "slug": slug,
+                "note": note,
+                "last_used": applied_at.isoformat() if applied_at else None,
+            }
+    # Include pending proposals too so a change in flight is reusable.
+    pq = (
+        db.query(
+            SongRecalibrationProposal.rubric_change_slug,
+            SongRecalibrationProposal.rubric_change_note,
+            SongRecalibrationProposal.created_at,
+        )
+        .filter(SongRecalibrationProposal.rubric_change_slug.isnot(None))
+        .order_by(SongRecalibrationProposal.created_at.desc())
+    )
+    for slug, note, created_at in pq.all():
+        if not slug or slug in items:
+            continue
+        items[slug] = {
+            "slug": slug,
+            "note": note,
+            "last_used": created_at.isoformat() if created_at else None,
+        }
+    return sorted(items.values(), key=lambda x: x["last_used"] or "", reverse=True)
 
 
 @router.get("/pipelines/satirical-flags", dependencies=[Depends(verify_admin_key)])

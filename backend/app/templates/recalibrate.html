@@ -295,14 +295,20 @@
 
       <div id="pipeline-rubric-fields" style="display:none;">
         <div class="field">
-          <label for="rubric-slug">Rubric Change Slug</label>
-          <p class="hint">Short kebab-case id grouping every song affected by this change. Example: <code>specific-group-anthem-ceiling</code>.</p>
-          <input type="text" id="rubric-slug" placeholder="specific-group-anthem-ceiling">
+          <label for="rubric-change-select">Rubric Change</label>
+          <p class="hint">Pick the rubric rule this recalibration applies. Every song affected by the same rule groups together in the public audit log.</p>
+          <select id="rubric-change-select">
+            <option value="__loading__">Loading...</option>
+          </select>
         </div>
-        <div class="field">
-          <label for="rubric-note">Rubric Change Note</label>
+        <div class="field" id="rubric-new-field" style="display:none;">
+          <label for="rubric-note">New Rubric Change Description</label>
           <p class="hint">1–2 sentences naming the rule. Renders publicly on every affected song's history.</p>
           <textarea id="rubric-note" placeholder="Anthems for a specific identifiable group do not auto-qualify for Ascended..."></textarea>
+        </div>
+        <div class="field" id="rubric-existing-preview" style="display:none;">
+          <p class="hint" style="margin-top:0;"><strong>Selected rule:</strong></p>
+          <div class="proof-block" id="rubric-existing-note" style="border-left-color:var(--accent);"></div>
         </div>
       </div>
 
@@ -538,6 +544,57 @@
     const p = $('pipeline-select').value;
     $('pipeline-rubric-fields').style.display = p === 'rubric_update' ? '' : 'none';
     $('pipeline-flag-fields').style.display = (p === 'satirical_flag' && activeFlag) ? '' : 'none';
+    if (p === 'rubric_update') loadRubricChanges();
+  }
+
+  // --- Rubric-change dropdown ---
+  let rubricChanges = [];  // cached [{slug, note, last_used}, ...]
+  let rubricChangesLoaded = false;
+
+  async function loadRubricChanges() {
+    const sel = $('rubric-change-select');
+    if (rubricChangesLoaded) { onRubricChangeSelect(); return; }
+    sel.innerHTML = '<option value="__loading__">Loading...</option>';
+    try {
+      rubricChanges = await api('GET', '/api/admin/recalibrations/pipelines/rubric-changes') || [];
+      rubricChangesLoaded = true;
+      renderRubricChangeOptions();
+    } catch (e) {
+      sel.innerHTML = `<option value="">Error: ${escapeHtml(e.message)}</option>`;
+    }
+  }
+
+  function renderRubricChangeOptions() {
+    const sel = $('rubric-change-select');
+    const opts = ['<option value="">— Pick a rubric change —</option>'];
+    opts.push('<option value="__new__">+ New rubric change</option>');
+    rubricChanges.forEach(rc => {
+      const label = (rc.note || rc.slug).trim();
+      const short = label.length > 90 ? label.slice(0, 87) + '...' : label;
+      opts.push(`<option value="${escapeHtml(rc.slug)}">${escapeHtml(short)}</option>`);
+    });
+    sel.innerHTML = opts.join('');
+    onRubricChangeSelect();
+  }
+
+  $('rubric-change-select').addEventListener('change', onRubricChangeSelect);
+
+  function onRubricChangeSelect() {
+    const v = $('rubric-change-select').value;
+    const newField = $('rubric-new-field');
+    const preview = $('rubric-existing-preview');
+    if (v === '__new__') {
+      newField.style.display = '';
+      preview.style.display = 'none';
+    } else if (v && v !== '__loading__' && v !== '') {
+      newField.style.display = 'none';
+      const rc = rubricChanges.find(x => x.slug === v);
+      $('rubric-existing-note').textContent = (rc && rc.note) || '(no description)';
+      preview.style.display = '';
+    } else {
+      newField.style.display = 'none';
+      preview.style.display = 'none';
+    }
   }
 
   $('ss-clear').addEventListener('click', () => {
@@ -559,8 +616,9 @@
     $('ss-source').textContent = `${activeSong.song_source}/${activeSong.song_id}`;
     setTierPill($('ss-tier'), activeSong.rubric_color, activeSong.charge_value);
     $('ru-lyrics').value = '';
-    $('rubric-slug').value = '';
     $('rubric-note').value = '';
+    if ($('rubric-change-select').value) $('rubric-change-select').value = '';
+    onRubricChangeSelect();
     $('run-error').style.display = 'none';
     $('proposal-panel').style.display = 'none';
     activeProposal = null;
@@ -572,13 +630,17 @@
     const pipeline = $('pipeline-select').value;
     const lens = document.querySelector('input[name="lens"]:checked').value;
     const lyrics = $('ru-lyrics').value.trim();
-    const slug = $('rubric-slug').value.trim();
-    const note = $('rubric-note').value.trim();
+    const rubricSelection = $('rubric-change-select').value;
+    const newNote = $('rubric-note').value.trim();
 
     if (lyrics.length < 20) return showErr('run-error', 'Paste the lyrics first (20+ chars).');
     if (pipeline === 'rubric_update') {
-      if (slug.length < 3) return showErr('run-error', 'Rubric change slug required (3+ chars).');
-      if (note.length < 10) return showErr('run-error', 'Rubric change note required (10+ chars).');
+      if (!rubricSelection || rubricSelection === '__loading__') {
+        return showErr('run-error', 'Pick a rubric change or create a new one.');
+      }
+      if (rubricSelection === '__new__' && newNote.length < 10) {
+        return showErr('run-error', 'Describe the new rubric change (10+ chars).');
+      }
     }
 
     $('run-error').style.display = 'none';
@@ -593,15 +655,33 @@
         lens: lens,
       };
       if (pipeline === 'rubric_update') {
-        body.rubric_change_slug = slug;
-        body.rubric_change_note = note;
+        if (rubricSelection === '__new__') {
+          body.rubric_change_note = newNote;
+        } else {
+          body.rubric_change_slug = rubricSelection;
+        }
       }
       if (pipeline === 'satirical_flag' && activeFlag) {
         body.trigger_ref_id = activeFlag.id;
       }
       const proposal = await api('POST', '/api/admin/recalibrations/start', body);
       activeProposal = proposal;
-      renderProposal(proposal, pipeline, note);
+      // Pre-fill public summary from whichever rubric note was sent
+      let preFillNote = '';
+      if (pipeline === 'rubric_update') {
+        if (rubricSelection === '__new__') {
+          preFillNote = newNote;
+        } else {
+          const rc = rubricChanges.find(x => x.slug === rubricSelection);
+          preFillNote = (rc && rc.note) || proposal.rubric_change_note || '';
+        }
+      }
+      // After a successful run, refresh the rubric-changes cache so newly
+      // created ones appear in the dropdown next time.
+      if (pipeline === 'rubric_update' && rubricSelection === '__new__') {
+        rubricChangesLoaded = false;
+      }
+      renderProposal(proposal, pipeline, preFillNote);
     } catch (e) {
       showErr('run-error', e.message);
     } finally {
