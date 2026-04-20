@@ -352,7 +352,7 @@ const STAGES = [
   { pct: 18, label: 'Reading lyrics',              detail: 'Parsing line by line...' },
   { pct: 30, label: 'Loading rubric',              detail: '58 tenets across 5 tiers...' },
   { pct: 50, label: 'Calibrating',                 detail: 'Building case from zero...' },
-  { pct: 70, label: 'Evaluating contamination',    detail: 'Checking for hidden payloads...' },
+  { pct: 70, label: 'Evaluating contamination',    detail: 'Checking for hidden messages...' },
   { pct: 82, label: 'Calculating charge',          detail: 'Mapping position within tier...' },
   { pct: 90, label: 'Generating summary',          detail: 'Writing charge summary...' },
 ];
