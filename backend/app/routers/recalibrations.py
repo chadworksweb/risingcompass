@@ -224,6 +224,41 @@ def start_recalibration(data: StartRecalibrateIn, db: Session = Depends(get_db))
     return _proposal_to_out(proposal, db)
 
 
+@router.get("/pipelines/satirical-flags", dependencies=[Depends(verify_admin_key)])
+def pending_satirical_flags(limit: int = 50, db: Session = Depends(get_db)):
+    """Inbox for the satirical_flag pipeline. Returns pending satirical
+    misread submissions, shaped for the recalibrate admin UI.
+
+    Mirrors what /api/admin/misread?report_type=satirical returns, but
+    lives on the recalibrations router so it doesn't require the public
+    X-Api-Key header that the misread router is mounted under.
+    """
+    rows = (
+        db.query(MisreadSubmission)
+        .filter(MisreadSubmission.report_type == "satirical")
+        .filter(MisreadSubmission.status == "pending")
+        .order_by(MisreadSubmission.created_at.desc())
+        .limit(max(1, min(limit, 200)))
+        .all()
+    )
+    out = []
+    for r in rows:
+        out.append({
+            "id": r.id,
+            "song_title": r.song_title,
+            "song_artist": r.song_artist,
+            "song_source": r.song_source,
+            "song_id": r.song_id,
+            "song_color": getattr(r, "song_color", None),
+            "first_name": getattr(r, "first_name", None),
+            "last_name": getattr(r, "last_name", None),
+            "message": getattr(r, "message", None),
+            "proof_context": getattr(r, "proof_context", None),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        })
+    return out
+
+
 @router.get("", dependencies=[Depends(verify_admin_key)])
 def list_proposals(
     status: Optional[str] = None,

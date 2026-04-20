@@ -418,12 +418,10 @@
 
   // --- Flag inbox (satirical_flag pipeline) ---
   async function loadFlags() {
-    // Misread endpoint requires X-Api-Key, which the admin UI doesn't have.
-    // Fall back to empty inbox gracefully.
     $('flag-list').innerHTML = '';
     $('flag-count').textContent = '—';
     try {
-      const flags = await api('GET', '/api/admin/misread?report_type=satirical&status=pending');
+      const flags = await api('GET', '/api/admin/recalibrations/pipelines/satirical-flags?limit=50');
       if (!flags || !flags.length) {
         $('flag-list').innerHTML = '<div class="inbox-empty">No pending satirical flags.</div>';
         $('flag-count').textContent = '0';
