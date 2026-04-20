@@ -623,6 +623,10 @@ class LyricsCalibrateIn(BaseModel):
     # the `artist` string for song_artists linkage. The `artist` field stays
     # the canonical display string either way.
     artists: Optional[list[ArtistEntry]] = None
+    # Submitter acknowledges the text isn't clearly song lyrics. The backend
+    # hard-blocks prose-like submissions unless this is True (frontend warns
+    # the user + surfaces an override).
+    confirm_not_lyrics: bool = False
     # Bot protection — invisible field that legitimate users never fill in.
     hp_website: str = ""
     # Cloudflare Turnstile token; ignored unless TURNSTILE_SECRET is configured.

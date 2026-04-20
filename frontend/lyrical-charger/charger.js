@@ -418,6 +418,25 @@ function handleSubmit() {
   }
 }
 
+// Mirrors backend detect_prose_like. Returns reason string if prose-like.
+function detectProseLike(text) {
+  const lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
+  if (!lines.length) return null;
+  const words = text.match(/\S+/g) || [];
+  if (words.length < 40) return null;
+  const longest = Math.max(...lines.map(l => l.length));
+  if (longest > 300) return 'One or more lines are very long (over 300 characters). Song lyrics are usually broken into short lines.';
+  const avg = lines.reduce((s, l) => s + l.length, 0) / lines.length;
+  if (avg > 100) return 'The average line is very long. Song lyrics usually break every few words, not in paragraph-like chunks.';
+  const ratio = lines.length / Math.max(words.length, 1);
+  if (ratio < 0.05) return 'Line breaks are sparse — this reads more like prose than lyrics.';
+  const lowered = lines.map(l => l.toLowerCase().trim());
+  const unique = new Set(lowered);
+  const dupes = lowered.length - unique.size;
+  if (dupes === 0 && words.length > 250 && avg > 60) return 'Nothing repeats here. Song lyrics typically have a refrain or repeated lines. This reads like prose.';
+  return null;
+}
+
 async function submitLyrics() {
   hideError();
   btnSubmit.disabled = true;
@@ -439,6 +458,21 @@ async function submitLyrics() {
     return;
   }
 
+  // Prose warning — the compass is tuned for song lyrics. If the paste reads
+  // like an essay / blog post / monologue, warn and let the user override.
+  let confirmNotLyrics = false;
+  const proseReason = detectProseLike(lyrics);
+  if (proseReason) {
+    const ok = confirm(
+      `${proseReason}\n\nThe compass is calibrated for song lyrics — short lines, repetition, musical structure. Prose (essays, blog posts, speeches) will still get classified, but the rubric may not land right.\n\nClick OK to proceed anyway, or Cancel to go back and check what you pasted.`
+    );
+    if (!ok) {
+      btnSubmit.disabled = false;
+      return;
+    }
+    confirmNotLyrics = true;
+  }
+
   showScreen('screen-processing');
   startProgress();
 
@@ -452,6 +486,7 @@ async function submitLyrics() {
       body: JSON.stringify({
         lyrics, title, artist,
         artists: artistEntries.map(e => ({ name: e.name, role: e.role })),
+        confirm_not_lyrics: confirmNotLyrics,
         hp_website: getHpValue(),
         turnstile_token: getTurnstileToken(),
       }),

@@ -426,6 +426,49 @@ def _validate_lyrics(text: str) -> str | None:
     return None
 
 
+def detect_prose_like(text: str) -> str | None:
+    """Return a human-readable reason if the text reads as prose (essay, blog
+    post, manifesto) rather than song lyrics, or None if it looks song-shaped.
+
+    Heuristics — ANY one firing flags it:
+      1. Any single line > 300 characters (prose paragraph).
+      2. Average non-empty line length > 100 characters.
+      3. No repeated lines AND word_count > 250 AND avg line length > 60.
+      4. Line count / word count ratio < 0.05 (fewer than ~1 break per 20 words).
+
+    These are suggestions, not rejections — the caller decides whether to
+    warn-and-confirm or hard-block. LC warns and lets the user override;
+    backend hard-blocks unless `confirm_not_lyrics=True` is set.
+    """
+    lines = [l.rstrip() for l in text.splitlines() if l.strip()]
+    if not lines:
+        return None
+    word_count = len(re.findall(r"\S+", text))
+    if word_count < 40:
+        return None  # too short to meaningfully judge
+
+    longest = max((len(l) for l in lines), default=0)
+    if longest > 300:
+        return "One or more lines are very long (over 300 characters). Song lyrics are usually broken into short lines."
+
+    avg_line_len = sum(len(l) for l in lines) / len(lines)
+    if avg_line_len > 100:
+        return "The average line is very long. Song lyrics usually break every few words, not in paragraph-like chunks."
+
+    line_word_ratio = len(lines) / max(word_count, 1)
+    if line_word_ratio < 0.05:
+        return "Line breaks are sparse — this reads more like prose than lyrics."
+
+    # No repetition check — lyrics almost always repeat choruses/hooks
+    lowered = [l.lower().strip() for l in lines]
+    unique = set(lowered)
+    duplicates = len(lowered) - len(unique)
+    if duplicates == 0 and word_count > 250 and avg_line_len > 60:
+        return "Nothing repeats here. Song lyrics typically have a refrain or repeated lines. This reads like prose."
+
+    return None
+
+
 def _resolve_source(tier: str, requested: str | None) -> str:
     """Public callers always get 'lyrical_charger'. Service callers can self-tag
     (e.g. 'chadlewine'); falls back to 'service' if they don't supply one.
@@ -482,6 +525,19 @@ async def calibrate_lyrics_endpoint(
                              payload={"reason": lyrics_error, "source": source,
                                       "title": body.title[:100], "artist": body.artist[:100]})
         raise HTTPException(422, lyrics_error)
+
+    # Prose / non-lyrics check. Frontend should already have warned with an
+    # override; backend hard-blocks unconfirmed prose so miscategorized
+    # blog posts, essays, and manifestos can't slip into the song corpus.
+    if not body.confirm_not_lyrics:
+        prose_reason = detect_prose_like(body.lyrics)
+        if prose_reason:
+            if is_public:
+                _log_error_event("submission_failed_validation", request,
+                                 payload={"reason": "prose_like", "detail": prose_reason,
+                                          "source": source,
+                                          "title": body.title[:100], "artist": body.artist[:100]})
+            raise HTTPException(422, f"{prose_reason} If this really is a song's lyrics, resubmit with confirm_not_lyrics=true.")
 
     title = body.title.strip()
     artist = body.artist.strip()
