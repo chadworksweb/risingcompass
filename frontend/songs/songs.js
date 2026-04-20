@@ -197,6 +197,9 @@
       const status = document.getElementById('vibe-status');
       document.getElementById('vibe-push-up').disabled = true;
       document.getElementById('vibe-push-down').disabled = true;
+      status.className = 'vibe-status vibe-status--pending';
+      status.innerHTML = '<span class="vibe-status-spinner" aria-hidden="true"></span>Pushing\u2026';
+      status.hidden = false;
       try {
         const updated = await ArtistsAPI.pushVibe(song.song_source, song.song_id, direction, deviceId);
         applyVibeState(updated);

@@ -326,6 +326,30 @@
   border: 1px solid rgba(0, 212, 170, 0.3);
 }
 
+#section-about h2 { font-size: 0.88rem; }
+#section-about .direct-answer { font-size: 0.8rem; }
+#section-about .key-points { font-size: 0.704rem; }
+#section-about p { font-size: 0.8rem; }
+
+.vibe-status--pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--rc-text-dim);
+}
+
+.vibe-status-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--rc-accent);
+  animation: rc-spin 0.85s linear infinite;
+  flex-shrink: 0;
+}
+
 .vibe-meta {
   font-size: 0.72rem;
   color: var(--rc-text-dim);
