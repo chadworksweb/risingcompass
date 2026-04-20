@@ -285,10 +285,10 @@ def apply_consensus_to_song(
     tier_flip = (before_color or "") != new_color and before_charge is not None
     if tier_flip:
         recal = SongRecalibration(
-            recalibration_type="consensus_drift",
+            lens="standard",
             song_source=source,
             song_id=song.id,
-            trigger_source="calibration_runs",
+            pipeline="consensus_drift",
             trigger_ref_id=None,
             before_charge=before_charge,
             before_color=before_color,

@@ -453,11 +453,11 @@ class SongRecalibrationProposal(Base):
     __tablename__ = "song_recalibration_proposals"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest | rubric_update
+    lens = Column(String(20), nullable=False)  # standard | satire  (how the agent re-reads)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
-    trigger_source = Column(String(40))  # satirical_flag | vibe_gap | admin_manual | rubric_update
-    trigger_ref_id = Column(Integer)  # FK-shaped pointer back to the trigger row
+    pipeline = Column(String(40))  # manual | rubric_update | satirical_flag | vibe_gap | consensus_drift
+    trigger_ref_id = Column(Integer)  # FK-shaped pointer back to the triggering row (flag id, etc.)
     original_charge = Column(Integer)
     original_color = Column(String(20))
     proposed_charge = Column(Integer)
@@ -467,8 +467,8 @@ class SongRecalibrationProposal(Base):
     ai_model = Column(Text)
     status = Column(String(20), nullable=False, default="pending")  # pending | accepted | rejected
     review_notes = Column(Text)
-    rubric_change_slug = Column(String(100))  # rubric_update only: stable id grouping affected songs
-    rubric_change_note = Column(Text)  # rubric_update only: 1-2 sentence description of the rule
+    rubric_change_slug = Column(String(100))  # pipeline=rubric_update only: stable id grouping affected songs
+    rubric_change_note = Column(Text)  # pipeline=rubric_update only: 1-2 sentence description of the rule
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime)
 
@@ -484,11 +484,11 @@ class SongRecalibration(Base):
     __tablename__ = "song_recalibrations"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    recalibration_type = Column(String(20), nullable=False)  # satire | public_interest | rubric_update | consensus_drift
+    lens = Column(String(20), nullable=False)  # standard | satire
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
     proposal_id = Column(Integer, ForeignKey("song_recalibration_proposals.id", ondelete="SET NULL"))
-    trigger_source = Column(String(40))
+    pipeline = Column(String(40))  # manual | rubric_update | satirical_flag | vibe_gap | consensus_drift
     trigger_ref_id = Column(Integer)
     before_charge = Column(Integer)
     before_color = Column(String(20))

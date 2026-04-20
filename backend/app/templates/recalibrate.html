@@ -38,8 +38,6 @@
     h1 { font-size: 1.4rem; color: var(--text-bright); margin: 0 0 1rem; font-weight: 600; }
     h2 { font-size: 1.05rem; color: var(--text-bright); margin: 1.25rem 0 0.5rem; font-weight: 600; }
     h3 { font-size: 0.9rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin: 1rem 0 0.5rem; }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
 
     .layout { display: grid; grid-template-columns: 360px 1fr; gap: 1.5rem; max-width: 1400px; margin: 0 auto; }
 
@@ -68,8 +66,8 @@
       font-size: 0.9rem;
       outline: none;
     }
-    input:focus, textarea:focus { border-color: var(--accent); }
-    textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
     textarea.lyrics { min-height: 220px; font-family: var(--mono); font-size: 0.82rem; }
     textarea.rationale { min-height: 180px; font-family: var(--mono); font-size: 0.78rem; background: #fafafc; }
 
@@ -84,29 +82,60 @@
       color: var(--text-bright);
       border-radius: 4px;
       cursor: pointer;
-      transition: opacity 0.15s, border-color 0.15s;
     }
     button:hover { opacity: 0.85; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.primary { background: var(--accent); color: #ffffff; border-color: var(--accent); }
     button.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
     button.danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
-    button.warn { background: var(--warn); color: #ffffff; border-color: var(--warn); }
 
-    .flag-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 70vh; overflow-y: auto; }
-    .flag-item {
-      padding: 0.7rem 0.8rem;
+    .hint { color: var(--text-dim); font-size: 0.78rem; line-height: 1.4; margin: -0.2rem 0 0.5rem; }
+    .field { margin-bottom: 1rem; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+    .inbox-section { margin-bottom: 1.2rem; }
+    .inbox-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .inbox-count { font-family: var(--mono); color: var(--text-dim); }
+    .inbox-empty { font-size: 0.82rem; color: var(--text-dim); font-style: italic; padding: 0.3rem 0; }
+
+    .inbox-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .inbox-item {
+      padding: 0.6rem 0.7rem;
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 4px;
       cursor: pointer;
-      transition: border-color 0.15s;
     }
-    .flag-item:hover { border-color: var(--accent); }
-    .flag-item.active { border-color: var(--accent); background: #e5f5ef; }
-    .flag-item .ft-title { font-weight: 600; color: var(--text-bright); font-size: 0.88rem; }
-    .flag-item .ft-artist { color: var(--text-dim); font-size: 0.78rem; }
-    .flag-item .ft-meta { font-size: 0.72rem; color: var(--text-dim); margin-top: 0.3rem; font-family: var(--mono); }
+    .inbox-item:hover { border-color: var(--accent); }
+    .inbox-item.active { border-color: var(--accent); background: #e5f5ef; }
+    .inbox-item .it-title { font-weight: 600; color: var(--text-bright); font-size: 0.86rem; }
+    .inbox-item .it-artist { color: var(--text-dim); font-size: 0.76rem; }
+    .inbox-item .it-meta { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.25rem; font-family: var(--mono); }
+
+    .pill {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      background: #e0e0ec;
+      color: var(--text-dim);
+    }
+    .pill.pipeline-rubric_update { background: #fff0d0; color: var(--warn); }
+    .pill.pipeline-satirical_flag { background: #fce4dc; color: var(--danger); }
+    .pill.pipeline-manual { background: #e0e0ec; color: var(--text-dim); }
+    .pill.pipeline-vibe_gap { background: #dfeaf8; color: var(--blue); }
 
     .tier-pill {
       display: inline-block;
@@ -121,9 +150,6 @@
     .tier-green  { background: #dff3e8; color: var(--green); font-weight: 600; }
     .tier-orange { background: #fff0d0; color: var(--orange); font-weight: 600; }
     .tier-red    { background: #fce4dc; color: var(--red); font-weight: 600; }
-
-    .field { margin-bottom: 1rem; }
-    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
     .proposal {
       background: #e5f5ef;
@@ -142,12 +168,7 @@
     }
     .shift .arrow { color: var(--text-dim); }
 
-    .alert {
-      padding: 0.6rem 0.8rem;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      margin: 0.8rem 0;
-    }
+    .alert { padding: 0.6rem 0.8rem; border-radius: 4px; font-size: 0.85rem; margin: 0.8rem 0; }
     .alert-error { background: #fce4dc; color: var(--danger); border: 1px solid var(--danger); }
     .alert-success { background: #dff3e8; color: var(--accent-strong); border: 1px solid var(--accent); }
 
@@ -163,29 +184,40 @@
       white-space: pre-wrap;
     }
 
-    .tabs { display: flex; gap: 0.4rem; margin: 0 auto 1rem; max-width: 1400px; }
-    .tab {
-      padding: 0.55rem 1rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-bottom: none;
-      border-radius: 6px 6px 0 0;
-      color: var(--text-dim);
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.85rem;
-      letter-spacing: 0.04em;
+    .lens-radio { display: flex; gap: 0.8rem; align-items: center; }
+    .lens-radio label {
+      display: flex; align-items: center; gap: 0.4rem;
+      text-transform: none; letter-spacing: 0; color: var(--text); font-size: 0.88rem;
+      margin: 0; cursor: pointer;
     }
-    .tab:hover { color: var(--text-bright); }
-    .tab.active { background: var(--bg); color: var(--text-bright); border-color: var(--border); position: relative; top: 1px; border-bottom: 1px solid var(--bg); }
+    .lens-radio input[type=radio] { margin: 0; }
 
-    .search-input { margin-bottom: 0.6rem; }
-    .hint {
-      color: var(--text-dim);
-      font-size: 0.78rem;
-      line-height: 1.4;
-      margin: -0.2rem 0 0.5rem;
+    .search-wrap { position: relative; }
+    .search-results {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 4px; max-height: 300px; overflow-y: auto; z-index: 10;
+      display: none;
     }
+    .search-results.open { display: block; }
+    .search-result {
+      padding: 0.5rem 0.7rem; cursor: pointer; border-bottom: 1px solid var(--border-soft);
+    }
+    .search-result:last-child { border-bottom: none; }
+    .search-result:hover { background: #e5f5ef; }
+    .search-result .sr-title { font-weight: 600; color: var(--text-bright); font-size: 0.86rem; }
+    .search-result .sr-meta { color: var(--text-dim); font-size: 0.74rem; font-family: var(--mono); margin-top: 0.15rem; }
+
+    .selected-song {
+      padding: 0.6rem 0.8rem;
+      background: #e5f5ef;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .selected-song .ss-meta { color: var(--text-dim); font-size: 0.8rem; margin-top: 0.2rem; }
+    .selected-song button { padding: 0.25rem 0.5rem; font-size: 0.76rem; }
   </style>
 </head>
 <body>
@@ -201,55 +233,94 @@
   <div id="auth-error" class="alert alert-error" style="display:none;"></div>
 </div>
 
-<div id="app-wrap" style="display:none;">
-<nav class="tabs">
-  <div class="tab active" data-tab="satire" id="tab-satire">Satire Flags</div>
-  <div class="tab" data-tab="rubric" id="tab-rubric">Rubric Update</div>
-</nav>
+<div id="app" class="layout" style="display:none;">
 
-<div id="app" class="layout">
+  <aside class="panel">
+    <h1>Pipelines</h1>
+    <p class="hint" style="margin-top:-0.6rem;">Every recalibration runs through the same mechanism. Pipelines feed it.</p>
 
-  <aside class="panel" id="sidebar-satire">
-    <h1>Pending Satirical Flags</h1>
-    <p style="color:var(--text-dim);font-size:0.8rem;margin:-0.4rem 0 0.8rem;">Click a flag to begin a satire recalibration.</p>
-    <div class="flag-list" id="flag-list"></div>
-  </aside>
-
-  <aside class="panel" id="sidebar-rubric" style="display:none;">
-    <h1>Song Picker</h1>
-    <p style="color:var(--text-dim);font-size:0.8rem;margin:-0.4rem 0 0.8rem;">Search any song across compass / library / submitted / stream to recalibrate under the current rubric.</p>
-    <div class="search-input">
-      <input type="text" id="rubric-search" placeholder="Title or artist...">
+    <div class="inbox-section">
+      <div class="inbox-title"><span>Satirical Flags</span><span class="inbox-count" id="flag-count">—</span></div>
+      <div class="inbox-list" id="flag-list"></div>
     </div>
-    <div class="flag-list" id="rubric-song-list"></div>
+
+    <div class="inbox-section">
+      <div class="inbox-title"><span>Manual / Rubric Update</span></div>
+      <p class="hint">Search any song across all four tables.</p>
+      <div class="search-wrap">
+        <input type="text" id="song-search" placeholder="Title or artist...">
+        <div class="search-results" id="song-search-results"></div>
+      </div>
+    </div>
   </aside>
 
   <main class="panel">
-    <div id="empty-state" class="empty">Select a satirical flag from the left to begin.</div>
-    <div id="rubric-empty-state" class="empty" style="display:none;">Search for a song to the left, then paste lyrics + describe the rubric change to run a rubric-update recalibration.</div>
+    <div id="empty-state" class="empty">
+      Pick a satirical flag, or search for a song, to begin.
+    </div>
 
-    <div id="recal-panel" style="display:none;">
-      <h1 id="rp-title"></h1>
-      <p style="color:var(--text-dim);margin:-0.4rem 0 0.8rem;">
-        <span id="rp-artist"></span> &middot;
-        <span class="tier-pill" id="rp-current-tier"></span>
-      </p>
+    <div id="recal-form" style="display:none;">
+      <h1>Recalibrate</h1>
 
-      <h3>Submitter's Proof / Context</h3>
-      <div class="proof-block" id="rp-proof"></div>
-
-      <h3>Submitter's Message</h3>
-      <div class="proof-block" id="rp-message" style="border-left-color:var(--accent);"></div>
-
-      <div class="field" style="margin-top:1.2rem;">
-        <label for="rp-lyrics">Lyrics (paste — never persisted)</label>
-        <textarea id="rp-lyrics" class="lyrics" placeholder="Paste the full lyrics here. Lyrics are sent to the recalibrator and discarded — nothing is stored on the server."></textarea>
+      <div class="selected-song" id="selected-song">
+        <div>
+          <div id="ss-title" style="font-weight:600;font-size:0.95rem;color:var(--text-bright);"></div>
+          <div class="ss-meta">
+            <span id="ss-artist"></span> &middot;
+            <span id="ss-source" style="font-family:var(--mono);"></span> &middot;
+            <span class="tier-pill" id="ss-tier"></span>
+          </div>
+        </div>
+        <button id="ss-clear">Clear</button>
       </div>
-      <button class="primary" id="rp-run">Run Satire Recalibration</button>
-      <button id="rp-skip">Reject Flag (no recalibration)</button>
-      <div id="rp-error" class="alert alert-error" style="display:none;"></div>
 
-      <div id="rp-proposal" class="proposal" style="display:none;">
+      <div class="row2">
+        <div class="field">
+          <label for="pipeline-select">Pipeline</label>
+          <select id="pipeline-select">
+            <option value="manual">Manual</option>
+            <option value="rubric_update">Rubric Update</option>
+            <option value="satirical_flag">Satirical Flag</option>
+            <option value="vibe_gap">Vibe Gap</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lens</label>
+          <div class="lens-radio">
+            <label><input type="radio" name="lens" value="standard" checked> Standard</label>
+            <label><input type="radio" name="lens" value="satire"> Satire</label>
+          </div>
+        </div>
+      </div>
+
+      <div id="pipeline-rubric-fields" style="display:none;">
+        <div class="field">
+          <label for="rubric-slug">Rubric Change Slug</label>
+          <p class="hint">Short kebab-case id grouping every song affected by this change. Example: <code>specific-group-anthem-ceiling</code>.</p>
+          <input type="text" id="rubric-slug" placeholder="specific-group-anthem-ceiling">
+        </div>
+        <div class="field">
+          <label for="rubric-note">Rubric Change Note</label>
+          <p class="hint">1–2 sentences naming the rule. Renders publicly on every affected song's history.</p>
+          <textarea id="rubric-note" placeholder="Anthems for a specific identifiable group do not auto-qualify for Ascended..."></textarea>
+        </div>
+      </div>
+
+      <div id="pipeline-flag-fields" style="display:none;">
+        <h3>Flag Context</h3>
+        <div class="proof-block" id="flag-proof"></div>
+        <div class="proof-block" id="flag-message" style="border-left-color:var(--accent);"></div>
+      </div>
+
+      <div class="field">
+        <label for="ru-lyrics">Lyrics (paste — never persisted)</label>
+        <textarea id="ru-lyrics" class="lyrics" placeholder="Paste the full lyrics. Lyrics are sent to the recalibrator and discarded."></textarea>
+      </div>
+
+      <button class="primary" id="run-btn">Run Recalibration</button>
+      <div id="run-error" class="alert alert-error" style="display:none;"></div>
+
+      <div id="proposal-panel" class="proposal" style="display:none;">
         <h2 style="margin-top:0;">AI Proposal</h2>
         <div class="shift">
           <span class="tier-pill" id="prop-before"></span>
@@ -264,10 +335,8 @@
         <textarea class="rationale" id="prop-rationale" readonly></textarea>
 
         <h3 style="margin-top:1.2rem;">Public-Facing Story</h3>
-        <p style="color:var(--text-dim);font-size:0.8rem;margin:0 0 0.4rem;">
-          Required. This is what the public sees on the song page explaining why the calibration changed. Be specific about what made the change — the proof, the satire reading, what the listener should know.
-        </p>
-        <textarea id="prop-public-summary" placeholder="After review of the satirical flag, the song was re-read under the satire tenet set..."></textarea>
+        <p class="hint">Required. Explains to readers why this song was re-read. Pre-filled when the pipeline supplies context — edit freely.</p>
+        <textarea id="prop-public-summary"></textarea>
 
         <h3 style="margin-top:1rem;">Internal Notes (private)</h3>
         <textarea id="prop-internal-notes" style="min-height:60px;" placeholder="Optional admin-only notes."></textarea>
@@ -280,73 +349,18 @@
         <div id="prop-success" class="alert alert-success" style="display:none;"></div>
       </div>
     </div>
-
-    <div id="rubric-panel" style="display:none;">
-      <h1 id="ru-title"></h1>
-      <p style="color:var(--text-dim);margin:-0.4rem 0 0.8rem;">
-        <span id="ru-artist"></span> &middot;
-        <span class="tier-pill" id="ru-current-tier"></span>
-      </p>
-
-      <div class="field" style="margin-top:1rem;">
-        <label for="ru-slug">Rubric Change Slug</label>
-        <p class="hint">Short kebab-case id grouping every song affected by this rubric change. Example: <code>specific-group-anthem-ceiling</code>. Reuse the same slug across multiple songs touched by the same rule.</p>
-        <input type="text" id="ru-slug" placeholder="specific-group-anthem-ceiling">
-      </div>
-
-      <div class="field">
-        <label for="ru-note">Rubric Change Note</label>
-        <p class="hint">1–2 sentences naming the rule that was added or changed. Renders publicly on every affected song's history.</p>
-        <textarea id="ru-note" style="min-height:80px;" placeholder="Anthems for a specific identifiable group do not auto-qualify for Ascended; ceiling is Elevated unless the frequency transmits universally."></textarea>
-      </div>
-
-      <div class="field">
-        <label for="ru-lyrics">Lyrics (paste — never persisted)</label>
-        <textarea id="ru-lyrics" class="lyrics" placeholder="Paste the full lyrics. Lyrics are sent to the recalibrator and discarded — nothing is stored on the server."></textarea>
-      </div>
-
-      <button class="primary" id="ru-run">Run Rubric-Update Recalibration</button>
-      <div id="ru-error" class="alert alert-error" style="display:none;"></div>
-
-      <div id="ru-proposal" class="proposal" style="display:none;">
-        <h2 style="margin-top:0;">AI Proposal</h2>
-        <div class="shift">
-          <span class="tier-pill" id="ru-prop-before"></span>
-          <span class="arrow">&rarr;</span>
-          <span class="tier-pill" id="ru-prop-after"></span>
-        </div>
-
-        <h3>Proposed Summary</h3>
-        <p id="ru-prop-summary" style="color:var(--text-bright);font-size:0.95rem;"></p>
-
-        <h3>AI Reasoning (raw)</h3>
-        <textarea class="rationale" id="ru-prop-rationale" readonly></textarea>
-
-        <h3 style="margin-top:1.2rem;">Public-Facing Story</h3>
-        <p class="hint">Required. Explains to readers why this song was re-read. Draft suggestion is pre-filled from the rubric change note — edit freely.</p>
-        <textarea id="ru-prop-public-summary"></textarea>
-
-        <h3 style="margin-top:1rem;">Internal Notes (private)</h3>
-        <textarea id="ru-prop-internal-notes" style="min-height:60px;" placeholder="Optional admin-only notes."></textarea>
-
-        <div style="display:flex;gap:0.6rem;margin-top:1rem;">
-          <button class="primary" id="ru-prop-accept">Apply Recalibration</button>
-          <button class="danger" id="ru-prop-reject">Reject Proposal</button>
-        </div>
-        <div id="ru-prop-error" class="alert alert-error" style="display:none;"></div>
-        <div id="ru-prop-success" class="alert alert-success" style="display:none;"></div>
-      </div>
-    </div>
   </main>
-</div>
 </div>
 
 <script>
 (function() {
   const TIER_LABELS = { violet: 'Ascended', blue: 'Elevated', green: 'Decent', orange: 'Degraded', red: 'Corrupted' };
   let ADMIN_KEY = sessionStorage.getItem('rc-admin-key') || '';
-  let API_KEY = '';  // Public API key, fetched server-side via inline injection isn't needed — admin endpoints don't require it for this router but the global misread router does. We'll use a hardcoded local key fallback.
-  // The recalibrations router is admin-only — no X-Api-Key required.
+
+  // Active state
+  let activeSong = null;           // { song_source, song_id, title, artist, rubric_color, charge_value }
+  let activeFlag = null;           // misread row, when pipeline=satirical_flag
+  let activeProposal = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -368,18 +382,18 @@
     return data;
   }
 
-  function tierPill(color, charge) {
-    if (!color) return '<span class="tier-pill">—</span>';
-    const label = TIER_LABELS[color] || color;
-    const chg = (charge != null) ? ((charge > 0 ? '+' : '') + charge) : '';
-    return `<span class="tier-pill tier-${color}">${label}${chg ? ' ' + chg : ''}</span>`;
-  }
-
   function setTierPill(el, color, charge) {
     el.className = 'tier-pill ' + (color ? `tier-${color}` : '');
     const label = TIER_LABELS[color] || color || '—';
     const chg = (charge != null) ? ((charge > 0 ? '+' : '') + charge) : '';
     el.textContent = label + (chg ? ' ' + chg : '');
+  }
+
+  function escapeHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
   }
 
   // --- Auth ---
@@ -389,13 +403,10 @@
     ADMIN_KEY = key;
     $('auth-error').style.display = 'none';
     try {
-      // Probe with a pure-admin call (recalibrations requires only X-Admin-Key,
-      // no X-Api-Key — misread would require both since it's mounted under the
-      // public api_key_dep chain).
       await api('GET', '/api/admin/recalibrations?limit=1');
       sessionStorage.setItem('rc-admin-key', ADMIN_KEY);
       $('auth-screen').style.display = 'none';
-      $('app-wrap').style.display = '';
+      $('app').style.display = 'grid';
       loadFlags();
     } catch (e) {
       $('auth-error').textContent = `Auth failed: ${e.message}`;
@@ -403,112 +414,225 @@
     }
   });
   $('admin-key').addEventListener('keydown', e => { if (e.key === 'Enter') $('auth-submit').click(); });
+  if (ADMIN_KEY) { $('admin-key').value = ADMIN_KEY; $('auth-submit').click(); }
 
-  // Auto-login if key in session
-  if (ADMIN_KEY) {
-    $('admin-key').value = ADMIN_KEY;
-    $('auth-submit').click();
-  }
-
-  // --- Flag list ---
-  let activeFlag = null;
-  let activeProposal = null;
-
+  // --- Flag inbox (satirical_flag pipeline) ---
   async function loadFlags() {
-    $('flag-list').innerHTML = '<div class="empty">Loading...</div>';
+    // Misread endpoint requires X-Api-Key, which the admin UI doesn't have.
+    // Fall back to empty inbox gracefully.
+    $('flag-list').innerHTML = '';
+    $('flag-count').textContent = '—';
     try {
       const flags = await api('GET', '/api/admin/misread?report_type=satirical&status=pending');
-      if (!flags.length) {
-        $('flag-list').innerHTML = '<div class="empty">No pending satirical flags.</div>';
+      if (!flags || !flags.length) {
+        $('flag-list').innerHTML = '<div class="inbox-empty">No pending satirical flags.</div>';
+        $('flag-count').textContent = '0';
         return;
       }
-      $('flag-list').innerHTML = '';
+      $('flag-count').textContent = flags.length;
       flags.forEach(f => {
         const el = document.createElement('div');
-        el.className = 'flag-item';
+        el.className = 'inbox-item';
         el.dataset.id = f.id;
         const dt = new Date(f.created_at).toLocaleDateString();
         el.innerHTML = `
-          <div class="ft-title">${escapeHtml(f.song_title)}</div>
-          <div class="ft-artist">${escapeHtml(f.song_artist)}</div>
-          <div class="ft-meta">${dt} &middot; ${escapeHtml(f.first_name)} ${escapeHtml(f.last_name)}${f.song_source ? ' &middot; ' + f.song_source + '/' + f.song_id : ''}</div>
+          <div class="it-title">${escapeHtml(f.song_title)}</div>
+          <div class="it-artist">${escapeHtml(f.song_artist)}</div>
+          <div class="it-meta">${dt} &middot; ${f.song_source || '?'}/${f.song_id || '?'}</div>
         `;
         el.addEventListener('click', () => selectFlag(f, el));
         $('flag-list').appendChild(el);
       });
     } catch (e) {
-      $('flag-list').innerHTML = `<div class="alert alert-error">${escapeHtml(e.message)}</div>`;
+      $('flag-list').innerHTML = `<div class="inbox-empty">Flags unavailable: ${escapeHtml(e.message)}</div>`;
     }
   }
 
-  async function selectFlag(flag, el) {
-    document.querySelectorAll('.flag-item').forEach(n => n.classList.remove('active'));
-    el.classList.add('active');
+  function selectFlag(flag, el) {
+    document.querySelectorAll('.inbox-item').forEach(n => n.classList.remove('active'));
+    if (el) el.classList.add('active');
     activeFlag = flag;
-    activeProposal = null;
-    $('empty-state').style.display = 'none';
-    $('recal-panel').style.display = '';
-    $('rp-proposal').style.display = 'none';
-    $('rp-error').style.display = 'none';
-    $('prop-error').style.display = 'none';
-    $('prop-success').style.display = 'none';
+    activeSong = {
+      song_source: flag.song_source,
+      song_id: flag.song_id,
+      title: flag.song_title,
+      artist: flag.song_artist,
+      rubric_color: flag.song_color || null,
+      charge_value: null,
+    };
+    $('pipeline-select').value = 'satirical_flag';
+    // Satirical flags default to satire lens
+    document.querySelector('input[name="lens"][value="satire"]').checked = true;
+    onPipelineChange();
+    $('flag-proof').textContent = flag.proof_context || '(no proof field — legacy submission)';
+    $('flag-message').textContent = flag.message || '';
+    renderForm();
+  }
 
-    $('rp-title').textContent = flag.song_title;
-    $('rp-artist').textContent = flag.song_artist;
-    setTierPill($('rp-current-tier'), flag.song_color, null);
-    $('rp-proof').textContent = flag.proof_context || '(no proof field — legacy submission)';
-    $('rp-message').textContent = flag.message || '';
-    $('rp-lyrics').value = '';
-    $('prop-public-summary').value = '';
-    $('prop-internal-notes').value = '';
+  // --- Song search (manual / rubric_update pipelines) ---
+  let searchTimer = null;
+  $('song-search').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSongSearch, 250);
+  });
+  $('song-search').addEventListener('focus', () => {
+    if ($('song-search').value.trim().length >= 2) $('song-search-results').classList.add('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-wrap')) $('song-search-results').classList.remove('open');
+  });
 
-    // Disable run if we can't resolve a song_source.
-    if (!flag.song_source || !flag.song_id) {
-      $('rp-error').textContent = 'This flag could not be matched to a song record (legacy or unresolved). Recalibrate cannot run until the song is resolved manually.';
-      $('rp-error').style.display = '';
-      $('rp-run').disabled = true;
-    } else {
-      $('rp-run').disabled = false;
+  async function doSongSearch() {
+    const q = $('song-search').value.trim();
+    const box = $('song-search-results');
+    if (q.length < 2) { box.classList.remove('open'); box.innerHTML = ''; return; }
+    box.classList.add('open');
+    box.innerHTML = '<div class="search-result">Searching...</div>';
+    try {
+      const res = await api('GET', `/api/admin/db/all_songs?q=${encodeURIComponent(q)}&limit=25`);
+      const rows = (res && res.rows) || [];
+      if (!rows.length) { box.innerHTML = '<div class="search-result">No matches.</div>'; return; }
+      box.innerHTML = '';
+      rows.forEach(r => {
+        const el = document.createElement('div');
+        el.className = 'search-result';
+        const color = r.rubric_color || null;
+        const chg = (r.charge_value != null) ? ((r.charge_value > 0 ? '+' : '') + r.charge_value) : '—';
+        const tierLabel = color ? (TIER_LABELS[color] || color) : 'uncalibrated';
+        el.innerHTML = `
+          <div class="sr-title">${escapeHtml(r.title || '')}</div>
+          <div class="sr-meta">${escapeHtml(r.artist || '')} &middot; ${r.song_source}/${r.id} &middot; ${tierLabel} ${chg}</div>
+        `;
+        el.addEventListener('click', () => selectSongFromSearch(r));
+        box.appendChild(el);
+      });
+    } catch (e) {
+      box.innerHTML = `<div class="search-result">Error: ${escapeHtml(e.message)}</div>`;
     }
   }
 
-  // --- Run AI ---
-  $('rp-run').addEventListener('click', async () => {
-    if (!activeFlag) return;
-    const lyrics = $('rp-lyrics').value.trim();
-    if (lyrics.length < 20) {
-      $('rp-error').textContent = 'Paste the lyrics first (20+ chars).';
-      $('rp-error').style.display = '';
+  function selectSongFromSearch(row) {
+    document.querySelectorAll('.inbox-item').forEach(n => n.classList.remove('active'));
+    activeFlag = null;
+    activeSong = {
+      song_source: row.song_source,
+      song_id: row.id,
+      title: row.title,
+      artist: row.artist,
+      rubric_color: row.rubric_color || null,
+      charge_value: row.charge_value,
+    };
+    $('song-search').value = '';
+    $('song-search-results').classList.remove('open');
+    // Default pipeline when coming from search: manual (user can flip to rubric_update)
+    if ($('pipeline-select').value === 'satirical_flag' || $('pipeline-select').value === 'vibe_gap') {
+      $('pipeline-select').value = 'manual';
+    }
+    document.querySelector('input[name="lens"][value="standard"]').checked = true;
+    onPipelineChange();
+    renderForm();
+  }
+
+  // --- Form ---
+  $('pipeline-select').addEventListener('change', onPipelineChange);
+
+  function onPipelineChange() {
+    const p = $('pipeline-select').value;
+    $('pipeline-rubric-fields').style.display = p === 'rubric_update' ? '' : 'none';
+    $('pipeline-flag-fields').style.display = (p === 'satirical_flag' && activeFlag) ? '' : 'none';
+  }
+
+  $('ss-clear').addEventListener('click', () => {
+    activeSong = null; activeFlag = null; activeProposal = null;
+    document.querySelectorAll('.inbox-item').forEach(n => n.classList.remove('active'));
+    renderForm();
+  });
+
+  function renderForm() {
+    if (!activeSong) {
+      $('empty-state').style.display = '';
+      $('recal-form').style.display = 'none';
       return;
     }
-    $('rp-error').style.display = 'none';
-    $('rp-run').disabled = true;
-    $('rp-run').textContent = 'Running... (this can take 20-60s)';
+    $('empty-state').style.display = 'none';
+    $('recal-form').style.display = '';
+    $('ss-title').textContent = activeSong.title || '(no title)';
+    $('ss-artist').textContent = activeSong.artist || '';
+    $('ss-source').textContent = `${activeSong.song_source}/${activeSong.song_id}`;
+    setTierPill($('ss-tier'), activeSong.rubric_color, activeSong.charge_value);
+    $('ru-lyrics').value = '';
+    $('rubric-slug').value = '';
+    $('rubric-note').value = '';
+    $('run-error').style.display = 'none';
+    $('proposal-panel').style.display = 'none';
+    activeProposal = null;
+  }
+
+  // --- Run ---
+  $('run-btn').addEventListener('click', async () => {
+    if (!activeSong) return;
+    const pipeline = $('pipeline-select').value;
+    const lens = document.querySelector('input[name="lens"]:checked').value;
+    const lyrics = $('ru-lyrics').value.trim();
+    const slug = $('rubric-slug').value.trim();
+    const note = $('rubric-note').value.trim();
+
+    if (lyrics.length < 20) return showErr('run-error', 'Paste the lyrics first (20+ chars).');
+    if (pipeline === 'rubric_update') {
+      if (slug.length < 3) return showErr('run-error', 'Rubric change slug required (3+ chars).');
+      if (note.length < 10) return showErr('run-error', 'Rubric change note required (10+ chars).');
+    }
+
+    $('run-error').style.display = 'none';
+    $('run-btn').disabled = true;
+    $('run-btn').textContent = 'Running... (can take 20–60s)';
     try {
-      const proposal = await api('POST', '/api/admin/recalibrations/satire', {
-        song_source: activeFlag.song_source,
-        song_id: activeFlag.song_id,
+      const body = {
+        song_source: activeSong.song_source,
+        song_id: activeSong.song_id,
         lyrics: lyrics,
-        trigger_ref_id: activeFlag.id,
-      });
+        pipeline: pipeline,
+        lens: lens,
+      };
+      if (pipeline === 'rubric_update') {
+        body.rubric_change_slug = slug;
+        body.rubric_change_note = note;
+      }
+      if (pipeline === 'satirical_flag' && activeFlag) {
+        body.trigger_ref_id = activeFlag.id;
+      }
+      const proposal = await api('POST', '/api/admin/recalibrations/start', body);
       activeProposal = proposal;
-      renderProposal(proposal);
+      renderProposal(proposal, pipeline, note);
     } catch (e) {
-      $('rp-error').textContent = e.message;
-      $('rp-error').style.display = '';
+      showErr('run-error', e.message);
     } finally {
-      $('rp-run').disabled = false;
-      $('rp-run').textContent = 'Run Satire Recalibration';
+      $('run-btn').disabled = false;
+      $('run-btn').textContent = 'Run Recalibration';
     }
   });
 
-  function renderProposal(p) {
-    $('rp-proposal').style.display = '';
+  function showErr(id, msg) {
+    $(id).textContent = msg;
+    $(id).style.display = '';
+  }
+
+  function renderProposal(p, pipeline, note) {
+    $('proposal-panel').style.display = '';
     setTierPill($('prop-before'), p.original_color, p.original_charge);
     setTierPill($('prop-after'), p.proposed_color, p.proposed_charge);
     $('prop-summary').textContent = p.proposed_summary || '(no summary returned)';
     $('prop-rationale').value = p.ai_rationale || '';
-    $('prop-public-summary').value = '';
+    // Pre-fill public summary based on pipeline
+    let preset = '';
+    if (pipeline === 'rubric_update' && note) {
+      preset = `The rubric was updated: ${note}`;
+    } else if (pipeline === 'satirical_flag') {
+      preset = 'After review of the satirical flag, the song was re-read under the satire lens.';
+    } else if (pipeline === 'manual') {
+      preset = '';
+    }
+    $('prop-public-summary').value = preset;
     $('prop-internal-notes').value = '';
     $('prop-error').style.display = 'none';
     $('prop-success').style.display = 'none';
@@ -519,11 +643,8 @@
     if (!activeProposal) return;
     const summary = $('prop-public-summary').value.trim();
     const internal = $('prop-internal-notes').value.trim();
-    if (summary.length < 20) {
-      $('prop-error').textContent = 'A public-facing story is required (20+ chars). Without it the recalibration is not honest about its history.';
-      $('prop-error').style.display = '';
-      return;
-    }
+    if (summary.length < 20) return showErr('prop-error', 'A public-facing story is required (20+ chars).');
+
     $('prop-error').style.display = 'none';
     $('prop-accept').disabled = true;
     $('prop-reject').disabled = true;
@@ -532,248 +653,40 @@
         public_summary: summary,
         internal_notes: internal || null,
       });
-      $('prop-success').textContent = `Applied. Audit row #${result.audit_id}. Song now ${result.after.color} (${result.after.charge >= 0 ? '+' : ''}${result.after.charge}). Flag closed.`;
+      $('prop-success').textContent = `Applied. Audit row #${result.audit_id}. Song now ${result.after.color} (${result.after.charge >= 0 ? '+' : ''}${result.after.charge}).`;
       $('prop-success').style.display = '';
       activeProposal = null;
       loadFlags();
     } catch (e) {
-      $('prop-error').textContent = e.message;
-      $('prop-error').style.display = '';
+      showErr('prop-error', e.message);
     } finally {
       $('prop-accept').disabled = false;
       $('prop-reject').disabled = false;
     }
   });
 
-  // --- Reject proposal ---
+  // --- Reject ---
   $('prop-reject').addEventListener('click', async () => {
     if (!activeProposal) return;
-    const notes = prompt('Optional review notes (why you rejected the proposal):') || '';
+    const notes = prompt('Optional review notes:') || '';
     $('prop-accept').disabled = true;
     $('prop-reject').disabled = true;
     try {
       await api('POST', `/api/admin/recalibrations/${activeProposal.id}/reject`, {
         review_notes: notes || null,
       });
-      $('prop-success').textContent = 'Proposal rejected. Flag closed as rejected.';
+      $('prop-success').textContent = 'Proposal rejected. Song unchanged.';
       $('prop-success').style.display = '';
       activeProposal = null;
       loadFlags();
     } catch (e) {
-      $('prop-error').textContent = e.message;
-      $('prop-error').style.display = '';
+      showErr('prop-error', e.message);
     } finally {
       $('prop-accept').disabled = false;
       $('prop-reject').disabled = false;
     }
   });
 
-  // --- Reject the flag without running AI ---
-  $('rp-skip').addEventListener('click', async () => {
-    if (!activeFlag) return;
-    if (!confirm('Reject this satirical flag without running the AI? The flag will be closed as rejected.')) return;
-    try {
-      await api('PATCH', `/api/admin/misread/${activeFlag.id}`, { status: 'rejected' });
-      activeFlag = null;
-      $('recal-panel').style.display = 'none';
-      $('empty-state').style.display = '';
-      loadFlags();
-    } catch (e) {
-      $('rp-error').textContent = e.message;
-      $('rp-error').style.display = '';
-    }
-  });
-
-  function escapeHtml(s) {
-    if (!s) return '';
-    const d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
-  // --- Tab switching ---
-  document.querySelectorAll('.tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      const which = t.dataset.tab;
-      $('sidebar-satire').style.display = which === 'satire' ? '' : 'none';
-      $('sidebar-rubric').style.display = which === 'rubric' ? '' : 'none';
-      if (which === 'satire') {
-        $('recal-panel').style.display = activeFlag ? '' : 'none';
-        $('empty-state').style.display = activeFlag ? 'none' : '';
-        $('rubric-panel').style.display = 'none';
-        $('rubric-empty-state').style.display = 'none';
-      } else {
-        $('recal-panel').style.display = 'none';
-        $('empty-state').style.display = 'none';
-        $('rubric-panel').style.display = activeRubricSong ? '' : 'none';
-        $('rubric-empty-state').style.display = activeRubricSong ? 'none' : '';
-      }
-    });
-  });
-
-  // --- Rubric Update ---
-  let activeRubricSong = null;
-  let activeRubricProposal = null;
-  let rubricSearchTimer = null;
-
-  $('rubric-search').addEventListener('input', () => {
-    clearTimeout(rubricSearchTimer);
-    rubricSearchTimer = setTimeout(doRubricSearch, 250);
-  });
-
-  async function doRubricSearch() {
-    const q = $('rubric-search').value.trim();
-    if (q.length < 2) {
-      $('rubric-song-list').innerHTML = '<div class="empty">Type 2+ characters to search.</div>';
-      return;
-    }
-    $('rubric-song-list').innerHTML = '<div class="empty">Searching...</div>';
-    try {
-      const res = await api('GET', `/api/admin/db/all_songs?q=${encodeURIComponent(q)}&limit=30`);
-      const rows = (res && res.rows) || [];
-      if (!rows.length) {
-        $('rubric-song-list').innerHTML = '<div class="empty">No matches.</div>';
-        return;
-      }
-      $('rubric-song-list').innerHTML = '';
-      rows.forEach(r => {
-        const el = document.createElement('div');
-        el.className = 'flag-item';
-        const color = r.rubric_color || null;
-        const chg = (r.charge_value != null) ? ((r.charge_value > 0 ? '+' : '') + r.charge_value) : '—';
-        el.innerHTML = `
-          <div class="ft-title">${escapeHtml(r.title || '(no title)')}</div>
-          <div class="ft-artist">${escapeHtml(r.artist || '')}</div>
-          <div class="ft-meta">${r.song_source}/${r.id} &middot; ${color ? tierPill(color, r.charge_value) : '<span class="tier-pill">uncalibrated</span>'}</div>
-        `;
-        el.addEventListener('click', () => selectRubricSong(r, el));
-        $('rubric-song-list').appendChild(el);
-      });
-    } catch (e) {
-      $('rubric-song-list').innerHTML = `<div class="alert alert-error">${escapeHtml(e.message)}</div>`;
-    }
-  }
-
-  function selectRubricSong(row, el) {
-    document.querySelectorAll('#rubric-song-list .flag-item').forEach(n => n.classList.remove('active'));
-    el.classList.add('active');
-    activeRubricSong = row;
-    activeRubricProposal = null;
-    $('rubric-empty-state').style.display = 'none';
-    $('rubric-panel').style.display = '';
-    $('ru-proposal').style.display = 'none';
-    $('ru-error').style.display = 'none';
-    $('ru-prop-error').style.display = 'none';
-    $('ru-prop-success').style.display = 'none';
-
-    $('ru-title').textContent = row.title || '(no title)';
-    $('ru-artist').textContent = row.artist || '';
-    setTierPill($('ru-current-tier'), row.rubric_color, row.charge_value);
-    $('ru-lyrics').value = '';
-    $('ru-prop-public-summary').value = '';
-    $('ru-prop-internal-notes').value = '';
-  }
-
-  $('ru-run').addEventListener('click', async () => {
-    if (!activeRubricSong) return;
-    const slug = $('ru-slug').value.trim();
-    const note = $('ru-note').value.trim();
-    const lyrics = $('ru-lyrics').value.trim();
-    if (slug.length < 3) return showRuError('Rubric change slug required (3+ chars, kebab-case).');
-    if (note.length < 10) return showRuError('Rubric change note required (10+ chars — 1–2 sentences).');
-    if (lyrics.length < 20) return showRuError('Paste the lyrics first (20+ chars).');
-
-    $('ru-error').style.display = 'none';
-    $('ru-run').disabled = true;
-    $('ru-run').textContent = 'Running... (can take 20–60s)';
-    try {
-      const proposal = await api('POST', '/api/admin/recalibrations/rubric-update', {
-        song_source: activeRubricSong.song_source,
-        song_id: activeRubricSong.id,
-        lyrics: lyrics,
-        rubric_change_slug: slug,
-        rubric_change_note: note,
-      });
-      activeRubricProposal = proposal;
-      renderRubricProposal(proposal, note);
-    } catch (e) {
-      showRuError(e.message);
-    } finally {
-      $('ru-run').disabled = false;
-      $('ru-run').textContent = 'Run Rubric-Update Recalibration';
-    }
-  });
-
-  function showRuError(msg) {
-    $('ru-error').textContent = msg;
-    $('ru-error').style.display = '';
-  }
-
-  function renderRubricProposal(p, note) {
-    $('ru-proposal').style.display = '';
-    setTierPill($('ru-prop-before'), p.original_color, p.original_charge);
-    setTierPill($('ru-prop-after'), p.proposed_color, p.proposed_charge);
-    $('ru-prop-summary').textContent = p.proposed_summary || '(no summary returned)';
-    $('ru-prop-rationale').value = p.ai_rationale || '';
-    $('ru-prop-public-summary').value = note ? `The rubric was updated: ${note}` : '';
-    $('ru-prop-internal-notes').value = '';
-    $('ru-prop-error').style.display = 'none';
-    $('ru-prop-success').style.display = 'none';
-  }
-
-  $('ru-prop-accept').addEventListener('click', async () => {
-    if (!activeRubricProposal) return;
-    const summary = $('ru-prop-public-summary').value.trim();
-    const internal = $('ru-prop-internal-notes').value.trim();
-    if (summary.length < 20) {
-      $('ru-prop-error').textContent = 'A public-facing story is required (20+ chars).';
-      $('ru-prop-error').style.display = '';
-      return;
-    }
-    $('ru-prop-error').style.display = 'none';
-    $('ru-prop-accept').disabled = true;
-    $('ru-prop-reject').disabled = true;
-    try {
-      const result = await api('POST', `/api/admin/recalibrations/${activeRubricProposal.id}/accept`, {
-        public_summary: summary,
-        internal_notes: internal || null,
-      });
-      $('ru-prop-success').textContent = `Applied. Audit row #${result.audit_id}. Song now ${result.after.color} (${result.after.charge >= 0 ? '+' : ''}${result.after.charge}). Prior calibration_runs superseded.`;
-      $('ru-prop-success').style.display = '';
-      activeRubricProposal = null;
-      // Refresh search so the moved song shows its new tier
-      doRubricSearch();
-    } catch (e) {
-      $('ru-prop-error').textContent = e.message;
-      $('ru-prop-error').style.display = '';
-    } finally {
-      $('ru-prop-accept').disabled = false;
-      $('ru-prop-reject').disabled = false;
-    }
-  });
-
-  $('ru-prop-reject').addEventListener('click', async () => {
-    if (!activeRubricProposal) return;
-    const notes = prompt('Optional review notes (why you rejected the proposal):') || '';
-    $('ru-prop-accept').disabled = true;
-    $('ru-prop-reject').disabled = true;
-    try {
-      await api('POST', `/api/admin/recalibrations/${activeRubricProposal.id}/reject`, {
-        review_notes: notes || null,
-      });
-      $('ru-prop-success').textContent = 'Proposal rejected. Song unchanged.';
-      $('ru-prop-success').style.display = '';
-      activeRubricProposal = null;
-    } catch (e) {
-      $('ru-prop-error').textContent = e.message;
-      $('ru-prop-error').style.display = '';
-    } finally {
-      $('ru-prop-accept').disabled = false;
-      $('ru-prop-reject').disabled = false;
-    }
-  });
 })();
 </script>
 

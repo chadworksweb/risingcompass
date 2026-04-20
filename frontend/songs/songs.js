@@ -129,11 +129,15 @@
       const afterChg = r.after && r.after.charge != null ? (r.after.charge > 0 ? '+' : '') + r.after.charge : 'N/A';
       const beforeLabel = r.before && r.before.tier_label ? r.before.tier_label : '—';
       const afterLabel = r.after && r.after.tier_label ? r.after.tier_label : '—';
-      const typeLabel = r.type === 'satire' ? 'Satire'
-        : r.type === 'public_interest' ? 'Public Interest'
-        : r.type === 'rubric_update' ? 'Rubric Update'
-        : r.type === 'consensus_drift' ? 'Consensus Drift'
-        : r.type;
+      const pipelineLabel = ({
+        'manual': 'Manual',
+        'rubric_update': 'Rubric Update',
+        'satirical_flag': 'Satirical Flag',
+        'vibe_gap': 'Vibe Gap',
+        'consensus_drift': 'Consensus Drift',
+      })[r.pipeline] || r.pipeline || 'Recalibration';
+      const lensSuffix = r.lens === 'satire' ? ' · Satire Lens' : '';
+      const typeLabel = pipelineLabel + lensSuffix;
 
       let snapshot = '';
       if (r.flag_count_snapshot) {

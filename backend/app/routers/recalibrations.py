@@ -1,17 +1,25 @@
-"""Admin recalibration suite — satire (AI-only) for v1.
+"""Admin recalibration suite — one mechanism, many pipelines.
+
+There is ONE recalibrate mechanism (pick song → agent re-reads → admin
+reviews + accepts). Pipelines are the DIFFERENT TRIGGERS that feed
+into it. The LENS is how the agent re-reads (standard or satire).
 
 Workflow:
-  1. POST /api/admin/recalibrations/satire — admin pastes lyrics + flag ref;
-     server invokes the satire recalibrator and stores a proposal.
-  2. Admin reviews the proposal (charge, rationale, the satire reasoning fields).
-  3. POST /api/admin/recalibrations/{id}/accept — admin writes a public summary;
-     server applies the new charge to the song record, writes an immutable
-     audit row, and closes any associated satirical flag.
-  4. POST /api/admin/recalibrations/{id}/reject — admin closes the proposal
-     with review notes; nothing is applied.
+  1. POST /api/admin/recalibrations/start — admin (or UI, triggered by a
+     pipeline item) submits {song, lyrics, pipeline, lens, pipeline-specific
+     metadata}. Server runs the agent under the chosen lens and persists
+     a proposal.
+  2. Admin reviews the proposal (charge, rationale, reasoning).
+  3. POST /api/admin/recalibrations/{id}/accept — admin writes a public
+     summary; server applies the new charge, writes the audit row, and
+     runs pipeline-specific side-effects (close flag, supersede prior runs).
+  4. POST /api/admin/recalibrations/{id}/reject — admin closes the
+     proposal with review notes; nothing is applied.
 
-Public interest recalibrations are not yet implemented — the type slot exists
-in the schema but no endpoint creates them.
+Pipelines (current + planned): manual, rubric_update, satirical_flag,
+vibe_gap, consensus_drift (write-only from the corpus engine).
+
+Lenses: standard (plain rubric), satire (satire lens overlay).
 """
 
 import json
@@ -40,8 +48,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/recalibrations", tags=["recalibrations"])
 
-VALID_TYPES = {"satire", "public_interest", "rubric_update"}
-VALID_TRIGGERS = {"satirical_flag", "vibe_gap", "admin_manual", "rubric_update"}
+VALID_LENSES = {"standard", "satire"}
+VALID_PIPELINES = {"manual", "rubric_update", "satirical_flag", "vibe_gap", "consensus_drift"}
 
 SONG_MODELS = {
     "compass": CompassSong,
@@ -88,19 +96,21 @@ def _flag_counts_for_song(db: Session, source: str, song_id: int, title: str, ar
 
 # --- Schemas ---
 
-class SatireRecalibrateIn(BaseModel):
+class StartRecalibrateIn(BaseModel):
+    """Unified start request. Pipeline says what triggered it; lens says how
+    the agent re-reads. Pipeline-specific fields are optional and validated
+    conditionally below.
+    """
     song_source: str
     song_id: int
     lyrics: str = Field(..., min_length=20)
-    trigger_ref_id: Optional[int] = None  # misread_submissions.id if known
-
-
-class RubricUpdateRecalibrateIn(BaseModel):
-    song_source: str
-    song_id: int
-    lyrics: str = Field(..., min_length=20)
-    rubric_change_slug: str = Field(..., min_length=3, max_length=100)
-    rubric_change_note: str = Field(..., min_length=10, max_length=2000)
+    pipeline: str = Field(..., description="manual | rubric_update | satirical_flag | vibe_gap")
+    lens: str = Field(default="standard", description="standard | satire")
+    # pipeline=rubric_update:
+    rubric_change_slug: Optional[str] = Field(None, max_length=100)
+    rubric_change_note: Optional[str] = Field(None, max_length=2000)
+    # pipeline=satirical_flag:
+    trigger_ref_id: Optional[int] = None  # misread_submissions.id
 
 
 class AcceptIn(BaseModel):
@@ -112,37 +122,13 @@ class RejectIn(BaseModel):
     review_notes: Optional[str] = Field(None, max_length=4000)
 
 
-class ProposalOut(BaseModel):
-    id: int
-    recalibration_type: str
-    song_source: str
-    song_id: int
-    trigger_source: Optional[str] = None
-    trigger_ref_id: Optional[int] = None
-    original_charge: Optional[int] = None
-    original_color: Optional[str] = None
-    proposed_charge: Optional[int] = None
-    proposed_color: Optional[str] = None
-    proposed_summary: Optional[str] = None
-    ai_rationale: Optional[str] = None
-    ai_model: Optional[str] = None
-    status: str
-    review_notes: Optional[str] = None
-    created_at: datetime
-    resolved_at: Optional[datetime] = None
-    song_title: Optional[str] = None
-    song_artist: Optional[str] = None
-
-    model_config = {"from_attributes": True}
-
-
 def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
     base = {
         "id": p.id,
-        "recalibration_type": p.recalibration_type,
+        "lens": p.lens,
+        "pipeline": p.pipeline,
         "song_source": p.song_source,
         "song_id": p.song_id,
-        "trigger_source": p.trigger_source,
         "trigger_ref_id": p.trigger_ref_id,
         "original_charge": p.original_charge,
         "original_color": p.original_color,
@@ -153,6 +139,8 @@ def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
         "ai_model": p.ai_model,
         "status": p.status,
         "review_notes": p.review_notes,
+        "rubric_change_slug": p.rubric_change_slug,
+        "rubric_change_note": p.rubric_change_note,
         "created_at": p.created_at,
         "resolved_at": p.resolved_at,
     }
@@ -167,82 +155,56 @@ def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
 
 # --- Endpoints ---
 
-@router.post("/rubric-update", dependencies=[Depends(verify_admin_key)])
-def create_rubric_update_proposal(data: RubricUpdateRecalibrateIn, db: Session = Depends(get_db)):
-    """Re-read a song under the current (updated) standard rubric.
+@router.post("/start", dependencies=[Depends(verify_admin_key)])
+def start_recalibration(data: StartRecalibrateIn, db: Session = Depends(get_db)):
+    """Unified entrypoint. One mechanism; pipeline + lens parameterize it.
 
-    Creates a proposal the admin can review and accept — same flow as satire
-    except the lens is the plain rubric. Used when a rubric rule or tenet has
-    been added/changed and specific songs need to be re-evaluated against it.
+    Runs the agent under the chosen lens and persists a pending proposal.
+    Admin then reviews the proposal and calls /accept or /reject.
     """
+    if data.pipeline not in VALID_PIPELINES:
+        raise HTTPException(400, f"Invalid pipeline. Must be one of: {sorted(VALID_PIPELINES)}")
+    if data.lens not in VALID_LENSES:
+        raise HTTPException(400, f"Invalid lens. Must be one of: {sorted(VALID_LENSES)}")
+    if data.pipeline == "consensus_drift":
+        raise HTTPException(400, "consensus_drift is written by the corpus engine, not started by admins")
+    if data.pipeline == "rubric_update":
+        if not data.rubric_change_slug or len(data.rubric_change_slug) < 3:
+            raise HTTPException(400, "rubric_change_slug required (3+ chars) when pipeline=rubric_update")
+        if not data.rubric_change_note or len(data.rubric_change_note) < 10:
+            raise HTTPException(400, "rubric_change_note required (10+ chars) when pipeline=rubric_update")
+
     song = _resolve_song(db, data.song_source, data.song_id)
-
-    original_color = getattr(song, "rubric_color", None)
-    original_charge = getattr(song, "charge_value", None)
-
-    try:
-        result = recalibrate_song_rubric_update(
-            title=song.title,
-            artist=getattr(song, "artist", "") or "",
-            lyrics=data.lyrics,
-            db=db,
-        )
-    except RuntimeError as e:
-        raise HTTPException(502, str(e))
-
-    proposal = SongRecalibrationProposal(
-        recalibration_type="rubric_update",
-        song_source=data.song_source,
-        song_id=data.song_id,
-        trigger_source="rubric_update",
-        trigger_ref_id=None,
-        original_charge=original_charge,
-        original_color=original_color,
-        proposed_charge=result["charge_value"],
-        proposed_color=result["rubric_color"],
-        proposed_summary=result["charge_summary"],
-        ai_rationale=result["ai_rationale"],
-        ai_model=result["ai_model"],
-        rubric_change_slug=data.rubric_change_slug,
-        rubric_change_note=data.rubric_change_note,
-        status="pending",
-    )
-    db.add(proposal)
-    db.commit()
-    db.refresh(proposal)
-
-    return _proposal_to_out(proposal, db)
-
-
-@router.post("/satire", dependencies=[Depends(verify_admin_key)])
-def create_satire_proposal(data: SatireRecalibrateIn, db: Session = Depends(get_db)):
-    """Run the satire recalibrator and persist a proposal."""
-    song = _resolve_song(db, data.song_source, data.song_id)
-
     original_color = getattr(song, "rubric_color", None)
     original_charge = getattr(song, "charge_value", None)
     original_summary = getattr(song, "charge_summary", None)
 
     try:
-        result = recalibrate_song_satire(
-            title=song.title,
-            artist=getattr(song, "artist", "") or "",
-            lyrics=data.lyrics,
-            db=db,
-            original_color=original_color,
-            original_charge=original_charge,
-            original_summary=original_summary,
-        )
+        if data.lens == "satire":
+            result = recalibrate_song_satire(
+                title=song.title,
+                artist=getattr(song, "artist", "") or "",
+                lyrics=data.lyrics,
+                db=db,
+                original_color=original_color,
+                original_charge=original_charge,
+                original_summary=original_summary,
+            )
+        else:
+            result = recalibrate_song_rubric_update(
+                title=song.title,
+                artist=getattr(song, "artist", "") or "",
+                lyrics=data.lyrics,
+                db=db,
+            )
     except RuntimeError as e:
         raise HTTPException(502, str(e))
 
-    trigger_source = "satirical_flag" if data.trigger_ref_id else "admin_manual"
-
     proposal = SongRecalibrationProposal(
-        recalibration_type="satire",
+        lens=data.lens,
         song_source=data.song_source,
         song_id=data.song_id,
-        trigger_source=trigger_source,
+        pipeline=data.pipeline,
         trigger_ref_id=data.trigger_ref_id,
         original_charge=original_charge,
         original_color=original_color,
@@ -251,6 +213,8 @@ def create_satire_proposal(data: SatireRecalibrateIn, db: Session = Depends(get_
         proposed_summary=result["charge_summary"],
         ai_rationale=result["ai_rationale"],
         ai_model=result["ai_model"],
+        rubric_change_slug=data.rubric_change_slug if data.pipeline == "rubric_update" else None,
+        rubric_change_note=data.rubric_change_note if data.pipeline == "rubric_update" else None,
         status="pending",
     )
     db.add(proposal)
@@ -263,17 +227,22 @@ def create_satire_proposal(data: SatireRecalibrateIn, db: Session = Depends(get_
 @router.get("", dependencies=[Depends(verify_admin_key)])
 def list_proposals(
     status: Optional[str] = None,
-    recalibration_type: Optional[str] = None,
+    pipeline: Optional[str] = None,
+    lens: Optional[str] = None,
     limit: int = 100,
     db: Session = Depends(get_db),
 ):
     q = db.query(SongRecalibrationProposal)
     if status:
         q = q.filter(SongRecalibrationProposal.status == status)
-    if recalibration_type:
-        if recalibration_type not in VALID_TYPES:
-            raise HTTPException(400, f"Invalid recalibration_type")
-        q = q.filter(SongRecalibrationProposal.recalibration_type == recalibration_type)
+    if pipeline:
+        if pipeline not in VALID_PIPELINES:
+            raise HTTPException(400, f"Invalid pipeline")
+        q = q.filter(SongRecalibrationProposal.pipeline == pipeline)
+    if lens:
+        if lens not in VALID_LENSES:
+            raise HTTPException(400, f"Invalid lens")
+        q = q.filter(SongRecalibrationProposal.lens == lens)
     rows = q.order_by(SongRecalibrationProposal.created_at.desc()).limit(limit).all()
     return [_proposal_to_out(p, db) for p in rows]
 
@@ -314,11 +283,11 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
     before_summary = getattr(song, "charge_summary", None)
 
     audit = SongRecalibration(
-        recalibration_type=p.recalibration_type,
+        lens=p.lens,
         song_source=p.song_source,
         song_id=p.song_id,
         proposal_id=p.id,
-        trigger_source=p.trigger_source,
+        pipeline=p.pipeline,
         trigger_ref_id=p.trigger_ref_id,
         before_charge=p.original_charge,
         before_color=p.original_color,
@@ -344,7 +313,9 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
     # consensus engine excludes them, then log the accepted calibration as
     # a fresh run under the new rubric. Without this, the canonical row
     # would drift back toward the pre-update consensus as new runs arrive.
-    if p.recalibration_type == "rubric_update":
+    # Other pipelines (satirical_flag, manual, vibe_gap) do NOT supersede —
+    # they're targeted re-reads that coexist with history.
+    if p.pipeline == "rubric_update":
         now = datetime.utcnow()
         slug = p.rubric_change_slug or "rubric_update"
         prior = (
@@ -384,7 +355,7 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
     p.resolved_at = datetime.utcnow()
 
     # Close the originating satirical flag, if any.
-    if p.trigger_source == "satirical_flag" and p.trigger_ref_id:
+    if p.pipeline == "satirical_flag" and p.trigger_ref_id:
         flag = db.query(MisreadSubmission).get(p.trigger_ref_id)
         if flag:
             flag.status = "accepted"
@@ -417,7 +388,7 @@ def reject_proposal(proposal_id: int, data: RejectIn, db: Session = Depends(get_
 
     # Close the originating satirical flag as rejected too — admin investigated
     # and chose not to apply. The flag stays in the queue with a clear status.
-    if p.trigger_source == "satirical_flag" and p.trigger_ref_id:
+    if p.pipeline == "satirical_flag" and p.trigger_ref_id:
         flag = db.query(MisreadSubmission).get(p.trigger_ref_id)
         if flag and flag.status == "pending":
             flag.status = "rejected"

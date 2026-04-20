@@ -112,7 +112,8 @@ def song_history(slug: str):
         for r in rows:
             entry = {
                 "id": r.id,
-                "type": r.recalibration_type,
+                "lens": r.lens,
+                "pipeline": r.pipeline,
                 "applied_at": r.applied_at.isoformat() if r.applied_at else None,
                 "before": {
                     "charge": r.before_charge,
@@ -128,7 +129,6 @@ def song_history(slug: str):
                     "tier_hex": COLOR_HEX.get(r.after_color, "#999"),
                 },
                 "public_summary": r.public_summary,
-                "trigger_source": r.trigger_source,
                 "flag_count_snapshot": _json.loads(r.flag_count_snapshot) if r.flag_count_snapshot else None,
                 "rubric_change_slug": r.rubric_change_slug,
                 "rubric_change_note": r.rubric_change_note,
