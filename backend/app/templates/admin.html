@@ -153,6 +153,10 @@
   .db-load-more-btn:hover { background: var(--accent-strong) !important; border-color: var(--accent-strong) !important; }
   .db-load-all-btn { background: transparent !important; color: var(--text-dim) !important; border: 1px dashed var(--border) !important; font-size: 0.72rem !important; padding: 0.3rem 0.7rem !important; }
   .db-load-all-btn:hover { color: var(--text) !important; border-color: var(--text-dim) !important; }
+  /* Busy state — lock the results area while a mutation is in flight */
+  #tab-db.db-busy .db-results-wrap, #tab-db.db-busy .db-pagination, #tab-db.db-busy .db-toolbar, #tab-db.db-busy .db-filters, #tab-db.db-busy .db-sub-tabs { pointer-events: none; opacity: 0.55; transition: opacity 0.15s; }
+  #tab-db.db-busy .db-results-wrap { position: relative; }
+  #tab-db.db-busy .db-results-wrap::after { content: attr(data-busy-label); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.6); font-family: monospace; font-size: 0.85rem; font-weight: 700; color: var(--text); letter-spacing: 0.06em; text-transform: uppercase; pointer-events: auto; cursor: wait; }
   .db-th-actions { cursor: default !important; }
   .db-th-actions:hover { color: var(--text) !important; }
   .db-td-actions { padding: 0.3rem 0.5rem !important; white-space: nowrap; display: flex; gap: 0.25rem; align-items: center; }
@@ -1419,6 +1423,22 @@ function renderDbResults(data) {
 
 let dbArmedBtn = null;
 let dbArmedTimer = null;
+let dbBusy = false;
+
+function dbSetBusy(busy, label) {
+  dbBusy = busy;
+  const panel = document.getElementById('tab-db');
+  const wrap = document.querySelector('#tab-db .db-results-wrap');
+  if (!panel) return;
+  if (busy) {
+    panel.classList.add('db-busy');
+    if (wrap) wrap.setAttribute('data-busy-label', label || 'Working…');
+    dbDisarm();  // any armed button is stale; cancel
+  } else {
+    panel.classList.remove('db-busy');
+    if (wrap) wrap.removeAttribute('data-busy-label');
+  }
+}
 
 function dbDisarm() {
   if (dbArmedBtn) {
@@ -1447,14 +1467,17 @@ function dbArmButton(btn, armedTitle, onConfirm) {
 }
 
 function dbArmReset(btn, table, songId) {
+  if (dbBusy) return;
   dbArmButton(btn, 'Click again to confirm — reset is permanent (audited)', () => dbOpenReset(table, songId));
 }
 
 function dbArmDelete(btn, table, rowId) {
+  if (dbBusy) return;
   dbArmButton(btn, 'Click again to confirm — row goes to trash', () => dbOpenDelete(table, rowId));
 }
 
 async function dbOpenDelete(table, rowId) {
+  if (dbBusy) return;
   const prompt_msg = (DB_RESETTABLE.has(table))
     ? 'Move this song to trash?\n\nThis cascades: every song_artists, release_songs, calibration_runs, vibe, slug, recalibration, reset, misread, reading_songs, and lc_events row referencing this song will be snapshotted into trash.related_data and removed from their tables. The song becomes invisible outside the trash entry.\n\nReason (required):'
     : 'Move this row to trash?\n\nThe row is snapshotted into trash and removed from its table. No cascade.\n\nReason (required):';
@@ -1465,6 +1488,7 @@ async function dbOpenDelete(table, rowId) {
     alert('Reason must be at least 4 characters.');
     return;
   }
+  dbSetBusy(true, 'Deleting…');
   try {
     const resp = await fetch(`/api/admin/db/${table}/${rowId}/delete`, {
       method: 'POST',
@@ -1472,13 +1496,16 @@ async function dbOpenDelete(table, rowId) {
       body: JSON.stringify({ reason: trimmed }),
     });
     if (!resp.ok) throw new Error(await resp.text());
-    dbRunQuery();
+    await dbRunQuery();
   } catch (e) {
     alert('Delete failed: ' + e.message);
+  } finally {
+    dbSetBusy(false);
   }
 }
 
 async function dbOpenReset(table, songId) {
+  if (dbBusy) return;
   // Preflight fetch for current state + warnings
   let pre;
   try {
@@ -1506,6 +1533,7 @@ async function dbOpenReset(table, songId) {
     alert('Reason must be at least 4 characters.');
     return;
   }
+  dbSetBusy(true, 'Resetting…');
   try {
     const resp = await fetch(`/api/admin/db/${table}/${songId}/reset`, {
       method: 'POST',
@@ -1513,9 +1541,11 @@ async function dbOpenReset(table, songId) {
       body: JSON.stringify({ reason: trimmed }),
     });
     if (!resp.ok) throw new Error(await resp.text());
-    dbRunQuery();
+    await dbRunQuery();
   } catch (e) {
     alert('Reset failed: ' + e.message);
+  } finally {
+    dbSetBusy(false);
   }
 }
 
