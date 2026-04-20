@@ -23,6 +23,7 @@ class CompassSong(Base):
     why_calibration = Column(Text)
     chart_source = Column(Text, default="billboard_hot_100")
     instrumental = Column(Boolean, default=False)
+    effects_prose = Column(Text)  # 3-paragraph per-song description of what the song transmits
 
 
 class DailyReading(Base):
@@ -131,6 +132,7 @@ class LibrarySong(Base):
     album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=True)
     track_number = Column(Integer, nullable=True)  # position within album
     source = Column(String(20), default="manual")  # manual / agent
+    effects_prose = Column(Text)  # 3-paragraph per-song description
     created_at = Column(DateTime, default=datetime.utcnow)
 
     album = relationship("AlbumDeepDive", back_populates="library_songs")
@@ -203,6 +205,7 @@ class SubmittedSong(Base):
     confidence = Column(Float)
     source = Column(String(20), default="paste_lyrics")  # paste_lyrics | search
     ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6, for abuse detection
+    effects_prose = Column(Text)  # 3-paragraph per-song description
     submitted_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -297,6 +300,7 @@ class StreamSong(Base):
     confidence = Column(Float)
     status = Column(String(20), default="calibrated")  # calibrated / promoted / failed
     promoted_to = Column(String(20))  # library / compass — set on promotion
+    effects_prose = Column(Text)  # 3-paragraph per-song description
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

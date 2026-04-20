@@ -433,12 +433,19 @@
       ? 'This song is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.'
       : song.charge_summary || `This song is classified as ${tierLabel}.`;
 
-    // Section 3: Effects (currently a tier-generic description)
+    // Section 3: Effects — per-song prose if available, else tier-generic fallback.
     const effectsSection = document.getElementById('section-effects');
     effectsSection.hidden = !isUncalibrated ? false : true;
     if (!isUncalibrated) {
-      document.getElementById('effects-prose').innerHTML =
-        `<p>${TIER_EFFECTS[song.rubric_color] || ''}</p>`;
+      const proseHtml = song.effects_prose
+        ? song.effects_prose
+            .split(/\n{2,}/)
+            .map(p => p.trim())
+            .filter(Boolean)
+            .map(p => `<p>${escapeHtml(p)}</p>`)
+            .join('')
+        : `<p>${TIER_EFFECTS[song.rubric_color] || ''}</p>`;
+      document.getElementById('effects-prose').innerHTML = proseHtml;
     }
 
     // Section 3: Contamination

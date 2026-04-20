@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, and_
 
 from app.database import SessionLocal
 from app.models import (
-    CompassSong, LibrarySong, SubmittedSong, SongSlug,
+    CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
     ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration, SongReset,
     CalibrationRun,
 )
@@ -354,7 +354,7 @@ def song_search(q: str = "", limit: int = 20):
 
 def _resolve_song(source: str, song_id: int, db) -> dict | None:
     """Resolve a polymorphic song reference to a full display dict."""
-    model_map = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong}
+    model_map = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong, "stream": StreamSong}
     model = model_map.get(source)
     if not model:
         return None
@@ -374,6 +374,7 @@ def _resolve_song(source: str, song_id: int, db) -> dict | None:
         "contaminated": getattr(row, "contaminated", False) or False,
         "contamination_note": getattr(row, "contamination_note", None),
         "charge_summary": getattr(row, "charge_summary", None),
+        "effects_prose": getattr(row, "effects_prose", None),
         "uncalibrated": is_uncalibrated,
         "song_source": source,
         "song_id": song_id,

@@ -456,6 +456,26 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
     if p.proposed_summary:
         song.charge_summary = p.proposed_summary
 
+    # Regenerate effects prose now that tier + charge_summary have shifted.
+    # Fails soft — leaves the old prose in place rather than nulling. The
+    # next calibration run through record_and_reconcile will also retry.
+    try:
+        from app.services.effects_prose import generate_effects_prose
+        new_prose = generate_effects_prose(
+            title=song.title,
+            artist=getattr(song, "artist", "") or "",
+            rubric_color=song.rubric_color,
+            charge_value=song.charge_value,
+            charge_summary=song.charge_summary,
+            contaminated=bool(getattr(song, "contaminated", False)),
+            contamination_note=getattr(song, "contamination_note", None),
+        )
+        if new_prose:
+            song.effects_prose = new_prose
+    except Exception:
+        logger.exception("effects_prose regeneration failed on accept for %s/%s",
+                         p.song_source, p.song_id)
+
     # rubric_update side-effects: supersede prior calibration_runs so the
     # consensus engine excludes them, then log the accepted calibration as
     # a fresh run under the new rubric. Without this, the canonical row

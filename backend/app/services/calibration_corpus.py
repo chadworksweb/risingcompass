@@ -370,12 +370,43 @@ def record_and_reconcile(
 
     consensus = None
     if song and source:
+        # Snapshot before consensus might mutate so we know whether prose
+        # needs to regenerate.
+        prior_color = getattr(song, "rubric_color", None)
+        prior_summary = getattr(song, "charge_summary", None)
+
         consensus = compute_consensus(db, source, song.id)
         if consensus and consensus["run_count"] >= 2:
             apply_consensus_to_song(
                 db, source=source, song=song,
                 consensus=consensus, title=title, artist=artist,
             )
+
+        # Generate per-song effects prose when the canonical has tier +
+        # summary AND either (a) prose is missing, or (b) the tier or
+        # summary shifted in this reconcile pass. Fails soft — on error,
+        # leave the column as-is and the page falls back to tier-generic
+        # copy.
+        cur_color = getattr(song, "rubric_color", None)
+        cur_summary = getattr(song, "charge_summary", None)
+        tier_or_summary_changed = (prior_color != cur_color) or (prior_summary != cur_summary)
+        prose_missing = not getattr(song, "effects_prose", None)
+        if cur_color and cur_summary and (prose_missing or tier_or_summary_changed):
+            try:
+                from app.services.effects_prose import generate_effects_prose
+                prose = generate_effects_prose(
+                    title=getattr(song, "title", None) or title or "",
+                    artist=getattr(song, "artist", None) or artist or "",
+                    rubric_color=cur_color,
+                    charge_value=getattr(song, "charge_value", None),
+                    charge_summary=cur_summary,
+                    contaminated=bool(getattr(song, "contaminated", False)),
+                    contamination_note=getattr(song, "contamination_note", None),
+                )
+                if prose:
+                    song.effects_prose = prose
+            except Exception:
+                logger.exception("effects_prose hook failed for %s/%s", source, song.id)
 
     return {
         "run_id": run.id,
