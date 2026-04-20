@@ -389,8 +389,10 @@
     ADMIN_KEY = key;
     $('auth-error').style.display = 'none';
     try {
-      // Probe with a list call.
-      await api('GET', '/api/admin/misread?status=pending');
+      // Probe with a pure-admin call (recalibrations requires only X-Admin-Key,
+      // no X-Api-Key — misread would require both since it's mounted under the
+      // public api_key_dep chain).
+      await api('GET', '/api/admin/recalibrations?limit=1');
       sessionStorage.setItem('rc-admin-key', ADMIN_KEY);
       $('auth-screen').style.display = 'none';
       $('app-wrap').style.display = '';
