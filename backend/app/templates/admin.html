@@ -98,6 +98,43 @@
   /* Logout button */
   .logout-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; background: none; border: 1px solid var(--border); color: #666; border-radius: 4px; cursor: pointer; z-index: 100; }
   .logout-btn:hover { border-color: var(--red); color: var(--red); }
+  /* DB Explorer */
+  .db-sub-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; }
+  .db-sub-tab { padding: 0.4rem 0.9rem; font-size: 0.78rem; background: var(--panel); border: 1px solid var(--border); color: #888; border-radius: 4px; cursor: pointer; font-weight: normal; font-family: monospace; }
+  .db-sub-tab:hover { color: var(--text); border-color: #555; }
+  .db-sub-tab.active { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .db-toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+  .db-quick-search { flex: 1; min-width: 220px; padding: 0.5rem 0.8rem; font-size: 0.85rem; }
+  .db-run-btn { padding: 0.5rem 1.2rem; font-size: 0.85rem; }
+  .db-clear-btn { padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--panel); color: #888; border: 1px solid var(--border); }
+  .db-clear-btn:hover { color: var(--text); border-color: #555; }
+  .db-total { margin-left: auto; font-size: 0.8rem; color: #888; font-family: monospace; }
+  .db-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.6rem 0.8rem; margin-bottom: 1rem; padding: 0.9rem; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; max-height: 260px; overflow-y: auto; }
+  .db-filter { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; }
+  .db-filter-label { color: #888; font-family: monospace; display: flex; justify-content: space-between; gap: 0.3rem; }
+  .db-filter-type { color: #555; font-size: 0.7rem; }
+  .db-filter input, .db-filter select { padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+  .db-range { display: flex; gap: 0.25rem; }
+  .db-range input { flex: 1; min-width: 0; }
+  .db-results-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; max-height: 60vh; overflow-y: auto; }
+  .db-results { width: 100%; border-collapse: collapse; font-size: 0.78rem; font-family: monospace; }
+  .db-results thead { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  .db-results th { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); color: #888; font-weight: normal; white-space: nowrap; cursor: pointer; user-select: none; }
+  .db-results th:hover { color: var(--accent); }
+  .db-results td { padding: 0.45rem 0.7rem; border-bottom: 1px solid #1a1a2a; vertical-align: top; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .db-results tr:hover td { background: rgba(0, 212, 170, 0.04); }
+  .db-td-wide { max-width: 360px; color: #aaa; }
+  .db-empty { text-align: center; color: #555; padding: 1.5rem; }
+  .db-null { color: #444; }
+  .db-results td.color-violet { color: #aa54ff; }
+  .db-results td.color-blue { color: #3388ff; }
+  .db-results td.color-green { color: #33cc55; }
+  .db-results td.color-orange { color: #ffbb33; }
+  .db-results td.color-red { color: #ff3333; }
+  .db-pagination { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.8rem; justify-content: center; }
+  .db-pagination button { padding: 0.35rem 0.9rem; font-size: 0.78rem; background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  .db-pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .db-page-info { font-size: 0.78rem; color: #888; font-family: monospace; }
   /* Admin panel hidden until logged in */
   .admin-panel { display: none; }
   .admin-panel.visible { display: block; }
@@ -134,6 +171,7 @@
   <button class="tab-btn" onclick="switchTab('submissions')">LC Submissions</button>
   <button class="tab-btn" onclick="switchTab('lcactivity')">LC Activity</button>
   <button class="tab-btn" onclick="switchTab('apimonitor')">API Monitor</button>
+  <button class="tab-btn" onclick="switchTab('db')">DB</button>
 </div>
 
 <!-- Daily Songs Tab -->
@@ -317,6 +355,23 @@
   </div>
 </div>
 
+<!-- DB (full-database search) Tab -->
+<div class="tab-panel" id="tab-db">
+  <div class="db-sub-tabs" id="dbSubTabs"></div>
+  <div class="db-toolbar">
+    <input type="text" id="dbQuickSearch" placeholder="Quick search this table…" class="db-quick-search">
+    <button onclick="dbRunQuery()" class="db-run-btn">Search</button>
+    <button onclick="dbClearFilters()" class="db-clear-btn">Clear</button>
+    <span id="dbTotal" class="db-total"></span>
+  </div>
+  <div class="db-filters" id="dbFilters"></div>
+  <div class="db-results-wrap">
+    <table class="db-results" id="dbResults"><thead></thead><tbody></tbody></table>
+  </div>
+  <div class="db-pagination" id="dbPagination"></div>
+  <div class="status-msg" id="dbStatus"></div>
+</div>
+
 </div><!-- /.admin-panel -->
 
 <script>
@@ -386,6 +441,7 @@ function switchTab(tab) {
   if (tab === 'submissions') { loadSubStats(); loadSubs(); }
   if (tab === 'lcactivity') { loadLcStats(); loadLcEvents(); }
   if (tab === 'apimonitor') { loadApiClients(); }
+  if (tab === 'db') { initDbExplorer(); }
 }
 
 // Generate entry rows for a container
@@ -1089,6 +1145,190 @@ async function revokeKey(keyId, clientId) {
     openClient(clientId);
   } catch (e) { alert(e.message); }
 }
+
+// --- DB Explorer ---
+const DB_COLOR_COLS = new Set(['rubric_color', 'overall_color', 'charge_level', 'song_color', 'before_color', 'after_color', 'compass_color', 'proposed_color', 'original_color']);
+const DB_COLOR_OPTIONS = ['violet', 'blue', 'green', 'orange', 'red'];
+const DB_WIDE_COLS = new Set(['charge_summary', 'contamination_note', 'why_calibration', 'editorial_summary', 'message', 'note', 'ai_rationale', 'public_summary', 'internal_notes', 'before_summary', 'admin_notes', 'proposed_summary']);
+const DB_PAGE_SIZE = 25;
+
+let dbTablesMeta = null;
+let dbActiveTable = null;
+let dbOffset = 0;
+let dbSort = { by: null, dir: 'desc' };
+
+async function initDbExplorer() {
+  if (dbTablesMeta) return; // already loaded
+  try {
+    const resp = await fetch('/api/admin/db/tables', { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    dbTablesMeta = await resp.json();
+  } catch (e) {
+    showMsg(document.getElementById('dbStatus'), e.message, 'error');
+    return;
+  }
+  renderDbSubTabs();
+  dbSelectTable(dbTablesMeta[0].table);
+}
+
+function renderDbSubTabs() {
+  const el = document.getElementById('dbSubTabs');
+  el.innerHTML = dbTablesMeta.map(t =>
+    `<button class="db-sub-tab" data-table="${t.table}" onclick="dbSelectTable('${t.table}')">${t.table}</button>`
+  ).join('');
+}
+
+function dbSelectTable(table) {
+  dbActiveTable = table;
+  dbOffset = 0;
+  dbSort = { by: null, dir: 'desc' };
+  document.querySelectorAll('.db-sub-tab').forEach(b => b.classList.toggle('active', b.dataset.table === table));
+  document.getElementById('dbQuickSearch').value = '';
+  renderDbFilters();
+  dbRunQuery();
+}
+
+function dbTableMeta() {
+  return dbTablesMeta.find(t => t.table === dbActiveTable);
+}
+
+function renderDbFilters() {
+  const meta = dbTableMeta();
+  const el = document.getElementById('dbFilters');
+  const cols = meta.columns.filter(c => !DB_WIDE_COLS.has(c.name));
+  el.innerHTML = cols.map(c => dbFilterFor(c)).join('');
+}
+
+function dbFilterFor(col) {
+  const label = `<label class="db-filter-label">${col.name}<span class="db-filter-type">${col.type}</span></label>`;
+  // Special: known 5-color columns → dropdown
+  if (DB_COLOR_COLS.has(col.name)) {
+    const opts = ['<option value="">any</option>', ...DB_COLOR_OPTIONS.map(c => `<option value="${c}">${c}</option>`)];
+    return `<div class="db-filter">${label}<select data-col="${col.name}" data-op="eq">${opts.join('')}</select></div>`;
+  }
+  if (col.type === 'boolean') {
+    return `<div class="db-filter">${label}<select data-col="${col.name}" data-op="eq"><option value="">any</option><option value="true">yes</option><option value="false">no</option></select></div>`;
+  }
+  if (col.type === 'integer' || col.type === 'float') {
+    return `<div class="db-filter">${label}<div class="db-range"><input type="number" data-col="${col.name}" data-op="gte" placeholder="min"><input type="number" data-col="${col.name}" data-op="lte" placeholder="max"></div></div>`;
+  }
+  if (col.type === 'date' || col.type === 'datetime') {
+    return `<div class="db-filter">${label}<div class="db-range"><input type="date" data-col="${col.name}" data-op="gte"><input type="date" data-col="${col.name}" data-op="lte"></div></div>`;
+  }
+  // Text / fallback: contains
+  return `<div class="db-filter">${label}<input type="text" data-col="${col.name}" data-op="contains" placeholder="contains…"></div>`;
+}
+
+function dbClearFilters() {
+  document.querySelectorAll('#dbFilters input, #dbFilters select').forEach(i => { i.value = ''; });
+  document.getElementById('dbQuickSearch').value = '';
+  dbOffset = 0;
+  dbRunQuery();
+}
+
+function dbCollectFilters() {
+  const params = new URLSearchParams();
+  const q = document.getElementById('dbQuickSearch').value.trim();
+  if (q) params.set('q', q);
+  document.querySelectorAll('#dbFilters input, #dbFilters select').forEach(el => {
+    const v = el.value.trim();
+    if (!v) return;
+    const col = el.dataset.col;
+    const op = el.dataset.op || 'eq';
+    const key = op === 'eq' ? col : `${col}__${op}`;
+    params.append(key, v);
+  });
+  if (dbSort.by) {
+    params.set('sort_by', dbSort.by);
+    params.set('sort_dir', dbSort.dir);
+  }
+  params.set('offset', String(dbOffset));
+  params.set('limit', String(DB_PAGE_SIZE));
+  return params;
+}
+
+async function dbRunQuery() {
+  if (!dbActiveTable) return;
+  const statusEl = document.getElementById('dbStatus');
+  statusEl.textContent = '';
+  const params = dbCollectFilters();
+  try {
+    const resp = await fetch(`/api/admin/db/${dbActiveTable}?${params.toString()}`, { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderDbResults(data);
+  } catch (e) {
+    showMsg(statusEl, e.message, 'error');
+  }
+}
+
+function renderDbResults(data) {
+  const meta = dbTableMeta();
+  const table = document.getElementById('dbResults');
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+
+  const cols = meta.columns;
+  thead.innerHTML = '<tr>' + cols.map(c => {
+    const arrow = dbSort.by === c.name ? (dbSort.dir === 'desc' ? ' ▾' : ' ▴') : '';
+    return `<th onclick="dbToggleSort('${c.name}')" class="db-th" title="Click to sort">${c.name}${arrow}</th>`;
+  }).join('') + '</tr>';
+
+  if (!data.rows.length) {
+    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="db-empty">No rows match.</td></tr>`;
+  } else {
+    tbody.innerHTML = data.rows.map(row => {
+      return '<tr>' + cols.map(c => {
+        const v = row[c.name];
+        const display = v == null ? '<span class="db-null">—</span>' : esc(String(v));
+        const cls = DB_COLOR_COLS.has(c.name) && v ? `color-${esc(String(v))}` : '';
+        const wide = DB_WIDE_COLS.has(c.name) ? 'db-td-wide' : '';
+        return `<td class="${wide} ${cls}" title="${v == null ? '' : esc(String(v))}">${display}</td>`;
+      }).join('') + '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('dbTotal').textContent = `${data.total.toLocaleString()} row${data.total === 1 ? '' : 's'}`;
+  renderDbPagination(data);
+}
+
+function renderDbPagination(data) {
+  const el = document.getElementById('dbPagination');
+  const total = data.total;
+  const pageStart = data.offset + 1;
+  const pageEnd = Math.min(data.offset + data.limit, total);
+  const prevDisabled = data.offset <= 0 ? 'disabled' : '';
+  const nextDisabled = pageEnd >= total ? 'disabled' : '';
+  el.innerHTML = total === 0 ? '' : `
+    <button onclick="dbPage(-1)" ${prevDisabled}>← Prev</button>
+    <span class="db-page-info">${pageStart}–${pageEnd} of ${total.toLocaleString()}</span>
+    <button onclick="dbPage(1)" ${nextDisabled}>Next →</button>
+  `;
+}
+
+function dbPage(delta) {
+  dbOffset = Math.max(0, dbOffset + delta * DB_PAGE_SIZE);
+  dbRunQuery();
+}
+
+function dbToggleSort(col) {
+  if (dbSort.by === col) {
+    dbSort.dir = dbSort.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    dbSort.by = col;
+    dbSort.dir = 'desc';
+  }
+  dbOffset = 0;
+  dbRunQuery();
+}
+
+// Enter key in quick-search runs the query
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target && e.target.id === 'dbQuickSearch') {
+    dbOffset = 0;
+    dbRunQuery();
+  }
+});
 </script>
 </body>
 </html>
