@@ -48,7 +48,7 @@ _PII_FIELDS = {"ip_address", "device_id", "email", "confidence", "why_calibratio
 
 _COMMON_FIELDS = [
     "id", "title", "artist", "rubric_color", "charge_value",
-    "contaminated", "contamination_note", "charge_summary",
+    "contaminated", "contamination_note", "charge_summary", "effects_prose",
 ]
 
 

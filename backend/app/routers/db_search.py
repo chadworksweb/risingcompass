@@ -134,6 +134,7 @@ def list_tables():
             {"name": "contaminated", "type": "boolean", "nullable": True, "primary_key": False},
             {"name": "contamination_note", "type": "text", "nullable": True, "primary_key": False},
             {"name": "charge_summary", "type": "text", "nullable": True, "primary_key": False},
+            {"name": "effects_prose", "type": "text", "nullable": True, "primary_key": False},
             {"name": "slug", "type": "text", "nullable": True, "primary_key": False},
             {"name": "year", "type": "integer", "nullable": True, "primary_key": False},
             {"name": "created_at", "type": "datetime", "nullable": True, "primary_key": False},
