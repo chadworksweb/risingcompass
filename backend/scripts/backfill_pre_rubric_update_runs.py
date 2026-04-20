@@ -22,6 +22,32 @@ import sys
 import libsql
 
 
+_TIMESTAMP_COLS = {
+    "compass": ("compass_songs", "created_at"),
+    "library": ("library_songs", "created_at"),
+    "submitted": ("submitted_songs", "submitted_at"),
+    "stream": ("stream_songs", "created_at"),
+}
+
+
+def _original_song_timestamp(conn, source: str, song_id: int):
+    """Fetch the song's original creation/submission timestamp. Used as
+    run_at for the seed so it sorts BEFORE the post-rubric_update run in
+    the public timeline. Returns None if the song or column is missing.
+    """
+    entry = _TIMESTAMP_COLS.get(source)
+    if not entry:
+        return None
+    table, col = entry
+    try:
+        row = conn.execute(
+            f"SELECT {col} FROM {table} WHERE id = ?", (song_id,),
+        ).fetchone()
+        return row[0] if row and row[0] else None
+    except Exception:
+        return None
+
+
 def main() -> int:
     url = os.environ["DATABASE_URL"]
     token = os.environ["TURSO_AUTH_TOKEN"]
@@ -51,8 +77,10 @@ def main() -> int:
             skipped += 1
             continue
 
-        # Use the audit applied_at as the run_at so chronology stays honest —
-        # this was the state "at the moment the rubric changed."
+        # Use the song's ORIGINAL creation/submission time as run_at so the
+        # seed sorts before the post-update run in the timeline. Fall back
+        # to applied_at if the song row has no timestamp (should be rare).
+        run_at = _original_song_timestamp(conn, source, song_id) or applied_at
         conn.execute(
             "INSERT INTO calibration_runs "
             "(song_source, song_id, title, artist, rubric_color, charge_value, "
@@ -61,7 +89,7 @@ def main() -> int:
             " superseded, superseded_reason, superseded_at) "
             "VALUES (?, ?, NULL, NULL, ?, ?, ?, 0, NULL, NULL, NULL, "
             " 'seed_pre_rubric_update', NULL, ?, 1, ?, ?)",
-            (source, song_id, bcol, bc, bsum, applied_at, slug, applied_at),
+            (source, song_id, bcol, bc, bsum, run_at, slug, applied_at),
         )
         conn.commit()
         seeded += 1
