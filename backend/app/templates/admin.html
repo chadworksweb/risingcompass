@@ -152,8 +152,12 @@
   .db-th-actions { cursor: default !important; }
   .db-th-actions:hover { color: var(--text) !important; }
   .db-td-actions { padding: 0.3rem 0.5rem !important; white-space: nowrap; }
-  .db-reset-btn { padding: 0.25rem 0.65rem; font-size: 0.72rem; font-weight: 600; background: var(--panel-strong); color: var(--text); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-family: monospace; }
-  .db-reset-btn:hover { background: var(--red); color: #ffffff; border-color: var(--red); }
+  .db-reset-btn { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-hint); border: 1px solid transparent; border-radius: 4px; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+  .db-reset-btn svg { width: 14px; height: 14px; display: block; }
+  .db-reset-btn:hover { color: var(--text); border-color: var(--border); background: var(--panel-strong); }
+  .db-reset-btn.armed { color: #ffffff; background: var(--red); border-color: var(--red); animation: dbResetPulse 1s ease-in-out infinite; }
+  .db-reset-btn.armed:hover { background: #9a2e18; border-color: #9a2e18; }
+  @keyframes dbResetPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 58, 30, 0.5); } 50% { box-shadow: 0 0 0 4px rgba(192, 58, 30, 0); } }
   /* Admin panel hidden until logged in */
   .admin-panel { display: none; }
   .admin-panel.visible { display: block; }
@@ -1309,9 +1313,12 @@ function renderDbResults(data) {
       const uncalibrated = hasActions && (row.charge_value == null);
       let html = '<tr>';
       if (hasActions) {
-        const label = uncalibrated ? 'Re-reset' : 'Reset';
-        const title = uncalibrated ? 'Already uncalibrated — resets still log an audit entry' : 'Return to uncalibrated state';
-        html += `<td class="db-td-actions"><button class="db-reset-btn" onclick="dbOpenReset('${dbActiveTable}', ${rowId})" title="${title}">${label}</button></td>`;
+        const title = uncalibrated
+          ? 'Already uncalibrated — click to re-reset (logs audit entry only)'
+          : 'Reset to uncalibrated';
+        html += `<td class="db-td-actions"><button class="db-reset-btn" onclick="dbArmReset(this, '${dbActiveTable}', ${rowId})" title="${title}" aria-label="Reset song">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+        </button></td>`;
       }
       html += cols.map(c => {
         const v = row[c.name];
@@ -1327,6 +1334,36 @@ function renderDbResults(data) {
 
   document.getElementById('dbTotal').textContent = `${data.total.toLocaleString()} row${data.total === 1 ? '' : 's'}`;
   renderDbPagination(data);
+}
+
+let dbArmedResetBtn = null;
+let dbArmedResetTimer = null;
+
+function dbDisarmReset() {
+  if (dbArmedResetBtn) {
+    dbArmedResetBtn.classList.remove('armed');
+    dbArmedResetBtn.setAttribute('title', dbArmedResetBtn.dataset.origTitle || '');
+    dbArmedResetBtn = null;
+  }
+  if (dbArmedResetTimer) {
+    clearTimeout(dbArmedResetTimer);
+    dbArmedResetTimer = null;
+  }
+}
+
+function dbArmReset(btn, table, songId) {
+  // Two-step opt-in: first click arms the button, second click fires the flow.
+  if (dbArmedResetBtn === btn) {
+    dbDisarmReset();
+    dbOpenReset(table, songId);
+    return;
+  }
+  dbDisarmReset();
+  dbArmedResetBtn = btn;
+  btn.dataset.origTitle = btn.getAttribute('title') || '';
+  btn.classList.add('armed');
+  btn.setAttribute('title', 'Click again to confirm — reset is permanent (audited)');
+  dbArmedResetTimer = setTimeout(dbDisarmReset, 4000);
 }
 
 async function dbOpenReset(table, songId) {
