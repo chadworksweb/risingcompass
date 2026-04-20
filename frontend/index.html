@@ -226,6 +226,41 @@
           <p>The middle tier is called <strong>Decent</strong> — not "balanced," not "good," not "healthy." Deliberately. A song that's just entertainment, just filling time, just pleasant background noise — that's fine. It's decent. But the compass exists to show that music <em>can</em> do more. Decent isn't the goal. It's the floor for not doing harm.</p>
         </div>
 
+        <!-- ═══ TRANSPARENCY ═══ -->
+        <div class="method-block method-block-ruled">
+          <div class="method-block-label">Honesty as Strategy</div>
+          <h2>Transparency</h2>
+          <p>The compass is only useful if you can see its work. Every calibration, every change, every disagreement is visible — not hidden in a database nobody can audit. Below is how the compass holds itself accountable.</p>
+
+          <h3>Three Independent Measurements Per Song</h3>
+          <p>A single AI reading is never the final word. Each song sits at the intersection of three independent signals that together form the full picture:</p>
+          <ul class="key-points">
+            <li><strong>Agent consensus</strong> — every submission of a song re-runs the agent. Each run is logged with its own tier, charge, and summary. The canonical classification drifts toward the confidence-weighted mean as runs accumulate. The more readings a song receives, the tighter the confidence interval on its true charge.</li>
+            <li><strong>Audience Vibe</strong> — a separate democratic needle anyone can push once per year. The crowd gets to place the song where <em>they</em> think it belongs, independent of the agent's diagnosis.</li>
+            <li><strong>The gap between them</strong> — when the compass and the crowd diverge, that divergence is the signal. Either the rubric has a blind spot the public is exposing, or the crowd is drifting and the compass is holding the line. Both outcomes are valuable data.</li>
+          </ul>
+
+          <h3>Every Run Is Public</h3>
+          <p>Every song page shows the full <strong>Calibration History</strong>: each individual agent run with its own charge, tier, summary, and confidence. If one reading says &minus;38 and another says &minus;30, both are visible side by side — not averaged into a single number that hides the disagreement. We're honest that Claude doesn't produce identical readings every time, and we turn that variance into the mechanism: statistical convergence across runs builds confidence.</p>
+
+          <h3>"Did We Get It Wrong?" — The Feedback Layer</h3>
+          <p>Every song page has a link to file a report if you disagree with a calibration. Two kinds of reports:</p>
+          <ul class="key-points">
+            <li><strong>Misread</strong> — the compass read the lyrics wrong, missed context, or applied a tenet incorrectly.</li>
+            <li><strong>Satirical</strong> — the song depicts behavior to expose it rather than endorse it. The compass reads literally on first pass (words are words), and satire requires human verification. When a satire flag is verified, an admin can invoke a recalibration under a parallel satire tenet set.</li>
+          </ul>
+          <p>Reports trigger manual review. Nothing auto-reclassifies. The reasoning for every accepted flag is public.</p>
+
+          <h3>The Public Calibration Log</h3>
+          <p>When a calibration changes, the reasoning is shown permanently on the song's page:</p>
+          <ul class="key-points">
+            <li><strong>Recalibrations</strong> — when a song's classification is changed (via accepted satire flag, public-interest review, or consensus drift across runs), the before/after charge and an admin-written public summary are logged on the song page. The compass changes its mind in public — including what the public was doing when it changed.</li>
+            <li><strong>Resets</strong> — when an entry is returned to an uncalibrated state (duplicates, corrections, incomplete lyrics), the reason is recorded publicly. The row persists so every downstream reference still resolves.</li>
+            <li><strong>Runs</strong> — every agent run ever fired on a song, chronologically, with its full summary.</li>
+          </ul>
+          <p>The compass is the constitution of lyrical classification. Every constitution that survives has an amendment process. Ours is public, documented, and accountable by design.</p>
+        </div>
+
         <!-- ═══ FAQ ═══ -->
         <div class="method-block method-block-ruled">
           <div class="method-block-label">Common Questions</div>
