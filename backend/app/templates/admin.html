@@ -167,11 +167,15 @@
   .db-action-btn.armed:hover { background: #9a2e18; border-color: #9a2e18; }
   .db-action-btn.merge-source { color: #ffffff; background: var(--accent); border-color: var(--accent); }
   /* Kebab action menu */
-  .db-actions-wrap { position: relative; display: inline-block; }
-  .db-actions-kebab { width: 28px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-dim); border: 1px solid transparent; border-radius: 4px; cursor: pointer; }
+  .db-td-actions { vertical-align: middle !important; }
+  .db-actions-wrap { display: inline-flex; align-items: center; }
+  .db-actions-kebab { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-hint); border: 1px solid transparent; border-radius: 4px; cursor: pointer; }
+  .db-actions-kebab svg { width: 14px; height: 14px; display: block; }
   .db-actions-kebab:hover { color: var(--text); border-color: var(--border); background: var(--panel-strong); }
   .db-actions-kebab.open { color: var(--text); border-color: var(--border); background: var(--panel-strong); }
-  .db-actions-menu { position: absolute; top: calc(100% + 4px); left: 0; min-width: 150px; background: #ffffff; border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); z-index: 50; padding: 0.3rem 0; display: none; }
+  /* Fixed position so the menu escapes .db-results-wrap's overflow clipping.
+     JS sets top/left on open and listens for scroll to close. */
+  .db-actions-menu { position: fixed; min-width: 170px; background: #ffffff; border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); z-index: 1000; padding: 0.3rem 0; display: none; }
   .db-actions-menu.open { display: block; }
   .db-actions-menu-item { width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.8rem; background: transparent; border: none; color: var(--text); font-size: 0.82rem; text-align: left; cursor: pointer; font-family: inherit; }
   .db-actions-menu-item:hover { background: var(--panel-strong); color: var(--text); }
@@ -1449,7 +1453,7 @@ function renderDbResults(data) {
         html += `<td class="db-td-actions">
           <div class="db-actions-wrap">
             <button class="${kebabCls}" onclick="dbToggleActionsMenu(event, '${menuKey}')" title="Row actions" aria-label="Row actions" aria-haspopup="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>
             </button>
             <div class="db-actions-menu" data-menu="${menuKey}">`;
         if (isResettable) {
@@ -1745,37 +1749,57 @@ function dbToggleSort(col) {
   dbRunQuery();
 }
 
-// Row actions kebab menu — one open at a time, closes on outside click,
-// closes after any menu item is clicked (the item handlers close too).
+// Row actions kebab menu — one open at a time, closes on outside click or
+// on any scroll of the results container (menu is position:fixed so it
+// would otherwise stay anchored to the viewport while the table scrolls).
+function _dbCloseAllActionsMenus() {
+  document.querySelectorAll('.db-actions-menu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.db-actions-kebab.open').forEach(b => {
+    // Leave .open on merge-source rows (persistent until merge resolves).
+    const wrap = b.closest('.db-actions-wrap');
+    if (!wrap || !wrap.querySelector('.merge-source')) b.classList.remove('open');
+  });
+}
+
 function dbToggleActionsMenu(ev, key) {
   ev.stopPropagation();
   const menu = document.querySelector(`.db-actions-menu[data-menu="${key}"]`);
   if (!menu) return;
   const wasOpen = menu.classList.contains('open');
-  // Close all other open menus
-  document.querySelectorAll('.db-actions-menu.open').forEach(m => {
-    if (m !== menu) m.classList.remove('open');
-  });
-  document.querySelectorAll('.db-actions-kebab.open').forEach(b => {
-    if (!b.closest('.db-actions-wrap').contains(menu)) b.classList.remove('open');
-  });
-  menu.classList.toggle('open', !wasOpen);
+  _dbCloseAllActionsMenus();
+  if (wasOpen) return;  // just closed it, done
+
+  // Position the fixed menu in viewport coords relative to the kebab.
   const kebab = ev.currentTarget;
-  if (kebab && kebab.classList) kebab.classList.toggle('open', !wasOpen);
+  const rect = kebab.getBoundingClientRect();
+  // Default: open below the button, left-aligned
+  let top = rect.bottom + 4;
+  let left = rect.left;
+  // If the menu would overflow the right edge, align to the right of the button
+  const menuWidth = 180;  // matches min-width + padding
+  if (left + menuWidth > window.innerWidth - 8) {
+    left = Math.max(8, rect.right - menuWidth);
+  }
+  // If not enough room below, flip above
+  const menuHeight = 140;  // rough estimate; exact height available after open
+  if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 8) {
+    top = rect.top - menuHeight - 4;
+  }
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.classList.add('open');
+  if (kebab.classList) kebab.classList.add('open');
 }
 
 // Global handler: click anywhere outside a menu closes every open menu.
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('.db-actions-wrap')) {
-    document.querySelectorAll('.db-actions-menu.open').forEach(m => m.classList.remove('open'));
-    document.querySelectorAll('.db-actions-kebab.open').forEach(b => {
-      // Leave .open on merge-source rows (they're persistent until merge resolves).
-      if (!b.closest('.db-actions-wrap').querySelector('.merge-source')) {
-        b.classList.remove('open');
-      }
-    });
+  if (!e.target.closest('.db-actions-wrap') && !e.target.closest('.db-actions-menu')) {
+    _dbCloseAllActionsMenus();
   }
 });
+
+// Close on scroll — fixed-position menu would otherwise detach from its row.
+document.addEventListener('scroll', _dbCloseAllActionsMenus, true);
 
 // Enter key in quick-search runs the query
 document.addEventListener('keydown', (e) => {
