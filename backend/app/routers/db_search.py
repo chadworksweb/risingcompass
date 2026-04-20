@@ -182,6 +182,8 @@ def query_table(
                 else False if _pget("contaminated") in ("0", "false", "no")
                 else None
             ),
+            title_contains=_pget("title__contains"),
+            artist_contains=_pget("artist__contains"),
             sort_by=sort_by or "created_at",
             sort_dir=sort_dir,
             offset=max(0, offset),

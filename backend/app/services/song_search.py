@@ -131,6 +131,8 @@ def search_unified(
     year_min: int | None = None,
     year_max: int | None = None,
     contaminated: bool | None = None,
+    title_contains: str | None = None,
+    artist_contains: str | None = None,
     calibrated_only: bool = True,
     sort_by: str = "created_at",
     sort_dir: str = "desc",
@@ -163,6 +165,10 @@ def search_unified(
             query = query.filter(Model.charge_value <= charge_max)
         if contaminated is not None:
             query = query.filter(Model.contaminated == contaminated)
+        if title_contains:
+            query = query.filter(Model.title.ilike(f"%{title_contains}%"))
+        if artist_contains:
+            query = query.filter(Model.artist.ilike(f"%{artist_contains}%"))
         # year filters only apply to compass (only table with a `year` col)
         if src == "compass":
             if year_min is not None:
