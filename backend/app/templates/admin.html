@@ -165,6 +165,11 @@
   .db-action-btn:hover { color: var(--text); border-color: var(--border); background: var(--panel-strong); }
   .db-action-btn.armed { color: #ffffff; background: var(--red); border-color: var(--red); animation: dbResetPulse 1s ease-in-out infinite; }
   .db-action-btn.armed:hover { background: #9a2e18; border-color: #9a2e18; }
+  .db-action-btn.merge-source { color: #ffffff; background: var(--accent); border-color: var(--accent); }
+  .db-merge-banner { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.5rem 0.8rem; background: rgba(0, 143, 114, 0.08); border: 1px solid var(--accent); border-radius: 4px; margin-bottom: 0.8rem; font-size: 0.8rem; color: var(--text); }
+  .db-merge-banner strong { font-family: monospace; color: var(--accent-strong); }
+  .db-merge-banner .db-merge-cancel { background: transparent; color: var(--text-dim); border: 1px solid var(--border); padding: 0.25rem 0.6rem; font-size: 0.72rem; }
+  .db-merge-banner .db-merge-cancel:hover { color: var(--text); border-color: var(--text-dim); }
   @keyframes dbResetPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 58, 30, 0.5); } 50% { box-shadow: 0 0 0 4px rgba(192, 58, 30, 0); } }
   /* Admin panel hidden until logged in */
   .admin-panel { display: none; }
@@ -389,6 +394,7 @@
 <!-- DB (full-database search) Tab -->
 <div class="tab-panel" id="tab-db">
   <div class="db-sub-tabs" id="dbSubTabs"></div>
+  <div id="dbMergeBanner" class="db-merge-banner" hidden></div>
   <div class="db-toolbar">
     <input type="text" id="dbQuickSearch" placeholder="Quick search this table…" class="db-quick-search">
     <button onclick="dbRunQuery()" class="db-run-btn">Search</button>
@@ -1188,6 +1194,7 @@ let dbTablesMeta = null;
 let dbActiveTable = null;
 let dbOffset = 0;
 let dbLoadedRows = [];  // accumulator for the load-more pattern
+let dbLastData = null;  // most recent API response (for re-render without refetch)
 let dbSort = { by: null, dir: 'desc' };
 
 async function initDbExplorer() {
@@ -1306,6 +1313,7 @@ async function dbFetchAndAppend() {
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
     dbLoadedRows = dbLoadedRows.concat(data.rows || []);
+    dbLastData = data;
     renderDbResults(data);
   } catch (e) {
     showMsg(statusEl, e.message, 'error');
@@ -1352,6 +1360,8 @@ const DB_SOURCE_TO_TABLE = {
   submitted: 'submitted_songs',
   stream: 'stream_songs',
 };
+const DB_MERGEABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'all_songs']);
+let dbMergeSource = null;  // { table, id, title, artist }
 
 function renderDbResults(data) {
   const meta = dbTableMeta();
@@ -1362,7 +1372,8 @@ function renderDbResults(data) {
   const cols = meta.columns;
   const isResettable = DB_RESETTABLE.has(dbActiveTable);
   const isDeletable = DB_DELETABLE.has(dbActiveTable);
-  const hasActions = isResettable || isDeletable;
+  const isMergeable = DB_MERGEABLE.has(dbActiveTable);
+  const hasActions = isResettable || isDeletable || isMergeable;
   const colSpan = cols.length + (hasActions ? 1 : 0);
 
   let head = '<tr>';
@@ -1401,6 +1412,16 @@ function renderDbResults(data) {
             : 'Move row to trash';
           html += `<button class="db-action-btn" onclick="dbArmDelete(this, '${actionTable}', ${rowId})" title="${deleteTitle}" aria-label="Delete row">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+          </button>`;
+        }
+        if (isMergeable) {
+          const isSource = dbMergeSource && dbMergeSource.table === actionTable && dbMergeSource.id === rowId;
+          const mergeTitle = isSource
+            ? 'This row is the merge source — click another row to merge into it'
+            : (dbMergeSource ? `Merge this row as target (source: ${dbMergeSource.table}:${dbMergeSource.id})` : 'Pick as merge source');
+          const mergeLabel = isSource ? 'cancel merge' : 'merge';
+          html += `<button class="db-action-btn${isSource ? ' merge-source' : ''}" onclick="dbMergeClick('${actionTable}', ${rowId}, ${JSON.stringify(row.title || '').replace(/'/g, '&apos;')}, ${JSON.stringify(row.artist || '').replace(/'/g, '&apos;')})" title="${mergeTitle}" aria-label="${mergeLabel}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><line x1="7" y1="12" x2="17" y2="12"/><polyline points="13 8 17 12 13 16"/></svg>
           </button>`;
         }
         html += '</td>';
@@ -1474,6 +1495,87 @@ function dbArmReset(btn, table, songId) {
 function dbArmDelete(btn, table, rowId) {
   if (dbBusy) return;
   dbArmButton(btn, 'Click again to confirm — row goes to trash', () => dbOpenDelete(table, rowId));
+}
+
+function dbRenderMergeBanner() {
+  const el = document.getElementById('dbMergeBanner');
+  if (!el) return;
+  if (!dbMergeSource) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  const label = [dbMergeSource.title, dbMergeSource.artist].filter(Boolean).join(' — ') || '(no title)';
+  el.innerHTML = `
+    <span>Merge source: <strong>${dbMergeSource.table}:${dbMergeSource.id}</strong> — ${esc(label)}. Click the merge icon on any other song to merge this row INTO it.</span>
+    <button class="db-merge-cancel" onclick="dbClearMergeSource()">Cancel</button>
+  `;
+  el.hidden = false;
+}
+
+function dbClearMergeSource() {
+  dbMergeSource = null;
+  dbRenderMergeBanner();
+  // Refresh row rendering to drop the source-highlighted state
+  if (dbLastData) renderDbResults(dbLastData);
+}
+
+function dbMergeClick(table, rowId, title, artist) {
+  if (dbBusy) return;
+  // Clicking the same row that's the source = cancel
+  if (dbMergeSource && dbMergeSource.table === table && dbMergeSource.id === rowId) {
+    dbClearMergeSource();
+    return;
+  }
+  if (!dbMergeSource) {
+    // First click: pick as source
+    dbMergeSource = { table, id: rowId, title: title || '', artist: artist || '' };
+    dbRenderMergeBanner();
+    if (dbLastData) renderDbResults(dbLastData);
+    return;
+  }
+  // Second click on a different row: confirm target + merge
+  const src = dbMergeSource;
+  const tgtLabel = [title, artist].filter(Boolean).join(' — ') || '(no title)';
+  const srcLabel = [src.title, src.artist].filter(Boolean).join(' — ') || '(no title)';
+  const confirmMsg = `Merge SOURCE into TARGET:\n\nSOURCE: ${src.table}:${src.id} — ${srcLabel}\nTARGET: ${table}:${rowId} — ${tgtLabel}\n\nAll song_artists, release_songs, calibration_runs, vibe, recalibrations, resets, misread, reading_songs, and lc_events references on the source will be repointed to the target. Source row then trashed.\n\nReason (required, shown in trash audit):`;
+  const reason = prompt(confirmMsg, '');
+  if (reason === null) return;
+  const trimmed = reason.trim();
+  if (trimmed.length < 4) {
+    alert('Reason must be at least 4 characters.');
+    return;
+  }
+  dbDoMerge(src, { table, id: rowId }, trimmed);
+}
+
+async function dbDoMerge(src, tgt, reason) {
+  dbSetBusy(true, 'Merging…');
+  try {
+    const resp = await fetch('/api/admin/db/merge', {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        source_table: src.table,
+        source_id: src.id,
+        target_table: tgt.table,
+        target_id: tgt.id,
+        reason,
+      }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    const moved = Object.entries(data.moved || {}).map(([k, v]) => `${k}: ${v}`).join(', ') || 'no rows';
+    const dropped = Object.entries(data.dropped || {}).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none';
+    alert(`Merged.\n\nMoved: ${moved}\nDropped (conflicts): ${dropped}\n\nTrash id: ${data.trash_id}`);
+    dbMergeSource = null;
+    dbRenderMergeBanner();
+    await dbRunQuery();
+  } catch (e) {
+    alert('Merge failed: ' + e.message);
+  } finally {
+    dbSetBusy(false);
+  }
 }
 
 async function dbOpenDelete(table, rowId) {

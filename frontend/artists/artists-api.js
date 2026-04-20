@@ -33,6 +33,13 @@ const ArtistsAPI = (() => {
       return get(path);
     },
     searchSongs: (q, limit = 20) => get(`/api/songs?q=${encodeURIComponent(q)}&limit=${limit}`),
+    searchLibrary: (params = {}) => {
+      const qs = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && v !== '') qs.set(k, String(v));
+      });
+      return get(`/api/songs/search?${qs.toString()}`);
+    },
     getSong: (slug) => get(`/api/songs/${slug}`),
     getSongFlagCounts: (slug) => get(`/api/songs/${slug}/flag-counts`),
     getSongHistory: (slug) => get(`/api/songs/${slug}/history`),

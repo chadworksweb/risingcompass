@@ -535,3 +535,172 @@ def delete_row(table: str, row_id: int, data: DeleteIn, db: Session = Depends(ge
         "original_id": row_id,
         "deleted_at": trash_row.deleted_at.isoformat(),
     }
+
+
+# --- Merge two song rows (repoint references, trash the source) ---
+
+
+class MergeIn(BaseModel):
+    source_table: str = Field(..., min_length=1, max_length=40)
+    source_id: int
+    target_table: str = Field(..., min_length=1, max_length=40)
+    target_id: int
+    reason: str = Field(..., min_length=4, max_length=2000)
+
+
+def _table_to_polymorphic(table: str) -> str | None:
+    for t, (_, p) in RESETTABLE_SOURCES.items():
+        if t == table:
+            return p
+    return None
+
+
+@router.post("/merge")
+def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
+    """Merge a source song row into a target. Repoints every polymorphic +
+    FK reference from (src_source, src_id) to (tgt_source, tgt_id), then
+    trashes the source row (its junction refs are already gone, so the
+    cascade finds nothing and the trash entry captures the merge context
+    in reason + related_data.none).
+
+    Conflicts (e.g., a vibe needle existing on both sides) are resolved by
+    keeping the target's row and dropping the source's.
+    """
+    import json as _json
+
+    if data.source_table not in RESETTABLE_SOURCES or data.target_table not in RESETTABLE_SOURCES:
+        raise HTTPException(400, "Merge supported only between song tables (compass/library/submitted/stream)")
+    if data.source_table == data.target_table and data.source_id == data.target_id:
+        raise HTTPException(400, "Source and target are the same row")
+
+    src_poly = _table_to_polymorphic(data.source_table)
+    tgt_poly = _table_to_polymorphic(data.target_table)
+
+    SrcModel = TABLES[data.source_table]
+    TgtModel = TABLES[data.target_table]
+    src_row = db.query(SrcModel).get(data.source_id)
+    tgt_row = db.query(TgtModel).get(data.target_id)
+    if not src_row:
+        raise HTTPException(404, f"Source {data.source_table}:{data.source_id} not found")
+    if not tgt_row:
+        raise HTTPException(404, f"Target {data.target_table}:{data.target_id} not found")
+
+    # Snapshot source state for the trash record before we touch anything
+    src_col_map = {c.name: c for c in sa_inspect(SrcModel).columns}
+    src_snapshot = _serialize_row(src_row, src_col_map)
+
+    moved_counts: dict[str, int] = {}
+    dropped_counts: dict[str, int] = {}
+
+    def _repoint(Model, has_unique: bool = False, unique_cols: list[str] | None = None):
+        """Repoint every polymorphic row from (src_poly, src_id) to (tgt_poly, tgt_id).
+        If has_unique, check for existing target rows on the unique cols first and
+        delete source conflicts instead of updating (target keeps its own).
+        """
+        name = Model.__tablename__
+        rows = (
+            db.query(Model)
+            .filter(Model.song_source == src_poly)
+            .filter(Model.song_id == data.source_id)
+            .all()
+        )
+        moved = 0
+        dropped = 0
+        for r in rows:
+            if has_unique and unique_cols:
+                # Does a target-side row already satisfy the same unique?
+                q = db.query(Model).filter(Model.song_source == tgt_poly).filter(Model.song_id == data.target_id)
+                for col in unique_cols:
+                    q = q.filter(getattr(Model, col) == getattr(r, col))
+                conflict = q.first()
+                if conflict:
+                    db.delete(r)
+                    dropped += 1
+                    continue
+            r.song_source = tgt_poly
+            r.song_id = data.target_id
+            moved += 1
+        if moved:
+            moved_counts[name] = moved
+        if dropped:
+            dropped_counts[name] = dropped
+
+    # Song-level junctions — each with its own unique-constraint quirks
+    _repoint(SongArtist, has_unique=True, unique_cols=["artist_id"])
+    _repoint(ReleaseSong)
+    _repoint(CalibrationRun)
+    _repoint(AudienceVibeNeedle, has_unique=True, unique_cols=[])  # (source, id) itself is unique
+    _repoint(AudienceVibePush, has_unique=True, unique_cols=["device_id", "push_year"])
+    _repoint(AudienceVibeReviewCase)
+    _repoint(SongRecalibration)
+    _repoint(SongRecalibrationProposal)
+    _repoint(SongReset)
+    _repoint(MisreadSubmission)
+
+    # Source-specific FK refs
+    if src_poly == "compass":
+        rows = db.query(ReadingSong).filter(ReadingSong.compass_song_id == data.source_id).all()
+        moved = 0
+        if tgt_poly == "compass":
+            for r in rows:
+                r.compass_song_id = data.target_id
+                moved += 1
+        else:
+            for r in rows:
+                r.compass_song_id = None
+                moved += 1
+        if moved:
+            moved_counts["reading_songs"] = moved
+
+    if src_poly == "submitted":
+        rows = db.query(LcEvent).filter(LcEvent.submission_id == data.source_id).all()
+        moved = 0
+        if tgt_poly == "submitted":
+            for r in rows:
+                r.submission_id = data.target_id
+                moved += 1
+        else:
+            for r in rows:
+                r.submission_id = None
+                moved += 1
+        if moved:
+            moved_counts["lc_events"] = moved
+
+    # Source slug: delete rather than move — target keeps its own slugs
+    slug_rows = (
+        db.query(SongSlug)
+        .filter(SongSlug.song_source == src_poly)
+        .filter(SongSlug.song_id == data.source_id)
+        .all()
+    )
+    for s in slug_rows:
+        db.delete(s)
+    if slug_rows:
+        dropped_counts["song_slugs"] = len(slug_rows)
+
+    # Now delete the source row and log to trash
+    trash_row = Trash(
+        original_table=data.source_table,
+        original_id=data.source_id,
+        title=getattr(src_row, "title", None),
+        artist=getattr(src_row, "artist", None),
+        row_data=_json.dumps(src_snapshot, default=str),
+        related_data=_json.dumps({
+            "merge_into": {"table": data.target_table, "id": data.target_id},
+            "moved": moved_counts,
+            "dropped": dropped_counts,
+        }, default=str),
+        reason=f"MERGE into {data.target_table}:{data.target_id} — {data.reason.strip()}",
+    )
+    db.add(trash_row)
+    db.delete(src_row)
+    db.commit()
+    db.refresh(trash_row)
+
+    return {
+        "trash_id": trash_row.id,
+        "source": {"table": data.source_table, "id": data.source_id},
+        "target": {"table": data.target_table, "id": data.target_id},
+        "moved": moved_counts,
+        "dropped": dropped_counts,
+    }

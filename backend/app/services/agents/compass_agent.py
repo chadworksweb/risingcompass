@@ -96,6 +96,32 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         )
         db.add(song)
         db.flush()
+
+        # First-ever appearance on the compass — log a calibration run so the
+        # corpus grows on chart debuts. Subsequent days where the song stays
+        # on the chart do NOT re-log: the corpus is agent practice on new
+        # data, not redundant re-entries for the same song.
+        try:
+            from app.services.calibration_corpus import record_and_reconcile
+            record_and_reconcile(
+                db,
+                title=title, artist=artist,
+                calibration={
+                    "rubric_color": result["rubric_color"],
+                    "charge_value": result.get("charge_value"),
+                    "charge_summary": result["charge_summary"],
+                    "contaminated": result["contaminated"],
+                    "contamination_note": result["contamination_note"],
+                    "confidence": result.get("confidence"),
+                },
+                triggered_by="compass_daily",
+                direct_song_source="compass",
+                direct_song_id=song.id,
+                is_new_row=True,
+            )
+        except Exception:
+            logger.exception("Daily corpus log failed for compass song %d", song.id)
+
         return song.id
 
 

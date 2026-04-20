@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Collective Library — The Rising Compass</title>
+  <meta name="description" content="Search the Rising Compass corpus — every calibrated song across chart data, the archive, crowd submissions, and the stream. One lens on popular music's lyrical substance.">
+  <meta property="og:title" content="The Collective Library — The Rising Compass">
+  <meta property="og:description" content="Search every calibrated song in the Rising Compass corpus.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/library/">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="library.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <!-- Password gate overlay -->
+  <div id="lib-gate" class="lib-gate">
+    <div class="lib-gate-inner">
+      <h1 class="lib-gate-title">The Collective Library</h1>
+      <p class="lib-gate-sub">Preview access</p>
+      <form id="lib-gate-form" autocomplete="off">
+        <input type="password" id="lib-gate-input" class="lib-gate-input" placeholder="Access key" autocomplete="off" autofocus>
+        <button type="submit" class="lib-gate-btn">Enter</button>
+      </form>
+      <p id="lib-gate-error" class="lib-gate-error" hidden>Wrong key.</p>
+      <p class="lib-gate-meta">A searchable mirror of the Rising Compass corpus. Every calibrated song, every agent run, every tier. In preview while access is being shaped.</p>
+    </div>
+  </div>
+
+  <header class="artists-header" id="lib-header" hidden>
+    <a href="/" class="back-link" aria-label="Back to Rising Compass">
+      <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+        <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+        <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+      </svg>
+      <span>The Rising Compass</span>
+    </a>
+    <h1 class="artists-title">Library</h1>
+  </header>
+
+  <main id="main" hidden>
+    <section class="lib-intro">
+      <p class="lib-intro-text">
+        Every song the compass has read. Chart data, deep-dive archive, crowd submissions, and the stream —
+        searchable as one corpus. Each entry shows the tier, charge, and reasoning.
+      </p>
+    </section>
+
+    <section class="lib-controls">
+      <div class="lib-search-row">
+        <input type="search" id="lib-q" class="lib-q" placeholder="Search by song title or artist…" autocomplete="off">
+      </div>
+      <div class="lib-filters">
+        <label class="lib-filter">
+          <span class="lib-filter-label">Tier</span>
+          <select id="lib-tier">
+            <option value="">Any</option>
+            <option value="violet">Ascended</option>
+            <option value="blue">Elevated</option>
+            <option value="green">Decent</option>
+            <option value="orange">Degraded</option>
+            <option value="red">Corrupted</option>
+          </select>
+        </label>
+        <label class="lib-filter">
+          <span class="lib-filter-label">Source</span>
+          <select id="lib-source">
+            <option value="">All sources</option>
+            <option value="compass">Chart (compass)</option>
+            <option value="library">Archive (library)</option>
+            <option value="submitted">Crowd (Lyrical Charger)</option>
+            <option value="stream">Stream</option>
+          </select>
+        </label>
+        <label class="lib-filter">
+          <span class="lib-filter-label">Charge min</span>
+          <input type="number" id="lib-charge-min" min="-100" max="100" placeholder="-100">
+        </label>
+        <label class="lib-filter">
+          <span class="lib-filter-label">Charge max</span>
+          <input type="number" id="lib-charge-max" min="-100" max="100" placeholder="+100">
+        </label>
+        <label class="lib-filter">
+          <span class="lib-filter-label">Contaminated</span>
+          <select id="lib-contam">
+            <option value="">Any</option>
+            <option value="true">Contaminated only</option>
+            <option value="false">Clean only</option>
+          </select>
+        </label>
+        <label class="lib-filter">
+          <span class="lib-filter-label">Sort</span>
+          <select id="lib-sort">
+            <option value="created_at|desc">Newest first</option>
+            <option value="created_at|asc">Oldest first</option>
+            <option value="charge_value|desc">Highest charge</option>
+            <option value="charge_value|asc">Lowest charge</option>
+            <option value="title|asc">Title A→Z</option>
+            <option value="artist|asc">Artist A→Z</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="lib-results-meta" id="lib-results-meta"></section>
+    <section id="lib-results" class="lib-results"></section>
+
+    <footer class="lib-footer">
+      <p>Powered by <a href="/">The Rising Compass</a>. Every calibration is public — <a href="/#methodology">read the methodology</a>.</p>
+    </footer>
+  </main>
+
+  <script src="../artists/artists-api.js"></script>
+  <script src="library.js"></script>
+</body>
+</html>
