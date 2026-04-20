@@ -52,7 +52,7 @@ from app.database import get_db
 from app.models import (
     SongRecalibration, SongRecalibrationProposal,
     CompassSong, LibrarySong, SubmittedSong, StreamSong,
-    MisreadSubmission, CalibrationRun,
+    MisreadSubmission, CalibrationRun, SongSlug,
 )
 from app.routers.admin import verify_admin_key
 from app.services.agents.recalibrator import (
@@ -499,11 +499,21 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
     db.commit()
     db.refresh(audit)
 
+    slug_row = (
+        db.query(SongSlug)
+        .filter(SongSlug.song_source == p.song_source)
+        .filter(SongSlug.song_id == p.song_id)
+        .order_by(SongSlug.id.desc())
+        .first()
+    )
+    song_slug = slug_row.slug if slug_row else None
+
     return {
         "applied": True,
         "audit_id": audit.id,
         "song_source": p.song_source,
         "song_id": p.song_id,
+        "song_slug": song_slug,
         "before": {"charge": p.original_charge, "color": p.original_color},
         "after": {"charge": p.proposed_charge, "color": p.proposed_color},
         "flag_count_snapshot": flag_counts,

@@ -731,7 +731,13 @@
         public_summary: summary,
         internal_notes: internal || null,
       });
-      $('prop-success').textContent = `Applied. Audit row #${result.audit_id}. Song now ${result.after.color} (${result.after.charge >= 0 ? '+' : ''}${result.after.charge}).`;
+      const afterLabel = (TIER_LABELS[result.after.color] || result.after.color || '').toLowerCase();
+      const chgStr = `${result.after.charge >= 0 ? '+' : ''}${result.after.charge}`;
+      const slug = result.song_slug;
+      const linkHtml = slug
+        ? ` <a href="https://risingcompass.net/songs/${encodeURIComponent(slug)}" target="_blank" rel="noopener" style="color:var(--accent-strong);font-weight:600;">View song &rarr;</a>`
+        : '';
+      $('prop-success').innerHTML = `Applied. Audit row #${result.audit_id}. Song now ${afterLabel} (${chgStr}).${linkHtml}`;
       $('prop-success').style.display = '';
       activeProposal = null;
       loadFlags();
