@@ -62,7 +62,14 @@
         <div id="tab-paste" class="tab-panel active">
           <div class="meta-fields">
             <input type="text" id="input-title" placeholder="Song title" spellcheck="false" maxlength="200" required>
-            <input type="text" id="input-artist" placeholder="Artist" spellcheck="false" maxlength="200" required>
+            <div class="artists-input" id="artists-input"></div>
+          </div>
+          <div class="artist-actions">
+            <button type="button" id="artist-add-btn" class="artist-add-btn">+ Add another artist</button>
+            <div id="artist-parse-hint" class="artist-parse-hint hidden">
+              <span>Looks like multiple artists.</span>
+              <button type="button" id="artist-parse-btn" class="artist-parse-btn">Split into rows</button>
+            </div>
           </div>
           <textarea id="lyrics-input" placeholder="Paste the full lyrics here..." rows="12" spellcheck="false"></textarea>
           <p class="input-hint">Paste the complete lyrics. The more complete they are, the more accurate the reading.</p>

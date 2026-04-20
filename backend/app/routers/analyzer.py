@@ -512,7 +512,11 @@ async def calibrate_lyrics_endpoint(
         db.add(submitted)
         db.commit()
         db.refresh(submitted)
-        try_link_song(title, artist, "submitted", submitted.id, db)
+        structured = (
+            [{"name": a.name, "role": a.role, "position": i} for i, a in enumerate(body.artists)]
+            if body.artists else None
+        )
+        try_link_song(title, artist, "submitted", submitted.id, db, structured=structured)
 
         if is_public:
             schedule_event(background_tasks, "submission_success", request,
@@ -647,7 +651,11 @@ async def calibrate_search(
         db.add(submitted)
         db.commit()
         db.refresh(submitted)
-        try_link_song(title, artist, "submitted", submitted.id, db)
+        structured = (
+            [{"name": a.name, "role": a.role, "position": i} for i, a in enumerate(body.artists)]
+            if body.artists else None
+        )
+        try_link_song(title, artist, "submitted", submitted.id, db, structured=structured)
 
         if is_public:
             schedule_event(background_tasks, "submission_success", request,

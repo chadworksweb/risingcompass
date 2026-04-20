@@ -42,7 +42,10 @@ const tabPaste = $('#tab-paste');
 const tabSearch = $('#tab-search');
 
 const inputTitle = $('#input-title');
-const inputArtist = $('#input-artist');
+const artistsContainer = $('#artists-input');
+const artistAddBtn = $('#artist-add-btn');
+const artistParseHint = $('#artist-parse-hint');
+const artistParseBtn = $('#artist-parse-btn');
 const lyricsInput = $('#lyrics-input');
 
 const searchQuery = $('#search-query');
@@ -91,6 +94,149 @@ function resetTurnstile() {
     try { window.turnstile.reset(turnstileWidgetId); } catch {}
   }
 }
+
+// ============================================================
+// Multi-Artist Input
+// ============================================================
+const FEATURE_MARKERS = [' featuring ', ' feat. ', ' feat ', ' ft. ', ' ft '];
+const PRIMARY_SPLIT_RE = /\s*(?:,|&)\s*|\s+[xX]\s+/;
+
+function renderArtistRow(index, entry) {
+  const row = document.createElement('div');
+  row.className = 'artist-row';
+  row.dataset.index = String(index);
+  row.innerHTML = `
+    <input type="text" class="artist-name" placeholder="Artist" maxlength="200" value="${entry?.name ? escapeAttr(entry.name) : ''}">
+    <div class="artist-role">
+      <label><input type="radio" name="role-${index}" value="primary"${entry?.role !== 'featured' ? ' checked' : ''}> Primary</label>
+      <label><input type="radio" name="role-${index}" value="featured"${entry?.role === 'featured' ? ' checked' : ''}> Featured</label>
+    </div>
+    <button type="button" class="artist-remove" aria-label="Remove artist">×</button>
+  `;
+  row.querySelector('.artist-name').addEventListener('input', () => {
+    checkArtistParseHint();
+    validateSubmit();
+  });
+  row.querySelectorAll('input[type=radio]').forEach(r => r.addEventListener('change', validateSubmit));
+  row.querySelector('.artist-remove').addEventListener('click', () => {
+    row.remove();
+    refreshArtistRowsUI();
+    validateSubmit();
+  });
+  return row;
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function refreshArtistRowsUI() {
+  const rows = artistsContainer.querySelectorAll('.artist-row');
+  rows.forEach((row, i) => {
+    row.dataset.index = String(i);
+    // Single row: hide role pickers + remove button for cleanliness
+    const roleWrap = row.querySelector('.artist-role');
+    const removeBtn = row.querySelector('.artist-remove');
+    if (rows.length === 1) {
+      roleWrap.classList.add('hidden');
+      removeBtn.classList.add('hidden');
+    } else {
+      roleWrap.classList.remove('hidden');
+      removeBtn.classList.remove('hidden');
+    }
+  });
+}
+
+function addArtistRow(entry) {
+  const rows = artistsContainer.querySelectorAll('.artist-row');
+  const row = renderArtistRow(rows.length, entry);
+  artistsContainer.appendChild(row);
+  refreshArtistRowsUI();
+  return row;
+}
+
+function collectArtists() {
+  const rows = artistsContainer.querySelectorAll('.artist-row');
+  const out = [];
+  rows.forEach((row, i) => {
+    const name = row.querySelector('.artist-name').value.trim();
+    if (!name) return;
+    const roleInput = row.querySelector('input[name^="role-"]:checked');
+    const role = roleInput ? roleInput.value : 'primary';
+    out.push({ name, role, position: i });
+  });
+  return out;
+}
+
+function formatArtistString(entries) {
+  if (!entries || !entries.length) return '';
+  const primaries = entries.filter(e => e.role === 'primary').map(e => e.name);
+  const features = entries.filter(e => e.role === 'featured').map(e => e.name);
+  let s = primaries.join(' & ');
+  if (features.length) s += ' feat. ' + features.join(' & ');
+  return s || entries.map(e => e.name).join(' & ');
+}
+
+function parseArtistString(raw) {
+  if (!raw) return [];
+  const text = raw.trim();
+  if (!text) return [];
+  let primaryPart = text;
+  let featuredPart = '';
+  const lowered = text.toLowerCase();
+  for (const marker of FEATURE_MARKERS) {
+    const idx = lowered.indexOf(marker);
+    if (idx >= 0) {
+      primaryPart = text.slice(0, idx);
+      featuredPart = text.slice(idx + marker.length);
+      break;
+    }
+  }
+  const primaries = primaryPart.split(PRIMARY_SPLIT_RE).map(s => s.trim()).filter(Boolean);
+  const features = featuredPart ? featuredPart.split(PRIMARY_SPLIT_RE).map(s => s.trim()).filter(Boolean) : [];
+  let pos = 0;
+  const out = [];
+  primaries.forEach(n => out.push({ name: n, role: 'primary', position: pos++ }));
+  features.forEach(n => out.push({ name: n, role: 'featured', position: pos++ }));
+  return out;
+}
+
+function checkArtistParseHint() {
+  const rows = artistsContainer.querySelectorAll('.artist-row');
+  if (rows.length !== 1) {
+    artistParseHint.classList.add('hidden');
+    return;
+  }
+  const raw = rows[0].querySelector('.artist-name').value;
+  const entries = parseArtistString(raw);
+  if (entries.length >= 2) {
+    artistParseHint.classList.remove('hidden');
+  } else {
+    artistParseHint.classList.add('hidden');
+  }
+}
+
+function doParseArtistString() {
+  const rows = artistsContainer.querySelectorAll('.artist-row');
+  if (!rows.length) return;
+  const raw = rows[0].querySelector('.artist-name').value;
+  const entries = parseArtistString(raw);
+  if (entries.length < 2) return;
+  artistsContainer.innerHTML = '';
+  entries.forEach(e => addArtistRow(e));
+  artistParseHint.classList.add('hidden');
+  validateSubmit();
+}
+
+function clearArtistRows() {
+  artistsContainer.innerHTML = '';
+  addArtistRow();
+}
+
+// Initialize with one empty row + wire buttons
+addArtistRow();
+artistAddBtn.addEventListener('click', () => addArtistRow());
+artistParseBtn.addEventListener('click', doParseArtistString);
 
 // --- Page-view beacon ---
 function firePageView() {
@@ -173,10 +319,10 @@ function validateSubmit() {
 
   if (activeTab === 'paste') {
     const title = inputTitle.value.trim();
-    const artist = inputArtist.value.trim();
+    const artists = collectArtists();
     const lyrics = lyricsInput.value.trim();
     const hasTitle = title.length >= 1;
-    const hasArtist = artist.length >= 1;
+    const hasArtist = artists.length >= 1;
     const hasLyrics = lyrics.length >= 20;
     const consented = consentCheck.checked;
     valid = hasTitle && hasArtist && hasLyrics && consented;
@@ -193,7 +339,6 @@ function validateSearch() {
 
 lyricsInput.addEventListener('input', validateSubmit);
 inputTitle.addEventListener('input', validateSubmit);
-inputArtist.addEventListener('input', validateSubmit);
 consentCheck.addEventListener('change', validateSubmit);
 searchQuery.addEventListener('input', validateSearch);
 searchQuery.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btnSearch.disabled) doSearch(); });
@@ -284,7 +429,8 @@ async function submitLyrics() {
   }
 
   const title = inputTitle.value.trim();
-  const artist = inputArtist.value.trim();
+  const artistEntries = collectArtists();
+  const artist = formatArtistString(artistEntries);
 
   if (!title || !artist) {
     showError('Song title and artist are required.');
@@ -304,6 +450,7 @@ async function submitLyrics() {
       headers,
       body: JSON.stringify({
         lyrics, title, artist,
+        artists: artistEntries.map(e => ({ name: e.name, role: e.role })),
         hp_website: getHpValue(),
         turnstile_token: getTurnstileToken(),
       }),
@@ -584,7 +731,7 @@ function renderResults(data) {
 btnAgain.addEventListener('click', () => {
   lyricsInput.value = '';
   inputTitle.value = '';
-  inputArtist.value = '';
+  clearArtistRows();
   searchQuery.value = '';
   searchArtist.value = '';
   searchResults.innerHTML = '';

@@ -343,6 +343,30 @@ class Release(Base):
     songs = relationship("ReleaseSong", back_populates="release", cascade="all, delete-orphan")
 
 
+class SongArtist(Base):
+    """Song → artist attribution (N:M). Makes multi-artist songs representable
+    across collabs (primary & primary) and features (primary + featured).
+
+    Polymorphic via (song_source, song_id). Role enum stays small on purpose:
+    primary | featured. Position is display-order within the credit string.
+    """
+    __tablename__ = "song_artists"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_source = Column(String(20), nullable=False)
+    song_id = Column(Integer, nullable=False)
+    artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), nullable=False, default="primary")
+    position = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("song_source", "song_id", "artist_id", name="uq_song_artists_song_artist"),
+    )
+
+    artist = relationship("Artist")
+
+
 class ReleaseSong(Base):
     """Links a release to a calibrated song across the three song tables."""
     __tablename__ = "release_songs"

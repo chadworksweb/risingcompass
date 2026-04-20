@@ -8,7 +8,7 @@ from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.models import (
-    Artist, Release, ReleaseSong,
+    Artist, Release, ReleaseSong, SongArtist,
     CompassSong, LibrarySong, SubmittedSong, SongSlug,
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
@@ -101,21 +101,39 @@ def artist_search(
 
 
 def _song_charges_for_artist(artist_id: int, db) -> list[int]:
-    """All per-song charge_values for this artist's releases, one query per source table.
+    """All per-song charge_values credited to this artist.
 
-    Each source table is joined to release_songs in a single query — no N+1.
+    Two paths, deduplicated: songs on releases owned by this artist
+    (release_songs → releases.artist_id), and songs where this artist is
+    directly credited via song_artists (collabs + features on other artists'
+    releases). One query per source-per-path — no N+1.
     """
     charges: list[int] = []
     for source, Model in _SONG_MODEL_MAP.items():
-        rows = (
-            db.query(Model.charge_value)
+        seen_ids: set[int] = set()
+        via_release = (
+            db.query(Model.id, Model.charge_value)
             .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
             .join(Release, ReleaseSong.release_id == Release.id)
             .filter(Release.artist_id == artist_id)
             .filter(Model.charge_value.isnot(None))
             .all()
         )
-        charges.extend(r[0] for r in rows)
+        for sid, charge in via_release:
+            seen_ids.add(sid)
+            charges.append(charge)
+
+        via_credit = (
+            db.query(Model.id, Model.charge_value)
+            .join(SongArtist, (SongArtist.song_source == source) & (SongArtist.song_id == Model.id))
+            .filter(SongArtist.artist_id == artist_id)
+            .filter(Model.charge_value.isnot(None))
+            .all()
+        )
+        for sid, charge in via_credit:
+            if sid not in seen_ids:
+                seen_ids.add(sid)
+                charges.append(charge)
     return charges
 
 
@@ -295,18 +313,17 @@ def artist_top_songs(
         items: list[dict] = []
         seen: set[tuple[str, int]] = set()
         for source, Model in _SONG_MODEL_MAP.items():
-            # One query per source table, pulling only what the UI needs.
-            # DISTINCT because a song linked to multiple releases (single +
-            # album, re-release, compilation) yields one join row per release.
-            rows = (
-                db.query(
-                    Model.id,
-                    Model.title,
-                    Model.artist,
-                    Model.rubric_color,
-                    Model.charge_value,
-                    Model.contaminated,
-                )
+            columns = (
+                Model.id,
+                Model.title,
+                Model.artist,
+                Model.rubric_color,
+                Model.charge_value,
+                Model.contaminated,
+            )
+            # Path 1: songs on releases owned by this artist (release_songs).
+            via_release = (
+                db.query(*columns)
                 .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
                 .join(Release, ReleaseSong.release_id == Release.id)
                 .filter(Release.artist_id == artist.id)
@@ -314,7 +331,16 @@ def artist_top_songs(
                 .distinct()
                 .all()
             )
-            for song_id, title, song_artist, rubric_color, charge_value, contaminated in rows:
+            # Path 2: songs where this artist is directly credited (collabs + features).
+            via_credit = (
+                db.query(*columns)
+                .join(SongArtist, (SongArtist.song_source == source) & (SongArtist.song_id == Model.id))
+                .filter(SongArtist.artist_id == artist.id)
+                .filter(Model.charge_value.isnot(None))
+                .distinct()
+                .all()
+            )
+            for song_id, title, song_artist, rubric_color, charge_value, contaminated in list(via_release) + list(via_credit):
                 key = (source, song_id)
                 if key in seen:
                     continue

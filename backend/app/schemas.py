@@ -609,10 +609,20 @@ class PlaylistResolveOut(BaseModel):
 
 
 # --- Lyrical Charger v2: Direct lyrics calibration ---
+class ArtistEntry(BaseModel):
+    """One credited artist on a song. Role is primary or featured."""
+    name: str = Field(..., min_length=1, max_length=200)
+    role: str = Field("primary", pattern="^(primary|featured)$")
+
+
 class LyricsCalibrateIn(BaseModel):
     lyrics: str = Field(..., min_length=20, max_length=20000)
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)
+    # Optional structured credit list. When present, overrides parsing of
+    # the `artist` string for song_artists linkage. The `artist` field stays
+    # the canonical display string either way.
+    artists: Optional[list[ArtistEntry]] = None
     # Bot protection — invisible field that legitimate users never fill in.
     hp_website: str = ""
     # Cloudflare Turnstile token; ignored unless TURNSTILE_SECRET is configured.

@@ -6,7 +6,7 @@ import unicodedata
 
 from sqlalchemy import func
 
-from app.models import Artist, Release, ReleaseSong, CompassSong, LibrarySong, SubmittedSong
+from app.models import Artist, Release, ReleaseSong, SongArtist, CompassSong, LibrarySong, SubmittedSong
 from app.constants import COLOR_LABELS, COLOR_HEX
 
 logger = logging.getLogger(__name__)
@@ -77,19 +77,43 @@ def compute_release_charge(charge_values: list[int]) -> tuple[int, str, str, str
 
 
 def count_songs_by_artist(artist_name: str, db) -> int:
-    """Count total calibrated songs across all three tables for an artist."""
+    """Count calibrated songs credited to this artist via string match OR
+    song_artists credit. Dedupes across both paths per source.
+    """
     name_lower = artist_name.lower()
+    # Resolve to Artist entity once for the song_artists path.
+    artist_row = (
+        db.query(Artist)
+        .filter(func.lower(Artist.name) == name_lower)
+        .first()
+    )
     total = 0
-    for Model in (CompassSong, LibrarySong, SubmittedSong):
-        count = (
-            db.query(func.count(Model.id))
-            .filter(func.lower(Model.artist) == name_lower)
-            .filter(Model.charge_value.isnot(None))
-        )
-        # SubmittedSong has nullable title/artist
-        if Model is SubmittedSong:
-            count = count.filter(Model.artist.isnot(None))
-        total += count.scalar()
+    sources = [
+        ("compass", CompassSong),
+        ("library", LibrarySong),
+        ("submitted", SubmittedSong),
+    ]
+    for source, Model in sources:
+        string_match_ids = {
+            sid for (sid,) in (
+                db.query(Model.id)
+                .filter(func.lower(Model.artist) == name_lower)
+                .filter(Model.charge_value.isnot(None))
+                .all()
+            )
+        }
+        credit_ids: set[int] = set()
+        if artist_row:
+            credit_ids = {
+                sid for (sid,) in (
+                    db.query(Model.id)
+                    .join(SongArtist, (SongArtist.song_source == source) & (SongArtist.song_id == Model.id))
+                    .filter(SongArtist.artist_id == artist_row.id)
+                    .filter(Model.charge_value.isnot(None))
+                    .all()
+                )
+            }
+        total += len(string_match_ids | credit_ids)
     return total
 
 

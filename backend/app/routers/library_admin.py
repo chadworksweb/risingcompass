@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models import LibrarySong, AlbumDeepDive
 from app.schemas import LibrarySongCreate, LibrarySongUpdate, LibrarySongOut
 from app.routers.admin import verify_admin_key
+from app.services.artist_linker import try_link_song
 
 router = APIRouter(prefix="/api/admin/library", tags=["library-admin"])
 
@@ -38,6 +39,7 @@ def create_library_song(data: LibrarySongCreate, db: Session = Depends(get_db)):
     db.add(song)
     db.commit()
     db.refresh(song)
+    try_link_song(song.title, song.artist, "library", song.id, db)
     return song
 
 
@@ -53,6 +55,7 @@ def update_library_song(song_id: int, data: LibrarySongUpdate, db: Session = Dep
 
     db.commit()
     db.refresh(song)
+    try_link_song(song.title, song.artist, "library", song.id, db)
     return song
 
 

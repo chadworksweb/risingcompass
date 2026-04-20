@@ -405,6 +405,147 @@ main {
   color: var(--rc-text-dim);
 }
 
+/* Multi-artist input */
+.artists-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.artist-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.artist-row .artist-name {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-bright);
+  font-family: var(--rc-font-mono);
+  font-size: 0.82rem;
+  transition: border-color var(--rc-ease), box-shadow var(--rc-ease);
+}
+
+.artist-row .artist-name:focus {
+  outline: none;
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 0 3px var(--rc-accent-glow);
+}
+
+.artist-row .artist-name::placeholder {
+  color: var(--rc-text-dim);
+}
+
+.artist-role {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+}
+
+.artist-role.hidden { display: none; }
+
+.artist-role label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.artist-role input[type=radio] {
+  margin: 0;
+  accent-color: var(--rc-accent);
+}
+
+.artist-remove {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--rc-border);
+  border-radius: 50%;
+  color: var(--rc-text-dim);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color var(--rc-ease), color var(--rc-ease);
+}
+
+.artist-remove:hover {
+  border-color: var(--rc-red, #ff3333);
+  color: var(--rc-red, #ff3333);
+}
+
+.artist-remove.hidden { display: none; }
+
+.artist-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin: 0.2rem 0 0.6rem;
+  font-size: 0.74rem;
+  font-family: var(--rc-font-mono);
+  color: var(--rc-text-dim);
+}
+
+.artist-add-btn {
+  background: transparent;
+  border: 1px dashed var(--rc-border);
+  color: var(--rc-text-dim);
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--rc-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  transition: border-color var(--rc-ease), color var(--rc-ease);
+}
+
+.artist-add-btn:hover {
+  border-color: var(--rc-accent);
+  color: var(--rc-accent);
+}
+
+.artist-parse-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(0, 212, 170, 0.06);
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text);
+}
+
+.artist-parse-hint.hidden { display: none; }
+
+.artist-parse-btn {
+  background: var(--rc-accent);
+  color: #000;
+  border: none;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--rc-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+/* Single-column grid — artist rows stack full-width */
+.meta-fields {
+  grid-template-columns: 1fr;
+}
+
 /* Lyrics textarea */
 #lyrics-input {
   width: 100%;
