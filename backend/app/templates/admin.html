@@ -6,135 +6,149 @@
 <title>Rising Compass — Admin</title>
 <style>
   :root {
-    --bg: #0a0a14;
-    --panel: #12121e;
-    --border: #3a3a5c;
-    --text: #c8c8d8;
-    --accent: #00d4aa;
-    --red: #e28a6c;
+    --bg: #ffffff;
+    --panel: #f3f3f9;
+    --panel-strong: #e5e5ee;
+    --border: #a8a8b8;
+    --border-soft: #d2d2dc;
+    --text: #15151f;
+    --text-dim: #555566;
+    --text-hint: #7a7a8a;
+    --accent: #008f72;
+    --accent-strong: #007360;
+    --red: #c03a1e;
+    --tier-violet: #7a2cc0;
+    --tier-blue: #1e5fb0;
+    --tier-green: #1a8f3a;
+    --tier-orange: #b87300;
+    --tier-red: #c02020;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
   h1 { color: var(--accent); margin-bottom: 1rem; font-size: 1.5rem; }
   .form-group { margin-bottom: 1rem; }
-  label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; color: #888; }
-  input, select, textarea { width: 100%; padding: 0.5rem; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.9rem; }
+  label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--text-dim); font-weight: 600; }
+  input, select, textarea { width: 100%; padding: 0.5rem; background: #ffffff; border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.9rem; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 143, 114, 0.15); }
   textarea { min-height: 60px; resize: vertical; }
-  .entry-row { display: grid; grid-template-columns: 40px 1fr 1fr 120px 80px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--panel); border-radius: 4px; }
+  .entry-row { display: grid; grid-template-columns: 40px 1fr 1fr 120px 80px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 4px; }
   .entry-row label { display: none; }
-  .entry-header { display: grid; grid-template-columns: 40px 1fr 1fr 120px 80px; gap: 0.5rem; font-size: 0.75rem; color: #666; padding: 0 0.5rem; margin-bottom: 0.3rem; }
-  button { padding: 0.6rem 1.5rem; background: var(--accent); color: var(--bg); border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
-  button:hover { opacity: 0.9; }
+  .entry-header { display: grid; grid-template-columns: 40px 1fr 1fr 120px 80px; gap: 0.5rem; font-size: 0.75rem; color: var(--text-dim); padding: 0 0.5rem; margin-bottom: 0.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  button { padding: 0.6rem 1.5rem; background: var(--accent); color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+  button:hover { background: var(--accent-strong); }
   .admin-key-row { display: flex; gap: 1rem; align-items: end; margin-bottom: 1.5rem; }
   .admin-key-row .form-group { flex: 1; margin-bottom: 0; }
   .status-msg { margin-top: 1rem; padding: 0.8rem; border-radius: 4px; display: none; }
-  .status-msg.success { display: block; background: #0a2a1a; border: 1px solid var(--accent); }
-  .status-msg.error { display: block; background: #2a0a0a; border: 1px solid var(--red); color: var(--red); }
+  .status-msg.success { display: block; background: #dff3e8; border: 1px solid var(--accent); color: var(--accent-strong); }
+  .status-msg.error { display: block; background: #fce4dc; border: 1px solid var(--red); color: var(--red); }
   .contam-fields { display: none; margin-top: 0.3rem; }
   .contam-fields.show { display: block; }
   /* Tabs */
   .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
-  .tab-btn { padding: 0.7rem 1.5rem; background: none; border: none; border-bottom: 2px solid transparent; color: #666; cursor: pointer; font-size: 0.9rem; font-family: inherit; }
+  .tab-btn { padding: 0.7rem 1.5rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-dim); cursor: pointer; font-size: 0.9rem; font-family: inherit; font-weight: 600; }
+  .tab-btn:hover { color: var(--text); }
   .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
-  h2.section-title { color: #888; font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+  h2.section-title { color: var(--text-dim); font-size: 1rem; margin: 1.5rem 0 0.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
   .btn-sm { padding: 0.3rem 0.8rem; font-size: 0.8rem; }
-  .btn-danger { background: var(--red); }
+  .btn-danger { background: var(--red); color: #ffffff; }
+  .btn-danger:hover { background: #9a2e18; }
   /* Misread reports */
-  .misread-item { padding: 0.8rem; background: var(--panel); border-radius: 4px; margin-bottom: 0.5rem; border-left: 3px solid var(--border); }
-  .misread-item.status-pending { border-left-color: #ffbb33; }
-  .misread-item.status-reviewed { border-left-color: #3388ff; }
-  .misread-item.status-accepted { border-left-color: #33cc55; }
-  .misread-item.status-rejected { border-left-color: #666; }
+  .misread-item { padding: 0.8rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 4px; margin-bottom: 0.5rem; border-left: 3px solid var(--border); }
+  .misread-item.status-pending { border-left-color: var(--tier-orange); }
+  .misread-item.status-reviewed { border-left-color: var(--tier-blue); }
+  .misread-item.status-accepted { border-left-color: var(--tier-green); }
+  .misread-item.status-rejected { border-left-color: var(--text-hint); }
   .misread-item.status-flagged { border-left-color: var(--red); }
   .misread-song { font-weight: bold; color: var(--accent); }
-  .misread-meta { font-size: 0.8rem; color: #888; margin: 0.3rem 0; }
+  .misread-meta { font-size: 0.8rem; color: var(--text-dim); margin: 0.3rem 0; }
   .misread-msg { font-size: 0.88rem; margin: 0.4rem 0; line-height: 1.5; }
   .misread-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.4rem; }
   .misread-actions button { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
-  .btn-flag { background: var(--red); }
-  .status-badge { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 0.4rem; }
-  .status-badge.pending { background: #3a2a00; color: #ffbb33; }
-  .status-badge.reviewed { background: #0a1a3a; color: #3388ff; }
-  .status-badge.accepted { background: #0a2a1a; color: #33cc55; }
-  .status-badge.rejected { background: #1a1a1a; color: #888; }
-  .status-badge.flagged { background: #2a0a0a; color: var(--red); }
-  .ban-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.8rem; background: var(--panel); border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.85rem; }
+  .btn-flag { background: var(--red); color: #ffffff; }
+  .status-badge { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 0.4rem; font-weight: 600; }
+  .status-badge.pending { background: #fff0d0; color: var(--tier-orange); }
+  .status-badge.reviewed { background: #dfeaf8; color: var(--tier-blue); }
+  .status-badge.accepted { background: #dff3e8; color: var(--tier-green); }
+  .status-badge.rejected { background: #e5e5ee; color: var(--text-dim); }
+  .status-badge.flagged { background: #fce4dc; color: var(--red); }
+  .ban-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.8rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.85rem; }
   .filter-bar { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
-  .filter-btn { padding: 0.3rem 0.8rem; font-size: 0.8rem; background: none; border: 1px solid var(--border); color: #888; border-radius: 4px; cursor: pointer; }
-  .filter-btn.active { color: var(--accent); border-color: var(--accent); }
+  .filter-btn { padding: 0.3rem 0.8rem; font-size: 0.8rem; background: #ffffff; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; font-weight: 600; }
+  .filter-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .filter-btn.active { color: #ffffff; background: var(--accent); border-color: var(--accent); }
   /* LC Submissions */
   .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; margin-bottom: 1.5rem; }
-  .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; text-align: center; }
+  .stat-card { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.8rem; text-align: center; }
   .stat-card .val { font-size: 1.6rem; font-weight: bold; color: var(--accent); }
-  .stat-card .label { font-size: 0.75rem; color: #888; margin-top: 0.2rem; }
-  .color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.3rem; vertical-align: middle; }
+  .stat-card .label { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.2rem; font-weight: 600; }
+  .color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.3rem; vertical-align: middle; border: 1px solid rgba(0,0,0,0.1); }
   .color-dot.violet { background: #aa54ff; }
   .color-dot.blue { background: #3388ff; }
   .color-dot.green { background: #33cc55; }
   .color-dot.orange { background: #ffbb33; }
   .color-dot.red { background: #ff3333; }
-  .sub-row { display: grid; grid-template-columns: 40px 1.5fr 1fr 90px 60px 70px 100px 120px; gap: 0.5rem; align-items: center; padding: 0.6rem 0.8rem; background: var(--panel); border-radius: 4px; margin-bottom: 0.4rem; font-size: 0.85rem; }
-  .sub-header { display: grid; grid-template-columns: 40px 1.5fr 1fr 90px 60px 70px 100px 120px; gap: 0.5rem; font-size: 0.75rem; color: #666; padding: 0 0.8rem; margin-bottom: 0.3rem; }
+  .sub-row { display: grid; grid-template-columns: 40px 1.5fr 1fr 90px 60px 70px 100px 120px; gap: 0.5rem; align-items: center; padding: 0.6rem 0.8rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 4px; margin-bottom: 0.4rem; font-size: 0.85rem; }
+  .sub-header { display: grid; grid-template-columns: 40px 1.5fr 1fr 90px 60px 70px 100px 120px; gap: 0.5rem; font-size: 0.75rem; color: var(--text-dim); padding: 0 0.8rem; margin-bottom: 0.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
   .sub-row .actions { display: flex; gap: 0.3rem; }
   .sub-charge { font-weight: bold; }
-  .sub-charge.positive { color: #33cc55; }
-  .sub-charge.negative { color: #ff3333; }
-  .sub-charge.zero { color: #888; }
-  .contam-tag { font-size: 0.7rem; background: #2a0a0a; color: var(--red); padding: 0.1rem 0.4rem; border-radius: 3px; }
-  .confidence-bar { display: inline-block; width: 40px; height: 6px; background: #1a1a2a; border-radius: 3px; overflow: hidden; vertical-align: middle; margin-right: 0.3rem; }
+  .sub-charge.positive { color: var(--tier-green); }
+  .sub-charge.negative { color: var(--tier-red); }
+  .sub-charge.zero { color: var(--text-hint); }
+  .contam-tag { font-size: 0.7rem; background: #fce4dc; color: var(--red); padding: 0.1rem 0.4rem; border-radius: 3px; font-weight: 600; }
+  .confidence-bar { display: inline-block; width: 40px; height: 6px; background: var(--panel-strong); border-radius: 3px; overflow: hidden; vertical-align: middle; margin-right: 0.3rem; }
   .confidence-bar .fill { height: 100%; background: var(--accent); border-radius: 3px; }
   .pagination { display: flex; gap: 0.5rem; margin-top: 1rem; align-items: center; }
   .pagination button { padding: 0.3rem 0.8rem; font-size: 0.8rem; }
-  .pagination .page-info { font-size: 0.8rem; color: #888; }
+  .pagination .page-info { font-size: 0.8rem; color: var(--text-dim); }
   /* Login overlay */
   .login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-  .login-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 2.5rem 2rem; width: 100%; max-width: 360px; }
+  .login-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 2.5rem 2rem; width: 100%; max-width: 360px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
   .login-box h2 { color: var(--accent); font-size: 1.1rem; margin-bottom: 0.3rem; }
-  .login-box p { font-size: 0.82rem; color: #666; margin-bottom: 1.5rem; }
+  .login-box p { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 1.5rem; }
   .login-box input { margin-bottom: 1rem; }
   .login-error { color: var(--red); font-size: 0.82rem; margin-top: 0.5rem; display: none; }
   /* Logout button */
-  .logout-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; background: none; border: 1px solid var(--border); color: #666; border-radius: 4px; cursor: pointer; z-index: 100; }
+  .logout-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; background: #ffffff; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; z-index: 100; font-weight: 600; }
   .logout-btn:hover { border-color: var(--red); color: var(--red); }
   /* DB Explorer */
   .db-sub-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; }
-  .db-sub-tab { padding: 0.4rem 0.9rem; font-size: 0.78rem; background: var(--panel); border: 1px solid var(--border); color: #888; border-radius: 4px; cursor: pointer; font-weight: normal; font-family: monospace; }
-  .db-sub-tab:hover { color: var(--text); border-color: #555; }
-  .db-sub-tab.active { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .db-sub-tab { padding: 0.4rem 0.9rem; font-size: 0.78rem; background: #ffffff; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; font-weight: 600; font-family: monospace; }
+  .db-sub-tab:hover { color: var(--text); border-color: var(--text-dim); }
+  .db-sub-tab.active { color: #ffffff; background: var(--accent); border-color: var(--accent); }
   .db-toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
   .db-quick-search { flex: 1; min-width: 220px; padding: 0.5rem 0.8rem; font-size: 0.85rem; }
   .db-run-btn { padding: 0.5rem 1.2rem; font-size: 0.85rem; }
-  .db-clear-btn { padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--panel); color: #888; border: 1px solid var(--border); }
-  .db-clear-btn:hover { color: var(--text); border-color: #555; }
-  .db-total { margin-left: auto; font-size: 0.8rem; color: #888; font-family: monospace; }
-  .db-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.6rem 0.8rem; margin-bottom: 1rem; padding: 0.9rem; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; max-height: 260px; overflow-y: auto; }
+  .db-clear-btn { padding: 0.5rem 1rem; font-size: 0.85rem; background: #ffffff; color: var(--text-dim); border: 1px solid var(--border); }
+  .db-clear-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .db-total { margin-left: auto; font-size: 0.8rem; color: var(--text-dim); font-family: monospace; font-weight: 600; }
+  .db-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.6rem 0.8rem; margin-bottom: 1rem; padding: 0.9rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; max-height: 260px; overflow-y: auto; }
   .db-filter { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; }
-  .db-filter-label { color: #888; font-family: monospace; display: flex; justify-content: space-between; gap: 0.3rem; }
-  .db-filter-type { color: #555; font-size: 0.7rem; }
+  .db-filter-label { color: var(--text-dim); font-family: monospace; font-weight: 600; display: flex; justify-content: space-between; gap: 0.3rem; }
+  .db-filter-type { color: var(--text-hint); font-size: 0.7rem; font-weight: normal; }
   .db-filter input, .db-filter select { padding: 0.35rem 0.5rem; font-size: 0.78rem; }
   .db-range { display: flex; gap: 0.25rem; }
   .db-range input { flex: 1; min-width: 0; }
-  .db-results-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; max-height: 60vh; overflow-y: auto; }
+  .db-results-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; max-height: 60vh; overflow-y: auto; background: #ffffff; }
   .db-results { width: 100%; border-collapse: collapse; font-size: 0.78rem; font-family: monospace; }
-  .db-results thead { position: sticky; top: 0; background: var(--panel); z-index: 1; }
-  .db-results th { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); color: #888; font-weight: normal; white-space: nowrap; cursor: pointer; user-select: none; }
+  .db-results thead { position: sticky; top: 0; background: var(--panel-strong); z-index: 1; }
+  .db-results th { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 2px solid var(--border); color: var(--text); font-weight: 700; white-space: nowrap; cursor: pointer; user-select: none; }
   .db-results th:hover { color: var(--accent); }
-  .db-results td { padding: 0.45rem 0.7rem; border-bottom: 1px solid #1a1a2a; vertical-align: top; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .db-results tr:hover td { background: rgba(0, 212, 170, 0.04); }
-  .db-td-wide { max-width: 360px; color: #aaa; }
-  .db-empty { text-align: center; color: #555; padding: 1.5rem; }
-  .db-null { color: #444; }
-  .db-results td.color-violet { color: #aa54ff; }
-  .db-results td.color-blue { color: #3388ff; }
-  .db-results td.color-green { color: #33cc55; }
-  .db-results td.color-orange { color: #ffbb33; }
-  .db-results td.color-red { color: #ff3333; }
+  .db-results td { padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--border-soft); vertical-align: top; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .db-results tr:hover td { background: rgba(0, 143, 114, 0.06); }
+  .db-td-wide { max-width: 360px; color: var(--text-dim); }
+  .db-empty { text-align: center; color: var(--text-dim); padding: 1.5rem; }
+  .db-null { color: var(--text-hint); }
+  .db-results td.color-violet { color: var(--tier-violet); font-weight: 600; }
+  .db-results td.color-blue { color: var(--tier-blue); font-weight: 600; }
+  .db-results td.color-green { color: var(--tier-green); font-weight: 600; }
+  .db-results td.color-orange { color: var(--tier-orange); font-weight: 600; }
+  .db-results td.color-red { color: var(--tier-red); font-weight: 600; }
   .db-pagination { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.8rem; justify-content: center; }
-  .db-pagination button { padding: 0.35rem 0.9rem; font-size: 0.78rem; background: var(--panel); color: var(--text); border: 1px solid var(--border); }
-  .db-pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
-  .db-page-info { font-size: 0.78rem; color: #888; font-family: monospace; }
+  .db-pagination button { padding: 0.35rem 0.9rem; font-size: 0.78rem; background: #ffffff; color: var(--text); border: 1px solid var(--border); }
+  .db-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .db-page-info { font-size: 0.78rem; color: var(--text-dim); font-family: monospace; font-weight: 600; }
   /* Admin panel hidden until logged in */
   .admin-panel { display: none; }
   .admin-panel.visible { display: block; }
@@ -287,18 +301,18 @@
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
     <div>
-      <h3 style="font-size:0.85rem;color:#888;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">By event type (7d)</h3>
-      <div id="lcaByType" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#bbb;"></div>
+      <h3 style="font-size:0.85rem;color:#555;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">By event type (7d)</h3>
+      <div id="lcaByType" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#555;"></div>
     </div>
     <div>
-      <h3 style="font-size:0.85rem;color:#888;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">Top IPs (7d)</h3>
-      <div id="lcaTopIps" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#bbb;"></div>
+      <h3 style="font-size:0.85rem;color:#555;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">Top IPs (7d)</h3>
+      <div id="lcaTopIps" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#555;"></div>
     </div>
   </div>
 
   <div style="margin-bottom:1.5rem;">
-    <h3 style="font-size:0.85rem;color:#888;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">Top referrers (7d)</h3>
-    <div id="lcaTopRefs" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#bbb;"></div>
+    <h3 style="font-size:0.85rem;color:#555;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em;">Top referrers (7d)</h3>
+    <div id="lcaTopRefs" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#555;"></div>
   </div>
 
   <h2 class="section-title">Event Log</h2>
@@ -340,7 +354,7 @@
       </div>
       <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
         <button onclick="createClient()">Create</button>
-        <button onclick="hideNewClientForm()" style="background:#333;">Cancel</button>
+        <button onclick="hideNewClientForm()" style="background:#555;">Cancel</button>
       </div>
     </div>
     <div class="sub-header" style="grid-template-columns:2fr 1fr 100px 90px 90px 120px 100px;gap:0.5rem;">
@@ -806,7 +820,7 @@ function renderSubs(list) {
         <span><span class="color-dot ${s.rubric_color}"></span>${colorLabels[s.rubric_color] || s.rubric_color}</span>
         <span class="sub-charge ${chargeClass}">${chargeStr}</span>
         <span><span class="confidence-bar"><span class="fill" style="width:${confPct}%"></span></span>${confPct}%</span>
-        <span style="font-size:0.75rem;color:#888;">${s.ip_address ? esc(s.ip_address) : '—'}<br><span style="color:#555;">${esc(s.source || '—')}</span></span>
+        <span style="font-size:0.75rem;color:#555;">${s.ip_address ? esc(s.ip_address) : '—'}<br><span style="color:#555;">${esc(s.source || '—')}</span></span>
         <span class="actions">
           <button class="btn-sm" onclick="promoteSub(${s.id})" title="Promote to Library">Promote</button>
           <button class="btn-sm btn-danger" onclick="deleteSub(${s.id})" title="Delete">Del</button>
@@ -889,17 +903,17 @@ async function loadLcStats() {
     const byType = document.getElementById('lcaByType');
     const types = Object.entries(s.by_type_week || {}).sort((a, b) => b[1] - a[1]);
     byType.innerHTML = types.length
-      ? types.map(([t, c]) => `<div><span style="color:#888;">${c.toString().padStart(4)}</span>  ${t}</div>`).join('')
+      ? types.map(([t, c]) => `<div><span style="color:#555;">${c.toString().padStart(4)}</span>  ${t}</div>`).join('')
       : '<div style="color:#666;">No events yet.</div>';
 
     const topIps = document.getElementById('lcaTopIps');
     topIps.innerHTML = (s.top_ips_week || []).length
-      ? s.top_ips_week.map(r => `<div><span style="color:#888;">${r.count.toString().padStart(4)}</span>  <a href="#" onclick="document.getElementById('lcaIpFilter').value='${r.ip}';loadLcEvents();return false;" style="color:#bbb;">${r.ip}</a></div>`).join('')
+      ? s.top_ips_week.map(r => `<div><span style="color:#555;">${r.count.toString().padStart(4)}</span>  <a href="#" onclick="document.getElementById('lcaIpFilter').value='${r.ip}';loadLcEvents();return false;" style="color:#555;">${r.ip}</a></div>`).join('')
       : '<div style="color:#666;">No IPs yet.</div>';
 
     const topRefs = document.getElementById('lcaTopRefs');
     topRefs.innerHTML = (s.top_referrers_week || []).length
-      ? s.top_referrers_week.map(r => `<div><span style="color:#888;">${r.count.toString().padStart(4)}</span>  <span style="color:#bbb;">${escHtml(r.referrer)}</span></div>`).join('')
+      ? s.top_referrers_week.map(r => `<div><span style="color:#555;">${r.count.toString().padStart(4)}</span>  <span style="color:#555;">${escHtml(r.referrer)}</span></div>`).join('')
       : '<div style="color:#666;">No referrers captured yet.</div>';
   } catch (e) { console.error(e); }
 }
@@ -927,13 +941,13 @@ async function loadLcEvents() {
       const when = e.occurred_at ? e.occurred_at.replace('T', ' ').slice(0, 19) : '—';
       const ua = (e.user_agent || '').slice(0, 80);
       const ref = (e.referrer || '').slice(0, 80);
-      const payload = e.payload ? `<pre style="margin:0.3rem 0 0;font-size:0.72rem;color:#888;white-space:pre-wrap;word-break:break-all;">${escHtml(JSON.stringify(e.payload))}</pre>` : '';
+      const payload = e.payload ? `<pre style="margin:0.3rem 0 0;font-size:0.72rem;color:#555;white-space:pre-wrap;word-break:break-all;">${escHtml(JSON.stringify(e.payload))}</pre>` : '';
       return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.8rem;margin-bottom:0.4rem;font-size:0.82rem;">
         <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
           <div><span style="color:var(--accent);font-weight:bold;">${escHtml(e.event_type)}</span> <span style="color:#666;font-size:0.75rem;margin-left:0.5rem;">id ${e.id}</span></div>
-          <div style="color:#888;font-size:0.78rem;">${when}</div>
+          <div style="color:#555;font-size:0.78rem;">${when}</div>
         </div>
-        <div style="color:#999;font-size:0.78rem;margin-top:0.2rem;">
+        <div style="color:#555;font-size:0.78rem;margin-top:0.2rem;">
           <strong>IP</strong> ${escHtml(e.ip_address || '—')}
           ${ref ? ` &nbsp;|&nbsp; <strong>Ref</strong> ${escHtml(ref)}` : ''}
         </div>
@@ -980,14 +994,14 @@ async function loadApiClients() {
     if (!clients.length) { el.innerHTML = '<p style="color:#666;">No clients yet.</p>'; return; }
     el.innerHTML = clients.map(c => {
       const last = c.last_activity ? new Date(c.last_activity).toLocaleString() : '—';
-      const statusColor = c.status === 'active' ? '#33cc55' : (c.status === 'suspended' ? '#ffbb33' : '#ff3333');
+      const statusColor = c.status === 'active' ? '#1a8f3a' : (c.status === 'suspended' ? '#b87300' : '#c02020');
       return `<div style="display:grid;grid-template-columns:2fr 1fr 100px 90px 90px 120px 100px;gap:0.5rem;align-items:center;padding:0.7rem 0.8rem;background:var(--panel);border-radius:4px;margin-bottom:0.4rem;font-size:0.85rem;cursor:pointer;" onclick="openClient(${c.id})">
-        <div><strong style="color:var(--accent);">${escHtml(c.slug)}</strong><br><span style="color:#888;font-size:0.78rem;">${escHtml(c.name)}</span></div>
-        <span style="color:#bbb;">${escHtml(c.plan_tier || '—')}</span>
-        <span style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:${c.behavior === 'public' ? '#9933ff' : '#33cc55'};">${c.behavior}</span>
+        <div><strong style="color:var(--accent);">${escHtml(c.slug)}</strong><br><span style="color:#555;font-size:0.78rem;">${escHtml(c.name)}</span></div>
+        <span style="color:#555;">${escHtml(c.plan_tier || '—')}</span>
+        <span style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:${c.behavior === 'public' ? '#7a2cc0' : '#1a8f3a'};">${c.behavior}</span>
         <span style="font-weight:bold;">${c.calls_7d}</span>
-        <span style="color:${c.errors_7d > 0 ? '#ff3333' : '#888'};">${c.errors_7d}</span>
-        <span style="color:#888;font-size:0.78rem;">${last}</span>
+        <span style="color:${c.errors_7d > 0 ? '#c02020' : '#555'};">${c.errors_7d}</span>
+        <span style="color:#555;font-size:0.78rem;">${last}</span>
         <span style="color:${statusColor};font-size:0.78rem;">${c.status}</span>
       </div>`;
     }).join('');
@@ -1042,18 +1056,18 @@ function renderClientDetail(det, callsData) {
   const keys = det.keys || [];
 
   const endpointsHtml = endpoints.length
-    ? endpoints.map(e => `<div style="display:grid;grid-template-columns:2fr 80px 80px;gap:0.5rem;padding:0.4rem 0.6rem;font-size:0.82rem;"><span style="font-family:JetBrains Mono,monospace;">${escHtml(e.path)}</span><span style="color:#888;">${e.count} calls</span><span style="color:#888;">${e.avg_ms}ms avg</span></div>`).join('')
+    ? endpoints.map(e => `<div style="display:grid;grid-template-columns:2fr 80px 80px;gap:0.5rem;padding:0.4rem 0.6rem;font-size:0.82rem;"><span style="font-family:JetBrains Mono,monospace;">${escHtml(e.path)}</span><span style="color:#555;">${e.count} calls</span><span style="color:#555;">${e.avg_ms}ms avg</span></div>`).join('')
     : '<div style="color:#666;font-size:0.82rem;padding:0.4rem 0.6rem;">No calls in last 7 days.</div>';
 
   const keysHtml = keys.length
     ? keys.map(k => {
         const revoked = k.revoked_at;
         const lastUsed = k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never';
-        return `<div style="display:grid;grid-template-columns:120px 1fr 160px 80px;gap:0.5rem;align-items:center;padding:0.5rem 0.6rem;background:#0a0a14;border-radius:4px;margin-bottom:0.3rem;font-size:0.82rem;${revoked ? 'opacity:0.5;' : ''}">
+        return `<div style="display:grid;grid-template-columns:120px 1fr 160px 80px;gap:0.5rem;align-items:center;padding:0.5rem 0.6rem;background:#f3f3f9;border:1px solid #d2d2dc;border-radius:4px;margin-bottom:0.3rem;font-size:0.82rem;${revoked ? 'opacity:0.5;' : ''}">
           <span style="font-family:JetBrains Mono,monospace;color:var(--accent);">${escHtml(k.key_prefix)}…</span>
           <span>${escHtml(k.label || '(no label)')}${revoked ? ' <span style="color:#ff3333;font-size:0.72rem;">REVOKED</span>' : ''}</span>
-          <span style="color:#888;font-size:0.78rem;">used ${lastUsed}</span>
-          <span>${revoked ? '' : `<button onclick="revokeKey(${k.id}, ${c.id})" style="padding:0.2rem 0.5rem;font-size:0.72rem;background:#4a0a0a;">Revoke</button>`}</span>
+          <span style="color:#555;font-size:0.78rem;">used ${lastUsed}</span>
+          <span>${revoked ? '' : `<button onclick="revokeKey(${k.id}, ${c.id})" style="padding:0.2rem 0.5rem;font-size:0.72rem;background:#c03a1e;color:#fff;">Revoke</button>`}</span>
         </div>`;
       }).join('')
     : '<div style="color:#666;font-size:0.82rem;">No keys.</div>';
@@ -1066,25 +1080,25 @@ function renderClientDetail(det, callsData) {
         let ctxLine = '';
         if (r.context && typeof r.context === 'object') {
           const parts = [];
-          if (r.context.title) parts.push(`<span style="color:#eeeef4;">${escHtml(r.context.title)}</span>`);
-          if (r.context.artist) parts.push(`<span style="color:#bbb;">— ${escHtml(r.context.artist)}</span>`);
-          if (!parts.length && r.context.slug) parts.push(`<span style="color:#eeeef4;">slug:${escHtml(r.context.slug)}</span>`);
-          if (!parts.length && r.context.q) parts.push(`<span style="color:#888;">search:"${escHtml(r.context.q)}"</span>`);
-          if (!parts.length && r.context.query) parts.push(`<span style="color:#888;">query:"${escHtml(r.context.query)}"</span>`);
+          if (r.context.title) parts.push(`<span style="color:#15151f;">${escHtml(r.context.title)}</span>`);
+          if (r.context.artist) parts.push(`<span style="color:#555;">— ${escHtml(r.context.artist)}</span>`);
+          if (!parts.length && r.context.slug) parts.push(`<span style="color:#15151f;">slug:${escHtml(r.context.slug)}</span>`);
+          if (!parts.length && r.context.q) parts.push(`<span style="color:#555;">search:"${escHtml(r.context.q)}"</span>`);
+          if (!parts.length && r.context.query) parts.push(`<span style="color:#555;">query:"${escHtml(r.context.query)}"</span>`);
           if (!parts.length) {
             const keys = Object.keys(r.context).slice(0, 3);
-            parts.push(`<span style="color:#888;">${keys.map(k => k + '=' + String(r.context[k] ?? '').slice(0,40)).join(' · ')}</span>`);
+            parts.push(`<span style="color:#555;">${keys.map(k => k + '=' + String(r.context[k] ?? '').slice(0,40)).join(' · ')}</span>`);
           }
           if (parts.length) ctxLine = `<div style="margin-top:0.15rem;padding-left:150px;font-size:0.76rem;">${parts.join(' ')}</div>`;
         }
         return `<div style="padding:0.4rem 0.6rem;font-size:0.78rem;font-family:JetBrains Mono,monospace;border-bottom:1px solid rgba(255,255,255,0.04);">
           <div style="display:grid;grid-template-columns:150px 60px 1fr 60px 80px 90px;gap:0.5rem;">
-            <span style="color:#888;">${when}</span>
+            <span style="color:#555;">${when}</span>
             <span>${escHtml(r.method)}</span>
             <span>${escHtml(r.path)}</span>
             <span style="color:${statusColor};">${r.status}</span>
-            <span style="color:#888;">${r.duration_ms}ms</span>
-            <span style="color:#888;">${escHtml(r.ip || '—')}</span>
+            <span style="color:#555;">${r.duration_ms}ms</span>
+            <span style="color:#555;">${escHtml(r.ip || '—')}</span>
           </div>${ctxLine}
         </div>`;
       }).join('')
@@ -1095,13 +1109,13 @@ function renderClientDetail(det, callsData) {
       <div>
         <h2 class="section-title" style="margin:0 0 0.3rem;">${escHtml(c.name)}</h2>
         <div style="color:var(--accent);font-family:JetBrains Mono,monospace;font-size:0.88rem;">${escHtml(c.slug)}</div>
-        <div style="color:#888;font-size:0.78rem;margin-top:0.3rem;">
+        <div style="color:#555;font-size:0.78rem;margin-top:0.3rem;">
           Plan: <strong>${escHtml(c.plan_tier || '—')}</strong>
-          · Behavior: <strong style="color:${c.behavior === 'public' ? '#9933ff' : '#33cc55'};">${c.behavior}</strong>
+          · Behavior: <strong style="color:${c.behavior === 'public' ? '#7a2cc0' : '#1a8f3a'};">${c.behavior}</strong>
           · Status: <strong style="color:${c.status === 'active' ? '#33cc55' : '#ff3333'};">${c.status}</strong>
           ${c.contact_email ? ' · ' + escHtml(c.contact_email) : ''}
         </div>
-        ${c.notes ? `<div style="color:#888;font-size:0.8rem;margin-top:0.4rem;max-width:600px;">${escHtml(c.notes)}</div>` : ''}
+        ${c.notes ? `<div style="color:#555;font-size:0.8rem;margin-top:0.4rem;max-width:600px;">${escHtml(c.notes)}</div>` : ''}
       </div>
       <div class="stats-grid" style="max-width:360px;margin:0;">
         <div class="stat-card"><div class="val">${c.calls_7d}</div><div class="label">Calls 7d</div></div>
@@ -1109,14 +1123,14 @@ function renderClientDetail(det, callsData) {
       </div>
     </div>
 
-    <h3 style="font-size:0.85rem;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">API Keys</h3>
+    <h3 style="font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">API Keys</h3>
     <div>${keysHtml}</div>
     <button onclick="generateKey(${c.id})" style="margin-top:0.5rem;padding:0.3rem 0.8rem;font-size:0.8rem;">+ Generate new key</button>
 
-    <h3 style="font-size:0.85rem;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">Top Endpoints (7d)</h3>
+    <h3 style="font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">Top Endpoints (7d)</h3>
     <div>${endpointsHtml}</div>
 
-    <h3 style="font-size:0.85rem;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">Recent Calls (${callsData.total} total)</h3>
+    <h3 style="font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">Recent Calls (${callsData.total} total)</h3>
     <div>${callsHtml}</div>
   `;
 }

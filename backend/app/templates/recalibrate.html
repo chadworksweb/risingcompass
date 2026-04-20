@@ -6,21 +6,23 @@
   <title>Recalibrate — The Rising Compass</title>
   <style>
     :root {
-      --bg: #0a0a14;
-      --bg-card: #14141f;
-      --bg-input: #1a1a26;
-      --border: #2a2a3a;
-      --text: #cfcfdc;
-      --text-bright: #eeeef4;
-      --text-dim: #8a8a99;
-      --accent: #00d4aa;
-      --warn: #ffbb33;
-      --danger: #ff5555;
-      --violet: #aa54ff;
-      --blue: #3388ff;
-      --green: #33cc55;
-      --orange: #ffbb33;
-      --red: #ff3333;
+      --bg: #ffffff;
+      --bg-card: #f3f3f9;
+      --bg-input: #ffffff;
+      --border: #a8a8b8;
+      --border-soft: #d2d2dc;
+      --text: #15151f;
+      --text-bright: #000000;
+      --text-dim: #555566;
+      --accent: #008f72;
+      --accent-strong: #007360;
+      --warn: #b87300;
+      --danger: #c03a1e;
+      --violet: #7a2cc0;
+      --blue: #1e5fb0;
+      --green: #1a8f3a;
+      --orange: #b87300;
+      --red: #c02020;
       --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
     }
     * { box-sizing: border-box; }
@@ -69,7 +71,7 @@
     input:focus, textarea:focus { border-color: var(--accent); }
     textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
     textarea.lyrics { min-height: 220px; font-family: var(--mono); font-size: 0.82rem; }
-    textarea.rationale { min-height: 180px; font-family: var(--mono); font-size: 0.78rem; background: var(--bg); }
+    textarea.rationale { min-height: 180px; font-family: var(--mono); font-size: 0.78rem; background: #fafafc; }
 
     button {
       padding: 0.55rem 1rem;
@@ -86,9 +88,10 @@
     }
     button:hover { opacity: 0.85; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
-    button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-    button.danger { background: var(--danger); color: var(--bg); border-color: var(--danger); }
-    button.warn { background: var(--warn); color: var(--bg); border-color: var(--warn); }
+    button.primary { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+    button.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+    button.danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
+    button.warn { background: var(--warn); color: #ffffff; border-color: var(--warn); }
 
     .flag-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 70vh; overflow-y: auto; }
     .flag-item {
@@ -100,7 +103,7 @@
       transition: border-color 0.15s;
     }
     .flag-item:hover { border-color: var(--accent); }
-    .flag-item.active { border-color: var(--accent); background: rgba(0, 212, 170, 0.06); }
+    .flag-item.active { border-color: var(--accent); background: #e5f5ef; }
     .flag-item .ft-title { font-weight: 600; color: var(--text-bright); font-size: 0.88rem; }
     .flag-item .ft-artist { color: var(--text-dim); font-size: 0.78rem; }
     .flag-item .ft-meta { font-size: 0.72rem; color: var(--text-dim); margin-top: 0.3rem; font-family: var(--mono); }
@@ -113,17 +116,17 @@
       font-size: 0.72rem;
       letter-spacing: 0.04em;
     }
-    .tier-violet { background: rgba(170, 84, 255, 0.18); color: var(--violet); }
-    .tier-blue   { background: rgba(51, 136, 255, 0.18); color: var(--blue); }
-    .tier-green  { background: rgba(51, 204, 85, 0.18); color: var(--green); }
-    .tier-orange { background: rgba(255, 187, 51, 0.18); color: var(--orange); }
-    .tier-red    { background: rgba(255, 51, 51, 0.18); color: var(--red); }
+    .tier-violet { background: #f0e5ff; color: var(--violet); font-weight: 600; }
+    .tier-blue   { background: #dfeaf8; color: var(--blue); font-weight: 600; }
+    .tier-green  { background: #dff3e8; color: var(--green); font-weight: 600; }
+    .tier-orange { background: #fff0d0; color: var(--orange); font-weight: 600; }
+    .tier-red    { background: #fce4dc; color: var(--red); font-weight: 600; }
 
     .field { margin-bottom: 1rem; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
     .proposal {
-      background: var(--bg);
+      background: #e5f5ef;
       border: 1px solid var(--accent);
       border-radius: 4px;
       padding: 1rem 1.2rem;
@@ -145,13 +148,13 @@
       font-size: 0.85rem;
       margin: 0.8rem 0;
     }
-    .alert-error { background: rgba(255, 85, 85, 0.12); color: var(--danger); border: 1px solid rgba(255, 85, 85, 0.3); }
-    .alert-success { background: rgba(0, 212, 170, 0.12); color: var(--accent); border: 1px solid rgba(0, 212, 170, 0.3); }
+    .alert-error { background: #fce4dc; color: var(--danger); border: 1px solid var(--danger); }
+    .alert-success { background: #dff3e8; color: var(--accent-strong); border: 1px solid var(--accent); }
 
     .empty { text-align: center; color: var(--text-dim); padding: 2rem 1rem; font-size: 0.88rem; }
 
     .proof-block {
-      background: var(--bg);
+      background: #f3f3f9;
       border-left: 3px solid var(--warn);
       padding: 0.6rem 0.8rem;
       margin: 0.5rem 0;
