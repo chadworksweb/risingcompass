@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, and_
 from app.database import SessionLocal
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, SongSlug,
-    ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration,
+    ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration, SongReset,
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import generate_song_slug
@@ -129,7 +129,33 @@ def song_history(slug: str):
                 "flag_count_snapshot": _json.loads(r.flag_count_snapshot) if r.flag_count_snapshot else None,
             }
             out.append(entry)
-        return {"recalibrations": out}
+
+        reset_rows = (
+            db.query(SongReset)
+            .filter(SongReset.song_source == source)
+            .filter(SongReset.song_id == song_id)
+            .order_by(SongReset.reset_at.desc())
+            .all()
+        )
+        resets = [
+            {
+                "id": r.id,
+                "reset_at": r.reset_at.isoformat() if r.reset_at else None,
+                "reason": r.reason,
+                "before": {
+                    "charge": r.before_charge,
+                    "color": r.before_color,
+                    "tier_label": COLOR_LABELS.get(r.before_color, ""),
+                    "tier_hex": COLOR_HEX.get(r.before_color, "#999"),
+                    "summary": r.before_summary,
+                    "contaminated": bool(r.before_contaminated) if r.before_contaminated is not None else False,
+                    "contamination_note": r.before_contamination_note,
+                },
+            }
+            for r in reset_rows
+        ]
+
+        return {"recalibrations": out, "resets": resets}
     finally:
         db.close()
 
@@ -215,16 +241,19 @@ def _resolve_song(source: str, song_id: int, db) -> dict | None:
     if not row:
         return None
 
+    # A reset song keeps its row but has charge_value=NULL and rubric_color="".
+    is_uncalibrated = row.charge_value is None
     return {
         "title": row.title,
         "artist": getattr(row, "artist", None),
-        "rubric_color": row.rubric_color,
+        "rubric_color": row.rubric_color if row.rubric_color else None,
         "charge_value": row.charge_value,
-        "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
-        "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
+        "tier_label": COLOR_LABELS.get(row.rubric_color, "") if row.rubric_color else "",
+        "tier_hex": COLOR_HEX.get(row.rubric_color, "#999") if row.rubric_color else "#999",
         "contaminated": getattr(row, "contaminated", False) or False,
         "contamination_note": getattr(row, "contamination_note", None),
         "charge_summary": getattr(row, "charge_summary", None),
+        "uncalibrated": is_uncalibrated,
         "song_source": source,
         "song_id": song_id,
     }

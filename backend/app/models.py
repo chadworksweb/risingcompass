@@ -574,6 +574,28 @@ class AudienceVibeReviewCase(Base):
     resolved_at = Column(DateTime)
 
 
+class SongReset(Base):
+    """Append-only audit log of resets: calibrations returned to the null state.
+
+    Polymorphic (song_source, song_id). Carries a full before-snapshot so the
+    public history timeline can render what was wiped. Distinct from
+    SongRecalibration, which always writes a new charge (satire / public-
+    interest re-reads). Resets go the other direction — back to uncalibrated.
+    """
+    __tablename__ = "song_resets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_source = Column(String(20), nullable=False)
+    song_id = Column(Integer, nullable=False)
+    before_charge = Column(Integer)
+    before_color = Column(String(20))
+    before_summary = Column(Text)
+    before_contaminated = Column(Boolean)
+    before_contamination_note = Column(Text)
+    reason = Column(Text, nullable=False)
+    reset_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class ApiCallLog(Base):
     """One row per /api/* request (admin + health excluded). Backs the API Monitor tab.
 

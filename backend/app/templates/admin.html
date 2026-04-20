@@ -149,6 +149,11 @@
   .db-pagination button { padding: 0.35rem 0.9rem; font-size: 0.78rem; background: #ffffff; color: var(--text); border: 1px solid var(--border); }
   .db-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
   .db-page-info { font-size: 0.78rem; color: var(--text-dim); font-family: monospace; font-weight: 600; }
+  .db-th-actions { cursor: default !important; }
+  .db-th-actions:hover { color: var(--text) !important; }
+  .db-td-actions { padding: 0.3rem 0.5rem !important; white-space: nowrap; }
+  .db-reset-btn { padding: 0.25rem 0.65rem; font-size: 0.72rem; font-weight: 600; background: var(--panel-strong); color: var(--text); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-family: monospace; }
+  .db-reset-btn:hover { background: var(--red); color: #ffffff; border-color: var(--red); }
   /* Admin panel hidden until logged in */
   .admin-panel { display: none; }
   .admin-panel.visible { display: block; }
@@ -1276,6 +1281,8 @@ async function dbRunQuery() {
   }
 }
 
+const DB_RESETTABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs']);
+
 function renderDbResults(data) {
   const meta = dbTableMeta();
   const table = document.getElementById('dbResults');
@@ -1283,27 +1290,84 @@ function renderDbResults(data) {
   const tbody = table.querySelector('tbody');
 
   const cols = meta.columns;
-  thead.innerHTML = '<tr>' + cols.map(c => {
+  const hasActions = DB_RESETTABLE.has(dbActiveTable);
+  const colSpan = cols.length + (hasActions ? 1 : 0);
+
+  let head = '<tr>';
+  if (hasActions) head += '<th class="db-th db-th-actions">actions</th>';
+  head += cols.map(c => {
     const arrow = dbSort.by === c.name ? (dbSort.dir === 'desc' ? ' ▾' : ' ▴') : '';
     return `<th onclick="dbToggleSort('${c.name}')" class="db-th" title="Click to sort">${c.name}${arrow}</th>`;
   }).join('') + '</tr>';
+  thead.innerHTML = head;
 
   if (!data.rows.length) {
-    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="db-empty">No rows match.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colSpan}" class="db-empty">No rows match.</td></tr>`;
   } else {
     tbody.innerHTML = data.rows.map(row => {
-      return '<tr>' + cols.map(c => {
+      const rowId = row.id;
+      const uncalibrated = hasActions && (row.charge_value == null);
+      let html = '<tr>';
+      if (hasActions) {
+        const label = uncalibrated ? 'Re-reset' : 'Reset';
+        const title = uncalibrated ? 'Already uncalibrated — resets still log an audit entry' : 'Return to uncalibrated state';
+        html += `<td class="db-td-actions"><button class="db-reset-btn" onclick="dbOpenReset('${dbActiveTable}', ${rowId})" title="${title}">${label}</button></td>`;
+      }
+      html += cols.map(c => {
         const v = row[c.name];
         const display = v == null ? '<span class="db-null">—</span>' : esc(String(v));
         const cls = DB_COLOR_COLS.has(c.name) && v ? `color-${esc(String(v))}` : '';
         const wide = DB_WIDE_COLS.has(c.name) ? 'db-td-wide' : '';
         return `<td class="${wide} ${cls}" title="${v == null ? '' : esc(String(v))}">${display}</td>`;
-      }).join('') + '</tr>';
+      }).join('');
+      html += '</tr>';
+      return html;
     }).join('');
   }
 
   document.getElementById('dbTotal').textContent = `${data.total.toLocaleString()} row${data.total === 1 ? '' : 's'}`;
   renderDbPagination(data);
+}
+
+async function dbOpenReset(table, songId) {
+  // Preflight fetch for current state + warnings
+  let pre;
+  try {
+    const resp = await fetch(`/api/admin/db/${table}/${songId}/reset-preview`, { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    pre = await resp.json();
+  } catch (e) {
+    alert('Preview failed: ' + e.message);
+    return;
+  }
+  const title = pre.title || '(no title)';
+  const artist = pre.artist || '(no artist)';
+  const charge = pre.current.charge_value;
+  const color = pre.current.rubric_color;
+  let msg = `Reset "${title}" by ${artist}?\n\n`;
+  msg += `Current: ${color || 'uncalibrated'} / charge ${charge == null ? '—' : charge}\n`;
+  if (pre.warnings && pre.warnings.length) {
+    msg += '\nWARNING:\n' + pre.warnings.map(w => '• ' + w.detail).join('\n') + '\n';
+  }
+  msg += '\nReason for reset (required, shown publicly on the song page):';
+  const reason = prompt(msg, '');
+  if (reason === null) return; // cancel
+  const trimmed = reason.trim();
+  if (trimmed.length < 4) {
+    alert('Reason must be at least 4 characters.');
+    return;
+  }
+  try {
+    const resp = await fetch(`/api/admin/db/${table}/${songId}/reset`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ reason: trimmed }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    dbRunQuery();
+  } catch (e) {
+    alert('Reset failed: ' + e.message);
+  }
 }
 
 function renderDbPagination(data) {

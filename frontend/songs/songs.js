@@ -50,9 +50,9 @@
       ArtistsAPI.getSongFlagCounts(slug)
         .then(counts => renderFlagCounts(song, counts))
         .catch(err => console.warn('Flag counts unavailable:', err));
-      // Recalibration history is independent too.
+      // Recalibration + reset history is independent too.
       ArtistsAPI.getSongHistory(slug)
-        .then(data => renderRecalibrationHistory(data.recalibrations || []))
+        .then(data => renderRecalibrationHistory(data.recalibrations || [], data.resets || []))
         .catch(err => console.warn('Recalibration history unavailable:', err));
       // Audience Vibe layer (independent — no song.song_source means no needle).
       if (song.song_source && song.song_id) {
@@ -72,26 +72,53 @@
     return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
-  function renderRecalibrationHistory(recalibrations) {
+  function renderRecalibrationHistory(recalibrations, resets) {
     const stamp = document.getElementById('recal-stamp');
     const stampBtn = document.getElementById('recal-stamp-btn');
     const section = document.getElementById('section-history');
     const list = document.getElementById('recal-list');
     if (!stamp || !stampBtn || !section || !list) return;
 
-    if (!recalibrations.length) return;
+    resets = resets || [];
+    const combined = [
+      ...recalibrations.map(r => ({ ...r, _kind: 'recal', _at: r.applied_at })),
+      ...resets.map(r => ({ ...r, _kind: 'reset', _at: r.reset_at })),
+    ].sort((a, b) => (b._at || '').localeCompare(a._at || ''));
 
-    const latest = recalibrations[0];
-    const dateStr = formatRecalDate(latest.applied_at);
-    const count = recalibrations.length;
+    if (!combined.length) return;
+
+    const latest = combined[0];
+    const dateStr = formatRecalDate(latest._at);
+    const count = combined.length;
+    const hasReset = resets.length > 0;
+    const label = hasReset && recalibrations.length === 0 ? 'Reset' : 'Recalibrated';
     const stampText = count === 1
-      ? `Recalibrated ${dateStr}`
-      : `Recalibrated ${count} times — most recently ${dateStr}`;
+      ? `${label} ${dateStr}`
+      : `${hasReset ? 'Revised' : 'Recalibrated'} ${count} times — most recently ${dateStr}`;
 
     stampBtn.textContent = stampText + ' \u2014 read the story';
     stamp.hidden = false;
 
-    list.innerHTML = recalibrations.map(r => {
+    list.innerHTML = combined.map(r => {
+      if (r._kind === 'reset') {
+        const beforeColor = r.before && r.before.tier_hex ? r.before.tier_hex : '#888';
+        const beforeChg = r.before && r.before.charge != null ? (r.before.charge > 0 ? '+' : '') + r.before.charge : 'N/A';
+        const beforeLabel = r.before && r.before.tier_label ? r.before.tier_label : '—';
+        return `
+          <li class="recal-entry recal-entry--reset">
+            <div class="recal-entry-head">
+              <span class="recal-entry-date">${escapeHtml(formatRecalDate(r.reset_at))}</span>
+              <span class="recal-entry-type">Reset</span>
+            </div>
+            <div class="recal-entry-shift">
+              <span style="color:${beforeColor}">${beforeChg} ${escapeHtml(beforeLabel)}</span>
+              <span class="arrow">&rarr;</span>
+              <span style="color:#888">Uncalibrated</span>
+            </div>
+            <p class="recal-entry-summary">${escapeHtml(r.reason || '')}</p>
+          </li>
+        `;
+      }
       const beforeColor = r.before && r.before.tier_hex ? r.before.tier_hex : '#888';
       const afterColor = r.after && r.after.tier_hex ? r.after.tier_hex : '#888';
       const beforeChg = r.before && r.before.charge != null ? (r.before.charge > 0 ? '+' : '') + r.before.charge : 'N/A';
@@ -261,6 +288,7 @@
   }
 
   function renderSong(song) {
+    const isUncalibrated = !!song.uncalibrated || song.charge_value == null;
     const color = COLOR_HEX[song.rubric_color] || '#999';
     const tierLabel = CHARGE_LABELS[song.rubric_color] || '';
     const chargeDisplay = song.charge_value != null
@@ -270,12 +298,14 @@
     // Page meta
     document.getElementById('page-title').textContent =
       `What Might "${song.title}" Do to the Listener? — The Rising Compass`;
-    document.getElementById('meta-description').content =
-      song.charge_summary || `${song.title} by ${song.artist}: ${tierLabel} (${chargeDisplay}). Lyrical effects classified by The Rising Compass.`;
+    document.getElementById('meta-description').content = isUncalibrated
+      ? `${song.title} by ${song.artist}: currently uncalibrated. Previous calibrations and reasoning shown below.`
+      : song.charge_summary || `${song.title} by ${song.artist}: ${tierLabel} (${chargeDisplay}). Lyrical effects classified by The Rising Compass.`;
     document.getElementById('og-title').content =
       `"${song.title}" by ${song.artist} — Lyrical Effects Label`;
-    document.getElementById('og-description').content =
-      song.charge_summary || `Classified as ${tierLabel} (${chargeDisplay}) by The Rising Compass.`;
+    document.getElementById('og-description').content = isUncalibrated
+      ? `"${song.title}" by ${song.artist} is currently uncalibrated.`
+      : song.charge_summary || `Classified as ${tierLabel} (${chargeDisplay}) by The Rising Compass.`;
 
     // Hero
     document.getElementById('song-title').textContent = song.title;
@@ -288,27 +318,36 @@
 
     // Tier badge
     const badge = document.getElementById('song-tier-badge');
-    badge.innerHTML = `
-      <span class="badge-charge" style="color:${color}">${chargeDisplay}</span>
-      <span class="badge-tier" style="background:${color}20;color:${color}">${escapeHtml(tierLabel)}</span>
-    `;
+    if (isUncalibrated) {
+      badge.innerHTML = `<span class="badge-tier badge-tier--uncalibrated">Uncalibrated</span>`;
+    } else {
+      badge.innerHTML = `
+        <span class="badge-charge" style="color:${color}">${chargeDisplay}</span>
+        <span class="badge-tier" style="background:${color}20;color:${color}">${escapeHtml(tierLabel)}</span>
+      `;
+    }
 
     // Section 2: Song-specific summary
     const summarySection = document.getElementById('section-summary');
     summarySection.hidden = false;
-    document.getElementById('summary-text').textContent =
-      song.charge_summary || `This song is classified as ${tierLabel}.`;
+    document.getElementById('summary-text').textContent = isUncalibrated
+      ? 'This song is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.'
+      : song.charge_summary || `This song is classified as ${tierLabel}.`;
 
     // Section 3: Effects (currently a tier-generic description)
     const effectsSection = document.getElementById('section-effects');
-    effectsSection.hidden = false;
-    document.getElementById('effects-prose').innerHTML =
-      `<p>${TIER_EFFECTS[song.rubric_color] || ''}</p>`;
+    effectsSection.hidden = !isUncalibrated ? false : true;
+    if (!isUncalibrated) {
+      document.getElementById('effects-prose').innerHTML =
+        `<p>${TIER_EFFECTS[song.rubric_color] || ''}</p>`;
+    }
 
     // Section 3: Contamination
     const contamSection = document.getElementById('section-contamination');
-    contamSection.hidden = false;
-    if (song.contaminated) {
+    contamSection.hidden = isUncalibrated;
+    if (isUncalibrated) {
+      // Skip contamination rendering for uncalibrated songs
+    } else if (song.contaminated) {
       document.getElementById('contam-heading').textContent = 'Contamination Warning';
       document.getElementById('contam-answer').textContent =
         song.contamination_note || 'This song contains contaminated content that undermines its higher-tier substance.';
@@ -322,12 +361,19 @@
     const detailsSection = document.getElementById('section-details');
     detailsSection.hidden = false;
     const table = document.getElementById('details-table');
-    const rows = [
-      ['Tier', `<span style="color:${color}">${escapeHtml(tierLabel)}</span>`],
-      ['Charge', `<span style="color:${color}">${chargeDisplay}</span>`],
-      ['Classified By', 'The Rising Compass'],
-      ['Method', '58-tenet rubric v1'],
-    ];
+    const rows = isUncalibrated
+      ? [
+          ['Tier', '<span style="color:#888">Uncalibrated</span>'],
+          ['Charge', '<span style="color:#888">—</span>'],
+          ['Classified By', 'The Rising Compass'],
+          ['Method', '58-tenet rubric v1'],
+        ]
+      : [
+          ['Tier', `<span style="color:${color}">${escapeHtml(tierLabel)}</span>`],
+          ['Charge', `<span style="color:${color}">${chargeDisplay}</span>`],
+          ['Classified By', 'The Rising Compass'],
+          ['Method', '58-tenet rubric v1'],
+        ];
     if (song.release_title) {
       rows.push(['Release', escapeHtml(song.release_title)]);
     }

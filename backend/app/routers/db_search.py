@@ -13,6 +13,7 @@ from datetime import datetime, date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import String, Text, Integer, Float, Boolean, Date, DateTime, or_, inspect as sa_inspect
 from sqlalchemy.orm import Session
 
@@ -20,7 +21,7 @@ from app.database import get_db
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, StreamSong,
     Artist, Release, MisreadSubmission, AudienceVibePush,
-    SongRecalibration,
+    SongRecalibration, SongReset, ReadingSong,
 )
 from app.routers.admin import verify_admin_key
 
@@ -217,4 +218,109 @@ def query_table(
         "offset": offset,
         "limit": limit,
         "rows": [serialize(r) for r in rows],
+    }
+
+
+# --- Song reset ---
+
+RESETTABLE_SOURCES = {
+    "compass_songs": (CompassSong, "compass"),
+    "library_songs": (LibrarySong, "library"),
+    "submitted_songs": (SubmittedSong, "submitted"),
+    "stream_songs": (StreamSong, "stream"),
+}
+
+
+class SongResetIn(BaseModel):
+    reason: str = Field(..., min_length=4, max_length=2000)
+
+
+@router.get("/{table}/{song_id}/reset-preview")
+def reset_preview(table: str, song_id: int, db: Session = Depends(get_db)):
+    """Preflight — current classification + any loud consequences of a reset.
+
+    For compass songs, surfaces which daily readings currently cite this song
+    (resetting nulls their cited charge). Admin sees this before confirming.
+    """
+    if table not in RESETTABLE_SOURCES:
+        raise HTTPException(400, f"Reset not supported on {table}")
+    Model, polymorphic = RESETTABLE_SOURCES[table]
+    row = db.query(Model).get(song_id)
+    if not row:
+        raise HTTPException(404, f"{table} id={song_id} not found")
+    warnings = []
+    if polymorphic == "compass":
+        reading_rows = (
+            db.query(ReadingSong.reading_id, ReadingSong.position)
+            .filter(ReadingSong.compass_song_id == song_id)
+            .all()
+        )
+        if reading_rows:
+            warnings.append({
+                "kind": "reading_references",
+                "count": len(reading_rows),
+                "detail": "This song is cited in one or more daily readings. Resetting leaves those reading_songs rows pointing at the now-uncalibrated song — the reading's cited tier/charge for this slot will be blank until a re-calibration.",
+            })
+    if getattr(row, "charge_value", None) is None:
+        warnings.append({
+            "kind": "already_null",
+            "detail": "This song is already uncalibrated — reset will still log an audit entry but nothing else changes.",
+        })
+    return {
+        "song_source": polymorphic,
+        "song_id": song_id,
+        "title": getattr(row, "title", None),
+        "artist": getattr(row, "artist", None),
+        "current": {
+            "charge_value": getattr(row, "charge_value", None),
+            "rubric_color": getattr(row, "rubric_color", None),
+            "charge_summary": getattr(row, "charge_summary", None),
+            "contaminated": getattr(row, "contaminated", None),
+            "contamination_note": getattr(row, "contamination_note", None),
+        },
+        "warnings": warnings,
+    }
+
+
+@router.post("/{table}/{song_id}/reset")
+def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depends(get_db)):
+    """Return a song to uncalibrated state. Nulls classification fields on the
+    row; writes a SongReset audit entry with the full before-snapshot. Keeps
+    id, title, artist, and every junction-table linkage intact.
+    """
+    if table not in RESETTABLE_SOURCES:
+        raise HTTPException(400, f"Reset not supported on {table}")
+    Model, polymorphic = RESETTABLE_SOURCES[table]
+    row = db.query(Model).get(song_id)
+    if not row:
+        raise HTTPException(404, f"{table} id={song_id} not found")
+
+    reset_row = SongReset(
+        song_source=polymorphic,
+        song_id=song_id,
+        before_charge=getattr(row, "charge_value", None),
+        before_color=getattr(row, "rubric_color", None),
+        before_summary=getattr(row, "charge_summary", None),
+        before_contaminated=getattr(row, "contaminated", None),
+        before_contamination_note=getattr(row, "contamination_note", None),
+        reason=data.reason.strip(),
+    )
+    db.add(reset_row)
+
+    # Null the classification fields. rubric_color is NOT NULL on the three
+    # primary song tables, so use "" as the uncalibrated sentinel — public
+    # renderers key off charge_value IS NULL regardless.
+    if hasattr(row, "charge_value"): row.charge_value = None
+    if hasattr(row, "charge_summary"): row.charge_summary = None
+    if hasattr(row, "contaminated"): row.contaminated = False
+    if hasattr(row, "contamination_note"): row.contamination_note = None
+    if hasattr(row, "rubric_color"): row.rubric_color = ""
+    db.commit()
+    db.refresh(reset_row)
+
+    return {
+        "reset_id": reset_row.id,
+        "song_source": polymorphic,
+        "song_id": song_id,
+        "reset_at": reset_row.reset_at.isoformat(),
     }
