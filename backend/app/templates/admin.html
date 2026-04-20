@@ -1935,6 +1935,33 @@ document.addEventListener('keydown', (e) => {
     dbRunQuery();
   }
 });
+
+// Live filter: typing/selecting in any per-column filter re-runs the query.
+// Debounced for text/number inputs; immediate for selects & date pickers.
+(function wireDbFilterLive() {
+  const host = document.getElementById('dbFilters');
+  if (!host) return;
+  let timer = null;
+  host.addEventListener('input', (e) => {
+    if (!e.target.matches('input, select')) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => { dbOffset = 0; dbRunQuery(); }, 250);
+  });
+  host.addEventListener('change', (e) => {
+    if (!e.target.matches('select, input[type="date"], input[type="number"]')) return;
+    clearTimeout(timer);
+    dbOffset = 0;
+    dbRunQuery();
+  });
+  // Enter inside a column filter fires immediately.
+  host.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.matches('input')) {
+      clearTimeout(timer);
+      dbOffset = 0;
+      dbRunQuery();
+    }
+  });
+})();
 </script>
 </body>
 </html>
