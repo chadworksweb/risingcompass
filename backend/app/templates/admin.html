@@ -149,6 +149,10 @@
   .db-pagination button { padding: 0.35rem 0.9rem; font-size: 0.78rem; background: #ffffff; color: var(--text); border: 1px solid var(--border); }
   .db-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
   .db-page-info { font-size: 0.78rem; color: var(--text-dim); font-family: monospace; font-weight: 600; }
+  .db-load-more-btn { background: var(--accent) !important; color: #ffffff !important; border-color: var(--accent) !important; font-weight: 600; }
+  .db-load-more-btn:hover { background: var(--accent-strong) !important; border-color: var(--accent-strong) !important; }
+  .db-load-all-btn { background: transparent !important; color: var(--text-dim) !important; border: 1px dashed var(--border) !important; font-size: 0.72rem !important; padding: 0.3rem 0.7rem !important; }
+  .db-load-all-btn:hover { color: var(--text) !important; border-color: var(--text-dim) !important; }
   .db-th-actions { cursor: default !important; }
   .db-th-actions:hover { color: var(--text) !important; }
   .db-td-actions { padding: 0.3rem 0.5rem !important; white-space: nowrap; display: flex; gap: 0.25rem; align-items: center; }
@@ -1173,11 +1177,13 @@ async function revokeKey(keyId, clientId) {
 const DB_COLOR_COLS = new Set(['rubric_color', 'overall_color', 'charge_level', 'song_color', 'before_color', 'after_color', 'compass_color', 'proposed_color', 'original_color']);
 const DB_COLOR_OPTIONS = ['violet', 'blue', 'green', 'orange', 'red'];
 const DB_WIDE_COLS = new Set(['charge_summary', 'contamination_note', 'why_calibration', 'editorial_summary', 'message', 'note', 'ai_rationale', 'public_summary', 'internal_notes', 'before_summary', 'admin_notes', 'proposed_summary']);
-const DB_PAGE_SIZE = 25;
+const DB_PAGE_SIZE = 100;
+const DB_LOAD_ALL_WARN_THRESHOLD = 500;
 
 let dbTablesMeta = null;
 let dbActiveTable = null;
 let dbOffset = 0;
+let dbLoadedRows = [];  // accumulator for the load-more pattern
 let dbSort = { by: null, dir: 'desc' };
 
 async function initDbExplorer() {
@@ -1280,6 +1286,13 @@ function dbCollectFilters() {
 }
 
 async function dbRunQuery() {
+  // Fresh query — reset accumulator and offset.
+  dbOffset = 0;
+  dbLoadedRows = [];
+  await dbFetchAndAppend();
+}
+
+async function dbFetchAndAppend() {
   if (!dbActiveTable) return;
   const statusEl = document.getElementById('dbStatus');
   statusEl.textContent = '';
@@ -1288,9 +1301,42 @@ async function dbRunQuery() {
     const resp = await fetch(`/api/admin/db/${dbActiveTable}?${params.toString()}`, { headers: adminHeaders() });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
+    dbLoadedRows = dbLoadedRows.concat(data.rows || []);
     renderDbResults(data);
   } catch (e) {
     showMsg(statusEl, e.message, 'error');
+  }
+}
+
+async function dbLoadMore() {
+  dbOffset += DB_PAGE_SIZE;
+  await dbFetchAndAppend();
+}
+
+async function dbLoadAll(total) {
+  const remaining = total - dbLoadedRows.length;
+  if (remaining <= 0) return;
+  if (remaining > DB_LOAD_ALL_WARN_THRESHOLD) {
+    if (!confirm(`Load all ${remaining.toLocaleString()} remaining rows? This may be slow on very large sets.`)) return;
+  }
+  // Fetch in chunks of 500 (server cap) until we reach total
+  while (dbLoadedRows.length < total) {
+    dbOffset = dbLoadedRows.length;
+    const statusEl = document.getElementById('dbStatus');
+    const params = dbCollectFilters();
+    params.set('limit', '500');
+    params.set('offset', String(dbOffset));
+    try {
+      const resp = await fetch(`/api/admin/db/${dbActiveTable}?${params.toString()}`, { headers: adminHeaders() });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      if (!data.rows || !data.rows.length) break;
+      dbLoadedRows = dbLoadedRows.concat(data.rows);
+      renderDbResults(data);
+    } catch (e) {
+      showMsg(statusEl, e.message, 'error');
+      break;
+    }
   }
 }
 
@@ -1323,10 +1369,10 @@ function renderDbResults(data) {
   }).join('') + '</tr>';
   thead.innerHTML = head;
 
-  if (!data.rows.length) {
+  if (!dbLoadedRows.length) {
     tbody.innerHTML = `<tr><td colspan="${colSpan}" class="db-empty">No rows match.</td></tr>`;
   } else {
-    tbody.innerHTML = data.rows.map(row => {
+    tbody.innerHTML = dbLoadedRows.map(row => {
       const rowId = row.id;
       const uncalibrated = isResettable && (row.charge_value == null);
       // For the virtual all_songs table, route actions to the real underlying
@@ -1367,8 +1413,8 @@ function renderDbResults(data) {
     }).join('');
   }
 
-  document.getElementById('dbTotal').textContent = `${data.total.toLocaleString()} row${data.total === 1 ? '' : 's'}`;
-  renderDbPagination(data);
+  document.getElementById('dbTotal').textContent = `${dbLoadedRows.length.toLocaleString()} of ${data.total.toLocaleString()} row${data.total === 1 ? '' : 's'}`;
+  renderDbLoadMore(data);
 }
 
 let dbArmedBtn = null;
@@ -1473,23 +1519,24 @@ async function dbOpenReset(table, songId) {
   }
 }
 
-function renderDbPagination(data) {
+function renderDbLoadMore(data) {
   const el = document.getElementById('dbPagination');
   const total = data.total;
-  const pageStart = data.offset + 1;
-  const pageEnd = Math.min(data.offset + data.limit, total);
-  const prevDisabled = data.offset <= 0 ? 'disabled' : '';
-  const nextDisabled = pageEnd >= total ? 'disabled' : '';
-  el.innerHTML = total === 0 ? '' : `
-    <button onclick="dbPage(-1)" ${prevDisabled}>← Prev</button>
-    <span class="db-page-info">${pageStart}–${pageEnd} of ${total.toLocaleString()}</span>
-    <button onclick="dbPage(1)" ${nextDisabled}>Next →</button>
+  const loaded = dbLoadedRows.length;
+  const remaining = Math.max(0, total - loaded);
+  if (total === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  if (remaining === 0) {
+    el.innerHTML = `<span class="db-page-info">All ${total.toLocaleString()} rows loaded</span>`;
+    return;
+  }
+  el.innerHTML = `
+    <button onclick="dbLoadMore()" class="db-load-more-btn">Load ${Math.min(DB_PAGE_SIZE, remaining)} more</button>
+    <span class="db-page-info">${loaded.toLocaleString()} of ${total.toLocaleString()} · ${remaining.toLocaleString()} behind</span>
+    <button onclick="dbLoadAll(${total})" class="db-load-all-btn">Load all ${remaining.toLocaleString()} remaining</button>
   `;
-}
-
-function dbPage(delta) {
-  dbOffset = Math.max(0, dbOffset + delta * DB_PAGE_SIZE);
-  dbRunQuery();
 }
 
 function dbToggleSort(col) {
