@@ -66,6 +66,7 @@ const procDetail = $('#proc-detail');
 const resultIdentity = $('#result-identity');
 const resultCalibration = $('#result-calibration');
 const resultSummary = $('#result-summary');
+const resultConsensus = $('#result-consensus');
 const resultContamination = $('#result-contamination');
 const resultMisread = $('#result-misread');
 const btnAgain = $('#btn-again');
@@ -703,6 +704,33 @@ function renderResults(data) {
     resultSummary.style.display = '';
   } else {
     resultSummary.style.display = 'none';
+  }
+
+  // Consensus across prior runs
+  if (data.consensus && data.consensus.run_count >= 2) {
+    const c = data.consensus;
+    const cColor = TIER_COLORS[c.rubric_color] || 'green';
+    const cLabel = TIER_LABELS[c.rubric_color] || '';
+    const cCharge = c.charge_value;
+    const cSign = cCharge >= 0 ? '+' : '';
+    const agreement = (c.rubric_color === data.tier) ? 'agreement' : 'divergence';
+    resultConsensus.innerHTML = `
+      <div class="consensus-head">
+        <span class="consensus-label">Consensus across ${c.run_count} runs</span>
+        <span class="consensus-${agreement}">${agreement === 'agreement' ? 'Agrees' : 'Diverges'}</span>
+      </div>
+      <div class="consensus-body">
+        <div class="consensus-tier">
+          <span class="tier-badge-dot" style="background: var(--tier-${cColor})"></span>
+          <span>${cLabel}</span>
+          <span class="consensus-charge">${cSign}${cCharge}</span>
+        </div>
+      </div>
+      <p class="consensus-explain">Each reading refines the compass. This song has been calibrated ${c.run_count} times; the weighted average (by confidence) is what the canonical record tracks.</p>
+    `;
+    resultConsensus.classList.remove('hidden');
+  } else {
+    resultConsensus.classList.add('hidden');
   }
 
   // Contamination

@@ -633,6 +633,14 @@ class LyricsCalibrateIn(BaseModel):
     source: str | None = None
 
 
+class ConsensusOut(BaseModel):
+    """Consensus reading across all prior agent runs on this song."""
+    run_count: int
+    charge_value: int
+    rubric_color: str
+    contaminated: bool
+
+
 class LyricsCalibrateOut(BaseModel):
     status: str  # "scored" | "error"
     tier: Optional[str] = None
@@ -644,6 +652,9 @@ class LyricsCalibrateOut(BaseModel):
     confidence: float = 0.0
     title: Optional[str] = None
     artist: Optional[str] = None
+    # Consensus across all prior runs when the song already existed. Null
+    # when this is the first run on this (title, artist) pair.
+    consensus: Optional[ConsensusOut] = None
 
 
 class SongSearchIn(BaseModel):

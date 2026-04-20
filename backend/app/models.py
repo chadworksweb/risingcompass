@@ -574,6 +574,38 @@ class AudienceVibeReviewCase(Base):
     resolved_at = Column(DateTime)
 
 
+class CalibrationRun(Base):
+    """Append-only log of every agent calibration run on a song.
+
+    Every run — LC submit, compass daily, stream, admin library CRUD — writes
+    one row here. Backs two features: per-song consensus (the canonical song
+    row drifts toward the weighted mean as runs accumulate) and the training
+    corpus for future agent improvements.
+
+    Polymorphic song pointer is nullable so a run can exist before or without
+    a persisted canonical song row. title + artist snapshot regardless.
+    Lyrics themselves are never stored — only a SHA-256 hash for dedupe /
+    variance awareness.
+    """
+    __tablename__ = "calibration_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_source = Column(String(20))
+    song_id = Column(Integer)
+    title = Column(Text)
+    artist = Column(Text)
+    rubric_color = Column(String(20))
+    charge_value = Column(Integer)
+    charge_summary = Column(Text)
+    contaminated = Column(Boolean, default=False)
+    contamination_note = Column(Text)
+    confidence = Column(Float)
+    agent_model = Column(String(80))
+    triggered_by = Column(String(40))
+    lyrics_hash = Column(String(64))
+    run_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class SongReset(Base):
     """Append-only audit log of resets: calibrations returned to the null state.
 

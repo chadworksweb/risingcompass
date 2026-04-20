@@ -54,6 +54,10 @@
       ArtistsAPI.getSongHistory(slug)
         .then(data => renderRecalibrationHistory(data.recalibrations || [], data.resets || []))
         .catch(err => console.warn('Recalibration history unavailable:', err));
+      // Calibration runs (corpus + consensus) are also independent.
+      ArtistsAPI.getSongCalibrationRuns(slug)
+        .then(data => renderCalibrationRuns(data.runs || [], data.consensus))
+        .catch(err => console.warn('Calibration runs unavailable:', err));
       // Audience Vibe layer (independent — no song.song_source means no needle).
       if (song.song_source && song.song_id) {
         initAudienceVibe(song);
@@ -246,6 +250,71 @@
     };
     document.getElementById('vibe-push-up').addEventListener('click', handler);
     document.getElementById('vibe-push-down').addEventListener('click', handler);
+  }
+
+  function renderCalibrationRuns(runs, consensus) {
+    const section = document.getElementById('section-runs');
+    const intro = document.getElementById('runs-intro');
+    const consensusEl = document.getElementById('runs-consensus');
+    const list = document.getElementById('runs-list');
+    if (!section || !intro || !consensusEl || !list) return;
+    if (!runs.length) return;
+    section.hidden = false;
+
+    const count = runs.length;
+    intro.textContent = count === 1
+      ? 'This song has been calibrated once. Each submission re-runs the agent and logs the reading — over time, repeated calibrations refine the compass.'
+      : `This song has been calibrated ${count} times. Each reading re-runs the agent and adds to the consensus — the canonical classification drifts toward the confidence-weighted mean as runs accumulate.`;
+
+    if (consensus && count >= 2) {
+      const cColor = COLOR_HEX[consensus.rubric_color] || '#999';
+      const cLabel = CHARGE_LABELS[consensus.rubric_color] || '';
+      const cCharge = consensus.charge_value;
+      const cSign = cCharge >= 0 ? '+' : '';
+      consensusEl.innerHTML = `
+        <div class="runs-consensus-row">
+          <span class="runs-consensus-label">Consensus across ${consensus.run_count} runs</span>
+          <span class="runs-consensus-tier" style="color:${cColor}">${escapeHtml(cLabel)} ${cSign}${cCharge}</span>
+        </div>
+      `;
+    } else {
+      consensusEl.innerHTML = '';
+    }
+
+    list.innerHTML = runs.map(r => {
+      const color = r.tier_hex || '#888';
+      const label = r.tier_label || '—';
+      const charge = r.charge_value != null ? (r.charge_value > 0 ? '+' : '') + r.charge_value : '—';
+      const conf = r.confidence != null ? (r.confidence * 100).toFixed(0) + '%' : null;
+      const trigger = triggerLabel(r.triggered_by);
+      const date = formatRecalDate(r.run_at);
+      return `
+        <li class="runs-entry">
+          <div class="runs-entry-head">
+            <span class="runs-entry-date">${escapeHtml(date)}</span>
+            <span class="runs-entry-trigger">${escapeHtml(trigger)}</span>
+          </div>
+          <div class="runs-entry-reading">
+            <span style="color:${color};font-weight:700">${escapeHtml(label)}</span>
+            <span style="color:${color}" class="runs-entry-charge">${charge}</span>
+            ${conf ? `<span class="runs-entry-conf">confidence ${conf}</span>` : ''}
+          </div>
+        </li>
+      `;
+    }).join('');
+  }
+
+  function triggerLabel(t) {
+    if (!t) return 'Agent run';
+    const map = {
+      'lyrical_charger': 'Lyrical Charger',
+      'lyrical_charger_search': 'Lyrical Charger',
+      'cl_stream': 'CL Stream',
+      'compass_manual': 'Compass (manual)',
+      'compass_daily': 'Daily reading',
+      'seed': 'Initial calibration',
+    };
+    return map[t] || t;
   }
 
   function renderFlagCounts(song, counts) {

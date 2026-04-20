@@ -24,6 +24,7 @@ from app.config import settings
 from app.routers.admin import verify_admin_key
 from app.services.agents.compass_agent import run_compass_agent, _store_calibration
 from app.services.artist_linker import try_link_song
+from app.services.calibration_corpus import record_and_reconcile
 from app.services.agents.chart_source import fetch_top_songs
 from app.services.agents.calibrator import calibrate_song
 from app.services.agents.email_notifier import send_draft_email
@@ -535,6 +536,27 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(song)
     try_link_song(song.title, song.artist, "compass", song.id, db)
+    try:
+        record_and_reconcile(
+            db,
+            title=song.title,
+            artist=song.artist,
+            calibration={
+                "rubric_color": song.rubric_color,
+                "charge_value": song.charge_value,
+                "charge_summary": song.charge_summary,
+                "contaminated": bool(song.contaminated),
+                "contamination_note": song.contamination_note,
+                "confidence": None,
+            },
+            triggered_by="compass_manual",
+            direct_song_source="compass",
+            direct_song_id=song.id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Corpus log failed for manual compass song %d", song.id)
     return song
 
 

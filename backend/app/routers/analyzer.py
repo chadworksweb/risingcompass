@@ -30,6 +30,7 @@ from app.services.analyzer_engine import run_analysis
 from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
+from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
 from app.auth import verify_api_or_service_key
 
@@ -518,6 +519,28 @@ async def calibrate_lyrics_endpoint(
         )
         try_link_song(title, artist, "submitted", submitted.id, db, structured=structured)
 
+        # Corpus + consensus: log this run, reconcile against any prior canonical.
+        # Prefer to point the run at an existing compass/library row if the song
+        # already has one — otherwise default to this new submitted row.
+        consensus_info = None
+        try:
+            result = record_and_reconcile(
+                db,
+                title=title,
+                artist=artist,
+                calibration=calibration,
+                triggered_by="lyrical_charger",
+                lyrics_hash=hash_lyrics(body.lyrics),
+                agent_model=calibration.get("agent_model"),
+                direct_song_source=None,  # let matcher find canonical
+                direct_song_id=None,
+            )
+            db.commit()
+            consensus_info = result.get("consensus")
+        except Exception:
+            db.rollback()
+            logger.exception("Corpus/consensus step failed (non-fatal)")
+
         if is_public:
             schedule_event(background_tasks, "submission_success", request,
                            payload={"title": title, "artist": artist, "source": source,
@@ -537,6 +560,7 @@ async def calibrate_lyrics_endpoint(
             confidence=calibration.get("confidence", 0.0),
             title=title,
             artist=artist,
+            consensus=consensus_info if consensus_info else None,
         )
     except Exception:
         logger.exception("Calibration failed for submitted lyrics")
@@ -657,6 +681,23 @@ async def calibrate_search(
         )
         try_link_song(title, artist, "submitted", submitted.id, db, structured=structured)
 
+        consensus_info = None
+        try:
+            result = record_and_reconcile(
+                db,
+                title=title,
+                artist=artist,
+                calibration=calibration,
+                triggered_by="lyrical_charger_search",
+                lyrics_hash=hash_lyrics(lyrics),
+                agent_model=calibration.get("agent_model"),
+            )
+            db.commit()
+            consensus_info = result.get("consensus")
+        except Exception:
+            db.rollback()
+            logger.exception("Corpus/consensus step failed (non-fatal)")
+
         if is_public:
             schedule_event(background_tasks, "submission_success", request,
                            payload={"title": title, "artist": artist, "source": source,
@@ -676,6 +717,7 @@ async def calibrate_search(
             confidence=calibration.get("confidence", 0.0),
             title=title,
             artist=artist,
+            consensus=consensus_info if consensus_info else None,
         )
     except Exception:
         logger.exception("Calibration failed for search track %d", body.track_id)

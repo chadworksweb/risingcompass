@@ -938,6 +938,87 @@ main {
   font-style: italic;
 }
 
+/* Consensus */
+.result-consensus {
+  max-width: 520px;
+  margin: 0 auto 2rem;
+  padding: 1rem 1.2rem;
+  background: rgba(0, 212, 170, 0.04);
+  border: 1px solid var(--rc-border);
+  border-left: 3px solid var(--rc-accent);
+  border-radius: var(--rc-radius);
+}
+
+.result-consensus.hidden { display: none; }
+
+.consensus-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+
+.consensus-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+}
+
+.consensus-agreement {
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  background: rgba(0, 212, 170, 0.12);
+  color: var(--rc-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.consensus-divergence {
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  background: rgba(255, 187, 51, 0.12);
+  color: #cc8800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.consensus-body {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.consensus-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+}
+
+.consensus-charge {
+  font-family: var(--rc-font-mono);
+  font-size: 0.95rem;
+  margin-left: 0.4rem;
+  color: var(--rc-text-bright);
+}
+
+.consensus-explain {
+  font-size: 0.76rem;
+  color: var(--rc-text-dim);
+  line-height: 1.5;
+  margin: 0;
+}
+
 /* Contamination */
 .result-contamination {
   text-align: center;

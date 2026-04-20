@@ -9,7 +9,9 @@ from app.database import SessionLocal
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, SongSlug,
     ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration, SongReset,
+    CalibrationRun,
 )
+from app.services.calibration_corpus import compute_consensus
 from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import generate_song_slug
 
@@ -156,6 +158,62 @@ def song_history(slug: str):
         ]
 
         return {"recalibrations": out, "resets": resets}
+    finally:
+        db.close()
+
+
+@router.get("/{slug}/calibration-runs")
+def song_calibration_runs(slug: str, limit: int = 50):
+    """Public list of every agent run logged for this song + consensus stats.
+
+    Shows the corpus behind the current calibration — each run's tier/charge,
+    when it fired, and what triggered it. Consensus is the confidence-weighted
+    mean the canonical song row drifts toward as runs accumulate.
+    """
+    db = SessionLocal()
+    try:
+        slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
+        if slug_row:
+            source, song_id = slug_row.song_source, slug_row.song_id
+        else:
+            song = _find_by_generated_slug(slug, db)
+            if not song:
+                raise HTTPException(404, "Song not found")
+            source = song.get("song_source")
+            song_id = song.get("song_id")
+
+        if not (source and song_id):
+            return {"runs": [], "consensus": None}
+
+        rows = (
+            db.query(CalibrationRun)
+            .filter(CalibrationRun.song_source == source)
+            .filter(CalibrationRun.song_id == song_id)
+            .order_by(CalibrationRun.run_at.desc())
+            .limit(max(1, min(limit, 500)))
+            .all()
+        )
+        runs = [
+            {
+                "id": r.id,
+                "run_at": r.run_at.isoformat() if r.run_at else None,
+                "rubric_color": r.rubric_color,
+                "charge_value": r.charge_value,
+                "tier_label": COLOR_LABELS.get(r.rubric_color, ""),
+                "tier_hex": COLOR_HEX.get(r.rubric_color, "#999"),
+                "charge_summary": r.charge_summary,
+                "contaminated": bool(r.contaminated) if r.contaminated is not None else False,
+                "confidence": r.confidence,
+                "triggered_by": r.triggered_by,
+                "agent_model": r.agent_model,
+            }
+            for r in rows
+        ]
+        consensus = compute_consensus(db, source, song_id)
+        if consensus:
+            consensus["tier_label"] = COLOR_LABELS.get(consensus["rubric_color"], "")
+            consensus["tier_hex"] = COLOR_HEX.get(consensus["rubric_color"], "#999")
+        return {"runs": runs, "consensus": consensus}
     finally:
         db.close()
 

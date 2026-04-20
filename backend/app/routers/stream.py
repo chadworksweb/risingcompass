@@ -19,6 +19,7 @@ from app.routers.admin import verify_admin_key
 from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
+from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,23 @@ async def add_to_stream(body: StreamSongIn, db: Session = Depends(get_db)):
     db.add(song)
     db.commit()
     db.refresh(song)
+    if status == "calibrated":
+        try:
+            record_and_reconcile(
+                db,
+                title=title,
+                artist=artist,
+                calibration=result,
+                triggered_by="cl_stream",
+                lyrics_hash=hash_lyrics(lyrics),
+                agent_model=result.get("agent_model"),
+                direct_song_source="stream",
+                direct_song_id=song.id,
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("Corpus log failed for stream song %d", song.id)
     return song
 
 

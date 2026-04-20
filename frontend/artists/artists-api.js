@@ -36,6 +36,7 @@ const ArtistsAPI = (() => {
     getSong: (slug) => get(`/api/songs/${slug}`),
     getSongFlagCounts: (slug) => get(`/api/songs/${slug}/flag-counts`),
     getSongHistory: (slug) => get(`/api/songs/${slug}/history`),
+    getSongCalibrationRuns: (slug) => get(`/api/songs/${slug}/calibration-runs`),
     getVibeState: (source, songId, deviceId) => {
       const q = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
       return get(`/api/vibe/${source}/${songId}${q}`);
