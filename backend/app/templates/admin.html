@@ -151,12 +151,12 @@
   .db-page-info { font-size: 0.78rem; color: var(--text-dim); font-family: monospace; font-weight: 600; }
   .db-th-actions { cursor: default !important; }
   .db-th-actions:hover { color: var(--text) !important; }
-  .db-td-actions { padding: 0.3rem 0.5rem !important; white-space: nowrap; }
-  .db-reset-btn { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-hint); border: 1px solid transparent; border-radius: 4px; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s; }
-  .db-reset-btn svg { width: 14px; height: 14px; display: block; }
-  .db-reset-btn:hover { color: var(--text); border-color: var(--border); background: var(--panel-strong); }
-  .db-reset-btn.armed { color: #ffffff; background: var(--red); border-color: var(--red); animation: dbResetPulse 1s ease-in-out infinite; }
-  .db-reset-btn.armed:hover { background: #9a2e18; border-color: #9a2e18; }
+  .db-td-actions { padding: 0.3rem 0.5rem !important; white-space: nowrap; display: flex; gap: 0.25rem; align-items: center; }
+  .db-action-btn { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-hint); border: 1px solid transparent; border-radius: 4px; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+  .db-action-btn svg { width: 14px; height: 14px; display: block; }
+  .db-action-btn:hover { color: var(--text); border-color: var(--border); background: var(--panel-strong); }
+  .db-action-btn.armed { color: #ffffff; background: var(--red); border-color: var(--red); animation: dbResetPulse 1s ease-in-out infinite; }
+  .db-action-btn.armed:hover { background: #9a2e18; border-color: #9a2e18; }
   @keyframes dbResetPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 58, 30, 0.5); } 50% { box-shadow: 0 0 0 4px rgba(192, 58, 30, 0); } }
   /* Admin panel hidden until logged in */
   .admin-panel { display: none; }
@@ -1286,6 +1286,7 @@ async function dbRunQuery() {
 }
 
 const DB_RESETTABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs']);
+const DB_DELETABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'artists', 'releases', 'misread_submissions', 'audience_vibe_pushes', 'song_recalibrations', 'calibration_runs']);
 
 function renderDbResults(data) {
   const meta = dbTableMeta();
@@ -1294,7 +1295,9 @@ function renderDbResults(data) {
   const tbody = table.querySelector('tbody');
 
   const cols = meta.columns;
-  const hasActions = DB_RESETTABLE.has(dbActiveTable);
+  const isResettable = DB_RESETTABLE.has(dbActiveTable);
+  const isDeletable = DB_DELETABLE.has(dbActiveTable);
+  const hasActions = isResettable || isDeletable;
   const colSpan = cols.length + (hasActions ? 1 : 0);
 
   let head = '<tr>';
@@ -1310,15 +1313,27 @@ function renderDbResults(data) {
   } else {
     tbody.innerHTML = data.rows.map(row => {
       const rowId = row.id;
-      const uncalibrated = hasActions && (row.charge_value == null);
+      const uncalibrated = isResettable && (row.charge_value == null);
       let html = '<tr>';
       if (hasActions) {
-        const title = uncalibrated
-          ? 'Already uncalibrated — click to re-reset (logs audit entry only)'
-          : 'Reset to uncalibrated';
-        html += `<td class="db-td-actions"><button class="db-reset-btn" onclick="dbArmReset(this, '${dbActiveTable}', ${rowId})" title="${title}" aria-label="Reset song">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-        </button></td>`;
+        html += '<td class="db-td-actions">';
+        if (isResettable) {
+          const resetTitle = uncalibrated
+            ? 'Already uncalibrated — click to re-reset (logs audit entry only)'
+            : 'Reset to uncalibrated';
+          html += `<button class="db-action-btn" onclick="dbArmReset(this, '${dbActiveTable}', ${rowId})" title="${resetTitle}" aria-label="Reset song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+          </button>`;
+        }
+        if (isDeletable) {
+          const deleteTitle = isResettable
+            ? 'Move song to trash (soft delete — full cascade)'
+            : 'Move row to trash';
+          html += `<button class="db-action-btn" onclick="dbArmDelete(this, '${dbActiveTable}', ${rowId})" title="${deleteTitle}" aria-label="Delete row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+          </button>`;
+        }
+        html += '</td>';
       }
       html += cols.map(c => {
         const v = row[c.name];
@@ -1336,34 +1351,65 @@ function renderDbResults(data) {
   renderDbPagination(data);
 }
 
-let dbArmedResetBtn = null;
-let dbArmedResetTimer = null;
+let dbArmedBtn = null;
+let dbArmedTimer = null;
 
-function dbDisarmReset() {
-  if (dbArmedResetBtn) {
-    dbArmedResetBtn.classList.remove('armed');
-    dbArmedResetBtn.setAttribute('title', dbArmedResetBtn.dataset.origTitle || '');
-    dbArmedResetBtn = null;
+function dbDisarm() {
+  if (dbArmedBtn) {
+    dbArmedBtn.classList.remove('armed');
+    dbArmedBtn.setAttribute('title', dbArmedBtn.dataset.origTitle || '');
+    dbArmedBtn = null;
   }
-  if (dbArmedResetTimer) {
-    clearTimeout(dbArmedResetTimer);
-    dbArmedResetTimer = null;
+  if (dbArmedTimer) {
+    clearTimeout(dbArmedTimer);
+    dbArmedTimer = null;
   }
 }
 
-function dbArmReset(btn, table, songId) {
-  // Two-step opt-in: first click arms the button, second click fires the flow.
-  if (dbArmedResetBtn === btn) {
-    dbDisarmReset();
-    dbOpenReset(table, songId);
+function dbArmButton(btn, armedTitle, onConfirm) {
+  if (dbArmedBtn === btn) {
+    dbDisarm();
+    onConfirm();
     return;
   }
-  dbDisarmReset();
-  dbArmedResetBtn = btn;
+  dbDisarm();
+  dbArmedBtn = btn;
   btn.dataset.origTitle = btn.getAttribute('title') || '';
   btn.classList.add('armed');
-  btn.setAttribute('title', 'Click again to confirm — reset is permanent (audited)');
-  dbArmedResetTimer = setTimeout(dbDisarmReset, 4000);
+  btn.setAttribute('title', armedTitle);
+  dbArmedTimer = setTimeout(dbDisarm, 4000);
+}
+
+function dbArmReset(btn, table, songId) {
+  dbArmButton(btn, 'Click again to confirm — reset is permanent (audited)', () => dbOpenReset(table, songId));
+}
+
+function dbArmDelete(btn, table, rowId) {
+  dbArmButton(btn, 'Click again to confirm — row goes to trash', () => dbOpenDelete(table, rowId));
+}
+
+async function dbOpenDelete(table, rowId) {
+  const prompt_msg = (DB_RESETTABLE.has(table))
+    ? 'Move this song to trash?\n\nThis cascades: every song_artists, release_songs, calibration_runs, vibe, slug, recalibration, reset, misread, reading_songs, and lc_events row referencing this song will be snapshotted into trash.related_data and removed from their tables. The song becomes invisible outside the trash entry.\n\nReason (required):'
+    : 'Move this row to trash?\n\nThe row is snapshotted into trash and removed from its table. No cascade.\n\nReason (required):';
+  const reason = prompt(prompt_msg, '');
+  if (reason === null) return;
+  const trimmed = reason.trim();
+  if (trimmed.length < 4) {
+    alert('Reason must be at least 4 characters.');
+    return;
+  }
+  try {
+    const resp = await fetch(`/api/admin/db/${table}/${rowId}/delete`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ reason: trimmed }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    dbRunQuery();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
 }
 
 async function dbOpenReset(table, songId) {

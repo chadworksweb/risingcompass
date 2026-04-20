@@ -574,6 +574,27 @@ class AudienceVibeReviewCase(Base):
     resolved_at = Column(DateTime)
 
 
+class Trash(Base):
+    """Soft-delete destination for rows removed via the admin DB explorer.
+
+    Stores a JSON snapshot of the original row plus any related junction
+    rows we capture at delete time. Nothing is ever truly nuked — the
+    trash table is the audit record. Restoring from trash is possible but
+    not automated yet.
+    """
+    __tablename__ = "trash"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    original_table = Column(String(40), nullable=False)
+    original_id = Column(Integer, nullable=False)
+    title = Column(Text)
+    artist = Column(Text)
+    row_data = Column(Text, nullable=False)  # JSON
+    related_data = Column(Text)  # JSON — optional junction snapshot
+    reason = Column(Text, nullable=False)
+    deleted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class CalibrationRun(Base):
     """Append-only log of every agent calibration run on a song.
 

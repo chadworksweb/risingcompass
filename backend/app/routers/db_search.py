@@ -21,7 +21,9 @@ from app.database import get_db
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, StreamSong,
     Artist, Release, MisreadSubmission, AudienceVibePush,
-    SongRecalibration, SongReset, ReadingSong,
+    SongRecalibration, SongReset, ReadingSong, CalibrationRun, Trash,
+    SongArtist, ReleaseSong, AudienceVibeNeedle, AudienceVibeReviewCase,
+    SongSlug, SongRecalibrationProposal, LcEvent,
 )
 from app.routers.admin import verify_admin_key
 
@@ -43,6 +45,8 @@ TABLES = {
     "misread_submissions": MisreadSubmission,
     "audience_vibe_pushes": AudienceVibePush,
     "song_recalibrations": SongRecalibration,
+    "calibration_runs": CalibrationRun,
+    "trash": Trash,
 }
 
 # Columns matched by the `q=` quick-search per table.
@@ -56,6 +60,8 @@ SEARCH_COLUMNS = {
     "misread_submissions": ["song_title", "song_artist", "email", "first_name", "last_name"],
     "audience_vibe_pushes": ["device_id", "ip_address"],
     "song_recalibrations": ["public_summary"],
+    "calibration_runs": ["title", "artist"],
+    "trash": ["title", "artist", "reason"],
 }
 
 OPERATORS = {"eq", "ne", "gt", "gte", "lt", "lte", "contains", "startswith", "in", "isnull"}
@@ -323,4 +329,143 @@ def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depend
         "song_source": polymorphic,
         "song_id": song_id,
         "reset_at": reset_row.reset_at.isoformat(),
+    }
+
+
+# --- Soft delete (move to trash) ---
+
+# Tables that support soft-delete via the admin DB explorer. Songs always
+# route through their polymorphic source; other tables go to trash by name.
+DELETABLE_TABLES = set(TABLES.keys()) - {"trash"}
+
+
+class DeleteIn(BaseModel):
+    reason: str = Field(..., min_length=4, max_length=2000)
+
+
+def _serialize_row(row, col_map) -> dict:
+    out = {}
+    for name in col_map:
+        v = getattr(row, name, None)
+        if isinstance(v, (datetime, date)):
+            v = v.isoformat()
+        out[name] = v
+    return out
+
+
+# Every table that holds a polymorphic (song_source, song_id) pointer.
+# On song delete, matching rows are snapshotted into trash AND deleted so
+# the song becomes fully invisible outside the trash entry.
+_POLYMORPHIC_SONG_REFS = [
+    ("song_artists", SongArtist),
+    ("release_songs", ReleaseSong),
+    ("calibration_runs", CalibrationRun),
+    ("audience_vibe_needles", AudienceVibeNeedle),
+    ("audience_vibe_pushes", AudienceVibePush),
+    ("audience_vibe_review_cases", AudienceVibeReviewCase),
+    ("song_slugs", SongSlug),
+    ("song_recalibrations", SongRecalibration),
+    ("song_recalibration_proposals", SongRecalibrationProposal),
+    ("song_resets", SongReset),
+    ("misread_submissions", MisreadSubmission),
+]
+
+
+def _capture_and_delete_song_cascade(polymorphic: str, song_id: int, db: Session) -> dict:
+    """Snapshot + delete every row anywhere that references this song.
+
+    Polymorphic (song_source, song_id) references and the two FK-based
+    references (reading_songs.compass_song_id, lc_events.submission_id)
+    are all captured in related_data and removed from their tables, so
+    the song is invisible outside the trash entry.
+    """
+    related: dict = {}
+
+    for name, Model in _POLYMORPHIC_SONG_REFS:
+        col_map = {c.name: c for c in sa_inspect(Model).columns}
+        rows = (
+            db.query(Model)
+            .filter(Model.song_source == polymorphic)
+            .filter(Model.song_id == song_id)
+            .all()
+        )
+        if rows:
+            related[name] = [_serialize_row(r, col_map) for r in rows]
+            for r in rows:
+                db.delete(r)
+
+    # Compass-specific FK ref
+    if polymorphic == "compass":
+        col_map = {c.name: c for c in sa_inspect(ReadingSong).columns}
+        rs_rows = (
+            db.query(ReadingSong)
+            .filter(ReadingSong.compass_song_id == song_id)
+            .all()
+        )
+        if rs_rows:
+            related["reading_songs"] = [_serialize_row(r, col_map) for r in rs_rows]
+            for r in rs_rows:
+                db.delete(r)
+
+    # Submitted-specific FK ref
+    if polymorphic == "submitted":
+        col_map = {c.name: c for c in sa_inspect(LcEvent).columns}
+        lc_rows = (
+            db.query(LcEvent)
+            .filter(LcEvent.submission_id == song_id)
+            .all()
+        )
+        if lc_rows:
+            related["lc_events"] = [_serialize_row(r, col_map) for r in lc_rows]
+            for r in lc_rows:
+                db.delete(r)
+
+    return related
+
+
+@router.post("/{table}/{row_id}/delete")
+def delete_row(table: str, row_id: int, data: DeleteIn, db: Session = Depends(get_db)):
+    """Soft-delete: snapshot the row (and relevant junctions) into trash,
+    then remove the original. Polymorphic references elsewhere (song_slugs,
+    misread_submissions, audience_vibe_*) become dangling but harmless —
+    queries that resolve (source, id) just return nothing.
+    """
+    import json as _json
+
+    if table not in DELETABLE_TABLES:
+        raise HTTPException(400, f"Delete not supported on {table}")
+    Model = TABLES[table]
+    row = db.query(Model).get(row_id)
+    if not row:
+        raise HTTPException(404, f"{table} id={row_id} not found")
+
+    col_map = {c.name: c for c in sa_inspect(Model).columns}
+    row_snapshot = _serialize_row(row, col_map)
+
+    # Song tables get full cascade so the song stops touching anything
+    # except the trash entry. Other tables: simple delete, no cascade.
+    related: dict = {}
+    if table in RESETTABLE_SOURCES:
+        polymorphic = RESETTABLE_SOURCES[table][1]
+        related = _capture_and_delete_song_cascade(polymorphic, row_id, db)
+
+    trash_row = Trash(
+        original_table=table,
+        original_id=row_id,
+        title=getattr(row, "title", None) or getattr(row, "name", None),
+        artist=getattr(row, "artist", None),
+        row_data=_json.dumps(row_snapshot, default=str),
+        related_data=_json.dumps(related, default=str) if related else None,
+        reason=data.reason.strip(),
+    )
+    db.add(trash_row)
+    db.delete(row)
+    db.commit()
+    db.refresh(trash_row)
+
+    return {
+        "trash_id": trash_row.id,
+        "original_table": table,
+        "original_id": row_id,
+        "deleted_at": trash_row.deleted_at.isoformat(),
     }
