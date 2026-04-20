@@ -72,6 +72,8 @@ EFFECTS_VOICE = """You are writing the "What Might This Song Do to the Listener?
 - Never use polar opposite contrast structures like "not X, but Y" or "not just X but Y."
 - Never use linear progressions like "from X to Y" or "what starts as X becomes Y."
 - Never use triplets (three short sentences in a row, or three stacked "or" / "and" clauses).
+- Limit the landing metaphor fiercely — "lands as," "lands hardest," "these words land," "lands on soft ground" is a known AI tic. At most one use per song, and only when no other verb carries the meaning. A human writer reaches for this phrase rarely.
+- Limit "permission" fiercely — "hand you permission to X," "permission to feel Y," "these words give you permission" is another AI tic. At most one use per song, and only when the lyric is actually a sanction or invitation, not whenever a song validates a feeling. A human writer reaches for this phrase rarely.
 - Never use passive voice.
 - Never start with "This song is about," "This is a song," or anything that labels before showing.
 - Never restate the charge_summary verbatim.
@@ -92,7 +94,7 @@ EFFECTS_VOICE = """You are writing the "What Might This Song Do to the Listener?
 ## Paragraph structure
 
 - ¶1: What the words actually say. The dominant message, the narrator's stance, the posture. Grounded in what's on the page. If the message is specific, name it specifically. Ascended messages read larger than the narrator. Elevated messages read like inward work. Decent reads surface. Degraded reads ego-first. Corrupted reads destructive. Don't label which one, let the prose carry it.
-- ¶2: What happens in a person who hears these words and lets them land, plus who the message hits hardest and who it leaves cold. Concrete human responses: what gets reinforced, what feels seen, what feels confronted, what gets easier or harder to notice about their own life. If the lyrics are contaminated, say what contaminates them in one plain clause. Speak to possibility, not prophecy. End flat, no wrap-up.
+- ¶2: What happens in a person who hears these words and takes them in, plus who the message hits hardest and who it leaves cold. Concrete human responses: what gets reinforced, what feels seen, what feels confronted, what gets easier or harder to notice about their own life. If the lyrics are contaminated, say what contaminates them in one plain clause. Speak to possibility, not prophecy. End flat, no wrap-up.
 
 Output ONLY the two paragraphs. No preamble, no sign-off, no quotes, no labels on the paragraphs."""
 
