@@ -1192,6 +1192,13 @@ const DB_LOAD_ALL_WARN_THRESHOLD = 500;
 
 let dbTablesMeta = null;
 let dbActiveTable = null;
+
+// Tables whose natural "date added" column isn't literally `created_at`.
+const DB_SORT_BY_TABLE = {
+  submitted_songs: 'submitted_at',
+  // compass_songs has no creation timestamp; let the backend fall back to id DESC
+  compass_songs: null,
+};
 let dbOffset = 0;
 let dbLoadedRows = [];  // accumulator for the load-more pattern
 let dbLastData = null;  // most recent API response (for re-render without refetch)
@@ -1208,7 +1215,10 @@ async function initDbExplorer() {
     return;
   }
   renderDbSubTabs();
-  dbSelectTable(dbTablesMeta[0].table);
+  // Default to all_songs (virtual UNION of the four song tables) when
+  // present; otherwise fall back to the first table.
+  const preferred = dbTablesMeta.find(t => t.table === 'all_songs') || dbTablesMeta[0];
+  dbSelectTable(preferred.table);
 }
 
 function renderDbSubTabs() {
@@ -1221,7 +1231,12 @@ function renderDbSubTabs() {
 function dbSelectTable(table) {
   dbActiveTable = table;
   dbOffset = 0;
-  dbSort = { by: null, dir: 'desc' };
+  // Default sort: the table's "date added" column DESC. Override via
+  // DB_SORT_BY_TABLE for tables whose column isn't literally `created_at`.
+  const defaultSortCol = (table in DB_SORT_BY_TABLE)
+    ? DB_SORT_BY_TABLE[table]
+    : 'created_at';
+  dbSort = { by: defaultSortCol, dir: 'desc' };
   document.querySelectorAll('.db-sub-tab').forEach(b => b.classList.toggle('active', b.dataset.table === table));
   document.getElementById('dbQuickSearch').value = '';
   renderDbFilters();

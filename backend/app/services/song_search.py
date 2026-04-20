@@ -190,9 +190,19 @@ def search_unified(
             return (getattr(row, "rubric_color", "") or "",)
         if sort_by == "year":
             return (getattr(row, "year", None) is None, getattr(row, "year", 0) or 0)
-        # created_at: compass/library/stream use created_at, submitted uses submitted_at
+        # created_at: library/stream use created_at, submitted uses submitted_at.
+        # compass has neither — fall back to its `year` so a 2024 chart hit
+        # still sorts before a 1985 entry under "newest first".
         dt = getattr(row, "created_at", None) or getattr(row, "submitted_at", None)
-        return (dt is None, dt or datetime.min)
+        if dt:
+            return (False, dt)
+        yr = getattr(row, "year", None)
+        if yr:
+            try:
+                return (False, datetime(int(yr), 1, 1))
+            except (ValueError, TypeError):
+                pass
+        return (True, datetime.min)
 
     merged.sort(key=_sort_key, reverse=(sort_dir == "desc"))
 
