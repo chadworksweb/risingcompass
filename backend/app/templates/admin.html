@@ -233,17 +233,17 @@
 <h1>The Rising Compass — Admin</h1>
 
 <div class="tab-bar">
-  <button class="tab-btn active" onclick="switchTab('songs')">Daily Songs</button>
+  <button class="tab-btn active" onclick="switchTab('db')">DB</button>
+  <button class="tab-btn" onclick="switchTab('songs')">Daily Songs</button>
   <button class="tab-btn" onclick="switchTab('albums')">Weekly Albums</button>
   <button class="tab-btn" onclick="switchTab('misread')">Misread Reports</button>
   <button class="tab-btn" onclick="switchTab('submissions')">LC Submissions</button>
   <button class="tab-btn" onclick="switchTab('lcactivity')">LC Activity</button>
   <button class="tab-btn" onclick="switchTab('apimonitor')">API Monitor</button>
-  <button class="tab-btn" onclick="switchTab('db')">DB</button>
 </div>
 
 <!-- Daily Songs Tab -->
-<div class="tab-panel active" id="tab-songs">
+<div class="tab-panel" id="tab-songs">
   <div class="admin-key-row">
     <div class="form-group">
       <label>Date</label>
@@ -424,7 +424,7 @@
 </div>
 
 <!-- DB (full-database search) Tab -->
-<div class="tab-panel" id="tab-db">
+<div class="tab-panel active" id="tab-db">
   <div class="db-sub-tabs" id="dbSubTabs"></div>
   <div id="dbMergeBanner" class="db-merge-banner" hidden></div>
   <div class="db-toolbar">
@@ -478,6 +478,8 @@ function doLogout() {
 function showAdminPanel() {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('adminPanel').classList.add('visible');
+  // DB is the default landing tab — kick off its loader on login.
+  if (typeof initDbExplorer === 'function') initDbExplorer();
 }
 
 // On load: restore session if key exists
