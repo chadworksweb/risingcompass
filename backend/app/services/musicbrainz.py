@@ -6,6 +6,7 @@ User-Agent required per MB terms of service.
 
 import asyncio
 import logging
+import re
 from datetime import date
 from typing import Optional
 
@@ -15,6 +16,26 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://musicbrainz.org/ws/2"
 USER_AGENT = "RisingCompass/1.0 (https://risingcompass.net)"
+
+# Release-group secondary types we never want in an artist's Releases.
+# MB uses lowercase "soundtrack", "demo", "mixtape/street", "audio drama",
+# "audiobook", "interview", "spokenword" — all noise for a calibration site.
+SKIP_SECONDARY_TYPES = {
+    "compilation", "live", "remix", "dj-mix",
+    "soundtrack", "demo", "mixtape/street", "mixtape",
+    "audio drama", "audiobook", "interview", "spokenword",
+}
+
+# Title substrings that mark bootlegs, outtakes, karaoke, etc.
+# MB doesn't always tag these via secondary-type.
+SKIP_TITLE_SUBSTRINGS = (
+    "karaoke", "soundboard", "unauthorized", "bootleg",
+    "alternate version", "alternate take", "alternate album",
+    "tribute to", "in the style of",
+)
+
+# Outtake pattern: "(take 1)", "(take 17)", "take 3)" at end of title, etc.
+OUTTAKE_RE = re.compile(r"\(take\s+\d+\)|take\s+\d+\)\s*$", re.IGNORECASE)
 
 # Simple rate limiter — track last request time
 _last_request_time: float = 0
@@ -106,14 +127,25 @@ async def get_artist_releases(
             for rg in groups:
                 primary = (rg.get("primary-type") or "").lower()
                 secondary = [s.lower() for s in (rg.get("secondary-types") or [])]
+                title = rg.get("title") or ""
 
-                # Skip compilations, live albums, remixes, etc.
-                if any(s in secondary for s in ["compilation", "live", "remix", "dj-mix"]):
+                # Secondary-type exclusion — covers MB-tagged noise.
+                if any(s in SKIP_SECONDARY_TYPES for s in secondary):
                     continue
 
-                # Map primary type to our release_type
+                # Title-pattern exclusion — covers MB-untagged noise
+                # (bootlegs, outtakes, karaoke, tribute albums).
+                title_lower = title.lower()
+                if any(p in title_lower for p in SKIP_TITLE_SUBSTRINGS):
+                    continue
+                if OUTTAKE_RE.search(title_lower):
+                    continue
+
+                # Map primary type to our release_type. Unknown primaries
+                # (broadcast, other, etc.) are rejected rather than silently
+                # bucketed as "single".
                 release_type = _map_release_type(primary)
-                if release_type not in release_types:
+                if release_type is None or release_type not in release_types:
                     continue
 
                 release_date_str = rg.get("first-release-date", "")
@@ -200,16 +232,18 @@ async def get_release_tracks(release_group_mbid: str) -> list[dict]:
         return []
 
 
-def _map_release_type(primary_type: str) -> str:
-    """Map MusicBrainz primary-type to our release_type enum."""
+def _map_release_type(primary_type: str) -> Optional[str]:
+    """Map MusicBrainz primary-type to our release_type enum.
+
+    Returns None for unknown primaries — callers skip rather than bucket
+    broadcasts, DJ mixes, "other", etc. as fake singles.
+    """
     mapping = {
         "album": "album",
         "single": "single",
         "ep": "ep",
-        "broadcast": "single",
-        "other": "single",
     }
-    return mapping.get(primary_type, "single")
+    return mapping.get(primary_type)
 
 
 def _parse_mb_date(date_str: str) -> tuple[Optional[date], Optional[int]]:
