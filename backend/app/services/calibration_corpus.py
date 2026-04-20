@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     CalibrationRun, CompassSong, LibrarySong, SubmittedSong, StreamSong,
-    SongRecalibration,
+    SongRecalibration, Artist, SongArtist,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,14 +65,22 @@ def _derive_tier(charge: int) -> str:
     return "red"
 
 
-def _find_canonical_song(title: str, artist: str, db: Session) -> tuple[str, object] | None:
-    """Find the canonical song row for (title, artist). Priority: compass >
-    library > submitted > stream. Case-insensitive exact match on both fields.
+def find_canonical_song(title: str, artist: str, db: Session) -> tuple[str, object] | None:
+    """Find the canonical song row for (title, credit_string).
+
+    Two-pass match. Priority: compass > library > submitted > stream.
+      1. Exact case-insensitive match on the full artist credit string.
+      2. Fallback: split the submitted credit into individual artists, look
+         them up in the artists table, and find a song with the same title
+         that has ANY of those artists credited via song_artists. This
+         catches "Runway by Doechii" matching a prior "Runway by Lady Gaga
+         & Doechii" entry — same song, different credit ordering.
     """
     if not title or not artist:
         return None
     t_lower = title.strip().lower()
     a_lower = artist.strip().lower()
+
     for source, Model in _SONG_TABLES:
         if not hasattr(Model, "title") or not hasattr(Model, "artist"):
             continue
@@ -84,7 +92,52 @@ def _find_canonical_song(title: str, artist: str, db: Session) -> tuple[str, obj
         )
         if row:
             return source, row
+
+    # Fallback via song_artists — catches cross-credit matches.
+    from app.services.artist_linker import parse_artist_string
+    entries = parse_artist_string(artist)
+    artist_ids: list[int] = []
+    for e in entries:
+        name = (e.get("name") or "").strip()
+        if not name:
+            continue
+        a_row = (
+            db.query(Artist)
+            .filter(func.lower(Artist.name) == name.lower())
+            .first()
+        )
+        if a_row:
+            artist_ids.append(a_row.id)
+    if not artist_ids:
+        return None
+
+    for source, Model in _SONG_TABLES:
+        if not hasattr(Model, "title"):
+            continue
+        candidate_ids = {
+            sid for (sid,) in (
+                db.query(SongArtist.song_id)
+                .filter(SongArtist.song_source == source)
+                .filter(SongArtist.artist_id.in_(artist_ids))
+                .distinct()
+                .all()
+            )
+        }
+        if not candidate_ids:
+            continue
+        row = (
+            db.query(Model)
+            .filter(Model.id.in_(candidate_ids))
+            .filter(func.lower(Model.title) == t_lower)
+            .first()
+        )
+        if row:
+            return source, row
     return None
+
+
+# Back-compat alias — older code paths may still import the private name.
+_find_canonical_song = find_canonical_song
 
 
 def _seed_initial_run_if_missing(source: str, song, db: Session):
@@ -266,16 +319,21 @@ def record_and_reconcile(
     agent_model: str | None = None,
     direct_song_source: str | None = None,
     direct_song_id: int | None = None,
+    is_new_row: bool = False,
 ) -> dict:
     """Full consensus flow: log the run, seed prior state if needed, compute
     consensus, update the canonical row, audit tier flips.
 
     `direct_song_source` / `direct_song_id` let callers point straight at the
-    row they just wrote (LC submit → submitted_songs, compass agent → compass_songs).
-    If not provided, we match by (title, artist).
+    row they just wrote (LC submit → submitted_songs, compass agent →
+    compass_songs). When `is_new_row=True`, we skip the seed step — the row's
+    current state IS this very submission, so seeding would log a duplicate
+    of the user's run and inflate the consensus count.
 
-    Returns {"consensus": {...}, "run": {...}, "user_run": {...}} where
-    user_run is the raw values this submission produced (what the submitter sees).
+    If no direct pointer is given, we match by (title, artist) — exact string
+    first, then via song_artists for cross-credit matching.
+
+    Returns {"consensus": {...}, "run": {...}, "user_run": {...}}.
     """
     canonical = None
     if direct_song_source and direct_song_id:
@@ -286,12 +344,15 @@ def record_and_reconcile(
                     canonical = (source, row)
                 break
     if canonical is None:
-        canonical = _find_canonical_song(title, artist, db)
+        canonical = find_canonical_song(title, artist, db)
 
     source = canonical[0] if canonical else None
     song = canonical[1] if canonical else None
 
-    if canonical:
+    # Only seed when we're reconciling against a PRE-EXISTING row. A row that
+    # was just created by this very submission has no prior history to seed
+    # — the current calibration IS the user's run.
+    if canonical and not is_new_row:
         _seed_initial_run_if_missing(source, song, db)
 
     run = log_run(

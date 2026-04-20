@@ -30,7 +30,9 @@ from app.services.analyzer_engine import run_analysis
 from app.services.agents.calibrator import calibrate_song
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
-from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
+from app.services.calibration_corpus import (
+    record_and_reconcile, hash_lyrics, find_canonical_song,
+)
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
 from app.auth import verify_api_or_service_key
 
@@ -510,6 +512,11 @@ async def calibrate_lyrics_endpoint(
             source=source,
             ip_address=get_remote_address(request),
         )
+        # Look up any pre-existing canonical BEFORE creating the new row so
+        # we can distinguish "fresh song" from "re-run of known song" and
+        # route the run to the right target.
+        pre_canonical = find_canonical_song(title, artist, db)
+
         db.add(submitted)
         db.commit()
         db.refresh(submitted)
@@ -519,22 +526,39 @@ async def calibrate_lyrics_endpoint(
         )
         try_link_song(title, artist, "submitted", submitted.id, db, structured=structured)
 
-        # Corpus + consensus: log this run, reconcile against any prior canonical.
-        # Prefer to point the run at an existing compass/library row if the song
-        # already has one — otherwise default to this new submitted row.
         consensus_info = None
         try:
-            result = record_and_reconcile(
-                db,
-                title=title,
-                artist=artist,
-                calibration=calibration,
-                triggered_by="lyrical_charger",
-                lyrics_hash=hash_lyrics(body.lyrics),
-                agent_model=calibration.get("agent_model"),
-                direct_song_source=None,  # let matcher find canonical
-                direct_song_id=None,
-            )
+            if pre_canonical:
+                # Re-run of a song we've seen before — log against the
+                # established canonical, seed if needed, let consensus update.
+                result = record_and_reconcile(
+                    db,
+                    title=title,
+                    artist=artist,
+                    calibration=calibration,
+                    triggered_by="lyrical_charger",
+                    lyrics_hash=hash_lyrics(body.lyrics),
+                    agent_model=calibration.get("agent_model"),
+                    direct_song_source=pre_canonical[0],
+                    direct_song_id=pre_canonical[1].id,
+                    is_new_row=False,
+                )
+            else:
+                # First-ever submission of this (title, artist). Log against
+                # the brand-new submitted row, skip the seed (would duplicate
+                # this very run), no consensus on a single data point.
+                result = record_and_reconcile(
+                    db,
+                    title=title,
+                    artist=artist,
+                    calibration=calibration,
+                    triggered_by="lyrical_charger",
+                    lyrics_hash=hash_lyrics(body.lyrics),
+                    agent_model=calibration.get("agent_model"),
+                    direct_song_source="submitted",
+                    direct_song_id=submitted.id,
+                    is_new_row=True,
+                )
             db.commit()
             consensus_info = result.get("consensus")
         except Exception:
@@ -683,15 +707,41 @@ async def calibrate_search(
 
         consensus_info = None
         try:
-            result = record_and_reconcile(
-                db,
-                title=title,
-                artist=artist,
-                calibration=calibration,
-                triggered_by="lyrical_charger_search",
-                lyrics_hash=hash_lyrics(lyrics),
-                agent_model=calibration.get("agent_model"),
-            )
+            # Same pre-lookup pattern as calibrate-lyrics. pre_canonical may
+            # be None (first time) or point at a known row (re-run).
+            # Refetch here because the submitted row was added in this session.
+            pre_canonical = find_canonical_song(title, artist, db)
+            # The just-created `submitted` row will exact-match (title, artist)
+            # — rule it out so we correctly detect first-time submissions.
+            if pre_canonical and pre_canonical[0] == "submitted" and pre_canonical[1].id == submitted.id:
+                pre_canonical = None
+
+            if pre_canonical:
+                result = record_and_reconcile(
+                    db,
+                    title=title,
+                    artist=artist,
+                    calibration=calibration,
+                    triggered_by="lyrical_charger_search",
+                    lyrics_hash=hash_lyrics(lyrics),
+                    agent_model=calibration.get("agent_model"),
+                    direct_song_source=pre_canonical[0],
+                    direct_song_id=pre_canonical[1].id,
+                    is_new_row=False,
+                )
+            else:
+                result = record_and_reconcile(
+                    db,
+                    title=title,
+                    artist=artist,
+                    calibration=calibration,
+                    triggered_by="lyrical_charger_search",
+                    lyrics_hash=hash_lyrics(lyrics),
+                    agent_model=calibration.get("agent_model"),
+                    direct_song_source="submitted",
+                    direct_song_id=submitted.id,
+                    is_new_row=True,
+                )
             db.commit()
             consensus_info = result.get("consensus")
         except Exception:
