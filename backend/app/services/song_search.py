@@ -10,6 +10,7 @@ grows past ~50k this wants a SQL UNION ALL with ORDER BY + LIMIT pushed
 into the database.
 """
 
+import re
 from datetime import datetime, date
 from typing import Any
 
@@ -19,6 +20,21 @@ from sqlalchemy.orm import Session
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
 )
+
+
+_NORM_RE = re.compile(r"[^a-z0-9]+")
+
+
+def normalize_for_search(s: str | None) -> str:
+    """Lowercase + strip every non-alphanumeric character.
+
+    "T.G.A." -> "tga"; "don't stop me now" -> "dontstopmenow";
+    "feat." -> "feat"; "AC/DC" -> "acdc". Lets substring search catch
+    hits that diverge only in punctuation/spacing/casing.
+    """
+    if not s:
+        return ""
+    return _NORM_RE.sub("", s.lower())
 
 
 _SONG_MODELS = {
@@ -128,17 +144,17 @@ def search_unified(
     """
     sources = [source] if source in _SONG_MODELS else list(_SONG_MODELS.keys())
 
+    # Normalize the query once. Post-SQL filter: we strip non-alphanumeric on
+    # both sides so "tga" matches "T.G.A.", "dontstopmenow" matches "Don't
+    # Stop Me Now", etc. SQL ILIKE can't do this without a precomputed column.
+    q_norm = normalize_for_search(q) if q else ""
+
     merged: list[tuple[str, Any]] = []
     for src in sources:
         Model = _SONG_MODELS[src]
         query = db.query(Model)
         if calibrated_only:
             query = query.filter(Model.charge_value.isnot(None))
-        if q:
-            query = query.filter(or_(
-                func.lower(Model.title).contains(q.lower()),
-                func.lower(Model.artist).contains(q.lower()),
-            ))
         if tier:
             query = query.filter(Model.rubric_color == tier)
         if charge_min is not None:
@@ -154,6 +170,11 @@ def search_unified(
             if year_max is not None:
                 query = query.filter(Model.year <= year_max)
         for row in query.all():
+            if q_norm:
+                title_n = normalize_for_search(getattr(row, "title", None))
+                artist_n = normalize_for_search(getattr(row, "artist", None))
+                if q_norm not in title_n and q_norm not in artist_n:
+                    continue
             merged.append((src, row))
 
     # Sort
