@@ -275,10 +275,16 @@
     if (!runs.length) return;
     section.hidden = false;
 
-    const count = runs.length;
-    intro.textContent = count === 1
+    const activeRuns = runs.filter(r => !r.superseded);
+    const supersededCount = runs.length - activeRuns.length;
+    const count = activeRuns.length;
+    let introText = count === 1
       ? 'This song has been calibrated once. Each submission re-runs the agent and logs the reading — over time, repeated calibrations refine the compass.'
       : `This song has been calibrated ${count} times. Each reading re-runs the agent and adds to the consensus — the canonical classification drifts toward the confidence-weighted mean as runs accumulate.`;
+    if (supersededCount > 0) {
+      introText += ` ${supersededCount} earlier reading${supersededCount === 1 ? ' is' : 's are'} superseded — shown below but excluded from the consensus because the rubric changed.`;
+    }
+    intro.textContent = introText;
 
     if (consensus && count >= 2) {
       const cColor = COLOR_HEX[consensus.rubric_color] || '#999';
@@ -304,12 +310,17 @@
       const date = formatRecalDate(r.run_at);
       const runLabel = `Run ${runs.length - i}`;
       const contamNote = r.contaminated && r.contamination_note ? r.contamination_note : null;
+      const superseded = r.superseded;
+      const supersededTag = superseded
+        ? `<span class="runs-entry-superseded" title="${escapeHtml(r.superseded_reason || '')}">SUPERSEDED</span>`
+        : '';
       return `
-        <li class="runs-entry">
+        <li class="runs-entry${superseded ? ' runs-entry--superseded' : ''}">
           <div class="runs-entry-head">
             <span class="runs-entry-num">${escapeHtml(runLabel)}</span>
             <span class="runs-entry-date">${escapeHtml(date)}</span>
             <span class="runs-entry-trigger">${escapeHtml(trigger)}</span>
+            ${supersededTag}
           </div>
           <div class="runs-entry-reading">
             <span style="color:${color};font-weight:700">${escapeHtml(label)}</span>

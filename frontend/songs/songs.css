@@ -276,6 +276,20 @@
   font-weight: 700;
 }
 
+.runs-entry--superseded { opacity: 0.55; }
+.runs-entry--superseded .runs-entry-reading { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.25); }
+.runs-entry-superseded {
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--rc-text-dim);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-left: auto;
+  font-family: var(--rc-font-mono);
+}
+
 .recal-entry {
   padding: 1rem 1.2rem;
   background: var(--rc-bg-card);

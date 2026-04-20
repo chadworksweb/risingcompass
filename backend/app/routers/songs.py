@@ -209,6 +209,9 @@ def song_calibration_runs(slug: str, limit: int = 50):
                 "confidence": r.confidence,
                 "triggered_by": r.triggered_by,
                 "agent_model": r.agent_model,
+                "superseded": bool(r.superseded) if r.superseded is not None else False,
+                "superseded_reason": r.superseded_reason,
+                "superseded_at": r.superseded_at.isoformat() if r.superseded_at else None,
             }
             for r in rows
         ]

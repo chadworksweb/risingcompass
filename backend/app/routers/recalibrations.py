@@ -58,7 +58,7 @@ from app.routers.admin import verify_admin_key
 from app.services.agents.recalibrator import (
     recalibrate_song_satire, recalibrate_song_rubric_update,
 )
-from app.services.calibration_corpus import hash_lyrics, log_run
+from app.services.calibration_corpus import hash_lyrics, log_run, _seed_initial_run_if_missing
 
 logger = logging.getLogger(__name__)
 
@@ -438,6 +438,17 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
         rubric_change_note=p.rubric_change_note,
     )
     db.add(audit)
+
+    # For rubric_update: seed a pre-mutation calibration_run if none exists
+    # yet, so the original (pre-rubric-change) state stays visible as a
+    # superseded entry in the public runs timeline. MUST run BEFORE we
+    # mutate song below, or the seed captures the new values.
+    if p.pipeline == "rubric_update":
+        try:
+            _seed_initial_run_if_missing(p.song_source, song, db)
+        except Exception:
+            logger.exception("Failed to seed pre-rubric_update run for song %s/%s",
+                             p.song_source, p.song_id)
 
     # Apply to the song.
     song.rubric_color = p.proposed_color
