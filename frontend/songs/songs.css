@@ -220,7 +220,7 @@
 
 .runs-entry-head {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.3rem;
   font-family: var(--rc-font-mono);
@@ -228,6 +228,15 @@
   color: var(--rc-text-dim);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.runs-entry-num {
+  color: var(--rc-accent);
+  font-weight: 700;
+}
+
+.runs-entry-date {
+  margin-left: auto;
 }
 
 .runs-entry-reading {
@@ -246,6 +255,25 @@
   font-size: 0.72rem;
   color: var(--rc-text-dim);
   margin-left: auto;
+}
+
+.runs-entry-summary {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+  font-style: italic;
+}
+
+.runs-entry-contam {
+  margin: 0.4rem 0 0;
+  font-size: 0.76rem;
+  color: var(--rc-orange, #cc8800);
+  line-height: 1.5;
+}
+
+.runs-entry-contam strong {
+  font-weight: 700;
 }
 
 .recal-entry {

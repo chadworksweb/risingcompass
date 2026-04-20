@@ -281,16 +281,19 @@
       consensusEl.innerHTML = '';
     }
 
-    list.innerHTML = runs.map(r => {
+    list.innerHTML = runs.map((r, i) => {
       const color = r.tier_hex || '#888';
       const label = r.tier_label || '—';
       const charge = r.charge_value != null ? (r.charge_value > 0 ? '+' : '') + r.charge_value : '—';
       const conf = r.confidence != null ? (r.confidence * 100).toFixed(0) + '%' : null;
       const trigger = triggerLabel(r.triggered_by);
       const date = formatRecalDate(r.run_at);
+      const runLabel = `Run ${runs.length - i}`;
+      const contamNote = r.contaminated && r.contamination_note ? r.contamination_note : null;
       return `
         <li class="runs-entry">
           <div class="runs-entry-head">
+            <span class="runs-entry-num">${escapeHtml(runLabel)}</span>
             <span class="runs-entry-date">${escapeHtml(date)}</span>
             <span class="runs-entry-trigger">${escapeHtml(trigger)}</span>
           </div>
@@ -299,6 +302,8 @@
             <span style="color:${color}" class="runs-entry-charge">${charge}</span>
             ${conf ? `<span class="runs-entry-conf">confidence ${conf}</span>` : ''}
           </div>
+          ${r.charge_summary ? `<p class="runs-entry-summary">${escapeHtml(r.charge_summary)}</p>` : ''}
+          ${contamNote ? `<p class="runs-entry-contam"><strong>Contamination:</strong> ${escapeHtml(contamNote)}</p>` : ''}
         </li>
       `;
     }).join('');
