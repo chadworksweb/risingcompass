@@ -12,12 +12,13 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong
+from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong, PrePublishCorrection
 from app.schemas import (
     BackfillResult, BackfillSongOut,
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
     SupplyLyricsIn,
+    PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
 )
 from app.auth import create_approval_token, verify_approval_token
 from app.config import settings
@@ -504,6 +505,137 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
     db.commit()
     db.refresh(draft)
     return draft
+
+
+@router.post("/drafts/{draft_ref}/songs/{song_id}/correct", response_model=CorrectionApplyOut, dependencies=[Depends(verify_admin_key)])
+def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionIn, db: Session = Depends(get_db)):
+    """Admin override of an agent-classified draft song, before draft approval.
+
+    Replaces the direct-SQL UPDATE pattern that used to live in the
+    daily-reading SOP. Atomically:
+      1. Snapshots current draft_song values as before_*.
+      2. Writes supplied fields to agent_draft_songs AND compass_songs.
+      3. Writes one row to pre_publish_corrections capturing the diff.
+
+    The audit row lands with promoted_to_feed=false. Promotion to the public
+    Calibration Log feed is a separate deliberate step (see calibration_log
+    router). human_rationale is optional here — it can be added at promote
+    time instead.
+
+    Recalculates draft metrics after the edit, matching the behavior of
+    update_draft when song fields change.
+    """
+    from app.services.contamination import enforce_contamination_rule
+
+    draft = _resolve_draft(draft_ref, db)
+    if draft.status != "pending":
+        raise HTTPException(status_code=400, detail="Draft is not pending")
+
+    draft_song = db.query(AgentDraftSong).filter(
+        AgentDraftSong.id == song_id,
+        AgentDraftSong.draft_id == draft.id,
+    ).first()
+    if not draft_song:
+        raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
+
+    # 1. Snapshot before_*.
+    before = {
+        "rubric_color": draft_song.rubric_color,
+        "charge_value": draft_song.charge_value,
+        "contaminated": bool(draft_song.contaminated) if draft_song.contaminated is not None else None,
+        "contamination_note": draft_song.contamination_note,
+        "charge_summary": draft_song.charge_summary,
+    }
+
+    # 2. Apply supplied fields to draft_song.
+    if data.rubric_color is not None:
+        draft_song.rubric_color = data.rubric_color
+    if data.charge_value is not None:
+        draft_song.charge_value = data.charge_value
+    if data.contaminated is not None:
+        draft_song.contaminated = data.contaminated
+    if data.contamination_note is not None:
+        draft_song.contamination_note = data.contamination_note
+    if data.charge_summary is not None:
+        draft_song.charge_summary = data.charge_summary
+
+    # Enforce contamination-rule invariants (matches update_draft).
+    tmp = enforce_contamination_rule({
+        "rubric_color": draft_song.rubric_color,
+        "contaminated": draft_song.contaminated,
+        "contamination_note": draft_song.contamination_note,
+    })
+    draft_song.contaminated = tmp["contaminated"]
+    draft_song.contamination_note = tmp["contamination_note"]
+
+    # Mirror to compass_songs if this draft song is linked to one.
+    compass_song_id = draft_song.compass_song_id
+    if compass_song_id:
+        cs = db.query(CompassSong).filter(CompassSong.id == compass_song_id).first()
+        if cs:
+            if data.rubric_color is not None:
+                cs.rubric_color = data.rubric_color
+            if data.charge_value is not None:
+                cs.charge_value = data.charge_value
+            if data.contamination_note is not None:
+                cs.contamination_note = data.contamination_note
+            if data.charge_summary is not None:
+                cs.charge_summary = data.charge_summary
+            # Contamination flag follows the enforced draft_song value.
+            cs.contaminated = draft_song.contaminated
+            cs.contamination_note = draft_song.contamination_note
+
+    # Snapshot after_* (post-enforcement).
+    after = {
+        "rubric_color": draft_song.rubric_color,
+        "charge_value": draft_song.charge_value,
+        "contaminated": bool(draft_song.contaminated) if draft_song.contaminated is not None else None,
+        "contamination_note": draft_song.contamination_note,
+        "charge_summary": draft_song.charge_summary,
+    }
+
+    # 3. Write audit row.
+    correction = PrePublishCorrection(
+        draft_id=draft.id,
+        draft_song_id=draft_song.id,
+        compass_song_id=compass_song_id,
+        before_rubric_color=before["rubric_color"],
+        before_charge_value=before["charge_value"],
+        before_contaminated=before["contaminated"],
+        before_contamination_note=before["contamination_note"],
+        before_summary=before["charge_summary"],
+        after_rubric_color=after["rubric_color"],
+        after_charge_value=after["charge_value"],
+        after_contaminated=after["contaminated"],
+        after_contamination_note=after["contamination_note"],
+        after_summary=after["charge_summary"],
+        human_rationale=data.human_rationale,
+        tags=data.tags,
+        promoted_to_feed=False,
+    )
+    db.add(correction)
+
+    # Recalculate draft metrics if all songs classified (matches update_draft behavior).
+    all_classified = all(s.rubric_color is not None for s in draft.songs)
+    if all_classified:
+        song_dicts = [
+            {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
+            for s in draft.songs
+        ]
+        draft.compass_degree = compute_degree(song_dicts)
+        draft.charge_level = degree_to_charge(draft.compass_degree)
+        draft.contamination_count = count_contaminated(
+            [{"contaminated": s.contaminated} for s in draft.songs]
+        )
+
+    db.commit()
+    db.refresh(draft)
+    db.refresh(correction)
+
+    return CorrectionApplyOut(
+        draft=DraftOut.model_validate(draft),
+        correction=PrePublishCorrectionOut.model_validate(correction),
+    )
 
 
 @router.post("/songs", response_model=CompassSongOut, dependencies=[Depends(verify_admin_key)])

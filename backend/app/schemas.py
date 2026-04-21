@@ -743,3 +743,55 @@ class SubmissionStatsOut(BaseModel):
     by_source: dict[str, int]
     contaminated_count: int
     avg_confidence: Optional[float] = None
+
+
+# --- Calibration Log ---
+
+class PrePublishCorrectionIn(BaseModel):
+    """Payload for the pre-publish correction endpoint. Every field optional —
+    only supplied fields are applied. human_rationale is optional at correction
+    time; it can be added later at promote time."""
+    rubric_color: Optional[str] = None
+    charge_value: Optional[int] = None
+    contaminated: Optional[bool] = None
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    human_rationale: Optional[str] = None
+    tags: Optional[str] = None
+
+
+class PrePublishCorrectionOut(BaseModel):
+    id: int
+    draft_id: int
+    draft_song_id: int
+    compass_song_id: Optional[int] = None
+    occurred_at: datetime.datetime
+    before_rubric_color: Optional[str] = None
+    before_charge_value: Optional[int] = None
+    before_contaminated: Optional[bool] = None
+    before_contamination_note: Optional[str] = None
+    before_summary: Optional[str] = None
+    after_rubric_color: Optional[str] = None
+    after_charge_value: Optional[int] = None
+    after_contaminated: Optional[bool] = None
+    after_contamination_note: Optional[str] = None
+    after_summary: Optional[str] = None
+    human_rationale: Optional[str] = None
+    tags: Optional[str] = None
+    promoted_to_feed: bool
+    promoted_at: Optional[datetime.datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class CorrectionApplyOut(BaseModel):
+    """Returned by the correct endpoint — the updated draft plus the new audit row."""
+    draft: DraftOut
+    correction: PrePublishCorrectionOut
+
+
+class CalibrationLogPromoteIn(BaseModel):
+    """Payload for the promote endpoint. human_rationale is optional — can be
+    added or edited at promote time, or left unchanged."""
+    human_rationale: Optional[str] = None
+    tags: Optional[str] = None

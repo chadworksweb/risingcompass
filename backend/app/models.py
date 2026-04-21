@@ -509,6 +509,40 @@ class SongRecalibration(Base):
     applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class PrePublishCorrection(Base):
+    """Audit row for an admin override of an agent-classified draft song,
+    written before the draft is approved.
+
+    Captures the before/after diff plus an optional human_rationale. Lands
+    with promoted_to_feed=false by default; a separate promote step sets it
+    true and stamps promoted_at. See RISING-COMPASS-CALIBRATION-LOG.md.
+    """
+    __tablename__ = "pre_publish_corrections"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # draft_id + draft_song_id are informational — they point to the draft at
+    # correction time but drafts get deleted on approval, so these are nullable
+    # and may become dangling shortly after the correction is written.
+    draft_id = Column(Integer)
+    draft_song_id = Column(Integer)
+    compass_song_id = Column(Integer)  # nullable — draft song may not be linked yet
+    occurred_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    before_rubric_color = Column(Text)
+    before_charge_value = Column(Integer)
+    before_contaminated = Column(Boolean)
+    before_contamination_note = Column(Text)
+    before_summary = Column(Text)
+    after_rubric_color = Column(Text)
+    after_charge_value = Column(Integer)
+    after_contaminated = Column(Boolean)
+    after_contamination_note = Column(Text)
+    after_summary = Column(Text)
+    human_rationale = Column(Text)  # optional prose from admin
+    tags = Column(Text)  # freeform; JSON array or CSV
+    promoted_to_feed = Column(Boolean, default=False, nullable=False)
+    promoted_at = Column(DateTime)
+
+
 class AudienceVibeNeedle(Base):
     """Persistent vibe position for one song. Lives wherever the crowd has
     pushed it. Never auto-resets — yearly reset is per-person eligibility,
