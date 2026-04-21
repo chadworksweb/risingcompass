@@ -1,0 +1,325 @@
+/* === Calibration Log — feed page === */
+
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 1.25rem 4rem;
+}
+
+.cl-intro {
+  padding: 2rem 0 1.5rem;
+  border-bottom: 1px solid var(--rc-divider);
+  margin-bottom: 1.75rem;
+}
+
+.cl-intro-text {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--rc-text);
+  max-width: 680px;
+  margin: 0;
+}
+
+/* === Filter bar === */
+
+.cl-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.cl-filter {
+  background: transparent;
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text-dim);
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  transition: all var(--rc-ease-fast);
+}
+
+.cl-filter:hover {
+  color: var(--rc-text-bright);
+  border-color: var(--rc-border-ui);
+}
+
+.cl-filter-active {
+  color: var(--rc-bg-dark);
+  background: var(--rc-accent);
+  border-color: var(--rc-accent);
+}
+
+.cl-filter-active:hover {
+  color: var(--rc-bg-dark);
+  border-color: var(--rc-accent);
+}
+
+/* === Feed === */
+
+.cl-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.cl-loading,
+.cl-empty {
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+  font-size: 0.88rem;
+  padding: 3rem 0;
+  text-align: center;
+}
+
+/* === Entry card === */
+
+.cl-entry {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+}
+
+.cl-entry-date {
+  font-family: var(--rc-font-mono);
+  color: var(--rc-text-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  padding-top: 0.2rem;
+}
+
+.cl-entry-date-day {
+  display: block;
+  color: var(--rc-text-bright);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-top: 0.1rem;
+}
+
+.cl-entry-body {
+  min-width: 0;
+}
+
+.cl-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.cl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.55rem;
+  border-radius: var(--rc-radius-sm);
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text-dim);
+  white-space: nowrap;
+}
+
+.cl-badge-type-pre_publish_correction {
+  border-color: rgba(255, 187, 51, 0.35);
+  color: var(--rc-orange);
+  background: rgba(255, 187, 51, 0.06);
+}
+
+.cl-badge-type-recalibration {
+  border-color: rgba(51, 136, 255, 0.35);
+  color: var(--rc-blue);
+  background: rgba(51, 136, 255, 0.06);
+}
+
+.cl-entry-title {
+  font-size: 1.08rem;
+  line-height: 1.4;
+  margin: 0 0 0.15rem;
+  color: var(--rc-text-bright);
+  font-weight: 600;
+}
+
+.cl-entry-title a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--rc-ease-fast);
+}
+
+.cl-entry-title a:hover {
+  border-bottom-color: var(--rc-accent);
+}
+
+.cl-entry-meta {
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--rc-text-dim);
+  margin-bottom: 1rem;
+}
+
+/* === Diff display === */
+
+.cl-diff {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+  flex-wrap: wrap;
+}
+
+.cl-diff-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+}
+
+.cl-diff-tier {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cl-diff-tier-violet { background: var(--rc-violet); }
+.cl-diff-tier-blue { background: var(--rc-blue); }
+.cl-diff-tier-green { background: var(--rc-green); }
+.cl-diff-tier-orange { background: var(--rc-orange); }
+.cl-diff-tier-red { background: var(--rc-red); }
+
+.cl-diff-charge {
+  color: var(--rc-text-bright);
+  font-weight: 700;
+}
+
+.cl-diff-contam {
+  color: var(--rc-red);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--rc-red);
+  padding: 0.08rem 0.35rem;
+  border-radius: 2px;
+}
+
+.cl-diff-arrow {
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+}
+
+/* === Rationale === */
+
+.cl-rationale {
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: var(--rc-text);
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--rc-divider);
+  margin-top: 1rem;
+  white-space: pre-wrap;
+}
+
+.cl-rubric-change {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+  background: rgba(170, 84, 255, 0.06);
+  border: 1px solid rgba(170, 84, 255, 0.2);
+  border-radius: var(--rc-radius-sm);
+  padding: 0.55rem 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.cl-rubric-change-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rc-violet);
+  margin-right: 0.35rem;
+}
+
+.cl-tags {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+}
+
+.cl-tag {
+  font-family: var(--rc-font-mono);
+  font-size: 0.66rem;
+  color: var(--rc-text-dim);
+  background: var(--rc-bg-panel);
+  padding: 0.15rem 0.5rem;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+}
+
+/* === Load more === */
+
+.cl-pagination {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.cl-load-more {
+  background: transparent;
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text);
+  padding: 0.7rem 1.8rem;
+  border-radius: var(--rc-radius-sm);
+  cursor: pointer;
+  font-family: var(--rc-font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  transition: all var(--rc-ease-fast);
+}
+
+.cl-load-more:hover {
+  border-color: var(--rc-accent);
+  color: var(--rc-accent);
+}
+
+@media (max-width: 600px) {
+  .cl-entry {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 1.1rem;
+  }
+
+  .cl-entry-date {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .cl-entry-date-day {
+    display: inline;
+    margin-top: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}

@@ -84,7 +84,7 @@ def _correction_to_entry(
     """Adapter: pre_publish_corrections row → normalized feed entry."""
     anchor = _lookup_song_anchor(db, "compass", row.compass_song_id, slug_cache)
     if anchor:
-        title = f"{anchor['title']} — {anchor['artist']}"
+        title = f"{anchor['title']} - {anchor['artist']}"
     else:
         title = "Pre-publish correction"
     return {
@@ -128,7 +128,7 @@ def _recalibration_to_entry(
     """Adapter: song_recalibrations row → normalized feed entry."""
     anchor = _lookup_song_anchor(db, row.song_source, row.song_id, slug_cache)
     if anchor:
-        title = f"{anchor['title']} — {anchor['artist']}"
+        title = f"{anchor['title']} - {anchor['artist']}"
     else:
         title = f"Recalibration ({row.pipeline or 'unknown'})"
     return {
