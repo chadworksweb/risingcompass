@@ -104,6 +104,21 @@ body {
   line-height: 1.1;
 }
 
+.am-under-dev {
+  display: block;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  letter-spacing: 0.38em;
+  color: var(--am-gold);
+  margin: 20px auto 28px;
+  padding: 12px 0;
+  max-width: 560px;
+  border-top: 2px solid var(--am-gold);
+  border-bottom: 2px solid var(--am-gold);
+}
+
 .am-kicker {
   font-family: 'Cardo', serif;
   font-style: italic;
