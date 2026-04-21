@@ -2,9 +2,10 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi import APIRouter, Header, HTTPException, Request, Query
 from sqlalchemy import func, or_, and_
 
+from app.config import settings
 from app.database import SessionLocal
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
@@ -19,6 +20,13 @@ from app.services.artist_utils import generate_song_slug
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
+
+
+def _is_admin(x_admin_key: str | None) -> bool:
+    """Soft-check for the admin header. Unlike verify_admin_key, absent or
+    wrong key returns False instead of raising — callers use this to decide
+    between public-filtered and admin-unfiltered views of the same data."""
+    return bool(x_admin_key) and x_admin_key == settings.rc_admin_key
 
 
 @router.get("/{slug}/flag-counts")
@@ -78,12 +86,16 @@ def song_flag_counts(slug: str):
 
 
 @router.get("/{slug}/history")
-def song_history(slug: str):
+def song_history(slug: str, x_admin_key: str | None = Header(default=None)):
     """Public recalibration history for a song. Renders as small print on the
     song page — the recalibrate suite is honest about its history because that
     honesty IS the proof of objectivity. Lists every applied recalibration
     chronologically with the admin-written public summary.
+
+    Public callers see only rows with promoted_to_feed=true. Admin callers
+    (X-Admin-Key header) see every row — the full internal audit trail.
     """
+    admin = _is_admin(x_admin_key)
     db = SessionLocal()
     try:
         slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
@@ -99,13 +111,14 @@ def song_history(slug: str):
         if not (source and song_id):
             return {"recalibrations": []}
 
-        rows = (
+        q = (
             db.query(SongRecalibration)
             .filter(SongRecalibration.song_source == source)
             .filter(SongRecalibration.song_id == song_id)
-            .order_by(SongRecalibration.applied_at.desc())
-            .all()
         )
+        if not admin:
+            q = q.filter(SongRecalibration.promoted_to_feed == True)  # noqa: E712
+        rows = q.order_by(SongRecalibration.applied_at.desc()).all()
 
         import json as _json
         out = []

@@ -507,6 +507,14 @@ class SongRecalibration(Base):
     rubric_change_slug = Column(String(100))  # groups songs recalibrated by the same rubric change
     rubric_change_note = Column(Text)  # 1-2 sentence description of the rubric rule that triggered this
     applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Calibration Log promote columns (migration 032). human_rationale is
+    # admin prose separate from ai_rationale; promoted_to_feed gates public
+    # visibility in the unified feed; tags is freeform groundwork for a
+    # future pattern taxonomy.
+    human_rationale = Column(Text)
+    tags = Column(Text)
+    promoted_to_feed = Column(Boolean, default=False, nullable=False)
+    promoted_at = Column(DateTime)
 
 
 class PrePublishCorrection(Base):

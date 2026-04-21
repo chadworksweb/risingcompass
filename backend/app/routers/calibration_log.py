@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import PrePublishCorrection
+from app.models import PrePublishCorrection, SongRecalibration
 from app.schemas import CalibrationLogPromoteIn
 from app.routers.admin import verify_admin_key
 
@@ -27,9 +27,9 @@ router = APIRouter(prefix="/api/admin/calibration-log", tags=["calibration-log"]
 
 
 # Maps source_table path param → (model class, human-readable label for errors).
-# Phase 2 will add "song_recalibrations": (SongRecalibration, "recalibration").
 _TABLE_REGISTRY = {
     "pre_publish_corrections": (PrePublishCorrection, "pre-publish correction"),
+    "song_recalibrations": (SongRecalibration, "recalibration"),
 }
 
 
