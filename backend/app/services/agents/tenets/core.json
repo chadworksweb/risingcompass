@@ -1,0 +1,153 @@
+{
+  "schema_version": "1.0",
+  "ratified_at": "2026-04-21",
+  "tiers": [
+    {
+      "slug": "violet",
+      "label": "Ascended",
+      "code": "A",
+      "color_hex": "#9933ff",
+      "charge_range": [75, 100],
+      "definition": "Collective perspective. The lyrics speak from, to, or about something larger than any one person.",
+      "tenets": [
+        { "id": "violet-01", "number": 1, "text": "Subject matter extends beyond self/couple to community, humanity, or the divine", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-02", "number": 2, "text": "Lyrics articulate universal truth or spiritual reality", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-03", "number": 3, "text": "Content addresses collective healing, justice, or sovereignty", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-04", "number": 4, "text": "Lyrics name a systemic or collective condition, not just a personal one", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-05", "number": 5, "text": "The narrative voice speaks for or to a people, not just \"I\" to \"you\"", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-06", "number": 6, "text": "Lyrics demonstrate surrender to something larger than the self. Not naming it, doing it on the page", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-07", "number": 7, "text": "Lyrics confront mortality, existence, or the meaning of life as the actual subject, not as metaphor for heartbreak", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-08", "number": 8, "text": "The song directly challenges a cultural or societal default. Names what's broken and points toward what's whole", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-09", "number": 9, "text": "Lyrics carry prophetic or testimonial weight. Warning or witnessing beyond the narrator's personal stakes", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-10", "number": 10, "text": "The song's core message requires collective context. It cannot be reduced to one person's specific experience", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-11", "number": 11, "text": "Love expressed as universal or collective force, not 1:1 romance", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-12", "number": 12, "text": "The song gives language to something the culture has no words for. Makes the invisible visible", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "violet-13", "number": 13, "text": "The song's purpose on the page is selfless. It serves something beyond the narrator", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" }
+      ],
+      "notes": [
+        {
+          "id": "violet-note-specifics",
+          "title": "Specifics challenge Ascended, not grant it.",
+          "text": "A song framed as an anthem for a specific identifiable group — by identity, ideology, geography, subculture, faith, or tribe — does NOT auto-qualify for Ascended just because it calls for that group's protection, pride, or liberation. Ascended requires a frequency that transmits universally — one any listener, including those outside the named group, can be elevated by. If a song's elevation is contingent on the listener belonging to (or siding with) the group, its ceiling is Elevated, not Ascended. Test the rule: would a song with the same structure but a different named group — one the listener finds objectionable — still read as transmitting at the highest frequency? If not, it's Elevated. Universal-frequency songs (wisdom, gratitude, pure love, non-group-specific transcendence) still earn Ascended."
+        }
+      ]
+    },
+    {
+      "slug": "blue",
+      "label": "Elevated",
+      "code": "E",
+      "color_hex": "#3388ff",
+      "charge_range": [25, 74],
+      "definition": "Self without ego. Honest internal work on the page. Questioning, accountability, acceptance, processing, growth.",
+      "tenets": [
+        { "id": "blue-01", "number": 1, "text": "Narrator questions their own assumptions or behavior", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-02", "number": 2, "text": "Lyrics demonstrate accountability. Owning mistakes, facing consequences", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-03", "number": 3, "text": "Narrative shows acceptance of a hard truth, not just naming it", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-04", "number": 4, "text": "The song processes through something with visible movement. Starts one place, ends another", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-05", "number": 5, "text": "Growth is demonstrated, not just wished for", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-06", "number": 6, "text": "Lyrics show vulnerability without performance. The narrator is exposed, not curating an image", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-07", "number": 7, "text": "The narrator confronts their own role in a problem rather than blaming externally", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-08", "number": 8, "text": "Lyrics contain genuine self-examination. Looking inward with honesty, not self-pity", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-09", "number": 9, "text": "The song arrives at a perspective earned through the struggle described. Wisdom on the page, not borrowed", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-10", "number": 10, "text": "The narrator lets go of something: control, resentment, certainty. And it's visible in the lyrics", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "blue-11", "number": 11, "text": "The narrator demonstrates genuine empathy, forgiveness, or humility on the page. Not as performance, as posture", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "green",
+      "label": "Decent",
+      "code": "D",
+      "color_hex": "#33cc55",
+      "charge_range": [-24, 24],
+      "definition": "Catch-all. The lyrics don't push in either direction. Pleasant, fun, romantic, sad, nostalgic, but no internal work being done and no ego being served. The song is what it is.",
+      "tenets": [
+        { "id": "green-01", "number": 1, "text": "Describes a feeling or situation without developing or moving through it", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-02", "number": 2, "text": "Tells a story without transformative substance", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-03", "number": 3, "text": "Expresses 1:1 romance, attraction, or relationship sentiment at face value", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-04", "number": 4, "text": "Creates atmosphere or mood that doesn't go beyond the feeling itself", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-05", "number": 5, "text": "Narrator observes or describes but doesn't examine", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-06", "number": 6, "text": "The song evokes a mood or meets the listener in a feeling, but doesn't move them through it or say something beyond it", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-07", "number": 7, "text": "The lyrics stay on the surface of a single subject, describing what it looks or feels like without examining what's underneath", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-08", "number": 8, "text": "The song is pure entertainment or fun with nothing underneath", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-09", "number": 9, "text": "The song references something deeper but doesn't develop it. Gestures at meaning without delivering", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "green-10", "number": 10, "text": "Inspirational or uplifting language without earned substance. \"You can do it\" without the work behind it", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "orange",
+      "label": "Degraded",
+      "code": "Dg",
+      "color_hex": "#ffbb33",
+      "charge_range": [-74, -25],
+      "definition": "Ego self perspective. The lyrics serve the narrator's ego, promote avoidance, or steer away from growth.",
+      "tenets": [
+        { "id": "orange-01", "number": 1, "text": "Lyrics celebrate surface-level markers as aspiration. Wealth, status, image, possessions as measures of worth", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-02", "number": 2, "text": "Narrator frames manipulation or control as romance or love", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-03", "number": 3, "text": "The song wallows in pain without any movement toward processing", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-04", "number": 4, "text": "Lyrics promote emotional avoidance or bypassing. Numbing instead of feeling", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-05", "number": 5, "text": "Content centers the narrator's ego. I'm better, I'm tougher, I deserve more", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-06", "number": 6, "text": "Lyrics frame self-destructive behavior as strength or identity", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-07", "number": 7, "text": "The narrator refuses accountability. Blames externally, ignores consequences, or treats responsibility as someone else's problem", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-08", "number": 8, "text": "Subtle objectification or dehumanization of others, treating people as accessories or conquests", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-09", "number": 9, "text": "Soft us-vs-them framing. Others are lesser, outside, or beneath the narrator without full contempt", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-10", "number": 10, "text": "Lyrics feed insecurity or self-doubt as identity rather than something to work through", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "orange-11", "number": 11, "text": "Lyrics reinforce scarcity, lack, or limitation as the narrator's worldview", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "red",
+      "label": "Corrupted",
+      "code": "C",
+      "color_hex": "#ff3333",
+      "charge_range": [-100, -75],
+      "definition": "Ego black-hole. The lyrics actively destroy, dehumanize, or consume. Self or others.",
+      "tenets": [
+        { "id": "red-01", "number": 1, "text": "Explicit sexual objectification or dehumanization", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-02", "number": 2, "text": "Lyrics celebrate substance abuse as lifestyle or identity", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-03", "number": 3, "text": "Promotes violence as entertainment or solution", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-04", "number": 4, "text": "Contempt for a specific target. Naming, mocking, asserting dominance", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-05", "number": 5, "text": "Treats possession or control of another person as desirable", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-06", "number": 6, "text": "Revenge fantasized or celebrated, not processed", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-07", "number": 7, "text": "The narrator knows something is wrong and leans into it. Self-destruction with open eyes", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-08", "number": 8, "text": "Lyrics strip dignity from a person or group for entertainment", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-09", "number": 9, "text": "Glorifies exploitation. Using people, systems, or trust for personal gain", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-10", "number": 10, "text": "The song's core stance is destruction. Of self, of others, of meaning itself", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-11", "number": 11, "text": "Total emotional shutdown. Catatonic numbness as the song's stance", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-12", "number": 12, "text": "Active nihilism. Rejecting meaning, hope, or the sacred", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" },
+        { "id": "red-13", "number": 13, "text": "Pure rage as the song's engine. Not processing anger, being consumed by it", "version": "1.0", "ratified_at": "2026-04-21", "status": "ratified" }
+      ],
+      "notes": []
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "contamination",
+      "label": "Contaminated",
+      "version": "1.0",
+      "ratified_at": "2026-04-21",
+      "status": "ratified",
+      "definition": "**Contaminated** is NOT a separate tier — it is a modifier that can ONLY attach to **violet, blue, or green** songs.",
+      "body": "Red and orange songs CANNOT be contaminated. They already calibrate as harmful — there is no higher-tier substance being undermined. Contamination means a song that meets Decent, Elevated, or Ascended criteria in its overall messaging, but contains specific lines or content that meet Degraded or Corrupted criteria. The song keeps its tier. The contaminating content is flagged separately.",
+      "examples": [
+        "A blue song with real nostalgia contaminated by drug glorification",
+        "A violet song with genuine cultural pride but ego woven through the lyrics",
+        "A blue song with honest emotional processing alongside objectification",
+        "A green song about family with casual glorification of violence"
+      ],
+      "closing": "Contamination requires the presence of specific lyrical content that meets Degraded or Corrupted tenet criteria. A song that is simply not deep enough to be Elevated is NOT contaminated — it's just Decent."
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "title": "Hyperbolic romantic language is not literal.",
+      "version": "1.0",
+      "ratified_at": "2026-04-21",
+      "status": "ratified",
+      "text": "Hyperbolic romantic language is not literal. \"I'd die for you,\" \"risk it all,\" \"sacrifice my life,\" \"swim across the sea\" -- these are standard pop romance intensifiers, not evidence of identity erasure or self-abandonment. Unless the lyrics demonstrate ACTUAL loss of self, boundaries, or agency beyond standard devotion language, hyperbolic romance stays in Decent territory. Do not penalize a love song for speaking the way love songs speak."
+    }
+  ]
+}

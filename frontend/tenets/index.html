@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Tenets — The Rising Compass</title>
+  <meta name="description" content="The living constitution of The Rising Compass. The tenets by which every song is calibrated — publicly held, publicly amendable.">
+  <link rel="canonical" href="https://risingcompass.net/tenets/">
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/tenets/">
+  <meta property="og:title" content="The Tenets — The Rising Compass">
+  <meta property="og:description" content="The living constitution of The Rising Compass.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The Tenets — The Rising Compass">
+  <meta name="twitter:description" content="The living constitution of The Rising Compass.">
+  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Cormorant+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="tenets.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <header class="tenets-header">
+    <a href="/" class="back-link" aria-label="Back to The Rising Compass">
+      <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+        <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+        <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+      </svg>
+      <span>The Rising Compass</span>
+    </a>
+  </header>
+
+  <main id="main" class="tenets-main">
+
+    <section class="organ-section" aria-label="The five tiers as an organ">
+      <div class="organ-stage">
+        <svg id="organ" class="organ-svg" role="img" aria-labelledby="organ-desc" preserveAspectRatio="xMidYEnd meet"></svg>
+        <p id="organ-desc" class="sr-only">An organ graphic where each pipe represents one tenet, grouped by tier.</p>
+      </div>
+      <div class="preamble-overlay">
+        <h1 class="tenets-title">The Tenets</h1>
+        <p class="tenets-kicker">The living constitution of The Rising Compass.</p>
+        <p class="preamble">
+          Every song read by the Compass is weighed against these tenets.
+          They are publicly held, publicly visible, and publicly amendable —
+          not by vote, but by deliberation. The burden of changing them
+          is deliberate and high. The words on this page are what we
+          collectively agree on as our moral grounding.
+        </p>
+      </div>
+      <p class="organ-legend">Each pipe is one tenet. Click a pipe to read it.</p>
+    </section>
+
+    <section class="chambers" id="chambers" aria-label="The tenets in full"></section>
+
+    <section class="procedural" id="procedural" aria-label="Procedural rules and modifiers"></section>
+
+    <footer class="tenets-footer">
+      <p class="footer-note">Schema <span id="schema-version">—</span> · Ratified <span id="ratified-at">—</span></p>
+    </footer>
+
+  </main>
+
+  <div id="pipe-tooltip" class="pipe-tooltip" role="tooltip" aria-hidden="true"></div>
+
+  <script src="tenets.js"></script>
+</body>
+</html>
