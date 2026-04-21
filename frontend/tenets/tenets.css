@@ -273,27 +273,17 @@ body {
   white-space: nowrap;
 }
 
-/* ─── Jump-to-tenet flash — sweep (same effect as the charge-legend-bar) ─ */
+/* ─── Jump-to-tenet flash — persistent whiteish wash that fades, like
+       Chrome's scroll-to-text anchor highlight but in white, not yellow. */
 
-.tenet.flash::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -30%;
-  width: 30%;
-  height: 100%;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.35) 50%,
-    transparent 100%);
-  pointer-events: none;
-  mix-blend-mode: overlay;
-  animation: tenetSweep 1.6s ease-in-out forwards;
+.tenet.flash {
+  animation: tenetAnchorFlash 2.2s ease-out forwards;
 }
 
-@keyframes tenetSweep {
-  0%   { left: -30%; }
-  100% { left: 100%; }
+@keyframes tenetAnchorFlash {
+  0%   { background-color: rgba(255, 255, 255, 0.22); }
+  30%  { background-color: rgba(255, 255, 255, 0.22); }
+  100% { background-color: transparent; }
 }
 
 .tenet-body {
