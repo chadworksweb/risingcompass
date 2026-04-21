@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amendments — The Rising Compass</title>
+  <meta name="description" content="The public record of amendments proposed, deliberated, ratified, and already covered. Rising Compass holds the record; the discourse is transparent and off-site.">
+  <link rel="canonical" href="https://risingcompass.net/amendments/">
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/amendments/">
+  <meta property="og:title" content="Amendments — The Rising Compass">
+  <meta property="og:description" content="The public record of amendments to the tenets.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Amendments — The Rising Compass">
+  <meta name="twitter:description" content="The public record of amendments to the tenets.">
+  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Cormorant+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="amendments.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <header class="am-header">
+    <a href="/" class="back-link" aria-label="Back to The Rising Compass">
+      <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+        <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+        <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+      </svg>
+      <span>The Rising Compass</span>
+    </a>
+  </header>
+
+  <main id="main" class="am-main">
+
+    <section class="am-hero">
+      <h1 class="am-title">Amendments</h1>
+      <p class="am-kicker">The public record of changes proposed to the tenets.</p>
+      <p class="am-preamble">
+        The tenets are publicly amendable — not by vote, but by deliberation.
+        The discourse happens off-site, in the open. Rising Compass keeps
+        the record. What follows is every proposal that has been raised,
+        where it stands, and what became of it.
+      </p>
+      <div class="am-cta-row" id="venue-cta">
+        <!-- populated from venue in log.json -->
+      </div>
+    </section>
+
+    <section class="am-thresholds" aria-label="Ratification thresholds">
+      <div class="am-thresh-grid" id="thresholds"></div>
+    </section>
+
+    <section class="am-sections" id="sections" aria-label="Amendments by status">
+      <!-- one .am-group per status; populated from amendments[] -->
+    </section>
+
+    <footer class="am-footer">
+      <p class="footer-note">Schema <span id="schema-version">—</span> · Updated <span id="updated-at">—</span></p>
+    </footer>
+
+  </main>
+
+  <script src="amendments.js"></script>
+</body>
+</html>

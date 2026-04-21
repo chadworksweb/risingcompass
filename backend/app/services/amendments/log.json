@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-04-21",
+  "venue": {
+    "platform": "discord",
+    "url": "https://discord.gg/STUB_INVITE_TO_UPDATE",
+    "note": "Deliberations happen off-site. The record below is curated from the Rising Compass Discord (or anywhere the discourse occurs). Rising Compass holds the public record; the venue is transparent."
+  },
+  "thresholds": {
+    "co_sponsors_required": 7,
+    "deliberation_window_days": 21,
+    "ratification_supermajority_pct": 66
+  },
+  "statuses": [
+    { "key": "proposed",     "label": "Proposed",        "description": "Open for co-sponsorship. Awaiting the threshold to open the deliberation window." },
+    { "key": "deliberating", "label": "Deliberating",    "description": "Co-sponsor bar cleared. The floor is open for the deliberation window." },
+    { "key": "ratified",     "label": "Ratified",        "description": "Accepted by supermajority. Applied to the tenets." },
+    { "key": "covered",      "label": "Already Covered", "description": "Raised in good faith, but the substance is already held by an existing tenet. Logged publicly so the coverage of the constitution is made explicit over time." },
+    { "key": "rejected",     "label": "Rejected",        "description": "Went through deliberation and did not clear the ratification bar." }
+  ],
+  "amendments": [
+    {
+      "id": "amend-0001",
+      "status": "proposed",
+      "proposed_at": "2026-04-15",
+      "proposer": "stub_handle",
+      "cites_tenet": "violet-03",
+      "title": "Refine violet-03 to clarify the scope of 'sacred'",
+      "proposed_change": "Placeholder text. Replace with the actual proposed wording change once the first real amendment is lodged.",
+      "novelty_argument": "Placeholder text. Why this is not already covered by another tenet.",
+      "soundness_argument": "Placeholder text. Why this change strengthens the constitution rather than dilutes it.",
+      "discussion_url": "https://discord.gg/STUB_THREAD_URL",
+      "co_sponsors": 3,
+      "deliberation_opens_at": null,
+      "deliberation_closes_at": null,
+      "ratified_at": null,
+      "rejected_at": null,
+      "covered_by": null,
+      "rejection_reason": null
+    },
+    {
+      "id": "amend-cov-0001",
+      "status": "covered",
+      "proposed_at": "2026-04-10",
+      "proposer": "stub_handle",
+      "cites_tenet": null,
+      "title": "Add a tenet about ghostwriting vs. authorship",
+      "proposed_change": "Placeholder text. Replace with the first real 'already covered' entry once one arrives.",
+      "novelty_argument": "Placeholder text.",
+      "soundness_argument": "Placeholder text.",
+      "discussion_url": "https://discord.gg/STUB_THREAD_URL",
+      "co_sponsors": 0,
+      "deliberation_opens_at": null,
+      "deliberation_closes_at": null,
+      "ratified_at": null,
+      "rejected_at": "2026-04-12",
+      "covered_by": "green-07",
+      "rejection_reason": "Authorship and intention are already held under green-07. The proposed change would duplicate existing coverage rather than extend it."
+    }
+  ]
+}

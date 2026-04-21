@@ -383,10 +383,32 @@ body {
   margin: 0 0 8px;
 }
 
+/* ─── See-also (subtle link to Amendments) ──────────────────────── */
+
+.tenets-see-also {
+  text-align: center;
+  font-family: 'Cardo', serif;
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--tn-ink-dim);
+  margin: 80px auto 0;
+  max-width: 520px;
+}
+.tenets-see-also a {
+  color: var(--tn-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--tn-rule);
+  transition: color 0.2s, border-color 0.2s;
+}
+.tenets-see-also a:hover {
+  color: var(--tn-ink-bright);
+  border-bottom-color: var(--tn-gold);
+}
+
 /* ─── Footer ──────────────────────────────────────────────────────── */
 
 .tenets-footer {
-  margin: 120px auto 0;
+  margin: 40px auto 0;
   padding-top: 40px;
   border-top: 1px solid var(--tn-rule);
   text-align: center;
