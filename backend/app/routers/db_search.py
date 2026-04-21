@@ -23,7 +23,7 @@ from app.models import (
     Artist, Release, MisreadSubmission, AudienceVibePush,
     SongRecalibration, SongReset, ReadingSong, CalibrationRun, Trash,
     SongArtist, ReleaseSong, AudienceVibeNeedle, AudienceVibeReviewCase,
-    SongSlug, SongRecalibrationProposal, LcEvent,
+    SongSlug, SongRecalibrationProposal, LcEvent, PrePublishCorrection,
 )
 from app.routers.admin import verify_admin_key
 from app.services.song_search import search_unified
@@ -47,6 +47,7 @@ TABLES = {
     "audience_vibe_pushes": AudienceVibePush,
     "song_recalibrations": SongRecalibration,
     "calibration_runs": CalibrationRun,
+    "pre_publish_corrections": PrePublishCorrection,
     "trash": Trash,
 }
 
@@ -62,6 +63,7 @@ SEARCH_COLUMNS = {
     "audience_vibe_pushes": ["device_id", "ip_address"],
     "song_recalibrations": ["public_summary"],
     "calibration_runs": ["title", "artist"],
+    "pre_publish_corrections": ["human_rationale", "tags", "before_summary", "after_summary"],
     "trash": ["title", "artist", "reason"],
 }
 
