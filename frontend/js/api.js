@@ -39,6 +39,7 @@ const API = (() => {
   }
 
   return {
+    get,
     getCompassCurrent: () => get('/api/compass/current'),
     getHistory: (page = 1, perPage = 10) => get(`/api/compass/history?page=${page}&per_page=${perPage}`),
     getReading: (date) => get(`/api/compass/reading/${date}`),
