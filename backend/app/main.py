@@ -55,16 +55,24 @@ bootstrap_system_clients()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan — Lyrical Charger session cleanup.
+    """App lifespan — DB warmup + keepalive, Lyrical Charger session cleanup.
 
     Backups are triggered externally by cron on le-projects-01 (04:45 UTC
     via /root/risingcompass-backups/backup.sh → POST /api/admin/backup).
     No in-app scheduler to avoid double-running or unpredictable timing.
     """
+    from app.database import warmup, keepalive_loop
+
+    # Warm the pool before the first user request so Turso embedded-replica
+    # sync happens during startup, not during a visitor's page load.
+    warmup()
+
     _cleanup_orphan_drafts()
+    keepalive_task = asyncio.create_task(keepalive_loop(interval_seconds=45))
     cleanup_task = asyncio.create_task(analyzer.session_cleanup_loop())
-    logger.info("Lyrical Charger session cleanup scheduler started")
+    logger.info("DB keepalive + Lyrical Charger session cleanup schedulers started")
     yield
+    keepalive_task.cancel()
     cleanup_task.cancel()
 
 

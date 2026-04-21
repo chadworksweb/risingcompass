@@ -1,7 +1,12 @@
-from sqlalchemy import create_engine, event
+import asyncio
+import logging
+
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from sqlalchemy.pool import QueuePool
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class _LibsqlConnProxy:
@@ -50,6 +55,9 @@ def _build_engine():
         # and recycles any whose Hrana stream has been closed server-side —
         # the default SingletonThreadPool caches one connection per thread
         # forever, so idle threads hit `stream not found` on their next use.
+        # pool_recycle is 300s; pre_ping catches any prematurely-closed streams
+        # on checkout. A keepalive loop in main.py hits the pool every 45s to
+        # prevent idle-period cold starts that re-sync the embedded replica.
         return create_engine(
             "sqlite://",
             creator=creator,
@@ -57,7 +65,7 @@ def _build_engine():
             pool_size=5,
             max_overflow=10,
             pool_pre_ping=True,
-            pool_recycle=60,
+            pool_recycle=300,
         )
 
     return create_engine(url, connect_args={"check_same_thread": False})
@@ -86,3 +94,38 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+async def keepalive_loop(interval_seconds: int = 45):
+    """Background task that issues SELECT 1 every `interval_seconds` against
+    the pool. Keeps at least one libSQL connection warm and recently-used so
+    idle-period visitors never pay the embedded-replica cold-start cost
+    (~2-3s per cold connection). Runs under the FastAPI lifespan alongside
+    other background tasks; cancelled on shutdown.
+    """
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            db = SessionLocal()
+            try:
+                db.execute(text("SELECT 1"))
+            finally:
+                db.close()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("keepalive ping failed")
+
+
+def warmup():
+    """Synchronously touch the engine to force replica boot during app
+    startup, not during the first user request. Safe to call multiple times."""
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+        finally:
+            db.close()
+        logger.info("db warmup: connection established")
+    except Exception:
+        logger.exception("db warmup failed")
