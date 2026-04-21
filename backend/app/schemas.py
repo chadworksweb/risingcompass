@@ -795,3 +795,59 @@ class CalibrationLogPromoteIn(BaseModel):
     added or edited at promote time, or left unchanged."""
     human_rationale: Optional[str] = None
     tags: Optional[str] = None
+
+
+class FeedSongAnchor(BaseModel):
+    """Song that a feed entry is about. Nullable on the parent FeedEntry for
+    future non-song events (rubric updates unattached to a specific song)."""
+    song_source: str
+    song_id: int
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    slug: Optional[str] = None
+
+
+class FeedEntryBefore(BaseModel):
+    """Pre-change snapshot. Fields present depend on event_type — recalibrations
+    carry charge + color only; pre-publish corrections carry everything."""
+    rubric_color: Optional[str] = None
+    charge_value: Optional[int] = None
+    contaminated: Optional[bool] = None
+    contamination_note: Optional[str] = None
+    summary: Optional[str] = None
+
+
+class FeedEntryAfter(FeedEntryBefore):
+    """Post-change snapshot. Same shape as before."""
+    pass
+
+
+class FeedEntry(BaseModel):
+    """Normalized feed entry — the unified read shape across every capture
+    table in the Calibration Log. Maps directly to the feed contract in
+    RISING-COMPASS-CALIBRATION-LOG.md."""
+    event_id: int
+    event_type: str  # "pre_publish_correction" | "recalibration"
+    source_table: str
+    pipeline: Optional[str] = None  # recalibrations only
+    lens: Optional[str] = None      # recalibrations only
+    occurred_at: datetime.datetime
+    song_anchor: Optional[FeedSongAnchor] = None
+    title: str
+    before: Optional[FeedEntryBefore] = None
+    after: Optional[FeedEntryAfter] = None
+    human_rationale: Optional[str] = None
+    ai_rationale: Optional[str] = None       # recalibrations only
+    public_summary: Optional[str] = None     # recalibrations only
+    rubric_change_note: Optional[str] = None  # recalibrations only
+    tags: Optional[str] = None
+    promoted_to_feed: bool
+    promoted_at: Optional[datetime.datetime] = None
+
+
+class FeedListOut(BaseModel):
+    """Paginated feed response."""
+    items: list[FeedEntry]
+    total: int
+    limit: int
+    offset: int

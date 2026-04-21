@@ -242,6 +242,7 @@ app.include_router(db_search.router)
 app.include_router(artists_admin.router)
 app.include_router(recalibrations.router)
 app.include_router(calibration_log.router)
+app.include_router(calibration_log.public_router, dependencies=_api_key_dep)
 
 
 # slowapi rate limiter (defined in analyzer.py, shared across routers)
