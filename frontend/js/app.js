@@ -50,6 +50,68 @@ const App = (() => {
     loadDailyChart();
     loadTrajectory();
     loadGhostTrail();
+    loadCalibrationLogMini();
+  }
+
+  async function loadCalibrationLogMini() {
+    const container = document.getElementById('cl-mini-content');
+    if (!container) return;
+    try {
+      const data = await API.get('/api/calibration-log?limit=3');
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div class="cl-mini-empty">No promoted entries yet.</div>';
+        return;
+      }
+      const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const TYPE_LABEL = {
+        pre_publish_correction: 'Correction',
+        recalibration: 'Recalibration',
+      };
+      const PIPELINE_LABEL = {
+        manual: 'Manual',
+        rubric_update: 'Rubric update',
+        satirical_flag: 'Satirical flag',
+        vibe_gap: 'Vibe gap',
+        consensus_drift: 'Consensus drift',
+      };
+      const escape = (str) => {
+        if (!str) return '';
+        const el = document.createElement('div');
+        el.textContent = str;
+        return el.innerHTML;
+      };
+      container.innerHTML = data.items.map(e => {
+        const d = new Date(e.occurred_at);
+        const day = isNaN(d) ? '—' : `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}`;
+        const year = isNaN(d) ? '' : d.getUTCFullYear();
+        const anchor = e.song_anchor;
+        const titleHtml = anchor && anchor.slug
+          ? `<a href="/songs/${encodeURIComponent(anchor.slug)}">${escape(anchor.title)}<span class="cl-mini-artist"> &mdash; ${escape(anchor.artist)}</span></a>`
+          : escape(e.title);
+        const typeLabel = TYPE_LABEL[e.event_type] || e.event_type;
+        const pipelineBadge = e.pipeline
+          ? `<span class="cl-mini-badge">${escape(PIPELINE_LABEL[e.pipeline] || e.pipeline)}</span>`
+          : '';
+        return `
+          <div class="cl-mini-entry">
+            <div class="cl-mini-date">
+              <span class="cl-mini-date-day">${day}</span>
+              ${year}
+            </div>
+            <div class="cl-mini-body">
+              <div class="cl-mini-badges">
+                <span class="cl-mini-badge cl-mini-badge-${e.event_type}">${escape(typeLabel)}</span>
+                ${pipelineBadge}
+              </div>
+              <h3 class="cl-mini-title">${titleHtml}</h3>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      console.warn('Calibration Log mini-feed unavailable:', err);
+      container.innerHTML = '';
+    }
   }
 
   function initCalcOverlay() {

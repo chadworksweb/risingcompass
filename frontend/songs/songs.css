@@ -171,6 +171,39 @@
   border-left: 3px solid var(--rc-text-dim);
 }
 
+.recal-entry--correction {
+  border-left: 3px solid var(--rc-orange);
+}
+
+.recal-entry-contam {
+  font-family: var(--rc-font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rc-red);
+  border: 1px solid var(--rc-red);
+  padding: 0.08rem 0.35rem;
+  border-radius: 2px;
+  margin-left: 0.35rem;
+}
+
+.recal-entry-tags {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.recal-entry-tag {
+  font-family: var(--rc-font-mono);
+  font-size: 0.62rem;
+  color: var(--rc-text-dim);
+  background: var(--rc-bg-panel);
+  padding: 0.1rem 0.45rem;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+}
+
 /* Calibration runs */
 .runs-consensus {
   margin: 0.6rem 0 1rem;

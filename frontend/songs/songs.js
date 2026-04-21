@@ -50,10 +50,14 @@
       ArtistsAPI.getSongFlagCounts(slug)
         .then(counts => renderFlagCounts(song, counts))
         .catch(err => console.warn('Flag counts unavailable:', err));
-      // Recalibration + reset history is independent too.
+      // Calibration Log (recalibrations + resets + pre-publish corrections) is independent too.
       ArtistsAPI.getSongHistory(slug)
-        .then(data => renderRecalibrationHistory(data.recalibrations || [], data.resets || []))
-        .catch(err => console.warn('Recalibration history unavailable:', err));
+        .then(data => renderRecalibrationHistory(
+          data.recalibrations || [],
+          data.resets || [],
+          data.pre_publish_corrections || [],
+        ))
+        .catch(err => console.warn('Calibration Log unavailable:', err));
       // Calibration runs (corpus + consensus) are also independent.
       ArtistsAPI.getSongCalibrationRuns(slug)
         .then(data => renderCalibrationRuns(data.runs || [], data.consensus))
@@ -76,7 +80,7 @@
     return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
-  function renderRecalibrationHistory(recalibrations, resets) {
+  function renderRecalibrationHistory(recalibrations, resets, corrections) {
     const stamp = document.getElementById('recal-stamp');
     const stampBtn = document.getElementById('recal-stamp-btn');
     const section = document.getElementById('section-history');
@@ -84,9 +88,11 @@
     if (!stamp || !stampBtn || !section || !list) return;
 
     resets = resets || [];
+    corrections = corrections || [];
     const combined = [
       ...recalibrations.map(r => ({ ...r, _kind: 'recal', _at: r.applied_at })),
       ...resets.map(r => ({ ...r, _kind: 'reset', _at: r.reset_at })),
+      ...corrections.map(r => ({ ...r, _kind: 'correction', _at: r.occurred_at })),
     ].sort((a, b) => (b._at || '').localeCompare(a._at || ''));
 
     if (!combined.length) return;
@@ -95,7 +101,11 @@
     const dateStr = formatRecalDate(latest._at);
     const count = combined.length;
     const hasReset = resets.length > 0;
-    const label = hasReset && recalibrations.length === 0 ? 'Reset' : 'Recalibrated';
+    const onlyCorrections = corrections.length > 0 && recalibrations.length === 0 && !hasReset;
+    let label;
+    if (onlyCorrections) label = 'Corrected';
+    else if (hasReset && recalibrations.length === 0) label = 'Reset';
+    else label = 'Recalibrated';
     const stampText = count === 1
       ? `${label} ${dateStr}`
       : `${hasReset ? 'Revised' : 'Recalibrated'} ${count} times — most recently ${dateStr}`;
@@ -104,6 +114,38 @@
     stamp.hidden = false;
 
     list.innerHTML = combined.map(r => {
+      if (r._kind === 'correction') {
+        const beforeColor = r.before && r.before.tier_hex ? r.before.tier_hex : '#888';
+        const afterColor = r.after && r.after.tier_hex ? r.after.tier_hex : '#888';
+        const beforeChg = r.before && r.before.charge != null ? (r.before.charge > 0 ? '+' : '') + r.before.charge : 'N/A';
+        const afterChg = r.after && r.after.charge != null ? (r.after.charge > 0 ? '+' : '') + r.after.charge : 'N/A';
+        const beforeLabel = r.before && r.before.tier_label ? r.before.tier_label : '—';
+        const afterLabel = r.after && r.after.tier_label ? r.after.tier_label : '—';
+        const beforeContam = r.before && r.before.contaminated
+          ? '<span class="recal-entry-contam">Contaminated</span>' : '';
+        const afterContam = r.after && r.after.contaminated
+          ? '<span class="recal-entry-contam">Contaminated</span>' : '';
+        const tagsHtml = r.tags
+          ? `<div class="recal-entry-tags">${r.tags.split(',').map(t => `<span class="recal-entry-tag">${escapeHtml(t.trim())}</span>`).join('')}</div>`
+          : '';
+        return `
+          <li class="recal-entry recal-entry--correction">
+            <div class="recal-entry-head">
+              <span class="recal-entry-date">${escapeHtml(formatRecalDate(r.occurred_at))}</span>
+              <span class="recal-entry-type">Pre-publish Correction</span>
+            </div>
+            <div class="recal-entry-shift">
+              <span style="color:${beforeColor}">${beforeChg} ${escapeHtml(beforeLabel)}</span>
+              ${beforeContam}
+              <span class="arrow">&rarr;</span>
+              <span style="color:${afterColor}">${afterChg} ${escapeHtml(afterLabel)}</span>
+              ${afterContam}
+            </div>
+            <p class="recal-entry-summary">${escapeHtml(r.human_rationale || '')}</p>
+            ${tagsHtml}
+          </li>
+        `;
+      }
       if (r._kind === 'reset') {
         const beforeColor = r.before && r.before.tier_hex ? r.before.tier_hex : '#888';
         const beforeChg = r.before && r.before.charge != null ? (r.before.charge > 0 ? '+' : '') + r.before.charge : 'N/A';

@@ -10,7 +10,7 @@ from app.database import SessionLocal
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
     ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration, SongReset,
-    CalibrationRun,
+    CalibrationRun, PrePublishCorrection,
 )
 from app.services.calibration_corpus import compute_consensus
 from app.services.song_search import search_unified
@@ -173,7 +173,48 @@ def song_history(slug: str, x_admin_key: str | None = Header(default=None)):
             for r in reset_rows
         ]
 
-        return {"recalibrations": out, "resets": resets}
+        # Pre-publish corrections — the capture table for admin overrides of
+        # draft songs before publication. Only linked to compass_songs (drafts
+        # get published there), so filter applies only when source=compass.
+        corrections: list = []
+        if source == "compass":
+            cq = (
+                db.query(PrePublishCorrection)
+                .filter(PrePublishCorrection.compass_song_id == song_id)
+            )
+            if not admin:
+                cq = cq.filter(PrePublishCorrection.promoted_to_feed == True)  # noqa: E712
+            for r in cq.order_by(PrePublishCorrection.occurred_at.desc()).all():
+                corrections.append({
+                    "id": r.id,
+                    "occurred_at": r.occurred_at.isoformat() if r.occurred_at else None,
+                    "before": {
+                        "charge": r.before_charge_value,
+                        "color": r.before_rubric_color,
+                        "tier_label": COLOR_LABELS.get(r.before_rubric_color, ""),
+                        "tier_hex": COLOR_HEX.get(r.before_rubric_color, "#999"),
+                        "contaminated": bool(r.before_contaminated) if r.before_contaminated is not None else False,
+                        "contamination_note": r.before_contamination_note,
+                        "summary": r.before_summary,
+                    },
+                    "after": {
+                        "charge": r.after_charge_value,
+                        "color": r.after_rubric_color,
+                        "tier_label": COLOR_LABELS.get(r.after_rubric_color, ""),
+                        "tier_hex": COLOR_HEX.get(r.after_rubric_color, "#999"),
+                        "contaminated": bool(r.after_contaminated) if r.after_contaminated is not None else False,
+                        "contamination_note": r.after_contamination_note,
+                        "summary": r.after_summary,
+                    },
+                    "human_rationale": r.human_rationale,
+                    "tags": r.tags,
+                })
+
+        return {
+            "recalibrations": out,
+            "resets": resets,
+            "pre_publish_corrections": corrections,
+        }
     finally:
         db.close()
 
