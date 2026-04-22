@@ -99,6 +99,25 @@ Every song starts at Decent (charge 0). This is not a judgment — it is the sta
 
 **The same applies to every topic** — struggle, partying, ambition, faith, heartbreak. The topic is neutral. The messaging on the page determines the tier.
 
+## Dogma Reference (parallel tag — does NOT affect the score)
+
+A song is tagged `dogma_referenced` when it invokes a specific doctrinal framework to do its rhetorical work. This is a metadata flag, parallel to contamination. It does not move the charge. Its purpose is to make the coverage of doctrinal content visible over time.
+
+Fires on:
+- **Christian dogma** — crucifixion, resurrection, salvation-by-grace, Jesus-as-only-way, "washed in the blood," sin/redemption mechanics, specific sacraments (baptism, communion) invoked as normative.
+- **Islamic dogma** — Allah-as-only-god, Mohammed as final prophet, five pillars invoked as normative, halal/haram as doctrinal rules.
+- **Karmic/Dharmic dogma** — karma invoked as a metaphysical mechanism (not a loose metaphor for "what goes around"), samsara, caste, dharma as normative rule, specific reincarnation doctrine.
+- **Institutional / ecclesiastical** — references to specific sects, denominations, clergy authority, membership requirements, salvation tied to a specific institution.
+
+Does NOT fire on:
+- Cross-traditional spiritual vocabulary used openly: god, universe, soul, spirit, divine, sacred, heaven, prayer, meditation, faith, grace, blessing, mercy. Naming these alone does not trigger the flag.
+- Metaphorical use of tradition-rooted words: "it's karma" as casual idiom, "crucified" as hyperbole for shame, "preach" as slang for agreement.
+- Generic devotional language without a specific doctrine attached.
+
+Test: would the same lyric read as invoking the same specific doctrine if you translated it into another language, or swapped the tradition-specific noun for a cross-traditional one? If yes → no dogma flag. If the song's rhetorical force depends on the specific doctrinal framework, the flag fires.
+
+When `dogma_referenced=true`, `dogma_note` must name which framework (Christian / Islamic / Karmic / Dharmic / Institutional-<name>) and quote the lyric moment that triggered it. One short sentence.
+
 """
 
 

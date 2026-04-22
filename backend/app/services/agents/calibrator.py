@@ -72,6 +72,8 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
         "charge_value": existing.charge_value,
         "contaminated": existing.contaminated or False,
         "contamination_note": existing.contamination_note,
+        "dogma_referenced": getattr(existing, "dogma_referenced", None) or False,
+        "dogma_note": getattr(existing, "dogma_note", None),
         "charge_summary": existing.charge_summary,
         "confidence": 1.0,
     }
@@ -155,6 +157,8 @@ async def calibrate_song_async(
         "charge_value": charge_value,
         "contaminated": contaminated,
         "contamination_note": result.get("contamination_note"),
+        "dogma_referenced": bool(result.get("dogma_referenced", False)),
+        "dogma_note": result.get("dogma_note"),
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
     }
@@ -223,6 +227,8 @@ def _fallback_result(title: str, artist: str, raw_response: str) -> dict:
         "charge_value": None,
         "contaminated": False,
         "contamination_note": None,
+        "dogma_referenced": False,
+        "dogma_note": None,
         "charge_summary": f"Calibration failed — manual review needed for {title} by {artist}",
         "confidence": 0.0,
     }

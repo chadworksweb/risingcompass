@@ -166,6 +166,8 @@ def _seed_initial_run_if_missing(source: str, song, db: Session):
         charge_summary=getattr(song, "charge_summary", None),
         contaminated=bool(getattr(song, "contaminated", False)),
         contamination_note=getattr(song, "contamination_note", None),
+        dogma_referenced=bool(getattr(song, "dogma_referenced", False) or False),
+        dogma_note=getattr(song, "dogma_note", None),
         confidence=getattr(song, "confidence", None),
         agent_model=None,  # unknown — pre-corpus
         triggered_by="seed",
@@ -200,6 +202,8 @@ def log_run(
         charge_summary=calibration.get("charge_summary"),
         contaminated=bool(calibration.get("contaminated", False)),
         contamination_note=calibration.get("contamination_note"),
+        dogma_referenced=bool(calibration.get("dogma_referenced", False)),
+        dogma_note=calibration.get("dogma_note"),
         confidence=calibration.get("confidence"),
         agent_model=agent_model,
         triggered_by=triggered_by,

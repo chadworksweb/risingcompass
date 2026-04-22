@@ -462,6 +462,8 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     draft_song.charge_value = result.get("charge_value")
     draft_song.contaminated = result["contaminated"]
     draft_song.contamination_note = result["contamination_note"]
+    draft_song.dogma_referenced = bool(result.get("dogma_referenced", False))
+    draft_song.dogma_note = result.get("dogma_note")
     draft_song.charge_summary = result["charge_summary"]
     draft_song.confidence = result.get("confidence")
     draft_song.lyrics_available = True
@@ -679,6 +681,8 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
                 "charge_summary": song.charge_summary,
                 "contaminated": bool(song.contaminated),
                 "contamination_note": song.contamination_note,
+                "dogma_referenced": bool(song.dogma_referenced or False),
+                "dogma_note": song.dogma_note,
                 "confidence": None,
             },
             triggered_by="compass_manual",

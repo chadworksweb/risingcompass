@@ -19,6 +19,8 @@ class CompassSong(Base):
     charge_value = Column(Integer)  # -100 to +100 per-song charge
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
     charge_summary = Column(Text)
     why_calibration = Column(Text)
     chart_source = Column(Text, default="billboard_hot_100")
@@ -128,6 +130,8 @@ class LibrarySong(Base):
     charge_value = Column(Integer)  # -100 to +100
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
     charge_summary = Column(Text)
     album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=True)
     track_number = Column(Integer, nullable=True)  # position within album
@@ -177,6 +181,8 @@ class AgentDraftSong(Base):
     charge_value = Column(Integer)  # -100 to +100 per-song charge
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
     charge_summary = Column(Text)
     chart_source = Column(Text, default="spotify")
     confidence = Column(Float)
@@ -201,6 +207,8 @@ class SubmittedSong(Base):
     charge_value = Column(Integer)
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
     charge_summary = Column(Text)
     confidence = Column(Float)
     source = Column(String(20), default="paste_lyrics")  # paste_lyrics | search
@@ -467,6 +475,8 @@ class SongRecalibrationProposal(Base):
     proposed_charge = Column(Integer)
     proposed_color = Column(String(20))
     proposed_summary = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
     ai_rationale = Column(Text)
     ai_model = Column(Text)
     status = Column(String(20), nullable=False, default="pending")  # pending | accepted | rejected
@@ -670,6 +680,8 @@ class CalibrationRun(Base):
     charge_summary = Column(Text)
     contaminated = Column(Boolean, default=False)
     contamination_note = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
     confidence = Column(Float)
     agent_model = Column(String(80))
     triggered_by = Column(String(40))

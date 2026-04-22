@@ -48,6 +48,8 @@ JSON fields:
     "charge_value": integer from -100 to +100,
     "contaminated": true/false,
     "contamination_note": "ONLY the specific lyrical content that contaminates (quotes/references). Not a summary. Not a restatement of charge_summary. Just the contaminating lines. Null if not contaminated.",
+    "dogma_referenced": true|false,
+    "dogma_note": "Which framework (Christian/Islamic/Karmic/Dharmic/Institutional-<name>) and a brief lyric-anchored note. Null if not referenced.",
     "charge_summary": "One-line summary of what the song IS — its subject and emotional core. Never mention contamination, undermining, or anything negative about the song here. That belongs in contamination_note only.",
 IMPORTANT: Never use the word "contaminated" or "contamination" in charge_summary. Contamination is tracked separately via its own field and icon.
     "confidence": 0.0-1.0

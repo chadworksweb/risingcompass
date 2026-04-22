@@ -74,6 +74,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         existing.charge_value = result.get("charge_value")
         existing.contaminated = result["contaminated"]
         existing.contamination_note = result["contamination_note"]
+        existing.dogma_referenced = bool(result.get("dogma_referenced", False))
+        existing.dogma_note = result.get("dogma_note")
         existing.charge_summary = result["charge_summary"]
         existing.chart_source = chart_source
         db.flush()
@@ -91,6 +93,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             charge_value=result.get("charge_value"),
             contaminated=result["contaminated"],
             contamination_note=result["contamination_note"],
+            dogma_referenced=bool(result.get("dogma_referenced", False)),
+            dogma_note=result.get("dogma_note"),
             charge_summary=result["charge_summary"],
             chart_source=chart_source,
         )
@@ -112,6 +116,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                     "charge_summary": result["charge_summary"],
                     "contaminated": result["contaminated"],
                     "contamination_note": result["contamination_note"],
+                    "dogma_referenced": bool(result.get("dogma_referenced", False)),
+                    "dogma_note": result.get("dogma_note"),
                     "confidence": result.get("confidence"),
                 },
                 triggered_by="compass_daily",
@@ -280,6 +286,8 @@ def run_compass_agent(
             charge_value=s.get("charge_value"),
             contaminated=s["contaminated"],
             contamination_note=s["contamination_note"],
+            dogma_referenced=bool(s.get("dogma_referenced", False)),
+            dogma_note=s.get("dogma_note"),
             charge_summary=s["charge_summary"],
             chart_source=s["chart_source"],
             confidence=s["confidence"],
