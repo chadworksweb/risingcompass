@@ -515,7 +515,7 @@ function showAdminPanel() {
 // (dbTablesMeta and friends) to already be initialized.
 
 const colors = ['violet','blue','green','orange','red'];
-const colorLabels = {'violet':'Violet','blue':'Blue','green':'Green','orange':'Orange','red':'Red'};
+const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','orange':'Degraded','red':'Corrupted'};
 
 // Set default dates
 document.getElementById('songDate').valueAsDate = new Date();
@@ -1676,7 +1676,10 @@ function renderDbResults(data) {
           return `<td class="db-td-charge ${colorCls}">${cvDisplay}</td>`;
         }
         const v = row[c.name];
-        const display = v == null ? '<span class="db-null">—</span>' : esc(String(v));
+        const isColorCol = DB_COLOR_COLS.has(c.name) && v && colorLabels[v];
+        const display = v == null
+          ? '<span class="db-null">—</span>'
+          : (isColorCol ? esc(colorLabels[v]) : esc(String(v)));
         const cls = DB_COLOR_COLS.has(c.name) && v ? `color-${esc(String(v))}` : '';
         const wide = DB_WIDE_COLS.has(c.name) ? 'db-td-wide' : '';
         return `<td class="${wide} ${cls}" title="${v == null ? '' : esc(String(v))}">${display}</td>`;
