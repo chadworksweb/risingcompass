@@ -505,6 +505,16 @@
       document.getElementById('contam-answer').textContent = 'No contamination detected. The lyrical content is consistent with its classification tier.';
     }
 
+    // Section 3b: Dogma Reference — only surfaces when the tag fired.
+    const dogmaSection = document.getElementById('section-dogma');
+    if (!isUncalibrated && song.dogma_referenced) {
+      dogmaSection.hidden = false;
+      document.getElementById('dogma-answer').textContent =
+        song.dogma_note || 'This song references a specific doctrinal framework.';
+    } else {
+      dogmaSection.hidden = true;
+    }
+
     // Section 4: Details table
     const detailsSection = document.getElementById('section-details');
     detailsSection.hidden = false;

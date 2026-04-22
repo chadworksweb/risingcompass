@@ -105,6 +105,19 @@
   padding-left: 1.2rem;
 }
 
+/* --- Dogma Reference styling (parallel to contamination) --- */
+#section-dogma {
+  border-left: 3px solid var(--rc-blue);
+  padding-left: 1.2rem;
+}
+
+.dogma-footnote {
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  line-height: 1.55;
+  margin-top: 0.6rem;
+}
+
 /* --- Details table --- */
 .details-table {
   width: 100%;

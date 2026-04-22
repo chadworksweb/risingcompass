@@ -427,6 +427,8 @@ def _resolve_song(source: str, song_id: int, db) -> dict | None:
         "tier_hex": COLOR_HEX.get(row.rubric_color, "#999") if row.rubric_color else "#999",
         "contaminated": getattr(row, "contaminated", False) or False,
         "contamination_note": getattr(row, "contamination_note", None),
+        "dogma_referenced": getattr(row, "dogma_referenced", False) or False,
+        "dogma_note": getattr(row, "dogma_note", None),
         "charge_summary": getattr(row, "charge_summary", None),
         "effects_prose": getattr(row, "effects_prose", None),
         "uncalibrated": is_uncalibrated,
