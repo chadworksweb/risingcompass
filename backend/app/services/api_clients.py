@@ -100,9 +100,19 @@ def resolve_key(db: Session, raw_key: str) -> ResolvedClient | None:
 
 
 def _ensure_client(db: Session, *, slug: str, name: str, behavior: str,
-                   plan_tier: str = "internal", notes: str | None = None) -> ApiClient:
+                   plan_tier: str = "internal", notes: str | None = None,
+                   sync_notes: bool = False) -> ApiClient:
+    """Create the client if missing. If sync_notes=True, also overwrite the
+    stored notes on existing rows when they differ — the code is source of
+    truth for managed (system-seeded) clients so schema/behavior changes
+    show up in the admin UI on next boot.
+    """
     client = db.query(ApiClient).filter(ApiClient.slug == slug).first()
     if client:
+        if sync_notes and notes is not None and client.notes != notes:
+            client.notes = notes
+            client.updated_at = datetime.utcnow()
+            logger.info("Resynced notes for api_client %s", slug)
         return client
     client = ApiClient(slug=slug, name=name, behavior=behavior, plan_tier=plan_tier, notes=notes)
     db.add(client)
@@ -124,23 +134,67 @@ def _ensure_key_for_raw(db: Session, client: ApiClient, raw: str, label: str) ->
 
 
 def bootstrap_system_clients() -> None:
-    """Run once on startup. Idempotent — missing rows are created, existing rows untouched."""
+    """Run on every startup. Missing rows are created. For system-seeded
+    clients (legacy-public, legacy-service, chadlewine) the `notes` field is
+    resynced from code so changes to tier/rate-limit behavior surface in the
+    admin UI without manual edits.
+    """
     db = SessionLocal()
     try:
         legacy_public = _ensure_client(
             db, slug="legacy-public", name="RC Public (legacy env key)",
             behavior="public", plan_tier="system",
-            notes="Backs RC_API_KEY env var. Used by the RC frontend, Lyrical Charger, and any pre-migration API consumer.",
+            notes=(
+                "Backs RC_API_KEY env var. Used by the RC frontend, Lyrical "
+                "Charger web tool, and any pre-migration API consumer.\n\n"
+                "Tier: public — bot protection (honeypot + optional Turnstile) "
+                "enforced on calibrate-* endpoints; source tag is forced to "
+                "'lyrical_charger'; lc_events are logged.\n\n"
+                "Rate limits (calibrate-lyrics, calibrate-search): 20/day "
+                "per-IP (shared across all public callers from that IP). "
+                "Other analyzer endpoints: 60/hour or 20/hour per-IP."
+            ),
+            sync_notes=True,
         )
         legacy_service = _ensure_client(
             db, slug="legacy-service", name="RC Service (legacy env key)",
             behavior="service", plan_tier="system",
-            notes="Backs RC_SERVICE_KEY env var. Covers any first-party caller not yet migrated to its own client.",
+            notes=(
+                "Backs RC_SERVICE_KEY env var. Covers any first-party caller "
+                "that hasn't been migrated to its own client row yet.\n\n"
+                "Tier: service — bot protection skipped; source taken from "
+                "request body (falls back to 'service'); no lc_events "
+                "logging.\n\n"
+                "Rate limits (calibrate-* endpoints): 1000/day on a bucket "
+                "keyed by client slug (i.e. isolated from public IP traffic "
+                "and from other service clients)."
+            ),
+            sync_notes=True,
         )
         chadlewine = _ensure_client(
             db, slug="chadlewine", name="Chad Lewine (chadlewine.com)",
             behavior="service", plan_tier="internal",
-            notes="Artist site — consumes RC badge lookups and calibrate-lyrics.",
+            notes=(
+                "Artist catalog site. Batch-submits Chad Lewine's discography "
+                "to the calibrator and consumes badge lookups for song detail "
+                "pages.\n\n"
+                "Tier: service — bypasses bot protection / Turnstile / "
+                "lc_events logging; supplies its own `source: \"chadlewine\"` "
+                "tag on submissions.\n\n"
+                "Endpoints used:\n"
+                "- POST /api/analyzer/calibrate-lyrics\n"
+                "- GET  /api/compass/song-badge (via fetchBadge helper)\n\n"
+                "Rate limits (calibrate-* endpoints): 1000/day on a per-client "
+                "bucket keyed on slug `chadlewine`. Isolated from the public "
+                "IP bucket so batch runs don't collide with Lyrical Charger "
+                "traffic.\n\n"
+                "Changelog:\n"
+                "- 2026-04-22: tier-aware rate limiter wired into analyzer.py. "
+                "Previously all calibrate-* calls shared the 20/day per-IP "
+                "public bucket, which blocked any batch job larger than 20 "
+                "songs regardless of key tier."
+            ),
+            sync_notes=True,
         )
         db.flush()
 
