@@ -34,7 +34,6 @@ from app.services.calibration_corpus import (
     record_and_reconcile, hash_lyrics, find_canonical_song,
 )
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
-from app.services.api_clients import resolve_key
 from app.auth import verify_api_or_service_key
 
 logger = logging.getLogger(__name__)
@@ -42,43 +41,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analyzer", tags=["analyzer"])
 
 limiter = Limiter(key_func=get_remote_address)
-
-
-# Tier-aware rate limiting for calibrate-* endpoints. Public callers share a
-# per-IP bucket (bot protection). Service callers get their own per-client
-# bucket with a much higher ceiling so internal batch jobs (chadlewine,
-# scripts) don't collide with the public bot-protection window.
-#
-# The client is resolved once per request and cached on request.state so the
-# key_func + limit_value don't each trigger a separate DB hit.
-def _rl_resolved_client(request: Request):
-    cached = getattr(request.state, "_rl_resolved", "unset")
-    if cached != "unset":
-        return cached
-    raw = request.headers.get("x-api-key", "")
-    resolved = None
-    if raw:
-        db = SessionLocal()
-        try:
-            resolved = resolve_key(db, raw)
-        finally:
-            db.close()
-    request.state._rl_resolved = resolved
-    return resolved
-
-
-def _calibrate_rate_key(request: Request) -> str:
-    client = _rl_resolved_client(request)
-    if client and client.behavior == "service":
-        return f"service:{client.slug}"
-    return get_remote_address(request)
-
-
-def _calibrate_rate_limit(request: Request) -> str:
-    client = _rl_resolved_client(request)
-    if client and client.behavior == "service":
-        return "1000/day"
-    return "20/day"
 
 
 # ------------------------------------------------------------------
@@ -517,7 +479,7 @@ def _resolve_source(tier: str, requested: str | None) -> str:
 
 
 @router.post("/calibrate-lyrics", response_model=LyricsCalibrateOut)
-@limiter.limit(_calibrate_rate_limit, key_func=_calibrate_rate_key)
+@limiter.limit("20/day")
 async def calibrate_lyrics_endpoint(
     body: LyricsCalibrateIn,
     request: Request,
@@ -719,7 +681,7 @@ async def search_songs(body: SongSearchIn, request: Request, background_tasks: B
 # 7. POST /api/analyzer/calibrate-search — Calibrate a song found via search
 # ------------------------------------------------------------------
 @router.post("/calibrate-search", response_model=LyricsCalibrateOut)
-@limiter.limit(_calibrate_rate_limit, key_func=_calibrate_rate_key)
+@limiter.limit("20/day")
 async def calibrate_search(
     body: SearchCalibrateIn,
     request: Request,
