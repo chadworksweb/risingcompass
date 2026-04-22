@@ -1,10 +1,11 @@
 """Claude calibration engine for song rubric analysis."""
 
+import asyncio
 import json
 import logging
 import re
 
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -76,7 +77,7 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
     }
 
 
-def calibrate_song(
+async def calibrate_song_async(
     title: str,
     artist: str,
     lyrics: str | None = None,
@@ -84,15 +85,10 @@ def calibrate_song(
     target_year: int | None = None,
     skip_cache: bool = False,
 ) -> dict:
-    """Calibrate a single song using the Rising Compass rubric via Claude.
+    """Async version of calibrate_song — uses AsyncAnthropic directly.
 
-    If the song already exists in the CompassSong table with a rubric_color,
-    returns the existing calibration instead of recalibrating.
-    Set skip_cache=True to force recalibration (backfill mode) while still
-    using the db for few-shot examples.
-
-    Returns a dict with rubric_color, charge_value, contaminated, contamination_note,
-    charge_summary, confidence.
+    Behavior is identical to calibrate_song. Preferred entry point from
+    async request handlers so asyncio.to_thread isn't needed.
     """
     # Check for existing calibration first
     if db and not skip_cache:
@@ -100,7 +96,7 @@ def calibrate_song(
         if existing:
             return existing
 
-    client = Anthropic(api_key=settings.anthropic_api_key)
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     # Build few-shot examples from existing data
     examples = build_few_shot_examples(db, target_year=target_year) if db else ""
@@ -109,7 +105,7 @@ def calibrate_song(
         title, artist, lyrics=lyrics, examples=examples
     )
 
-    response = client.messages.create(
+    response = await client.messages.create(
         model=AGENT_MODEL,
         max_tokens=2048,
         temperature=0,
@@ -162,6 +158,22 @@ def calibrate_song(
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
     }
+
+
+def calibrate_song(
+    title: str,
+    artist: str,
+    lyrics: str | None = None,
+    db: Session | None = None,
+    target_year: int | None = None,
+    skip_cache: bool = False,
+) -> dict:
+    """Sync wrapper around calibrate_song_async. For scripts and legacy sync
+    callers (e.g. compass_agent.run_compass_agent)."""
+    return asyncio.run(calibrate_song_async(
+        title, artist, lyrics=lyrics, db=db,
+        target_year=target_year, skip_cache=skip_cache,
+    ))
 
 
 # Tier ranges for charge_value validation

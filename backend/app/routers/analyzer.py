@@ -27,7 +27,7 @@ from app.schemas import (
 from app.models import SubmittedSong
 from app.constants import COLOR_LABELS
 from app.services.analyzer_engine import run_analysis
-from app.services.agents.calibrator import calibrate_song
+from app.services.agents.calibrator import calibrate_song_async
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import (
@@ -541,9 +541,7 @@ async def calibrate_lyrics_endpoint(
 
     db = SessionLocal()
     try:
-        calibration = await asyncio.to_thread(
-            calibrate_song, title, artist, body.lyrics, db
-        )
+        calibration = await calibrate_song_async(title, artist, body.lyrics, db)
 
         color = calibration.get("rubric_color")
         if color is None:
@@ -725,9 +723,7 @@ async def calibrate_search(
 
     db = SessionLocal()
     try:
-        calibration = await asyncio.to_thread(
-            calibrate_song, title, artist, lyrics, db
-        )
+        calibration = await calibrate_song_async(title, artist, lyrics, db)
 
         color = calibration.get("rubric_color")
         if color is None:

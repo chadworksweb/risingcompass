@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.constants import COLOR_LABELS
-from app.services.agents.calibrator import calibrate_song, lookup_calibrated, AGENT_MODEL
+from app.services.agents.calibrator import calibrate_song_async, lookup_calibrated, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_narrative_prompt
 from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.compass_calc import compute_degree
@@ -107,9 +107,7 @@ async def run_analysis(session: dict, db: Session, on_event):
 
         # Calibrate via Claude
         try:
-            calibration = await asyncio.to_thread(
-                calibrate_song, title, artist, lyrics, db
-            )
+            calibration = await calibrate_song_async(title, artist, lyrics, db)
             # If calibrator returned rubric_color=None, that's a parse failure
             if calibration.get("rubric_color") is None:
                 result = _build_song_result(i, title, artist, calibration, "error", True)

@@ -4,7 +4,6 @@ Flow: paste Tidal URL (or title+artist) + why note → auto-resolve metadata →
 fetch lyrics → calibrate via rubric → store. One call, done.
 """
 
-import asyncio
 import logging
 import re
 
@@ -16,7 +15,7 @@ from app.database import get_db
 from app.models import StreamSong, LibrarySong, CompassSong
 from app.schemas import StreamSongIn, StreamSongOut, StreamPromoteIn
 from app.routers.admin import verify_admin_key
-from app.services.agents.calibrator import calibrate_song
+from app.services.agents.calibrator import calibrate_song_async
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
@@ -106,7 +105,7 @@ async def add_to_stream(body: StreamSongIn, db: Session = Depends(get_db)):
         lyrics = await musixmatch.get_lyrics(tracks[0]["track_id"])
 
     # Calibrate
-    result = await asyncio.to_thread(calibrate_song, title, artist, lyrics=lyrics, db=db)
+    result = await calibrate_song_async(title, artist, lyrics=lyrics, db=db)
 
     status = "calibrated" if result.get("rubric_color") else "failed"
 

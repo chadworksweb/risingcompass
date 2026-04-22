@@ -27,7 +27,7 @@ from app.services.agents.compass_agent import run_compass_agent, _store_calibrat
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import record_and_reconcile
 from app.services.agents.chart_source import fetch_top_songs
-from app.services.agents.calibrator import calibrate_song
+from app.services.agents.calibrator import calibrate_song_async
 from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
@@ -439,7 +439,7 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
 
 
 @router.post("/drafts/{draft_ref}/songs/{song_id}/lyrics", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
-def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
+async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
     """Supply lyrics for an uncalibrated song in a draft, triggering calibration.
 
     After calibration, stores the result in CompassSong for future cache hits
@@ -455,7 +455,7 @@ def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Sessio
         raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
 
     # Calibrate with the supplied lyrics
-    result = calibrate_song(draft_song.title, draft_song.artist, lyrics=data.lyrics, db=db)
+    result = await calibrate_song_async(draft_song.title, draft_song.artist, lyrics=data.lyrics, db=db)
 
     # Update the draft song
     draft_song.rubric_color = result["rubric_color"]
@@ -693,7 +693,7 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
 
 
 @router.post("/backfill/{year}/calibrate", response_model=BackfillResult, dependencies=[Depends(verify_admin_key)])
-def backfill_calibrate(
+async def backfill_calibrate(
     year: int,
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
@@ -740,7 +740,7 @@ def backfill_calibrate(
             ))
             continue
 
-        result = calibrate_song(
+        result = await calibrate_song_async(
             song.title, song.artist,
             lyrics=lyrics, db=db,
             skip_cache=True, target_year=year,
