@@ -24,6 +24,7 @@ from app.models import (
     SongRecalibration, SongReset, ReadingSong, CalibrationRun, Trash,
     SongArtist, ReleaseSong, AudienceVibeNeedle, AudienceVibeReviewCase,
     SongSlug, SongRecalibrationProposal, LcEvent, PrePublishCorrection,
+    V1Test,
 )
 from app.routers.admin import verify_admin_key
 from app.services.song_search import search_unified
@@ -49,6 +50,7 @@ TABLES = {
     "calibration_runs": CalibrationRun,
     "pre_publish_corrections": PrePublishCorrection,
     "trash": Trash,
+    "v1_tests": V1Test,
 }
 
 # Columns matched by the `q=` quick-search per table.
@@ -65,6 +67,7 @@ SEARCH_COLUMNS = {
     "calibration_runs": ["title", "artist"],
     "pre_publish_corrections": ["human_rationale", "tags", "before_summary", "after_summary"],
     "trash": ["title", "artist", "reason"],
+    "v1_tests": ["title", "artist", "charge_summary", "contamination_note", "error"],
 }
 
 OPERATORS = {"eq", "ne", "gt", "gte", "lt", "lte", "contains", "startswith", "in", "isnull"}

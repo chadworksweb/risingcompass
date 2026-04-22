@@ -71,8 +71,11 @@ def run_v1_test(body: V1TestRunIn, db: Session = Depends(get_db)):
     result: dict = {}
     error: str | None = None
     try:
-        # db=None disables cache lookup + few-shot examples. Pure rubric.
-        result = v1_calibrate(title, artist, lyrics=body.lyrics, db=None)
+        # Pass the live DB so v1's build_few_shot_examples can prime the
+        # prompt with tier examples from CompassSong — the mechanism v1
+        # used in production. skip_cache=True prevents lookup_calibrated
+        # from short-circuiting and returning a v2-calibrated value.
+        result = v1_calibrate(title, artist, lyrics=body.lyrics, db=db, skip_cache=True)
     except Exception as e:
         logger.exception("v1 calibration failed for '%s' by %s", title, artist)
         error = f"{type(e).__name__}: {e}"
