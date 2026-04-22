@@ -156,6 +156,14 @@
       "ratified_at": "2026-04-21",
       "status": "ratified",
       "text": "Zero is a narrow, specific score -- not a fallback. 0 means the song's message is precisely centered, with as much elevation as drag and neither side winning, and you can articulate what holds it at center. \"Start at zero\" is the methodology for where to begin analysis. Landing at zero requires a case. If you cannot decide whether a song reads as high-Decent or low-Decent, resolve the analysis and commit -- do not split the difference at 0. The Decent tier spans the full range between -24 and +24. Use it. Scores like -14, -8, -4, +6, +12, +18 are all valid Decent placements and should land where the song actually sits. Only land at exactly 0 when you can name the equilibrium. Separately, do not default to multiples of 5 or 10 out of habit -- score the value you actually read from the lyrics. If the song lands at -13 or +17, say -13 or +17. Round numbers are not preferred; accurate numbers are."
+    },
+    {
+      "id": "R3",
+      "title": "Vocabulary is not substance.",
+      "version": "1.0",
+      "ratified_at": "2026-04-22",
+      "status": "ratified",
+      "text": "Vocabulary is not substance. Naming the sacred — god, spirit, universe, soul, divine — does not activate Ascended tenets. The song must deliver what those tenets require (subject beyond self, universal address, surrender, collective perspective). Test: mentally swap the spiritual noun (god → universe → self). If the activation would change, the activation is vocabulary-driven and should be zero. A song that says 'god' but is structurally a 1:1 transaction does not earn Ascended on vocabulary alone. A song that never names the divine but genuinely delivers collective witness earns it fully. Activation is about what the lyrics do, not what they invoke."
     }
   ]
 }
