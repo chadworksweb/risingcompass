@@ -98,6 +98,7 @@ async def process_one(
     if color is None:
         return {"song_id": song_id, "title": title, "status": "failed", "reason": "calibrator_returned_no_color"}
 
+    reconcile_result: dict | None = None
     try:
         pre_canonical = find_canonical_song(title, artist, db)
 
@@ -122,7 +123,7 @@ async def process_one(
         try_link_song(title, artist, "submitted", submitted.id, db)
 
         if pre_canonical:
-            record_and_reconcile(
+            reconcile_result = record_and_reconcile(
                 db,
                 title=title,
                 artist=artist,
@@ -135,7 +136,7 @@ async def process_one(
                 is_new_row=False,
             )
         else:
-            record_and_reconcile(
+            reconcile_result = record_and_reconcile(
                 db,
                 title=title,
                 artist=artist,
@@ -153,15 +154,27 @@ async def process_one(
         logger.exception("DB write failed for %s", title)
         return {"song_id": song_id, "title": title, "status": "failed", "reason": f"db_error: {e}"}
 
+    consensus = (reconcile_result or {}).get("consensus")
+    song_source = (reconcile_result or {}).get("song_source")
+    song_id_rc = (reconcile_result or {}).get("song_id")
+
     return {
         "song_id": song_id,
         "title": title,
         "status": "ok",
+        # Fresh calibration from this run
         "tier": color,
         "charge": calibration.get("charge_value"),
         "charge_summary": calibration.get("charge_summary"),
         "contaminated": calibration.get("contaminated", False),
         "confidence": calibration.get("confidence"),
+        # Post-consensus state (authoritative after reconcile — equals the single
+        # run for first-ever submissions, a weighted aggregate if prior runs exist)
+        "consensus": consensus,
+        # Canonical pointer in RC's DB so chadlewine can link back for any future
+        # re-pull without needing to re-query by title/artist
+        "rc_song_source": song_source,
+        "rc_song_id": song_id_rc,
     }
 
 
