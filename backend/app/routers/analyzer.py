@@ -1,6 +1,7 @@
 """Lyrical Charger — public endpoints for user-submitted song analysis."""
 
 import asyncio
+import contextvars
 import json
 import logging
 import re
@@ -49,8 +50,15 @@ limiter = Limiter(key_func=get_remote_address)
 # bucket with a much higher ceiling so internal batch jobs (chadlewine,
 # scripts) don't collide with the public bot-protection window.
 #
-# The client is resolved once per request and cached on request.state so the
-# key_func + limit_value don't each trigger a separate DB hit.
+# slowapi quirk: key_func is called with the Request, but limit_value is
+# called with NO ARGS. We stash the request in a ContextVar from key_func
+# so limit_value can read it back. Client is resolved once per request and
+# cached on request.state to avoid duplicate DB hits.
+_rl_request_ctx: contextvars.ContextVar[Request | None] = contextvars.ContextVar(
+    "rc_rate_limit_request", default=None
+)
+
+
 def _rl_resolved_client(request: Request):
     cached = getattr(request.state, "_rl_resolved", "unset")
     if cached != "unset":
@@ -68,13 +76,17 @@ def _rl_resolved_client(request: Request):
 
 
 def _calibrate_rate_key(request: Request) -> str:
+    _rl_request_ctx.set(request)
     client = _rl_resolved_client(request)
     if client and client.behavior == "service":
         return f"service:{client.slug}"
     return get_remote_address(request)
 
 
-def _calibrate_rate_limit(request: Request) -> str:
+def _calibrate_rate_limit() -> str:
+    request = _rl_request_ctx.get()
+    if request is None:
+        return "20/day"
     client = _rl_resolved_client(request)
     if client and client.behavior == "service":
         return "1000/day"
