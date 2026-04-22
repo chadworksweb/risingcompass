@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
-from app.routers import compass, drift, albums, admin, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments
+from app.routers import compass, drift, albums, admin, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +253,7 @@ app.include_router(artists_admin.router)
 app.include_router(recalibrations.router)
 app.include_router(calibration_log.router)
 app.include_router(calibration_log.public_router, dependencies=_api_key_dep)
+app.include_router(v1_test.router)
 
 
 # slowapi rate limiter (defined in analyzer.py, shared across routers)
