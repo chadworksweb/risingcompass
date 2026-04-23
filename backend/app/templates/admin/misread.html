@@ -55,11 +55,15 @@ async function loadMisread() {
 function renderMisread(list) {
   const el = document.getElementById('misreadList');
   if (!list.length) { el.innerHTML = '<p style="color:#666;">No submissions found.</p>'; return; }
-  el.innerHTML = list.map(s => `
+  el.innerHTML = list.map(s => {
+    const idTag = (s.report_type === 'satirical' ? 'SAT' : 'MIS') + '-' + s.id;
+    return `
     <div class="misread-item status-${s.status}">
       <div>
+        <span style="font-family:monospace;font-size:0.78rem;color:var(--text-dim);margin-right:0.5rem;">${idTag}</span>
         <span class="misread-song">${esc(s.song_title)}</span> — ${esc(s.song_artist)}
         <span class="status-badge ${s.status}">${s.status}</span>
+        ${s.report_type === 'satirical' ? '<span class="status-badge" style="background:#fce4dc;color:var(--red);">SATIRICAL</span>' : ''}
       </div>
       <div class="misread-meta">
         ${esc(s.first_name)} ${esc(s.last_name)} &middot; ${esc(s.email)} &middot; ${new Date(s.created_at).toLocaleDateString()}
@@ -80,7 +84,8 @@ function renderMisread(list) {
         ` : ''}
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function updateMisread(id, status) {

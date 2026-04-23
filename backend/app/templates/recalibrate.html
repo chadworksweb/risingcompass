@@ -442,7 +442,7 @@
         el.dataset.id = f.id;
         const dt = new Date(f.created_at).toLocaleDateString();
         el.innerHTML = `
-          <div class="it-title">${escapeHtml(f.song_title)}</div>
+          <div class="it-title"><span style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);margin-right:0.4rem;">SAT-${f.id}</span>${escapeHtml(f.song_title)}</div>
           <div class="it-artist">${escapeHtml(f.song_artist)}</div>
           <div class="it-meta">${dt} &middot; ${f.song_source || '?'}/${f.song_id || '?'}</div>
         `;
