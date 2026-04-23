@@ -116,8 +116,7 @@ def song_history(slug: str, x_admin_key: str | None = Header(default=None)):
             .filter(SongRecalibration.song_source == source)
             .filter(SongRecalibration.song_id == song_id)
         )
-        if not admin:
-            q = q.filter(SongRecalibration.promoted_to_feed == True)  # noqa: E712
+        # All recalibrations are auto-promoted (2026-04-23); gate retired.
         rows = q.order_by(SongRecalibration.applied_at.desc()).all()
 
         import json as _json
@@ -182,8 +181,6 @@ def song_history(slug: str, x_admin_key: str | None = Header(default=None)):
                 db.query(PrePublishCorrection)
                 .filter(PrePublishCorrection.compass_song_id == song_id)
             )
-            if not admin:
-                cq = cq.filter(PrePublishCorrection.promoted_to_feed == True)  # noqa: E712
             for r in cq.order_by(PrePublishCorrection.occurred_at.desc()).all():
                 corrections.append({
                     "id": r.id,

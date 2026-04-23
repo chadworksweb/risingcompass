@@ -190,11 +190,10 @@ def list_feed_entries(
     slug_cache: dict = {}
     entries: list[dict] = []
 
-    # Pre-publish corrections.
+    # Pre-publish corrections. (Auto-promoted 2026-04-23 — gate kept for
+    # backward compat with legacy unpromoted rows, but default feed shows all.)
     if not types or "pre_publish_correction" in types:
         q = db.query(PrePublishCorrection)
-        if not include_unpromoted:
-            q = q.filter(PrePublishCorrection.promoted_to_feed == True)  # noqa: E712
         if song_source is not None and song_id is not None:
             # pre_publish corrections are always anchored to compass songs;
             # filter to matching compass_song_id only when source=compass.
@@ -205,11 +204,9 @@ def list_feed_entries(
         for row in q.all():
             entries.append(_correction_to_entry(row, db, slug_cache))
 
-    # Song recalibrations.
+    # Song recalibrations. (Auto-promoted — see note above.)
     if not types or "recalibration" in types:
         q = db.query(SongRecalibration)
-        if not include_unpromoted:
-            q = q.filter(SongRecalibration.promoted_to_feed == True)  # noqa: E712
         if song_source is not None and song_id is not None:
             q = q.filter(SongRecalibration.song_source == song_source)
             q = q.filter(SongRecalibration.song_id == song_id)

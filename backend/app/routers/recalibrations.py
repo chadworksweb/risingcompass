@@ -476,45 +476,46 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
         logger.exception("effects_prose regeneration failed on accept for %s/%s",
                          p.song_source, p.song_id)
 
-    # rubric_update side-effects: supersede prior calibration_runs so the
-    # consensus engine excludes them, then log the accepted calibration as
-    # a fresh run under the new rubric. Without this, the canonical row
-    # would drift back toward the pre-update consensus as new runs arrive.
-    # Other pipelines (satirical_flag, manual, vibe_gap) do NOT supersede —
-    # they're targeted re-reads that coexist with history.
-    if p.pipeline == "rubric_update":
-        now = datetime.utcnow()
-        slug = p.rubric_change_slug or "rubric_update"
-        prior = (
-            db.query(CalibrationRun)
-            .filter(CalibrationRun.song_source == p.song_source)
-            .filter(CalibrationRun.song_id == p.song_id)
-            .filter(CalibrationRun.superseded.is_(False))
-            .all()
-        )
-        for r in prior:
-            r.superseded = True
-            r.superseded_reason = slug
-            r.superseded_at = now
+    # Consensus restart on ANY accepted recalibration (2026-04-23): supersede
+    # prior calibration_runs so the consensus engine starts fresh against the
+    # new authoritative reading, and log the accepted calibration as the new
+    # first run. Without this, old runs keep dragging consensus back toward
+    # the pre-recalibration state (seen with satirical_flag: a 3rd agent run
+    # after recalibration re-averaged against the old runs and mis-tiered).
+    # Prior runs stay in the DB with superseded=True → visible in history,
+    # excluded from consensus math.
+    now = datetime.utcnow()
+    slug = p.rubric_change_slug or p.pipeline
+    prior = (
+        db.query(CalibrationRun)
+        .filter(CalibrationRun.song_source == p.song_source)
+        .filter(CalibrationRun.song_id == p.song_id)
+        .filter(CalibrationRun.superseded.is_(False))
+        .all()
+    )
+    for r in prior:
+        r.superseded = True
+        r.superseded_reason = slug
+        r.superseded_at = now
 
-        log_run(
-            db,
-            title=song.title,
-            artist=getattr(song, "artist", None),
-            calibration={
-                "rubric_color": p.proposed_color,
-                "charge_value": p.proposed_charge,
-                "charge_summary": p.proposed_summary,
-                "contaminated": bool(getattr(song, "contaminated", False)),
-                "contamination_note": getattr(song, "contamination_note", None),
-                "confidence": 1.0,
-            },
-            triggered_by="rubric_update",
-            song_source=p.song_source,
-            song_id=p.song_id,
-            lyrics_hash=None,
-            agent_model=p.ai_model,
-        )
+    log_run(
+        db,
+        title=song.title,
+        artist=getattr(song, "artist", None),
+        calibration={
+            "rubric_color": p.proposed_color,
+            "charge_value": p.proposed_charge,
+            "charge_summary": p.proposed_summary,
+            "contaminated": bool(getattr(song, "contaminated", False)),
+            "contamination_note": getattr(song, "contamination_note", None),
+            "confidence": 1.0,
+        },
+        triggered_by=p.pipeline,
+        song_source=p.song_source,
+        song_id=p.song_id,
+        lyrics_hash=None,
+        agent_model=p.ai_model,
+    )
 
     # Resolve the proposal.
     p.status = "accepted"

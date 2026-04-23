@@ -155,9 +155,7 @@ def get_calibration_log_entry(
     if not row:
         raise HTTPException(status_code=404, detail=f"No {label} with id {event_id}")
 
-    if not row.promoted_to_feed and not _is_admin(x_admin_key):
-        raise HTTPException(status_code=404, detail=f"No {label} with id {event_id}")
-
+    # All tenet/algo events are auto-promoted (2026-04-23).
     slug_cache: dict = {}
     if source_table == "pre_publish_corrections":
         data = _correction_to_entry(row, db, slug_cache)

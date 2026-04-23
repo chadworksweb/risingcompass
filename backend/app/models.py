@@ -547,8 +547,11 @@ class SongRecalibration(Base):
     # future pattern taxonomy.
     human_rationale = Column(Text)
     tags = Column(Text)
-    promoted_to_feed = Column(Boolean, default=False, nullable=False)
-    promoted_at = Column(DateTime)
+    # Auto-promoted: every tenet/algo event lands in the public feed immediately
+    # (2026-04-23). Manual promote step retired; column kept for backward
+    # compatibility + migration path.
+    promoted_to_feed = Column(Boolean, default=True, nullable=False)
+    promoted_at = Column(DateTime, default=datetime.utcnow)
 
 
 class PrePublishCorrection(Base):
@@ -581,8 +584,9 @@ class PrePublishCorrection(Base):
     after_summary = Column(Text)
     human_rationale = Column(Text)  # optional prose from admin
     tags = Column(Text)  # freeform; JSON array or CSV
-    promoted_to_feed = Column(Boolean, default=False, nullable=False)
-    promoted_at = Column(DateTime)
+    # Auto-promoted — see SongRecalibration comment above (2026-04-23).
+    promoted_to_feed = Column(Boolean, default=True, nullable=False)
+    promoted_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AudienceVibeNeedle(Base):

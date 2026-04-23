@@ -613,7 +613,6 @@ def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionI
         after_summary=after["charge_summary"],
         human_rationale=data.human_rationale,
         tags=data.tags,
-        promoted_to_feed=False,
     )
     db.add(correction)
 
