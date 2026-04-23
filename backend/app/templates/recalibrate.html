@@ -715,19 +715,26 @@
     setTierPill($('prop-after'), p.proposed_color, p.proposed_charge);
     $('prop-summary').textContent = p.proposed_summary || '(no summary returned)';
     $('prop-rationale').value = p.ai_rationale || '';
-    // Pre-fill public summary based on pipeline
-    let preset = '';
-    if (pipeline === 'rubric_update' && note) {
-      preset = `The rubric was updated: ${note}`;
-    } else if (pipeline === 'satirical_flag') {
-      preset = 'After review of the satirical flag, the song was re-read under the satire lens.';
-    } else if (pipeline === 'manual') {
-      preset = '';
+    // Pre-fill public summary: default to the AI's proposed_summary (the rich
+    // per-song prose) so admin accepts land with the good story by default.
+    // Pipeline-specific wrapper only when no AI summary is available.
+    let preset = p.proposed_summary || '';
+    if (!preset) {
+      if (pipeline === 'rubric_update' && note) {
+        preset = `The rubric was updated: ${note}`;
+      } else if (pipeline === 'satirical_flag') {
+        preset = 'After review of the satirical flag, the song was re-read under the satire lens.';
+      }
     }
     $('prop-public-summary').value = preset;
     $('prop-internal-notes').value = '';
     $('prop-error').style.display = 'none';
     $('prop-success').style.display = 'none';
+    // Re-reveal action buttons for this new proposal (prior run may have hidden them).
+    $('prop-accept').style.display = '';
+    $('prop-reject').style.display = '';
+    $('prop-accept').disabled = false;
+    $('prop-reject').disabled = false;
   }
 
   // --- Accept ---
@@ -753,11 +760,13 @@
         : '';
       $('prop-success').innerHTML = `Applied. Audit row #${result.audit_id}. Song now ${afterLabel} (${chgStr}).${linkHtml}`;
       $('prop-success').style.display = '';
+      // Proposal resolved — hide action buttons so they can't be re-clicked.
+      $('prop-accept').style.display = 'none';
+      $('prop-reject').style.display = 'none';
       activeProposal = null;
       loadFlags();
     } catch (e) {
       showErr('prop-error', e.message);
-    } finally {
       $('prop-accept').disabled = false;
       $('prop-reject').disabled = false;
     }
@@ -775,11 +784,13 @@
       });
       $('prop-success').textContent = 'Proposal rejected. Song unchanged.';
       $('prop-success').style.display = '';
+      // Proposal resolved — hide action buttons.
+      $('prop-accept').style.display = 'none';
+      $('prop-reject').style.display = 'none';
       activeProposal = null;
       loadFlags();
     } catch (e) {
       showErr('prop-error', e.message);
-    } finally {
       $('prop-accept').disabled = false;
       $('prop-reject').disabled = false;
     }
