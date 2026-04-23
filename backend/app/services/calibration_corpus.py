@@ -92,19 +92,33 @@ def get_or_create_song(
     """Idempotent insert: return (row, created) where created=False means a
     pre-existing row with the same (title, artist) was returned instead.
 
-    This is the central dedup guard — every ingestion path (LC submit,
-    backfill, stream POST, admin manual create) should route through here
-    so the same (title, artist) inside a single table can never produce
-    two rows. Cross-table canonical promotion is a different concern,
-    handled by find_canonical_song + the compass→library→submitted→stream
-    precedence in badge.lookup.
+    Central dedup guard — every ingestion path (LC submit, backfill,
+    stream POST, admin manual create) routes through here so the same
+    (title, artist) inside a single table can never produce two rows.
+    Cross-table canonical promotion is a different concern, handled by
+    find_canonical_song + the compass→library→submitted→stream precedence
+    in badge.lookup.
+
+    Handles the race where two concurrent requests both pass the initial
+    find — the second one hits the DB's UNIQUE(lower(title), lower(artist))
+    index (migration 037) and raises IntegrityError. We rollback and re-find
+    so the caller still gets back the winning row with created=False.
     """
+    from sqlalchemy.exc import IntegrityError
+
     existing = find_same_table_song(db, model, title, artist)
     if existing is not None:
         return existing, False
     row = model(title=title, artist=artist, **fields)
     db.add(row)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        winner = find_same_table_song(db, model, title, artist)
+        if winner is None:
+            raise
+        return winner, False
     return row, True
 
 

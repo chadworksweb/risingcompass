@@ -652,7 +652,9 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
     current_year = data.year or date.today().year
     decade = f"{(current_year // 10) * 10}s"
 
-    song = CompassSong(
+    from app.services.calibration_corpus import get_or_create_song
+    song, created = get_or_create_song(
+        db, CompassSong,
         title=data.title,
         artist=data.artist,
         year=current_year,
@@ -665,7 +667,15 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
         charge_summary=data.charge_summary,
         chart_source=data.chart_source,
     )
-    db.add(song)
+    if not created:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"A compass song for '{song.title}' by '{song.artist}' already "
+                f"exists (id={song.id}, year={song.year}). Use the admin DB "
+                f"Explorer to edit or reset it instead of feeding a duplicate."
+            ),
+        )
     db.commit()
     db.refresh(song)
     try_link_song(song.title, song.artist, "compass", song.id, db)
