@@ -72,16 +72,25 @@ function renderMisread(list) {
       </div>
       <div class="misread-msg">${esc(s.message)}</div>
       <div class="misread-actions">
-        ${s.status === 'pending' ? `
-          <button class="btn-sm" onclick="updateMisread(${s.id},'reviewed')">Reviewed</button>
-          <button class="btn-sm" onclick="updateMisread(${s.id},'accepted')">Accept</button>
-          <button class="btn-sm" onclick="updateMisread(${s.id},'rejected')">Reject</button>
-          <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
-        ` : s.status === 'reviewed' ? `
-          <button class="btn-sm" onclick="updateMisread(${s.id},'accepted')">Accept</button>
-          <button class="btn-sm" onclick="updateMisread(${s.id},'rejected')">Reject</button>
-          <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
-        ` : ''}
+        ${s.report_type === 'satirical' ? `
+          ${s.status === 'pending' || s.status === 'reviewed' ? `
+            <a class="btn-sm" style="background:var(--accent);color:#fff;text-decoration:none;display:inline-block;" href="/api/admin/recalibrate?flag=${s.id}">Recalibrate →</a>
+            ${s.status === 'pending' ? `<button class="btn-sm" onclick="updateMisread(${s.id},'reviewed')">Mark Reviewed</button>` : ''}
+            <button class="btn-sm" onclick="updateMisread(${s.id},'rejected')">Reject (not satire)</button>
+            <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
+          ` : ''}
+        ` : `
+          ${s.status === 'pending' ? `
+            <button class="btn-sm" onclick="updateMisread(${s.id},'reviewed')">Reviewed</button>
+            <button class="btn-sm" onclick="updateMisread(${s.id},'accepted')">Accept</button>
+            <button class="btn-sm" onclick="updateMisread(${s.id},'rejected')">Reject</button>
+            <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
+          ` : s.status === 'reviewed' ? `
+            <button class="btn-sm" onclick="updateMisread(${s.id},'accepted')">Accept</button>
+            <button class="btn-sm" onclick="updateMisread(${s.id},'rejected')">Reject</button>
+            <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
+          ` : ''}
+        `}
       </div>
     </div>
   `;

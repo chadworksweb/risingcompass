@@ -436,6 +436,7 @@
         return;
       }
       $('flag-count').textContent = flags.length;
+      const flagEls = {};
       flags.forEach(f => {
         const el = document.createElement('div');
         el.className = 'inbox-item';
@@ -448,7 +449,17 @@
         `;
         el.addEventListener('click', () => selectFlag(f, el));
         $('flag-list').appendChild(el);
+        flagEls[f.id] = { flag: f, el };
       });
+
+      // Deep-link support: ?flag=<id> selects the flag automatically
+      const params = new URLSearchParams(window.location.search);
+      const deepLinkId = params.get('flag');
+      if (deepLinkId && flagEls[deepLinkId]) {
+        const { flag, el } = flagEls[deepLinkId];
+        selectFlag(flag, el);
+        el.scrollIntoView({ block: 'nearest' });
+      }
     } catch (e) {
       $('flag-list').innerHTML = `<div class="inbox-empty">Flags unavailable: ${escapeHtml(e.message)}</div>`;
     }
