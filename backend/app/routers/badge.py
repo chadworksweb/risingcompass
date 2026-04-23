@@ -20,6 +20,7 @@ from app.models import (
     CompassSong,
     LibrarySong,
     MisreadSubmission,
+    SongSlug,
     SubmittedSong,
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
@@ -100,6 +101,14 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
                 title_lower=row.title.lower(),
                 artist_lower=(row.artist or "").lower(),
             )
+            slug_row = (
+                db.query(SongSlug.slug)
+                .filter(SongSlug.song_source == source)
+                .filter(SongSlug.song_id == row.id)
+                .order_by(SongSlug.id.desc())
+                .first()
+            )
+            song_slug = slug_row[0] if slug_row else None
             return {
                 "title": row.title,
                 "artist": row.artist,
@@ -114,6 +123,11 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
                 # hasn't been resolved. Consumers can render a "PENDING" stamp
                 # to indicate the score is being contested.
                 "pending": pending,
+                # Canonical RC URL slug so consumers can deep-link the badge
+                # to the specific song page (risingcompass.net/songs/<slug>)
+                # instead of the RC homepage. Null when no slug row exists
+                # yet for this (source, id) — caller should fall back.
+                "song_slug": song_slug,
             }
 
     return None
