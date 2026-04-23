@@ -39,6 +39,7 @@ from app.services.agents.calibrator import calibrate_song_async
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import (
     record_and_reconcile, hash_lyrics, find_canonical_song,
+    get_or_create_song,
 )
 from app.routers.analyzer import _validate_lyrics, detect_prose_like
 
@@ -102,7 +103,8 @@ async def process_one(
     try:
         pre_canonical = find_canonical_song(title, artist, db)
 
-        submitted = SubmittedSong(
+        submitted, created = get_or_create_song(
+            db, SubmittedSong,
             title=title,
             artist=artist,
             rubric_color=color,
@@ -116,9 +118,16 @@ async def process_one(
             source=SOURCE_TAG,
             ip_address=None,
         )
-        db.add(submitted)
         db.commit()
         db.refresh(submitted)
+        if not created:
+            # Row already existed — log a calibration_run against it so the
+            # consensus engine accounts for this backfill pass, but don't
+            # overwrite the stored calibration.
+            return {
+                "song_id": song_id, "title": title, "status": "existed",
+                "submitted_song_id": submitted.id, "reason": "duplicate (title, artist)",
+            }
 
         try_link_song(title, artist, "submitted", submitted.id, db)
 

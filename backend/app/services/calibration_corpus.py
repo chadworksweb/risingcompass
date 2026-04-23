@@ -65,6 +65,49 @@ def _derive_tier(charge: int) -> str:
     return "red"
 
 
+def find_same_table_song(
+    db: Session, model, title: str, artist: str,
+) -> object | None:
+    """Case-insensitive (title, artist) lookup inside a single song table.
+
+    Used by get_or_create_song as the dedupe guard at every ingestion point.
+    Matches the normalization semantics of find_canonical_song (trim + lower,
+    no aggressive punctuation stripping). For fuzzier match semantics a caller
+    should use find_canonical_song across all four tables instead.
+    """
+    if not title or not artist:
+        return None
+    return (
+        db.query(model)
+        .filter(func.lower(model.title) == title.strip().lower())
+        .filter(func.lower(model.artist) == artist.strip().lower())
+        .order_by(model.id.asc())
+        .first()
+    )
+
+
+def get_or_create_song(
+    db: Session, model, *, title: str, artist: str, **fields,
+) -> tuple[object, bool]:
+    """Idempotent insert: return (row, created) where created=False means a
+    pre-existing row with the same (title, artist) was returned instead.
+
+    This is the central dedup guard — every ingestion path (LC submit,
+    backfill, stream POST, admin manual create) should route through here
+    so the same (title, artist) inside a single table can never produce
+    two rows. Cross-table canonical promotion is a different concern,
+    handled by find_canonical_song + the compass→library→submitted→stream
+    precedence in badge.lookup.
+    """
+    existing = find_same_table_song(db, model, title, artist)
+    if existing is not None:
+        return existing, False
+    row = model(title=title, artist=artist, **fields)
+    db.add(row)
+    db.flush()
+    return row, True
+
+
 def find_canonical_song(title: str, artist: str, db: Session) -> tuple[str, object] | None:
     """Find the canonical song row for (title, credit_string).
 

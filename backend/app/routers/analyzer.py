@@ -32,6 +32,7 @@ from app.services import musixmatch
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import (
     record_and_reconcile, hash_lyrics, find_canonical_song,
+    get_or_create_song,
 )
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
 from app.auth import verify_api_or_service_key
@@ -551,7 +552,13 @@ async def calibrate_lyrics_endpoint(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        submitted = SubmittedSong(
+        # Look up any pre-existing canonical BEFORE creating the new row so
+        # we can distinguish "fresh song" from "re-run of known song" and
+        # route the run to the right target.
+        pre_canonical = find_canonical_song(title, artist, db)
+
+        submitted, _created = get_or_create_song(
+            db, SubmittedSong,
             title=title,
             artist=artist,
             rubric_color=color,
@@ -565,12 +572,6 @@ async def calibrate_lyrics_endpoint(
             source=source,
             ip_address=get_remote_address(request),
         )
-        # Look up any pre-existing canonical BEFORE creating the new row so
-        # we can distinguish "fresh song" from "re-run of known song" and
-        # route the run to the right target.
-        pre_canonical = find_canonical_song(title, artist, db)
-
-        db.add(submitted)
         db.commit()
         db.refresh(submitted)
         structured = (
@@ -735,7 +736,8 @@ async def calibrate_search(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        submitted = SubmittedSong(
+        submitted, _created = get_or_create_song(
+            db, SubmittedSong,
             title=title,
             artist=artist,
             rubric_color=color,
@@ -749,7 +751,6 @@ async def calibrate_search(
             source=source,
             ip_address=get_remote_address(request),
         )
-        db.add(submitted)
         db.commit()
         db.refresh(submitted)
         structured = (

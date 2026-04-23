@@ -18,7 +18,7 @@ from app.routers.admin import verify_admin_key
 from app.services.agents.calibrator import calibrate_song_async
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
-from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
+from app.services.calibration_corpus import record_and_reconcile, hash_lyrics, get_or_create_song
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,8 @@ async def add_to_stream(body: StreamSongIn, db: Session = Depends(get_db)):
 
     status = "calibrated" if result.get("rubric_color") else "failed"
 
-    song = StreamSong(
+    song, _created = get_or_create_song(
+        db, StreamSong,
         title=title,
         artist=artist,
         note=body.note,
@@ -123,7 +124,6 @@ async def add_to_stream(body: StreamSongIn, db: Session = Depends(get_db)):
         confidence=result.get("confidence"),
         status=status,
     )
-    db.add(song)
     db.commit()
     db.refresh(song)
     if status == "calibrated":
@@ -179,7 +179,8 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
         raise HTTPException(400, "Cannot promote — calibration failed. Re-calibrate first.")
 
     if body.target == "library":
-        entry = LibrarySong(
+        entry, _created = get_or_create_song(
+            db, LibrarySong,
             title=song.title,
             artist=song.artist,
             rubric_color=song.rubric_color,
@@ -189,11 +190,11 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
             charge_summary=song.charge_summary,
             source="stream",
         )
-        db.add(entry)
 
     elif body.target == "compass":
         import datetime
-        entry = CompassSong(
+        entry, _created = get_or_create_song(
+            db, CompassSong,
             title=song.title,
             artist=song.artist,
             year=datetime.datetime.utcnow().year,
@@ -206,7 +207,6 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
             charge_summary=song.charge_summary,
             chart_source="cl_stream",
         )
-        db.add(entry)
 
     song.status = "promoted"
     song.promoted_to = body.target

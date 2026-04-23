@@ -35,8 +35,16 @@ def create_library_song(data: LibrarySongCreate, db: Session = Depends(get_db)):
         if not album:
             raise HTTPException(status_code=404, detail=f"Album ID {data.album_id} not found")
 
-    song = LibrarySong(**data.model_dump())
-    db.add(song)
+    from app.services.calibration_corpus import get_or_create_song
+    payload = data.model_dump()
+    title = payload.pop("title")
+    artist = payload.pop("artist")
+    song, created = get_or_create_song(db, LibrarySong, title=title, artist=artist, **payload)
+    if not created:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Already in library as ID {song.id}: {song.title} — {song.artist}",
+        )
     db.commit()
     db.refresh(song)
     try_link_song(song.title, song.artist, "library", song.id, db)
