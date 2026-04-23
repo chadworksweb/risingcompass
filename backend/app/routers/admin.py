@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Request
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from pathlib import Path
@@ -38,10 +38,31 @@ def _find_compass_song(title: str, artist: str, db: Session) -> CompassSong | No
     )
 
 
-@router.get("/dashboard", response_class=HTMLResponse)
-def admin_dashboard(request: Request):
-    """Serve admin HTML form for entering daily readings."""
-    return templates.TemplateResponse(request=request, name="admin.html")
+@router.get("/dashboard")
+def admin_dashboard_root():
+    """Redirect to the default landing section (DB Explorer)."""
+    return RedirectResponse(url="/api/admin/dashboard/db", status_code=307)
+
+
+_ADMIN_SECTIONS = {
+    "db": "admin/db.html",
+    "daily-songs": "admin/daily_songs.html",
+    "weekly-albums": "admin/weekly_albums.html",
+    "misread": "admin/misread.html",
+    "submissions": "admin/submissions.html",
+    "lc-activity": "admin/lc_activity.html",
+    "api-monitor": "admin/api_monitor.html",
+    "v1-test": "admin/v1_test.html",
+}
+
+
+@router.get("/dashboard/{section}", response_class=HTMLResponse)
+def admin_dashboard_section(section: str, request: Request):
+    """Serve a specific admin section. Auth is handled client-side via localStorage."""
+    template_name = _ADMIN_SECTIONS.get(section)
+    if not template_name:
+        raise HTTPException(status_code=404, detail="Unknown admin section")
+    return templates.TemplateResponse(request=request, name=template_name)
 
 
 @router.get("/recalibrate", response_class=HTMLResponse)

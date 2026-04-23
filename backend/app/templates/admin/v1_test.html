@@ -1,0 +1,148 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'v1-test' %}
+{% block title %}V1 Test — Admin{% endblock %}
+
+{% block content %}
+<p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">
+  Scores the supplied lyrics against the v1-frozen rubric (commit a839df9).
+  Results land in the <code>v1_tests</code> table and are isolated from every
+  other calibration store. No few-shot examples, no cache — pure rubric.
+</p>
+<div class="form-group">
+  <label>Title</label>
+  <input type="text" id="v1Title" placeholder="Song title">
+</div>
+<div class="form-group">
+  <label>Artist</label>
+  <input type="text" id="v1Artist" placeholder="Artist">
+</div>
+<div class="form-group">
+  <label>Lyrics</label>
+  <textarea id="v1Lyrics" rows="12" placeholder="Paste lyrics here…"></textarea>
+</div>
+<div style="margin-top:1rem;">
+  <button id="v1RunBtn" onclick="submitV1Test()">Run V1 Calibration</button>
+</div>
+<div class="status-msg" id="v1Status"></div>
+<div id="v1Result" style="margin-top:1.5rem;" hidden></div>
+<h2 class="section-title" style="margin-top:2rem;">Recent V1 Runs</h2>
+<div id="v1History"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const V1_TIER_LABELS = {
+  violet: 'Ascended', blue: 'Elevated', green: 'Decent',
+  orange: 'Degraded', red: 'Corrupted',
+};
+const V1_TIER_HEX = {
+  violet: '#9933ff', blue: '#3388ff', green: '#33cc55',
+  orange: '#ffbb33', red: '#ff3333',
+};
+
+function onAdminReady() { loadV1Tests(); }
+
+async function submitV1Test() {
+  const statusEl = document.getElementById('v1Status');
+  const resultEl = document.getElementById('v1Result');
+  const btn = document.getElementById('v1RunBtn');
+  statusEl.className = 'status-msg';
+  statusEl.textContent = '';
+  resultEl.hidden = true;
+  resultEl.innerHTML = '';
+
+  const title = document.getElementById('v1Title').value.trim();
+  const artist = document.getElementById('v1Artist').value.trim();
+  const lyrics = document.getElementById('v1Lyrics').value;
+  if (!title) { showMsg(statusEl, 'Title required', 'error'); return; }
+  if (!artist) { showMsg(statusEl, 'Artist required', 'error'); return; }
+  if (!lyrics.trim()) { showMsg(statusEl, 'Lyrics required', 'error'); return; }
+
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Processing…';
+
+  try {
+    const resp = await fetch('/api/admin/v1-test/run', {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ title, artist, lyrics }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      showMsg(statusEl, `Failed (${resp.status}): ${body.slice(0, 300)}`, 'error');
+      return;
+    }
+    const data = await resp.json();
+    if (data.error) {
+      showMsg(statusEl, `Calibration error: ${data.error}`, 'error');
+    } else {
+      showMsg(statusEl, 'V1 calibration stored (row #' + data.id + ')', 'success');
+    }
+    renderV1Result(resultEl, data);
+    loadV1Tests();
+  } catch (e) {
+    showMsg(statusEl, `Request failed: ${e.message || e}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+function renderV1Result(el, data) {
+  const color = data.rubric_color;
+  const tier = color ? V1_TIER_LABELS[color] : '—';
+  const hex = color ? V1_TIER_HEX[color] : '#666';
+  const charge = (data.charge_value === null || data.charge_value === undefined) ? '—' : data.charge_value;
+  const contamBadge = data.contaminated ? ' <span style="color:var(--rc-orange,#cc8800);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">contaminated</span>' : '';
+  el.innerHTML = `
+    <div style="padding:1rem;border-left:3px solid ${hex};background:rgba(0,0,0,0.02);">
+      <div style="font-family:monospace;font-size:0.75rem;color:var(--text-dim);margin-bottom:0.3rem;">
+        V1 (${esc(data.rubric_commit)}) · ${esc(data.title)} — ${esc(data.artist)}
+      </div>
+      <div style="font-size:1.2rem;font-weight:700;color:${hex};">
+        ${esc(tier)} (${esc(String(charge))})${contamBadge}
+      </div>
+      ${data.charge_summary ? `<div style="margin-top:0.5rem;font-size:0.9rem;line-height:1.4;">${esc(data.charge_summary)}</div>` : ''}
+      ${data.contamination_note ? `<div style="margin-top:0.4rem;font-size:0.8rem;color:var(--rc-orange,#cc8800);">Contamination: ${esc(data.contamination_note)}</div>` : ''}
+      ${data.confidence !== null ? `<div style="margin-top:0.4rem;font-size:0.75rem;color:var(--text-dim);">confidence ${data.confidence}</div>` : ''}
+    </div>
+  `;
+  el.hidden = false;
+}
+
+async function loadV1Tests() {
+  const el = document.getElementById('v1History');
+  try {
+    const resp = await fetch('/api/admin/v1-test?limit=25', { headers: adminHeaders() });
+    if (!resp.ok) {
+      el.innerHTML = `<p style="color:var(--text-dim);">Failed to load history (${resp.status})</p>`;
+      return;
+    }
+    const rows = await resp.json();
+    if (!rows.length) {
+      el.innerHTML = '<p style="color:var(--text-dim);">No runs yet.</p>';
+      return;
+    }
+    el.innerHTML = rows.map(r => {
+      const hex = r.rubric_color ? V1_TIER_HEX[r.rubric_color] : '#666';
+      const tier = r.rubric_color ? V1_TIER_LABELS[r.rubric_color] : '—';
+      const charge = (r.charge_value === null || r.charge_value === undefined) ? '—' : r.charge_value;
+      const when = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+      const errBadge = r.error ? ` <span style="color:var(--rc-red,#cc3333);font-size:0.7rem;">ERROR</span>` : '';
+      return `
+        <div style="padding:0.5rem 0.8rem;border-bottom:1px solid var(--border);display:flex;gap:1rem;align-items:baseline;">
+          <span style="font-family:monospace;font-size:0.75rem;color:var(--text-dim);min-width:3rem;">#${r.id}</span>
+          <span style="color:${hex};font-weight:600;min-width:5rem;">${esc(tier)}</span>
+          <span style="font-family:monospace;min-width:3rem;">${esc(String(charge))}</span>
+          <span style="flex:1;">${esc(r.title)} — ${esc(r.artist)}${errBadge}</span>
+          <span style="font-family:monospace;font-size:0.7rem;color:var(--text-dim);">${esc(when)}</span>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<p style="color:var(--text-dim);">Failed to load: ${esc(e.message || String(e))}</p>`;
+  }
+}
+</script>
+{% endblock %}

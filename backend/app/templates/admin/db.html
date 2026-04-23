@@ -1,0 +1,723 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'db' %}
+{% block title %}DB Explorer — Admin{% endblock %}
+
+{% block content %}
+<div id="tab-db">
+  <div class="db-sub-tabs" id="dbSubTabs"></div>
+  <div id="dbMergeBanner" class="db-merge-banner" hidden></div>
+  <div class="db-toolbar">
+    <input type="text" id="dbQuickSearch" placeholder="Quick search this table…" class="db-quick-search">
+    <button onclick="dbRunQuery()" class="db-run-btn">Search</button>
+    <button onclick="dbClearFilters()" class="db-clear-btn">Clear</button>
+    <span id="dbTotal" class="db-total"></span>
+  </div>
+  <div class="db-filters" id="dbFilters"></div>
+  <div class="db-results-wrap">
+    <table class="db-results" id="dbResults"><thead></thead><tbody></tbody></table>
+  </div>
+  <div class="db-pagination" id="dbPagination"></div>
+  <div class="status-msg" id="dbStatus"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DB_COLOR_COLS = new Set(['rubric_color', 'overall_color', 'charge_level', 'song_color', 'before_color', 'after_color', 'compass_color', 'proposed_color', 'original_color']);
+const DB_COLOR_OPTIONS = ['violet', 'blue', 'green', 'orange', 'red'];
+const DB_WIDE_COLS = new Set(['charge_summary', 'effects_prose', 'contamination_note', 'why_calibration', 'editorial_summary', 'message', 'note', 'ai_rationale', 'public_summary', 'internal_notes', 'before_summary', 'admin_notes', 'proposed_summary']);
+const DB_PAGE_SIZE = 100;
+const DB_LOAD_ALL_WARN_THRESHOLD = 500;
+
+let dbTablesMeta = null;
+let dbActiveTable = null;
+
+const DB_SORT_BY_TABLE = {
+  submitted_songs: 'submitted_at',
+  compass_songs: null,
+};
+
+const DB_COLUMN_ORDER_KEY = 'rc-admin-db-colorder';
+let dbColumnOrder = {};
+try {
+  dbColumnOrder = JSON.parse(localStorage.getItem(DB_COLUMN_ORDER_KEY) || '{}') || {};
+} catch { dbColumnOrder = {}; }
+
+function _dbSaveColumnOrder() {
+  try {
+    localStorage.setItem(DB_COLUMN_ORDER_KEY, JSON.stringify(dbColumnOrder));
+  } catch {}
+}
+
+function dbEffectiveCols(meta) {
+  const real = meta.columns || [];
+  const names = real.map(c => c.name);
+  const showCharge = names.includes('rubric_color') && names.includes('charge_value');
+
+  const natural = [];
+  real.forEach(c => {
+    natural.push(c);
+    if (showCharge && c.name === 'rubric_color') {
+      natural.push({ name: 'charge', synthetic: true, type: 'integer' });
+    }
+  });
+
+  const saved = dbColumnOrder[meta.table];
+  if (!Array.isArray(saved) || !saved.length) return natural;
+  const byName = new Map(natural.map(c => [c.name, c]));
+  const out = [];
+  saved.forEach(n => { if (byName.has(n)) { out.push(byName.get(n)); byName.delete(n); } });
+  byName.forEach(c => out.push(c));
+  return out;
+}
+
+let dbOffset = 0;
+let dbLoadedRows = [];
+let dbLastData = null;
+let dbSort = { by: null, dir: 'desc' };
+
+function onAdminReady() { initDbExplorer(); }
+
+async function initDbExplorer() {
+  if (dbTablesMeta) return;
+  try {
+    const resp = await fetch('/api/admin/db/tables', { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    dbTablesMeta = await resp.json();
+  } catch (e) {
+    showMsg(document.getElementById('dbStatus'), e.message, 'error');
+    return;
+  }
+  renderDbSubTabs();
+  const preferred = dbTablesMeta.find(t => t.table === 'all_songs') || dbTablesMeta[0];
+  dbSelectTable(preferred.table);
+}
+
+function renderDbSubTabs() {
+  const el = document.getElementById('dbSubTabs');
+  el.innerHTML = dbTablesMeta.map(t =>
+    `<button class="db-sub-tab" data-table="${t.table}" onclick="dbSelectTable('${t.table}')">${t.table}</button>`
+  ).join('');
+}
+
+function dbSelectTable(table) {
+  dbActiveTable = table;
+  dbOffset = 0;
+  const defaultSortCol = (table in DB_SORT_BY_TABLE)
+    ? DB_SORT_BY_TABLE[table]
+    : 'created_at';
+  dbSort = { by: defaultSortCol, dir: 'desc' };
+  document.querySelectorAll('.db-sub-tab').forEach(b => b.classList.toggle('active', b.dataset.table === table));
+  document.getElementById('dbQuickSearch').value = '';
+  renderDbFilters();
+  dbRunQuery();
+}
+
+function dbTableMeta() {
+  return dbTablesMeta.find(t => t.table === dbActiveTable);
+}
+
+function renderDbFilters() {
+  const meta = dbTableMeta();
+  const el = document.getElementById('dbFilters');
+  const cols = meta.columns.filter(c => !DB_WIDE_COLS.has(c.name));
+  el.innerHTML = cols.map(c => dbFilterFor(c)).join('');
+}
+
+function dbFilterFor(col) {
+  const label = `<label class="db-filter-label">${col.name}<span class="db-filter-type">${col.type}</span></label>`;
+  if (col.name === 'song_source') {
+    const opts = ['<option value="">any</option>',
+      '<option value="compass">compass</option>',
+      '<option value="library">library</option>',
+      '<option value="submitted">submitted</option>',
+      '<option value="stream">stream</option>'];
+    return `<div class="db-filter">${label}<select data-col="${col.name}" data-op="eq">${opts.join('')}</select></div>`;
+  }
+  if (DB_COLOR_COLS.has(col.name)) {
+    const opts = ['<option value="">any</option>', ...DB_COLOR_OPTIONS.map(c => `<option value="${c}">${c}</option>`)];
+    return `<div class="db-filter">${label}<select data-col="${col.name}" data-op="eq">${opts.join('')}</select></div>`;
+  }
+  if (col.type === 'boolean') {
+    return `<div class="db-filter">${label}<select data-col="${col.name}" data-op="eq"><option value="">any</option><option value="true">yes</option><option value="false">no</option></select></div>`;
+  }
+  if (col.type === 'integer' || col.type === 'float') {
+    return `<div class="db-filter">${label}<div class="db-range"><input type="number" data-col="${col.name}" data-op="gte" placeholder="min"><input type="number" data-col="${col.name}" data-op="lte" placeholder="max"></div></div>`;
+  }
+  if (col.type === 'date' || col.type === 'datetime') {
+    return `<div class="db-filter">${label}<div class="db-range"><input type="date" data-col="${col.name}" data-op="gte"><input type="date" data-col="${col.name}" data-op="lte"></div></div>`;
+  }
+  return `<div class="db-filter">${label}<input type="text" data-col="${col.name}" data-op="contains" placeholder="contains…"></div>`;
+}
+
+function dbClearFilters() {
+  document.querySelectorAll('#dbFilters input, #dbFilters select').forEach(i => { i.value = ''; });
+  document.getElementById('dbQuickSearch').value = '';
+  dbOffset = 0;
+  dbRunQuery();
+}
+
+function dbCollectFilters() {
+  const params = new URLSearchParams();
+  const q = document.getElementById('dbQuickSearch').value.trim();
+  if (q) params.set('q', q);
+  document.querySelectorAll('#dbFilters input, #dbFilters select').forEach(el => {
+    const v = el.value.trim();
+    if (!v) return;
+    const col = el.dataset.col;
+    const op = el.dataset.op || 'eq';
+    const key = op === 'eq' ? col : `${col}__${op}`;
+    params.append(key, v);
+  });
+  if (dbSort.by) {
+    params.set('sort_by', dbSort.by);
+    params.set('sort_dir', dbSort.dir);
+  }
+  params.set('offset', String(dbOffset));
+  params.set('limit', String(DB_PAGE_SIZE));
+  return params;
+}
+
+async function dbRunQuery() {
+  dbOffset = 0;
+  dbLoadedRows = [];
+  await dbFetchAndAppend();
+}
+
+async function dbFetchAndAppend() {
+  if (!dbActiveTable) return;
+  const statusEl = document.getElementById('dbStatus');
+  statusEl.textContent = '';
+  const params = dbCollectFilters();
+  try {
+    const resp = await fetch(`/api/admin/db/${dbActiveTable}?${params.toString()}`, { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    dbLoadedRows = dbLoadedRows.concat(data.rows || []);
+    dbLastData = data;
+    renderDbResults(data);
+  } catch (e) {
+    showMsg(statusEl, e.message, 'error');
+  }
+}
+
+async function dbLoadMore() {
+  dbOffset += DB_PAGE_SIZE;
+  await dbFetchAndAppend();
+}
+
+async function dbLoadAll(total) {
+  const remaining = total - dbLoadedRows.length;
+  if (remaining <= 0) return;
+  if (remaining > DB_LOAD_ALL_WARN_THRESHOLD) {
+    if (!confirm(`Load all ${remaining.toLocaleString()} remaining rows? This may be slow on very large sets.`)) return;
+  }
+  while (dbLoadedRows.length < total) {
+    dbOffset = dbLoadedRows.length;
+    const statusEl = document.getElementById('dbStatus');
+    const params = dbCollectFilters();
+    params.set('limit', '500');
+    params.set('offset', String(dbOffset));
+    try {
+      const resp = await fetch(`/api/admin/db/${dbActiveTable}?${params.toString()}`, { headers: adminHeaders() });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      if (!data.rows || !data.rows.length) break;
+      dbLoadedRows = dbLoadedRows.concat(data.rows);
+      renderDbResults(data);
+    } catch (e) {
+      showMsg(statusEl, e.message, 'error');
+      break;
+    }
+  }
+}
+
+const DB_RESETTABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'all_songs']);
+const DB_DELETABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'artists', 'releases', 'misread_submissions', 'audience_vibe_pushes', 'song_recalibrations', 'calibration_runs', 'all_songs']);
+const DB_SOURCE_TO_TABLE = {
+  compass: 'compass_songs',
+  library: 'library_songs',
+  submitted: 'submitted_songs',
+  stream: 'stream_songs',
+};
+const DB_MERGEABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'all_songs']);
+let dbMergeSource = null;
+
+function renderDbResults(data) {
+  const meta = dbTableMeta();
+  const table = document.getElementById('dbResults');
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+
+  const isResettable = DB_RESETTABLE.has(dbActiveTable);
+  const isDeletable = DB_DELETABLE.has(dbActiveTable);
+  const isMergeable = DB_MERGEABLE.has(dbActiveTable);
+  const hasActions = isResettable || isDeletable || isMergeable;
+
+  const orderedCols = dbEffectiveCols(meta);
+  const colSpan = orderedCols.length + (hasActions ? 1 : 0);
+
+  let head = '<tr>';
+  if (hasActions) head += '<th class="db-th db-th-actions">actions</th>';
+  head += orderedCols.map(c => {
+    const sortCol = c.synthetic && c.name === 'charge' ? 'charge_value' : c.name;
+    const arrow = dbSort.by === sortCol ? (dbSort.dir === 'desc' ? ' ▾' : ' ▴') : '';
+    return `<th draggable="true" data-col="${c.name}" ondragstart="dbColDragStart(event)" ondragover="dbColDragOver(event)" ondragleave="dbColDragLeave(event)" ondrop="dbColDrop(event)" ondragend="dbColDragEnd(event)" onclick="dbHeaderClick(event, '${sortCol}')" class="db-th" title="Drag to reorder · click to sort">${c.name}${arrow}</th>`;
+  }).join('') + '</tr>';
+  thead.innerHTML = head;
+
+  if (!dbLoadedRows.length) {
+    tbody.innerHTML = `<tr><td colspan="${colSpan}" class="db-empty">No rows match.</td></tr>`;
+  } else {
+    tbody.innerHTML = dbLoadedRows.map(row => {
+      const rowId = row.id;
+      const uncalibrated = isResettable && (row.charge_value == null);
+      const actionTable = (dbActiveTable === 'all_songs' && row.song_source)
+        ? (DB_SOURCE_TO_TABLE[row.song_source] || dbActiveTable)
+        : dbActiveTable;
+      let html = '<tr>';
+      if (hasActions) {
+        const menuKey = `${actionTable}-${rowId}`;
+        const isSource = dbMergeSource && dbMergeSource.table === actionTable && dbMergeSource.id === rowId;
+        const kebabCls = isSource ? 'db-actions-kebab open' : 'db-actions-kebab';
+        html += `<td class="db-td-actions">
+          <div class="db-actions-wrap">
+            <button class="${kebabCls}" onclick="dbToggleActionsMenu(event, '${menuKey}')" title="Row actions" aria-label="Row actions" aria-haspopup="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>
+            </button>
+            <div class="db-actions-menu" data-menu="${menuKey}">`;
+        if (isResettable) {
+          const label = uncalibrated ? 'Re-reset (audit only)' : 'Reset to uncalibrated';
+          html += `<button class="db-actions-menu-item" onclick="dbArmReset(this, '${actionTable}', ${rowId})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+            ${label}
+          </button>`;
+        }
+        if (isDeletable) {
+          const label = isResettable ? 'Move to trash (cascade)' : 'Move to trash';
+          html += `<button class="db-actions-menu-item danger" onclick="dbArmDelete(this, '${actionTable}', ${rowId})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+            ${label}
+          </button>`;
+        }
+        if (isMergeable) {
+          const label = isSource
+            ? 'Cancel merge source'
+            : (dbMergeSource ? 'Merge source into this row' : 'Pick as merge source');
+          const cls = isSource ? 'db-actions-menu-item merge-source' : 'db-actions-menu-item';
+          html += `<button class="${cls}" onclick="dbMergeClick('${actionTable}', ${rowId}, ${JSON.stringify(row.title || '').replace(/'/g, '&apos;')}, ${JSON.stringify(row.artist || '').replace(/'/g, '&apos;')})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><line x1="7" y1="12" x2="17" y2="12"/><polyline points="13 8 17 12 13 16"/></svg>
+            ${label}
+          </button>`;
+        }
+        html += `</div></div></td>`;
+      }
+      html += orderedCols.map(c => {
+        if (c.synthetic && c.name === 'charge') {
+          const cv = row.charge_value;
+          const colorCls = row.rubric_color ? `color-${esc(String(row.rubric_color))}` : '';
+          const cvDisplay = cv == null
+            ? '<span class="db-null">—</span>'
+            : ((cv > 0 ? '+' : '') + cv);
+          return `<td class="db-td-charge ${colorCls}">${cvDisplay}</td>`;
+        }
+        const v = row[c.name];
+        const isColorCol = DB_COLOR_COLS.has(c.name) && v && colorLabels[v];
+        const display = v == null
+          ? '<span class="db-null">—</span>'
+          : (isColorCol ? esc(colorLabels[v]) : esc(String(v)));
+        const cls = DB_COLOR_COLS.has(c.name) && v ? `color-${esc(String(v))}` : '';
+        const wide = DB_WIDE_COLS.has(c.name) ? 'db-td-wide' : '';
+        return `<td class="${wide} ${cls}" title="${v == null ? '' : esc(String(v))}">${display}</td>`;
+      }).join('');
+      html += '</tr>';
+      return html;
+    }).join('');
+  }
+
+  document.getElementById('dbTotal').textContent = `${dbLoadedRows.length.toLocaleString()} of ${data.total.toLocaleString()} row${data.total === 1 ? '' : 's'}`;
+  renderDbLoadMore(data);
+}
+
+let dbArmedBtn = null;
+let dbArmedTimer = null;
+let dbBusy = false;
+
+function dbSetBusy(busy, label) {
+  dbBusy = busy;
+  const panel = document.getElementById('tab-db');
+  const wrap = document.querySelector('#tab-db .db-results-wrap');
+  if (!panel) return;
+  if (busy) {
+    panel.classList.add('db-busy');
+    if (wrap) wrap.setAttribute('data-busy-label', label || 'Working…');
+    dbDisarm();
+  } else {
+    panel.classList.remove('db-busy');
+    if (wrap) wrap.removeAttribute('data-busy-label');
+  }
+}
+
+function dbDisarm() {
+  if (dbArmedBtn) {
+    dbArmedBtn.classList.remove('armed');
+    dbArmedBtn.setAttribute('title', dbArmedBtn.dataset.origTitle || '');
+    dbArmedBtn = null;
+  }
+  if (dbArmedTimer) {
+    clearTimeout(dbArmedTimer);
+    dbArmedTimer = null;
+  }
+}
+
+function dbArmButton(btn, armedTitle, onConfirm) {
+  if (dbArmedBtn === btn) {
+    dbDisarm();
+    onConfirm();
+    return;
+  }
+  dbDisarm();
+  dbArmedBtn = btn;
+  btn.dataset.origTitle = btn.getAttribute('title') || '';
+  btn.classList.add('armed');
+  btn.setAttribute('title', armedTitle);
+  dbArmedTimer = setTimeout(dbDisarm, 4000);
+}
+
+function dbArmReset(btn, table, songId) {
+  if (dbBusy) return;
+  dbArmButton(btn, 'Click again to confirm — reset is permanent (audited)', () => dbOpenReset(table, songId));
+}
+
+function dbArmDelete(btn, table, rowId) {
+  if (dbBusy) return;
+  dbArmButton(btn, 'Click again to confirm — row goes to trash', () => dbOpenDelete(table, rowId));
+}
+
+function dbRenderMergeBanner() {
+  const el = document.getElementById('dbMergeBanner');
+  if (!el) return;
+  if (!dbMergeSource) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  const label = [dbMergeSource.title, dbMergeSource.artist].filter(Boolean).join(' — ') || '(no title)';
+  el.innerHTML = `
+    <span>Merge source: <strong>${dbMergeSource.table}:${dbMergeSource.id}</strong> — ${esc(label)}. Click the merge icon on any other song to merge this row INTO it.</span>
+    <button class="db-merge-cancel" onclick="dbClearMergeSource()">Cancel</button>
+  `;
+  el.hidden = false;
+}
+
+function dbClearMergeSource() {
+  dbMergeSource = null;
+  dbRenderMergeBanner();
+  if (dbLastData) renderDbResults(dbLastData);
+}
+
+function dbMergeClick(table, rowId, title, artist) {
+  if (dbBusy) return;
+  if (dbMergeSource && dbMergeSource.table === table && dbMergeSource.id === rowId) {
+    dbClearMergeSource();
+    return;
+  }
+  if (!dbMergeSource) {
+    dbMergeSource = { table, id: rowId, title: title || '', artist: artist || '' };
+    dbRenderMergeBanner();
+    if (dbLastData) renderDbResults(dbLastData);
+    return;
+  }
+  const src = dbMergeSource;
+  const tgtLabel = [title, artist].filter(Boolean).join(' — ') || '(no title)';
+  const srcLabel = [src.title, src.artist].filter(Boolean).join(' — ') || '(no title)';
+  const confirmMsg = `Merge SOURCE into TARGET:\n\nSOURCE: ${src.table}:${src.id} — ${srcLabel}\nTARGET: ${table}:${rowId} — ${tgtLabel}\n\nAll song_artists, release_songs, calibration_runs, vibe, recalibrations, resets, misread, reading_songs, and lc_events references on the source will be repointed to the target. Source row then trashed.\n\nReason (required, shown in trash audit):`;
+  const reason = prompt(confirmMsg, '');
+  if (reason === null) return;
+  const trimmed = reason.trim();
+  if (trimmed.length < 4) {
+    alert('Reason must be at least 4 characters.');
+    return;
+  }
+  dbDoMerge(src, { table, id: rowId }, trimmed);
+}
+
+async function dbDoMerge(src, tgt, reason) {
+  dbSetBusy(true, 'Merging…');
+  try {
+    const resp = await fetch('/api/admin/db/merge', {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        source_table: src.table,
+        source_id: src.id,
+        target_table: tgt.table,
+        target_id: tgt.id,
+        reason,
+      }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    const moved = Object.entries(data.moved || {}).map(([k, v]) => `${k}: ${v}`).join(', ') || 'no rows';
+    const dropped = Object.entries(data.dropped || {}).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none';
+    alert(`Merged.\n\nMoved: ${moved}\nDropped (conflicts): ${dropped}\n\nTrash id: ${data.trash_id}`);
+    dbMergeSource = null;
+    dbRenderMergeBanner();
+    await dbRunQuery();
+  } catch (e) {
+    alert('Merge failed: ' + e.message);
+  } finally {
+    dbSetBusy(false);
+  }
+}
+
+async function dbOpenDelete(table, rowId) {
+  if (dbBusy) return;
+  const prompt_msg = (DB_RESETTABLE.has(table))
+    ? 'Move this song to trash?\n\nThis cascades: every song_artists, release_songs, calibration_runs, vibe, slug, recalibration, reset, misread, reading_songs, and lc_events row referencing this song will be snapshotted into trash.related_data and removed from their tables. The song becomes invisible outside the trash entry.\n\nReason (required):'
+    : 'Move this row to trash?\n\nThe row is snapshotted into trash and removed from its table. No cascade.\n\nReason (required):';
+  const reason = prompt(prompt_msg, '');
+  if (reason === null) return;
+  const trimmed = reason.trim();
+  if (trimmed.length < 4) {
+    alert('Reason must be at least 4 characters.');
+    return;
+  }
+  dbSetBusy(true, 'Deleting…');
+  try {
+    const resp = await fetch(`/api/admin/db/${table}/${rowId}/delete`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ reason: trimmed }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    await dbRunQuery();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  } finally {
+    dbSetBusy(false);
+  }
+}
+
+async function dbOpenReset(table, songId) {
+  if (dbBusy) return;
+  let pre;
+  try {
+    const resp = await fetch(`/api/admin/db/${table}/${songId}/reset-preview`, { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    pre = await resp.json();
+  } catch (e) {
+    alert('Preview failed: ' + e.message);
+    return;
+  }
+  const title = pre.title || '(no title)';
+  const artist = pre.artist || '(no artist)';
+  const charge = pre.current.charge_value;
+  const color = pre.current.rubric_color;
+  let msg = `Reset "${title}" by ${artist}?\n\n`;
+  msg += `Current: ${color || 'uncalibrated'} / charge ${charge == null ? '—' : charge}\n`;
+  if (pre.warnings && pre.warnings.length) {
+    msg += '\nWARNING:\n' + pre.warnings.map(w => '• ' + w.detail).join('\n') + '\n';
+  }
+  msg += '\nReason for reset (required, shown publicly on the song page):';
+  const reason = prompt(msg, '');
+  if (reason === null) return;
+  const trimmed = reason.trim();
+  if (trimmed.length < 4) {
+    alert('Reason must be at least 4 characters.');
+    return;
+  }
+  dbSetBusy(true, 'Resetting…');
+  try {
+    const resp = await fetch(`/api/admin/db/${table}/${songId}/reset`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({ reason: trimmed }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    await dbRunQuery();
+  } catch (e) {
+    alert('Reset failed: ' + e.message);
+  } finally {
+    dbSetBusy(false);
+  }
+}
+
+function renderDbLoadMore(data) {
+  const el = document.getElementById('dbPagination');
+  const total = data.total;
+  const loaded = dbLoadedRows.length;
+  const remaining = Math.max(0, total - loaded);
+  if (total === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  if (remaining === 0) {
+    el.innerHTML = `<span class="db-page-info">All ${total.toLocaleString()} rows loaded</span>`;
+    return;
+  }
+  el.innerHTML = `
+    <button onclick="dbLoadMore()" class="db-load-more-btn">Load ${Math.min(DB_PAGE_SIZE, remaining)} more</button>
+    <span class="db-page-info">${loaded.toLocaleString()} of ${total.toLocaleString()} · ${remaining.toLocaleString()} behind</span>
+    <button onclick="dbLoadAll(${total})" class="db-load-all-btn">Load all ${remaining.toLocaleString()} remaining</button>
+  `;
+}
+
+function dbToggleSort(col) {
+  if (dbSort.by === col) {
+    dbSort.dir = dbSort.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    dbSort.by = col;
+    dbSort.dir = 'desc';
+  }
+  dbOffset = 0;
+  dbRunQuery();
+}
+
+let _dbDragJustEnded = false;
+function dbHeaderClick(ev, sortCol) {
+  if (_dbDragJustEnded) { _dbDragJustEnded = false; return; }
+  dbToggleSort(sortCol);
+}
+
+let _dbDraggingCol = null;
+
+function dbColDragStart(ev) {
+  const th = ev.currentTarget;
+  _dbDraggingCol = th.dataset.col;
+  th.classList.add('db-drag-dragging');
+  try { ev.dataTransfer.setData('text/plain', _dbDraggingCol); } catch {}
+  ev.dataTransfer.effectAllowed = 'move';
+}
+
+function dbColDragOver(ev) {
+  if (!_dbDraggingCol) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  const th = ev.currentTarget;
+  if (th.dataset.col === _dbDraggingCol) return;
+  const rect = th.getBoundingClientRect();
+  const left = (ev.clientX - rect.left) < rect.width / 2;
+  th.classList.toggle('db-drag-target-left', left);
+  th.classList.toggle('db-drag-target-right', !left);
+}
+
+function dbColDragLeave(ev) {
+  const th = ev.currentTarget;
+  th.classList.remove('db-drag-target-left', 'db-drag-target-right');
+}
+
+function dbColDrop(ev) {
+  ev.preventDefault();
+  const th = ev.currentTarget;
+  const targetCol = th.dataset.col;
+  const sourceCol = _dbDraggingCol;
+  th.classList.remove('db-drag-target-left', 'db-drag-target-right');
+  if (!sourceCol || !targetCol || sourceCol === targetCol) return;
+
+  const meta = dbTableMeta();
+  const current = dbEffectiveCols(meta).map(c => c.name);
+  const srcIdx = current.indexOf(sourceCol);
+  const tgtIdx = current.indexOf(targetCol);
+  if (srcIdx < 0 || tgtIdx < 0) return;
+
+  const rect = th.getBoundingClientRect();
+  const dropBefore = (ev.clientX - rect.left) < rect.width / 2;
+
+  current.splice(srcIdx, 1);
+  const adjIdx = current.indexOf(targetCol);
+  const insertAt = dropBefore ? adjIdx : adjIdx + 1;
+  current.splice(insertAt, 0, sourceCol);
+
+  dbColumnOrder[meta.table] = current;
+  _dbSaveColumnOrder();
+
+  _dbDragJustEnded = true;
+  setTimeout(() => { _dbDragJustEnded = false; }, 50);
+
+  if (dbLastData) renderDbResults(dbLastData);
+}
+
+function dbColDragEnd(ev) {
+  ev.currentTarget.classList.remove('db-drag-dragging');
+  document.querySelectorAll('.db-drag-target-left, .db-drag-target-right')
+    .forEach(th => th.classList.remove('db-drag-target-left', 'db-drag-target-right'));
+  _dbDraggingCol = null;
+  _dbDragJustEnded = true;
+  setTimeout(() => { _dbDragJustEnded = false; }, 50);
+}
+
+function _dbCloseAllActionsMenus() {
+  document.querySelectorAll('.db-actions-menu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.db-actions-kebab.open').forEach(b => {
+    const wrap = b.closest('.db-actions-wrap');
+    if (!wrap || !wrap.querySelector('.merge-source')) b.classList.remove('open');
+  });
+}
+
+function dbToggleActionsMenu(ev, key) {
+  ev.stopPropagation();
+  const menu = document.querySelector(`.db-actions-menu[data-menu="${key}"]`);
+  if (!menu) return;
+  const wasOpen = menu.classList.contains('open');
+  _dbCloseAllActionsMenus();
+  if (wasOpen) return;
+
+  const kebab = ev.currentTarget;
+  const rect = kebab.getBoundingClientRect();
+  let top = rect.bottom + 4;
+  let left = rect.left;
+  const menuWidth = 180;
+  if (left + menuWidth > window.innerWidth - 8) {
+    left = Math.max(8, rect.right - menuWidth);
+  }
+  const menuHeight = 140;
+  if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 8) {
+    top = rect.top - menuHeight - 4;
+  }
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.classList.add('open');
+  if (kebab.classList) kebab.classList.add('open');
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.db-actions-wrap') && !e.target.closest('.db-actions-menu')) {
+    _dbCloseAllActionsMenus();
+  }
+});
+
+document.addEventListener('scroll', _dbCloseAllActionsMenus, true);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target && e.target.id === 'dbQuickSearch') {
+    dbOffset = 0;
+    dbRunQuery();
+  }
+});
+
+(function wireDbFilterLive() {
+  const host = document.getElementById('dbFilters');
+  if (!host) return;
+  let timer = null;
+  host.addEventListener('input', (e) => {
+    if (!e.target.matches('input, select')) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => { dbOffset = 0; dbRunQuery(); }, 250);
+  });
+  host.addEventListener('change', (e) => {
+    if (!e.target.matches('select, input[type="date"], input[type="number"]')) return;
+    clearTimeout(timer);
+    dbOffset = 0;
+    dbRunQuery();
+  });
+  host.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.matches('input')) {
+      clearTimeout(timer);
+      dbOffset = 0;
+      dbRunQuery();
+    }
+  });
+})();
+</script>
+{% endblock %}

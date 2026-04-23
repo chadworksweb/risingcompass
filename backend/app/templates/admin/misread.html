@@ -1,0 +1,151 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'misread' %}
+{% block title %}Misread Reports — Admin{% endblock %}
+
+{% block content %}
+<div class="filter-bar" id="misreadFilters">
+  <button class="filter-btn active" onclick="filterMisread('')">All</button>
+  <button class="filter-btn" onclick="filterMisread('pending')">Pending</button>
+  <button class="filter-btn" onclick="filterMisread('reviewed')">Reviewed</button>
+  <button class="filter-btn" onclick="filterMisread('accepted')">Accepted</button>
+  <button class="filter-btn" onclick="filterMisread('rejected')">Rejected</button>
+  <button class="filter-btn" onclick="filterMisread('flagged')">Flagged</button>
+</div>
+
+<h2 class="section-title">Submissions</h2>
+<div id="misreadList"></div>
+<div class="status-msg" id="misreadStatus"></div>
+
+<h2 class="section-title">Banned Users</h2>
+<div id="banList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentMisreadFilter = '';
+
+function onAdminReady() {
+  loadMisread();
+  loadBans();
+}
+
+function filterMisread(status) {
+  currentMisreadFilter = status;
+  document.querySelectorAll('#misreadFilters .filter-btn').forEach(b => {
+    b.classList.toggle('active', (status === '' && b.textContent === 'All') || b.textContent.toLowerCase() === status);
+  });
+  loadMisread();
+}
+
+async function loadMisread() {
+  const key = document.getElementById('adminKey').value.trim();
+  const el = document.getElementById('misreadList');
+  if (!key) { el.innerHTML = '<p style="color:#666;">Enter admin key first.</p>'; return; }
+  try {
+    const url = currentMisreadFilter
+      ? `/api/admin/misread?status=${currentMisreadFilter}`
+      : '/api/admin/misread';
+    const resp = await fetch(url, { headers: { 'X-Admin-Key': key } });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderMisread(data);
+  } catch (e) { showMsg(document.getElementById('misreadStatus'), e.message, 'error'); }
+}
+
+function renderMisread(list) {
+  const el = document.getElementById('misreadList');
+  if (!list.length) { el.innerHTML = '<p style="color:#666;">No submissions found.</p>'; return; }
+  el.innerHTML = list.map(s => `
+    <div class="misread-item status-${s.status}">
+      <div>
+        <span class="misread-song">${esc(s.song_title)}</span> — ${esc(s.song_artist)}
+        <span class="status-badge ${s.status}">${s.status}</span>
+      </div>
+      <div class="misread-meta">
+        ${esc(s.first_name)} ${esc(s.last_name)} &middot; ${esc(s.email)} &middot; ${new Date(s.created_at).toLocaleDateString()}
+        ${s.device_id ? `<br>Device: ${esc(s.device_id.slice(0, 8))}...` : ''}
+        ${s.ip_address ? ` &middot; IP: ${esc(s.ip_address)}` : ''}
+      </div>
+      <div class="misread-msg">${esc(s.message)}</div>
+      <div class="misread-actions">
+        ${s.status === 'pending' ? `
+          <button class="btn-sm" onclick="updateMisread(${s.id},'reviewed')">Reviewed</button>
+          <button class="btn-sm" onclick="updateMisread(${s.id},'accepted')">Accept</button>
+          <button class="btn-sm" onclick="updateMisread(${s.id},'rejected')">Reject</button>
+          <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
+        ` : s.status === 'reviewed' ? `
+          <button class="btn-sm" onclick="updateMisread(${s.id},'accepted')">Accept</button>
+          <button class="btn-sm" onclick="updateMisread(${s.id},'rejected')">Reject</button>
+          <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
+        ` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function updateMisread(id, status) {
+  const statusEl = document.getElementById('misreadStatus');
+  try {
+    const resp = await fetch(`/api/admin/misread/${id}`, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, `Submission #${id} marked as ${status}`, 'success');
+    loadMisread();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+async function flagAndBan(id) {
+  if (!confirm('Flag this submission and permanently ban this user?')) return;
+  const statusEl = document.getElementById('misreadStatus');
+  try {
+    const resp = await fetch(`/api/admin/misread/${id}/ban`, {
+      method: 'POST',
+      headers: adminHeaders(),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, `Submission #${id} flagged and user banned`, 'success');
+    loadMisread();
+    loadBans();
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+
+async function loadBans() {
+  const key = document.getElementById('adminKey').value.trim();
+  const el = document.getElementById('banList');
+  if (!key) { el.innerHTML = ''; return; }
+  try {
+    const resp = await fetch('/api/admin/misread/bans', { headers: { 'X-Admin-Key': key } });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderBans(data);
+  } catch (e) { el.innerHTML = `<p style="color:var(--red);">${esc(e.message)}</p>`; }
+}
+
+function renderBans(list) {
+  const el = document.getElementById('banList');
+  if (!list.length) { el.innerHTML = '<p style="color:#666;">No active bans.</p>'; return; }
+  el.innerHTML = list.map(b => `
+    <div class="ban-item">
+      <div>
+        ${b.device_id ? `Device: ${esc(b.device_id.slice(0, 8))}...` : ''}
+        ${b.ip_address ? ` IP: ${esc(b.ip_address)}` : ''}
+        <span class="meta">${b.reason ? esc(b.reason) : ''} &middot; ${new Date(b.created_at).toLocaleDateString()}</span>
+      </div>
+      <button class="btn-sm btn-danger" onclick="removeBan(${b.id})">Unban</button>
+    </div>
+  `).join('');
+}
+
+async function removeBan(id) {
+  if (!confirm('Remove this ban?')) return;
+  try {
+    const resp = await fetch(`/api/admin/misread/bans/${id}`, { method: 'DELETE', headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    loadBans();
+  } catch (e) { showMsg(document.getElementById('misreadStatus'), e.message, 'error'); }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'weekly-albums' %}
+{% block title %}Weekly Albums — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-key-row">
+  <div class="form-group">
+    <label>Week Of (Monday)</label>
+    <input type="date" id="albumWeekDate">
+  </div>
+</div>
+<div class="form-group">
+  <label>Editorial Summary</label>
+  <textarea id="albumEditorial" placeholder="One-line editorial for this week's album chart..."></textarea>
+</div>
+<h2 class="section-title">Top 10 Albums</h2>
+<div class="entry-header">
+  <span>#</span><span>Album Title</span><span>Artist</span><span>Color</span><span>Contam?</span>
+</div>
+<div id="albumRows"></div>
+<div style="margin-top:1rem;">
+  <button onclick="submitAlbumReading()">Submit Album Reading</button>
+</div>
+<div class="status-msg" id="albumStatus"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onAdminReady() { /* no autoload */ }
+
+// Default album week to most recent Monday
+const today = new Date();
+const monday = new Date(today);
+monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+document.getElementById('albumWeekDate').valueAsDate = monday;
+
+function generateRows(containerId, prefix, placeholderTitle) {
+  const container = document.getElementById(containerId);
+  for (let i = 1; i <= 10; i++) {
+    const row = document.createElement('div');
+    row.className = 'entry-row';
+    row.innerHTML = `
+      <span style="text-align:center;color:#666;">${i}</span>
+      <input type="text" placeholder="${placeholderTitle}" data-field="${prefix}-title" data-pos="${i}">
+      <input type="text" placeholder="Artist" data-field="${prefix}-artist" data-pos="${i}">
+      <select data-field="${prefix}-color" data-pos="${i}" onchange="updateContamVisibility('${prefix}',${i})">
+        ${colors.map(c => `<option value="${c}">${colorLabels[c]}</option>`).join('')}
+      </select>
+      <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;" id="${prefix}-contam-label-${i}">
+        <input type="checkbox" data-field="${prefix}-contam" data-pos="${i}" onchange="toggleExtra('${prefix}',${i})" disabled> —
+      </label>
+    `;
+    container.appendChild(row);
+
+    const extra = document.createElement('div');
+    extra.className = 'contam-fields';
+    extra.id = `${prefix}-extra-${i}`;
+    extra.innerHTML = `
+      <div style="padding:0 0.5rem;">
+        <input type="text" placeholder="Contamination note" data-field="${prefix}-contam_note" data-pos="${i}" style="margin-bottom:0.3rem;">
+        <textarea placeholder="Charge summary / analysis" data-field="${prefix}-summary" data-pos="${i}" rows="2"></textarea>
+      </div>
+    `;
+    container.appendChild(extra);
+  }
+}
+
+generateRows('albumRows', 'album', 'Album title');
+
+function toggleExtra(prefix, pos) {
+  const extra = document.getElementById(`${prefix}-extra-${pos}`);
+  const cb = document.querySelector(`[data-field="${prefix}-contam"][data-pos="${pos}"]`);
+  extra.classList.toggle('show', cb.checked);
+}
+
+function updateContamVisibility(prefix, pos) {
+  const colorSel = document.querySelector(`[data-field="${prefix}-color"][data-pos="${pos}"]`);
+  const cb = document.querySelector(`[data-field="${prefix}-contam"][data-pos="${pos}"]`);
+  const label = document.getElementById(`${prefix}-contam-label-${pos}`);
+  const topTier = ['violet', 'blue', 'green'].includes(colorSel.value);
+  cb.disabled = !topTier;
+  if (!topTier) {
+    cb.checked = false;
+    toggleExtra(prefix, pos);
+  }
+  label.lastChild.textContent = topTier ? ' Yes' : ' —';
+}
+
+function getField(field, pos) {
+  return document.querySelector(`[data-field="${field}"][data-pos="${pos}"]`);
+}
+
+function collectEntries(prefix, chartSource) {
+  const entries = [];
+  for (let i = 1; i <= 10; i++) {
+    const title = getField(`${prefix}-title`, i)?.value.trim();
+    const artist = getField(`${prefix}-artist`, i)?.value.trim();
+    if (!title || !artist) continue;
+    entries.push({
+      title,
+      artist,
+      position: i,
+      rubric_color: getField(`${prefix}-color`, i)?.value || 'green',
+      contaminated: getField(`${prefix}-contam`, i)?.checked || false,
+      contamination_note: getField(`${prefix}-contam_note`, i)?.value.trim() || null,
+      charge_summary: getField(`${prefix}-summary`, i)?.value.trim() || null,
+      chart_source: chartSource,
+    });
+  }
+  return entries;
+}
+
+async function submitAlbumReading() {
+  const statusEl = document.getElementById('albumStatus');
+  statusEl.className = 'status-msg';
+  const adminKey = document.getElementById('adminKey').value.trim();
+  const weekDate = document.getElementById('albumWeekDate').value;
+  const editorial = document.getElementById('albumEditorial').value.trim();
+
+  if (!adminKey) { showMsg(statusEl, 'Admin key required', 'error'); return; }
+  if (!weekDate) { showMsg(statusEl, 'Week date required', 'error'); return; }
+
+  const albums = collectEntries('album', 'billboard_200');
+  if (albums.length === 0) { showMsg(statusEl, 'Enter at least one album', 'error'); return; }
+
+  try {
+    const resp = await fetch('/api/admin/weekly-album-reading', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({ week_date: weekDate, editorial_summary: editorial || null, albums }),
+    });
+    if (resp.status === 409) {
+      const putResp = await fetch(`/api/admin/weekly-album-reading/${weekDate}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+        body: JSON.stringify({ editorial_summary: editorial || null, albums }),
+      });
+      if (!putResp.ok) throw new Error(await putResp.text());
+      showMsg(statusEl, 'Album reading updated!', 'success');
+      return;
+    }
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(statusEl, 'Album reading created!', 'success');
+  } catch (e) { showMsg(statusEl, e.message, 'error'); }
+}
+</script>
+{% endblock %}
