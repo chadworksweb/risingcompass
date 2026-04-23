@@ -17,6 +17,7 @@ from sqlalchemy import and_, func, or_
 from app.database import SessionLocal
 from app.models import (
     AlbumCalibration,
+    Artist,
     CompassSong,
     LibrarySong,
     MisreadSubmission,
@@ -281,6 +282,16 @@ def album_lookup(
         tier_label = COLOR_LABELS.get(row.rubric_color, "")
         tier_hex = COLOR_HEX.get(row.rubric_color, "#999")
 
+        # Canonical artist slug so consumers can deep-link the album badge
+        # to the artist's RC trajectory page (no first-class album pages on
+        # RC; the artist page is the next-best target above homepage).
+        artist_row = (
+            db.query(Artist.slug)
+            .filter(func.lower(Artist.name) == (row.artist or "").lower())
+            .first()
+        )
+        artist_slug = artist_row[0] if artist_row else None
+
         return {
             "title": row.title,
             "artist": row.artist,
@@ -296,6 +307,7 @@ def album_lookup(
                 f"{row.contamination_count} of {row.track_count} tracks carry contamination."
                 if row.contamination_count > 0 else None
             ),
+            "artist_slug": artist_slug,
         }
     finally:
         db.close()
