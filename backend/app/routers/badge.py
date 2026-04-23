@@ -12,15 +12,54 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 
 from app.database import SessionLocal
-from app.models import CompassSong, LibrarySong, SubmittedSong, AlbumCalibration
+from app.models import (
+    AlbumCalibration,
+    CompassSong,
+    LibrarySong,
+    MisreadSubmission,
+    SubmittedSong,
+)
 from app.constants import COLOR_LABELS, COLOR_HEX
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/badge", tags=["badge"])
+
+
+_SOURCE_FOR_MODEL = {
+    CompassSong: "compass",
+    LibrarySong: "library",
+    SubmittedSong: "submitted",
+}
+
+
+def _song_has_pending_flag(
+    db, *, song_source: str, song_id: int, title_lower: str, artist_lower: str
+) -> bool:
+    """True if any misread submission against this song is still pending
+    (not yet reviewed, accepted, or rejected). Matches by polymorphic
+    (song_source, song_id) first — falls back to case-insensitive
+    (song_title, song_artist) for legacy rows with null polymorphic keys.
+    """
+    q = db.query(MisreadSubmission.id).filter(
+        MisreadSubmission.status == "pending"
+    ).filter(
+        or_(
+            and_(
+                MisreadSubmission.song_source == song_source,
+                MisreadSubmission.song_id == song_id,
+            ),
+            and_(
+                MisreadSubmission.song_source.is_(None),
+                func.lower(MisreadSubmission.song_title) == title_lower,
+                func.lower(MisreadSubmission.song_artist) == artist_lower,
+            ),
+        )
+    )
+    return db.query(q.exists()).scalar() or False
 
 
 def _find_calibration(title: str, artist: str, db) -> dict | None:
@@ -53,6 +92,14 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
                     break
 
         if row and row.rubric_color and row.charge_value is not None:
+            source = _SOURCE_FOR_MODEL[Model]
+            pending = _song_has_pending_flag(
+                db,
+                song_source=source,
+                song_id=row.id,
+                title_lower=row.title.lower(),
+                artist_lower=(row.artist or "").lower(),
+            )
             return {
                 "title": row.title,
                 "artist": row.artist,
@@ -63,6 +110,10 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
                 "contaminated": getattr(row, "contaminated", False) or False,
                 "contamination_note": getattr(row, "contamination_note", None),
                 "charge_summary": getattr(row, "charge_summary", None),
+                # True when this song has an open misread/satirical flag that
+                # hasn't been resolved. Consumers can render a "PENDING" stamp
+                # to indicate the score is being contested.
+                "pending": pending,
             }
 
     return None
