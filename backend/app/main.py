@@ -227,6 +227,7 @@ app.include_router(drift.router, dependencies=_api_key_dep)
 app.include_router(albums.router, dependencies=_api_key_dep)
 app.include_router(weekly_albums.router, dependencies=_api_key_dep)
 app.include_router(misread.router, dependencies=_api_key_dep)
+# misread admin endpoints are mounted separately below with the other admin routers
 # Analyzer accepts either public RC_API_KEY (Lyrical Charger) or RC_SERVICE_KEY
 # (first-party callers like chadlewine.com). Endpoints that distinguish
 # behavior re-declare the dependency to capture the tier.
@@ -240,6 +241,7 @@ app.include_router(amendments.router, dependencies=_api_key_dep)
 
 # Admin routers — use X-Admin-Key (handled per-endpoint)
 app.include_router(admin.router)
+app.include_router(misread.admin_router)
 app.include_router(agent.router)
 app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)

@@ -24,6 +24,10 @@ from app.routers.analyzer import limiter
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["misread"])
+# Admin endpoints live on their own router so main.py can mount them
+# without the public X-Api-Key dependency. Admin-UI only has X-Admin-Key;
+# forcing X-Api-Key too made the whole misread admin tab return 422.
+admin_router = APIRouter(tags=["misread-admin"])
 
 VALID_REPORT_TYPES = {"misread", "satirical"}
 
@@ -281,7 +285,7 @@ def check_ban(device_id: str = Query(default=""), request: Request = None, db: S
 
 # --- Admin Endpoints ---
 
-@router.get("/api/admin/misread", response_model=list[MisreadSubmissionOut], dependencies=[Depends(verify_admin_key)])
+@admin_router.get("/api/admin/misread", response_model=list[MisreadSubmissionOut], dependencies=[Depends(verify_admin_key)])
 def list_misread(
     status: Optional[str] = None,
     report_type: Optional[str] = None,
@@ -301,7 +305,7 @@ def list_misread(
     return q.order_by(MisreadSubmission.created_at.desc()).all()
 
 
-@router.patch("/api/admin/misread/{submission_id}", response_model=MisreadSubmissionOut, dependencies=[Depends(verify_admin_key)])
+@admin_router.patch("/api/admin/misread/{submission_id}", response_model=MisreadSubmissionOut, dependencies=[Depends(verify_admin_key)])
 def update_misread_status(submission_id: int, data: MisreadStatusUpdate, db: Session = Depends(get_db)):
     """Update the status of a misread submission."""
     submission = db.query(MisreadSubmission).filter(MisreadSubmission.id == submission_id).first()
@@ -318,7 +322,7 @@ def update_misread_status(submission_id: int, data: MisreadStatusUpdate, db: Ses
     return submission
 
 
-@router.post("/api/admin/misread/{submission_id}/ban", dependencies=[Depends(verify_admin_key)])
+@admin_router.post("/api/admin/misread/{submission_id}/ban", dependencies=[Depends(verify_admin_key)])
 def flag_and_ban(submission_id: int, db: Session = Depends(get_db)):
     """Flag a submission and ban the submitter's device_id + IP."""
     submission = db.query(MisreadSubmission).filter(MisreadSubmission.id == submission_id).first()
@@ -343,13 +347,13 @@ def flag_and_ban(submission_id: int, db: Session = Depends(get_db)):
 
 # --- Ban Management ---
 
-@router.get("/api/admin/misread/bans", response_model=list[MisreadBanOut], dependencies=[Depends(verify_admin_key)])
+@admin_router.get("/api/admin/misread/bans", response_model=list[MisreadBanOut], dependencies=[Depends(verify_admin_key)])
 def list_bans(db: Session = Depends(get_db)):
     """List all active bans."""
     return db.query(MisreadBan).order_by(MisreadBan.created_at.desc()).all()
 
 
-@router.delete("/api/admin/misread/bans/{ban_id}", dependencies=[Depends(verify_admin_key)])
+@admin_router.delete("/api/admin/misread/bans/{ban_id}", dependencies=[Depends(verify_admin_key)])
 def remove_ban(ban_id: int, db: Session = Depends(get_db)):
     """Remove a ban."""
     ban = db.query(MisreadBan).filter(MisreadBan.id == ban_id).first()
