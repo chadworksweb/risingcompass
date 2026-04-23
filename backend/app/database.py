@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
@@ -96,13 +97,21 @@ def get_db():
         db.close()
 
 
-async def keepalive_loop(interval_seconds: int = 45):
+async def keepalive_loop(interval_seconds: int = 45, failure_exit_threshold: int = 4):
     """Background task that issues SELECT 1 every `interval_seconds` against
     the pool. Keeps at least one libSQL connection warm and recently-used so
     idle-period visitors never pay the embedded-replica cold-start cost
     (~2-3s per cold connection). Runs under the FastAPI lifespan alongside
     other background tasks; cancelled on shutdown.
+
+    WAL watchdog: when the embedded replica wedges (see 2026-04-23 incident:
+    `Failed to checkpoint WAL: database is locked` stuck for 2+ hours until a
+    manual restart), keepalive SELECTs start failing because pool connections
+    can't run PRAGMA on checkout. If we see `failure_exit_threshold` consecutive
+    failures (~3 minutes at the default interval), self-exit so Docker's
+    `restart: unless-stopped` policy recovers the container.
     """
+    consecutive_failures = 0
     while True:
         try:
             await asyncio.sleep(interval_seconds)
@@ -111,10 +120,21 @@ async def keepalive_loop(interval_seconds: int = 45):
                 db.execute(text("SELECT 1"))
             finally:
                 db.close()
+            consecutive_failures = 0
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("keepalive ping failed")
+            consecutive_failures += 1
+            logger.exception(
+                "keepalive ping failed (%d consecutive)", consecutive_failures
+            )
+            if consecutive_failures >= failure_exit_threshold:
+                logger.error(
+                    "WAL watchdog: %d consecutive keepalive failures — "
+                    "self-exiting so docker restart policy recovers the replica",
+                    consecutive_failures,
+                )
+                os._exit(1)
 
 
 def warmup():
