@@ -27,6 +27,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY}
       - EMAIL_FROM=${EMAIL_FROM:-Rising Compass <compass@risingcompass.net>}
       - APPROVAL_EMAIL=${APPROVAL_EMAIL}
+      - MISREAD_NOTIFY_EMAIL=${MISREAD_NOTIFY_EMAIL}
       - SITE_URL=${SITE_URL:-https://api.risingcompass.net}
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
       - TURNSTILE_SECRET=${TURNSTILE_SECRET}

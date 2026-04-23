@@ -158,6 +158,55 @@ def _send_receipt_email(submission: MisreadSubmission) -> bool:
         return False
 
 
+def _send_admin_notification_email(submission: MisreadSubmission) -> bool:
+    """Notify the admin inbox that a new misread/satirical submission arrived."""
+    if not settings.resend_api_key or not settings.misread_notify_email:
+        logger.info("Admin notify skipped — resend_api_key or misread_notify_email unset")
+        return False
+
+    color = submission.song_color or "green"
+    tier_label = COLOR_LABELS.get(color, color)
+    is_satire = submission.report_type == "satirical"
+    kind = "Satirical Flag" if is_satire else "Misread Report"
+
+    proof_line = ""
+    if is_satire and submission.proof_context:
+        proof_line = f"<p><strong>Proof / Context:</strong><br>{escape(submission.proof_context)}</p>"
+
+    html = f"""
+    <div style="font-family:'Inter',-apple-system,sans-serif;max-width:600px;color:#1a1a2e;">
+      <h2 style="margin:0 0 12px;">New {kind} — #{submission.id}</h2>
+      <p><strong>Song:</strong> {escape(submission.song_title)} — {escape(submission.song_artist)} ({tier_label})</p>
+      <p><strong>From:</strong> {escape(submission.first_name)} {escape(submission.last_name or "")} &lt;{escape(submission.email)}&gt;</p>
+      <p><strong>Message:</strong><br>{escape(submission.message)}</p>
+      {proof_line}
+      <p style="color:#666;font-size:13px;">Review in admin dashboard → Misread Reports tab.</p>
+    </div>
+    """
+
+    try:
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.email_from,
+                "to": [settings.misread_notify_email],
+                "subject": f"[RC] New {kind}: {submission.song_title} — {submission.song_artist}",
+                "html": html,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        logger.info("Admin notify sent to %s for submission #%s", settings.misread_notify_email, submission.id)
+        return True
+    except Exception:
+        logger.exception("Failed to send admin notify email via Resend")
+        return False
+
+
 def _is_banned(db: Session, device_id: Optional[str], ip: Optional[str]) -> bool:
     """Check if a device_id or IP is banned."""
     conditions = []
@@ -217,6 +266,7 @@ def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session 
     db.refresh(submission)
 
     _send_receipt_email(submission)
+    _send_admin_notification_email(submission)
 
     return submission
 

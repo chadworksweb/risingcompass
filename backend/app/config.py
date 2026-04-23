@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = "Rising Compass <compass@risingcompass.net>"
     approval_email: str = ""
+    misread_notify_email: str = ""
 
     # Site URL for approval links in emails
     site_url: str = "http://localhost:8000"
