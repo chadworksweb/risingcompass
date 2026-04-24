@@ -403,6 +403,37 @@ class SongArtist(Base):
     artist = relationship("Artist")
 
 
+class ArtistAdminEvent(Base):
+    """Audit log for admin artist operations (merge, rename).
+
+    Written in the same transaction as the mutation so the log can never
+    disagree with reality. event_type is 'merge' or 'rename'; rewrites_json
+    carries a per-operation breakdown of what got touched.
+    """
+    __tablename__ = "artist_admin_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    event_type = Column(String(20), nullable=False)  # merge | rename
+    actor = Column(String(64))
+
+    # The artist acted upon (for merge, this is the source that got absorbed).
+    # artist_id is nullable because the row may have been deleted by the merge.
+    artist_id = Column(Integer)
+    artist_name_before = Column(Text, nullable=False)
+    artist_slug_before = Column(Text, nullable=False)
+    artist_name_after = Column(Text)
+    artist_slug_after = Column(Text)
+
+    # Merge target — null for rename events.
+    target_artist_id = Column(Integer)
+    target_artist_name = Column(Text)
+    target_artist_slug = Column(Text)
+
+    rewrites_json = Column(Text)
+    notes = Column(Text)
+
+
 class ReleaseSong(Base):
     """Links a release to a calibrated song across the three song tables."""
     __tablename__ = "release_songs"
