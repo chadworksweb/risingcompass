@@ -187,6 +187,37 @@ body {
 .empty-cta { font-size: 0.85rem; }
 .empty-cta a { color: var(--rc-accent); }
 
+/* --- Searching indicator --- */
+.searching-state {
+  max-width: 640px;
+  margin: 1.5rem auto 0.5rem;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--rc-text-dim);
+  font-size: 0.9rem;
+}
+.searching-label { margin-left: 0.25rem; }
+.searching-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rc-accent);
+  opacity: 0.35;
+  animation: rc-search-pulse 1.2s infinite ease-in-out;
+}
+.searching-dot:nth-child(2) { animation-delay: 0.15s; }
+.searching-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes rc-search-pulse {
+  0%, 80%, 100% { opacity: 0.35; transform: scale(0.9); }
+  40% { opacity: 1; transform: scale(1.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .searching-dot { animation: none; opacity: 0.7; }
+}
+
 /* --- Stats Bar --- */
 .stats-bar {
   display: flex;

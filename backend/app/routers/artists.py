@@ -1,10 +1,12 @@
 """Artist Trajectory API — public endpoints for artist search and trajectory display."""
 
 import logging
+import time
+from threading import Lock
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app.database import SessionLocal
 from app.models import (
@@ -30,72 +32,162 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/artists", tags=["artists"])
 
 
+# --- Search-result cache ---------------------------------------------------
+# Typeahead hits the same prefixes repeatedly ("th", "the", "th"...). A short
+# TTL in-process cache collapses these into a single DB hit per (q_lower, limit)
+# inside the window. 60s is short enough that newly-bootstrapped artists appear
+# quickly, long enough to absorb a typing burst.
+
+_SEARCH_CACHE_TTL = 60.0
+_SEARCH_CACHE_MAX = 256
+_search_cache: dict[tuple[str, int], tuple[float, dict]] = {}
+_search_cache_lock = Lock()
+
+
+def _search_cache_get(key: tuple[str, int]) -> Optional[dict]:
+    with _search_cache_lock:
+        entry = _search_cache.get(key)
+        if not entry:
+            return None
+        ts, value = entry
+        if time.time() - ts > _SEARCH_CACHE_TTL:
+            _search_cache.pop(key, None)
+            return None
+        return value
+
+
+def _search_cache_set(key: tuple[str, int], value: dict) -> None:
+    with _search_cache_lock:
+        if len(_search_cache) >= _SEARCH_CACHE_MAX:
+            # Evict the oldest third — simple, no heap needed at this size.
+            to_drop = sorted(_search_cache.items(), key=lambda kv: kv[1][0])
+            for k, _ in to_drop[: _SEARCH_CACHE_MAX // 3]:
+                _search_cache.pop(k, None)
+        _search_cache[key] = (time.time(), value)
+
+
 @router.get("/search")
 def artist_search(
     q: str = Query(..., min_length=2),
     limit: int = Query(20, ge=1, le=50),
 ):
-    """Search artists by name. Also returns unindexed matches from song tables."""
+    """Search artists by name. Also returns unindexed matches from song tables.
+
+    Two SQL statements total: one aggregated query for indexed artists + their
+    release/song counts (via scalar subqueries), one UNION query for unindexed
+    names across the three song tables. Prior implementation ran 60-150+ round
+    trips; this runs 2. Results are cached for 60s per (q_lower, limit).
+
+    Counts use string-match only (no song_artists credit-path dedupe). The
+    artist page itself still reports the accurate count via
+    `count_songs_by_artist`; a small skew in the typeahead badge is acceptable.
+    """
+    q_lower = q.strip().lower()
+    cache_key = (q_lower, limit)
+    cached = _search_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    like_pat = f"%{q_lower}%"
+
     db = SessionLocal()
     try:
-        q_lower = q.strip().lower()
-
-        # Search indexed artists
-        artists = (
-            db.query(Artist)
-            .filter(func.lower(Artist.name).contains(q_lower))
-            .limit(limit)
-            .all()
-        )
-
-        results = []
-        indexed_names = set()
-
-        for a in artists:
-            release_count = (
-                db.query(func.count(Release.id))
-                .filter(Release.artist_id == a.id)
-                .scalar()
+        # --- Indexed artists, aggregated in one round trip -----------------
+        indexed_sql = text(
+            """
+            WITH matched AS (
+                SELECT id, name, slug
+                FROM artists
+                WHERE lower(name) LIKE :pat
+                LIMIT :limit
             )
-            song_count = count_songs_by_artist(a.name, db)
+            SELECT
+                m.name,
+                m.slug,
+                (SELECT COUNT(*) FROM releases r WHERE r.artist_id = m.id)
+                    AS release_count,
+                (
+                    (SELECT COUNT(*) FROM compass_songs
+                       WHERE lower(artist) = lower(m.name)
+                         AND charge_value IS NOT NULL)
+                  + (SELECT COUNT(*) FROM library_songs
+                       WHERE lower(artist) = lower(m.name)
+                         AND charge_value IS NOT NULL)
+                  + (SELECT COUNT(*) FROM submitted_songs
+                       WHERE lower(artist) = lower(m.name)
+                         AND charge_value IS NOT NULL)
+                ) AS song_count
+            FROM matched m
+            """
+        )
+        indexed_rows = db.execute(
+            indexed_sql, {"pat": like_pat, "limit": limit}
+        ).all()
+
+        results: list[dict] = []
+        indexed_lower: set[str] = set()
+        for name, slug, release_count, song_count in indexed_rows:
             results.append({
-                "name": a.name,
-                "slug": a.slug,
-                "release_count": release_count,
-                "calibrated_song_count": song_count,
+                "name": name,
+                "slug": slug,
+                "release_count": int(release_count or 0),
+                "calibrated_song_count": int(song_count or 0),
                 "indexed": True,
             })
-            indexed_names.add(a.name.lower())
+            indexed_lower.add(name.lower())
 
-        # Find unindexed artist names in song tables (not yet bootstrapped)
+        # --- Unindexed names, one UNION query across the 3 song tables ----
         if len(results) < limit:
             remaining = limit - len(results)
-            unindexed_names = set()
-
-            for Model in (CompassSong, LibrarySong, SubmittedSong):
-                query = (
-                    db.query(func.distinct(Model.artist))
-                    .filter(func.lower(Model.artist).contains(q_lower))
-                    .filter(Model.charge_value.isnot(None))
+            unindexed_sql = text(
+                """
+                SELECT MIN(artist) AS name, COUNT(*) AS song_count
+                FROM (
+                    SELECT artist FROM compass_songs
+                     WHERE lower(artist) LIKE :pat
+                       AND charge_value IS NOT NULL
+                    UNION ALL
+                    SELECT artist FROM library_songs
+                     WHERE lower(artist) LIKE :pat
+                       AND charge_value IS NOT NULL
+                    UNION ALL
+                    SELECT artist FROM submitted_songs
+                     WHERE lower(artist) LIKE :pat
+                       AND charge_value IS NOT NULL
+                       AND artist IS NOT NULL
                 )
-                if Model is SubmittedSong:
-                    query = query.filter(Model.artist.isnot(None))
-                for (name,) in query.limit(remaining).all():
-                    if name and name.lower() not in indexed_names:
-                        unindexed_names.add(name)
+                GROUP BY lower(artist)
+                ORDER BY name
+                LIMIT :limit
+                """
+            )
+            # Fetch a bit more than `remaining` to absorb rows that filter out
+            # because they're already in `indexed_lower`.
+            unindexed_rows = db.execute(
+                unindexed_sql,
+                {"pat": like_pat, "limit": remaining + len(indexed_lower) + 10},
+            ).all()
 
-            for name in sorted(unindexed_names)[:remaining]:
-                song_count = count_songs_by_artist(name, db)
-                if song_count > 0:
+            added = 0
+            for name, song_count in unindexed_rows:
+                if added >= remaining:
+                    break
+                if not name or name.lower() in indexed_lower:
+                    continue
+                if song_count and song_count > 0:
                     results.append({
                         "name": name,
                         "slug": None,
                         "release_count": 0,
-                        "calibrated_song_count": song_count,
+                        "calibrated_song_count": int(song_count),
                         "indexed": False,
                     })
+                    indexed_lower.add(name.lower())
+                    added += 1
 
-        return {"results": results}
+        payload = {"results": results}
+        _search_cache_set(cache_key, payload)
+        return payload
     finally:
         db.close()
 

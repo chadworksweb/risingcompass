@@ -36,16 +36,21 @@
     const resultsContainer = document.getElementById('results-container');
     const emptyState = document.getElementById('empty-state');
     const initialState = document.getElementById('initial-state');
+    const searchingState = document.getElementById('searching-state');
     if (!input) return;
 
     let debounceTimer = null;
+    let currentController = null;
+    let requestSeq = 0;
 
     input.addEventListener('input', () => {
       clearTimeout(debounceTimer);
       const q = input.value.trim();
       if (q.length < 2) {
+        if (currentController) currentController.abort();
         resultsContainer.innerHTML = '';
         emptyState.hidden = true;
+        if (searchingState) searchingState.hidden = true;
         initialState.hidden = q.length > 0;
         return;
       }
@@ -53,15 +58,28 @@
     });
 
     async function runSearch(q) {
+      if (currentController) currentController.abort();
+      const controller = new AbortController();
+      currentController = controller;
+      const mySeq = ++requestSeq;
+
       initialState.hidden = true;
+      emptyState.hidden = true;
+      if (searchingState) searchingState.hidden = false;
+      announce('Searching');
+
       try {
         const [artistData, songData] = await Promise.all([
-          ArtistsAPI.searchArtists(q, 10),
-          ArtistsAPI.searchSongs(q, 10),
+          ArtistsAPI.searchArtists(q, 10, controller.signal),
+          ArtistsAPI.searchSongs(q, 10, controller.signal),
         ]);
+
+        if (mySeq !== requestSeq) return;
 
         const artists = artistData.results || [];
         const songs = songData.results || [];
+
+        if (searchingState) searchingState.hidden = true;
 
         if (artists.length === 0 && songs.length === 0) {
           resultsContainer.innerHTML = '';
@@ -115,7 +133,10 @@
         resultsContainer.innerHTML = html;
         announce(`${artists.length} artist${artists.length !== 1 ? 's' : ''}, ${songs.length} song${songs.length !== 1 ? 's' : ''} found`);
       } catch (err) {
+        if (err && (err.name === 'AbortError' || controller.signal.aborted)) return;
+        if (mySeq !== requestSeq) return;
         console.error('Search error:', err);
+        if (searchingState) searchingState.hidden = true;
         resultsContainer.innerHTML = '<p class="error-message">Search failed. Try again.</p>';
       }
     }

@@ -10,16 +10,16 @@ const ArtistsAPI = (() => {
     ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
     : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
 
-  async function get(path) {
+  async function get(path, signal) {
     const headers = {};
     if (API_KEY) headers['X-Api-Key'] = API_KEY;
-    const resp = await fetch(`${BASE}${path}`, { headers });
+    const resp = await fetch(`${BASE}${path}`, { headers, signal });
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
     return resp.json();
   }
 
   return {
-    searchArtists: (q, limit = 20) => get(`/api/artists/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+    searchArtists: (q, limit = 20, signal) => get(`/api/artists/search?q=${encodeURIComponent(q)}&limit=${limit}`, signal),
     getArtist: (slug) => get(`/api/artists/${slug}`),
     getArtistSummary: (slug) => get(`/api/artists/${slug}/summary`),
     getArtistTrajectory: (slug) => get(`/api/artists/${slug}/trajectory`),
@@ -32,7 +32,7 @@ const ArtistsAPI = (() => {
       if (releaseId != null) path += `&release_id=${releaseId}`;
       return get(path);
     },
-    searchSongs: (q, limit = 20) => get(`/api/songs?q=${encodeURIComponent(q)}&limit=${limit}`),
+    searchSongs: (q, limit = 20, signal) => get(`/api/songs?q=${encodeURIComponent(q)}&limit=${limit}`, signal),
     searchLibrary: (params = {}) => {
       const qs = new URLSearchParams();
       Object.entries(params).forEach(([k, v]) => {
