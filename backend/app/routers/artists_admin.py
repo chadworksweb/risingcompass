@@ -10,7 +10,7 @@ from sqlalchemy import func
 from app.config import settings
 from app.database import SessionLocal
 from app.models import (
-    Artist, Release, ReleaseSong,
+    Artist, Release,
     CompassSong, LibrarySong, SubmittedSong,
 )
 from app.services.artist_utils import (
@@ -112,42 +112,13 @@ def bootstrap_artists(
             db.add(artist)
             db.flush()
 
-            # Link existing songs — create a single "Uncategorized" release
-            # for now. Release metadata resolution (MusicBrainz/Spotify) is Phase 3.
-            song_links = _find_songs_for_artist(normalized, db)
-            if song_links:
-                release = Release(
-                    artist_id=artist.id,
-                    title="Singles & Uncategorized",
-                    release_type="single",
-                    track_count=len(song_links),
-                    calibrated_count=len(song_links),
-                )
-                db.add(release)
-                db.flush()
-
-                charges = []
-                contam = 0
-                for source, sid, charge, is_contam in song_links:
-                    link = ReleaseSong(
-                        release_id=release.id,
-                        song_source=source,
-                        song_id=sid,
-                    )
-                    db.add(link)
-                    if charge is not None:
-                        charges.append(charge)
-                    if is_contam:
-                        contam += 1
-
-                if charges:
-                    result = compute_release_charge(charges)
-                    if result:
-                        release.charge_value = result[0]
-                        release.rubric_color = result[1]
-                release.contamination_count = contam
-
-            created.append({"name": normalized, "slug": slug, "songs": len(song_links)})
+            # No auto-release creation. Songs with this artist surface on the
+            # artist page via song_artists / string match; Release records
+            # only exist when real release metadata (title, date, type) is
+            # known — set via the admin bootstrap discography flow or a
+            # targeted backfill script.
+            song_count = len(_find_songs_for_artist(normalized, db))
+            created.append({"name": normalized, "slug": slug, "songs": song_count})
 
         db.commit()
 
@@ -160,15 +131,17 @@ def bootstrap_artists(
         db.close()
 
 
-@router.post("/{slug}/refresh-releases")
-def refresh_releases(
+@router.post("/{slug}/refresh-release-aggregates")
+def refresh_release_aggregates(
     slug: str,
     x_admin_key: str = Header(...),
 ):
-    """Re-link songs for an artist from the three song tables.
+    """Recompute track_count / calibrated_count / charge_value / rubric_color
+    on every real Release for this artist by walking its ReleaseSong links.
 
-    This does NOT call MusicBrainz/Spotify (that's Phase 3).
-    It re-scans the song tables and updates the catch-all release.
+    No catch-all creation. Releases only exist when a real album/single/EP
+    is defined; songs without release metadata stay unassigned and surface
+    via song_artists + top-songs.
     """
     _require_admin(x_admin_key)
     db = SessionLocal()
@@ -177,66 +150,52 @@ def refresh_releases(
         if not artist:
             raise HTTPException(404, "Artist not found")
 
-        # Find all songs for this artist
-        song_links = _find_songs_for_artist(artist.name, db)
+        SOURCE_MODEL = {
+            "compass": CompassSong,
+            "library": LibrarySong,
+            "submitted": SubmittedSong,
+        }
 
-        # Get or create catch-all release
-        catch_all = (
-            db.query(Release)
-            .filter(Release.artist_id == artist.id)
-            .filter(Release.title == "Singles & Uncategorized")
-            .first()
-        )
-        if not catch_all:
-            catch_all = Release(
-                artist_id=artist.id,
-                title="Singles & Uncategorized",
-                release_type="single",
-            )
-            db.add(catch_all)
-            db.flush()
+        updated = []
+        for release in artist.releases:
+            links = release.songs
+            charges: list[int] = []
+            contam = 0
+            for link in links:
+                Model = SOURCE_MODEL.get(link.song_source)
+                if Model is None:
+                    continue
+                row = db.query(Model).filter(Model.id == link.song_id).first()
+                if row is None:
+                    continue
+                if row.charge_value is not None:
+                    charges.append(row.charge_value)
+                if getattr(row, "contaminated", False):
+                    contam += 1
 
-        # Get existing linked song IDs (across all releases for this artist)
-        existing_links = set()
-        for r in artist.releases:
-            for link in r.songs:
-                existing_links.add((link.song_source, link.song_id))
-
-        # Add new songs to catch-all
-        new_count = 0
-        charges = []
-        contam = 0
-        for source, sid, charge, is_contam in song_links:
-            if (source, sid) not in existing_links:
-                db.add(ReleaseSong(
-                    release_id=catch_all.id,
-                    song_source=source,
-                    song_id=sid,
-                ))
-                new_count += 1
-            if charge is not None:
-                charges.append(charge)
-            if is_contam:
-                contam += 1
-
-        # Update catch-all stats
-        total_linked = len(existing_links) + new_count
-        catch_all.track_count = total_linked
-        catch_all.calibrated_count = len(charges)
-        catch_all.contamination_count = contam
-        if charges:
-            result = compute_release_charge(charges)
-            if result:
-                catch_all.charge_value = result[0]
-                catch_all.rubric_color = result[1]
+            release.calibrated_count = len(charges)
+            release.contamination_count = contam
+            if charges:
+                result = compute_release_charge(charges)
+                if result:
+                    release.charge_value = result[0]
+                    release.rubric_color = result[1]
+            else:
+                release.charge_value = None
+                release.rubric_color = None
+            updated.append({
+                "id": release.id,
+                "title": release.title,
+                "track_count": release.track_count,
+                "calibrated_count": release.calibrated_count,
+            })
 
         db.commit()
-
         return {
             "artist": artist.name,
             "slug": artist.slug,
-            "new_songs_linked": new_count,
-            "total_songs": total_linked,
+            "releases_refreshed": len(updated),
+            "releases": updated,
         }
     finally:
         db.close()

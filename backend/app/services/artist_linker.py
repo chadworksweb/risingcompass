@@ -1,6 +1,5 @@
 """Artist linking — parse multi-artist credit strings, upsert artists,
-write song→artist attribution via song_artists, and preserve the existing
-release_songs catch-all linkage so artist trajectory pages keep working.
+write song→artist attribution via song_artists.
 
 Two shapes of input supported:
   - a raw credit string ("Drake feat. 21 Savage & Metro Boomin")
@@ -9,6 +8,12 @@ Two shapes of input supported:
 All ingestion paths (LC submit, compass agent approve, stream promotion,
 admin library CRUD) route through `try_link_song`. Best-effort: failures
 are logged but never raised, since linking is ancillary to classification.
+
+No release_songs linkage here. Songs are surfaced on the artist page via
+song_artists (credit path) + string match; releases only exist when there's
+real release metadata to back them. A song without release info stays
+unassigned to a Release — it's counted and visible, just not on the
+trajectory timeline.
 """
 
 import logging
@@ -16,7 +21,7 @@ import re
 
 from sqlalchemy import func
 
-from app.models import Artist, Release, ReleaseSong, SongArtist
+from app.models import Artist, SongArtist
 from app.services.artist_utils import generate_artist_slug
 
 logger = logging.getLogger(__name__)
@@ -99,47 +104,6 @@ def upsert_artist(db, name: str) -> Artist:
     return artist
 
 
-def _link_to_catchall_release(db, artist: Artist, song_source: str, song_id: int):
-    """Ensure the song appears on the artist's 'Singles & Uncategorized' release.
-
-    Preserves the existing artist trajectory flow. No-op if a release_songs row
-    for this song already exists (under any release) so we don't duplicate.
-    """
-    existing = (
-        db.query(ReleaseSong)
-        .filter(ReleaseSong.song_source == song_source)
-        .filter(ReleaseSong.song_id == song_id)
-        .first()
-    )
-    if existing:
-        return
-
-    catch_all = (
-        db.query(Release)
-        .filter(Release.artist_id == artist.id)
-        .filter(Release.title == "Singles & Uncategorized")
-        .first()
-    )
-    if not catch_all:
-        catch_all = Release(
-            artist_id=artist.id,
-            title="Singles & Uncategorized",
-            release_type="single",
-            track_count=0,
-            calibrated_count=0,
-        )
-        db.add(catch_all)
-        db.flush()
-
-    db.add(ReleaseSong(
-        release_id=catch_all.id,
-        song_source=song_source,
-        song_id=song_id,
-    ))
-    catch_all.track_count = (catch_all.track_count or 0) + 1
-    catch_all.calibrated_count = (catch_all.calibrated_count or 0) + 1
-
-
 def link_song_artists(
     db,
     *,
@@ -147,11 +111,11 @@ def link_song_artists(
     song_id: int,
     entries: list[dict],
 ) -> None:
-    """Upsert song_artists rows and link the first primary via release_songs."""
+    """Upsert song_artists rows. No release linkage — releases require
+    real release metadata (title, date, type) which we don't invent here."""
     if not entries:
         return
 
-    first_primary_linked = False
     for e in entries:
         name = (e.get("name") or "").strip()
         if not name:
@@ -178,10 +142,6 @@ def link_song_artists(
                 role=role,
                 position=position,
             ))
-
-        if role == "primary" and not first_primary_linked:
-            _link_to_catchall_release(db, artist, song_source, song_id)
-            first_primary_linked = True
 
 
 def try_link_song(
