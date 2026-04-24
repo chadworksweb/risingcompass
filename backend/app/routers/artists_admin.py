@@ -308,9 +308,28 @@ def _find_songs_for_artist(artist_name: str, db) -> list[tuple[str, int, int | N
 
 # ============================================================
 # Merge + rename (audited)
+#
+# These operations run many statements in one transaction. The shared
+# SQLAlchemy session talks to the Turso embedded replica, which uses
+# Hrana streams that time out mid-transaction under load — we hit this
+# live during the first merge attempt. Same class of problem that
+# api_call_log + lc_events + last_used_at solved by writing through a
+# direct libsql connection to the primary. We use that pattern here too.
 # ============================================================
 
 _SONG_TABLES = ("compass_songs", "library_songs", "submitted_songs")
+
+
+def _open_primary_conn():
+    """Direct libsql connection to the Turso primary. Bypasses the embedded
+    replica session so long admin transactions don't lose their Hrana stream
+    mid-flight. Caller owns the lifecycle."""
+    import libsql
+    url = settings.database_url
+    token = settings.turso_auth_token
+    if url.startswith("libsql://") or url.startswith("https://"):
+        return libsql.connect(database=url, auth_token=token)
+    return libsql.connect(database=url)
 
 
 def _invalidate_artist_caches() -> None:
@@ -325,36 +344,6 @@ def _invalidate_artist_caches() -> None:
             artists_router._search_cache.clear()
     except Exception:
         logger.exception("failed to clear artist caches post-admin-op")
-
-
-def _recompute_release_aggregates_for_artist(db, artist: Artist) -> None:
-    source_model = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong}
-    for release in db.query(Release).filter(Release.artist_id == artist.id).all():
-        links = db.query(ReleaseSong).filter(ReleaseSong.release_id == release.id).all()
-        charges: list[int] = []
-        contam = 0
-        for link in links:
-            Model = source_model.get(link.song_source)
-            if Model is None:
-                continue
-            row = db.query(Model).filter(Model.id == link.song_id).first()
-            if row is None:
-                continue
-            if row.charge_value is not None:
-                charges.append(row.charge_value)
-            if getattr(row, "contaminated", False):
-                contam += 1
-        release.track_count = len(links)
-        release.calibrated_count = len(charges)
-        release.contamination_count = contam
-        if charges:
-            result = compute_release_charge(charges)
-            if result:
-                release.charge_value = result[0]
-                release.rubric_color = result[1]
-        else:
-            release.charge_value = None
-            release.rubric_color = None
 
 
 class MergeArtistRequest(BaseModel):
@@ -372,121 +361,149 @@ def merge_artist(
 
     Rewrites every FK + denormalised string column so the target absorbs
     everything the source pointed at, then deletes the source Artist row.
-    All of this runs in one transaction; an artist_admin_events audit row
-    commits alongside so the log can never disagree with the DB.
+    Everything commits atomically via a direct libsql connection to the
+    Turso primary (the replica session can't hold a long transaction).
+    The artist_admin_events audit row is written in the same transaction.
+
+    Post-merge `releases.track_count / calibrated_count / charge_value /
+    rubric_color` on the target may be slightly stale for any release that
+    absorbed links from the source — call
+    POST /api/admin/artists/{target_slug}/refresh-release-aggregates
+    afterwards to normalise (fast, idempotent).
     """
     _require_admin(x_admin_key)
-    db = SessionLocal()
-    try:
-        source = db.query(Artist).filter(Artist.slug == slug).first()
-        if not source:
-            raise HTTPException(404, f"Source artist '{slug}' not found")
-        target = db.query(Artist).filter(Artist.slug == req.target_slug).first()
-        if not target:
-            raise HTTPException(404, f"Target artist '{req.target_slug}' not found")
-        if source.id == target.id:
-            raise HTTPException(400, "Cannot merge an artist into itself")
 
-        source_snap = {"id": source.id, "name": source.name, "slug": source.slug}
-        target_snap = {"id": target.id, "name": target.name, "slug": target.slug}
+    conn = _open_primary_conn()
+    try:
+        row = conn.execute(
+            "SELECT id, name, slug FROM artists WHERE slug = ?", (slug,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, f"Source artist '{slug}' not found")
+        source_id, source_name, source_slug = row
+
+        row = conn.execute(
+            "SELECT id, name, slug FROM artists WHERE slug = ?", (req.target_slug,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, f"Target artist '{req.target_slug}' not found")
+        target_id, target_name, target_slug = row
+
+        if source_id == target_id:
+            raise HTTPException(400, "Cannot merge an artist into itself")
 
         rewrites: dict = {}
 
-        # 1. song_artists: dedupe against target's existing credits, then rewrite.
-        dup = db.execute(text(
+        # 1. song_artists: dedupe against target's credits, then rewrite.
+        cur = conn.execute(
             "DELETE FROM song_artists"
-            " WHERE artist_id = :from_id"
+            " WHERE artist_id = ?"
             "   AND (song_source, song_id) IN ("
-            "       SELECT song_source, song_id FROM song_artists WHERE artist_id = :to_id"
-            "   )"
-        ), {"from_id": source.id, "to_id": target.id}).rowcount
-        rewrites["song_artists_dedup_dropped"] = dup
+            "       SELECT song_source, song_id FROM song_artists WHERE artist_id = ?"
+            "   )",
+            (source_id, target_id),
+        )
+        rewrites["song_artists_dedup_dropped"] = cur.rowcount or 0
 
-        sa_rewrites = db.execute(text(
-            "UPDATE song_artists SET artist_id = :to_id WHERE artist_id = :from_id"
-        ), {"from_id": source.id, "to_id": target.id}).rowcount
-        rewrites["song_artists_reassigned"] = sa_rewrites
+        cur = conn.execute(
+            "UPDATE song_artists SET artist_id = ? WHERE artist_id = ?",
+            (target_id, source_id),
+        )
+        rewrites["song_artists_reassigned"] = cur.rowcount or 0
 
-        # 2. releases: UNIQUE(artist_id, title) forces collision handling.
+        # 2. releases: handle UNIQUE(artist_id, title) collisions.
         target_title_to_id = {
-            r.title: r.id
-            for r in db.query(Release).filter(Release.artist_id == target.id).all()
+            t: rid for rid, t in conn.execute(
+                "SELECT id, title FROM releases WHERE artist_id = ?", (target_id,)
+            ).fetchall()
         }
         releases_merged = 0
         releases_reassigned = 0
         release_songs_moved = 0
         release_songs_dropped_as_dup = 0
-        for src_rel in db.query(Release).filter(Release.artist_id == source.id).all():
-            if src_rel.title in target_title_to_id:
-                to_rel_id = target_title_to_id[src_rel.title]
+        for src_rel_id, src_title in conn.execute(
+            "SELECT id, title FROM releases WHERE artist_id = ?", (source_id,)
+        ).fetchall():
+            if src_title in target_title_to_id:
+                to_rel_id = target_title_to_id[src_title]
                 existing = {
-                    (s, i) for s, i in db.execute(text(
-                        "SELECT song_source, song_id FROM release_songs WHERE release_id = :rid"
-                    ), {"rid": to_rel_id}).all()
+                    (s, i) for s, i in conn.execute(
+                        "SELECT song_source, song_id FROM release_songs WHERE release_id = ?",
+                        (to_rel_id,),
+                    ).fetchall()
                 }
-                for link_id, ssrc, sid, _tn in db.execute(text(
-                    "SELECT id, song_source, song_id, track_number FROM release_songs WHERE release_id = :rid"
-                ), {"rid": src_rel.id}).all():
+                for link_id, ssrc, sid in conn.execute(
+                    "SELECT id, song_source, song_id FROM release_songs WHERE release_id = ?",
+                    (src_rel_id,),
+                ).fetchall():
                     if (ssrc, sid) in existing:
-                        db.execute(text("DELETE FROM release_songs WHERE id = :lid"), {"lid": link_id})
+                        conn.execute("DELETE FROM release_songs WHERE id = ?", (link_id,))
                         release_songs_dropped_as_dup += 1
                     else:
-                        db.execute(
-                            text("UPDATE release_songs SET release_id = :to_rid WHERE id = :lid"),
-                            {"to_rid": to_rel_id, "lid": link_id},
+                        conn.execute(
+                            "UPDATE release_songs SET release_id = ? WHERE id = ?",
+                            (to_rel_id, link_id),
                         )
                         existing.add((ssrc, sid))
                         release_songs_moved += 1
-                db.delete(src_rel)
+                conn.execute("DELETE FROM releases WHERE id = ?", (src_rel_id,))
                 releases_merged += 1
             else:
-                src_rel.artist_id = target.id
+                conn.execute(
+                    "UPDATE releases SET artist_id = ? WHERE id = ?",
+                    (target_id, src_rel_id),
+                )
                 releases_reassigned += 1
         rewrites["releases_merged_into_existing"] = releases_merged
         rewrites["releases_reassigned"] = releases_reassigned
         rewrites["release_songs_moved"] = release_songs_moved
         rewrites["release_songs_dropped_as_dup"] = release_songs_dropped_as_dup
 
-        # 3. Normalise the `artist` string column on each song table.
+        # 3. Normalise the denormalised `artist` string column on song tables.
         for tbl in _SONG_TABLES:
-            n = db.execute(
-                text(f"UPDATE {tbl} SET artist = :to_name WHERE lower(artist) = lower(:from_name)"),
-                {"to_name": target.name, "from_name": source.name},
-            ).rowcount
-            rewrites[f"{tbl}_artist_string_rewritten"] = n
+            cur = conn.execute(
+                f"UPDATE {tbl} SET artist = ? WHERE lower(artist) = lower(?)",
+                (target_name, source_name),
+            )
+            rewrites[f"{tbl}_artist_string_rewritten"] = cur.rowcount or 0
 
         # 4. Drop the source Artist row.
-        db.delete(source)
-        db.flush()
+        conn.execute("DELETE FROM artists WHERE id = ?", (source_id,))
 
-        # 5. Recompute aggregates on every surviving release for the target.
-        _recompute_release_aggregates_for_artist(db, target)
-
-        # 6. Audit event — same transaction.
-        event = ArtistAdminEvent(
-            event_type="merge",
-            actor="admin",
-            artist_id=source_snap["id"],
-            artist_name_before=source_snap["name"],
-            artist_slug_before=source_snap["slug"],
-            target_artist_id=target_snap["id"],
-            target_artist_name=target_snap["name"],
-            target_artist_slug=target_snap["slug"],
-            rewrites_json=json.dumps(rewrites),
-            notes=req.notes,
+        # 5. Audit event — same transaction.
+        conn.execute(
+            "INSERT INTO artist_admin_events"
+            " (event_type, actor, artist_id, artist_name_before, artist_slug_before,"
+            "  target_artist_id, target_artist_name, target_artist_slug,"
+            "  rewrites_json, notes, occurred_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            (
+                "merge", "admin",
+                source_id, source_name, source_slug,
+                target_id, target_name, target_slug,
+                json.dumps(rewrites), req.notes,
+            ),
         )
-        db.add(event)
-        db.commit()
-        event_id = event.id
+        event_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        conn.commit()
+    except HTTPException:
+        raise
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        logger.exception("artist merge failed (%s → %s)", slug, req.target_slug)
+        raise HTTPException(500, "Merge failed — nothing committed. Check server logs.")
     finally:
-        db.close()
+        try: conn.close()
+        except Exception: pass
 
     _invalidate_artist_caches()
 
     return {
         "event_id": event_id,
-        "merged": {"name": source_snap["name"], "slug": source_snap["slug"]},
-        "into": {"name": target_snap["name"], "slug": target_snap["slug"]},
+        "merged": {"name": source_name, "slug": source_slug},
+        "into": {"name": target_name, "slug": target_slug},
         "rewrites": rewrites,
     }
 
@@ -504,63 +521,95 @@ def rename_artist(
     x_admin_key: str = Header(...),
 ):
     """Rename an artist (and optionally change its slug). Normalises the
-    `artist` string column on the three song tables to match the new name."""
+    `artist` string column on the three song tables to match the new name.
+
+    Same direct-libsql pattern as merge — writes go straight to primary
+    so the transaction isn't vulnerable to replica stream timeouts.
+    """
     _require_admin(x_admin_key)
-    db = SessionLocal()
+
+    new_name = (req.new_name or "").strip()
+    if not new_name:
+        raise HTTPException(400, "new_name is required")
+
+    # Need generate_artist_slug which uses the SQLAlchemy session for its
+    # uniqueness probe. Do that through the replica session before opening
+    # the primary connection — it's a single read, no long transaction.
+    derived_slug: Optional[str] = None
+
+    conn = _open_primary_conn()
     try:
-        artist = db.query(Artist).filter(Artist.slug == slug).first()
-        if not artist:
+        row = conn.execute(
+            "SELECT id, name, slug FROM artists WHERE slug = ?", (slug,)
+        ).fetchone()
+        if not row:
             raise HTTPException(404, f"Artist '{slug}' not found")
-
-        new_name = (req.new_name or "").strip()
-        if not new_name:
-            raise HTTPException(400, "new_name is required")
-
-        old_name, old_slug = artist.name, artist.slug
+        artist_id, old_name, old_slug = row
 
         new_slug = req.new_slug.strip() if req.new_slug else None
         if new_slug:
-            collision = (
-                db.query(Artist)
-                .filter(Artist.slug == new_slug)
-                .filter(Artist.id != artist.id)
-                .first()
-            )
+            collision = conn.execute(
+                "SELECT name FROM artists WHERE slug = ? AND id != ?",
+                (new_slug, artist_id),
+            ).fetchone()
             if collision:
-                raise HTTPException(409, f"Slug '{new_slug}' already used by '{collision.name}'")
+                raise HTTPException(409, f"Slug '{new_slug}' already used by '{collision[0]}'")
         elif new_name.lower() != old_name.lower():
-            # Name changed but no slug provided — derive a fresh deduped slug.
-            new_slug = generate_artist_slug(new_name, db)
+            # Derive a fresh deduped slug via the helper — it goes through
+            # the replica session; worst case this reads a slightly stale
+            # slug set and we pick a collision on the primary (409 later).
+            db = SessionLocal()
+            try:
+                derived_slug = generate_artist_slug(new_name, db)
+            finally:
+                db.close()
+            new_slug = derived_slug
 
         rewrites: dict = {}
         for tbl in _SONG_TABLES:
-            n = db.execute(
-                text(f"UPDATE {tbl} SET artist = :new_name WHERE lower(artist) = lower(:old_name)"),
-                {"new_name": new_name, "old_name": old_name},
-            ).rowcount
-            rewrites[f"{tbl}_artist_string_rewritten"] = n
+            cur = conn.execute(
+                f"UPDATE {tbl} SET artist = ? WHERE lower(artist) = lower(?)",
+                (new_name, old_name),
+            )
+            rewrites[f"{tbl}_artist_string_rewritten"] = cur.rowcount or 0
 
-        artist.name = new_name
         if new_slug:
-            artist.slug = new_slug
+            conn.execute(
+                "UPDATE artists SET name = ?, slug = ? WHERE id = ?",
+                (new_name, new_slug, artist_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE artists SET name = ? WHERE id = ?",
+                (new_name, artist_id),
+            )
 
-        event = ArtistAdminEvent(
-            event_type="rename",
-            actor="admin",
-            artist_id=artist.id,
-            artist_name_before=old_name,
-            artist_slug_before=old_slug,
-            artist_name_after=new_name,
-            artist_slug_after=artist.slug,
-            rewrites_json=json.dumps(rewrites),
-            notes=req.notes,
+        conn.execute(
+            "INSERT INTO artist_admin_events"
+            " (event_type, actor, artist_id, artist_name_before, artist_slug_before,"
+            "  artist_name_after, artist_slug_after, rewrites_json, notes, occurred_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            (
+                "rename", "admin",
+                artist_id, old_name, old_slug,
+                new_name, new_slug or old_slug,
+                json.dumps(rewrites), req.notes,
+            ),
         )
-        db.add(event)
-        db.commit()
-        event_id = event.id
-        result_slug = artist.slug
+        event_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        conn.commit()
+        result_slug = new_slug or old_slug
+    except HTTPException:
+        raise
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        logger.exception("artist rename failed (%s)", slug)
+        raise HTTPException(500, "Rename failed — nothing committed. Check server logs.")
     finally:
-        db.close()
+        try: conn.close()
+        except Exception: pass
 
     _invalidate_artist_caches()
 
