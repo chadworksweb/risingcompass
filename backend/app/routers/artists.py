@@ -99,6 +99,35 @@ def _artist_cache_set(key: tuple, value: dict) -> None:
         _artist_cache[key] = (time.time(), value)
 
 
+@router.get("")
+def list_artists():
+    """All indexed artists, alphabetical, name + slug only.
+
+    Drives the /artists/ A-Z index page on the frontend. Cached 60s in-process
+    via the shared artist cache — the list changes rarely relative to how
+    often the index page loads.
+    """
+    cache_key = ("list-artists",)
+    cached = _artist_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(Artist.name, Artist.slug)
+            .filter(Artist.slug.isnot(None))
+            .order_by(func.lower(Artist.name))
+            .all()
+        )
+        artists = [{"name": n, "slug": s} for n, s in rows]
+        payload = {"artists": artists, "total": len(artists)}
+        _artist_cache_set(cache_key, payload)
+        return payload
+    finally:
+        db.close()
+
+
 @router.get("/search")
 def artist_search(
     q: str = Query(..., min_length=2),

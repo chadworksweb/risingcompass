@@ -19,6 +19,7 @@ const ArtistsAPI = (() => {
   }
 
   return {
+    listArtists: () => get(`/api/artists`),
     searchArtists: (q, limit = 20, signal) => get(`/api/artists/search?q=${encodeURIComponent(q)}&limit=${limit}`, signal),
     getArtist: (slug) => get(`/api/artists/${slug}`),
     getArtistSummary: (slug) => get(`/api/artists/${slug}/summary`),

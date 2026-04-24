@@ -187,6 +187,100 @@ body {
 .empty-cta { font-size: 0.85rem; }
 .empty-cta a { color: var(--rc-accent); }
 
+/* --- Artists A–Z index page --- */
+.artists-index-main {
+  max-width: 900px;
+  margin: 1.5rem auto 4rem;
+  padding: 0 1.5rem;
+}
+
+.artists-letter-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rc-border);
+  position: sticky;
+  top: 0;
+  background: var(--rc-bg-dark);
+  z-index: 2;
+}
+.artists-letter-nav[hidden] { display: none; }
+
+.artists-letter-nav-link {
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  min-width: 1.6rem;
+  padding: 0.25rem 0.4rem;
+  text-align: center;
+  color: var(--rc-text-dim);
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: var(--rc-radius-xs);
+  transition: color var(--rc-ease), border-color var(--rc-ease);
+}
+.artists-letter-nav-link:hover,
+.artists-letter-nav-link:focus-visible {
+  color: var(--rc-text);
+  border-color: var(--rc-border-ui);
+}
+
+.artists-index-loading {
+  color: var(--rc-text-dim);
+  font-size: 0.9rem;
+  padding: 2rem 0;
+  text-align: center;
+}
+.artists-index-loading[hidden] { display: none; }
+
+.artists-index-empty {
+  color: var(--rc-text-dim);
+  font-size: 0.9rem;
+  padding: 2rem 0;
+  text-align: center;
+}
+.artists-index-empty[hidden] { display: none; }
+
+.artists-index-group {
+  margin-bottom: 1.75rem;
+  scroll-margin-top: 4rem;
+}
+
+.artists-index-letter {
+  font-family: var(--rc-font-mono);
+  font-size: 0.85rem;
+  color: var(--rc-text-dim);
+  letter-spacing: 0.1em;
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--rc-border);
+}
+
+.artists-index-names {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.artists-index-link {
+  display: inline-block;
+  padding: 0.3rem 0;
+  color: var(--rc-text);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: color var(--rc-ease);
+}
+.artists-index-link:hover,
+.artists-index-link:focus-visible {
+  color: var(--rc-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* --- Searching indicator --- */
 .searching-state {
   max-width: 640px;

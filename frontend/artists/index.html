@@ -3,19 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Artists — The Rising Compass</title>
-  <meta name="description" content="Artist trajectory pages on The Rising Compass.">
-  <meta name="robots" content="noindex">
+  <title>Artists A–Z — The Rising Compass</title>
+  <meta name="description" content="Every artist classified by The Rising Compass, listed alphabetically.">
+  <meta property="og:title" content="Artists A–Z — The Rising Compass">
+  <meta property="og:description" content="Every artist classified by The Rising Compass, listed alphabetically.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/artists/">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/artists/artists.css">
 </head>
 <body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
   <header class="artists-header">
     <a href="/" class="back-link" aria-label="Back to Rising Compass">
       <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
@@ -30,13 +35,89 @@
       </svg>
       <span>The Rising Compass</span>
     </a>
+    <h1 class="artists-title">Artists A&ndash;Z</h1>
   </header>
 
-  <main id="main" style="max-width:640px;margin:4rem auto;padding:0 1.5rem;text-align:center;color:var(--rc-text-dim);">
-    <h1 style="font-size:1.25rem;margin:0 0 1rem;color:var(--rc-text);">Artists</h1>
-    <p style="font-size:0.9rem;line-height:1.6;">
-      Looking for an artist? Use <a href="/search/" class="accent-link">Search</a>.
-    </p>
+  <main id="main" class="artists-index-main">
+    <nav id="artists-letter-nav" class="artists-letter-nav" aria-label="Jump to letter" hidden></nav>
+    <div id="artists-index-loading" class="artists-index-loading" role="status" aria-live="polite">Loading artists&hellip;</div>
+    <div id="artists-index-list" class="artists-index-list"></div>
+    <div id="artists-index-empty" class="artists-index-empty" hidden>No artists indexed yet.</div>
   </main>
+
+  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="/artists/artists-api.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const listEl = document.getElementById('artists-index-list');
+      const navEl = document.getElementById('artists-letter-nav');
+      const loadingEl = document.getElementById('artists-index-loading');
+      const emptyEl = document.getElementById('artists-index-empty');
+
+      function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str == null ? '' : str;
+        return d.innerHTML;
+      }
+
+      function letterKey(name) {
+        const first = (name || '').trim().charAt(0).toUpperCase();
+        return /[A-Z]/.test(first) ? first : '#';
+      }
+
+      async function load() {
+        try {
+          const data = await ArtistsAPI.listArtists();
+          const artists = (data && data.artists) || [];
+          if (!artists.length) {
+            loadingEl.hidden = true;
+            emptyEl.hidden = false;
+            return;
+          }
+
+          const groups = new Map();
+          for (const a of artists) {
+            const k = letterKey(a.name);
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k).push(a);
+          }
+          // Stable order: A-Z then '#' last for non-alphabetical starts.
+          const keys = [...groups.keys()].sort((a, b) => {
+            if (a === '#') return 1;
+            if (b === '#') return -1;
+            return a.localeCompare(b);
+          });
+
+          // Letter jump-nav (anchors into section ids).
+          navEl.innerHTML = keys.map(k =>
+            `<a href="#letter-${k === '#' ? 'hash' : k}" class="artists-letter-nav-link">${k}</a>`
+          ).join('');
+          navEl.hidden = false;
+
+          // Groups.
+          let html = '';
+          for (const k of keys) {
+            const secId = `letter-${k === '#' ? 'hash' : k}`;
+            html += `<section class="artists-index-group" id="${secId}" aria-label="Artists starting with ${k}">`;
+            html += `<h2 class="artists-index-letter">${k}</h2>`;
+            html += '<ul class="artists-index-names">';
+            for (const a of groups.get(k)) {
+              html += `<li><a class="artists-index-link" href="/artists/artist.html?slug=${encodeURIComponent(a.slug)}">${escapeHtml(a.name)}</a></li>`;
+            }
+            html += '</ul></section>';
+          }
+          listEl.innerHTML = html;
+          loadingEl.hidden = true;
+        } catch (err) {
+          console.error('Failed to load artist list:', err);
+          loadingEl.textContent = 'Couldn’t load the artist list. Try refreshing.';
+        }
+      }
+
+      load();
+    })();
+  </script>
 </body>
 </html>
