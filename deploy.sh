@@ -5,6 +5,19 @@ set -euo pipefail
 
 SERVER="deploy@138.197.111.66"
 REMOTE_DIR="/root/rising-compass"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "=== Regenerating sitemap ==="
+# Top-level pages only; script scans frontend/ and rewrites sitemap.xml
+# if anything changed. Auto-commit + push so the server's `git pull`
+# picks up the fresh sitemap without any manual step.
+python3 "$REPO_ROOT/frontend/scripts/generate-sitemap.py"
+if ! git -C "$REPO_ROOT" diff --quiet -- frontend/sitemap.xml; then
+    echo "sitemap.xml changed — committing + pushing"
+    git -C "$REPO_ROOT" add frontend/sitemap.xml
+    git -C "$REPO_ROOT" commit -m "Regenerate sitemap.xml (auto)"
+    git -C "$REPO_ROOT" push origin master
+fi
 
 echo "=== Pulling latest code ==="
 ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git pull origin master'"
