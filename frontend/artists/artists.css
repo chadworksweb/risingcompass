@@ -293,21 +293,41 @@ body {
   padding: 0 1.5rem;
 }
 
-.trajectory-chart {
+/* Artist trajectory panel — fills its card (full height of the row),
+   chart area flex-grows, time machine controls sit at the bottom. */
+#artist-trajectory-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 360px;
+}
+
+.artist-trajectory-chart {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* let children shrink instead of overflowing */
+  gap: 0.75rem;
+}
+
+.artist-trajectory-chart .traj-chart-area {
   position: relative;
+  flex: 1;
+  min-height: 220px;
   background: var(--rc-bg-card);
   border: 1px solid var(--rc-border);
   border-radius: var(--rc-radius-lg);
   padding: 0.5rem 0.75rem;
   overflow: hidden;
-  aspect-ratio: 16 / 6;
-  min-height: 160px;
 }
 
-/* Homepage .trajectory-svg fills its container (width:100%;height:100%),
-   so the surrounding card's aspect-ratio governs the final size. */
-.trajectory-chart .trajectory-svg {
-  display: block;
+.artist-trajectory-chart .traj-wrap,
+.artist-trajectory-chart .trajectory-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.artist-trajectory-chart .timemachine-controls {
+  flex-shrink: 0;
 }
 
 .chart-dot {

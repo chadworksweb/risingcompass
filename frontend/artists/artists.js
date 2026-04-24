@@ -29,6 +29,10 @@
     return (v > 0 ? '+' : '') + v;
   }
 
+  // --- Trajectory time-machine shared constants ---
+  const TM_SPEEDS = [1, 2, 4];
+  const TM_BASE_SPEED = 1.5; // points-per-second at 1x (adjusted per page)
+
   /* ========== SEARCH PAGE ========== */
 
   function initSearchPage() {
@@ -224,7 +228,7 @@
       maybeInjectJsonLd();
     } catch (err) {
       console.error('Failed to load trajectory:', err);
-      const el = document.getElementById('trajectory-chart');
+      const el = document.getElementById('artist-trajectory-chart');
       if (el) el.innerHTML = '<p class="chart-empty">Couldn\'t load trajectory.</p>';
     }
   }
@@ -426,19 +430,53 @@
   }
 
   /* ========== TRAJECTORY CHART (SVG) ==========
-     Mirrors the homepage aggregate trajectory chart (js/app.js
-     renderTrajectoryChart) so styling + scale match: small viewBox,
-     preserveAspectRatio="none", reuses .trajectory-svg / -line / -area /
-     -grid-line / -y-label / -label / -dot classes from main.css.
+     Release-based trajectory, ported from the homepage aggregate chart
+     (js/app.js). Features: hover line/dot/tooltip, time-machine slider +
+     playback that drives the Catalog Compass / Charge widgets to each
+     release's state in turn, animated reveal via a clip-path that grows
+     with the time-machine position.
+
+     Reuses the shared SVG/tooltip/time-machine CSS classes from main.css.
   */
 
+  // Closure-scoped chart state so the time machine can read what the
+  // renderer built.
+  let artistChartData = [];   // the filtered trajectory rows (release objects)
+  let artistChartPoints = []; // SVG-space {x, y, degree, color, title, yearLabel}
+  let artistTmPosition = 0;
+  let artistTmPlaying = false;
+  let artistTmDirection = 1;
+  let artistTmSpeedIdx = 0;
+  let artistTmAnimFrame = null;
+  let artistCompassBaseline = null; // { degree, tier } to restore on reset
+
+  function degreeToTier(deg) {
+    // 0-36 red, 36-72 orange, 72-108 green, 108-144 blue, 144-180 violet
+    if (deg < 36) return 'red';
+    if (deg < 72) return 'orange';
+    if (deg < 108) return 'green';
+    if (deg < 144) return 'blue';
+    return 'violet';
+  }
+
+  function releaseYearOf(r) {
+    if (r.release_year) return r.release_year;
+    if (r.release_date) return parseInt(r.release_date.slice(0, 4), 10);
+    return null;
+  }
+
   function renderTrajectoryChart(trajectory) {
-    const container = document.getElementById('trajectory-chart');
+    const container = document.getElementById('artist-trajectory-chart');
     if (!container) return;
+    const chartEl = container.querySelector('.traj-chart-area');
+    const tmEl = container.querySelector('.timemachine-controls');
+    if (!chartEl) return;
 
     const data = (trajectory || []).filter(r => r.charge_value != null);
+    artistChartData = data;
     if (data.length === 0) {
-      container.innerHTML = '<p class="chart-empty">No classified releases to chart.</p>';
+      chartEl.innerHTML = '<p class="chart-empty">No classified releases to chart.</p>';
+      if (tmEl) tmEl.innerHTML = '';
       return;
     }
 
@@ -448,16 +486,20 @@
     const chartH = H - padT - padB;
     const maxIdx = data.length - 1;
 
-    // charge_value -100..+100  →  compass_degree 180..0   (y maps 0..chartH)
-    const points = data.map((r, i) => {
+    // charge_value -100..+100  →  compass_degree 180..0
+    artistChartPoints = data.map((r, i) => {
       const degree = 90 - (r.charge_value * 0.9);
       return {
         x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
         y: padT + (degree / 180) * chartH,
+        degree,
         color: r.rubric_color,
+        title: r.title,
+        yearLabel: releaseYearOf(r),
         release: r,
       };
     });
+    const points = artistChartPoints;
 
     const linePath = points.map((p, i) =>
       `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
@@ -481,6 +523,7 @@
         <stop offset="50%" stop-color="${COLOR_HEX.green}" stop-opacity="0.05" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
       </linearGradient>
+      <clipPath id="artist-traj-clip"><rect id="artist-traj-clip-rect" x="0" y="0" width="${W}" height="${H}" /></clipPath>
     </defs>`;
 
     // Grid + Y-axis labels
@@ -496,15 +539,15 @@
       if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}">${label}</text>`;
     });
 
-    // Area + line
+    // Clipped area + line (clip-rect expands with time-machine position)
+    svg += `<g clip-path="url(#artist-traj-clip)">`;
     svg += `<path class="trajectory-area" d="${areaPath}" fill="url(#artist-traj-area-grad)" />`;
     svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#artist-traj-grad)" />`;
+    svg += `</g>`;
 
-    // X-axis labels — first year, last year, optional midpoint
-    const yearOf = (r) =>
-      r.release_year || (r.release_date ? parseInt(r.release_date.slice(0, 4), 10) : null);
-    const firstYear = yearOf(data[0]);
-    const lastYear = yearOf(data[maxIdx]);
+    // X-axis labels — first/last year, plus optional midpoint for longer catalogs
+    const firstYear = points[0].yearLabel;
+    const lastYear = points[maxIdx].yearLabel;
     if (firstYear && lastYear && firstYear !== lastYear) {
       svg += `<text class="trajectory-label" x="${padL.toFixed(1)}" y="${H - 4}" text-anchor="start">'${String(firstYear).slice(2)}</text>`;
       svg += `<text class="trajectory-label" x="${(W - padR).toFixed(1)}" y="${H - 4}" text-anchor="end">'${String(lastYear).slice(2)}</text>`;
@@ -516,14 +559,289 @@
       svg += `<text class="trajectory-label" x="${(W / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${firstYear}</text>`;
     }
 
-    // Per-release dots
+    // Per-release dots (always visible, on top of clipped line)
     for (const p of points) {
       const hex = COLOR_HEX[p.color] || '#888';
       svg += `<circle class="trajectory-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${hex}" />`;
     }
 
+    // Time-machine moving dot (starts at last release)
+    const lastPt = points[maxIdx];
+    svg += `<circle id="artist-tm-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
+
+    // Hover overlay
+    svg += `<line id="artist-traj-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
+    svg += `<circle id="artist-traj-hover-dot" cx="0" cy="0" class="traj-hover-dot" style="display:none" />`;
+    svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="traj-hover-area" />`;
     svg += '</svg>';
-    container.innerHTML = svg;
+
+    chartEl.innerHTML = `<div class="traj-wrap">${svg}<div class="traj-tooltip" id="artist-traj-tooltip"></div></div>`;
+
+    const wrap = chartEl.querySelector('.traj-wrap');
+    const svgEl = chartEl.querySelector('.trajectory-svg');
+
+    // Hide stale tooltip on fresh touch so it doesn't flash at a previous position
+    wrap.addEventListener('touchstart', () => {
+      const t = document.getElementById('artist-traj-tooltip');
+      if (t) t.style.display = 'none';
+    }, { passive: true });
+
+    wrap.addEventListener('mousemove', (e) => {
+      if (artistTmPlaying) return;
+      const hoverLine = document.getElementById('artist-traj-hover-line');
+      const hoverDot = document.getElementById('artist-traj-hover-dot');
+      const tooltip = document.getElementById('artist-traj-tooltip');
+      if (!hoverLine) return;
+
+      const rect = svgEl.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const svgX = relX * W;
+
+      let nearest = 0, minDist = Infinity;
+      for (let i = 0; i <= maxIdx; i++) {
+        const dist = Math.abs(points[i].x - svgX);
+        if (dist < minDist) { minDist = dist; nearest = i; }
+      }
+
+      const p = points[nearest];
+      const r = p.release;
+      const hex = COLOR_HEX[p.color] || '#888';
+
+      hoverLine.setAttribute('x1', p.x.toFixed(1));
+      hoverLine.setAttribute('x2', p.x.toFixed(1));
+      hoverLine.style.display = '';
+      hoverDot.setAttribute('cx', p.x.toFixed(1));
+      hoverDot.setAttribute('cy', p.y.toFixed(1));
+      hoverDot.setAttribute('stroke', hex);
+      hoverDot.style.display = '';
+
+      const typeLabel = r.release_type === 'album' ? 'Album'
+        : r.release_type === 'ep' ? 'EP' : 'Single';
+      const charge = chargeDisplay(r.charge_value);
+      const yearStr = p.yearLabel || '';
+      const tier = CHARGE_LABELS[p.color] || '';
+      const wrapRect = wrap.getBoundingClientRect();
+      const pixelX = e.clientX - wrapRect.left;
+      const wrapW = wrapRect.width;
+      tooltip.style.left = pixelX + 'px';
+      tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)'
+        : pixelX < wrapW * 0.3 ? 'translateX(0)'
+        : 'translateX(-50%)';
+      tooltip.innerHTML = `<strong>${escapeHtml(p.title)}</strong> <span style="color:${hex}">${charge}</span> ${tier}<br><span class="traj-tooltip-sub">${typeLabel}${yearStr ? ' · ' + yearStr : ''}</span>`;
+      tooltip.style.display = 'block';
+    });
+
+    wrap.addEventListener('mouseleave', () => {
+      const hoverLine = document.getElementById('artist-traj-hover-line');
+      const hoverDot = document.getElementById('artist-traj-hover-dot');
+      const tooltip = document.getElementById('artist-traj-tooltip');
+      if (hoverLine) hoverLine.style.display = 'none';
+      if (hoverDot) hoverDot.style.display = 'none';
+      if (tooltip) tooltip.style.display = 'none';
+    });
+
+    // Click: move time machine to the clicked release
+    wrap.addEventListener('click', (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const svgX = relX * W;
+      let nearest = 0, minDist = Infinity;
+      for (let i = 0; i <= maxIdx; i++) {
+        const dist = Math.abs(points[i].x - svgX);
+        if (dist < minDist) { minDist = dist; nearest = i; }
+      }
+      saveArtistCompassBaseline();
+      artistTmStopPlayback();
+      artistTmPosition = nearest;
+      updateArtistTimeMachine(nearest);
+      const dot = document.getElementById('artist-traj-hover-dot');
+      if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
+    });
+
+    // Initialise TM position to the end
+    artistTmPosition = maxIdx;
+
+    initArtistTimeMachineControls();
+  }
+
+  /* ---------- Time Machine ---------- */
+
+  function saveArtistCompassBaseline() {
+    if (artistCompassBaseline) return; // already saved
+    const s = artistPageState.summary && artistPageState.summary.stats;
+    if (s && s.catalog_degree != null && s.catalog_tier) {
+      artistCompassBaseline = { degree: s.catalog_degree, tier: s.catalog_tier, songs: s.total_calibrated_songs || 0 };
+    }
+  }
+
+  function restoreArtistCompassBaseline() {
+    if (!artistCompassBaseline) return;
+    const { degree, tier, songs } = artistCompassBaseline;
+    if (typeof Compass !== 'undefined') Compass.setDegree(degree, tier);
+    if (typeof Charge !== 'undefined') Charge.setLevel(tier, 0, songs, degree);
+  }
+
+  function updateArtistTimeMachine(pos) {
+    const max = artistChartData.length - 1;
+    if (max < 0) return;
+
+    const i = Math.floor(pos);
+    const frac = pos - i;
+    const a = artistChartPoints[Math.min(i, max)];
+    const b = artistChartPoints[Math.min(i + 1, max)];
+
+    const deg = a.degree + (b.degree - a.degree) * frac;
+    const tier = degreeToTier(deg);
+    const hex = COLOR_HEX[tier] || '#888';
+
+    const slider = document.getElementById('artist-tm-slider');
+    const progressFill = document.getElementById('artist-tm-progress');
+    const resetBtn = document.getElementById('artist-tm-reset');
+
+    if (progressFill) progressFill.style.width = (max === 0 ? 100 : (pos / max * 100)) + '%';
+    if (slider) {
+      slider.value = Math.round(pos);
+      const nearest = artistChartData[Math.round(pos)];
+      slider.setAttribute('aria-valuetext', `${nearest.title}, ${CHARGE_LABELS[tier]}`);
+    }
+    if (resetBtn) resetBtn.style.display = '';
+
+    // Grow the clip rect to the current position (animated reveal effect)
+    const clipRect = document.getElementById('artist-traj-clip-rect');
+    if (clipRect && artistChartPoints.length) {
+      const px = a.x + (b.x - a.x) * frac;
+      clipRect.setAttribute('width', (px + 2).toFixed(1));
+    }
+
+    // Move the TM dot
+    const tmDot = document.getElementById('artist-tm-dot');
+    if (tmDot) {
+      const px = a.x + (b.x - a.x) * frac;
+      const py = a.y + (b.y - a.y) * frac;
+      tmDot.setAttribute('cx', px.toFixed(1));
+      tmDot.setAttribute('cy', py.toFixed(1));
+      tmDot.setAttribute('stroke', hex);
+    }
+
+    // Drive the Catalog Compass + Charge widgets to the release-at-position
+    if (typeof Compass !== 'undefined') Compass.setDegree(deg, tier);
+    if (typeof Charge !== 'undefined') Charge.setLevel(tier, 0, 0, deg);
+  }
+
+  function artistTmAnimate(ts) {
+    if (!artistTmPlaying) return;
+    if (!artistTmAnimate.lastTime) artistTmAnimate.lastTime = ts;
+    const dt = (ts - artistTmAnimate.lastTime) / 1000;
+    artistTmAnimate.lastTime = ts;
+
+    const max = artistChartData.length - 1;
+    artistTmPosition += TM_BASE_SPEED * TM_SPEEDS[artistTmSpeedIdx] * artistTmDirection * dt;
+
+    if (artistTmDirection === 1 && artistTmPosition >= max) { artistTmPosition = max; artistTmStopPlayback(); }
+    if (artistTmDirection === -1 && artistTmPosition <= 0) { artistTmPosition = 0; artistTmStopPlayback(); }
+
+    updateArtistTimeMachine(artistTmPosition);
+    if (artistTmPlaying) artistTmAnimFrame = requestAnimationFrame(artistTmAnimate);
+  }
+
+  function artistTmStartPlayback(dir) {
+    saveArtistCompassBaseline();
+    artistTmDirection = dir;
+    const max = artistChartData.length - 1;
+    if (dir === 1 && artistTmPosition >= max) artistTmPosition = 0;
+    if (dir === -1 && artistTmPosition <= 0) artistTmPosition = max;
+
+    artistTmPlaying = true;
+    artistTmAnimate.lastTime = null;
+
+    const playBtn = document.getElementById('artist-tm-play');
+    const playIcon = document.getElementById('artist-tm-play-icon');
+    const revBtn = document.getElementById('artist-tm-rev');
+    const fwdBtn = document.getElementById('artist-tm-fwd');
+    if (playBtn) playBtn.classList.add('active');
+    if (dir === 1 && fwdBtn) fwdBtn.classList.add('active');
+    if (dir === -1 && revBtn) revBtn.classList.add('active');
+    if (playIcon) playIcon.innerHTML = '<rect fill="currentColor" x="6" y="4" width="4" height="16"/><rect fill="currentColor" x="14" y="4" width="4" height="16"/>';
+
+    artistTmAnimFrame = requestAnimationFrame(artistTmAnimate);
+  }
+
+  function artistTmStopPlayback() {
+    artistTmPlaying = false;
+    if (artistTmAnimFrame) cancelAnimationFrame(artistTmAnimFrame);
+    ['artist-tm-play', 'artist-tm-rev', 'artist-tm-fwd'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    });
+    const playIcon = document.getElementById('artist-tm-play-icon');
+    if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
+  }
+
+  function initArtistTimeMachineControls() {
+    const max = artistChartData.length - 1;
+    if (max < 1) return;
+    const last = artistChartData[max];
+    const container = document.getElementById('artist-trajectory-chart');
+    if (!container) return;
+    const tmArea = container.querySelector('.timemachine-controls');
+    if (!tmArea) return;
+
+    tmArea.innerHTML = `
+      <div class="timemachine-wrap">
+        <input type="range" class="timemachine-slider" id="artist-tm-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Time machine release slider" aria-valuetext="${escapeHtml(last.title)}">
+      </div>
+      <div class="timemachine-playback">
+        <button class="timemachine-play-btn" id="artist-tm-rev" title="Play backward" aria-label="Play backward">
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+        </button>
+        <button class="timemachine-play-btn" id="artist-tm-play" title="Play forward" aria-label="Play forward">
+          <svg viewBox="0 0 24 24" width="14" height="14" id="artist-tm-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="timemachine-play-btn" id="artist-tm-fwd" title="Play forward fast" aria-label="Play forward fast">
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+        </button>
+        <div class="timemachine-progress"><div class="timemachine-progress-fill" id="artist-tm-progress" style="width:100%"></div></div>
+        <button class="timemachine-speed-btn" id="artist-tm-speed" aria-label="Playback speed">1x</button>
+        <button class="timemachine-reset" id="artist-tm-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
+      </div>
+    `;
+
+    const slider = document.getElementById('artist-tm-slider');
+    document.getElementById('artist-tm-play').addEventListener('click', () => {
+      if (artistTmPlaying) { artistTmStopPlayback(); return; }
+      artistTmStartPlayback(1);
+    });
+    document.getElementById('artist-tm-rev').addEventListener('click', () => {
+      if (artistTmPlaying && artistTmDirection === -1) { artistTmStopPlayback(); return; }
+      artistTmStopPlayback();
+      artistTmStartPlayback(-1);
+    });
+    document.getElementById('artist-tm-fwd').addEventListener('click', () => {
+      if (artistTmPlaying && artistTmDirection === 1) { artistTmStopPlayback(); return; }
+      artistTmStopPlayback();
+      artistTmStartPlayback(1);
+    });
+    document.getElementById('artist-tm-speed').addEventListener('click', () => {
+      artistTmSpeedIdx = (artistTmSpeedIdx + 1) % TM_SPEEDS.length;
+      document.getElementById('artist-tm-speed').textContent = TM_SPEEDS[artistTmSpeedIdx] + 'x';
+    });
+
+    slider.addEventListener('input', () => {
+      saveArtistCompassBaseline();
+      artistTmStopPlayback();
+      artistTmPosition = parseInt(slider.value);
+      updateArtistTimeMachine(artistTmPosition);
+    });
+
+    document.getElementById('artist-tm-reset').addEventListener('click', () => {
+      artistTmStopPlayback();
+      artistTmPosition = max;
+      // Fully reveal the clip rect + set TM dot to final position
+      updateArtistTimeMachine(artistTmPosition);
+      // Restore catalog aggregate on the compass/charge widgets
+      restoreArtistCompassBaseline();
+      document.getElementById('artist-tm-reset').style.display = 'none';
+    });
   }
 
   /* ========== JSON-LD ========== */
