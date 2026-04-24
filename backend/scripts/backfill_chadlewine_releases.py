@@ -84,38 +84,58 @@ def load_cl_to_rc_map(results_path: str) -> dict[str, tuple[str, int]]:
     return out
 
 
-def group_songs_by_album(export_path: str, cl_to_rc: dict) -> dict[str, dict]:
-    """Returns {album_id: {title, release_date, songs: [...]}}.
+def group_songs_by_album(export_path: str, cl_to_rc: dict) -> tuple[dict[str, dict], list[dict]]:
+    """Returns (albums, singles).
 
-    Each song dict: cl_id, title, track_number, rc_source, rc_id, charge,
-    instrumental.
+    `albums`  = {album_id: {title, release_date, songs: [...]}} for every
+                song that belongs to at least one album.
+    `singles` = [{title, release_date, song: {...}}, ...] for each orphan
+                song where is_single=True and release_date is set. These
+                become standalone Release(release_type="single") records.
+
+    Songs that are neither on an album nor a flagged single (truly orphan,
+    no release metadata) are left for the catch-all.
     """
     with open(export_path, encoding="utf-8") as f:
         export = json.load(f)
 
     albums: dict[str, dict] = {}
+    singles: list[dict] = []
+
     for s in export["songs"]:
-        for album in (s.get("albums") or []):
-            aid = album["album_id"]
-            if aid not in albums:
-                albums[aid] = {
-                    "album_id": aid,
-                    "title": album["title"],
-                    "release_date": album.get("release_date"),
-                    "songs": [],
-                }
-            rc_ref = cl_to_rc.get(s["id"])
-            rc_data = s.get("rising_compass") or {}
-            albums[aid]["songs"].append({
-                "cl_id": s["id"],
+        rc_ref = cl_to_rc.get(s["id"])
+        song_payload = {
+            "cl_id": s["id"],
+            "title": s["title"],
+            "rc_source": rc_ref[0] if rc_ref else None,
+            "rc_id": rc_ref[1] if rc_ref else None,
+            "instrumental": s.get("instrumental", False),
+        }
+
+        album_memberships = s.get("albums") or []
+        if album_memberships:
+            for album in album_memberships:
+                aid = album["album_id"]
+                if aid not in albums:
+                    albums[aid] = {
+                        "album_id": aid,
+                        "title": album["title"],
+                        "release_date": album.get("release_date"),
+                        "songs": [],
+                    }
+                albums[aid]["songs"].append({
+                    **song_payload,
+                    "track_number": album.get("track_number"),
+                })
+        elif s.get("is_single") and s.get("release_date"):
+            singles.append({
                 "title": s["title"],
-                "track_number": album.get("track_number"),
-                "rc_source": rc_ref[0] if rc_ref else None,
-                "rc_id": rc_ref[1] if rc_ref else None,
-                "charge": rc_data.get("charge"),
-                "instrumental": s.get("instrumental", False),
+                "release_date": s["release_date"],
+                "song": song_payload,
             })
-    return albums
+        # else: truly orphan — stays in the catch-all
+
+    return albums, singles
 
 
 def recompute_catchall_aggregates(db, catch_all: Release) -> None:
@@ -160,8 +180,9 @@ def main() -> None:
     cl_to_rc = load_cl_to_rc_map(args.results_merged)
     logger.info("Loaded %d chadlewine → RC mappings", len(cl_to_rc))
 
-    albums = group_songs_by_album(args.full_export, cl_to_rc)
-    logger.info("Grouped %d distinct albums", len(albums))
+    albums, singles = group_songs_by_album(args.full_export, cl_to_rc)
+    logger.info("Grouped %d albums / EPs and %d standalone singles",
+                len(albums), len(singles))
 
     db = SessionLocal()
     try:
@@ -177,14 +198,20 @@ def main() -> None:
             .first()
         )
 
-        songs_that_belong_to_albums: set[tuple[str, int]] = set()
+        songs_that_belong_to_real_releases: set[tuple[str, int]] = set()
         for album in albums.values():
             for song in album["songs"]:
                 if song["rc_source"] and song["rc_id"]:
-                    songs_that_belong_to_albums.add((song["rc_source"], song["rc_id"]))
+                    songs_that_belong_to_real_releases.add((song["rc_source"], song["rc_id"]))
+        for single in singles:
+            song = single["song"]
+            if song["rc_source"] and song["rc_id"]:
+                songs_that_belong_to_real_releases.add((song["rc_source"], song["rc_id"]))
 
         created = []
         updated = []
+        created_singles = []
+        updated_singles = []
 
         for album in albums.values():
             title = album["title"]
@@ -271,8 +298,78 @@ def main() -> None:
                 release.charge_value = None
                 release.rubric_color = None
 
-        # Clean up catch-all: drop any ReleaseSong whose (source, id) is now
-        # owned by a real album; recompute aggregates.
+        # Standalone singles — one Release per song.
+        for single in singles:
+            title = single["title"]
+            song = single["song"]
+            rd = single["release_date"]
+            rel_date = None
+            rel_year = None
+            try:
+                rel_date = date.fromisoformat(rd)
+                rel_year = rel_date.year
+            except (ValueError, TypeError):
+                logger.warning("Bad release_date '%s' on single '%s'", rd, title)
+
+            existing = (
+                db.query(Release)
+                .filter(Release.artist_id == artist.id)
+                .filter(Release.title == title)
+                .first()
+            )
+            if existing:
+                existing.release_type = "single"
+                existing.release_date = rel_date
+                existing.release_year = rel_year
+                release = existing
+                updated_singles.append(title)
+            else:
+                release = Release(
+                    artist_id=artist.id,
+                    title=title,
+                    release_type="single",
+                    release_date=rel_date,
+                    release_year=rel_year,
+                )
+                db.add(release)
+                db.flush()
+                created_singles.append(title)
+
+            db.query(ReleaseSong).filter(ReleaseSong.release_id == release.id).delete()
+
+            charge_value = None
+            contam = False
+            calibrated = 0
+            if song["rc_source"] and song["rc_id"]:
+                db.add(ReleaseSong(
+                    release_id=release.id,
+                    song_source=song["rc_source"],
+                    song_id=song["rc_id"],
+                    track_number=1,
+                ))
+                Model = _SONG_MODEL_MAP.get(song["rc_source"])
+                if Model:
+                    row = db.query(Model).filter(Model.id == song["rc_id"]).first()
+                    if row is not None:
+                        charge_value = row.charge_value
+                        contam = bool(getattr(row, "contaminated", False))
+                        if charge_value is not None:
+                            calibrated = 1
+
+            release.track_count = 1
+            release.calibrated_count = calibrated
+            release.contamination_count = 1 if contam else 0
+            if charge_value is not None:
+                result = compute_release_charge([charge_value])
+                if result:
+                    release.charge_value = result[0]
+                    release.rubric_color = result[1]
+            else:
+                release.charge_value = None
+                release.rubric_color = None
+
+        # Clean up catch-all: drop any ReleaseSong whose (source, id) now
+        # belongs to a real album or single release; recompute aggregates.
         moved = 0
         if catch_all:
             stale_links = (
@@ -281,7 +378,7 @@ def main() -> None:
                 .all()
             )
             for link in stale_links:
-                if (link.song_source, link.song_id) in songs_that_belong_to_albums:
+                if (link.song_source, link.song_id) in songs_that_belong_to_real_releases:
                     db.delete(link)
                     moved += 1
             db.flush()
@@ -293,9 +390,14 @@ def main() -> None:
         else:
             db.commit()
 
-        logger.info("Created %d releases: %s", len(created), created)
-        logger.info("Updated %d releases: %s", len(updated), updated)
-        logger.info("Moved %d song-links out of catch-all into real albums", moved)
+        logger.info("Albums/EPs: %d created, %d updated", len(created), len(updated))
+        if created: logger.info("  created: %s", created)
+        if updated: logger.info("  updated: %s", updated)
+        logger.info("Singles: %d created, %d updated",
+                    len(created_singles), len(updated_singles))
+        if created_singles: logger.info("  created: %s", created_singles)
+        if updated_singles: logger.info("  updated: %s", updated_singles)
+        logger.info("Moved %d song-links out of catch-all into real releases", moved)
 
     finally:
         db.close()
