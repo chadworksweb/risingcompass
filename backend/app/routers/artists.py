@@ -66,6 +66,39 @@ def _search_cache_set(key: tuple[str, int], value: dict) -> None:
         _search_cache[key] = (time.time(), value)
 
 
+# --- Per-slug endpoint cache ----------------------------------------------
+# Applies to /summary, /trajectory, /releases, /top-songs. Keyed by a tuple
+# (endpoint_name, slug, extra) so the same slug's different endpoints don't
+# collide. Short TTL — releases and catalog charges change rarely relative
+# to how often an artist page is loaded.
+
+_ARTIST_CACHE_TTL = 60.0
+_ARTIST_CACHE_MAX = 512
+_artist_cache: dict[tuple, tuple[float, dict]] = {}
+_artist_cache_lock = Lock()
+
+
+def _artist_cache_get(key: tuple) -> Optional[dict]:
+    with _artist_cache_lock:
+        entry = _artist_cache.get(key)
+        if not entry:
+            return None
+        ts, value = entry
+        if time.time() - ts > _ARTIST_CACHE_TTL:
+            _artist_cache.pop(key, None)
+            return None
+        return value
+
+
+def _artist_cache_set(key: tuple, value: dict) -> None:
+    with _artist_cache_lock:
+        if len(_artist_cache) >= _ARTIST_CACHE_MAX:
+            to_drop = sorted(_artist_cache.items(), key=lambda kv: kv[1][0])
+            for k, _ in to_drop[: _ARTIST_CACHE_MAX // 3]:
+                _artist_cache.pop(k, None)
+        _artist_cache[key] = (time.time(), value)
+
+
 @router.get("/search")
 def artist_search(
     q: str = Query(..., min_length=2),
@@ -193,40 +226,46 @@ def artist_search(
 
 
 def _song_charges_for_artist(artist_id: int, db) -> list[int]:
-    """All per-song charge_values credited to this artist.
+    """All per-song charge_values credited to this artist, in one round trip.
 
     Two paths, deduplicated: songs on releases owned by this artist
     (release_songs → releases.artist_id), and songs where this artist is
     directly credited via song_artists (collabs + features on other artists'
-    releases). One query per source-per-path — no N+1.
+    releases). Prior implementation ran 6 queries (2 paths × 3 source tables);
+    this runs 1 — a CTE collects the (source, song_id) set for this artist
+    via UNION (dedupes across the two paths), then joins each source table
+    once with UNION ALL to pull their charge_values.
     """
-    charges: list[int] = []
-    for source, Model in _SONG_MODEL_MAP.items():
-        seen_ids: set[int] = set()
-        via_release = (
-            db.query(Model.id, Model.charge_value)
-            .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
-            .join(Release, ReleaseSong.release_id == Release.id)
-            .filter(Release.artist_id == artist_id)
-            .filter(Model.charge_value.isnot(None))
-            .all()
+    sql = text(
+        """
+        WITH artist_song_ids AS (
+            SELECT rs.song_source AS src, rs.song_id AS sid
+              FROM release_songs rs
+              JOIN releases r ON r.id = rs.release_id
+             WHERE r.artist_id = :aid
+            UNION
+            SELECT sa.song_source AS src, sa.song_id AS sid
+              FROM song_artists sa
+             WHERE sa.artist_id = :aid
         )
-        for sid, charge in via_release:
-            seen_ids.add(sid)
-            charges.append(charge)
-
-        via_credit = (
-            db.query(Model.id, Model.charge_value)
-            .join(SongArtist, (SongArtist.song_source == source) & (SongArtist.song_id == Model.id))
-            .filter(SongArtist.artist_id == artist_id)
-            .filter(Model.charge_value.isnot(None))
-            .all()
-        )
-        for sid, charge in via_credit:
-            if sid not in seen_ids:
-                seen_ids.add(sid)
-                charges.append(charge)
-    return charges
+        SELECT cs.charge_value
+          FROM compass_songs cs
+          JOIN artist_song_ids a ON a.src = 'compass' AND a.sid = cs.id
+         WHERE cs.charge_value IS NOT NULL
+        UNION ALL
+        SELECT ls.charge_value
+          FROM library_songs ls
+          JOIN artist_song_ids a ON a.src = 'library' AND a.sid = ls.id
+         WHERE ls.charge_value IS NOT NULL
+        UNION ALL
+        SELECT ss.charge_value
+          FROM submitted_songs ss
+          JOIN artist_song_ids a ON a.src = 'submitted' AND a.sid = ss.id
+         WHERE ss.charge_value IS NOT NULL
+        """
+    )
+    rows = db.execute(sql, {"aid": artist_id}).all()
+    return [r[0] for r in rows if r[0] is not None]
 
 
 @router.get("/{slug}/summary")
@@ -235,6 +274,11 @@ def artist_summary(slug: str):
 
     No release list, no song list. Keeps the artist page header fast to paint.
     """
+    cache_key = ("summary", slug)
+    cached = _artist_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     db = SessionLocal()
     try:
         artist = db.query(Artist).filter(Artist.slug == slug).first()
@@ -279,7 +323,7 @@ def artist_summary(slug: str):
             catalog_tier_label = COLOR_LABELS.get(catalog_tier, "")
             catalog_tier_hex = COLOR_HEX.get(catalog_tier, "#999")
 
-        return {
+        payload = {
             "name": artist.name,
             "slug": artist.slug,
             "stats": {
@@ -294,6 +338,8 @@ def artist_summary(slug: str):
                 "tier_breakdown": tier_breakdown,
             },
         }
+        _artist_cache_set(cache_key, payload)
+        return payload
     finally:
         db.close()
 
@@ -308,6 +354,11 @@ def artist_trajectory_points(slug: str):
     One SELECT — returns only fields stored on the Release row. Fast even for
     catalogs with hundreds of releases (Beatles etc).
     """
+    cache_key = ("trajectory", slug)
+    cached = _artist_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     db = SessionLocal()
     try:
         artist = db.query(Artist).filter(Artist.slug == slug).first()
@@ -339,7 +390,9 @@ def artist_trajectory_points(slug: str):
             }
             for r in rows
         ]
-        return {"points": points}
+        payload = {"points": points}
+        _artist_cache_set(cache_key, payload)
+        return payload
     finally:
         db.close()
 
@@ -360,6 +413,11 @@ def artist_releases(
                    unreleased bucket on the artist page)
       all        — everything
     """
+    cache_key = ("releases", slug, offset, limit, order, status)
+    cached = _artist_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     db = SessionLocal()
     try:
         artist = db.query(Artist).filter(Artist.slug == slug).first()
@@ -407,7 +465,9 @@ def artist_releases(
             }
             for r in rows
         ]
-        return {"items": items, "total": total, "offset": offset, "limit": limit}
+        payload = {"items": items, "total": total, "offset": offset, "limit": limit}
+        _artist_cache_set(cache_key, payload)
+        return payload
     finally:
         db.close()
 
@@ -424,6 +484,11 @@ def artist_top_songs(
     release_songs → releases. Joins song_slugs so each item has a URL slug
     when one exists.
     """
+    cache_key = ("top-songs", slug, offset, limit)
+    cached = _artist_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     db = SessionLocal()
     try:
         artist = db.query(Artist).filter(Artist.slug == slug).first()
@@ -501,7 +566,9 @@ def artist_top_songs(
             for it in page:
                 it["slug"] = slug_map.get((it["song_source"], it["song_id"]))
 
-        return {"items": page, "total": total, "offset": offset, "limit": limit}
+        payload = {"items": page, "total": total, "offset": offset, "limit": limit}
+        _artist_cache_set(cache_key, payload)
+        return payload
     finally:
         db.close()
 
