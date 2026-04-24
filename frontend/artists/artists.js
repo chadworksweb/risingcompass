@@ -192,10 +192,19 @@
     } catch (err) {
       console.error('Failed to fetch summary:', err);
       document.getElementById('artist-name').textContent = 'Artist not found';
+      const loader = document.getElementById('artist-compass-loader');
+      if (loader) loader.hidden = true;
       return;
     }
 
     artistPageState.summary = data;
+
+    // Swap the catalog-charge panel from its loader to the real content
+    // before we try to render into the compass / charge / breakdown hosts.
+    const loader = document.getElementById('artist-compass-loader');
+    const body = document.getElementById('artist-compass-body');
+    if (loader) loader.hidden = true;
+    if (body) body.hidden = false;
 
     try {
       renderHeader(data);

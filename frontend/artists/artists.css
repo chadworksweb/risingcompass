@@ -293,6 +293,32 @@ body {
   padding: 0 1.5rem;
 }
 
+/* Panel loaders — centered, fill the card while data is in-flight. */
+.panel-loader {
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 1.5rem 0;
+}
+.panel-loader[hidden] { display: none; }
+
+/* Compass panel uses the loader as a sibling of the real content; the
+   real content is hidden until the summary resolves, so no reserved-
+   space trick is needed. */
+#artist-compass-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+#artist-compass-body {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Artist trajectory panel — fills its card (full height of the row),
    chart area flex-grows, time machine controls sit at the bottom. */
 #artist-trajectory-panel {
