@@ -70,10 +70,28 @@ async def lifespan(app: FastAPI):
     _cleanup_orphan_drafts()
     keepalive_task = asyncio.create_task(keepalive_loop(interval_seconds=45))
     cleanup_task = asyncio.create_task(analyzer.session_cleanup_loop())
+
+    # Start the api-key last_used_at flusher. Writes go to Turso primary on
+    # a background thread so no user request blocks on them.
+    from app.services.api_clients import (
+        ensure_last_used_flusher, flush_last_used_once,
+    )
+    ensure_last_used_flusher()
+
+    # Start the lc_events writer thread for the same reason — every LC page
+    # view / search / submission enqueues instead of blocking on a write.
+    from app.services.lc_events import _ensure_writer as _ensure_lc_events_writer
+    _ensure_lc_events_writer()
+
     logger.info("DB keepalive + Lyrical Charger session cleanup schedulers started")
     yield
     keepalive_task.cancel()
     cleanup_task.cancel()
+    # Final flush on shutdown so recently-seen keys don't lose their stamps.
+    try:
+        flush_last_used_once()
+    except Exception:
+        logger.exception("final last_used_at flush failed")
 
 
 app = FastAPI(title="The Rising Compass", version="1.0.0", lifespan=lifespan)
