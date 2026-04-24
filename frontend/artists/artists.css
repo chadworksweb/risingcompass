@@ -199,6 +199,10 @@ body {
   color: var(--rc-text-dim);
   font-size: 0.9rem;
 }
+/* `hidden` attribute must beat our display:flex — the UA stylesheet's
+   `[hidden] { display: none }` gets overridden by any explicit display
+   rule, so re-assert with matching specificity. */
+.searching-state[hidden] { display: none; }
 .searching-label { margin-left: 0.25rem; }
 .searching-dot {
   width: 6px;
