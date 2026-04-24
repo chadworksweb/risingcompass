@@ -123,13 +123,14 @@ def recalibrate_song_satire(
 
     response = client.messages.create(
         model=AGENT_MODEL,
-        max_tokens=3072,
+        max_tokens=8192,
         temperature=0,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )
 
     raw = response.content[0].text.strip()
+    stop_reason = getattr(response, "stop_reason", None)
 
     reasoning = ""
     json_str = raw
@@ -148,8 +149,15 @@ def recalibrate_song_satire(
     try:
         result = json.loads(json_str)
     except json.JSONDecodeError:
-        logger.error("Failed to parse satire recalibration response for %s by %s: %s",
-                     title, artist, raw)
+        logger.error(
+            "Failed to parse satire recalibration response for %s by %s (stop_reason=%s): %s",
+            title, artist, stop_reason, raw,
+        )
+        if stop_reason == "max_tokens":
+            raise RuntimeError(
+                "Satire recalibration agent was truncated at max_tokens before emitting JSON. "
+                "Raise max_tokens or shorten reasoning scope."
+            )
         raise RuntimeError("Satire recalibration agent returned unparseable output.")
 
     if result.get("rubric_color") not in VALID_COLORS:
