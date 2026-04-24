@@ -29,10 +29,6 @@
     return (v > 0 ? '+' : '') + v;
   }
 
-  // --- Trajectory time-machine shared constants ---
-  const TM_SPEEDS = [1, 2, 4];
-  const TM_BASE_SPEED = 1.5; // points-per-second at 1x (adjusted per page)
-
   /* ========== SEARCH PAGE ========== */
 
   function initSearchPage() {
@@ -221,15 +217,73 @@
   }
 
   async function loadTrajectory(slug) {
+    const container = document.getElementById('artist-trajectory-chart');
+    if (!container) return;
     try {
       const data = await ArtistsAPI.getArtistTrajectory(slug);
-      artistPageState.trajectory = data.points || [];
-      renderTrajectoryChart(artistPageState.trajectory);
+      const points = data.points || [];
+
+      // Translate release-shape payload into the yearly-aggregate shape the
+      // harvested homepage chart expects (year / compass_degree / charge_level
+      // / chart_song_count) — plus a few release-specific fields (_title,
+      // _type) used by the adapted tooltip and click handlers.
+      const trajRows = points
+        .filter(r => r.charge_value != null)
+        .map(r => {
+          const year = r.release_year
+            || (r.release_date ? parseInt(r.release_date.slice(0, 4), 10) : 0);
+          return {
+            year,
+            compass_degree: 90 - (r.charge_value * 0.9),
+            charge_level: r.rubric_color,
+            chart_song_count: r.calibrated_count || r.track_count || 0,
+            _title: r.title,
+            _type: r.release_type,
+            _date: r.release_date,
+            _charge: r.charge_value,
+          };
+        });
+
+      artistPageState.trajectory = points;
+      allYearData = trajRows;
+
+      if (!trajRows.length) {
+        const area = container.querySelector('.traj-chart-area') || container;
+        area.innerHTML = '<p class="chart-empty">No classified releases to chart.</p>';
+        maybeInjectJsonLd();
+        return;
+      }
+
+      // Mirror the homepage loadTrajectory's DOM scaffold (zoom bar + chart
+      // area + TM controls). Harvest point: this is exactly what app.js
+      // writes into #trajectory-container after fetching drift-years.
+      const yearSpan = trajRows[trajRows.length - 1].year - trajRows[0].year;
+      const zoomButtons = [];
+      zoomButtons.push({ zoom: 'all', label: 'All' });
+      if (yearSpan > 10) zoomButtons.push({ zoom: '10', label: '10Y' });
+      if (yearSpan > 5) zoomButtons.push({ zoom: '5', label: '5Y' });
+
+      container.innerHTML = `
+        <div class="traj-zoom-bar">
+          ${zoomButtons.map(b => `<button class="traj-zoom-btn${b.zoom === 'all' ? ' active' : ''}" data-zoom="${b.zoom}">${b.label}</button>`).join('')}
+        </div>
+        <div class="traj-chart-area"></div>
+        <div class="timemachine-controls"></div>
+      `;
+
+      container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentZoom = btn.dataset.zoom;
+          applyZoom(container);
+        });
+      });
+
+      applyZoom(container);
       maybeInjectJsonLd();
     } catch (err) {
       console.error('Failed to load trajectory:', err);
-      const el = document.getElementById('artist-trajectory-chart');
-      if (el) el.innerHTML = '<p class="chart-empty">Couldn\'t load trajectory.</p>';
+      const area = container.querySelector('.traj-chart-area') || container;
+      area.innerHTML = '<p class="chart-empty">Couldn\'t load trajectory.</p>';
     }
   }
 
@@ -429,56 +483,60 @@
     `;
   }
 
-  /* ========== TRAJECTORY CHART (SVG) ==========
-     Release-based trajectory, ported from the homepage aggregate chart
-     (js/app.js). Features: hover line/dot/tooltip, time-machine slider +
-     playback that drives the Catalog Compass / Charge widgets to each
-     release's state in turn, animated reveal via a clip-path that grows
-     with the time-machine position.
+  /* ========== TRAJECTORY CHART + TIME MACHINE ==========
+     Harvested from js/app.js (homepage aggregate chart). Same viewBox, same
+     gradient stops, same clip-path reveal, same hover/click, same YTD
+     scaffolding (held inert — release trajectories don't have a YTD year),
+     same zoom bar, same time-machine controls + state machine.
 
-     Reuses the shared SVG/tooltip/time-machine CSS classes from main.css.
+     Adaptations (only where data shape or context differs):
+       - `data[i].year` is the release's year; multiple rows can share a
+         year, so x-axis labels render once per year (first occurrence).
+       - `data[i]._title / _type / _date / _charge` carry the release-
+         specific fields used by the tooltip and click-pinch.
+       - Click doesn't call loadYearSongs / syncCalendar (no such concepts
+         on the artist page); it still pinches the line and drives the
+         Catalog Compass + Charge widgets to that release.
+       - saveCompassState / restoreCompassState snapshot the artist's
+         catalog aggregate (summary.stats) instead of the homepage's
+         compass-score text.
+       - applyZoom filters by year-window against the current last year.
   */
 
-  // Closure-scoped chart state so the time machine can read what the
-  // renderer built.
-  let artistChartData = [];   // the filtered trajectory rows (release objects)
-  let artistChartPoints = []; // SVG-space {x, y, degree, color, title, yearLabel}
-  let artistTmPosition = 0;
-  let artistTmPlaying = false;
-  let artistTmDirection = 1;
-  let artistTmSpeedIdx = 0;
-  let artistTmAnimFrame = null;
-  let artistCompassBaseline = null; // { degree, tier } to restore on reset
+  let allYearData = [];
+  let currentZoom = 'all';
+  let chartPoints = [];
+  let chartData = [];
+  let chartHasYTD = false;
+  let tmPlaying = false;
+  let tmAnimFrame = null;
+  let tmPosition = 0;
+  let tmDirection = 1;
+  const TM_SPEEDS = [0.5, 1, 2, 4];
+  let tmSpeedIdx = 1;
+  const TM_BASE_SPEED = 1.5;
+
+  function degreeToScore(degree) {
+    const s = Math.round((90 - degree) * 100 / 90);
+    return (s > 0 ? '+' : '') + s;
+  }
 
   function degreeToTier(deg) {
-    // 0-36 red, 36-72 orange, 72-108 green, 108-144 blue, 144-180 violet
-    if (deg < 36) return 'red';
-    if (deg < 72) return 'orange';
-    if (deg < 108) return 'green';
-    if (deg < 144) return 'blue';
-    return 'violet';
+    if (deg <= 22.5) return 'violet';
+    if (deg <= 67.5) return 'blue';
+    if (deg <= 112.5) return 'green';
+    if (deg <= 157.5) return 'orange';
+    return 'red';
   }
 
-  function releaseYearOf(r) {
-    if (r.release_year) return r.release_year;
-    if (r.release_date) return parseInt(r.release_date.slice(0, 4), 10);
-    return null;
+  function setCompassDate(text) {
+    const dateEl = document.getElementById('compass-date-svg');
+    if (dateEl) dateEl.textContent = text;
   }
 
-  function renderTrajectoryChart(trajectory) {
-    const container = document.getElementById('artist-trajectory-chart');
-    if (!container) return;
-    const chartEl = container.querySelector('.traj-chart-area');
-    const tmEl = container.querySelector('.timemachine-controls');
-    if (!chartEl) return;
-
-    const data = (trajectory || []).filter(r => r.charge_value != null);
-    artistChartData = data;
-    if (data.length === 0) {
-      chartEl.innerHTML = '<p class="chart-empty">No classified releases to chart.</p>';
-      if (tmEl) tmEl.innerHTML = '';
-      return;
-    }
+  function renderTrajectoryChart(data, container) {
+    if (!data.length) return;
+    chartData = data;
 
     const W = 320, H = 120;
     const padL = 30, padR = 16, padT = 10, padB = 22;
@@ -486,111 +544,102 @@
     const chartH = H - padT - padB;
     const maxIdx = data.length - 1;
 
-    // charge_value -100..+100  →  compass_degree 180..0
-    artistChartPoints = data.map((r, i) => {
-      const degree = 90 - (r.charge_value * 0.9);
-      return {
-        x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
-        y: padT + (degree / 180) * chartH,
-        degree,
-        color: r.rubric_color,
-        title: r.title,
-        yearLabel: releaseYearOf(r),
-        release: r,
-      };
-    });
-    const points = artistChartPoints;
+    // YTD scaffolding preserved but inert on the artist page — releases
+    // don't have a YTD concept. Flag is false so the dashed segment, ring,
+    // and pulsing-ring are skipped.
+    const hasYTD = false;
+    chartHasYTD = hasYTD;
 
-    const linePath = points.map((p, i) =>
-      `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
-    ).join(' ');
-    const areaPath =
-      linePath +
-      ` L ${points[maxIdx].x.toFixed(1)} ${padT + chartH}` +
-      ` L ${points[0].x.toFixed(1)} ${padT + chartH} Z`;
+    chartPoints = data.map((d, i) => ({
+      x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
+      y: padT + (d.compass_degree / 180) * chartH,
+      degree: d.compass_degree,
+      year: d.year,
+      color: d.charge_level,
+      isYTD: false,
+    }));
 
-    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Artist charge trajectory chart">`;
+    const solidPoints = hasYTD ? chartPoints.slice(0, -1) : chartPoints;
+    const solidPath = solidPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const fullLinePath = chartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const areaPath = fullLinePath + ` L ${chartPoints[maxIdx].x.toFixed(1)} ${padT + chartH} L ${chartPoints[0].x.toFixed(1)} ${padT + chartH} Z`;
+
+    let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Charge trajectory chart">`;
     svg += `<defs>
-      <linearGradient id="artist-traj-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+      <linearGradient id="traj-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
         <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" />
         <stop offset="75%" stop-color="${COLOR_HEX.orange}" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" />
       </linearGradient>
-      <linearGradient id="artist-traj-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+      <linearGradient id="traj-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" stop-opacity="0.2" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" stop-opacity="0.05" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
       </linearGradient>
-      <clipPath id="artist-traj-clip"><rect id="artist-traj-clip-rect" x="0" y="0" width="${W}" height="${H}" /></clipPath>
+      <clipPath id="traj-clip"><rect id="traj-clip-rect" x="0" y="0" width="${W}" height="${H}" /></clipPath>
     </defs>`;
 
-    // Grid + Y-axis labels
-    [
-      { deg: 0,   label: '+100' },
-      { deg: 45,  label: '' },
-      { deg: 90,  label: '0' },
-      { deg: 135, label: '' },
-      { deg: 180, label: '-100' },
-    ].forEach(({ deg, label }) => {
+    // Grid lines
+    [{ deg: 0, label: '+100' }, { deg: 45, label: '' }, { deg: 90, label: '0' }, { deg: 135, label: '' }, { deg: 180, label: '-100' }].forEach(({ deg, label }) => {
       const y = padT + (deg / 180) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
       if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}">${label}</text>`;
     });
 
-    // Clipped area + line (clip-rect expands with time-machine position)
-    svg += `<g clip-path="url(#artist-traj-clip)">`;
-    svg += `<path class="trajectory-area" d="${areaPath}" fill="url(#artist-traj-area-grad)" />`;
-    svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#artist-traj-grad)" />`;
+    // Clipped line + area
+    svg += `<g clip-path="url(#traj-clip)">`;
+    svg += `<path class="trajectory-area" d="${areaPath}" fill="url(#traj-area-grad)" />`;
+    svg += `<path class="trajectory-line" d="${solidPath}" stroke="url(#traj-grad)" />`;
     svg += `</g>`;
 
-    // X-axis labels — first/last year, plus optional midpoint for longer catalogs
-    const firstYear = points[0].yearLabel;
-    const lastYear = points[maxIdx].yearLabel;
-    if (firstYear && lastYear && firstYear !== lastYear) {
-      svg += `<text class="trajectory-label" x="${padL.toFixed(1)}" y="${H - 4}" text-anchor="start">'${String(firstYear).slice(2)}</text>`;
-      svg += `<text class="trajectory-label" x="${(W - padR).toFixed(1)}" y="${H - 4}" text-anchor="end">'${String(lastYear).slice(2)}</text>`;
-      if (lastYear - firstYear >= 8) {
-        const midYear = Math.round((firstYear + lastYear) / 2);
-        svg += `<text class="trajectory-label" x="${(W / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">'${String(midYear).slice(2)}</text>`;
+    // X-axis labels (per year; first occurrence only when multiple releases share a year)
+    const yearSpan = data[maxIdx].year - data[0].year;
+    const labelInterval = yearSpan > 40 ? 10 : yearSpan > 15 ? 5 : yearSpan > 8 ? 2 : 1;
+    const labelYears = new Set();
+    const startDecade = Math.ceil(data[0].year / labelInterval) * labelInterval;
+    for (let yr = startDecade; yr <= data[maxIdx].year; yr += labelInterval) labelYears.add(yr);
+    labelYears.add(data[0].year);
+    labelYears.add(data[maxIdx].year);
+
+    const seenYears = new Set();
+    chartPoints.forEach(p => {
+      if (labelYears.has(p.year) && !seenYears.has(p.year)) {
+        seenYears.add(p.year);
+        const labelText = `'${String(p.year).slice(2)}`;
+        svg += `<text class="trajectory-label" x="${p.x.toFixed(1)}" y="${H - 4}" text-anchor="middle">${labelText}</text>`;
+        svg += `<line x1="${p.x.toFixed(1)}" y1="${padT + chartH}" x2="${p.x.toFixed(1)}" y2="${padT + chartH + 4}" stroke="var(--rc-text-dim)" stroke-width="0.5" opacity="0.5" />`;
       }
-    } else if (firstYear) {
-      svg += `<text class="trajectory-label" x="${(W / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${firstYear}</text>`;
-    }
+    });
 
-    // Per-release dots (always visible, on top of clipped line)
-    for (const p of points) {
-      const hex = COLOR_HEX[p.color] || '#888';
-      svg += `<circle class="trajectory-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${hex}" />`;
-    }
+    // Time machine moving dot
+    const lastPt = chartPoints[maxIdx];
+    svg += `<circle id="traj-timemachine-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
 
-    // Time-machine moving dot (starts at last release)
-    const lastPt = points[maxIdx];
-    svg += `<circle id="artist-tm-dot" class="trajectory-dot" cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" fill="var(--rc-bg-dark)" stroke="${COLOR_HEX[lastPt.color] || '#888'}" />`;
-
-    // Hover overlay
-    svg += `<line id="artist-traj-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
-    svg += `<circle id="artist-traj-hover-dot" cx="0" cy="0" class="traj-hover-dot" style="display:none" />`;
+    // Hover elements
+    svg += `<line id="traj-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" class="traj-hover-line" style="display:none" />`;
+    svg += `<circle id="traj-hover-dot" cx="0" cy="0" class="traj-hover-dot" style="display:none" />`;
     svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="traj-hover-area" />`;
     svg += '</svg>';
 
-    chartEl.innerHTML = `<div class="traj-wrap">${svg}<div class="traj-tooltip" id="artist-traj-tooltip"></div></div>`;
+    const chartEl = container.querySelector('.traj-chart-area');
+    chartEl.innerHTML = `<div class="traj-wrap">${svg}<div class="traj-tooltip" id="traj-tooltip"></div></div>`;
 
     const wrap = chartEl.querySelector('.traj-wrap');
     const svgEl = chartEl.querySelector('.trajectory-svg');
 
-    // Hide stale tooltip on fresh touch so it doesn't flash at a previous position
+    // Hide stale tooltip on new touch so it doesn't flash at old position
     wrap.addEventListener('touchstart', () => {
-      const t = document.getElementById('artist-traj-tooltip');
+      const t = document.getElementById('traj-tooltip');
       if (t) t.style.display = 'none';
     }, { passive: true });
 
     wrap.addEventListener('mousemove', (e) => {
-      if (artistTmPlaying) return;
-      const hoverLine = document.getElementById('artist-traj-hover-line');
-      const hoverDot = document.getElementById('artist-traj-hover-dot');
-      const tooltip = document.getElementById('artist-traj-tooltip');
+      if (tmPlaying) return;
+      const hoverLine = document.getElementById('traj-hover-line');
+      const hoverDot = document.getElementById('traj-hover-dot');
+      const tooltip = document.getElementById('traj-tooltip');
       if (!hoverLine) return;
 
       const rect = svgEl.getBoundingClientRect();
@@ -599,12 +648,12 @@
 
       let nearest = 0, minDist = Infinity;
       for (let i = 0; i <= maxIdx; i++) {
-        const dist = Math.abs(points[i].x - svgX);
+        const dist = Math.abs(chartPoints[i].x - svgX);
         if (dist < minDist) { minDist = dist; nearest = i; }
       }
 
-      const p = points[nearest];
-      const r = p.release;
+      const p = chartPoints[nearest];
+      const d = chartData[nearest];
       const hex = COLOR_HEX[p.color] || '#888';
 
       hoverLine.setAttribute('x1', p.x.toFixed(1));
@@ -615,234 +664,327 @@
       hoverDot.setAttribute('stroke', hex);
       hoverDot.style.display = '';
 
-      const typeLabel = r.release_type === 'album' ? 'Album'
-        : r.release_type === 'ep' ? 'EP' : 'Single';
-      const charge = chargeDisplay(r.charge_value);
-      const yearStr = p.yearLabel || '';
-      const tier = CHARGE_LABELS[p.color] || '';
+      const typeLabel = d._type === 'album' ? 'Album' : d._type === 'ep' ? 'EP' : 'Single';
+      const tracksMeta = `${d.chart_song_count} track${d.chart_song_count === 1 ? '' : 's'}`;
+      const dateLabel = d._date || String(d.year);
       const wrapRect = wrap.getBoundingClientRect();
       const pixelX = e.clientX - wrapRect.left;
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
-      tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)'
-        : pixelX < wrapW * 0.3 ? 'translateX(0)'
-        : 'translateX(-50%)';
-      tooltip.innerHTML = `<strong>${escapeHtml(p.title)}</strong> <span style="color:${hex}">${charge}</span> ${tier}<br><span class="traj-tooltip-sub">${typeLabel}${yearStr ? ' · ' + yearStr : ''}</span>`;
+      tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
+      tooltip.innerHTML = `<strong>${escapeHtml(d._title)}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${typeLabel} · ${dateLabel} · ${tracksMeta}</span>`;
       tooltip.style.display = 'block';
     });
 
     wrap.addEventListener('mouseleave', () => {
-      const hoverLine = document.getElementById('artist-traj-hover-line');
-      const hoverDot = document.getElementById('artist-traj-hover-dot');
-      const tooltip = document.getElementById('artist-traj-tooltip');
+      const hoverLine = document.getElementById('traj-hover-line');
+      const hoverDot = document.getElementById('traj-hover-dot');
+      const tooltip = document.getElementById('traj-tooltip');
       if (hoverLine) hoverLine.style.display = 'none';
       if (hoverDot) hoverDot.style.display = 'none';
       if (tooltip) tooltip.style.display = 'none';
     });
 
-    // Click: move time machine to the clicked release
+    // Click: move compass + charge bar to clicked release
     wrap.addEventListener('click', (e) => {
       const rect = svgEl.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
       const svgX = relX * W;
+
       let nearest = 0, minDist = Infinity;
       for (let i = 0; i <= maxIdx; i++) {
-        const dist = Math.abs(points[i].x - svgX);
+        const dist = Math.abs(chartPoints[i].x - svgX);
         if (dist < minDist) { minDist = dist; nearest = i; }
       }
-      saveArtistCompassBaseline();
-      artistTmStopPlayback();
-      artistTmPosition = nearest;
-      updateArtistTimeMachine(nearest);
-      const dot = document.getElementById('artist-traj-hover-dot');
+
+      const p = chartPoints[nearest];
+      const d = chartData[nearest];
+      saveCompassState();
+      setCompassDate(d._date || String(d.year));
+      if (typeof Compass !== 'undefined') Compass.setDegree(p.degree, p.color);
+      if (typeof Charge !== 'undefined') Charge.setLevel(p.color, 0, 0, p.degree);
+
+      tmStopPlayback();
+      tmPosition = nearest;
+      updateTimeMachine(tmPosition);
+
+      const dot = document.getElementById('traj-hover-dot');
       if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
+      pinchLine(chartPoints, nearest, svgEl.querySelector('.trajectory-line'), svgEl.querySelector('.trajectory-area'), padT, chartH, chartHasYTD);
     });
 
-    // Initialise TM position to the end
-    artistTmPosition = maxIdx;
-
-    initArtistTimeMachineControls();
+    tmPosition = maxIdx;
   }
 
-  /* ---------- Time Machine ---------- */
+  function pinchLine(points, nearestIdx, lineEl, areaEl, padT, chartH, ytdSplit) {
+    const radius = 20;
+    const strength = 0.35;
+    const target = points[nearestIdx];
+    const pinched = points.map(p => {
+      const dx = Math.abs(p.x - target.x);
+      if (dx > radius) return p;
+      const factor = strength * (1 - dx / radius);
+      return { ...p, x: p.x + (target.x - p.x) * factor };
+    });
 
-  function saveArtistCompassBaseline() {
-    if (artistCompassBaseline) return; // already saved
-    const s = artistPageState.summary && artistPageState.summary.stats;
-    if (s && s.catalog_degree != null && s.catalog_tier) {
-      artistCompassBaseline = { degree: s.catalog_degree, tier: s.catalog_tier, songs: s.total_calibrated_songs || 0 };
-    }
+    const buildLine = pts => pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const solidPinched = ytdSplit ? pinched.slice(0, -1) : pinched;
+    const pinchedPath = buildLine(solidPinched);
+    const fullPinched = pinched;
+    const last = fullPinched[fullPinched.length - 1];
+    const first = fullPinched[0];
+    const pinchedArea = buildLine(fullPinched) + ` L ${last.x.toFixed(1)} ${padT + chartH} L ${first.x.toFixed(1)} ${padT + chartH} Z`;
+
+    if (lineEl) lineEl.setAttribute('d', pinchedPath);
+    if (areaEl) areaEl.setAttribute('d', pinchedArea);
+
+    const solidPoints = ytdSplit ? points.slice(0, -1) : points;
+    const origPath = buildLine(solidPoints);
+    const origArea = buildLine(points) + ` L ${points[points.length - 1].x.toFixed(1)} ${padT + chartH} L ${points[0].x.toFixed(1)} ${padT + chartH} Z`;
+    setTimeout(() => {
+      if (lineEl) lineEl.setAttribute('d', origPath);
+      if (areaEl) areaEl.setAttribute('d', origArea);
+    }, 100);
   }
 
-  function restoreArtistCompassBaseline() {
-    if (!artistCompassBaseline) return;
-    const { degree, tier, songs } = artistCompassBaseline;
-    if (typeof Compass !== 'undefined') Compass.setDegree(degree, tier);
-    if (typeof Charge !== 'undefined') Charge.setLevel(tier, 0, songs, degree);
-  }
-
-  function updateArtistTimeMachine(pos) {
-    const max = artistChartData.length - 1;
+  // --- Time Machine (drives trajectory clip + compass) ---
+  function updateTimeMachine(pos) {
+    const max = chartData.length - 1;
     if (max < 0) return;
 
     const i = Math.floor(pos);
     const frac = pos - i;
-    const a = artistChartPoints[Math.min(i, max)];
-    const b = artistChartPoints[Math.min(i + 1, max)];
+    const a = chartData[Math.min(i, max)];
+    const b = chartData[Math.min(i + 1, max)];
 
-    const deg = a.degree + (b.degree - a.degree) * frac;
+    const deg = a.compass_degree + (b.compass_degree - a.compass_degree) * frac;
     const tier = degreeToTier(deg);
     const hex = COLOR_HEX[tier] || '#888';
+    const nearest = chartData[Math.round(pos)];
 
-    const slider = document.getElementById('artist-tm-slider');
-    const progressFill = document.getElementById('artist-tm-progress');
-    const resetBtn = document.getElementById('artist-tm-reset');
+    const slider = document.getElementById('timemachine-slider');
+    const progressFill = document.getElementById('timemachine-progress');
+    const resetBtn = document.getElementById('timemachine-reset');
 
     if (progressFill) progressFill.style.width = (max === 0 ? 100 : (pos / max * 100)) + '%';
     if (slider) {
       slider.value = Math.round(pos);
-      const nearest = artistChartData[Math.round(pos)];
-      slider.setAttribute('aria-valuetext', `${nearest.title}, ${CHARGE_LABELS[tier]}`);
+      slider.setAttribute('aria-valuetext', `${nearest._title}, ${CHARGE_LABELS[tier]}`);
     }
     if (resetBtn) resetBtn.style.display = '';
 
-    // Grow the clip rect to the current position (animated reveal effect)
-    const clipRect = document.getElementById('artist-traj-clip-rect');
-    if (clipRect && artistChartPoints.length) {
-      const px = a.x + (b.x - a.x) * frac;
-      clipRect.setAttribute('width', (px + 2).toFixed(1));
+    // Clip trajectory chart to current position
+    const clipRect = document.getElementById('traj-clip-rect');
+    if (clipRect && chartPoints.length) {
+      const px = chartPoints[Math.min(i, max)].x + (chartPoints[Math.min(i + 1, max)].x - chartPoints[Math.min(i, max)].x) * frac;
+      clipRect.setAttribute('width', px + 2);
     }
 
-    // Move the TM dot
-    const tmDot = document.getElementById('artist-tm-dot');
-    if (tmDot) {
-      const px = a.x + (b.x - a.x) * frac;
-      const py = a.y + (b.y - a.y) * frac;
+    // Move the dot to current position
+    const tmDot = document.getElementById('traj-timemachine-dot');
+    if (tmDot && chartPoints.length) {
+      const px = chartPoints[Math.min(i, max)].x + (chartPoints[Math.min(i + 1, max)].x - chartPoints[Math.min(i, max)].x) * frac;
+      const py = chartPoints[Math.min(i, max)].y + (chartPoints[Math.min(i + 1, max)].y - chartPoints[Math.min(i, max)].y) * frac;
       tmDot.setAttribute('cx', px.toFixed(1));
       tmDot.setAttribute('cy', py.toFixed(1));
       tmDot.setAttribute('stroke', hex);
     }
 
-    // Drive the Catalog Compass + Charge widgets to the release-at-position
+    // Drive compass + charge + date
     if (typeof Compass !== 'undefined') Compass.setDegree(deg, tier);
     if (typeof Charge !== 'undefined') Charge.setLevel(tier, 0, 0, deg);
+    setCompassDate(nearest._date || String(nearest.year));
   }
 
-  function artistTmAnimate(ts) {
-    if (!artistTmPlaying) return;
-    if (!artistTmAnimate.lastTime) artistTmAnimate.lastTime = ts;
-    const dt = (ts - artistTmAnimate.lastTime) / 1000;
-    artistTmAnimate.lastTime = ts;
+  function tmAnimate(timestamp) {
+    if (!tmPlaying) return;
+    if (!tmAnimate.lastTime) tmAnimate.lastTime = timestamp;
 
-    const max = artistChartData.length - 1;
-    artistTmPosition += TM_BASE_SPEED * TM_SPEEDS[artistTmSpeedIdx] * artistTmDirection * dt;
+    const dt = (timestamp - tmAnimate.lastTime) / 1000;
+    tmAnimate.lastTime = timestamp;
+    const max = chartData.length - 1;
 
-    if (artistTmDirection === 1 && artistTmPosition >= max) { artistTmPosition = max; artistTmStopPlayback(); }
-    if (artistTmDirection === -1 && artistTmPosition <= 0) { artistTmPosition = 0; artistTmStopPlayback(); }
+    tmPosition += TM_BASE_SPEED * TM_SPEEDS[tmSpeedIdx] * tmDirection * dt;
 
-    updateArtistTimeMachine(artistTmPosition);
-    if (artistTmPlaying) artistTmAnimFrame = requestAnimationFrame(artistTmAnimate);
+    if (tmDirection === 1 && tmPosition >= max) { tmPosition = max; tmStopPlayback(); }
+    if (tmDirection === -1 && tmPosition <= 0) { tmPosition = 0; tmStopPlayback(); }
+
+    updateTimeMachine(tmPosition);
+    if (tmPlaying) tmAnimFrame = requestAnimationFrame(tmAnimate);
   }
 
-  function artistTmStartPlayback(dir) {
-    saveArtistCompassBaseline();
-    artistTmDirection = dir;
-    const max = artistChartData.length - 1;
-    if (dir === 1 && artistTmPosition >= max) artistTmPosition = 0;
-    if (dir === -1 && artistTmPosition <= 0) artistTmPosition = max;
+  function tmStartPlayback(dir) {
+    saveCompassState();
 
-    artistTmPlaying = true;
-    artistTmAnimate.lastTime = null;
+    tmDirection = dir;
+    const max = chartData.length - 1;
+    if (dir === 1 && tmPosition >= max) tmPosition = 0;
+    if (dir === -1 && tmPosition <= 0) tmPosition = max;
 
-    const playBtn = document.getElementById('artist-tm-play');
-    const playIcon = document.getElementById('artist-tm-play-icon');
-    const revBtn = document.getElementById('artist-tm-rev');
-    const fwdBtn = document.getElementById('artist-tm-fwd');
+    tmPlaying = true;
+    tmAnimate.lastTime = null;
+
+    const needle = document.getElementById('compass-needle');
+    if (needle) needle.classList.add('no-transition');
+
+    const playBtn = document.getElementById('timemachine-play');
+    const playIcon = document.getElementById('timemachine-play-icon');
+    const revBtn = document.getElementById('timemachine-rev');
+    const fwdBtn = document.getElementById('timemachine-fwd');
     if (playBtn) playBtn.classList.add('active');
     if (dir === 1 && fwdBtn) fwdBtn.classList.add('active');
     if (dir === -1 && revBtn) revBtn.classList.add('active');
     if (playIcon) playIcon.innerHTML = '<rect fill="currentColor" x="6" y="4" width="4" height="16"/><rect fill="currentColor" x="14" y="4" width="4" height="16"/>';
 
-    artistTmAnimFrame = requestAnimationFrame(artistTmAnimate);
+    tmAnimFrame = requestAnimationFrame(tmAnimate);
   }
 
-  function artistTmStopPlayback() {
-    artistTmPlaying = false;
-    if (artistTmAnimFrame) cancelAnimationFrame(artistTmAnimFrame);
-    ['artist-tm-play', 'artist-tm-rev', 'artist-tm-fwd'].forEach(id => {
+  function tmStopPlayback() {
+    tmPlaying = false;
+    if (tmAnimFrame) cancelAnimationFrame(tmAnimFrame);
+
+    const needle = document.getElementById('compass-needle');
+    if (needle) needle.classList.remove('no-transition');
+
+    ['timemachine-play', 'timemachine-rev', 'timemachine-fwd'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.classList.remove('active');
     });
-    const playIcon = document.getElementById('artist-tm-play-icon');
+    const playIcon = document.getElementById('timemachine-play-icon');
     if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
   }
 
-  function initArtistTimeMachineControls() {
-    const max = artistChartData.length - 1;
-    if (max < 1) return;
-    const last = artistChartData[max];
-    const container = document.getElementById('artist-trajectory-chart');
-    if (!container) return;
+  function initTimeMachineControls(container) {
+    const max = chartData.length - 1;
+    const last = chartData[max];
+
     const tmArea = container.querySelector('.timemachine-controls');
     if (!tmArea) return;
 
     tmArea.innerHTML = `
       <div class="timemachine-wrap">
-        <input type="range" class="timemachine-slider" id="artist-tm-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Time machine release slider" aria-valuetext="${escapeHtml(last.title)}">
+        <input type="range" class="timemachine-slider" id="timemachine-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Time machine release slider" aria-valuetext="${escapeHtml(last._title)}">
       </div>
       <div class="timemachine-playback">
-        <button class="timemachine-play-btn" id="artist-tm-rev" title="Play backward" aria-label="Play backward">
+        <button class="timemachine-play-btn" id="timemachine-rev" title="Play backward" aria-label="Play backward">
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
         </button>
-        <button class="timemachine-play-btn" id="artist-tm-play" title="Play forward" aria-label="Play forward">
-          <svg viewBox="0 0 24 24" width="14" height="14" id="artist-tm-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        <button class="timemachine-play-btn" id="timemachine-play" title="Play forward" aria-label="Play forward">
+          <svg viewBox="0 0 24 24" width="14" height="14" id="timemachine-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
         </button>
-        <button class="timemachine-play-btn" id="artist-tm-fwd" title="Play forward fast" aria-label="Play forward fast">
+        <button class="timemachine-play-btn" id="timemachine-fwd" title="Play forward fast" aria-label="Play forward fast">
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
         </button>
-        <div class="timemachine-progress"><div class="timemachine-progress-fill" id="artist-tm-progress" style="width:100%"></div></div>
-        <button class="timemachine-speed-btn" id="artist-tm-speed" aria-label="Playback speed">1x</button>
-        <button class="timemachine-reset" id="artist-tm-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
+        <div class="timemachine-progress"><div class="timemachine-progress-fill" id="timemachine-progress" style="width:100%"></div></div>
+        <button class="timemachine-speed-btn" id="timemachine-speed" aria-label="Playback speed">1x</button>
+        <button class="timemachine-reset" id="timemachine-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
       </div>
     `;
 
-    const slider = document.getElementById('artist-tm-slider');
-    document.getElementById('artist-tm-play').addEventListener('click', () => {
-      if (artistTmPlaying) { artistTmStopPlayback(); return; }
-      artistTmStartPlayback(1);
+    const slider = document.getElementById('timemachine-slider');
+    document.getElementById('timemachine-play').addEventListener('click', () => {
+      if (tmPlaying) { tmStopPlayback(); return; }
+      tmStartPlayback(1);
     });
-    document.getElementById('artist-tm-rev').addEventListener('click', () => {
-      if (artistTmPlaying && artistTmDirection === -1) { artistTmStopPlayback(); return; }
-      artistTmStopPlayback();
-      artistTmStartPlayback(-1);
+    document.getElementById('timemachine-rev').addEventListener('click', () => {
+      if (tmPlaying && tmDirection === -1) { tmStopPlayback(); return; }
+      tmStopPlayback();
+      tmStartPlayback(-1);
     });
-    document.getElementById('artist-tm-fwd').addEventListener('click', () => {
-      if (artistTmPlaying && artistTmDirection === 1) { artistTmStopPlayback(); return; }
-      artistTmStopPlayback();
-      artistTmStartPlayback(1);
+    document.getElementById('timemachine-fwd').addEventListener('click', () => {
+      if (tmPlaying && tmDirection === 1) { tmStopPlayback(); return; }
+      tmStopPlayback();
+      tmStartPlayback(1);
     });
-    document.getElementById('artist-tm-speed').addEventListener('click', () => {
-      artistTmSpeedIdx = (artistTmSpeedIdx + 1) % TM_SPEEDS.length;
-      document.getElementById('artist-tm-speed').textContent = TM_SPEEDS[artistTmSpeedIdx] + 'x';
+    document.getElementById('timemachine-speed').addEventListener('click', () => {
+      tmSpeedIdx = (tmSpeedIdx + 1) % TM_SPEEDS.length;
+      document.getElementById('timemachine-speed').textContent = TM_SPEEDS[tmSpeedIdx] + 'x';
     });
 
+    slider.addEventListener('mousedown', () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle) needle.classList.add('no-transition');
+    });
+    slider.addEventListener('touchstart', () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle) needle.classList.add('no-transition');
+    });
+    const endScrub = () => {
+      const needle = document.getElementById('compass-needle');
+      if (needle && !tmPlaying) needle.classList.remove('no-transition');
+    };
+    slider.addEventListener('mouseup', endScrub);
+    slider.addEventListener('touchend', endScrub);
     slider.addEventListener('input', () => {
-      saveArtistCompassBaseline();
-      artistTmStopPlayback();
-      artistTmPosition = parseInt(slider.value);
-      updateArtistTimeMachine(artistTmPosition);
+      saveCompassState();
+      tmStopPlayback();
+      tmPosition = parseInt(slider.value);
+      updateTimeMachine(tmPosition);
     });
 
-    document.getElementById('artist-tm-reset').addEventListener('click', () => {
-      artistTmStopPlayback();
-      artistTmPosition = max;
-      // Fully reveal the clip rect + set TM dot to final position
-      updateArtistTimeMachine(artistTmPosition);
-      // Restore catalog aggregate on the compass/charge widgets
-      restoreArtistCompassBaseline();
-      document.getElementById('artist-tm-reset').style.display = 'none';
+    document.getElementById('timemachine-reset').addEventListener('click', () => {
+      tmStopPlayback();
+      restoreCompassState();
+      tmPosition = max;
+      updateTimeMachine(tmPosition);
+      document.getElementById('timemachine-reset').style.display = 'none';
     });
   }
+
+  function applyZoom(container) {
+    const lastYear = allYearData[allYearData.length - 1].year;
+    let filtered;
+    switch (currentZoom) {
+      case '5':  filtered = allYearData.filter(d => d.year > lastYear - 5);  break;
+      case '10': filtered = allYearData.filter(d => d.year > lastYear - 10); break;
+      case '20': filtered = allYearData.filter(d => d.year > lastYear - 20); break;
+      case '30': filtered = allYearData.filter(d => d.year > lastYear - 30); break;
+      default:   filtered = allYearData;
+    }
+    tmStopPlayback();
+    renderTrajectoryChart(filtered, container);
+    initTimeMachineControls(container);
+
+    container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.zoom === currentZoom);
+    });
+  }
+
+  // --- Compass state save/restore (artist-page baseline is the catalog
+  //     aggregate from summary.stats, not a homepage score element). ---
+  let savedDegree = null;
+  let savedCharge = null;
+  let savedDateText = null;
+
+  function saveCompassState() {
+    if (savedDegree !== null) return;
+    const s = artistPageState.summary && artistPageState.summary.stats;
+    if (s && s.catalog_degree != null && s.catalog_tier) {
+      savedDegree = s.catalog_degree;
+      savedCharge = s.catalog_tier;
+    }
+    const dateEl = document.getElementById('compass-date-svg');
+    if (dateEl) savedDateText = dateEl.textContent;
+  }
+
+  function restoreCompassState() {
+    if (savedDegree !== null) {
+      if (typeof Compass !== 'undefined') Compass.setDegree(savedDegree, savedCharge);
+      if (typeof Charge !== 'undefined') {
+        const s = artistPageState.summary && artistPageState.summary.stats;
+        const songs = (s && s.total_calibrated_songs) || 0;
+        Charge.setLevel(savedCharge, 0, songs, savedDegree);
+      }
+    }
+    if (savedDateText !== null) {
+      const dateEl = document.getElementById('compass-date-svg');
+      if (dateEl) dateEl.textContent = savedDateText;
+    }
+    savedDegree = null;
+    savedCharge = null;
+    savedDateText = null;
+  }
+
 
   /* ========== JSON-LD ========== */
 
