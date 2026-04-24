@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Browser-only stylesheet. Search engines read the raw sitemap XML;
+     humans visiting sitemap.xml directly get this rendered view. -->
+<xsl:stylesheet version="1.0"
+                xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+                xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9"
+                exclude-result-prefixes="sm">
+  <xsl:output method="html" indent="yes" encoding="UTF-8"
+              doctype-system="about:legacy-compat"/>
+
+  <xsl:template match="/">
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <meta name="robots" content="noindex"/>
+        <title>Sitemap &#8212; The Rising Compass</title>
+        <link rel="icon" href="/img/favicon.svg" type="image/svg+xml"/>
+        <link rel="preconnect" href="https://fonts.googleapis.com"/>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin"/>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+        <link rel="stylesheet" href="/css/main.css"/>
+        <style>
+          body {
+            background: var(--rc-bg-dark);
+            color: var(--rc-text);
+            font-family: var(--rc-font);
+            margin: 0;
+            min-height: 100vh;
+          }
+          .sm-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--rc-border);
+            background: var(--rc-bg-panel);
+          }
+          .sm-back {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--rc-text-dim);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color var(--rc-ease);
+          }
+          .sm-back:hover { color: var(--rc-accent); }
+          .sm-back svg { flex-shrink: 0; }
+          .sm-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--rc-text-bright);
+            margin: 0 0 0 auto;
+            letter-spacing: 0.02em;
+          }
+          main {
+            max-width: 900px;
+            margin: 2rem auto 4rem;
+            padding: 0 1.5rem;
+          }
+          .sm-intro {
+            color: var(--rc-text-dim);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin: 0 0 1.5rem;
+            max-width: 720px;
+          }
+          .sm-count {
+            font-family: var(--rc-font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--rc-text-dim);
+            margin-bottom: 1rem;
+          }
+          .sm-count strong { color: var(--rc-accent); font-weight: 700; }
+          .sm-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--rc-bg-panel);
+            border: 1px solid var(--rc-border);
+            border-radius: var(--rc-radius-lg);
+            overflow: hidden;
+          }
+          .sm-table thead th {
+            font-family: var(--rc-font-mono);
+            font-size: 0.62rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--rc-text-dim);
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--rc-border);
+            background: var(--rc-bg-card);
+            font-weight: 600;
+          }
+          .sm-table thead th.num { text-align: right; }
+          .sm-table tbody tr {
+            border-bottom: 1px solid var(--rc-divider, rgba(255,255,255,0.05));
+            transition: background var(--rc-ease);
+          }
+          .sm-table tbody tr:last-child { border-bottom: none; }
+          .sm-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+          .sm-table td {
+            padding: 0.75rem 1rem;
+            vertical-align: middle;
+          }
+          .sm-url {
+            font-family: var(--rc-font-mono);
+            font-size: 0.85rem;
+            color: var(--rc-text);
+            text-decoration: none;
+            word-break: break-all;
+          }
+          .sm-url:hover { color: var(--rc-accent); text-decoration: underline; text-underline-offset: 3px; }
+          .sm-path { color: var(--rc-accent); }
+          .sm-freq {
+            font-family: var(--rc-font-mono);
+            font-size: 0.72rem;
+            color: var(--rc-text-dim);
+            letter-spacing: 0.02em;
+          }
+          .sm-priority {
+            font-family: var(--rc-font-mono);
+            font-size: 0.72rem;
+            color: var(--rc-text-dim);
+            text-align: right;
+          }
+          .sm-priority-bar {
+            display: inline-block;
+            width: 44px;
+            height: 3px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 2px;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+            position: relative;
+            overflow: hidden;
+          }
+          .sm-priority-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: var(--rc-accent);
+            border-radius: 2px;
+          }
+          .sm-note {
+            color: var(--rc-text-dim);
+            font-size: 0.72rem;
+            line-height: 1.6;
+            margin: 1.5rem 0 0;
+            padding: 1rem 1.25rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--rc-border);
+            border-radius: var(--rc-radius-md);
+          }
+          .sm-note code {
+            font-family: var(--rc-font-mono);
+            font-size: 0.68rem;
+            padding: 0.05rem 0.3rem;
+            background: rgba(255,255,255,0.04);
+            border-radius: 3px;
+            color: var(--rc-text);
+          }
+          @media (max-width: 600px) {
+            .sm-header { padding: 0.75rem 1rem; }
+            .sm-title { font-size: 1.1rem; }
+            main { margin-top: 1.25rem; padding: 0 1rem 3rem; }
+            .sm-table thead th:nth-child(2),
+            .sm-table tbody td:nth-child(2) { display: none; }
+            .sm-url { font-size: 0.78rem; }
+          }
+        </style>
+      </head>
+      <body>
+        <header class="sm-header">
+          <a href="/" class="sm-back" aria-label="Back to Rising Compass">
+            <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+              <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+              <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+              <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+              <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+              <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+              <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+              <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+              <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+            </svg>
+            <span>The Rising Compass</span>
+          </a>
+          <h1 class="sm-title">Sitemap</h1>
+        </header>
+
+        <main>
+          <p class="sm-intro">
+            The top-level pages of The Rising Compass. Individual artists, songs, tenets, amendments, and calibration-log entries are not listed here &#8212; they surface through their respective index pages.
+          </p>
+          <div class="sm-count">
+            <strong><xsl:value-of select="count(sm:urlset/sm:url)"/></strong>
+            <xsl:text> URL</xsl:text>
+            <xsl:if test="count(sm:urlset/sm:url) != 1">s</xsl:if>
+          </div>
+
+          <table class="sm-table">
+            <thead>
+              <tr>
+                <th>URL</th>
+                <th>Update frequency</th>
+                <th class="num">Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              <xsl:for-each select="sm:urlset/sm:url">
+                <xsl:sort select="sm:loc" order="ascending"/>
+                <tr>
+                  <td>
+                    <a class="sm-url">
+                      <xsl:attribute name="href">
+                        <xsl:value-of select="sm:loc"/>
+                      </xsl:attribute>
+                      <xsl:variable name="loc" select="sm:loc"/>
+                      <xsl:variable name="after-scheme" select="substring-after($loc, '://')"/>
+                      <xsl:variable name="host" select="substring-before($after-scheme, '/')"/>
+                      <xsl:variable name="path" select="substring-after($after-scheme, $host)"/>
+                      <xsl:value-of select="$host"/>
+                      <span class="sm-path">
+                        <xsl:value-of select="$path"/>
+                      </span>
+                    </a>
+                  </td>
+                  <td>
+                    <span class="sm-freq">
+                      <xsl:value-of select="sm:changefreq"/>
+                    </span>
+                  </td>
+                  <td class="sm-priority">
+                    <xsl:value-of select="sm:priority"/>
+                    <span class="sm-priority-bar">
+                      <span class="sm-priority-fill">
+                        <xsl:attribute name="style">
+                          <xsl:text>width:</xsl:text>
+                          <xsl:value-of select="number(sm:priority) * 100"/>
+                          <xsl:text>%;</xsl:text>
+                        </xsl:attribute>
+                      </span>
+                    </span>
+                  </td>
+                </tr>
+              </xsl:for-each>
+            </tbody>
+          </table>
+
+          <p class="sm-note">
+            This sitemap is regenerated by <code>frontend/scripts/generate-sitemap.py</code> on every deploy. New top-level pages (any subdirectory with an <code>index.html</code>, or any <code>.html</code> file at the frontend root) appear automatically.
+          </p>
+        </main>
+      </body>
+    </html>
+  </xsl:template>
+</xsl:stylesheet>
