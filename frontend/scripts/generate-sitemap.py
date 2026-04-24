@@ -81,9 +81,9 @@ def _changefreq_for(path: str) -> str:
     utility pages monthly."""
     if path == "/":
         return "daily"
-    if path in {"/calibration-log/", "/artists/", "/search/", "/library/", "/amendments/"}:
+    if path in {"/calibration-log/", "/artists/", "/search/", "/library/"}:
         return "daily"
-    if path in {"/privacy.html", "/tenets/", "/misread-submission.html"}:
+    if path in {"/privacy.html", "/tenets/", "/misread-submission.html", "/amendments/"}:
         return "monthly"
     return "weekly"
 
@@ -92,7 +92,11 @@ def build_sitemap() -> str:
     pages = _top_level_pages()
     out: list[str] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>',
+        # Stylesheet filename uses .xml (not .xsl) so nginx serves it as
+        # text/xml — the default mime.types mapping for .xsl varies and
+        # some installs fall back to application/octet-stream, which
+        # browsers refuse to apply as an XSLT transform.
+        '<?xml-stylesheet type="text/xsl" href="/sitemap-style.xml"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
     for p in pages:
