@@ -394,6 +394,90 @@ def merge_artist(
 
         rewrites: dict = {}
 
+        # 0. Song-row collisions. Migration 037 puts a UNIQUE index on
+        #    (lower(title), lower(artist)) per song table — so two artists
+        #    with the same song title ("Sweet Caroline" under both
+        #    "Neil Diamond" and "Neil Diamonds") have duplicate song rows
+        #    that will trip the later UPDATE artist = ... step. For each
+        #    collision, migrate the source song's FKs onto the target song
+        #    then drop the source song row.
+        song_source_map = {
+            "compass_songs": "compass",
+            "library_songs": "library",
+            "submitted_songs": "submitted",
+        }
+        dup_song_rows_merged = 0
+        dup_release_song_links_migrated = 0
+        dup_release_song_links_dropped = 0
+        dup_song_artist_links_migrated = 0
+        dup_song_artist_links_dropped = 0
+        dup_song_slugs_dropped = 0
+        for tbl, src_type in song_source_map.items():
+            collisions = conn.execute(
+                f"SELECT src.id, tgt.id"
+                f"  FROM {tbl} src"
+                f"  JOIN {tbl} tgt ON lower(src.title) = lower(tgt.title)"
+                f" WHERE lower(src.artist) = lower(?)"
+                f"   AND lower(tgt.artist) = lower(?)"
+                f"   AND src.id != tgt.id",
+                (source_name, target_name),
+            ).fetchall()
+            for src_sid, tgt_sid in collisions:
+                # release_songs: drop links where the target song is already
+                # on the same release; rewrite the rest from src → tgt.
+                cur = conn.execute(
+                    "DELETE FROM release_songs"
+                    " WHERE song_source = ? AND song_id = ?"
+                    "   AND release_id IN ("
+                    "       SELECT release_id FROM release_songs"
+                    "        WHERE song_source = ? AND song_id = ?"
+                    "   )",
+                    (src_type, src_sid, src_type, tgt_sid),
+                )
+                dup_release_song_links_dropped += cur.rowcount or 0
+                cur = conn.execute(
+                    "UPDATE release_songs SET song_id = ?"
+                    " WHERE song_source = ? AND song_id = ?",
+                    (tgt_sid, src_type, src_sid),
+                )
+                dup_release_song_links_migrated += cur.rowcount or 0
+
+                # song_artists: same dedupe-then-rewrite, on artist_id key.
+                cur = conn.execute(
+                    "DELETE FROM song_artists"
+                    " WHERE song_source = ? AND song_id = ?"
+                    "   AND artist_id IN ("
+                    "       SELECT artist_id FROM song_artists"
+                    "        WHERE song_source = ? AND song_id = ?"
+                    "   )",
+                    (src_type, src_sid, src_type, tgt_sid),
+                )
+                dup_song_artist_links_dropped += cur.rowcount or 0
+                cur = conn.execute(
+                    "UPDATE song_artists SET song_id = ?"
+                    " WHERE song_source = ? AND song_id = ?",
+                    (tgt_sid, src_type, src_sid),
+                )
+                dup_song_artist_links_migrated += cur.rowcount or 0
+
+                # song_slugs: unique on slug; the src slug likely differs
+                # from tgt's, but the target's is the canonical one going
+                # forward. Drop any slug rows pointing at the src song row.
+                cur = conn.execute(
+                    "DELETE FROM song_slugs WHERE song_source = ? AND song_id = ?",
+                    (src_type, src_sid),
+                )
+                dup_song_slugs_dropped += cur.rowcount or 0
+
+                conn.execute(f"DELETE FROM {tbl} WHERE id = ?", (src_sid,))
+                dup_song_rows_merged += 1
+        rewrites["dup_song_rows_merged"] = dup_song_rows_merged
+        rewrites["dup_release_song_links_migrated"] = dup_release_song_links_migrated
+        rewrites["dup_release_song_links_dropped"] = dup_release_song_links_dropped
+        rewrites["dup_song_artist_links_migrated"] = dup_song_artist_links_migrated
+        rewrites["dup_song_artist_links_dropped"] = dup_song_artist_links_dropped
+        rewrites["dup_song_slugs_dropped"] = dup_song_slugs_dropped
+
         # 1. song_artists: dedupe against target's credits, then rewrite.
         cur = conn.execute(
             "DELETE FROM song_artists"
