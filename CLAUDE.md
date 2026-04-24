@@ -38,3 +38,27 @@ sync, no `db-pull`/`db-push`. Set `DATABASE_URL=libsql://...` and
   files are pre-Turso archives, kept for safety.
 - Migration tool (one-shot): `backend/scripts/sqlite_to_turso.py <sqlite_path> <url> <token>`
 - Smoke test: `backend/scripts/test_turso_write.py` (writes + drops a test table)
+
+## Writes to Turso primary
+
+Long-running transactions die on the embedded-replica session (Hrana stream
+timeout). Any write path that runs several statements in one transaction
+must open a direct libsql connection to the primary and own the whole
+transaction itself. See `_write_api_call_log` in `app/main.py`,
+`_open_primary_conn` in `app/routers/artists_admin.py`, and the flusher in
+`app/services/api_clients.py` for the pattern.
+
+## Artist admin endpoints
+
+All require `X-Admin-Key` header. Writes go through a direct libsql connection
+to the Turso primary (replica streams time out on multi-statement transactions).
+
+- `POST /api/admin/artists/{slug}/merge-into` — body `{target_slug, notes?}`.
+  Atomically rewrites FKs + denormalised `artist` strings, handles
+  `UNIQUE(title, artist)` and `UNIQUE(artist_id, title)` collisions, deletes
+  source Artist, writes an `artist_admin_events` audit row.
+- `POST /api/admin/artists/{slug}/rename` — body `{new_name, new_slug?, notes?}`.
+- `POST /api/admin/artists/{slug}/refresh-release-aggregates` — recomputes
+  `track_count / calibrated_count / charge_value / rubric_color` on every real
+  Release for the artist. Idempotent.
+- `GET /api/admin/artists/events` — paginated audit log for merge/rename.
