@@ -2347,6 +2347,13 @@ const App = (() => {
     } else {
       setActiveSection('history', false);
     }
+
+    // Respond to hash changes that happen in-page — e.g. clicking the
+    // mini-log's "View all →" (href="#calibration-log") while already here.
+    window.addEventListener('hashchange', () => {
+      const h = window.location.hash.slice(1);
+      if (h) setActiveSection(h, /* updateHash= */ false);
+    });
   }
 
   function setActiveSection(section, updateHash = true) {
@@ -2358,7 +2365,11 @@ const App = (() => {
     });
     if (updateHash) window.location.hash = section;
 
-    const sectionNames = { history: 'Historical Overview', methodology: 'Methodology' };
+    const sectionNames = {
+      history: 'Historical Overview',
+      methodology: 'Methodology',
+      'calibration-log': 'Calibration Log',
+    };
     if (sectionNames[section]) announce(`${sectionNames[section]} section.`);
 
     // Lazy-load section data

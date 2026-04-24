@@ -62,6 +62,7 @@
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/compass.css">
   <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="calibration-log/calibration-log.css">
 </head>
 <body>
   <a href="#compass-panel" class="skip-nav">Skip to main content</a>
@@ -129,7 +130,7 @@
     <div class="card" id="cl-mini-panel">
       <div class="card-header">
         <span>Calibration Log</span>
-        <a href="/calibration-log/" class="cl-mini-viewall">View all &rarr;</a>
+        <a href="#calibration-log" class="cl-mini-viewall">View all &rarr;</a>
       </div>
       <p class="card-desc">Recent human overrides of the compass. Every time a person catches the machine.</p>
       <div id="cl-mini-content" class="cl-mini-content" aria-live="polite">
@@ -142,6 +143,7 @@
   <nav class="secondary-nav">
     <div class="nav-tabs">
       <button class="nav-tab" data-section="history">Historical Overview</button>
+      <button class="nav-tab" data-section="calibration-log">Calibration Log</button>
       <button class="nav-tab" data-section="methodology">Methodology</button>
     </div>
 
@@ -150,6 +152,35 @@
       <div class="card" id="history-panel">
         <div class="card-header">The Drift — Decade by Decade</div>
         <div id="drift-content"></div>
+      </div>
+    </div>
+
+    <!-- Calibration Log Section -->
+    <div class="section-content" id="section-calibration-log">
+      <div class="card" id="calibration-log-panel">
+        <section class="cl-intro">
+          <p class="cl-intro-text">
+            The public record of how the compass is being refined. Every time a
+            person catches the machine, adjusts a reading, or updates the rubric,
+            the event is captured here. The compass requires human monitoring —
+            but couldn't exist without the agent. This is the log of that
+            collaboration.
+          </p>
+        </section>
+
+        <nav class="cl-filters" aria-label="Filter feed">
+          <button class="cl-filter cl-filter-active" data-type="">All</button>
+          <button class="cl-filter" data-type="pre_publish_correction">Pre-publish corrections</button>
+          <button class="cl-filter" data-type="recalibration">Recalibrations</button>
+        </nav>
+
+        <section id="cl-feed" class="cl-feed" aria-live="polite">
+          <div class="cl-loading">Loading the log&hellip;</div>
+        </section>
+
+        <div class="cl-pagination" hidden>
+          <button id="cl-load-more" class="cl-load-more">Load more</button>
+        </div>
       </div>
     </div>
 
@@ -332,7 +363,7 @@
   </section>
 
   <footer class="site-footer">
-    <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/calibration-log/">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a></p>
+    <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a></p>
   </footer>
 
   <script src="js/api.js"></script>
@@ -340,6 +371,7 @@
   <script src="js/charge.js"></script>
   <script src="js/contamination.js"></script>
   <script src="js/app.js"></script>
+  <script src="calibration-log/calibration-log.js"></script>
 
 </body>
 </html>

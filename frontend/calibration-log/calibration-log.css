@@ -31,7 +31,9 @@
   letter-spacing: 0.02em;
 }
 
-main {
+/* Scoped so loading this stylesheet on the homepage (for the Calibration
+   Log tab) doesn't clobber any other page's <main> width. */
+.cl-page-main {
   max-width: 860px;
   margin: 0 auto;
   padding: 0 1.25rem 4rem;
