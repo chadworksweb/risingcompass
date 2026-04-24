@@ -241,10 +241,13 @@ def artist_summary(slug: str):
         if not artist:
             raise HTTPException(404, "Artist not found")
 
-        # Totals + tier breakdown from the releases table directly
+        # Totals + tier breakdown — released only (release_date IS NOT NULL).
+        # Unreleased rows exist in the DB but don't count toward the catalog:
+        # they carry no release_date and sit in the "unreleased" bucket.
         release_rows = (
             db.query(Release.rubric_color)
             .filter(Release.artist_id == artist.id)
+            .filter(Release.release_date.isnot(None))
             .all()
         )
         total_releases = len(release_rows)
@@ -252,6 +255,13 @@ def artist_summary(slug: str):
         for (color,) in release_rows:
             if color in tier_breakdown:
                 tier_breakdown[color] += 1
+
+        total_unreleased = (
+            db.query(func.count(Release.id))
+            .filter(Release.artist_id == artist.id)
+            .filter(Release.release_date.is_(None))
+            .scalar()
+        ) or 0
 
         # Catalog charge = mean of individual song charges (not mean-of-means)
         song_charges = _song_charges_for_artist(artist.id, db)
@@ -274,6 +284,7 @@ def artist_summary(slug: str):
             "slug": artist.slug,
             "stats": {
                 "total_releases": total_releases,
+                "total_unreleased": total_unreleased,
                 "total_calibrated_songs": total_calibrated,
                 "catalog_charge": catalog_charge,
                 "catalog_degree": catalog_degree,
@@ -289,7 +300,10 @@ def artist_summary(slug: str):
 
 @router.get("/{slug}/trajectory")
 def artist_trajectory_points(slug: str):
-    """All releases formatted for the trajectory chart. No song resolution.
+    """Released catalog formatted for the trajectory chart. No song resolution.
+
+    Excludes releases with no release_date — those are "unreleased" and don't
+    sit on the timeline.
 
     One SELECT — returns only fields stored on the Release row. Fast even for
     catalogs with hundreds of releases (Beatles etc).
@@ -303,9 +317,9 @@ def artist_trajectory_points(slug: str):
         rows = (
             db.query(Release)
             .filter(Release.artist_id == artist.id)
+            .filter(Release.release_date.isnot(None))
             .order_by(
-                Release.release_date.asc().nullslast(),
-                Release.release_year.asc().nullslast(),
+                Release.release_date.asc(),
                 Release.title.asc(),
             )
             .all()
@@ -336,8 +350,16 @@ def artist_releases(
     offset: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     order: str = Query("desc", pattern="^(asc|desc)$"),
+    status: str = Query("released", pattern="^(released|unreleased|all)$"),
 ):
-    """Paginated release list. Default newest-first for the right-column panel."""
+    """Paginated release list. Default newest-first for the right-column panel.
+
+    status:
+      released   — default: only releases with a release_date
+      unreleased — only releases missing a release_date (sits in the
+                   unreleased bucket on the artist page)
+      all        — everything
+    """
     db = SessionLocal()
     try:
         artist = db.query(Artist).filter(Artist.slug == slug).first()
@@ -345,18 +367,24 @@ def artist_releases(
             raise HTTPException(404, "Artist not found")
 
         base = db.query(Release).filter(Release.artist_id == artist.id)
+        if status == "released":
+            base = base.filter(Release.release_date.isnot(None))
+        elif status == "unreleased":
+            base = base.filter(Release.release_date.is_(None))
+
         total = base.with_entities(func.count(Release.id)).scalar() or 0
 
-        if order == "desc":
+        if status == "unreleased":
+            # No date to sort on — fall back to title.
+            base = base.order_by(Release.title.asc())
+        elif order == "desc":
             base = base.order_by(
-                Release.release_date.desc().nullslast(),
-                Release.release_year.desc().nullslast(),
+                Release.release_date.desc(),
                 Release.title.asc(),
             )
         else:
             base = base.order_by(
-                Release.release_date.asc().nullslast(),
-                Release.release_year.asc().nullslast(),
+                Release.release_date.asc(),
                 Release.title.asc(),
             )
 

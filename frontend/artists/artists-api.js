@@ -23,8 +23,8 @@ const ArtistsAPI = (() => {
     getArtist: (slug) => get(`/api/artists/${slug}`),
     getArtistSummary: (slug) => get(`/api/artists/${slug}/summary`),
     getArtistTrajectory: (slug) => get(`/api/artists/${slug}/trajectory`),
-    getArtistReleases: (slug, offset = 0, limit = 10, order = 'desc') =>
-      get(`/api/artists/${slug}/releases?offset=${offset}&limit=${limit}&order=${order}`),
+    getArtistReleases: (slug, offset = 0, limit = 10, order = 'desc', status = 'released') =>
+      get(`/api/artists/${slug}/releases?offset=${offset}&limit=${limit}&order=${order}&status=${status}`),
     getArtistTopSongs: (slug, offset = 0, limit = 20) =>
       get(`/api/artists/${slug}/top-songs?offset=${offset}&limit=${limit}`),
     getArtistSongs: (slug, releaseId, offset = 0, limit = 20) => {

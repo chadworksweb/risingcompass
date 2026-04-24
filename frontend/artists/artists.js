@@ -164,11 +164,12 @@
     if (!slug) return;
     artistPageState.slug = slug;
 
-    // Kick off all four requests in parallel — each section renders as it returns.
+    // Kick off all requests in parallel — each section renders as it returns.
     loadSummary(slug);
     loadTrajectory(slug);
     loadTopSongs(slug, 0);
     loadReleases(slug, 0);
+    loadUnreleased(slug);
 
     const moreBtn = document.getElementById('top-songs-more');
     if (moreBtn) {
@@ -261,6 +262,24 @@
     } catch (err) {
       console.error('Failed to load top songs:', err);
       if (offset === 0) list.innerHTML = '<li class="error-message">Couldn\'t load top songs.</li>';
+    }
+  }
+
+  async function loadUnreleased(slug) {
+    const section = document.getElementById('artist-unreleased-section');
+    const list = document.getElementById('unreleased-list');
+    if (!section || !list) return;
+    try {
+      const data = await ArtistsAPI.getArtistReleases(slug, 0, 100, 'desc', 'unreleased');
+      if (!data.items || data.items.length === 0) {
+        section.hidden = true;
+        return;
+      }
+      list.innerHTML = data.items.map(renderReleaseRow).join('');
+      section.hidden = false;
+    } catch (err) {
+      console.error('Failed to load unreleased:', err);
+      section.hidden = true;
     }
   }
 
