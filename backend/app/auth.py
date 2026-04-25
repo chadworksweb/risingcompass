@@ -161,11 +161,10 @@ def verify_backup_key(x_backup_key: Optional[str] = Header(default=None)):
     auth so a leaked admin password doesn't grant backup access (and a
     leaked backup key doesn't grant arbitrary admin access).
 
-    Falls back to RC_ADMIN_KEY when RC_BACKUP_KEY is unset, for the
-    deployment window between this rollout and the cron getting its own
-    key. Remove the fallback once the cron is migrated.
+    Strictly RC_BACKUP_KEY now — the legacy fallback to RC_ADMIN_KEY was
+    removed once the cron at le-projects-01 was migrated (2026-04-25).
     """
-    expected = settings.rc_backup_key or settings.rc_admin_key
+    expected = settings.rc_backup_key
     if not expected:
         raise HTTPException(status_code=503, detail="Backup key not configured")
     if not x_backup_key:
