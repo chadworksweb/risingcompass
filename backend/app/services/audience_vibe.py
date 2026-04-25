@@ -50,6 +50,16 @@ def _resolve_song(db: Session, source: str, song_id: int):
     return row
 
 
+def _initial_needle_value(db: Session, source: str, song_id: int) -> int:
+    """Initial audience needle value = compass charge so the offset starts at
+    0. Falls back to 0 for uncalibrated songs."""
+    try:
+        song = _resolve_song(db, source, song_id)
+    except VibeError:
+        return 0
+    return int(getattr(song, "charge_value", None) or 0)
+
+
 def _get_or_create_needle(db: Session, source: str, song_id: int) -> AudienceVibeNeedle:
     needle = (
         db.query(AudienceVibeNeedle)
@@ -60,7 +70,8 @@ def _get_or_create_needle(db: Session, source: str, song_id: int) -> AudienceVib
     if needle:
         return needle
     needle = AudienceVibeNeedle(
-        song_source=source, song_id=song_id, current_value=0,
+        song_source=source, song_id=song_id,
+        current_value=_initial_needle_value(db, source, song_id),
         pushes_up_total=0, pushes_down_total=0,
     )
     db.add(needle)
@@ -155,7 +166,9 @@ def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) 
     if not needle:
         eligible = bool(device_id)
         return {
-            "value": 0,
+            # Synthesise the initial value (= compass charge) so the frontend
+            # offset visualization shows 0 before any push has been recorded.
+            "value": _initial_needle_value(db, source, song_id),
             "pushes_up_total": 0,
             "pushes_down_total": 0,
             "year_split": {"up": 0, "down": 0},
