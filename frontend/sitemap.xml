@@ -12,6 +12,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://risingcompass.net/artist-claim.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://risingcompass.net/artists/</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
@@ -49,6 +54,11 @@
   <url>
     <loc>https://risingcompass.net/tenets/</loc>
     <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/terms.html</loc>
+    <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 </urlset>
