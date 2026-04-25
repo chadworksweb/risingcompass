@@ -7,6 +7,18 @@ SERVER="deploy@138.197.111.66"
 REMOTE_DIR="/root/rising-compass"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+echo "=== Building partials (header/footer) ==="
+# Replaces content between <!-- INCLUDE:name --> ... <!-- /INCLUDE:name -->
+# markers with the partial in frontend/partials/. Idempotent. Auto-commits
+# any drift so the server's git pull renders the latest header/footer.
+python3 "$REPO_ROOT/frontend/scripts/build_partials.py"
+if ! git -C "$REPO_ROOT" diff --quiet -- frontend; then
+    echo "partial content updated — committing + pushing"
+    git -C "$REPO_ROOT" add -u frontend
+    git -C "$REPO_ROOT" commit -m "Rebuild header/footer partials (auto)"
+    git -C "$REPO_ROOT" push origin master
+fi
+
 echo "=== Regenerating sitemap ==="
 # Top-level pages only; script scans frontend/ and rewrites sitemap.xml
 # if anything changed. Auto-commit + push so the server's `git pull`
