@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Are You the Artist? — The Rising Compass</title>
+  <meta name="description" content="If this is your song, get in touch. We verify face-to-face and capture your words about the work.">
+  <link rel="canonical" href="https://risingcompass.net/artist-claim.html">
+
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/artist-claim.html">
+  <meta property="og:title" content="Are You the Artist? — The Rising Compass">
+  <meta property="og:description" content="If this is your song, get in touch.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta property="og:site_name" content="The Rising Compass">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <style>
+    .claim-page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    .claim-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.82rem;
+      color: var(--rc-accent);
+      text-decoration: none;
+      margin-bottom: 1.5rem;
+    }
+    .claim-back:hover { opacity: 0.7; }
+    .claim-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+      margin-bottom: 0.5rem;
+    }
+    .claim-intro {
+      font-size: 0.88rem;
+      color: var(--rc-text);
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .claim-intro strong { color: var(--rc-text-bright); }
+    .claim-song-card {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      padding: 1rem 1.2rem;
+      background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border);
+      border-radius: var(--rc-radius-md);
+      margin-bottom: 1.5rem;
+    }
+    .claim-song-card .song-dot {
+      width: 12px;
+      height: 12px;
+    }
+    .claim-song-info { flex: 1; min-width: 0; }
+    .claim-song-title { font-size: 1rem; font-weight: 600; color: var(--rc-text-bright); }
+    .claim-song-artist { font-size: 0.85rem; color: var(--rc-text-dim); }
+    .claim-song-tier {
+      font-family: var(--rc-font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .claim-form { display: flex; flex-direction: column; gap: 1rem; }
+    .claim-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 520px) { .claim-row { grid-template-columns: 1fr; } }
+    .claim-field { display: flex; flex-direction: column; gap: 0.3rem; }
+    .claim-field label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--rc-text-dim);
+    }
+    .claim-field input,
+    .claim-field textarea,
+    .claim-field select {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border);
+      border-radius: var(--rc-radius-sm);
+      color: var(--rc-text-bright);
+      font-family: var(--rc-font);
+      font-size: 0.9rem;
+      outline: none;
+    }
+    .claim-field input:focus,
+    .claim-field textarea:focus,
+    .claim-field select:focus { border-color: var(--rc-accent); }
+    .claim-field textarea { min-height: 100px; resize: vertical; line-height: 1.5; }
+    .claim-field input::placeholder,
+    .claim-field textarea::placeholder { color: var(--rc-text-dim); opacity: 0.5; }
+    .claim-consent {
+      font-size: 0.72rem;
+      color: var(--rc-text-dim);
+      line-height: 1.5;
+      padding: 0.6rem 0.8rem;
+      background: var(--rc-bg-card);
+      border-radius: var(--rc-radius-sm);
+      border: 1px solid var(--rc-border);
+    }
+    .claim-protocol {
+      font-size: 0.78rem;
+      color: var(--rc-text);
+      line-height: 1.55;
+      padding: 0.7rem 0.9rem;
+      background: rgba(0, 200, 140, 0.05);
+      border: 1px solid rgba(0, 200, 140, 0.25);
+      border-radius: var(--rc-radius-sm);
+    }
+    .claim-protocol strong { color: var(--rc-text-bright); }
+    .claim-submit {
+      padding: 0.7rem 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      background: var(--rc-accent);
+      color: var(--rc-bg-dark);
+      border: none;
+      border-radius: var(--rc-radius-sm);
+      cursor: pointer;
+      letter-spacing: 0.04em;
+    }
+    .claim-submit:hover { opacity: 0.85; }
+    .claim-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+    .claim-success {
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+    .claim-success-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .claim-success h2 {
+      font-size: 1.2rem;
+      color: var(--rc-accent);
+      margin-bottom: 0.5rem;
+    }
+    .claim-success p {
+      font-size: 0.88rem;
+      color: var(--rc-text);
+      line-height: 1.5;
+    }
+    .claim-error {
+      font-size: 0.82rem;
+      color: var(--rc-red);
+      margin-top: 0.5rem;
+    }
+    /* Honeypot — invisible to users, bots fill it in. Off-screen + tabindex
+       trap so screen readers ignore it too. */
+    .claim-hp {
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+</header>
+<!-- /INCLUDE:header -->
+
+<div class="claim-page">
+  <h1 class="claim-title">Are You the Artist?</h1>
+  <p class="claim-intro">
+    If this is your song, we'd like to talk. Once you're verified, you can publish a note about this song that lives on its page — your words, captured directly.
+  </p>
+
+  <div class="claim-protocol">
+    <strong>Our protocol is offline.</strong> Verification happens face-to-face or by video call with anti-deepfake checks. We don't accept email-only verification — the relationship has to be real. Send us your contact info and a few links so we can confirm who you are, then we'll set up a session.
+  </div>
+
+  <div class="claim-song-card" id="song-card" style="margin-top:1.2rem;">
+    <span class="song-dot" id="song-dot"></span>
+    <div class="claim-song-info">
+      <div class="claim-song-title" id="song-title">&mdash;</div>
+      <div class="claim-song-artist" id="song-artist">&mdash;</div>
+    </div>
+    <span class="claim-song-tier" id="song-tier">&mdash;</span>
+  </div>
+
+  <form class="claim-form" id="claim-form">
+    <div class="claim-row">
+      <div class="claim-field">
+        <label for="claimant-name">Your Name</label>
+        <input type="text" id="claimant-name" required placeholder="Jane Doe">
+      </div>
+      <div class="claim-field">
+        <label for="claimant-email">Email</label>
+        <input type="email" id="claimant-email" required placeholder="jane@example.com">
+      </div>
+    </div>
+    <div class="claim-field">
+      <label for="claimant-role">Your Role</label>
+      <select id="claimant-role" required>
+        <option value="">Select one</option>
+        <option value="artist">Artist (this is my song)</option>
+        <option value="manager">Manager</option>
+        <option value="label">Label</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="claim-field">
+      <label for="proof-links">Proof Links</label>
+      <textarea id="proof-links" placeholder="Spotify-for-Artists, official IG, official site, etc. Anything that lets us confirm authenticity. One link per line."></textarea>
+    </div>
+    <div class="claim-field">
+      <label for="message">Tell us about this song</label>
+      <textarea id="message" required placeholder="What were you trying to say? What's the story? Anything you want listeners to know."></textarea>
+    </div>
+    <div class="claim-hp" aria-hidden="true">
+      <label for="hp-website">Website (leave blank)</label>
+      <input type="text" id="hp-website" name="website" autocomplete="off" tabindex="-1" value="">
+    </div>
+
+    <div class="claim-consent">
+      By submitting, you consent to your device ID and IP address being recorded for moderation purposes. Your contact info is only used to reach out about this song.
+    </div>
+    <button type="submit" class="claim-submit" id="submit-btn">Send to The Rising Compass</button>
+    <div class="claim-error" id="error-msg" style="display:none;"></div>
+  </form>
+
+  <div class="claim-success" id="success-state" style="display:none;">
+    <div class="claim-success-icon">&#x2713;</div>
+    <h2>Sent</h2>
+    <p>We'll review your submission and reach out to set up verification. No automated reply needed.</p>
+  </div>
+</div>
+
+<script>
+(function() {
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const API_BASE = isLocal
+    ? `http://${window.location.hostname}:8000`
+    : 'https://api.risingcompass.net';
+  const API_KEY = isLocal
+    ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
+    : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
+  const API_HEADERS = API_KEY ? { 'X-Api-Key': API_KEY } : {};
+
+  const COLOR_HEX = {
+    violet: '#aa54ff', blue: '#3388ff', green: '#33cc55',
+    orange: '#ffbb33', red: '#ff3333',
+  };
+  const TIER_LABELS = {
+    violet: 'Ascended', blue: 'Elevated', green: 'Decent',
+    orange: 'Degraded', red: 'Corrupted',
+  };
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function getDeviceId() {
+    let id = localStorage.getItem('rc-device-id');
+    if (!id) {
+      id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem('rc-device-id', id);
+    }
+    return id;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const songTitle = params.get('title') || '';
+  const songArtist = params.get('artist') || '';
+  const songColor = params.get('color') || 'green';
+  const songSource = params.get('song_source') || '';
+  const songIdRaw = params.get('song_id') || '';
+  const songId = songIdRaw ? parseInt(songIdRaw, 10) : null;
+
+  document.getElementById('song-dot').className = `song-dot ${songColor}`;
+  document.getElementById('song-title').textContent = songTitle || 'Unknown Song';
+  document.getElementById('song-artist').textContent = songArtist || 'Unknown Artist';
+  const tierEl = document.getElementById('song-tier');
+  tierEl.textContent = TIER_LABELS[songColor] || songColor;
+  tierEl.style.color = COLOR_HEX[songColor] || '#888';
+
+  const deviceId = getDeviceId();
+  const form = document.getElementById('claim-form');
+  const submitBtn = document.getElementById('submit-btn');
+  const errorMsg = document.getElementById('error-msg');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending...';
+
+    const body = {
+      song_title: songTitle,
+      song_artist: songArtist,
+      song_source: songSource || null,
+      song_id: songId,
+      song_color: songColor,
+      claimant_name: document.getElementById('claimant-name').value.trim(),
+      claimant_email: document.getElementById('claimant-email').value.trim(),
+      claimant_role: document.getElementById('claimant-role').value || null,
+      proof_links: document.getElementById('proof-links').value.trim() || null,
+      message: document.getElementById('message').value.trim(),
+      device_id: deviceId,
+      hp_website: document.getElementById('hp-website').value,
+      turnstile_token: '',
+    };
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/artist-verification/inquiry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: 'Submission failed' }));
+        throw new Error(err.detail || 'Submission failed');
+      }
+      form.style.display = 'none';
+      document.getElementById('success-state').style.display = '';
+    } catch (err) {
+      errorMsg.textContent = err.message;
+      errorMsg.style.display = '';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send to The Rising Compass';
+    }
+  });
+})();
+</script>
+
+<!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
+
+</body>
+</html>
