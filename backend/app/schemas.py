@@ -851,3 +851,163 @@ class FeedListOut(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# --- Artist Verification ---
+
+class ArtistVerificationInquiryCreate(BaseModel):
+    """Public inbound submission from the song page 'Are you the artist?' form."""
+    song_title: str = Field(..., max_length=300)
+    song_artist: str = Field(..., max_length=300)
+    song_source: Optional[str] = Field(None, max_length=20)
+    song_id: Optional[int] = None
+    song_color: Optional[str] = Field(None, max_length=20)
+    song_position: Optional[int] = None
+    claimant_name: str = Field(..., max_length=200)
+    claimant_email: str = Field(..., max_length=254)
+    claimant_role: Optional[str] = Field(None, max_length=40)
+    proof_links: Optional[str] = Field(None, max_length=2000)
+    message: str = Field(..., max_length=5000)
+    device_id: Optional[str] = Field(None, max_length=200)
+    # Bot protection — invisible field that legitimate users never fill in.
+    hp_website: str = ""
+    # Cloudflare Turnstile token; ignored unless TURNSTILE_SECRET is configured.
+    turnstile_token: str = ""
+
+
+class ArtistVerificationInquiryOut(BaseModel):
+    id: int
+    created_at: datetime.datetime
+    song_title: str
+    song_artist: str
+    song_source: Optional[str] = None
+    song_id: Optional[int] = None
+    song_color: Optional[str] = None
+    song_position: Optional[int] = None
+    claimant_name: str
+    claimant_email: str
+    claimant_role: Optional[str] = None
+    proof_links: Optional[str] = None
+    message: str
+    device_id: Optional[str] = None
+    ip_address: Optional[str] = None
+    status: str
+    artist_id: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ArtistVerificationInquiryStatusUpdate(BaseModel):
+    status: str  # pending | contacted | dismissed | promoted
+    artist_id: Optional[int] = None  # required when promoting
+
+
+class ArtistVerificationOut(BaseModel):
+    id: int
+    artist_id: int
+    funnel_stage: str
+    verification_method: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_handle: Optional[str] = None
+    conversation_log: Optional[str] = None
+    notes: Optional[str] = None
+    deepfake_live_challenge_passed: bool
+    deepfake_cross_channel_confirmed: bool
+    deepfake_two_sessions_completed: bool
+    deepfake_reference_match_confirmed: bool
+    deepfake_recording_archived: bool
+    deepfake_recording_url: Optional[str] = None
+    contacted_at: Optional[datetime.datetime] = None
+    verified_at: Optional[datetime.datetime] = None
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ArtistVerificationUpdate(BaseModel):
+    funnel_stage: Optional[str] = None
+    verification_method: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_handle: Optional[str] = None
+    conversation_log: Optional[str] = None
+    notes: Optional[str] = None
+    deepfake_live_challenge_passed: Optional[bool] = None
+    deepfake_cross_channel_confirmed: Optional[bool] = None
+    deepfake_two_sessions_completed: Optional[bool] = None
+    deepfake_reference_match_confirmed: Optional[bool] = None
+    deepfake_recording_archived: Optional[bool] = None
+    deepfake_recording_url: Optional[str] = None
+
+
+class ArtistVerificationBlockCreate(BaseModel):
+    song_source: str = Field(..., max_length=20)
+    song_id: int
+    block_text: Optional[str] = Field(None, max_length=20000)
+    video_url: Optional[str] = Field(None, max_length=500)
+    audio_url: Optional[str] = Field(None, max_length=500)
+    internal_notes: Optional[str] = Field(None, max_length=5000)
+    published: bool = False
+
+
+class ArtistVerificationBlockUpdate(BaseModel):
+    block_text: Optional[str] = None
+    video_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    internal_notes: Optional[str] = None
+    published: Optional[bool] = None
+
+
+class ArtistVerificationBlockOut(BaseModel):
+    id: int
+    artist_id: int
+    song_source: str
+    song_id: int
+    block_text: Optional[str] = None
+    video_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    published: bool
+    published_at: Optional[datetime.datetime] = None
+    internal_notes: Optional[str] = None
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ArtistVerifiedBlockPublic(BaseModel):
+    """Public-facing block for the song page. Returns block content plus
+    minimal artist info for badge attribution."""
+    artist_id: int
+    artist_name: str
+    artist_slug: str
+    block_text: Optional[str] = None
+    video_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    published_at: Optional[datetime.datetime] = None
+
+
+class ArtistVerificationFunnelArtistOut(BaseModel):
+    """One artist row in the funnel list view."""
+    artist_id: int
+    artist_name: str
+    artist_slug: str
+    verification_id: Optional[int] = None
+    funnel_stage: Optional[str] = None
+    verification_method: Optional[str] = None
+    block_count: int = 0
+    published_block_count: int = 0
+    contacted_at: Optional[datetime.datetime] = None
+    verified_at: Optional[datetime.datetime] = None
+    updated_at: Optional[datetime.datetime] = None
+
+
+class ArtistVerificationDetailOut(BaseModel):
+    """Full detail for the admin drawer."""
+    artist_id: int
+    artist_name: str
+    artist_slug: str
+    verification: Optional[ArtistVerificationOut] = None
+    blocks: list[ArtistVerificationBlockOut] = []

@@ -1,0 +1,732 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'artist-verified' %}
+{% block title %}Artist Verified — Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+  .av-section { margin-bottom: 2.5rem; }
+  .av-card {
+    padding: 0.8rem;
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    margin-bottom: 0.6rem;
+    border-left: 3px solid var(--border);
+  }
+  .av-card.stage-lead { border-left-color: var(--tier-orange); }
+  .av-card.stage-contacted { border-left-color: var(--tier-blue); }
+  .av-card.stage-in_conversation { border-left-color: var(--tier-violet); }
+  .av-card.stage-active { border-left-color: var(--tier-green); }
+  .av-card.status-pending { border-left-color: var(--tier-orange); }
+  .av-card.status-contacted { border-left-color: var(--tier-blue); }
+  .av-card.status-dismissed { border-left-color: var(--text-hint); }
+  .av-card.status-promoted { border-left-color: var(--tier-green); }
+  .av-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .av-card-name { font-weight: 700; color: var(--accent); }
+  .av-card-meta { font-size: 0.8rem; color: var(--text-dim); margin: 0.3rem 0; }
+  .av-card-msg { font-size: 0.88rem; line-height: 1.5; margin: 0.4rem 0; color: var(--text); }
+  .av-card-proof { font-size: 0.8rem; color: var(--text-dim); margin: 0.3rem 0; word-break: break-all; }
+  .av-card-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .av-badge-stage, .av-badge-status, .av-badge-method {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: 0.4rem;
+    font-weight: 600;
+  }
+  .av-badge-stage.lead, .av-badge-status.pending { background: #fff0d0; color: var(--tier-orange); }
+  .av-badge-stage.contacted, .av-badge-status.contacted { background: #dfeaf8; color: var(--tier-blue); }
+  .av-badge-stage.in_conversation { background: #ece2f8; color: var(--tier-violet); }
+  .av-badge-stage.active, .av-badge-status.promoted { background: #dff3e8; color: var(--tier-green); }
+  .av-badge-status.dismissed { background: #e5e5ee; color: var(--text-dim); }
+  .av-badge-method { background: var(--panel-strong); color: var(--text-dim); }
+  .av-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+  }
+  @media (max-width: 720px) { .av-detail-grid { grid-template-columns: 1fr; } }
+  .av-form-section {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  .av-form-section h3 {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.7rem;
+    font-weight: 700;
+  }
+  .av-checklist { display: flex; flex-direction: column; gap: 0.4rem; }
+  .av-checklist label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--text);
+    text-transform: none;
+    letter-spacing: normal;
+    cursor: pointer;
+    margin-bottom: 0;
+  }
+  .av-checklist input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+  .av-gate-warn {
+    font-size: 0.8rem;
+    padding: 0.5rem 0.8rem;
+    background: #fff0d0;
+    color: var(--tier-orange);
+    border: 1px solid var(--tier-orange);
+    border-radius: 4px;
+    margin-top: 0.6rem;
+  }
+  .av-gate-pass {
+    font-size: 0.8rem;
+    padding: 0.5rem 0.8rem;
+    background: #dff3e8;
+    color: var(--tier-green);
+    border: 1px solid var(--tier-green);
+    border-radius: 4px;
+    margin-top: 0.6rem;
+  }
+  .av-blocks-list { margin-top: 0.6rem; }
+  .av-block {
+    padding: 0.7rem;
+    background: #ffffff;
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+  .av-block-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+  .av-block-head strong { color: var(--text); font-family: monospace; }
+  .av-block-text { font-size: 0.88rem; line-height: 1.5; margin: 0.5rem 0; white-space: pre-wrap; }
+  .av-block-media { font-size: 0.78rem; color: var(--text-dim); margin: 0.2rem 0; }
+  .av-block-media a { color: var(--accent); }
+  .av-published-on { color: var(--tier-green); font-weight: 700; }
+  .av-published-off { color: var(--text-hint); }
+  .av-promote-search {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: none;
+  }
+  .av-promote-search.open { display: block; }
+  .av-search-results {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-top: 0.4rem;
+  }
+  .av-search-result {
+    padding: 0.4rem 0.6rem;
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 3px;
+    margin-bottom: 0.2rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .av-search-result:hover { background: var(--panel-strong); }
+  .av-empty { color: var(--text-dim); font-style: italic; padding: 0.6rem; }
+  .av-counts { font-size: 0.75rem; color: var(--text-dim); }
+  .av-block-form-toggle {
+    margin-top: 0.6rem;
+    background: transparent;
+    color: var(--accent);
+    border: 1px dashed var(--border);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Inbox -->
+<div class="av-section">
+  <h2 class="section-title">Inquiries (Inbox)</h2>
+  <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.5rem;">
+    Inbound 'are you the artist?' submissions from song pages. Promote attaches the inquiry to an existing artist record + opens a verification at stage=lead.
+  </p>
+  <div class="filter-bar" id="inqFilters">
+    <button class="filter-btn active" data-filter="">All</button>
+    <button class="filter-btn" data-filter="pending">Pending</button>
+    <button class="filter-btn" data-filter="contacted">Contacted</button>
+    <button class="filter-btn" data-filter="dismissed">Dismissed</button>
+    <button class="filter-btn" data-filter="promoted">Promoted</button>
+  </div>
+  <div id="inquiriesList"></div>
+  <div class="status-msg" id="inqStatus"></div>
+</div>
+
+<!-- Funnel -->
+<div class="av-section">
+  <h2 class="section-title">Verification Funnel</h2>
+  <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.5rem;">
+    Artists with active verification records. Click to open the detail panel below.
+  </p>
+  <div class="filter-bar" id="funnelFilters">
+    <button class="filter-btn active" data-filter="">All</button>
+    <button class="filter-btn" data-filter="lead">Lead</button>
+    <button class="filter-btn" data-filter="contacted">Contacted</button>
+    <button class="filter-btn" data-filter="in_conversation">In Conversation</button>
+    <button class="filter-btn" data-filter="active">Active</button>
+  </div>
+  <div id="funnelList"></div>
+</div>
+
+<!-- Detail -->
+<div class="av-section" id="detailPanel" hidden>
+  <h2 class="section-title">Artist Detail</h2>
+  <div id="detailContent"></div>
+  <div class="status-msg" id="detailStatus"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentInqFilter = '';
+let currentStageFilter = '';
+let currentArtistId = null;
+
+const STAGE_LABELS = {
+  lead: 'Lead',
+  contacted: 'Contacted',
+  in_conversation: 'In Conversation',
+  active: 'Active (Verified)',
+};
+const METHOD_LABELS = {
+  in_person: 'In Person',
+  video_call: 'Video Call',
+  audio_call: 'Audio Call',
+  prior_relationship: 'Prior Relationship',
+};
+const STATUS_LABELS = {
+  pending: 'Pending',
+  contacted: 'Contacted',
+  dismissed: 'Dismissed',
+  promoted: 'Promoted',
+};
+
+function onAdminReady() {
+  document.querySelectorAll('#inqFilters .filter-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      currentInqFilter = b.dataset.filter;
+      document.querySelectorAll('#inqFilters .filter-btn').forEach(x => x.classList.toggle('active', x === b));
+      loadInquiries();
+    });
+  });
+  document.querySelectorAll('#funnelFilters .filter-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      currentStageFilter = b.dataset.filter;
+      document.querySelectorAll('#funnelFilters .filter-btn').forEach(x => x.classList.toggle('active', x === b));
+      loadFunnel();
+    });
+  });
+  loadInquiries();
+  loadFunnel();
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString();
+}
+
+// --- Inquiries ---
+
+async function loadInquiries() {
+  const el = document.getElementById('inquiriesList');
+  const url = currentInqFilter
+    ? `/api/admin/artist-verification/inquiries?status=${currentInqFilter}`
+    : '/api/admin/artist-verification/inquiries';
+  try {
+    const resp = await fetch(url, { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderInquiries(data);
+  } catch (e) {
+    el.innerHTML = `<p style="color:var(--red);">${esc(e.message)}</p>`;
+  }
+}
+
+function renderInquiries(list) {
+  const el = document.getElementById('inquiriesList');
+  if (!list.length) {
+    el.innerHTML = '<p class="av-empty">No inquiries.</p>';
+    return;
+  }
+  el.innerHTML = list.map(inq => {
+    const role = inq.claimant_role ? ` &middot; <em>${esc(inq.claimant_role)}</em>` : '';
+    const proofBlock = inq.proof_links
+      ? `<div class="av-card-proof"><strong>Proof links:</strong> ${linkify(inq.proof_links)}</div>` : '';
+    const songRef = inq.song_source && inq.song_id
+      ? `<span class="av-counts">[${inq.song_source}/${inq.song_id}]</span>` : '';
+    let actions = '';
+    if (inq.status === 'pending') {
+      actions = `
+        <button class="btn-sm" onclick="updateInquiry(${inq.id},'contacted')">Mark Contacted</button>
+        <button class="btn-sm" onclick="togglePromote(${inq.id})">Promote &raquo;</button>
+        <button class="btn-sm btn-danger" onclick="updateInquiry(${inq.id},'dismissed')">Dismiss</button>
+      `;
+    } else if (inq.status === 'contacted') {
+      actions = `
+        <button class="btn-sm" onclick="togglePromote(${inq.id})">Promote &raquo;</button>
+        <button class="btn-sm btn-danger" onclick="updateInquiry(${inq.id},'dismissed')">Dismiss</button>
+      `;
+    } else if (inq.status === 'dismissed') {
+      actions = `<button class="btn-sm" onclick="updateInquiry(${inq.id},'pending')">Reopen</button>`;
+    }
+    return `
+      <div class="av-card status-${inq.status}">
+        <div class="av-card-head">
+          <div>
+            <span class="av-card-name">${esc(inq.claimant_name)}</span>${role}
+            <span class="av-badge-status ${inq.status}">${esc(STATUS_LABELS[inq.status] || inq.status)}</span>
+          </div>
+          <div class="av-card-meta">${esc(fmtDate(inq.created_at))}</div>
+        </div>
+        <div class="av-card-meta">
+          <strong>${esc(inq.song_title)}</strong> &mdash; ${esc(inq.song_artist)} ${songRef}
+          <br>${esc(inq.claimant_email)}${inq.ip_address ? ' &middot; IP: ' + esc(inq.ip_address) : ''}
+        </div>
+        <div class="av-card-msg">${esc(inq.message)}</div>
+        ${proofBlock}
+        <div class="av-card-actions">${actions}</div>
+        <div class="av-promote-search" id="promote-${inq.id}">
+          <label style="display:block;margin-bottom:0.3rem;font-size:0.75rem;">Search artists by name to attach this inquiry:</label>
+          <input type="text" placeholder="Type artist name..." oninput="searchArtistsForPromote(${inq.id}, this.value)">
+          <div class="av-search-results" id="results-${inq.id}"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function linkify(s) {
+  return esc(s).replace(/(https?:\/\/[^\s,]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+
+async function updateInquiry(id, status, artistId) {
+  const body = { status };
+  if (artistId) body.artist_id = artistId;
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/inquiries/${id}`, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(document.getElementById('inqStatus'), `Inquiry #${id} -> ${status}`, 'success');
+    loadInquiries();
+    loadFunnel();
+  } catch (e) {
+    showMsg(document.getElementById('inqStatus'), e.message, 'error');
+  }
+}
+
+function togglePromote(id) {
+  const el = document.getElementById(`promote-${id}`);
+  if (el) el.classList.toggle('open');
+}
+
+let _searchTimer = null;
+function searchArtistsForPromote(inquiryId, query) {
+  clearTimeout(_searchTimer);
+  const out = document.getElementById(`results-${inquiryId}`);
+  if (!query || query.length < 2) { out.innerHTML = ''; return; }
+  _searchTimer = setTimeout(async () => {
+    try {
+      const resp = await fetch(`/api/admin/artist-verification/artists-search?q=${encodeURIComponent(query)}`, {
+        headers: adminHeaders(),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      if (!data.length) { out.innerHTML = '<p class="av-empty">No matching artists. Use the Artists admin to create one first.</p>'; return; }
+      out.innerHTML = data.map(a => `
+        <div class="av-search-result" onclick="updateInquiry(${inquiryId}, 'promoted', ${a.id})">
+          <span><strong>${esc(a.name)}</strong> <span class="av-counts">${esc(a.slug)}</span></span>
+          <span class="av-counts">id ${a.id}</span>
+        </div>
+      `).join('');
+    } catch (e) {
+      out.innerHTML = `<p style="color:var(--red);">${esc(e.message)}</p>`;
+    }
+  }, 250);
+}
+
+// --- Funnel ---
+
+async function loadFunnel() {
+  const el = document.getElementById('funnelList');
+  const url = currentStageFilter
+    ? `/api/admin/artist-verification/funnel?stage=${currentStageFilter}`
+    : '/api/admin/artist-verification/funnel';
+  try {
+    const resp = await fetch(url, { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderFunnel(data);
+  } catch (e) {
+    el.innerHTML = `<p style="color:var(--red);">${esc(e.message)}</p>`;
+  }
+}
+
+function renderFunnel(list) {
+  const el = document.getElementById('funnelList');
+  if (!list.length) {
+    el.innerHTML = '<p class="av-empty">No artists in the funnel yet. Promote an inquiry above to start.</p>';
+    return;
+  }
+  el.innerHTML = list.map(a => {
+    const stage = a.funnel_stage || 'lead';
+    const method = a.verification_method ? `<span class="av-badge-method">${esc(METHOD_LABELS[a.verification_method] || a.verification_method)}</span>` : '';
+    return `
+      <div class="av-card stage-${stage}" onclick="loadDetail(${a.artist_id})" style="cursor:pointer;">
+        <div class="av-card-head">
+          <div>
+            <span class="av-card-name">${esc(a.artist_name)}</span>
+            <span class="av-badge-stage ${stage}">${esc(STAGE_LABELS[stage] || stage)}</span>
+            ${method}
+          </div>
+          <div class="av-card-meta">${esc(fmtDate(a.updated_at))}</div>
+        </div>
+        <div class="av-card-meta">
+          ${a.published_block_count} published / ${a.block_count} block${a.block_count === 1 ? '' : 's'}
+          ${a.contacted_at ? ' &middot; first contacted ' + esc(fmtDate(a.contacted_at)) : ''}
+          ${a.verified_at ? ' &middot; verified ' + esc(fmtDate(a.verified_at)) : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// --- Artist detail ---
+
+async function loadDetail(artistId) {
+  currentArtistId = artistId;
+  const panel = document.getElementById('detailPanel');
+  panel.hidden = false;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/artists/${artistId}`, {
+      headers: adminHeaders(),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderDetail(data);
+  } catch (e) {
+    document.getElementById('detailContent').innerHTML = `<p style="color:var(--red);">${esc(e.message)}</p>`;
+  }
+}
+
+function renderDetail(d) {
+  const v = d.verification || {};
+  const stage = v.funnel_stage || 'lead';
+  const method = v.verification_method || '';
+  const isVideo = method === 'video_call';
+  const checklistComplete = isVideo
+    ? (v.deepfake_live_challenge_passed && v.deepfake_cross_channel_confirmed
+       && v.deepfake_two_sessions_completed && v.deepfake_reference_match_confirmed
+       && v.deepfake_recording_archived)
+    : !!method;
+
+  const blocksHtml = (d.blocks || []).map(b => `
+    <div class="av-block">
+      <div class="av-block-head">
+        <strong>${esc(b.song_source)}/${b.song_id}</strong>
+        <span>${b.published ? '<span class="av-published-on">PUBLISHED</span>' : '<span class="av-published-off">draft</span>'}${b.published_at ? ' &middot; ' + esc(fmtDate(b.published_at)) : ''}</span>
+      </div>
+      <div class="av-block-text">${esc(b.block_text || '(no text)')}</div>
+      ${b.video_url ? `<div class="av-block-media">Video: <a href="${esc(b.video_url)}" target="_blank" rel="noopener">${esc(b.video_url)}</a></div>` : ''}
+      ${b.audio_url ? `<div class="av-block-media">Audio: <a href="${esc(b.audio_url)}" target="_blank" rel="noopener">${esc(b.audio_url)}</a></div>` : ''}
+      <div class="av-card-actions">
+        <button class="btn-sm" onclick="editBlock(${b.id})">Edit</button>
+        ${b.published
+          ? `<button class="btn-sm" onclick="toggleBlockPublish(${b.id}, false)">Unpublish</button>`
+          : `<button class="btn-sm" onclick="toggleBlockPublish(${b.id}, true)">Publish</button>`}
+        <button class="btn-sm btn-danger" onclick="deleteBlock(${b.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="av-form-section">
+      <h3>${esc(d.artist_name)} <a href="/artists/artist.html?slug=${encodeURIComponent(d.artist_slug)}" target="_blank" style="font-size:0.78rem;color:var(--accent);text-decoration:none;margin-left:0.5rem;">View artist page &rarr;</a></h3>
+
+      <div class="av-detail-grid">
+        <div class="form-group">
+          <label>Funnel Stage</label>
+          <select id="vfStage">
+            <option value="lead" ${stage==='lead'?'selected':''}>Lead</option>
+            <option value="contacted" ${stage==='contacted'?'selected':''}>Contacted</option>
+            <option value="in_conversation" ${stage==='in_conversation'?'selected':''}>In Conversation</option>
+            <option value="active" ${stage==='active'?'selected':''}>Active (Verified)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Verification Method</label>
+          <select id="vfMethod" onchange="renderChecklistVisibility(this.value)">
+            <option value="" ${!method?'selected':''}>(not set)</option>
+            <option value="in_person" ${method==='in_person'?'selected':''}>In Person</option>
+            <option value="video_call" ${method==='video_call'?'selected':''}>Video Call</option>
+            <option value="audio_call" ${method==='audio_call'?'selected':''}>Audio Call</option>
+            <option value="prior_relationship" ${method==='prior_relationship'?'selected':''}>Prior Relationship</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Contact Email</label>
+          <input type="email" id="vfEmail" value="${esc(v.contact_email || '')}">
+        </div>
+        <div class="form-group">
+          <label>Contact Phone</label>
+          <input type="text" id="vfPhone" value="${esc(v.contact_phone || '')}">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>Contact Handle (Spotify-for-Artists, IG, etc)</label>
+          <input type="text" id="vfHandle" value="${esc(v.contact_handle || '')}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Conversation Log</label>
+        <textarea id="vfLog" rows="6">${esc(v.conversation_log || '')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Internal Notes</label>
+        <textarea id="vfNotes" rows="3">${esc(v.notes || '')}</textarea>
+      </div>
+    </div>
+
+    <div class="av-form-section" id="checklistSection" ${isVideo?'':'style="display:none;"'}>
+      <h3>Deepfake Checklist <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--text-hint);">— required to move to Active when method=video_call</span></h3>
+      <div class="av-checklist">
+        <label><input type="checkbox" id="dfChallenge" ${v.deepfake_live_challenge_passed?'checked':''}> Live randomized physical challenge passed (recorded)</label>
+        <label><input type="checkbox" id="dfCrossChan" ${v.deepfake_cross_channel_confirmed?'checked':''}> Cross-channel confirmation (Spotify-for-Artists / known authentic social DM during call window)</label>
+        <label><input type="checkbox" id="dfTwoSess" ${v.deepfake_two_sessions_completed?'checked':''}> Two separate sessions completed on different days</label>
+        <label><input type="checkbox" id="dfRefMatch" ${v.deepfake_reference_match_confirmed?'checked':''}> Reference image / voice match against known authentic source</label>
+        <label><input type="checkbox" id="dfRecording" ${v.deepfake_recording_archived?'checked':''}> Session recording archived</label>
+      </div>
+      <div class="form-group" style="margin-top:0.6rem;">
+        <label>Recording URL (admin-only link)</label>
+        <input type="text" id="dfRecordingUrl" value="${esc(v.deepfake_recording_url || '')}">
+      </div>
+      ${isVideo
+        ? (checklistComplete
+            ? '<div class="av-gate-pass">Gate satisfied. Artist may be moved to Active and blocks may be published.</div>'
+            : '<div class="av-gate-warn">Gate NOT satisfied. Artist cannot move to Active and no block can be published until all five items are checked.</div>')
+        : ''}
+    </div>
+
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
+      <button onclick="saveVerification(${d.artist_id})">Save Verification</button>
+    </div>
+
+    <div class="av-form-section">
+      <h3>Verification Blocks (per song)</h3>
+      <div class="av-blocks-list">
+        ${blocksHtml || '<p class="av-empty">No blocks yet.</p>'}
+      </div>
+      <button class="av-block-form-toggle" onclick="toggleNewBlockForm()">+ Add new block</button>
+      <div id="newBlockForm" hidden style="margin-top:0.6rem;padding:0.8rem;background:#fff;border:1px solid var(--border-soft);border-radius:4px;">
+        <div class="av-detail-grid">
+          <div class="form-group">
+            <label>Song Source</label>
+            <select id="nbSource">
+              <option value="compass">compass</option>
+              <option value="library">library</option>
+              <option value="submitted">submitted</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Song ID (numeric)</label>
+            <input type="number" id="nbSongId" placeholder="e.g. 1234">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Block Text (the artist's words about this song)</label>
+          <textarea id="nbText" rows="6"></textarea>
+        </div>
+        <div class="av-detail-grid">
+          <div class="form-group">
+            <label>Video URL (optional)</label>
+            <input type="text" id="nbVideo">
+          </div>
+          <div class="form-group">
+            <label>Audio URL (optional)</label>
+            <input type="text" id="nbAudio">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Internal Notes</label>
+          <textarea id="nbNotes" rows="2"></textarea>
+        </div>
+        <label style="display:flex;align-items:center;gap:0.5rem;font-weight:400;text-transform:none;letter-spacing:0;">
+          <input type="checkbox" id="nbPublished"> Publish on save (requires artist at stage=active and gate satisfied)
+        </label>
+        <div style="margin-top:0.6rem;display:flex;gap:0.4rem;">
+          <button onclick="createBlock(${d.artist_id})">Create Block</button>
+          <button class="btn-danger" onclick="toggleNewBlockForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderChecklistVisibility(method) {
+  const sec = document.getElementById('checklistSection');
+  if (sec) sec.style.display = method === 'video_call' ? '' : 'none';
+}
+
+async function saveVerification(artistId) {
+  const body = {
+    funnel_stage: document.getElementById('vfStage').value,
+    verification_method: document.getElementById('vfMethod').value || null,
+    contact_email: document.getElementById('vfEmail').value || null,
+    contact_phone: document.getElementById('vfPhone').value || null,
+    contact_handle: document.getElementById('vfHandle').value || null,
+    conversation_log: document.getElementById('vfLog').value || null,
+    notes: document.getElementById('vfNotes').value || null,
+  };
+  const cs = document.getElementById('checklistSection');
+  if (cs && cs.style.display !== 'none') {
+    body.deepfake_live_challenge_passed = document.getElementById('dfChallenge').checked;
+    body.deepfake_cross_channel_confirmed = document.getElementById('dfCrossChan').checked;
+    body.deepfake_two_sessions_completed = document.getElementById('dfTwoSess').checked;
+    body.deepfake_reference_match_confirmed = document.getElementById('dfRefMatch').checked;
+    body.deepfake_recording_archived = document.getElementById('dfRecording').checked;
+    body.deepfake_recording_url = document.getElementById('dfRecordingUrl').value || null;
+  }
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/artists/${artistId}/verification`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    showMsg(document.getElementById('detailStatus'), 'Verification saved', 'success');
+    loadDetail(artistId);
+    loadFunnel();
+  } catch (e) {
+    showMsg(document.getElementById('detailStatus'), e.message, 'error');
+  }
+}
+
+function toggleNewBlockForm() {
+  const f = document.getElementById('newBlockForm');
+  f.hidden = !f.hidden;
+}
+
+async function createBlock(artistId) {
+  const body = {
+    song_source: document.getElementById('nbSource').value,
+    song_id: parseInt(document.getElementById('nbSongId').value, 10),
+    block_text: document.getElementById('nbText').value || null,
+    video_url: document.getElementById('nbVideo').value || null,
+    audio_url: document.getElementById('nbAudio').value || null,
+    internal_notes: document.getElementById('nbNotes').value || null,
+    published: document.getElementById('nbPublished').checked,
+  };
+  if (!body.song_id || isNaN(body.song_id)) {
+    showMsg(document.getElementById('detailStatus'), 'Song ID required', 'error');
+    return;
+  }
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/artists/${artistId}/blocks`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    showMsg(document.getElementById('detailStatus'), 'Block created', 'success');
+    toggleNewBlockForm();
+    loadDetail(artistId);
+  } catch (e) {
+    showMsg(document.getElementById('detailStatus'), e.message, 'error');
+  }
+}
+
+async function toggleBlockPublish(blockId, publish) {
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/blocks/${blockId}`, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify({ published: publish }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    showMsg(document.getElementById('detailStatus'), publish ? 'Block published' : 'Block unpublished', 'success');
+    loadDetail(currentArtistId);
+    loadFunnel();
+  } catch (e) {
+    showMsg(document.getElementById('detailStatus'), e.message, 'error');
+  }
+}
+
+async function editBlock(blockId) {
+  const newText = prompt('Edit block text (leave empty to clear). Cancel to abort.', '');
+  if (newText === null) return;
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/blocks/${blockId}`, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify({ block_text: newText }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    loadDetail(currentArtistId);
+  } catch (e) {
+    showMsg(document.getElementById('detailStatus'), e.message, 'error');
+  }
+}
+
+async function deleteBlock(blockId) {
+  if (!confirm('Delete this block? This is permanent.')) return;
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/blocks/${blockId}`, {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(document.getElementById('detailStatus'), 'Block deleted', 'success');
+    loadDetail(currentArtistId);
+  } catch (e) {
+    showMsg(document.getElementById('detailStatus'), e.message, 'error');
+  }
+}
+</script>
+{% endblock %}
