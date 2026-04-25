@@ -54,10 +54,11 @@ Multi-user admin login (added 2026-04-25). The single shared `RC_ADMIN_KEY`
 header is gone — every admin endpoint authenticates via the
 `rc_admin_session` HttpOnly cookie minted by the obscured login URL.
 
-**Login URL:** `https://api.risingcompass.net/api/rc-admin-{ADMIN_LOGIN_URL_TOKEN}/login`
-(any other token returns 404). Successful login redirects to
-`/api/admin/dashboard`. Unauthed `/api/admin/*` GETs return 404; mutating
-endpoints return 401. Bookmark the login URL — it isn't linked from anywhere.
+**Login URL:** `https://api.risingcompass.net/rc-admin-{ADMIN_LOGIN_URL_TOKEN}`
+(GET serves the form, POST authenticates; any other token returns 404).
+Successful login redirects to `/api/admin/dashboard`. Unauthed
+`/api/admin/*` GETs return 404; mutating endpoints return 401. Bookmark
+the login URL — it isn't linked from anywhere.
 
 **Required env (both local and prod):**
 - `ADMIN_LOGIN_URL_TOKEN=<6+ char string>` — the prefix in the login URL

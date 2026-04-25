@@ -71,30 +71,41 @@ Then deploy (see below).
 **Do this against production** — the training data should live in the canonical DB.
 
 > **Admin auth note (2026-04-25):** the `X-Admin-Key` header is no longer
-> accepted on admin endpoints. To run these curl commands ad-hoc, sign in
-> at the obscured login URL (see CLAUDE.md), copy the `rc_admin_session`
-> cookie from DevTools, and pass it as `--cookie 'rc_admin_session=...'`.
-> Day-to-day operations should use the admin dashboard.
+> accepted. Admin endpoints require an `rc_admin_session` cookie minted by
+> the obscured login URL (see CLAUDE.md). Day-to-day work should go through
+> the admin dashboard. For ad-hoc curl, log in once to write a cookie jar,
+> then reuse it on every subsequent call.
+
+### Step 0 — log in once, save cookie jar
+```bash
+curl -c rc-cookies.txt -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"username":"YOUR_USER","password":"YOUR_PASSWORD"}' \
+  "https://api.risingcompass.net/rc-admin-YOUR_TOKEN"
+```
+Replace `YOUR_TOKEN` with the value of `ADMIN_LOGIN_URL_TOKEN` from `.env`.
+The cookie jar is good for 8 hours of idle time / 24 hours absolute. All
+the recipes below assume `rc-cookies.txt` is in the working directory.
 
 ### Backfill a year (e.g., 1970)
 ```bash
-curl -X POST "https://api.risingcompass.net/api/admin/agent/backfill/1970?limit=10" \
-  -H "X-Admin-Key: YOUR_KEY"
+curl -b rc-cookies.txt -X POST \
+  "https://api.risingcompass.net/api/admin/agent/backfill/1970?limit=10"
 ```
 This calibrates the top 10 songs of that year. Does NOT auto-approve.
 
 ### Calibrate songs after reviewing
 ```bash
-curl -X POST "https://api.risingcompass.net/api/admin/agent/calibrate" \
-  -H "X-Admin-Key: YOUR_KEY" \
+curl -b rc-cookies.txt -X POST \
   -H "Content-Type: application/json" \
-  -d '[{"id": 123, "tier": "Elevated", "charge": 50, "summary": "...", "meaning": "...", "emotion": "...", "intent": "..."}]'
+  -d '[{"id": 123, "tier": "Elevated", "charge": 50, "summary": "...", "meaning": "...", "emotion": "...", "intent": "..."}]' \
+  "https://api.risingcompass.net/api/admin/agent/calibrate"
 ```
 
 ### Delete a song (instrumental, duplicate, etc.)
 ```bash
-curl -X DELETE "https://api.risingcompass.net/api/admin/agent/songs/123" \
-  -H "X-Admin-Key: YOUR_KEY"
+curl -b rc-cookies.txt -X DELETE \
+  "https://api.risingcompass.net/api/admin/agent/songs/123"
 ```
 
 ### After backfill/calibration, pull DB to local
@@ -200,19 +211,24 @@ docker compose exec nginx nginx -s reload
 ```
 
 ### Database backup (manual)
+The backup endpoint uses a service token (`X-Backup-Key`), not the admin
+session — distinct keys for distinct callers. The nightly cron at 04:45 UTC
+already runs this.
+
 ```bash
 curl -X POST "https://api.risingcompass.net/api/admin/backup" \
-  -H "X-Admin-Key: YOUR_KEY"
+  -H "X-Backup-Key: $(grep '^RC_BACKUP_KEY=' backend/.env | cut -d= -f2-)"
 ```
-Backups are stored on the server in `data/backups/`, keeps 30.
+Backups land in `s3://crystopa-forge-backup1/le-projects-01/risingcompass/`
+with 30-day retention.
 
 ### Download DB to your machine
 ```bash
 # Option A: use the script
 bash db-pull.sh
 
-# Option B: direct curl
-curl -H "X-Admin-Key: YOUR_KEY" \
+# Option B: direct curl (requires the cookie jar from "Step 0" above)
+curl -b rc-cookies.txt \
   https://api.risingcompass.net/api/admin/db-export \
   -o backend/data/rising_compass.db
 ```

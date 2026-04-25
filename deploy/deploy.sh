@@ -23,18 +23,17 @@ echo "Building and starting backend..."
 docker compose up -d --build
 
 # ------------------------------------------------------------------
-# Set up daily reading cron (idempotent)
+# Daily reading cron — REMOVED 2026-04-25.
+#
+# The previous block installed a curl that hit /api/admin/agent/calibrate-live
+# with X-Admin-Key. After the multi-user admin auth migration, that header
+# is no longer accepted, and the endpoint requires a session cookie that a
+# headless cron can't carry. The cron had also been broken for some time
+# (hardcoded stale key value baked in at install, hit localhost:8000 which
+# doesn't reach the dockerized backend). Removed entirely; if automated
+# daily readings come back they should authenticate via a dedicated service
+# token like RC_BACKUP_KEY does for the backup cron.
 # ------------------------------------------------------------------
-CRON_CMD="0 8 * * * curl -s -X POST \"http://localhost:8000/api/admin/agent/calibrate-live\" -H \"X-Admin-Key: \$(grep RC_ADMIN_KEY $(pwd)/.env | cut -d= -f2)\" > /dev/null 2>&1"
-
-if ! crontab -l 2>/dev/null | grep -q "calibrate-live"; then
-    echo ""
-    echo "Setting up daily reading cron (08:00 UTC)..."
-    (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
-    echo "Cron installed."
-else
-    echo "Daily reading cron already exists."
-fi
 
 # ------------------------------------------------------------------
 # Set up certbot renewal cron (idempotent) — runs from proxy stack
