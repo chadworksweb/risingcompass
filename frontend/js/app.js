@@ -689,12 +689,13 @@ const App = (() => {
       updateTimeMachine(tmPosition);
     });
 
-    // Reset
+    // Reset — restoreCompassState last so the saved (live) compass wins over
+    // updateTimeMachine's position-derived needle update.
     document.getElementById('timemachine-reset').addEventListener('click', () => {
       tmStopPlayback();
-      restoreCompassState();
       tmPosition = max;
       updateTimeMachine(tmPosition);
+      restoreCompassState();
       document.getElementById('timemachine-reset').style.display = 'none';
     });
 
@@ -1313,12 +1314,13 @@ const App = (() => {
       updateDailyTimeMachine(dtmPosition);
     });
 
-    // Reset
+    // Reset — restoreCompassState last so the live daily compass wins over
+    // updateDailyTimeMachine's position-derived needle update.
     document.getElementById('daily-timemachine-reset').addEventListener('click', () => {
       dtmStopPlayback();
-      restoreCompassState();
       dtmPosition = max;
       updateDailyTimeMachine(dtmPosition);
+      restoreCompassState();
       document.getElementById('daily-timemachine-reset').style.display = 'none';
     });
   }

@@ -324,9 +324,25 @@
 </head>
 <body>
 
-<div class="misread-page">
-  <a href="/" class="misread-back">&larr; Back to compass</a>
+<!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+</header>
+<!-- /INCLUDE:header -->
 
+<div class="misread-page">
   <h1 class="misread-title">Report a Misread</h1>
   <p class="misread-intro">
     Music is personal, so we understand that a calibration can feel wrong when it's a song you love. This is why the Rising Compass measures lyrical content against a fixed rubric, not taste, talent, or personal interpretation.
@@ -598,6 +614,12 @@
   });
 })();
 </script>
+
+<!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
 
 </body>
 </html>

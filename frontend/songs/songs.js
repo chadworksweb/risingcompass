@@ -66,6 +66,14 @@
       if (song.song_source && song.song_id) {
         initAudienceVibe(song);
       }
+      // Artist Verified — claim CTA always renders; published-block fetch
+      // requires the polymorphic id pair.
+      renderArtistClaimCta(song);
+      if (song.song_source && song.song_id) {
+        ArtistsAPI.getArtistVerifiedBlock(song.song_source, song.song_id)
+          .then(block => { if (block) renderArtistVerifiedBlock(block); })
+          .catch(err => console.warn('Artist verified block unavailable:', err));
+      }
     } catch (err) {
       console.error('Failed to load song:', err);
       document.getElementById('song-title').textContent = '';
@@ -229,28 +237,137 @@
     return id;
   }
 
-  function placeNeedleDot(value) {
-    // Map -100..+100 to x=20..300 across the SVG axis.
-    const clamped = Math.max(-100, Math.min(100, value || 0));
-    const x = 20 + ((clamped + 100) / 200) * 280;
-    const dot = document.getElementById('vibe-needle-dot');
-    const lbl = document.getElementById('vibe-needle-label');
-    if (dot) dot.setAttribute('cx', x);
-    if (lbl) {
-      lbl.setAttribute('x', x);
-      lbl.textContent = (clamped > 0 ? '+' : '') + clamped;
+  // Audience vibe = a 21-point window centred on the compass score.
+  // Each push moves the audience needle ±1 from compass. The bar represents
+  // offset = audience - compass, clamped visually to [-10, +10] (each unit
+  // = 5% of bar width). +10 sits on the LEFT (more Ascended direction).
+  const AUDIENCE_WINDOW = 10;
+  const PCT_PER_UNIT = 50 / AUDIENCE_WINDOW;
+
+  function offsetToPct(offset) {
+    const clamped = Math.max(-AUDIENCE_WINDOW, Math.min(AUDIENCE_WINDOW, offset || 0));
+    return 50 - clamped * PCT_PER_UNIT;
+  }
+
+  function vibeValueToColor(value) {
+    if (value >= 60) return 'violet';
+    if (value >= 20) return 'blue';
+    if (value >= -20) return 'green';
+    if (value >= -60) return 'orange';
+    return 'red';
+  }
+
+  function audienceWindowGradient(compass) {
+    // The full charge spectrum has only five pure-color stops: +100 violet,
+    // +50 blue, 0 green (centre of Decent), -50 orange, -100 red. Between
+    // them the gradient blends. The bar shows a 20-unit window from
+    // compass+10 (left, 0%) to compass-10 (right, 100%); each charge unit
+    // = 5% of bar width. Stops outside 0-100% are valid — CSS uses them
+    // for interpolation across the visible slice.
+    if (compass == null || isNaN(compass)) return null;
+    const SPECTRUM_STOPS = [
+      { charge: 100, color: 'violet' },
+      { charge: 50, color: 'blue' },
+      { charge: 0, color: 'green' },
+      { charge: -50, color: 'orange' },
+      { charge: -100, color: 'red' },
+    ];
+    const parts = SPECTRUM_STOPS.map(s => {
+      const pct = ((compass + 10) - s.charge) * 5;
+      return `var(--rc-${s.color}) ${pct.toFixed(2)}%`;
+    });
+    return `linear-gradient(to right, ${parts.join(', ')})`;
+  }
+
+  // Module-level state so the frame can recompute on either side updating.
+  // compassChargeValue is the song's lyric-reading charge (e.g. +79).
+  // audienceCurrentValue is the absolute audience needle from the backend
+  // (the offset = audienceCurrentValue - compassChargeValue).
+  let compassChargeValue = null;
+  let audienceCurrentValue = null;
+
+  function currentOffset() {
+    if (compassChargeValue == null || audienceCurrentValue == null) return null;
+    return audienceCurrentValue - compassChargeValue;
+  }
+
+  function updateGapBand() {
+    const band = document.getElementById('audience-vibe-gap');
+    if (!band) return;
+    const offset = currentOffset();
+    if (offset == null) {
+      band.classList.add('hidden');
+      return;
     }
+    band.classList.remove('hidden');
+    const compassPct = 50;
+    const audiencePct = offsetToPct(offset);
+    band.style.left = Math.min(compassPct, audiencePct) + '%';
+    band.style.width = Math.abs(compassPct - audiencePct) + '%';
+  }
+
+  function placeAudienceMarker(value) {
+    // Audience needle = the moving tick + tooltip above the bar. Position is
+    // determined by the offset from compass; label displays the absolute
+    // score the song would be at if recalibrated to the audience's vibe
+    // (push counts live below in the year split).
+    audienceCurrentValue = value;
+    const offset = compassChargeValue != null ? value - compassChargeValue : value;
+    const pct = offsetToPct(offset);
+    const marker = document.getElementById('audience-vibe-marker-audience');
+    const scoreEl = document.getElementById('audience-vibe-audience-score');
+    const tick = document.getElementById('audience-vibe-tick');
+    if (marker) marker.style.left = pct + '%';
+    if (scoreEl) scoreEl.textContent = (value > 0 ? '+' : '') + value;
+    if (tick) {
+      tick.classList.remove('hidden');
+      tick.style.left = pct + '%';
+    }
+    updateGapBand();
+  }
+
+  function setCompassReference(chargeValue, rubricColor) {
+    // Compass = the resting glowing dot + label, anchored at the centre of
+    // the 21-point window (50%). The label always reads the absolute charge
+    // (e.g. +79); position is fixed regardless of value.
+    compassChargeValue = chargeValue;
+    const point = document.getElementById('charge-point');
+    const marker = document.getElementById('audience-vibe-marker-compass');
+    const scoreEl = document.getElementById('audience-vibe-compass-score');
+    if (chargeValue == null || isNaN(chargeValue)) {
+      if (marker) marker.classList.add('hidden');
+      if (point) point.style.display = 'none';
+      updateGapBand();
+      return;
+    }
+    if (typeof Charge !== 'undefined') {
+      // degree=90 → 50% (centre). Colour comes from the song's rubric tier.
+      Charge.setLevel(rubricColor || vibeValueToColor(chargeValue), 0, 0, 90);
+    }
+    // Replace the default rainbow gradient with one scoped to the window.
+    const grad = document.querySelector('#audience-vibe-spectrum-container .charge-gradient');
+    const bg = audienceWindowGradient(chargeValue);
+    if (grad && bg) grad.style.background = bg;
+    if (point) point.style.display = '';
+    if (marker) {
+      marker.classList.remove('hidden');
+      marker.style.left = '50%';
+    }
+    if (scoreEl) scoreEl.textContent = (chargeValue > 0 ? '+' : '') + chargeValue;
+    // Audience marker may already exist; refresh its computed offset.
+    if (audienceCurrentValue != null) placeAudienceMarker(audienceCurrentValue);
+    updateGapBand();
   }
 
   function applyVibeState(state) {
-    placeNeedleDot(state.value);
-    document.getElementById('vibe-down-count').textContent = state.year_split.down;
-    document.getElementById('vibe-up-count').textContent = state.year_split.up;
-    document.getElementById('vibe-year-note').textContent = `Pushes in ${state.current_year}`;
+    placeAudienceMarker(state.value);
+    document.getElementById('audience-vibe-down-count').textContent = state.year_split.down;
+    document.getElementById('audience-vibe-up-count').textContent = state.year_split.up;
+    document.getElementById('audience-vibe-year-note').textContent = `Pushes in ${state.current_year}`;
 
-    const upBtn = document.getElementById('vibe-push-up');
-    const downBtn = document.getElementById('vibe-push-down');
-    const status = document.getElementById('vibe-status');
+    const upBtn = document.getElementById('audience-vibe-push-up');
+    const downBtn = document.getElementById('audience-vibe-push-down');
+    const status = document.getElementById('audience-vibe-status');
 
     if (state.eligible_to_push) {
       upBtn.disabled = false;
@@ -259,7 +376,7 @@
     } else {
       upBtn.disabled = true;
       downBtn.disabled = true;
-      status.className = 'vibe-status';
+      status.className = 'audience-vibe-status';
       status.textContent = `You've already pushed this song in ${state.current_year}. Eligibility refreshes January 1.`;
       status.hidden = false;
     }
@@ -277,24 +394,50 @@
       return;
     }
     section.hidden = false;
+    // Drop the loading state — frame becomes interactive, spinner hides.
+    const frame = document.getElementById('audience-vibe-spectrum-frame');
+    const loadingRow = document.getElementById('audience-vibe-loading-row');
+    if (frame) frame.classList.remove('is-loading');
+    if (loadingRow) loadingRow.hidden = true;
+    if (typeof Charge !== 'undefined') Charge.render('audience-vibe-spectrum-container');
+    // Inject a gap band (sits behind) and an audience tick (sits on top)
+    // into the gradient. The glowing dot stays as the compass reference;
+    // the tick moves with the audience vibe; the band visualises the gap.
+    const grad = document.querySelector('#audience-vibe-spectrum-container .charge-gradient');
+    if (grad) {
+      grad.style.position = grad.style.position || 'relative';
+      if (!document.getElementById('audience-vibe-gap')) {
+        const band = document.createElement('div');
+        band.id = 'audience-vibe-gap';
+        band.className = 'audience-vibe-gap hidden';
+        grad.appendChild(band);
+      }
+      if (!document.getElementById('audience-vibe-tick')) {
+        const tick = document.createElement('div');
+        tick.id = 'audience-vibe-tick';
+        tick.className = 'audience-vibe-tick hidden';
+        grad.appendChild(tick);
+      }
+    }
+    setCompassReference(song.charge_value, song.rubric_color);
     applyVibeState(state);
 
     const handler = async (e) => {
       const direction = parseInt(e.currentTarget.dataset.direction, 10);
-      const status = document.getElementById('vibe-status');
-      document.getElementById('vibe-push-up').disabled = true;
-      document.getElementById('vibe-push-down').disabled = true;
-      status.className = 'vibe-status vibe-status--pending';
-      status.innerHTML = '<span class="vibe-status-spinner" aria-hidden="true"></span>Pushing\u2026';
+      const status = document.getElementById('audience-vibe-status');
+      document.getElementById('audience-vibe-push-up').disabled = true;
+      document.getElementById('audience-vibe-push-down').disabled = true;
+      status.className = 'audience-vibe-status audience-vibe-status--pending';
+      status.innerHTML = '<span class="audience-vibe-status-spinner" aria-hidden="true"></span>Pushing\u2026';
       status.hidden = false;
       try {
         const updated = await ArtistsAPI.pushVibe(song.song_source, song.song_id, direction, deviceId);
         applyVibeState(updated);
-        status.className = 'vibe-status success';
-        status.textContent = `Push recorded. The needle moved to ${updated.value > 0 ? '+' : ''}${updated.value}.`;
+        status.className = 'audience-vibe-status success';
+        status.textContent = `Push recorded. Audience now reads the song at ${updated.value > 0 ? '+' : ''}${updated.value}.`;
         status.hidden = false;
       } catch (err) {
-        status.className = 'vibe-status error';
+        status.className = 'audience-vibe-status error';
         status.textContent = err.message || 'Push failed.';
         status.hidden = false;
         // Re-fetch in case server already counted us.
@@ -304,8 +447,8 @@
         } catch {}
       }
     };
-    document.getElementById('vibe-push-up').addEventListener('click', handler);
-    document.getElementById('vibe-push-down').addEventListener('click', handler);
+    document.getElementById('audience-vibe-push-up').addEventListener('click', handler);
+    document.getElementById('audience-vibe-push-down').addEventListener('click', handler);
   }
 
   function renderCalibrationRuns(runs, consensus) {
@@ -314,7 +457,11 @@
     const consensusEl = document.getElementById('runs-consensus');
     const list = document.getElementById('runs-list');
     if (!section || !intro || !consensusEl || !list) return;
-    if (!runs.length) return;
+    intro.classList.remove('is-loading');
+    if (!runs.length) {
+      intro.textContent = 'No calibration history yet.';
+      return;
+    }
     section.hidden = false;
 
     const activeRuns = runs.filter(r => !r.superseded);
@@ -389,6 +536,99 @@
     return map[t] || t;
   }
 
+  function youtubeId(url) {
+    if (!url) return null;
+    const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/);
+    return m ? m[1] : null;
+  }
+
+  function vimeoId(url) {
+    if (!url) return null;
+    const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  function isDirectAudio(url) {
+    if (!url) return false;
+    return /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(url);
+  }
+
+  function renderArtistClaimCta(song) {
+    const link = document.getElementById('artist-claim-link');
+    const section = document.getElementById('section-artist-claim');
+    if (!link || !section) return;
+    const params = new URLSearchParams({
+      title: song.title || '',
+      artist: song.artist || '',
+      song_source: song.song_source || '',
+      song_id: String(song.song_id || ''),
+      color: song.rubric_color || 'green',
+    });
+    link.href = `/artist-claim.html?${params.toString()}`;
+    section.hidden = false;
+  }
+
+  function renderArtistVerifiedBlock(block) {
+    const section = document.getElementById('section-artist-verified');
+    const attribution = document.getElementById('av-attribution');
+    const content = document.getElementById('av-block-content');
+    const infoBtn = document.getElementById('av-info-btn');
+    const popover = document.getElementById('av-info-popover');
+    if (!section || !content || !attribution) return;
+
+    const artistName = block.artist_name || 'the artist';
+    const artistLink = block.artist_slug
+      ? `<a href="/artists/artist.html?slug=${encodeURIComponent(block.artist_slug)}" class="accent-link">${escapeHtml(artistName)}</a>`
+      : escapeHtml(artistName);
+    attribution.innerHTML = `Captured directly from <strong>${artistLink}</strong>.`;
+
+    let html = '';
+    if (block.block_text) {
+      html += block.block_text
+        .split(/\n{2,}/)
+        .map(p => p.trim())
+        .filter(Boolean)
+        .map(p => `<p>${escapeHtml(p)}</p>`)
+        .join('');
+    }
+
+    let mediaHtml = '';
+    if (block.video_url) {
+      const yt = youtubeId(block.video_url);
+      const vm = vimeoId(block.video_url);
+      if (yt) {
+        mediaHtml += `<div class="av-video-embed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(yt)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+      } else if (vm) {
+        mediaHtml += `<div class="av-video-embed"><iframe src="https://player.vimeo.com/video/${encodeURIComponent(vm)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+      } else {
+        mediaHtml += `<a class="av-video-link" href="${escapeHtml(block.video_url)}" target="_blank" rel="noopener">Watch the artist's video &rarr;</a>`;
+      }
+    }
+    if (block.audio_url) {
+      if (isDirectAudio(block.audio_url)) {
+        mediaHtml += `<audio class="av-audio-player" controls preload="none" src="${escapeHtml(block.audio_url)}">Your browser does not support audio playback.</audio>`;
+      } else {
+        mediaHtml += `<a class="av-audio-link" href="${escapeHtml(block.audio_url)}" target="_blank" rel="noopener">Listen to the artist &rarr;</a>`;
+      }
+    }
+    if (mediaHtml) html += `<div class="av-media-wrap">${mediaHtml}</div>`;
+
+    content.innerHTML = html;
+    section.hidden = false;
+
+    if (infoBtn && popover && !infoBtn.dataset.bound) {
+      infoBtn.dataset.bound = '1';
+      infoBtn.addEventListener('click', () => {
+        popover.hidden = !popover.hidden;
+      });
+    }
+
+    // Once a verified block is published, the inbound 'are you the artist?'
+    // CTA is redundant on this song — hide it.
+    const claimSection = document.getElementById('section-artist-claim');
+    if (claimSection) claimSection.hidden = true;
+  }
+
   function renderFlagCounts(song, counts) {
     const section = document.getElementById('section-flags');
     if (!section) return;
@@ -400,7 +640,9 @@
     const intro = total === 0
       ? 'No flags filed on this song yet. Disagree? You can be the first to file one.'
       : `The public has filed ${total} flag${total === 1 ? '' : 's'} on this song. We show every one — the compass aims to be a mirror, not a megaphone.`;
-    document.getElementById('flags-intro').textContent = intro;
+    const introEl = document.getElementById('flags-intro');
+    introEl.classList.remove('is-loading');
+    introEl.textContent = intro;
 
     const countsEl = document.getElementById('flag-counts');
     countsEl.innerHTML = `
@@ -471,7 +713,9 @@
     // Section 2: Song-specific summary
     const summarySection = document.getElementById('section-summary');
     summarySection.hidden = false;
-    document.getElementById('summary-text').textContent = isUncalibrated
+    const summaryText = document.getElementById('summary-text');
+    summaryText.classList.remove('is-loading');
+    summaryText.textContent = isUncalibrated
       ? 'This song is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.'
       : song.charge_summary || `This song is classified as ${tierLabel}.`;
 
@@ -487,7 +731,9 @@
             .map(p => `<p>${escapeHtml(p)}</p>`)
             .join('')
         : `<p>${TIER_EFFECTS[song.rubric_color] || ''}</p>`;
-      document.getElementById('effects-prose').innerHTML = proseHtml;
+      const effectsEl = document.getElementById('effects-prose');
+      effectsEl.classList.remove('is-loading');
+      effectsEl.innerHTML = proseHtml;
     }
 
     // Section 3: Contamination
@@ -519,6 +765,7 @@
     const detailsSection = document.getElementById('section-details');
     detailsSection.hidden = false;
     const table = document.getElementById('details-table');
+    table.classList.remove('is-loading');
     const rows = isUncalibrated
       ? [
           ['Tier', '<span style="color:#888">Uncalibrated</span>'],

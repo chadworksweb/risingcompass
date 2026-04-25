@@ -21,22 +21,24 @@
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
 
-  <header class="artists-header">
-    <a href="/" class="back-link" aria-label="Back to Rising Compass">
-      <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
-        <rect width="32" height="32" rx="6" fill="#0a0a14"/>
-        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
-        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
-        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
-        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
-        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
-        <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
-        <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
-      </svg>
-      <span>The Rising Compass</span>
-    </a>
-    <h1 class="artists-title">Search</h1>
-  </header>
+  <!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+</header>
+<!-- /INCLUDE:header -->
+  <h1 class="artists-title" style="padding:1rem 1.5rem 0;margin:0;">Search</h1>
 
   <main id="main">
     <div class="search-container">
@@ -75,5 +77,10 @@
 
   <script src="/artists/artists-api.js"></script>
   <script src="/artists/artists.js"></script>
+  <!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
 </body>
 </html>

@@ -151,6 +151,33 @@ body {
   border-bottom: 1px solid var(--rc-border);
 }
 
+/* Shared global header — included via partials/header.html on every public
+   page except the homepage. Logo + back-to-home link. */
+.rc-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--rc-border);
+  background: var(--rc-bg-panel);
+}
+.rc-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--rc-text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: color var(--rc-ease);
+}
+.rc-back-link:hover { color: var(--rc-accent); }
+.rc-back-link svg { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .rc-header { padding: 0.75rem 1rem; }
+  .rc-back-link { font-size: 0.85rem; }
+}
+
 .site-title {
   font-size: 1.8rem;
   font-weight: 300;

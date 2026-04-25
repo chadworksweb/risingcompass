@@ -18,16 +18,322 @@
   <link rel="stylesheet" href="../css/main.css">
   <link rel="stylesheet" href="../artists/artists.css">
   <link rel="stylesheet" href="songs.css">
+  <style>
+    /* Artist Verified block */
+    .song-section--verified {
+      background: linear-gradient(180deg, rgba(0, 200, 140, 0.04) 0%, transparent 100%);
+    }
+    .av-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+    .av-verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      background: rgba(0, 200, 140, 0.12);
+      color: #00c88c;
+      border: 1px solid rgba(0, 200, 140, 0.4);
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .av-verified-check {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+    .av-info-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1px solid var(--rc-border);
+      color: var(--rc-text-dim);
+      font-family: 'Times New Roman', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+    .av-info-btn:hover { color: var(--rc-text-bright); border-color: var(--rc-text-dim); }
+    .av-info-popover {
+      font-size: 0.82rem;
+      line-height: 1.55;
+      color: var(--rc-text);
+      padding: 0.7rem 0.9rem;
+      background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border);
+      border-radius: var(--rc-radius-sm);
+      margin-bottom: 0.8rem;
+    }
+    .av-info-popover a {
+      color: var(--rc-accent);
+      text-decoration: none;
+    }
+    .av-info-popover a:hover { text-decoration: underline; }
+    .av-attribution {
+      font-size: 0.85rem;
+      color: var(--rc-text-dim);
+      margin: 0 0 0.8rem;
+    }
+    .av-attribution strong {
+      color: var(--rc-text-bright);
+      font-weight: 600;
+    }
+    .av-block-content p {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: var(--rc-text);
+      margin: 0 0 0.8rem;
+    }
+    .av-block-content p:last-child { margin-bottom: 0; }
+    .av-media-wrap {
+      margin-top: 1rem;
+    }
+    .av-video-embed {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%;
+      background: #000;
+      border-radius: var(--rc-radius-sm);
+      overflow: hidden;
+      margin-bottom: 0.8rem;
+    }
+    .av-video-embed iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: 0;
+    }
+    .av-video-link, .av-audio-link {
+      display: inline-block;
+      padding: 0.5rem 0.9rem;
+      background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border);
+      border-radius: var(--rc-radius-sm);
+      color: var(--rc-accent);
+      text-decoration: none;
+      font-size: 0.85rem;
+      margin-right: 0.5rem;
+    }
+    .av-video-link:hover, .av-audio-link:hover {
+      border-color: var(--rc-accent);
+    }
+    .av-audio-player {
+      width: 100%;
+      margin-top: 0.6rem;
+    }
+
+    /* Loading placeholders — pulse subtly until JS populates real content */
+    .is-loading {
+      animation: rc-load-pulse 1.4s ease-in-out infinite;
+      color: var(--rc-text-dim);
+    }
+    @keyframes rc-load-pulse {
+      0%, 100% { opacity: 0.55; }
+      50% { opacity: 0.85; }
+    }
+
+    /* Audience Vibe — charge-spectrum with the lyric score as the resting
+       glowing dot, and the audience vibe as a moving tick + small floating
+       tooltip above the bar. Compass label sits below the bar so the two
+       scores never overlap even when the values match. */
+    .audience-vibe-spectrum-frame {
+      width: 100%;
+      margin: 0 auto;
+    }
+    .audience-vibe-spectrum-frame .charge-spectrum-labels { display: none; }
+    /* Bar + glowing dot are 10px taller than the homepage default; gradient
+       background is set inline by JS based on the compass score's window. */
+    #audience-vibe-spectrum-container .charge-gradient {
+      height: 16px;
+      border-radius: 8px;
+    }
+    #audience-vibe-spectrum-container .charge-point {
+      width: 24px;
+      height: 24px;
+    }
+
+    .audience-vibe-audience-row {
+      position: relative;
+      height: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .audience-vibe-marker-audience {
+      position: absolute;
+      bottom: 0;
+      transform: translateX(-50%);
+      font-family: var(--rc-font-mono);
+      white-space: nowrap;
+      padding: 0.1rem 0.45rem;
+      border-radius: 3px;
+      background: var(--rc-bg-card);
+      color: var(--rc-text-bright);
+      border: 1px solid var(--rc-accent);
+      transition: left 1s ease-out;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.3rem;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+    }
+    .audience-vibe-marker-audience .audience-vibe-marker-name {
+      font-size: 0.58rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    .audience-vibe-marker-audience .audience-vibe-marker-score {
+      font-weight: 700;
+      font-size: 0.74rem;
+    }
+    /* Tick that drops from the audience tooltip onto the bar */
+    .audience-vibe-tick {
+      position: absolute;
+      top: -3px;
+      bottom: -3px;
+      width: 2px;
+      background: var(--rc-accent);
+      transform: translateX(-50%);
+      transition: left 1s ease-out;
+      pointer-events: none;
+      box-shadow: 0 0 6px var(--rc-accent);
+      z-index: 2;
+    }
+    .audience-vibe-tick.hidden { display: none; }
+    /* Gap band — visualises the distance between compass score (resting dot)
+       and the audience score (tick). Width = abs(compass% - audience%). */
+    .audience-vibe-gap {
+      position: absolute;
+      top: -8px;
+      bottom: -8px;
+      background: rgba(0, 200, 140, 0.18);
+      pointer-events: none;
+      transition: left 1s ease-out, width 1s ease-out;
+      z-index: 1;
+    }
+    /* Cut-in: the on-bar slice of the gap overrides the spectrum colour with
+       a strong accent fill so the gap is unmissable, while the wings above
+       and below stay translucent. Stops a few px short of the bar edges so
+       a sliver of the spectrum gradient stays visible. */
+    .audience-vibe-gap::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 11px;
+      bottom: 11px;
+      background: var(--rc-accent);
+      opacity: 0.78;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+    }
+    .audience-vibe-gap.hidden { display: none; }
+
+    .audience-vibe-compass-row {
+      position: relative;
+      height: 1.7rem;
+      margin-top: 0.35rem;
+    }
+    .audience-vibe-marker-compass {
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      font-family: var(--rc-font-mono);
+      white-space: nowrap;
+      padding: 0.2rem 0.55rem;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--rc-text-bright);
+      border: 1px solid var(--rc-border);
+      transition: left 1s ease-out;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
+    .audience-vibe-marker-compass .audience-vibe-marker-name {
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    .audience-vibe-marker-compass .audience-vibe-marker-score {
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+    .audience-vibe-marker-compass.hidden { display: none; }
+    .audience-vibe-spectrum-axis {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--rc-font-mono);
+      font-size: 0.72rem;
+      color: var(--rc-text-dim);
+      margin-top: 0.35rem;
+      opacity: 0.7;
+    }
+    /* Loading state — section is visible from first paint, but markers + bar
+       stay hidden until the vibe API resolves. A skeleton bar holds the
+       layout so the section doesn't shift when data arrives. */
+    .audience-vibe-spectrum-frame.is-loading .audience-vibe-marker-audience,
+    .audience-vibe-spectrum-frame.is-loading .audience-vibe-marker-compass {
+      display: none;
+    }
+    .audience-vibe-spectrum-frame.is-loading #audience-vibe-spectrum-container {
+      height: 16px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--rc-border);
+    }
+    .audience-vibe-loading-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5em;
+      font-size: 0.8rem;
+      color: var(--rc-text-dim);
+      font-style: italic;
+      padding: 0.4rem 0;
+    }
+    .audience-vibe-loading-row[hidden] { display: none; }
+    .audience-vibe-loading-spinner {
+      width: 0.85em;
+      height: 0.85em;
+      border: 2px solid var(--rc-border);
+      border-top-color: var(--rc-accent);
+      border-radius: 50%;
+      animation: av-spin 0.8s linear infinite;
+    }
+    @keyframes av-spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
 
-  <header class="artists-header">
-    <a href="/search/" class="back-link" aria-label="Back to search">
-      <span class="back-arrow">&larr;</span>
-      <span>Search</span>
-    </a>
-  </header>
+  <!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+</header>
+<!-- /INCLUDE:header -->
 
   <main id="main">
 
@@ -43,6 +349,22 @@
       </div>
     </section>
 
+    <!-- Artist Verified block (only renders when a published block exists) -->
+    <section class="song-section song-section--verified" id="section-artist-verified" hidden aria-label="Artist Verified">
+      <div class="av-badge-row">
+        <span class="av-verified-badge">
+          <svg class="av-verified-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3 6.8-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Artist Verified
+        </span>
+        <button type="button" id="av-info-btn" class="av-info-btn" aria-label="What does Artist Verified mean?">i</button>
+      </div>
+      <div class="av-info-popover" id="av-info-popover" hidden>
+        We met this artist face-to-face (or by video with anti-deepfake protocol) and captured their words about this song. We are not liable if a sophisticated impersonation defeats our protocol. <a href="/terms.html">See Terms</a>.
+      </div>
+      <p class="av-attribution" id="av-attribution"></p>
+      <div class="av-block-content" id="av-block-content"></div>
+    </section>
+
     <!-- Calibration Log — unified per-song history (recalibrations + pre-publish corrections) -->
     <section class="song-section" id="section-history" hidden>
       <h2>Calibration Log</h2>
@@ -51,15 +373,15 @@
     </section>
 
     <!-- Section 2: Song-specific summary (charge_summary) -->
-    <section class="song-section" id="section-summary" hidden>
+    <section class="song-section" id="section-summary">
       <h2>Summary</h2>
-      <p id="summary-text" class="direct-answer"></p>
+      <p id="summary-text" class="direct-answer is-loading">Loading summary…</p>
     </section>
 
     <!-- Section 3: Lyrical Effects (tier-generic for now; per-song rewrite on the roadmap) -->
-    <section class="song-section" id="section-effects" hidden>
+    <section class="song-section" id="section-effects">
       <h2>What Might This Song Do to the Listener?</h2>
-      <div id="effects-prose" class="prose"></div>
+      <div id="effects-prose" class="prose is-loading"><p>Loading…</p></div>
     </section>
 
     <!-- Section 3: Contamination -->
@@ -76,69 +398,98 @@
     </section>
 
     <!-- Section 4: Classification Details -->
-    <section class="song-section" id="section-details" hidden>
+    <section class="song-section" id="section-details">
       <h2>Classification Details</h2>
-      <table class="details-table" id="details-table"></table>
+      <table class="details-table is-loading" id="details-table">
+        <tr><td class="detail-key">Tier</td><td class="detail-value">Loading…</td></tr>
+        <tr><td class="detail-key">Charge</td><td class="detail-value">…</td></tr>
+        <tr><td class="detail-key">Classified By</td><td class="detail-value">The Rising Compass</td></tr>
+        <tr><td class="detail-key">Method</td><td class="detail-value">58-tenet rubric v1</td></tr>
+      </table>
     </section>
 
     <!-- Section: Audience Vibe — democratic needle alongside the diagnostic compass -->
-    <section class="song-section" id="section-vibe" hidden>
+    <section class="song-section" id="section-vibe">
       <h2>Audience Vibe</h2>
-      <p class="direct-answer" id="vibe-intro">The compass reads the lyrics. The Audience Vibe reads the people. Two needles, one song. The gap between them is the data.</p>
+      <p class="direct-answer" id="audience-vibe-intro">The compass reads the lyrics. The Audience Vibe reads the people. Two needles, one song. The gap between them is the data.</p>
 
-      <div class="vibe-needle-wrap">
-        <svg class="vibe-needle" id="vibe-needle-svg" viewBox="0 0 320 70" aria-hidden="true">
-          <line x1="20" y1="40" x2="300" y2="40" stroke="currentColor" stroke-opacity="0.18" stroke-width="2"/>
-          <line x1="160" y1="28" x2="160" y2="52" stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
-          <text x="20"  y="64" text-anchor="start"  font-size="9" fill="currentColor" opacity="0.5" font-family="JetBrains Mono, monospace">-100</text>
-          <text x="160" y="64" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.5" font-family="JetBrains Mono, monospace">0</text>
-          <text x="300" y="64" text-anchor="end"   font-size="9" fill="currentColor" opacity="0.5" font-family="JetBrains Mono, monospace">+100</text>
-          <circle cx="160" cy="40" r="7" fill="currentColor" id="vibe-needle-dot"/>
-          <text x="160" y="22" text-anchor="middle" font-size="11" font-weight="700" font-family="JetBrains Mono, monospace" id="vibe-needle-label">0</text>
-        </svg>
-        <div class="vibe-split" id="vibe-split">
-          <span class="vibe-down-count" id="vibe-down-count">0</span>
-          <span class="vibe-arrow">&larr;</span>
-          <span class="vibe-arrow">&rarr;</span>
-          <span class="vibe-up-count" id="vibe-up-count">0</span>
+      <div class="audience-vibe-needle-wrap">
+        <div class="audience-vibe-spectrum-frame is-loading" id="audience-vibe-spectrum-frame">
+          <div class="audience-vibe-audience-row">
+            <span class="audience-vibe-marker-audience" id="audience-vibe-marker-audience">
+              <span class="audience-vibe-marker-name">Audience</span>
+              <span class="audience-vibe-marker-score" id="audience-vibe-audience-score">0</span>
+            </span>
+          </div>
+          <div id="audience-vibe-spectrum-container"></div>
+          <div class="audience-vibe-compass-row">
+            <span class="audience-vibe-marker-compass hidden" id="audience-vibe-marker-compass">
+              <span class="audience-vibe-marker-name">Compass</span>
+              <span class="audience-vibe-marker-score" id="audience-vibe-compass-score">0</span>
+            </span>
+          </div>
+          <div class="audience-vibe-spectrum-axis">
+            <span>+10</span>
+            <span>-10</span>
+          </div>
         </div>
-        <p class="vibe-year-note" id="vibe-year-note"></p>
+        <div class="audience-vibe-loading-row" id="audience-vibe-loading-row">
+          <span class="audience-vibe-loading-spinner" aria-hidden="true"></span>
+          <span>Loading audience vibe…</span>
+        </div>
+
+        <div class="audience-vibe-split" id="audience-vibe-split">
+          <span class="audience-vibe-up-count" id="audience-vibe-up-count">0</span>
+          <span class="audience-vibe-arrow">&larr;</span>
+          <span class="audience-vibe-arrow">&rarr;</span>
+          <span class="audience-vibe-down-count" id="audience-vibe-down-count">0</span>
+        </div>
+        <p class="audience-vibe-year-note" id="audience-vibe-year-note"></p>
       </div>
 
-      <div class="vibe-actions" id="vibe-actions">
-        <button type="button" class="vibe-push-btn" id="vibe-push-down" data-direction="-1">
-          <span class="vibe-push-arrow">&larr;</span>
-          <span class="vibe-push-label">Push down</span>
+      <div class="audience-vibe-actions" id="audience-vibe-actions">
+        <button type="button" class="audience-vibe-push-btn" id="audience-vibe-push-up" data-direction="1">
+          <span class="audience-vibe-push-arrow">&larr;</span>
+          <span class="audience-vibe-push-label">Push up</span>
         </button>
-        <button type="button" class="vibe-push-btn" id="vibe-push-up" data-direction="1">
-          <span class="vibe-push-label">Push up</span>
-          <span class="vibe-push-arrow">&rarr;</span>
+        <button type="button" class="audience-vibe-push-btn" id="audience-vibe-push-down" data-direction="-1">
+          <span class="audience-vibe-push-label">Push down</span>
+          <span class="audience-vibe-push-arrow">&rarr;</span>
         </button>
       </div>
-      <p class="vibe-status" id="vibe-status" hidden></p>
-      <p class="vibe-meta">One push per person per song per year. The needle is persistent — it lives wherever the crowd has pushed it.</p>
+      <p class="audience-vibe-status" id="audience-vibe-status" hidden></p>
+      <p class="audience-vibe-meta">One push per person per song per year.</p>
     </section>
 
     <!-- Section: Calibration Runs — corpus of every agent pass on this song -->
-    <section class="song-section" id="section-runs" hidden>
+    <section class="song-section" id="section-runs">
       <h2>Calibration History</h2>
-      <p class="direct-answer" id="runs-intro"></p>
+      <p class="direct-answer is-loading" id="runs-intro">Loading calibration history…</p>
       <div class="runs-consensus" id="runs-consensus"></div>
       <ol class="runs-list" id="runs-list"></ol>
     </section>
 
     <!-- Section: Flag Activity (mirror of public submissions on this song) -->
-    <section class="song-section" id="section-flags" hidden>
+    <section class="song-section" id="section-flags">
       <h2>Flag Activity</h2>
-      <p class="direct-answer" id="flags-intro"></p>
+      <p class="direct-answer is-loading" id="flags-intro">Loading flag activity…</p>
       <div class="flag-counts" id="flag-counts"></div>
       <p class="flag-cta">
         <a id="flag-link" href="/misread-submission.html" class="accent-link">Disagree with this calibration? File a report &rarr;</a>
       </p>
     </section>
 
+    <!-- Section: Artist Claim CTA — inbound 'are you the artist?' lead capture -->
+    <section class="song-section" id="section-artist-claim">
+      <h2>Are You the Artist?</h2>
+      <p class="direct-answer">If this is your song, we'd like to talk. Verification happens face-to-face (or by video with anti-deepfake protocol) — no AI shortcuts. Once you're verified, you can publish a note about this song that lives on this page.</p>
+      <p class="flag-cta">
+        <a id="artist-claim-link" href="/artist-claim.html" class="accent-link">Tell us about this song &rarr;</a>
+      </p>
+    </section>
+
     <!-- Section 5: About -->
-    <section class="song-section" id="section-about" hidden>
+    <section class="song-section" id="section-about">
       <h2>How Is This Song Classified?</h2>
       <p class="direct-answer">The Rising Compass classifies songs based exclusively on lyric content using a 58-tenet rubric. No genre, no popularity, no artist reputation. Just the words and what they transmit.</p>
       <ul class="key-points">
@@ -165,6 +516,12 @@
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <script src="../artists/artists-api.js"></script>
+  <script src="../js/charge.js"></script>
   <script src="songs.js"></script>
+  <!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
 </body>
 </html>

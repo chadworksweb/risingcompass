@@ -412,7 +412,7 @@
 }
 
 /* --- Audience Vibe --- */
-.vibe-needle-wrap {
+.audience-vibe-needle-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -420,14 +420,14 @@
   margin: 0.6rem 0 1rem;
 }
 
-.vibe-needle {
+.audience-vibe-needle {
   width: 100%;
   max-width: 360px;
   height: auto;
   color: var(--rc-accent);
 }
 
-.vibe-split {
+.audience-vibe-split {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -436,19 +436,19 @@
   color: var(--rc-text);
 }
 
-.vibe-split .vibe-arrow {
+.audience-vibe-split .audience-vibe-arrow {
   color: var(--rc-text-dim);
   font-size: 0.85rem;
 }
 
-.vibe-down-count, .vibe-up-count {
+.audience-vibe-down-count, .audience-vibe-up-count {
   font-weight: 700;
   color: var(--rc-text-bright);
   min-width: 2ch;
   text-align: center;
 }
 
-.vibe-year-note {
+.audience-vibe-year-note {
   margin: 0;
   font-size: 0.74rem;
   color: var(--rc-text-dim);
@@ -456,7 +456,7 @@
   letter-spacing: 0.06em;
 }
 
-.vibe-actions {
+.audience-vibe-actions {
   display: flex;
   gap: 0.6rem;
   justify-content: center;
@@ -464,7 +464,7 @@
   flex-wrap: wrap;
 }
 
-.vibe-push-btn {
+.audience-vibe-push-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -481,23 +481,23 @@
   transition: border-color 0.15s, color 0.15s;
 }
 
-.vibe-push-btn:hover:not(:disabled) {
+.audience-vibe-push-btn:hover:not(:disabled) {
   border-color: var(--rc-accent);
   color: var(--rc-accent);
 }
 
-.vibe-push-btn:disabled {
+.audience-vibe-push-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.vibe-push-arrow {
+.audience-vibe-push-arrow {
   font-family: var(--rc-font-mono);
   font-size: 1rem;
   font-weight: 700;
 }
 
-.vibe-status {
+.audience-vibe-status {
   text-align: center;
   font-size: 0.82rem;
   color: var(--rc-text);
@@ -507,12 +507,12 @@
   border-radius: var(--rc-radius-sm);
 }
 
-.vibe-status.error {
+.audience-vibe-status.error {
   color: var(--rc-red);
   border: 1px solid rgba(255, 51, 51, 0.3);
 }
 
-.vibe-status.success {
+.audience-vibe-status.success {
   color: var(--rc-accent);
   border: 1px solid rgba(0, 212, 170, 0.3);
 }
@@ -522,7 +522,7 @@
 #section-about .key-points { font-size: 0.704rem; }
 #section-about p { font-size: 0.8rem; }
 
-.vibe-status--pending {
+.audience-vibe-status--pending {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -530,7 +530,7 @@
   color: var(--rc-text-dim);
 }
 
-.vibe-status-spinner {
+.audience-vibe-status-spinner {
   display: inline-block;
   width: 12px;
   height: 12px;
@@ -541,7 +541,7 @@
   flex-shrink: 0;
 }
 
-.vibe-meta {
+.audience-vibe-meta {
   font-size: 0.72rem;
   color: var(--rc-text-dim);
   text-align: center;

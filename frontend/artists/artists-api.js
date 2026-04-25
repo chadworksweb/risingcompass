@@ -45,6 +45,8 @@ const ArtistsAPI = (() => {
     getSongFlagCounts: (slug) => get(`/api/songs/${slug}/flag-counts`),
     getSongHistory: (slug) => get(`/api/songs/${slug}/history`),
     getSongCalibrationRuns: (slug) => get(`/api/songs/${slug}/calibration-runs?limit=500`),
+    getArtistVerifiedBlock: (source, songId) =>
+      get(`/api/artist-verification/block?song_source=${encodeURIComponent(source)}&song_id=${songId}`),
     getVibeState: (source, songId, deviceId) => {
       const q = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
       return get(`/api/vibe/${source}/${songId}${q}`);

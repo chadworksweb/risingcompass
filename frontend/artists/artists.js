@@ -931,11 +931,13 @@
       updateTimeMachine(tmPosition);
     });
 
+    // Reset — restoreCompassState last so the saved artist compass wins over
+    // updateTimeMachine's position-derived needle update.
     document.getElementById('timemachine-reset').addEventListener('click', () => {
       tmStopPlayback();
-      restoreCompassState();
       tmPosition = max;
       updateTimeMachine(tmPosition);
+      restoreCompassState();
       document.getElementById('timemachine-reset').style.display = 'none';
     });
   }
