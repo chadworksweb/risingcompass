@@ -5,9 +5,28 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    rc_admin_key: str = ""  # REQUIRED — app won't start without it
+    # rc_admin_key is no longer used for human admin auth (replaced by
+    # session cookies via /api/rc-admin-{token}/login). It still signs
+    # one-time HMAC tokens used in approval emails (auth.py:create_approval_token)
+    # and is the legacy fallback for verify_backup_key when RC_BACKUP_KEY
+    # is unset. Required so the HMAC remains stable across deploys.
+    rc_admin_key: str = ""
     rc_api_key: str = ""  # REQUIRED — public consumer key (LC web tool, RC frontend)
     rc_service_key: str = ""  # OPTIONAL — first-party service key (chadlewine, internal scripts)
+    rc_backup_key: str = ""  # OPTIONAL — service token for the cron-driven /api/admin/backup endpoint. Falls back to rc_admin_key during transition.
+
+    # Admin session policy
+    admin_session_idle_seconds: int = 28800  # 8h sliding window
+    admin_session_absolute_seconds: int = 86400  # 24h absolute cap
+    admin_login_max_failures_per_window: int = 5
+    admin_login_window_seconds: int = 900  # 15 min
+    admin_lockout_threshold: int = 10  # consecutive failures → temp lock
+    admin_lockout_duration_seconds: int = 3600  # 1h
+
+    # Obscured login URL prefix — login page lives at /api/rc-admin-{token}/login.
+    # Anything other than this token returns 404, so port scanners hitting
+    # /api/admin/login or similar don't find a form to submit.
+    admin_login_url_token: str = ""
     database_url: str = "sqlite:///./data/rising_compass.db"
     turso_auth_token: str = ""  # required when database_url is libsql://...
     # Embedded replica: when set, reads go to a local SQLite file synced
@@ -65,6 +84,12 @@ class Settings(BaseSettings):
             raise ValueError("RC_ADMIN_KEY must be set to a strong secret (not 'change-me')")
         if not self.rc_api_key or self.rc_api_key == "change-me":
             raise ValueError("RC_API_KEY must be set to a strong secret (not 'change-me')")
+        if not self.admin_login_url_token or len(self.admin_login_url_token) < 6:
+            raise ValueError(
+                "ADMIN_LOGIN_URL_TOKEN must be set (>=6 chars). The admin "
+                "login page lives at /api/rc-admin-{token}/login; without "
+                "this set, the page returns 404."
+            )
         return self
 
     @property

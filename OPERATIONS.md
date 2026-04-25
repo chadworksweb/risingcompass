@@ -70,6 +70,12 @@ Then deploy (see below).
 
 **Do this against production** — the training data should live in the canonical DB.
 
+> **Admin auth note (2026-04-25):** the `X-Admin-Key` header is no longer
+> accepted on admin endpoints. To run these curl commands ad-hoc, sign in
+> at the obscured login URL (see CLAUDE.md), copy the `rc_admin_session`
+> cookie from DevTools, and pass it as `--cookie 'rc_admin_session=...'`.
+> Day-to-day operations should use the admin dashboard.
+
 ### Backfill a year (e.g., 1970)
 ```bash
 curl -X POST "https://api.risingcompass.net/api/admin/agent/backfill/1970?limit=10" \

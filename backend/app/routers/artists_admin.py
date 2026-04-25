@@ -5,10 +5,11 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, text
 
+from app.auth import require_admin_session
 from app.config import settings
 from app.database import SessionLocal
 from app.models import (
@@ -22,12 +23,11 @@ from app.services.artist_utils import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/admin/artists", tags=["artists-admin"])
-
-
-def _require_admin(key: str):
-    if key != settings.rc_admin_key:
-        raise HTTPException(403, "Invalid admin key")
+router = APIRouter(
+    prefix="/api/admin/artists",
+    tags=["artists-admin"],
+    dependencies=[Depends(require_admin_session)],
+)
 
 
 class CreateArtistRequest(BaseModel):
@@ -37,10 +37,8 @@ class CreateArtistRequest(BaseModel):
 @router.post("")
 def create_artist(
     req: CreateArtistRequest,
-    x_admin_key: str = Header(...),
 ):
     """Manually create an artist entity."""
-    _require_admin(x_admin_key)
     db = SessionLocal()
     try:
         name = req.name.strip()
@@ -76,14 +74,12 @@ def create_artist(
 def bootstrap_artists(
     artist_name: Optional[str] = Query(None),
     min_songs: int = Query(3, ge=1),
-    x_admin_key: str = Header(...),
 ):
     """Bootstrap artist entities from existing song data.
 
     If artist_name is given, bootstrap that one artist.
     Otherwise, bootstrap all distinct artists with >= min_songs calibrated songs.
     """
-    _require_admin(x_admin_key)
     db = SessionLocal()
     try:
         if artist_name:
@@ -136,7 +132,6 @@ def bootstrap_artists(
 @router.post("/{slug}/refresh-release-aggregates")
 def refresh_release_aggregates(
     slug: str,
-    x_admin_key: str = Header(...),
 ):
     """Recompute track_count / calibrated_count / charge_value / rubric_color
     on every real Release for this artist by walking its ReleaseSong links.
@@ -145,7 +140,6 @@ def refresh_release_aggregates(
     is defined; songs without release metadata stay unassigned and surface
     via song_artists + top-songs.
     """
-    _require_admin(x_admin_key)
     db = SessionLocal()
     try:
         artist = db.query(Artist).filter(Artist.slug == slug).first()
@@ -206,7 +200,6 @@ def refresh_release_aggregates(
 @router.post("/{slug}/resolve-metadata")
 async def resolve_metadata(
     slug: str,
-    x_admin_key: str = Header(...),
 ):
     """Resolve release metadata for an artist via MusicBrainz/Spotify.
 
@@ -214,7 +207,6 @@ async def resolve_metadata(
     Links existing calibrated songs to the correct releases.
     Unmatched songs stay in "Singles & Uncategorized".
     """
-    _require_admin(x_admin_key)
 
     db = SessionLocal()
     try:
@@ -355,7 +347,6 @@ class MergeArtistRequest(BaseModel):
 def merge_artist(
     slug: str,
     req: MergeArtistRequest,
-    x_admin_key: str = Header(...),
 ):
     """Merge the artist at `slug` into the artist at `target_slug`.
 
@@ -371,7 +362,6 @@ def merge_artist(
     POST /api/admin/artists/{target_slug}/refresh-release-aggregates
     afterwards to normalise (fast, idempotent).
     """
-    _require_admin(x_admin_key)
 
     conn = _open_primary_conn()
     try:
@@ -602,7 +592,6 @@ class RenameArtistRequest(BaseModel):
 def rename_artist(
     slug: str,
     req: RenameArtistRequest,
-    x_admin_key: str = Header(...),
 ):
     """Rename an artist (and optionally change its slug). Normalises the
     `artist` string column on the three song tables to match the new name.
@@ -610,7 +599,6 @@ def rename_artist(
     Same direct-libsql pattern as merge — writes go straight to primary
     so the transaction isn't vulnerable to replica stream timeouts.
     """
-    _require_admin(x_admin_key)
 
     new_name = (req.new_name or "").strip()
     if not new_name:
@@ -710,10 +698,8 @@ def list_artist_admin_events(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     event_type: Optional[str] = Query(None, pattern="^(merge|rename)$"),
-    x_admin_key: str = Header(...),
 ):
     """Audit log — most recent first."""
-    _require_admin(x_admin_key)
     db = SessionLocal()
     try:
         q = db.query(ArtistAdminEvent)

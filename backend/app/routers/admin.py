@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
@@ -7,6 +7,11 @@ import os
 import shutil
 import tempfile
 
+from app.auth import (
+    optional_admin_session,
+    require_admin_session,
+    verify_backup_key,
+)
 from app.database import get_db
 from app.models import CompassSong, DailyReading, ReadingSong, WeeklyAlbumReading, WeeklyAlbumEntry
 from app.schemas import (
@@ -23,9 +28,10 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
-def verify_admin_key(x_admin_key: str = Header(...)):
-    if x_admin_key != settings.rc_admin_key:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
+# Backwards-compatible alias: every admin router imports verify_admin_key
+# from here. It now points at the session-cookie dependency, so the whole
+# admin surface migrates without touching every router file.
+verify_admin_key = require_admin_session
 
 
 def _find_compass_song(title: str, artist: str, db: Session) -> CompassSong | None:
@@ -39,8 +45,15 @@ def _find_compass_song(title: str, artist: str, db: Session) -> CompassSong | No
 
 
 @router.get("/dashboard")
-def admin_dashboard_root():
-    """Redirect to the default landing section (DB Explorer)."""
+def admin_dashboard_root(admin=Depends(optional_admin_session)):
+    """Redirect to the default landing section, or 404 when unauthed.
+
+    Unauthed callers get a flat 404 — no redirect, no Location header
+    pointing at the obscured login URL — so port scanners hitting
+    /api/admin/* learn nothing about admin existence.
+    """
+    if admin is None:
+        raise HTTPException(status_code=404)
     return RedirectResponse(url="/api/admin/dashboard/db", status_code=307)
 
 
@@ -49,6 +62,7 @@ _ADMIN_SECTIONS = {
     "daily-songs": "admin/daily_songs.html",
     "weekly-albums": "admin/weekly_albums.html",
     "misread": "admin/misread.html",
+    "artist-verified": "admin/artist_verified.html",
     "submissions": "admin/submissions.html",
     "lc-activity": "admin/lc_activity.html",
     "api-monitor": "admin/api_monitor.html",
@@ -57,8 +71,14 @@ _ADMIN_SECTIONS = {
 
 
 @router.get("/dashboard/{section}", response_class=HTMLResponse)
-def admin_dashboard_section(section: str, request: Request):
-    """Serve a specific admin section. Auth is handled client-side via localStorage."""
+def admin_dashboard_section(
+    section: str,
+    request: Request,
+    admin=Depends(optional_admin_session),
+):
+    """Serve a specific admin section. Returns 404 to unauthed callers."""
+    if admin is None:
+        raise HTTPException(status_code=404)
     template_name = _ADMIN_SECTIONS.get(section)
     if not template_name:
         raise HTTPException(status_code=404, detail="Unknown admin section")
@@ -66,8 +86,13 @@ def admin_dashboard_section(section: str, request: Request):
 
 
 @router.get("/recalibrate", response_class=HTMLResponse)
-def recalibrate_dashboard(request: Request):
-    """Serve the recalibrate suite admin UI (auth handled client-side via X-Admin-Key)."""
+def recalibrate_dashboard(
+    request: Request,
+    admin=Depends(optional_admin_session),
+):
+    """Serve the recalibrate suite admin UI. Returns 404 to unauthed callers."""
+    if admin is None:
+        raise HTTPException(status_code=404)
     return templates.TemplateResponse(request=request, name="recalibrate.html")
 
 
@@ -244,9 +269,14 @@ def update_weekly_album_reading(week_date: str, data: WeeklyAlbumReadingUpdate, 
 
 # --- Database Backup & Export ---
 
-@router.post("/backup", dependencies=[Depends(verify_admin_key)])
+@router.post("/backup", dependencies=[Depends(verify_backup_key)])
 def trigger_backup():
-    """Manually trigger a Turso → DO Spaces backup. Smoke test for the pipeline."""
+    """Service endpoint — called by cron at 04:45 UTC with X-Backup-Key.
+
+    Distinct from the human admin session so a leaked admin password
+    never grants automated backup access (and vice versa). RC_BACKUP_KEY
+    falls back to RC_ADMIN_KEY during the transition window.
+    """
     from app.services.backup import run_backup
 
     result = run_backup()
@@ -278,7 +308,8 @@ def export_database(background_tasks: BackgroundTasks):
     backup (no verification, no S3 upload) — this is the admin ad-hoc
     export for a one-off local working copy.
 
-    Use: curl -H "X-Admin-Key: YOUR_KEY" https://api.risingcompass.net/api/admin/db-export -o rising_compass.db
+    Authed via the admin session cookie (set by /api/rc-admin-{token}/login).
+    Use the dashboard "Export DB" button or run from the browser while signed in.
     """
     from app.services.backup import _dump_turso_to_file
 

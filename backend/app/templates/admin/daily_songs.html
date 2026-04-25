@@ -109,26 +109,24 @@ function collectEntries(prefix, chartSource) {
 async function submitSongReading() {
   const statusEl = document.getElementById('songStatus');
   statusEl.className = 'status-msg';
-  const adminKey = document.getElementById('adminKey').value.trim();
   const readingDate = document.getElementById('songDate').value;
   const editorial = document.getElementById('songEditorial').value.trim();
 
-  if (!adminKey) { showMsg(statusEl, 'Admin key required', 'error'); return; }
   if (!readingDate) { showMsg(statusEl, 'Date required', 'error'); return; }
 
   const songs = collectEntries('song', 'spotify');
   if (songs.length === 0) { showMsg(statusEl, 'Enter at least one song', 'error'); return; }
 
   try {
-    const resp = await fetch('/api/admin/reading', {
+    const resp = await adminFetch('/api/admin/reading', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      headers: adminHeaders(),
       body: JSON.stringify({ date: readingDate, editorial_summary: editorial || null, songs }),
     });
     if (resp.status === 409) {
-      const putResp = await fetch(`/api/admin/reading/${readingDate}`, {
+      const putResp = await adminFetch(`/api/admin/reading/${readingDate}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+        headers: adminHeaders(),
         body: JSON.stringify({ editorial_summary: editorial || null, songs }),
       });
       if (!putResp.ok) throw new Error(await putResp.text());

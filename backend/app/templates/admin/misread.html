@@ -38,14 +38,11 @@ function filterMisread(status) {
 }
 
 async function loadMisread() {
-  const key = document.getElementById('adminKey').value.trim();
-  const el = document.getElementById('misreadList');
-  if (!key) { el.innerHTML = '<p style="color:#666;">Enter admin key first.</p>'; return; }
   try {
     const url = currentMisreadFilter
       ? `/api/admin/misread?status=${currentMisreadFilter}`
       : '/api/admin/misread';
-    const resp = await fetch(url, { headers: { 'X-Admin-Key': key } });
+    const resp = await adminFetch(url);
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
     renderMisread(data);
@@ -127,11 +124,9 @@ async function flagAndBan(id) {
 }
 
 async function loadBans() {
-  const key = document.getElementById('adminKey').value.trim();
   const el = document.getElementById('banList');
-  if (!key) { el.innerHTML = ''; return; }
   try {
-    const resp = await fetch('/api/admin/misread/bans', { headers: { 'X-Admin-Key': key } });
+    const resp = await adminFetch('/api/admin/misread/bans');
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
     renderBans(data);

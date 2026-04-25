@@ -25,8 +25,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["misread"])
 # Admin endpoints live on their own router so main.py can mount them
-# without the public X-Api-Key dependency. Admin-UI only has X-Admin-Key;
-# forcing X-Api-Key too made the whole misread admin tab return 422.
+# without the public X-Api-Key dependency. The admin UI authenticates via
+# the rc_admin_session cookie; forcing X-Api-Key on the same routes made
+# the whole misread admin tab return 422 back when both gates were active.
 admin_router = APIRouter(tags=["misread-admin"])
 
 VALID_REPORT_TYPES = {"misread", "satirical"}

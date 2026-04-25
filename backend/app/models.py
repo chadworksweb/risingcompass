@@ -792,3 +792,165 @@ class ApiCallLog(Base):
     user_agent = Column(String(255))
     duration_ms = Column(Integer)
     context_json = Column(Text)
+
+
+class ArtistVerification(Base):
+    """Artist-level verification record. One-to-one with Artist.
+
+    Funnel stages: lead -> contacted -> in_conversation -> active. Stage
+    'active' is the gate that allows verification blocks to be published.
+    When verification_method = 'video_call', all five deepfake checklist
+    items must be true before the artist can be moved to 'active'. Other
+    methods (in_person, audio_call, prior_relationship) bypass the
+    deepfake gate but still require the method to be set.
+    """
+    __tablename__ = "artist_verifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), unique=True, nullable=False)
+    funnel_stage = Column(String(30), nullable=False, default="lead")
+    verification_method = Column(String(30))  # in_person | video_call | audio_call | prior_relationship
+    contact_email = Column(Text)
+    contact_phone = Column(Text)
+    contact_handle = Column(Text)
+    conversation_log = Column(Text)
+    notes = Column(Text)
+    # Deepfake checklist (gates active when method=video_call)
+    deepfake_live_challenge_passed = Column(Boolean, nullable=False, default=False)
+    deepfake_cross_channel_confirmed = Column(Boolean, nullable=False, default=False)
+    deepfake_two_sessions_completed = Column(Boolean, nullable=False, default=False)
+    deepfake_reference_match_confirmed = Column(Boolean, nullable=False, default=False)
+    deepfake_recording_archived = Column(Boolean, nullable=False, default=False)
+    deepfake_recording_url = Column(Text)
+    contacted_at = Column(DateTime)
+    verified_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    artist = relationship("Artist")
+
+
+class ArtistVerificationBlock(Base):
+    """Curated artist content for one song. Polymorphic via (song_source, song_id).
+
+    Block content is text + optional video_url + optional audio_url. The
+    published flag drives whether the Artist Verified badge + block render
+    on the public song page. Publishing is gated by the parent
+    ArtistVerification reaching funnel_stage='active' with the deepfake
+    checklist satisfied (when applicable).
+    """
+    __tablename__ = "artist_verification_blocks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
+    song_source = Column(String(20), nullable=False)  # compass | library | submitted
+    song_id = Column(Integer, nullable=False)
+    block_text = Column(Text)
+    video_url = Column(Text)
+    audio_url = Column(Text)
+    published = Column(Boolean, nullable=False, default=False)
+    published_at = Column(DateTime)
+    internal_notes = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("artist_id", "song_source", "song_id", name="uq_av_blocks_artist_song"),
+    )
+
+    artist = relationship("Artist")
+
+
+class ArtistVerificationInquiry(Base):
+    """Inbound 'Are you the artist?' lead from a song page. Same shape as
+    misread_submissions: name + email + message + device_id + ip + status.
+    Triage in admin: dismiss, mark contacted, or promote to a funnel entry
+    (sets artist_id and creates an ArtistVerification row at stage='lead'
+    on the chosen Artist record).
+    """
+    __tablename__ = "artist_verification_inquiries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    song_title = Column(Text, nullable=False)
+    song_artist = Column(Text, nullable=False)
+    song_source = Column(String(20))
+    song_id = Column(Integer)
+    song_color = Column(String(20))
+    song_position = Column(Integer)
+    claimant_name = Column(Text, nullable=False)
+    claimant_email = Column(Text, nullable=False)
+    claimant_role = Column(String(40))  # artist | manager | label | other
+    proof_links = Column(Text)
+    message = Column(Text, nullable=False)
+    device_id = Column(Text)
+    ip_address = Column(Text)
+    status = Column(String(20), nullable=False, default="pending")  # pending | contacted | dismissed | promoted
+    artist_id = Column(Integer, ForeignKey("artists.id", ondelete="SET NULL"))
+
+
+class AdminUser(Base):
+    """Per-user admin account. Replaces the single shared RC_ADMIN_KEY.
+
+    password_hash is argon2id. is_active=False disables login without
+    deleting history. failed_login_count + locked_until enforce the
+    temporary lockout applied by the auth service after repeated
+    failures within the rate-limit window.
+    """
+    __tablename__ = "admin_users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(64), unique=True, nullable=False)
+    email = Column(Text)
+    password_hash = Column(Text, nullable=False)
+    role = Column(String(20), nullable=False, default="admin")
+    is_active = Column(Boolean, nullable=False, default=True)
+    failed_login_count = Column(Integer, nullable=False, default=0)
+    locked_until = Column(DateTime)
+    last_login_at = Column(DateTime)
+    last_login_ip = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class AdminSession(Base):
+    """Server-side session for an authenticated admin. The raw cookie value
+    is never persisted — only its SHA-256 hash. expires_at is the sliding
+    idle deadline; absolute_expires_at is the hard cap. revoked_at is set
+    on logout or admin revocation.
+    """
+    __tablename__ = "admin_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        Integer, ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash = Column(String(64), unique=True, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    absolute_expires_at = Column(DateTime, nullable=False)
+    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ip = Column(Text)
+    user_agent = Column(Text)
+    revoked_at = Column(DateTime)
+
+
+class AdminLoginAttempt(Base):
+    """Append-only audit + rate-limit source for admin logins.
+
+    Used three ways:
+      - rate limit: count failures in last N minutes by ip and by username
+      - lockout signal: per-user consecutive failures (counter on AdminUser)
+      - forensics: full history of who tried what from where
+    """
+    __tablename__ = "admin_login_attempts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(Text)
+    ip = Column(Text)
+    user_agent = Column(Text)
+    success = Column(Boolean, nullable=False, default=False)
+    reason = Column(Text)
+    attempted_at = Column(DateTime, nullable=False, default=datetime.utcnow)

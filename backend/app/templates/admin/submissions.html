@@ -70,10 +70,8 @@ function filterSubsSource(src) {
 }
 
 async function loadSubStats() {
-  const key = document.getElementById('adminKey').value.trim();
-  if (!key) return;
   try {
-    const resp = await fetch('/api/admin/submissions/stats', { headers: { 'X-Admin-Key': key } });
+    const resp = await adminFetch('/api/admin/submissions/stats');
     if (!resp.ok) throw new Error(await resp.text());
     const s = await resp.json();
     document.getElementById('statTotal').textContent = s.total;
@@ -91,14 +89,11 @@ async function loadSubStats() {
 }
 
 async function loadSubs() {
-  const key = document.getElementById('adminKey').value.trim();
-  const el = document.getElementById('subList');
-  if (!key) { el.innerHTML = '<p style="color:#666;">Enter admin key first.</p>'; return; }
   try {
     let url = `/api/admin/submissions?limit=${subLimit}&offset=${subOffset}`;
     if (currentSubFilter) url += `&color=${currentSubFilter}`;
     if (currentSubSource) url += `&source=${encodeURIComponent(currentSubSource)}`;
-    const resp = await fetch(url, { headers: { 'X-Admin-Key': key } });
+    const resp = await adminFetch(url);
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
     renderSubs(data);

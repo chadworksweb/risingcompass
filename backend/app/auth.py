@@ -1,4 +1,5 @@
-"""Auth utilities: API key verification, client resolution, HMAC tokens.
+"""Auth utilities: API key verification, client resolution, HMAC tokens,
+admin session dependency.
 
 Every X-Api-Key is resolved via services.api_clients.resolve_key against the
 api_client_keys table. The legacy RC_API_KEY / RC_SERVICE_KEY env values are
@@ -7,16 +8,24 @@ seeded into the table at startup so they keep working during rollout.
 Both verify dependencies attach request.state.client_id for the API-call
 logging middleware. verify_api_or_service_key also returns the behavior tier
 ("public" | "service") so calibrate endpoints can branch.
+
+Admin auth uses session cookies (require_admin_session). The cron-driven
+backup endpoint stays on a header secret (verify_backup_key), separated
+from the human admin path so a leaked admin password doesn't grant
+service-tier access and vice versa.
 """
 
 import hashlib
 import hmac
 import time
+from typing import Optional
 
-from fastapi import Header, HTTPException, Request
+from fastapi import Cookie, Depends, Header, HTTPException, Request
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import SessionLocal
+from app.database import SessionLocal, get_db
+from app.services import admin_auth as admin_auth_svc
 from app.services.api_clients import resolve_key
 
 
@@ -97,3 +106,69 @@ def verify_approval_token(draft_ref: str, token: str) -> bool:
         hashlib.sha256,
     ).hexdigest()[:32]
     return hmac.compare_digest(sig, expected_sig)
+
+
+def require_admin_session(
+    request: Request,
+    rc_admin_session: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    """Cookie-based session auth for every admin API endpoint.
+
+    Reads the rc_admin_session cookie, resolves it against admin_sessions
+    (by SHA-256 hash), checks idle + absolute expiry, slides the idle
+    window forward, and attaches admin user info to request.state. Raises
+    401 on any failure — the frontend redirects to the obscured login URL.
+    """
+    if not rc_admin_session:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = admin_auth_svc.lookup_session(db, rc_admin_session)
+    if not result:
+        raise HTTPException(status_code=401, detail="Session invalid or expired")
+    sess, user = result
+    admin_auth_svc.touch_session(db, sess)
+    request.state.admin_user_id = user.id
+    request.state.admin_username = user.username
+    request.state.admin_role = user.role
+    return user
+
+
+def optional_admin_session(
+    request: Request,
+    rc_admin_session: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    """Same as require_admin_session but returns None instead of 401.
+
+    Used by public endpoints that show extra detail to authed admins
+    (calibration log unpromoted entries, song history audit rows).
+    """
+    if not rc_admin_session:
+        return None
+    result = admin_auth_svc.lookup_session(db, rc_admin_session)
+    if not result:
+        return None
+    sess, user = result
+    admin_auth_svc.touch_session(db, sess)
+    request.state.admin_user_id = user.id
+    request.state.admin_username = user.username
+    request.state.admin_role = user.role
+    return user
+
+
+def verify_backup_key(x_backup_key: Optional[str] = Header(default=None)):
+    """Service auth for the daily backup cron. Distinct from human admin
+    auth so a leaked admin password doesn't grant backup access (and a
+    leaked backup key doesn't grant arbitrary admin access).
+
+    Falls back to RC_ADMIN_KEY when RC_BACKUP_KEY is unset, for the
+    deployment window between this rollout and the cron getting its own
+    key. Remove the fallback once the cron is migrated.
+    """
+    expected = settings.rc_backup_key or settings.rc_admin_key
+    if not expected:
+        raise HTTPException(status_code=503, detail="Backup key not configured")
+    if not x_backup_key:
+        raise HTTPException(status_code=403, detail="Missing backup key")
+    if not hmac.compare_digest(x_backup_key, expected):
+        raise HTTPException(status_code=403, detail="Invalid backup key")

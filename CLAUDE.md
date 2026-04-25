@@ -48,10 +48,43 @@ transaction itself. See `_write_api_call_log` in `app/main.py`,
 `_open_primary_conn` in `app/routers/artists_admin.py`, and the flusher in
 `app/services/api_clients.py` for the pattern.
 
+## Admin auth
+
+Multi-user admin login (added 2026-04-25). The single shared `RC_ADMIN_KEY`
+header is gone — every admin endpoint authenticates via the
+`rc_admin_session` HttpOnly cookie minted by the obscured login URL.
+
+**Login URL:** `https://api.risingcompass.net/api/rc-admin-{ADMIN_LOGIN_URL_TOKEN}/login`
+(any other token returns 404). Successful login redirects to
+`/api/admin/dashboard`. Unauthed `/api/admin/*` GETs return 404; mutating
+endpoints return 401. Bookmark the login URL — it isn't linked from anywhere.
+
+**Required env (both local and prod):**
+- `ADMIN_LOGIN_URL_TOKEN=<6+ char string>` — the prefix in the login URL
+- `RC_BACKUP_KEY=<service token>` — used by the cron at `POST /api/admin/backup`
+  with the `X-Backup-Key` header. Falls back to `RC_ADMIN_KEY` during the
+  transition; remove the fallback once cron is migrated.
+- `RC_ADMIN_KEY` is now used **only** to sign one-time HMAC tokens in
+  approval emails. Keep it set and stable across deploys.
+
+**Session policy:** 8h sliding window, 24h absolute cap, 5 failed
+attempts / 15min per IP+username = 429, 10 consecutive failures = 1h
+lockout. Argon2id password hashes.
+
+**Seeding admins:**
+```
+cd backend
+.venv\Scripts\python.exe scripts\seed_admin.py
+```
+Prompts for username + password (12-char minimum). Re-running with the
+same username resets the password and clears the lockout. Pass
+`--revoke-sessions` to kill any active sessions for the user.
+
 ## Artist admin endpoints
 
-All require `X-Admin-Key` header. Writes go through a direct libsql connection
-to the Turso primary (replica streams time out on multi-statement transactions).
+Authed via the admin session cookie (above). Writes go through a direct
+libsql connection to the Turso primary (replica streams time out on
+multi-statement transactions).
 
 - `POST /api/admin/artists/{slug}/merge-into` — body `{target_slug, notes?}`.
   Atomically rewrites FKs + denormalised `artist` strings, handles

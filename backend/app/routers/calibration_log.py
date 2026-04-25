@@ -17,10 +17,10 @@ See RISING-COMPASS-CALIBRATION-LOG.md.
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.auth import optional_admin_session
 from app.database import get_db
 from app.models import PrePublishCorrection, SongRecalibration
 from app.schemas import CalibrationLogPromoteIn, FeedEntry, FeedListOut
@@ -40,10 +40,6 @@ _TABLE_REGISTRY = {
     "pre_publish_corrections": (PrePublishCorrection, "pre-publish correction"),
     "song_recalibrations": (SongRecalibration, "recalibration"),
 }
-
-
-def _is_admin(x_admin_key: Optional[str]) -> bool:
-    return bool(x_admin_key) and x_admin_key == settings.rc_admin_key
 
 
 @router.post("/{source_table}/{event_id}/promote", dependencies=[Depends(verify_admin_key)])
@@ -100,20 +96,20 @@ def list_calibration_log(
     song_id: Optional[int] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    x_admin_key: Optional[str] = Header(default=None),
+    admin=Depends(optional_admin_session),
     db: Session = Depends(get_db),
 ):
     """Unified Calibration Log feed. Chronological (newest first) across
     every capture table.
 
-    Public callers see only promoted entries. Admin key (X-Admin-Key) returns
-    the full audit trail including un-promoted rows — same endpoint, two
-    views of the same data.
+    Public callers see only promoted entries. Authed admins (rc_admin_session
+    cookie) get the full audit trail including un-promoted rows — same
+    endpoint, two views of the same data.
 
     Filtering: event_type narrows to one capture type; song_source + song_id
     narrow to one song's events. Both filters compose.
     """
-    include_unpromoted = _is_admin(x_admin_key)
+    include_unpromoted = admin is not None
     types = [event_type] if event_type else None
     entries, total = list_feed_entries(
         db,
@@ -136,12 +132,11 @@ def list_calibration_log(
 def get_calibration_log_entry(
     source_table: str,
     event_id: int,
-    x_admin_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Single feed entry. Matches the shape returned by the list endpoint.
 
-    Public callers get 404 on un-promoted rows; admin key returns regardless.
+    All events are auto-promoted (2026-04-23) so no auth gate is needed.
     """
     entry = _TABLE_REGISTRY.get(source_table)
     if not entry:

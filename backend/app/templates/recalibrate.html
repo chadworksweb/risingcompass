@@ -224,18 +224,7 @@
 
 <a href="/api/admin/dashboard" style="display:inline-block;padding:0.35rem 0.75rem;font-size:0.78rem;font-weight:600;color:var(--text-dim);text-decoration:none;border:1px solid var(--border);border-radius:4px;background:var(--bg-input);margin-bottom:1rem;">← Admin Control Center</a>
 
-<div id="auth-screen" class="auth-prompt panel">
-  <h1>Recalibrate Suite</h1>
-  <p style="color:var(--text-dim);">Admin access required.</p>
-  <div class="field">
-    <label for="admin-key">Admin Key</label>
-    <input type="password" id="admin-key" autocomplete="current-password">
-  </div>
-  <button class="primary" id="auth-submit">Unlock</button>
-  <div id="auth-error" class="alert alert-error" style="display:none;"></div>
-</div>
-
-<div id="app" class="layout" style="display:none;">
+<div id="app" class="layout">
 
   <aside class="panel">
     <h1>Pipelines</h1>
@@ -364,7 +353,6 @@
 <script>
 (function() {
   const TIER_LABELS = { violet: 'Ascended', blue: 'Elevated', green: 'Decent', orange: 'Degraded', red: 'Corrupted' };
-  let ADMIN_KEY = sessionStorage.getItem('rc-admin-key') || '';
 
   // Active state
   let activeSong = null;           // { song_source, song_id, title, artist, rubric_color, charge_value }
@@ -373,14 +361,19 @@
 
   const $ = (id) => document.getElementById(id);
 
-  function authHeaders() {
-    return { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' };
-  }
-
   async function api(method, path, body) {
-    const opts = { method, headers: authHeaders() };
+    const opts = {
+      method,
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    };
     if (body !== undefined) opts.body = JSON.stringify(body);
     const r = await fetch(path, opts);
+    if (r.status === 401) {
+      // Session expired — bounce home; the obscured login URL is bookmarked.
+      window.location.href = '/';
+      throw new Error('Session expired');
+    }
     const text = await r.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch { /* keep null */ }
@@ -405,25 +398,11 @@
     return d.innerHTML;
   }
 
-  // --- Auth ---
-  $('auth-submit').addEventListener('click', async () => {
-    const key = $('admin-key').value.trim();
-    if (!key) return;
-    ADMIN_KEY = key;
-    $('auth-error').style.display = 'none';
-    try {
-      await api('GET', '/api/admin/recalibrations?limit=1');
-      sessionStorage.setItem('rc-admin-key', ADMIN_KEY);
-      $('auth-screen').style.display = 'none';
-      $('app').style.display = 'grid';
-      loadFlags();
-    } catch (e) {
-      $('auth-error').textContent = `Auth failed: ${e.message}`;
-      $('auth-error').style.display = '';
-    }
-  });
-  $('admin-key').addEventListener('keydown', e => { if (e.key === 'Enter') $('auth-submit').click(); });
-  if (ADMIN_KEY) { $('admin-key').value = ADMIN_KEY; $('auth-submit').click(); }
+  // Page is gated server-side by the rc_admin_session cookie; if we got here,
+  // we're authed. Kick off the initial inbox load and clean up any legacy
+  // sessionStorage key from the pre-cookie era.
+  try { sessionStorage.removeItem('rc-admin-key'); } catch (e) {}
+  loadFlags();
 
   // --- Flag inbox (satirical_flag pipeline) ---
   async function loadFlags() {

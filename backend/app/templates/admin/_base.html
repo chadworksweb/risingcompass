@@ -212,26 +212,9 @@
 </head>
 <body>
 
-<!-- Login overlay -->
-<div class="login-overlay" id="loginOverlay">
-  <div class="login-box">
-    <h2>The Rising Compass</h2>
-    <p>Admin access</p>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="loginKey" placeholder="Enter admin key" onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <button onclick="doLogin()">Sign In</button>
-    <div class="login-error" id="loginError">Incorrect key.</div>
-  </div>
-</div>
-
-<!-- Hidden key input — populated from localStorage, used by all page JS -->
-<input type="hidden" id="adminKey">
-
 <button class="logout-btn" onclick="doLogout()">Sign out</button>
 
-<div class="admin-panel" id="adminPanel">
+<div class="admin-panel visible" id="adminPanel">
 <h1>The Rising Compass — Admin</h1>
 
 <nav class="tab-bar">
@@ -240,6 +223,7 @@
   <a class="tab-btn {% if active == 'daily-songs' %}active{% endif %}" href="/api/admin/dashboard/daily-songs">Daily Songs</a>
   <a class="tab-btn {% if active == 'weekly-albums' %}active{% endif %}" href="/api/admin/dashboard/weekly-albums">Weekly Albums</a>
   <a class="tab-btn {% if active == 'misread' %}active{% endif %}" href="/api/admin/dashboard/misread">Misread Reports</a>
+  <a class="tab-btn {% if active == 'artist-verified' %}active{% endif %}" href="/api/admin/dashboard/artist-verified">Artist Verified</a>
   <a class="tab-btn {% if active == 'submissions' %}active{% endif %}" href="/api/admin/dashboard/submissions">LC Submissions</a>
   <a class="tab-btn {% if active == 'lc-activity' %}active{% endif %}" href="/api/admin/dashboard/lc-activity">LC Activity</a>
   <a class="tab-btn {% if active == 'api-monitor' %}active{% endif %}" href="/api/admin/dashboard/api-monitor">API Monitor</a>
@@ -253,43 +237,33 @@
 
 <script>
 // --- Auth (shared across all admin pages) ---
-const STORAGE_KEY = 'rc_admin_key';
+// The page itself is gated server-side: hitting /api/admin/dashboard/* without
+// a valid rc_admin_session cookie returns 404, so by the time this script
+// runs we know we're authed. Every admin fetch goes through adminFetch() so
+// credentials: 'include' is consistent and a 401 anywhere bounces back to login.
 
-function doLogin() {
-  const key = document.getElementById('loginKey').value.trim();
-  if (!key) return;
-  fetch('/api/admin/stream?limit=1', { headers: { 'X-Admin-Key': key } }).then(r => {
-    if (r.ok || r.status === 404) {
-      localStorage.setItem(STORAGE_KEY, key);
-      document.getElementById('adminKey').value = key;
-      showAdminPanel();
-    } else {
-      const errEl = document.getElementById('loginError');
-      errEl.style.display = 'block';
-      errEl.textContent = r.status === 403 ? 'Incorrect key.' : `Error ${r.status}`;
-    }
-  }).catch(() => {
-    document.getElementById('loginError').style.display = 'block';
-  });
-}
-
-function doLogout() {
-  localStorage.removeItem(STORAGE_KEY);
-  document.getElementById('adminKey').value = '';
-  document.getElementById('adminPanel').classList.remove('visible');
-  document.getElementById('loginOverlay').style.display = 'flex';
-  document.getElementById('loginKey').value = '';
-  document.getElementById('loginError').style.display = 'none';
-}
-
-function showAdminPanel() {
-  document.getElementById('loginOverlay').style.display = 'none';
-  document.getElementById('adminPanel').classList.add('visible');
-  if (typeof onAdminReady === 'function') onAdminReady();
+async function doLogout() {
+  try {
+    await fetch('/api/admin/auth/logout', { method: 'POST', credentials: 'include' });
+  } catch (e) { /* network failure is fine — cookie still gets cleared client-side via path expiry */ }
+  // No way to reach the login URL without it being known — redirect home.
+  window.location.href = '/';
 }
 
 function adminHeaders() {
-  return { 'Content-Type': 'application/json', 'X-Admin-Key': document.getElementById('adminKey').value.trim() };
+  return { 'Content-Type': 'application/json' };
+}
+
+async function adminFetch(input, init) {
+  const opts = Object.assign({ credentials: 'include' }, init || {});
+  const resp = await fetch(input, opts);
+  if (resp.status === 401) {
+    // Session expired or revoked. Push to home — the obscured login URL is
+    // intentionally not embedded in the dashboard.
+    window.location.href = '/';
+    return resp;
+  }
+  return resp;
 }
 
 function showMsg(el, msg, type) {
@@ -314,14 +288,14 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
 {% block scripts %}{% endblock %}
 
 <script>
-// On load: restore session if key exists. Runs LAST so per-page `let`s
-// above don't hit the TDZ via onAdminReady().
-(function initAuth() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    document.getElementById('adminKey').value = saved;
-    showAdminPanel();
-  }
+// On load: page is already auth-gated server-side. Just kick off any per-page
+// init that used to depend on the localStorage key being present.
+(function initAdmin() {
+  // One-time cleanup: nuke the legacy localStorage admin key if a previous
+  // visit stored it. Cookie auth makes this useless and we don't want it
+  // sitting around. Safe to delete unconditionally.
+  try { localStorage.removeItem('rc_admin_key'); } catch (e) {}
+  if (typeof onAdminReady === 'function') onAdminReady();
 })();
 </script>
 </body>

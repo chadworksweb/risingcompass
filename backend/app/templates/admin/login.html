@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>The Rising Compass — Admin</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f3f3f9;
+    --border: #a8a8b8;
+    --text: #15151f;
+    --text-dim: #555566;
+    --accent: #008f72;
+    --accent-strong: #007360;
+    --red: #c03a1e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .login-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 2.5rem 2rem; width: 100%; max-width: 360px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+  h1 { color: var(--accent); font-size: 1.1rem; margin-bottom: 0.3rem; }
+  p.lede { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 1.5rem; }
+  label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--text-dim); font-weight: 600; }
+  input { width: 100%; padding: 0.5rem; background: #ffffff; border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.9rem; margin-bottom: 1rem; font-family: inherit; }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 143, 114, 0.15); }
+  button { width: 100%; padding: 0.7rem 1.5rem; background: var(--accent); color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; font-family: inherit; }
+  button:hover { background: var(--accent-strong); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .err { color: var(--red); font-size: 0.82rem; margin-top: 0.8rem; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<form class="login-box" id="loginForm" autocomplete="on" onsubmit="return doLogin(event)">
+  <h1>The Rising Compass</h1>
+  <p class="lede">Admin access</p>
+  <label for="username">Username</label>
+  <input type="text" id="username" name="username" autocomplete="username" autocapitalize="off" autocorrect="off" required>
+  <label for="password">Password</label>
+  <input type="password" id="password" name="password" autocomplete="current-password" required>
+  <button type="submit" id="submitBtn">Sign In</button>
+  <div class="err" id="err"></div>
+</form>
+<script>
+const LOGIN_PATH = {{ login_path | tojson }};
+
+async function doLogin(ev) {
+  ev.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const errEl = document.getElementById('err');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const resp = await fetch(LOGIN_PATH, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      window.location.href = data.redirect || '/api/admin/dashboard';
+      return false;
+    }
+    if (resp.status === 429) {
+      errEl.textContent = 'Too many attempts — try again in a few minutes.';
+    } else if (resp.status === 401) {
+      errEl.textContent = 'Invalid credentials.';
+    } else {
+      errEl.textContent = `Error ${resp.status}.`;
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+  return false;
+}
+</script>
+</body>
+</html>

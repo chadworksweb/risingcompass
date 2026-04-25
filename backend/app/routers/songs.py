@@ -2,10 +2,10 @@
 
 import logging
 
-from fastapi import APIRouter, Header, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy import func, or_, and_
 
-from app.config import settings
+from app.auth import optional_admin_session
 from app.database import SessionLocal
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
@@ -20,13 +20,6 @@ from app.services.artist_utils import generate_song_slug
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
-
-
-def _is_admin(x_admin_key: str | None) -> bool:
-    """Soft-check for the admin header. Unlike verify_admin_key, absent or
-    wrong key returns False instead of raising — callers use this to decide
-    between public-filtered and admin-unfiltered views of the same data."""
-    return bool(x_admin_key) and x_admin_key == settings.rc_admin_key
 
 
 @router.get("/{slug}/flag-counts")
@@ -86,16 +79,16 @@ def song_flag_counts(slug: str):
 
 
 @router.get("/{slug}/history")
-def song_history(slug: str, x_admin_key: str | None = Header(default=None)):
+def song_history(slug: str, admin_user=Depends(optional_admin_session)):
     """Public recalibration history for a song. Renders as small print on the
     song page — the recalibrate suite is honest about its history because that
     honesty IS the proof of objectivity. Lists every applied recalibration
     chronologically with the admin-written public summary.
 
-    Public callers see only rows with promoted_to_feed=true. Admin callers
-    (X-Admin-Key header) see every row — the full internal audit trail.
+    Public callers see only rows with promoted_to_feed=true. Authed admins
+    (rc_admin_session cookie) see every row — the full internal audit trail.
     """
-    admin = _is_admin(x_admin_key)
+    admin = admin_user is not None
     db = SessionLocal()
     try:
         slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()

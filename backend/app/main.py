@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
-from app.routers import compass, drift, albums, admin, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test
+from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ app.add_middleware(
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Key", "X-Api-Key", "Authorization"],
+    allow_headers=["Content-Type", "X-Api-Key", "X-Backup-Key", "Authorization"],
 )
 
 
@@ -246,6 +246,7 @@ app.include_router(albums.router, dependencies=_api_key_dep)
 app.include_router(weekly_albums.router, dependencies=_api_key_dep)
 app.include_router(misread.router, dependencies=_api_key_dep)
 # misread admin endpoints are mounted separately below with the other admin routers
+app.include_router(artist_verification.router, dependencies=_api_key_dep)
 # Analyzer accepts either public RC_API_KEY (Lyrical Charger) or RC_SERVICE_KEY
 # (first-party callers like chadlewine.com). Endpoints that distinguish
 # behavior re-declare the dependency to capture the tier.
@@ -257,9 +258,17 @@ app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(tenets.router, dependencies=_api_key_dep)
 app.include_router(amendments.router, dependencies=_api_key_dep)
 
-# Admin routers — use X-Admin-Key (handled per-endpoint)
+# Admin auth — login page (obscured URL), POST /login, POST /logout, GET /me.
+# Mounted before the other admin routers so it takes precedence on its
+# /api/rc-admin-{token}/login path.
+app.include_router(admin_auth.router)
+
+# Admin routers — gated by the rc_admin_session cookie (set by login). The
+# legacy verify_admin_key import in each router now points at
+# require_admin_session, so X-Admin-Key headers are no longer accepted.
 app.include_router(admin.router)
 app.include_router(misread.admin_router)
+app.include_router(artist_verification.admin_router)
 app.include_router(agent.router)
 app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)

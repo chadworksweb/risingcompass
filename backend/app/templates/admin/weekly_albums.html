@@ -113,26 +113,24 @@ function collectEntries(prefix, chartSource) {
 async function submitAlbumReading() {
   const statusEl = document.getElementById('albumStatus');
   statusEl.className = 'status-msg';
-  const adminKey = document.getElementById('adminKey').value.trim();
   const weekDate = document.getElementById('albumWeekDate').value;
   const editorial = document.getElementById('albumEditorial').value.trim();
 
-  if (!adminKey) { showMsg(statusEl, 'Admin key required', 'error'); return; }
   if (!weekDate) { showMsg(statusEl, 'Week date required', 'error'); return; }
 
   const albums = collectEntries('album', 'billboard_200');
   if (albums.length === 0) { showMsg(statusEl, 'Enter at least one album', 'error'); return; }
 
   try {
-    const resp = await fetch('/api/admin/weekly-album-reading', {
+    const resp = await adminFetch('/api/admin/weekly-album-reading', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      headers: adminHeaders(),
       body: JSON.stringify({ week_date: weekDate, editorial_summary: editorial || null, albums }),
     });
     if (resp.status === 409) {
-      const putResp = await fetch(`/api/admin/weekly-album-reading/${weekDate}`, {
+      const putResp = await adminFetch(`/api/admin/weekly-album-reading/${weekDate}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+        headers: adminHeaders(),
         body: JSON.stringify({ editorial_summary: editorial || null, albums }),
       });
       if (!putResp.ok) throw new Error(await putResp.text());
