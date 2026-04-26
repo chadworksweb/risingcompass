@@ -112,6 +112,17 @@ def ether_audits_dashboard(
     )
 
 
+@router.get("/backfill", response_class=HTMLResponse)
+def backfill_console(
+    request: Request,
+    admin=Depends(optional_admin_session),
+):
+    """Serve the Backfill Console UI. Returns 404 to unauthed callers."""
+    if admin is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request=request, name="backfill_console.html")
+
+
 @router.post("/reading", response_model=DailyReadingOut, dependencies=[Depends(verify_admin_key)])
 def create_reading(data: ReadingCreate, db: Session = Depends(get_db)):
     """Create a new daily reading."""

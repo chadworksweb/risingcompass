@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backfill Console — The Rising Compass</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-card: #f3f3f9;
+      --bg-input: #ffffff;
+      --bg-warn: #4a1f1a;
+      --bg-warn-strong: #6b2818;
+      --border: #a8a8b8;
+      --border-soft: #d2d2dc;
+      --text: #15151f;
+      --text-bright: #000000;
+      --text-dim: #555566;
+      --text-on-warn: #fff5f0;
+      --accent: #008f72;
+      --accent-strong: #007360;
+      --warn: #b87300;
+      --danger: #c03a1e;
+      --violet: #7a2cc0;
+      --blue: #1e5fb0;
+      --green: #1a8f3a;
+      --orange: #b87300;
+      --red: #c02020;
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.4rem; color: var(--text-bright); margin: 0 0 1rem; font-weight: 600; }
+    h2 { font-size: 1.05rem; color: var(--text-bright); margin: 1.5rem 0 0.6rem; font-weight: 600; }
+    h3 { font-size: 0.85rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin: 1.1rem 0 0.5rem; }
+    .container { max-width: 1280px; margin: 0 auto; padding: 1.5rem; }
+
+    .back-link {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-input);
+      margin-bottom: 1rem;
+    }
+
+    /* === Cost banner — non-skippable visual === */
+    .cost-banner {
+      background: var(--bg-warn);
+      color: var(--text-on-warn);
+      border: 2px solid var(--bg-warn-strong);
+      border-radius: 6px;
+      padding: 0.85rem 1.1rem;
+      margin: 0 0 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .cost-banner-icon {
+      font-family: var(--mono);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      background: rgba(255, 255, 255, 0.18);
+      padding: 0.2rem 0.6rem;
+      border-radius: 3px;
+      flex-shrink: 0;
+      font-size: 0.78rem;
+    }
+    .cost-banner strong { color: #fff; font-weight: 700; letter-spacing: 0.02em; }
+    .cost-banner .muted { color: rgba(255, 245, 240, 0.85); }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1.2rem;
+    }
+    .panel-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      flex-wrap: wrap; gap: 0.7rem; margin-bottom: 0.6rem;
+    }
+
+    label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-dim); margin-bottom: 0.25rem; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 0.4rem 0.55rem;
+      font: inherit;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-input);
+      color: var(--text);
+    }
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+    .field { margin-bottom: 0.85rem; }
+    .row3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.8rem; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+
+    button {
+      font: inherit;
+      padding: 0.45rem 0.95rem;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    button:hover { background: #ebebf2; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.primary:hover { background: var(--accent-strong); }
+    button.warn { color: var(--warn); border-color: var(--warn); }
+    button.warn:hover { background: rgba(184, 115, 0, 0.08); }
+    button.danger { color: var(--danger); border-color: var(--danger); }
+    button.danger:hover { background: rgba(192, 58, 30, 0.08); }
+    .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
+
+    .pill {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.1rem 0.5rem;
+      border-radius: 3px;
+      border: 1px solid currentColor;
+    }
+    .pill-queued    { color: var(--text-dim); }
+    .pill-running   { color: var(--accent); }
+    .pill-paused    { color: var(--warn); }
+    .pill-completed { color: var(--green); background: rgba(26, 143, 58, 0.06); }
+    .pill-cancelled { color: var(--text-dim); }
+    .pill-failed    { color: var(--danger); background: rgba(192, 58, 30, 0.06); }
+    .pill-needs_lyrics { color: var(--warn); }
+    .pill-calibrating  { color: var(--blue); }
+    .pill-tagging      { color: var(--violet); }
+    .pill-done         { color: var(--green); }
+    .pill-skipped      { color: var(--text-dim); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    th, td { padding: 0.5rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+    th { font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.72rem; }
+
+    .progress-track {
+      height: 6px;
+      background: var(--border-soft);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 0.4rem;
+    }
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.3s ease;
+    }
+    .progress-bar.failed { background: var(--danger); }
+
+    .tag-mono { font-family: var(--mono); font-size: 0.78rem; color: var(--text-dim); }
+
+    .empty {
+      padding: 1.5rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-style: italic;
+      background: var(--bg-card);
+      border: 1px dashed var(--border-soft);
+      border-radius: 6px;
+    }
+
+    .row-error {
+      color: var(--danger);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      margin-top: 0.2rem;
+    }
+
+    .row-form {
+      display: none;
+      margin-top: 0.5rem;
+      padding: 0.7rem 0.8rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+    }
+    .row-form.open { display: block; }
+    .row-form .form-actions { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
+
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--text-bright);
+      color: #fff;
+      padding: 0.7rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: var(--danger); }
+
+    .hint { color: var(--text-dim); font-size: 0.78rem; margin: 0.2rem 0 0; }
+
+    .deadpan-cell {
+      max-width: 320px;
+      font-style: italic;
+      color: var(--text);
+    }
+    .topics-cell {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--text-dim);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.8rem;
+      margin-bottom: 0.8rem;
+    }
+    .summary-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      padding: 0.7rem 0.9rem;
+    }
+    .summary-card .label {
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin: 0;
+    }
+    .summary-card .value {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text-bright);
+      margin: 0.2rem 0 0;
+      font-family: var(--mono);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a href="/api/admin/dashboard" class="back-link">← Admin Control Center</a>
+
+  <h1>Backfill Console</h1>
+
+  <div class="cost-banner">
+    <span class="cost-banner-icon">$$$ HEADS-UP</span>
+    <div>
+      <strong>This console isn't free.</strong>
+      Every job that runs makes Opus calls against the Anthropic API key in
+      <code>.env</code> — calibrate + tag = <strong>2 calls per song</strong>,
+      ~$0.04 each. A 700-row historical backfill costs ~$50–70. <span class="muted">For
+      mass-add work, consider running it through Claude Code instead — same
+      output quality, no metered API spend.</span>
+    </div>
+  </div>
+
+  <div id="view-list">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 style="margin:0;">Jobs</h2>
+        <button id="new-job-btn" class="primary">+ New Job</button>
+      </div>
+      <div id="jobs-table-wrap">
+        <div class="empty">Loading jobs…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-create" style="display:none;">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 style="margin:0;">New Job</h2>
+        <button id="cancel-create-btn" class="btn-sm">Back</button>
+      </div>
+
+      <div class="row3">
+        <div class="field">
+          <label for="job-label">Label</label>
+          <input type="text" id="job-label" placeholder="e.g. 1985 Billboard Top 10 backfill">
+        </div>
+        <div class="field">
+          <label for="job-target">Target</label>
+          <select id="job-target">
+            <option value="compass">Compass corpus</option>
+            <option value="library">Library catalog</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="job-passes">Passes</label>
+          <select id="job-passes">
+            <option value="both">Both — calibrate + tag</option>
+            <option value="calibrate">Calibrate only</option>
+            <option value="tag">Tag only (existing rows)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="job-note">Note (optional)</label>
+        <input type="text" id="job-note" placeholder="Free-form context for the audit log">
+      </div>
+
+      <div class="field">
+        <label for="job-rows">Songs</label>
+        <p class="hint" style="margin-bottom:0.4rem;">
+          One song per line. Format depends on target:
+        </p>
+        <ul class="hint" style="margin: 0 0 0.4rem 1.2rem;">
+          <li><strong>Compass:</strong> <code>title | artist | year | chart_position</code></li>
+          <li><strong>Library:</strong> <code>title | artist</code> (album linkage handled later)</li>
+          <li>Optional: append <code> ||| LYRICS HERE</code> on the same line to paste lyrics up front. Otherwise rows land in <code>needs_lyrics</code> and you paste in the row table after creating the job.</li>
+        </ul>
+        <textarea id="job-rows" rows="10" placeholder="Yesterday | The Beatles | 1965 | 1
+Hey Jude | The Beatles | 1968 | 1"></textarea>
+      </div>
+
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+        <button id="submit-create-btn" class="primary">Create Job</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-detail" style="display:none;">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <button id="back-to-list-btn" class="btn-sm" style="margin-bottom:0.4rem;">← Back to jobs</button>
+          <h2 style="margin:0;" id="detail-label">—</h2>
+          <p class="tag-mono" id="detail-meta">—</p>
+        </div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          <button id="job-start-btn" class="primary">Start</button>
+          <button id="job-pause-btn" class="warn">Pause</button>
+          <button id="job-resume-btn" class="primary">Resume</button>
+          <button id="job-cancel-btn" class="danger">Cancel</button>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-card"><p class="label">Status</p><p class="value" id="sum-status">—</p></div>
+        <div class="summary-card"><p class="label">Total</p><p class="value" id="sum-total">—</p></div>
+        <div class="summary-card"><p class="label">Done</p><p class="value" id="sum-done">—</p></div>
+        <div class="summary-card"><p class="label">Failed</p><p class="value" id="sum-failed">—</p></div>
+      </div>
+      <div class="progress-track"><div class="progress-bar" id="progress-bar" style="width:0%;"></div></div>
+
+      <h3>Rows</h3>
+      <div id="rows-table-wrap">
+        <div class="empty">Loading rows…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STATE = {
+  view: 'list',
+  jobId: null,
+  detailTimer: null,
+  listTimer: null,
+};
+
+const DETAIL_POLL_MS = 2500;
+const LIST_POLL_MS = 5000;
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function jsonRequest(path, opts = {}) {
+  const resp = await fetch(path, {
+    credentials: 'same-origin',
+    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+    ...opts,
+  });
+  if (!resp.ok) {
+    let detail = `${resp.status}`;
+    try { const j = await resp.json(); if (j.detail) detail = j.detail; } catch {}
+    throw new Error(detail);
+  }
+  return resp.json();
+}
+
+// === View switching ===
+
+function showView(name, jobId = null) {
+  ['list','create','detail'].forEach(v => {
+    document.getElementById(`view-${v}`).style.display = (v === name) ? 'block' : 'none';
+  });
+  STATE.view = name;
+  STATE.jobId = jobId;
+
+  if (STATE.detailTimer) { clearInterval(STATE.detailTimer); STATE.detailTimer = null; }
+  if (STATE.listTimer) { clearInterval(STATE.listTimer); STATE.listTimer = null; }
+
+  if (name === 'list') {
+    refreshList();
+    STATE.listTimer = setInterval(refreshList, LIST_POLL_MS);
+  } else if (name === 'detail') {
+    refreshDetail();
+    STATE.detailTimer = setInterval(refreshDetail, DETAIL_POLL_MS);
+  } else if (name === 'create') {
+    document.getElementById('job-label').focus();
+  }
+}
+
+// === List view ===
+
+async function refreshList() {
+  let data;
+  try { data = await jsonRequest('/api/admin/backfill/jobs'); }
+  catch (err) {
+    document.getElementById('jobs-table-wrap').innerHTML =
+      `<div class="empty">Failed to load jobs: ${escapeHtml(err.message)}</div>`;
+    return;
+  }
+  const wrap = document.getElementById('jobs-table-wrap');
+  if (!data.items.length) {
+    wrap.innerHTML = `<div class="empty">No jobs yet. Click <strong>+ New Job</strong> to start.</div>`;
+    return;
+  }
+
+  const rows = data.items.map(j => {
+    const pct = j.total_rows ? ((j.completed_rows + j.failed_rows) / j.total_rows * 100).toFixed(0) : 0;
+    return `
+      <tr style="cursor:pointer" data-job-id="${j.id}">
+        <td>
+          <div><strong>${escapeHtml(j.label)}</strong></div>
+          <div class="tag-mono">id ${j.id} · ${escapeHtml(j.target_table)} · ${escapeHtml(j.passes)}</div>
+        </td>
+        <td><span class="pill pill-${escapeHtml(j.status)}">${escapeHtml(j.status)}</span></td>
+        <td>${j.completed_rows}/${j.total_rows}${j.failed_rows ? ` <span style="color:var(--danger)">·${j.failed_rows} failed</span>` : ''}</td>
+        <td>
+          <div class="progress-track" style="margin-top:0;width:140px;">
+            <div class="progress-bar ${j.failed_rows ? 'failed' : ''}" style="width:${pct}%;"></div>
+          </div>
+        </td>
+        <td class="tag-mono">${j.created_at ? new Date(j.created_at).toLocaleString() : ''}</td>
+      </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Job</th><th>Status</th><th>Progress</th><th></th><th>Created</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  wrap.querySelectorAll('tr[data-job-id]').forEach(tr => {
+    tr.addEventListener('click', () => showView('detail', parseInt(tr.dataset.jobId, 10)));
+  });
+}
+
+// === Create view ===
+
+function parseRows(text, target) {
+  const out = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // Optional ||| separator splits metadata from lyrics
+    let meta = line;
+    let lyrics = null;
+    const sep = line.indexOf('|||');
+    if (sep >= 0) {
+      meta = line.slice(0, sep).trim();
+      lyrics = line.slice(sep + 3).trim();
+    }
+
+    const parts = meta.split('|').map(s => s.trim()).filter(Boolean);
+    if (parts.length < 2) {
+      throw new Error(`Skipped line, need at least "title | artist": ${line}`);
+    }
+    const obj = { title: parts[0], artist: parts[1] };
+    if (target === 'compass') {
+      if (parts[2]) obj.year = parseInt(parts[2], 10) || null;
+      if (parts[3]) obj.chart_position = parseInt(parts[3], 10) || null;
+    }
+    if (lyrics) obj.lyrics = lyrics;
+    out.push(obj);
+  }
+  return out;
+}
+
+async function submitCreate() {
+  const label = document.getElementById('job-label').value.trim();
+  const target = document.getElementById('job-target').value;
+  const passes = document.getElementById('job-passes').value;
+  const note = document.getElementById('job-note').value.trim();
+  const rowsText = document.getElementById('job-rows').value;
+
+  if (!label) { showToast('Label is required', true); return; }
+
+  let rows;
+  try { rows = parseRows(rowsText, target); }
+  catch (err) { showToast(err.message, true); return; }
+  if (!rows.length) { showToast('Add at least one song', true); return; }
+
+  const btn = document.getElementById('submit-create-btn');
+  btn.disabled = true;
+  try {
+    const job = await jsonRequest('/api/admin/backfill/jobs', {
+      method: 'POST',
+      body: JSON.stringify({ label, target_table: target, passes, note: note || null, rows }),
+    });
+    showToast(`Created job ${job.id} with ${rows.length} rows`);
+    showView('detail', job.id);
+  } catch (err) {
+    showToast(err.message || 'create failed', true);
+    btn.disabled = false;
+  }
+}
+
+// === Detail view ===
+
+async function refreshDetail() {
+  if (!STATE.jobId) return;
+  let data;
+  try { data = await jsonRequest(`/api/admin/backfill/jobs/${STATE.jobId}`); }
+  catch (err) {
+    document.getElementById('rows-table-wrap').innerHTML =
+      `<div class="empty">Failed to load detail: ${escapeHtml(err.message)}</div>`;
+    return;
+  }
+
+  const job = data.job;
+  document.getElementById('detail-label').textContent = job.label;
+  document.getElementById('detail-meta').textContent =
+    `id ${job.id} · target ${job.target_table} · passes ${job.passes}`
+    + (job.task_state ? ` · task ${job.task_state}` : '');
+  document.getElementById('sum-status').textContent = job.status;
+  document.getElementById('sum-total').textContent = job.total_rows;
+  document.getElementById('sum-done').textContent = job.completed_rows;
+  document.getElementById('sum-failed').textContent = job.failed_rows;
+  const pct = job.total_rows ? ((job.completed_rows + job.failed_rows) / job.total_rows * 100) : 0;
+  const bar = document.getElementById('progress-bar');
+  bar.style.width = `${pct}%`;
+  bar.classList.toggle('failed', job.failed_rows > 0);
+
+  // Action buttons gated by job state
+  const isTerminal = ['completed','cancelled','failed'].includes(job.status);
+  const isRunning  = job.status === 'running';
+  const isPaused   = job.status === 'paused';
+  const isQueued   = job.status === 'queued';
+  document.getElementById('job-start-btn').style.display  = (isQueued && !isRunning) ? '' : 'none';
+  document.getElementById('job-pause-btn').style.display  = isRunning ? '' : 'none';
+  document.getElementById('job-resume-btn').style.display = (isPaused) ? '' : 'none';
+  document.getElementById('job-cancel-btn').style.display = isTerminal ? 'none' : '';
+
+  renderRows(data.rows);
+}
+
+function renderRows(rows) {
+  const wrap = document.getElementById('rows-table-wrap');
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty">No rows on this job.</div>`;
+    return;
+  }
+
+  const trs = rows.map(r => {
+    const errLine = r.error ? `<div class="row-error">${escapeHtml(r.error)}</div>` : '';
+    const topics = (() => {
+      try {
+        const arr = r.topics_json ? JSON.parse(r.topics_json) : [];
+        return arr && arr.length ? arr.join(', ') : '';
+      } catch { return ''; }
+    })();
+    const auditTag = r.topic_audit_json ? `<span class="pill pill-needs_lyrics" style="margin-left:0.3rem;">audit</span>` : '';
+    const lyricsBtn = (['queued','needs_lyrics','failed'].includes(r.status))
+      ? `<button class="btn-sm" data-act="open-lyrics" data-row="${r.id}">${r.has_lyrics ? 'Edit lyrics' : 'Paste lyrics'}</button>`
+      : '';
+    const skipBtn = (['queued','needs_lyrics','failed'].includes(r.status))
+      ? `<button class="btn-sm" data-act="skip" data-row="${r.id}">Skip</button>`
+      : '';
+    const retryBtn = (['failed','skipped'].includes(r.status))
+      ? `<button class="btn-sm" data-act="retry" data-row="${r.id}">Retry</button>`
+      : '';
+
+    const meta = [
+      r.year ? `${r.year}` : null,
+      r.chart_position ? `#${r.chart_position}` : null,
+      r.album_id ? `album ${r.album_id}` : null,
+      r.track_number ? `track ${r.track_number}` : null,
+    ].filter(Boolean).join(' · ');
+
+    return `
+      <tr id="row-tr-${r.id}">
+        <td>${r.position}</td>
+        <td>
+          <div><strong>${escapeHtml(r.title)}</strong> — ${escapeHtml(r.artist)}</div>
+          ${meta ? `<div class="tag-mono">${escapeHtml(meta)}</div>` : ''}
+          ${errLine}
+          <div class="row-form" id="lyrics-form-${r.id}">
+            <label>Lyrics</label>
+            <textarea id="lyrics-text-${r.id}" placeholder="Paste full lyrics here">${r.has_lyrics ? '' : ''}</textarea>
+            <div class="form-actions">
+              <button class="primary btn-sm" data-act="submit-lyrics" data-row="${r.id}">Save</button>
+              <button class="btn-sm" data-act="cancel-lyrics" data-row="${r.id}">Cancel</button>
+            </div>
+          </div>
+        </td>
+        <td>
+          <span class="pill pill-${escapeHtml(r.status)}">${escapeHtml(r.status)}</span>
+          ${auditTag}
+        </td>
+        <td>
+          ${r.rubric_color ? `<span class="tag-mono" style="color:var(--${escapeHtml(r.rubric_color)})">${escapeHtml(r.rubric_color)}</span>` : ''}
+          ${r.charge_value != null ? ` <span class="tag-mono">${r.charge_value > 0 ? '+' : ''}${r.charge_value}</span>` : ''}
+        </td>
+        <td class="deadpan-cell">${escapeHtml(r.deadpan_line || '')}</td>
+        <td class="topics-cell">${escapeHtml(topics)}</td>
+        <td>${r.has_lyrics ? `<span class="pill" style="color:var(--accent)">${escapeHtml(r.lyrics_source || 'paste')}</span>` : '<span class="tag-mono">—</span>'}</td>
+        <td style="white-space:nowrap;">${lyricsBtn} ${retryBtn} ${skipBtn}</td>
+      </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Song</th><th>Status</th><th>Charge</th>
+          <th>Deadpan</th><th>Topics</th><th>Lyrics</th><th></th>
+        </tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </div>`;
+
+  wrap.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.addEventListener('click', (ev) => handleRowAction(ev.target));
+  });
+}
+
+async function handleRowAction(btn) {
+  const act = btn.dataset.act;
+  const rowId = parseInt(btn.dataset.row, 10);
+  if (!rowId) return;
+
+  if (act === 'open-lyrics') {
+    document.querySelectorAll('.row-form.open').forEach(el => el.classList.remove('open'));
+    document.getElementById(`lyrics-form-${rowId}`).classList.add('open');
+    document.getElementById(`lyrics-text-${rowId}`).focus();
+    return;
+  }
+  if (act === 'cancel-lyrics') {
+    document.getElementById(`lyrics-form-${rowId}`).classList.remove('open');
+    return;
+  }
+  if (act === 'submit-lyrics') {
+    const lyrics = document.getElementById(`lyrics-text-${rowId}`).value.trim();
+    if (!lyrics) { showToast('Paste lyrics first', true); return; }
+    btn.disabled = true;
+    try {
+      await jsonRequest(`/api/admin/backfill/jobs/${STATE.jobId}/rows/${rowId}/lyrics`, {
+        method: 'POST',
+        body: JSON.stringify({ lyrics }),
+      });
+      showToast('Lyrics saved');
+      document.getElementById(`lyrics-form-${rowId}`).classList.remove('open');
+      refreshDetail();
+    } catch (err) { showToast(err.message, true); btn.disabled = false; }
+    return;
+  }
+  if (act === 'skip') {
+    btn.disabled = true;
+    try {
+      await jsonRequest(`/api/admin/backfill/jobs/${STATE.jobId}/rows/${rowId}/skip`, { method: 'POST' });
+      showToast('Row skipped');
+      refreshDetail();
+    } catch (err) { showToast(err.message, true); btn.disabled = false; }
+    return;
+  }
+  if (act === 'retry') {
+    btn.disabled = true;
+    try {
+      await jsonRequest(`/api/admin/backfill/jobs/${STATE.jobId}/rows/${rowId}/retry`, { method: 'POST' });
+      showToast('Row queued for retry');
+      refreshDetail();
+    } catch (err) { showToast(err.message, true); btn.disabled = false; }
+    return;
+  }
+}
+
+async function jobAction(action) {
+  if (!STATE.jobId) return;
+  if (action === 'cancel' && !confirm('Cancel this job? In-flight Opus calls will finish but no further rows will run.')) return;
+  try {
+    await jsonRequest(`/api/admin/backfill/jobs/${STATE.jobId}/${action}`, { method: 'POST' });
+    showToast(`Job ${action}ed`);
+    refreshDetail();
+  } catch (err) { showToast(err.message || `${action} failed`, true); }
+}
+
+// === Wiring ===
+
+document.getElementById('new-job-btn').addEventListener('click', () => showView('create'));
+document.getElementById('cancel-create-btn').addEventListener('click', () => showView('list'));
+document.getElementById('back-to-list-btn').addEventListener('click', () => showView('list'));
+document.getElementById('submit-create-btn').addEventListener('click', submitCreate);
+document.getElementById('job-start-btn').addEventListener('click', () => jobAction('start'));
+document.getElementById('job-pause-btn').addEventListener('click', () => jobAction('pause'));
+document.getElementById('job-resume-btn').addEventListener('click', () => jobAction('resume'));
+document.getElementById('job-cancel-btn').addEventListener('click', () => jobAction('cancel'));
+
+showView('list');
+</script>
+
+</body>
+</html>
