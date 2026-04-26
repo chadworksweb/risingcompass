@@ -26,6 +26,9 @@ class CompassSong(Base):
     chart_source = Column(Text, default="billboard_hot_100")
     instrumental = Column(Boolean, default=False)
     effects_prose = Column(Text)  # 3-paragraph per-song description of what the song transmits
+    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
+    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
+    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
