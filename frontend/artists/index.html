@@ -106,7 +106,7 @@
             html += `<h2 class="artists-index-letter">${k}</h2>`;
             html += '<ul class="artists-index-names">';
             for (const a of groups.get(k)) {
-              html += `<li><a class="artists-index-link" href="/artists/artist.html?slug=${encodeURIComponent(a.slug)}">${escapeHtml(a.name)}</a></li>`;
+              html += `<li><a class="artists-index-link" href="/artists/${encodeURIComponent(a.slug)}">${escapeHtml(a.name)}</a></li>`;
             }
             html += '</ul></section>';
           }

@@ -480,7 +480,7 @@ function renderDetail(d) {
 
   document.getElementById('detailContent').innerHTML = `
     <div class="av-form-section">
-      <h3>${esc(d.artist_name)} <a href="/artists/artist.html?slug=${encodeURIComponent(d.artist_slug)}" target="_blank" style="font-size:0.78rem;color:var(--accent);text-decoration:none;margin-left:0.5rem;">View artist page &rarr;</a></h3>
+      <h3>${esc(d.artist_name)} <a href="https://risingcompass.net/artists/${encodeURIComponent(d.artist_slug)}" target="_blank" style="font-size:0.78rem;color:var(--accent);text-decoration:none;margin-left:0.5rem;">View artist page &rarr;</a></h3>
 
       <div class="av-detail-grid">
         <div class="form-group">

@@ -578,7 +578,7 @@
 
     const artistName = block.artist_name || 'the artist';
     const artistLink = block.artist_slug
-      ? `<a href="/artists/artist.html?slug=${encodeURIComponent(block.artist_slug)}" class="accent-link">${escapeHtml(artistName)}</a>`
+      ? `<a href="/artists/${encodeURIComponent(block.artist_slug)}" class="accent-link">${escapeHtml(artistName)}</a>`
       : escapeHtml(artistName);
     attribution.innerHTML = `Captured directly from <strong>${artistLink}</strong>.`;
 
@@ -694,7 +694,7 @@
     document.getElementById('song-title').textContent = song.title;
     const artistEl = document.getElementById('song-artist');
     if (song.artist_slug) {
-      artistEl.innerHTML = `<a href="/artists/artist.html?slug=${encodeURIComponent(song.artist_slug)}" class="accent-link">${escapeHtml(song.artist)}</a>`;
+      artistEl.innerHTML = `<a href="/artists/${encodeURIComponent(song.artist_slug)}" class="accent-link">${escapeHtml(song.artist)}</a>`;
     } else {
       artistEl.textContent = song.artist || '';
     }

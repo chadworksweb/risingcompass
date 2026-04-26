@@ -96,7 +96,7 @@
           for (const a of artists) {
             if (a.indexed && a.slug) {
               html += `<li class="result-item result-artist">
-                <a href="/artists/artist.html?slug=${encodeURIComponent(a.slug)}">
+                <a href="/artists/${encodeURIComponent(a.slug)}">
                   <span class="result-name">${escapeHtml(a.name)}</span>
                   <span class="result-meta">${a.calibrated_song_count} song${a.calibrated_song_count !== 1 ? 's' : ''} classified</span>
                 </a>
@@ -158,9 +158,19 @@
     trajectory: null,
   };
 
-  function initArtistPage() {
+  function getArtistSlugFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    const slug = params.get('slug');
+    const fromQuery = params.get('slug');
+    if (fromQuery) return fromQuery;
+    const m = window.location.pathname.match(/^\/artists\/([^/]+)\/?$/);
+    if (m && m[1] !== 'artist.html' && m[1] !== 'index.html') {
+      return decodeURIComponent(m[1]);
+    }
+    return null;
+  }
+
+  function initArtistPage() {
+    const slug = getArtistSlugFromUrl();
     if (!slug) return;
     artistPageState.slug = slug;
 
@@ -1026,7 +1036,7 @@
       ],
       '@type': 'MusicGroup',
       name: summary.name,
-      url: `https://risingcompass.net/artists/artist.html?slug=${summary.slug}`,
+      url: `https://risingcompass.net/artists/${encodeURIComponent(summary.slug)}`,
       additionalProperty: [
         { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogCharge', name: 'Catalog Charge', value: summary.stats.catalog_charge, minValue: -100, maxValue: 100 },
         { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogTier', name: 'Catalog Classification', value: summary.stats.catalog_tier_label },
@@ -1043,7 +1053,7 @@
   if (document.getElementById('search-input')) {
     initSearchPage();
   }
-  if (new URLSearchParams(window.location.search).get('slug')) {
+  if (getArtistSlugFromUrl()) {
     initArtistPage();
   }
 })();
