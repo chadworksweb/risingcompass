@@ -208,32 +208,136 @@ body {
   padding: 0 var(--rc-card-padding);
 }
 
-/* Row 2 stays split: Daily Top 20 Songs (left) | Ether Art Chart (right).
-   Until step 8 wires the live ether card, the right slot holds the
-   #ether-placeholder so row 2 doesn't look hollowed-out. Row 3 (albums)
-   spans the full width on its own. */
+/* Row 2 splits: Daily Top 20 Songs (left, 42%) | Ether Art Chart (right, 1fr).
+   Row 3 (albums) spans full width. */
 #album-reading-panel {
   grid-column: 1 / -1;
 }
 
-#ether-placeholder {
+#ether-art-chart-panel {
   display: flex;
   flex-direction: column;
 }
 
-#ether-placeholder .ether-placeholder-body {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 280px;
+.ether-card-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--rc-ease);
+}
+.ether-card-link:hover {
+  border-bottom-color: var(--rc-accent);
+}
+
+.ether-status {
+  font-size: 0.72rem;
   color: var(--rc-text-dim);
   font-family: var(--rc-font-mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  margin: 0 0 0.6rem;
+  letter-spacing: 0.02em;
+}
+
+.ether-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ether-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.55rem 0.6rem 0.55rem 0.7rem;
+  border-radius: 3px;
+  transition: background var(--rc-ease);
+}
+.ether-row:hover { background: rgba(255, 255, 255, 0.025); }
+.ether-row + .ether-row {
   border-top: 1px solid var(--rc-divider);
-  margin-top: 0.5rem;
+  padding-top: 0.6rem;
+  margin-top: 0.05rem;
+}
+
+.ether-pos {
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  min-width: 1.6rem;
+  padding-top: 0.05rem;
+  text-align: right;
+}
+
+.ether-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ether-deadpan {
+  color: var(--rc-text-bright);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.ether-title-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--rc-ease);
+}
+.ether-title-link:hover { border-bottom-color: var(--rc-accent); }
+
+.ether-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
+  color: var(--rc-text-dim);
+}
+.ether-meta-artist { font-style: italic; }
+.ether-meta-sep {
+  color: var(--rc-border);
+}
+
+.ether-chip {
+  display: inline-block;
+  font-family: var(--rc-font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-text);
+  background: var(--rc-accent-subtle);
+  border: 1px solid var(--rc-accent-active);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
+.ether-row--untagged .ether-deadpan { color: var(--rc-text-dim); }
+.ether-untagged-pill {
+  font-family: var(--rc-font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  border: 1px dashed var(--rc-border);
+  padding: 0.05rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+}
+
+.ether-empty {
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+  color: var(--rc-text-dim);
+  font-style: italic;
+  font-size: 0.86rem;
+}
+
+/* Weekly Top 10 Albums — 5-row x 2-column grid (build pack §11 step 8). */
+#album-reading-content .song-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 1rem;
 }
 
 #compass-panel {

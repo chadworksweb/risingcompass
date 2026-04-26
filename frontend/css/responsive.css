@@ -14,9 +14,14 @@
   }
 
   #reading-panel,
-  #ether-placeholder,
+  #ether-art-chart-panel,
   #album-reading-panel {
     grid-column: span 1 !important;
+  }
+
+  /* Albums: collapse the 5x2 grid back to a single column on phones. */
+  #album-reading-content .song-list {
+    grid-template-columns: 1fr;
   }
 
   .site-title {

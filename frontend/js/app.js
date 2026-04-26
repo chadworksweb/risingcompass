@@ -96,6 +96,11 @@ const App = (() => {
       // Render weekly album reading if present
       renderAlbumReading(data);
 
+      // Render the Ether Art Chart card (independent fetch — its own endpoint)
+      if (typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render();
+      }
+
     } catch (err) {
       console.error('Failed to load compass data:', err);
       document.getElementById('reading-content').innerHTML =

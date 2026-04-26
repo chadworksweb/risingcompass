@@ -113,7 +113,7 @@
     </div>
 
     <!-- ROW 2 LEFT: Daily Top 20 Songs -->
-    <!-- ROW 2 RIGHT: Ether Art Chart placeholder until step 8 wires the live card -->
+    <!-- ROW 2 RIGHT: The Ether Art Chart — same 20 songs, deadpan + topic lens -->
     <!-- ROW 3: Weekly Top 10 Albums (full width) -->
     <div class="card" id="reading-panel">
       <div class="card-header">Daily Top 20 Songs</div>
@@ -122,10 +122,14 @@
         <div class="loading" role="status">Loading today's reading...</div>
       </div>
     </div>
-    <div class="card" id="ether-placeholder">
-      <div class="card-header">The Ether Art Chart</div>
-      <p class="card-desc">A second view on today's top 20 — the songs named for what they are, with the topics being pulled through the ether into mass consciousness.</p>
-      <div class="ether-placeholder-body" aria-label="Ether Art Chart, coming soon">Coming soon</div>
+    <div class="card" id="ether-art-chart-panel">
+      <div class="card-header">
+        <a href="/ether-art-chart/" class="ether-card-link">The Ether Art Chart</a>
+      </div>
+      <p class="card-desc">A second view on the same top 20 — songs named for what they are, plus the topics pulled through the ether.</p>
+      <div id="ether-art-chart-content">
+        <div class="loading" role="status">Loading…</div>
+      </div>
     </div>
     <div class="card" id="album-reading-panel" style="display:none;">
       <div class="card-header">Weekly Top 10 Albums</div>
@@ -367,6 +371,7 @@
   <script src="js/compass.js"></script>
   <script src="js/charge.js"></script>
   <script src="js/contamination.js"></script>
+  <script src="js/ether-art-chart.js"></script>
   <script src="js/app.js"></script>
   <script src="calibration-log/calibration-log.js"></script>
 
