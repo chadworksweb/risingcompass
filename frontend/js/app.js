@@ -187,7 +187,7 @@ const App = (() => {
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
       const instrClass = song.instrumental ? ' instrumental' : '';
-      const songHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}/` : null;
+      const songHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
       const titleHtml = songHref
         ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
         : escapeHtml(song.title);
@@ -2070,7 +2070,7 @@ const App = (() => {
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
       const instrClass = song.instrumental ? ' instrumental' : '';
-      const yearSongHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}/` : null;
+      const yearSongHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
       const yearTitleHtml = yearSongHref
         ? `<a href="${yearSongHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
         : escapeHtml(song.title);

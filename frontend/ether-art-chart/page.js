@@ -52,7 +52,7 @@
   }
 
   function rowHtml(item) {
-    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}/` : null;
+    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
 
     if (!item.deadpan_line) {
       const titleHtml = songHref
@@ -147,7 +147,7 @@
   }
 
   function rollupRowHtml(item) {
-    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}/` : null;
+    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
     const titleHtml = songHref
       ? `<a href="${songHref}">${escapeHtml(item.title)}</a>`
       : escapeHtml(item.title);

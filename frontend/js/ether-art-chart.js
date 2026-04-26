@@ -39,7 +39,7 @@ const EtherArtChart = (() => {
     const tierHex = COLOR_HEX[item.rubric_color] || 'transparent';
     const tickStyle = `border-left:3px solid ${tierHex};`;
 
-    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}/` : null;
+    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
 
     if (!item.deadpan_line) {
       // Pre-tagger row — show the title, dim style, "untagged" hint.
