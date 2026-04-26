@@ -1,0 +1,309 @@
+/* ==========================================================================
+   The Ether Art Chart — product page
+   Tenets-page aesthetic per scope §261: Cardo serif body, Cormorant SC
+   small-caps for topic labels, monochromatic warm cream on near-black,
+   gold accent. Tier colors are reserved for Compass tier accents only —
+   the topic axis here uses ink intensity, not color.
+   ========================================================================== */
+
+:root {
+  --eac-bg: #0a0a12;
+  --eac-bg-soft: #0e0e18;
+  --eac-ink: #d8d4c8;
+  --eac-ink-bright: #f0ebdd;
+  --eac-ink-dim: #8a8476;
+  --eac-rule: #2a2738;
+  --eac-gold: #c9a960;
+
+  --eac-violet: #aa54ff;
+  --eac-blue: #3388ff;
+  --eac-green: #33cc55;
+  --eac-orange: #ffbb33;
+  --eac-red: #ff3333;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--eac-bg);
+  color: var(--eac-ink);
+}
+
+body {
+  font-family: 'Cardo', Georgia, 'Times New Roman', serif;
+  font-size: 18px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+a { color: var(--eac-gold); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+a:hover { border-bottom-color: var(--eac-gold); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+.skip-nav {
+  position: absolute; top: -40px; left: 0;
+  background: var(--eac-ink-bright); color: var(--eac-bg);
+  padding: 8px 16px; z-index: 100;
+  text-decoration: none;
+  font-family: 'Cormorant SC', serif;
+  letter-spacing: 0.08em;
+}
+.skip-nav:focus { top: 0; }
+
+/* The shared rc-header partial uses styles from /css/main.css. Keep those
+   intact so the back link still functions and matches the global chrome. */
+
+.eac-main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 3.5rem 1.6rem 5rem;
+}
+
+/* ─── Hero ─────────────────────────────────────────────────────────── */
+
+.eac-hero { margin-bottom: 4rem; }
+
+.eac-kicker {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.18em;
+  color: var(--eac-gold);
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+}
+
+.eac-title {
+  font-family: 'Cardo', Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(2.4rem, 5vw, 3.2rem);
+  line-height: 1.05;
+  margin: 0 0 1.4rem;
+  color: var(--eac-ink-bright);
+  letter-spacing: -0.005em;
+}
+
+.eac-framing {
+  font-size: 1.18rem;
+  line-height: 1.65;
+  color: var(--eac-ink);
+  max-width: 38em;
+  margin: 0;
+  font-style: italic;
+}
+
+/* ─── Sections ─────────────────────────────────────────────────────── */
+
+.eac-section {
+  margin-top: 3.5rem;
+  padding-top: 2.4rem;
+  border-top: 1px solid var(--eac-rule);
+}
+
+.eac-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.4rem;
+}
+
+.eac-section-title {
+  font-family: 'Cormorant SC', serif;
+  font-weight: 600;
+  font-size: 1.2rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--eac-ink-bright);
+  margin: 0;
+}
+
+.eac-section-meta {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: var(--eac-ink-dim);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* ─── Status banner (forward-only honesty) ─────────────────────────── */
+
+.eac-status {
+  font-size: 0.92rem;
+  color: var(--eac-ink-dim);
+  border-left: 2px solid var(--eac-rule);
+  padding: 0.6rem 0 0.6rem 1rem;
+  margin: 0 0 1.4rem;
+  font-style: italic;
+}
+
+/* ─── Today's list ─────────────────────────────────────────────────── */
+
+.eac-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.eac-loading {
+  color: var(--eac-ink-dim);
+  font-style: italic;
+  padding: 1rem 0;
+}
+
+.eac-row {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr;
+  gap: 1.2rem;
+  padding: 1.2rem 0;
+  border-bottom: 1px solid var(--eac-rule);
+}
+.eac-row:last-child { border-bottom: none; }
+
+.eac-pos {
+  font-family: 'Cormorant SC', serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.06em;
+  color: var(--eac-ink-dim);
+  text-align: right;
+  padding-top: 0.18rem;
+}
+
+.eac-text { min-width: 0; }
+
+.eac-deadpan {
+  font-size: 1.36rem;
+  line-height: 1.35;
+  color: var(--eac-ink-bright);
+  font-style: italic;
+  margin: 0 0 0.3rem;
+}
+.eac-deadpan a {
+  color: inherit;
+  border-bottom: none;
+}
+.eac-deadpan a:hover { color: var(--eac-gold); }
+
+.eac-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.45rem;
+  font-size: 0.95rem;
+  color: var(--eac-ink-dim);
+}
+.eac-artist { font-style: italic; }
+.eac-meta-sep {
+  color: var(--eac-rule);
+  margin: 0 0.1rem;
+}
+
+.eac-tier-tick {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 0.35rem;
+}
+
+.eac-tier-violet { background: var(--eac-violet); }
+.eac-tier-blue { background: var(--eac-blue); }
+.eac-tier-green { background: var(--eac-green); }
+.eac-tier-orange { background: var(--eac-orange); }
+.eac-tier-red { background: var(--eac-red); }
+
+.eac-charge {
+  font-family: 'Cormorant SC', serif;
+  letter-spacing: 0.08em;
+  color: var(--eac-ink-dim);
+}
+
+/* Topic chips — Cormorant SC small caps, gold-tinted, low chrome */
+.eac-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+.eac-chip {
+  display: inline-block;
+  font-family: 'Cormorant SC', serif;
+  font-weight: 500;
+  font-size: 0.86rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--eac-gold);
+  border: 1px solid var(--eac-rule);
+  padding: 0.18rem 0.7rem;
+  border-radius: 999px;
+}
+.eac-chip--dominant {
+  color: var(--eac-bg);
+  background: var(--eac-gold);
+  border-color: var(--eac-gold);
+}
+
+.eac-row--untagged .eac-deadpan { color: var(--eac-ink-dim); font-style: normal; }
+.eac-untagged-pill {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--eac-ink-dim);
+  border: 1px dashed var(--eac-rule);
+  padding: 0.1rem 0.55rem;
+  border-radius: 3px;
+  margin-left: 0.4rem;
+}
+
+.eac-audit-note {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--eac-ink-dim);
+}
+
+/* ─── Coming-soon block (Annual Rollups in step 9) ─────────────────── */
+
+.eac-coming {
+  background: var(--eac-bg-soft);
+  border: 1px solid var(--eac-rule);
+  border-radius: 4px;
+  padding: 1.5rem 1.7rem;
+  color: var(--eac-ink);
+}
+.eac-coming p { margin: 0 0 0.7rem; }
+.eac-coming p:last-child { margin-bottom: 0; }
+.eac-coming-meta {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--eac-gold);
+  margin-top: 0.6rem !important;
+}
+
+/* ─── Mobile ───────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .eac-main { padding: 2rem 1rem 3rem; }
+  .eac-row {
+    grid-template-columns: 2.4rem 1fr;
+    gap: 0.9rem;
+    padding: 1rem 0;
+  }
+  .eac-pos { font-size: 1.1rem; }
+  .eac-deadpan { font-size: 1.15rem; }
+  .eac-framing { font-size: 1.05rem; }
+}
