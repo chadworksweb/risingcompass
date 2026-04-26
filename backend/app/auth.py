@@ -171,3 +171,15 @@ def verify_backup_key(x_backup_key: Optional[str] = Header(default=None)):
         raise HTTPException(status_code=403, detail="Missing backup key")
     if not hmac.compare_digest(x_backup_key, expected):
         raise HTTPException(status_code=403, detail="Invalid backup key")
+
+
+def verify_reading_cron_key(x_reading_cron_key: Optional[str] = Header(default=None)):
+    """Service auth for the daily reading cron. Mirrors verify_backup_key:
+    a separate header secret so leaks across cron lanes don't compose."""
+    expected = settings.rc_reading_cron_key
+    if not expected:
+        raise HTTPException(status_code=503, detail="Reading cron key not configured")
+    if not x_reading_cron_key:
+        raise HTTPException(status_code=403, detail="Missing reading cron key")
+    if not hmac.compare_digest(x_reading_cron_key, expected):
+        raise HTTPException(status_code=403, detail="Invalid reading cron key")

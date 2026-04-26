@@ -20,7 +20,7 @@ from app.schemas import (
     SupplyLyricsIn,
     PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
 )
-from app.auth import create_approval_token, verify_approval_token
+from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key
 from app.config import settings
 from app.routers.admin import verify_admin_key
 from app.services.agents.compass_agent import run_compass_agent, _store_calibration
@@ -200,6 +200,18 @@ def calibrate_live(db: Session = Depends(get_db)):
         db.refresh(draft)
 
     return draft
+
+
+@router.post("/cron/calibrate-live", response_model=DraftOut, dependencies=[Depends(verify_reading_cron_key)])
+def cron_calibrate_live(db: Session = Depends(get_db)):
+    """Service endpoint called by the daily cron at 08:00 UTC with X-Reading-Cron-Key.
+
+    Same logic as /calibrate-live but service-token authed instead of admin
+    session, mirroring the /api/admin/backup pattern. Kept on a separate
+    endpoint (and separate key) so the human admin path and the cron path
+    can be revoked independently.
+    """
+    return calibrate_live(db=db)
 
 
 @router.get("/drafts", response_model=PaginatedDrafts, dependencies=[Depends(verify_admin_key)])

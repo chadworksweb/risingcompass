@@ -17,7 +17,7 @@ api.risingcompass.net    → nginx → backend:8000
 
 ## Day-to-Day: What Happens Automatically
 
-- **8:00 UTC daily** — cron triggers `calibrate-live` → agent calibrates today's top songs → creates draft reading → emails you for review
+- **8:00 UTC daily** — cron at `/root/risingcompass-readings/reading.sh` hits `POST /api/admin/agent/cron/calibrate-live` with `X-Reading-Cron-Key` (`RC_READING_CRON_KEY`) → agent calibrates today's top songs → creates draft reading → emails you for review. Service-token authed, not admin-session — distinct from the human admin login.
 - **You review** — click approve link in email (or reject/edit via admin dashboard)
 - **3:00 UTC daily** — certbot checks if SSL certs need renewal
 

@@ -65,6 +65,10 @@ the login URL — it isn't linked from anywhere.
 - `RC_BACKUP_KEY=<service token>` — used by the cron at `POST /api/admin/backup`
   with the `X-Backup-Key` header. Falls back to `RC_ADMIN_KEY` during the
   transition; remove the fallback once cron is migrated.
+- `RC_READING_CRON_KEY=<service token>` — used by the daily reading cron at
+  08:00 UTC against `POST /api/admin/agent/cron/calibrate-live` with the
+  `X-Reading-Cron-Key` header. Distinct from `RC_BACKUP_KEY` so cron lanes
+  can be rotated independently.
 - `RC_ADMIN_KEY` is now used **only** to sign one-time HMAC tokens in
   approval emails. Keep it set and stable across deploys.
 

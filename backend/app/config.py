@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     rc_api_key: str = ""  # REQUIRED — public consumer key (LC web tool, RC frontend)
     rc_service_key: str = ""  # OPTIONAL — first-party service key (chadlewine, internal scripts)
     rc_backup_key: str = ""  # OPTIONAL — service token for the cron-driven /api/admin/backup endpoint. Falls back to rc_admin_key during transition.
+    rc_reading_cron_key: str = ""  # REQUIRED in prod — service token for the cron-driven /api/admin/agent/cron/calibrate-live endpoint. Distinct from rc_backup_key so a leaked reading key can't trigger backups (and vice versa).
 
     # Admin session policy
     admin_session_idle_seconds: int = 28800  # 8h sliding window

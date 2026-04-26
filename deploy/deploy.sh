@@ -23,16 +23,16 @@ echo "Building and starting backend..."
 docker compose up -d --build
 
 # ------------------------------------------------------------------
-# Daily reading cron — REMOVED 2026-04-25.
+# Daily reading cron — restored 2026-04-26.
 #
-# The previous block installed a curl that hit /api/admin/agent/calibrate-live
-# with X-Admin-Key. After the multi-user admin auth migration, that header
-# is no longer accepted, and the endpoint requires a session cookie that a
-# headless cron can't carry. The cron had also been broken for some time
-# (hardcoded stale key value baked in at install, hit localhost:8000 which
-# doesn't reach the dockerized backend). Removed entirely; if automated
-# daily readings come back they should authenticate via a dedicated service
-# token like RC_BACKUP_KEY does for the backup cron.
+# Lives at /root/risingcompass-readings/reading.sh and runs at 08:00 UTC.
+# Mirrors the backup cron pattern: a one-shot curl container on the
+# le-proxy network hits /api/admin/agent/cron/calibrate-live with
+# X-Reading-Cron-Key (RC_READING_CRON_KEY in /root/rising-compass/.env).
+#
+# Not installed by this script — the cron entry is managed alongside the
+# other le-projects-01 backup/reading crons on the host crontab. Verify
+# with `sudo crontab -l | grep risingcompass-readings`.
 # ------------------------------------------------------------------
 
 # ------------------------------------------------------------------
