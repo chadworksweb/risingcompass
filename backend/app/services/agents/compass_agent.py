@@ -156,6 +156,20 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                         json.dumps(ether["topic_audit"]) if ether["topic_audit"] else None
                     )
                     db.flush()
+                    if ether["topic_audit"]:
+                        try:
+                            from app.services.agents.ether_audit_notifier import send_ether_audit_email
+                            send_ether_audit_email(
+                                song_id=song.id,
+                                title=title,
+                                artist=artist,
+                                audit=ether["topic_audit"],
+                                settings=settings,
+                            )
+                        except Exception:
+                            logger.exception(
+                                "Ether audit notify dispatch failed for compass song %d", song.id
+                            )
             except Exception:
                 logger.exception("Ether tagger hook failed for compass song %d", song.id)
 

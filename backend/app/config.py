@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     email_from: str = "Rising Compass <compass@risingcompass.net>"
     approval_email: str = ""
     misread_notify_email: str = ""
+    ether_audit_notify_email: str = ""  # falls back to misread_notify_email when unset
 
     # Site URL for approval links in emails
     site_url: str = "http://localhost:8000"
