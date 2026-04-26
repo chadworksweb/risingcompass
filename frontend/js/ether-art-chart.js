@@ -37,7 +37,7 @@ const EtherArtChart = (() => {
 
   function rowHtml(item) {
     const tierHex = COLOR_HEX[item.rubric_color] || 'transparent';
-    const tickStyle = `border-left:3px solid ${tierHex};`;
+    const tickStyle = `border-left:12px solid ${tierHex};`;
 
     const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
 
