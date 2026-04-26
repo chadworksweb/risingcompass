@@ -96,6 +96,19 @@
       </li>`;
   }
 
+  function computeTodayDistribution(items) {
+    const counts = {};
+    for (const item of items || []) {
+      if (!item.topics || !item.topics.length) continue;
+      for (const t of item.topics) {
+        counts[t] = (counts[t] || 0) + 1;
+      }
+    }
+    return Object.entries(counts)
+      .map(([topic, count]) => ({ topic, count }))
+      .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
+  }
+
   async function renderToday() {
     const list = document.getElementById('today-list');
     const meta = document.getElementById('today-meta');
@@ -118,10 +131,21 @@
       if (status) status.hidden = true;
 
       list.innerHTML = data.items.map(rowHtml).join('');
+
+      // Today's constellation — derive distribution from the items
+      // we just rendered. Mirrors the year endpoint's
+      // topic_distribution shape so buildConstellation works as-is.
+      const todayMeta = document.getElementById('today-topic-meta');
+      if (todayMeta) {
+        const d = data.date ? new Date(data.date + 'T00:00:00') : null;
+        todayMeta.textContent = d ? dateFmt.format(d) : '';
+      }
+      buildConstellation(computeTodayDistribution(data.items), 'constellation-today');
     } catch (err) {
       console.error('Failed to load /today:', err);
       list.innerHTML = `<li class="eac-loading">Could not load today&rsquo;s ether.</li>`;
       if (status) status.hidden = true;
+      buildConstellation([], 'constellation-today');
     }
   }
 
@@ -187,22 +211,25 @@
   const SETTLE_TICKS = 60;
   const MAX_TICKS    = 600;
 
-  let _constellationRaf = null;
+  // Per-instance raf handles, keyed by id-prefix. Both today's and the
+  // selected-year constellation can run simultaneously; their loops
+  // are independent.
+  const _constellationRafs = {};
 
-  function stopConstellationLoop() {
-    if (_constellationRaf) {
-      cancelAnimationFrame(_constellationRaf);
-      _constellationRaf = null;
+  function stopConstellationLoop(prefix) {
+    if (_constellationRafs[prefix]) {
+      cancelAnimationFrame(_constellationRafs[prefix]);
+      _constellationRafs[prefix] = null;
     }
   }
 
-  function buildConstellation(distribution) {
-    const starsG = document.getElementById('constellation-stars');
-    const labelsG = document.getElementById('constellation-labels');
-    const empty = document.getElementById('constellation-empty');
+  function buildConstellation(distribution, prefix) {
+    const starsG = document.getElementById(`${prefix}-stars`);
+    const labelsG = document.getElementById(`${prefix}-labels`);
+    const empty = document.getElementById(`${prefix}-empty`);
     if (!starsG || !labelsG || !empty) return;
 
-    stopConstellationLoop();
+    stopConstellationLoop(prefix);
     starsG.innerHTML = '';
     labelsG.innerHTML = '';
 
@@ -359,12 +386,12 @@
 
       if (ke / nodes.length < SETTLE_KE) _settledTicks++; else _settledTicks = 0;
       if (_settledTicks >= SETTLE_TICKS || ticks >= MAX_TICKS) {
-        _constellationRaf = null;
+        _constellationRafs[prefix] = null;
         return;
       }
-      _constellationRaf = requestAnimationFrame(tick);
+      _constellationRafs[prefix] = requestAnimationFrame(tick);
     }
-    _constellationRaf = requestAnimationFrame(tick);
+    _constellationRafs[prefix] = requestAnimationFrame(tick);
   }
 
   async function loadYear(year) {
@@ -415,14 +442,14 @@
       }
 
       // Constellation.
-      buildConstellation(data.topic_distribution || []);
+      buildConstellation(data.topic_distribution || [], 'constellation-annual');
     } catch (err) {
       console.error(`Failed to load /year/${year}:`, err);
       meta.textContent = '';
       list.innerHTML = `<li class="eac-loading">Could not load ${year}.</li>`;
       ranked.innerHTML = `<li class="eac-loading">—</li>`;
       if (status) status.hidden = true;
-      buildConstellation([]);
+      buildConstellation([], 'constellation-annual');
     }
   }
 
