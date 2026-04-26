@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
-from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits
+from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +257,7 @@ app.include_router(songs.router, dependencies=_api_key_dep)
 app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(tenets.router, dependencies=_api_key_dep)
 app.include_router(amendments.router, dependencies=_api_key_dep)
+app.include_router(ether_art_chart.router, dependencies=_api_key_dep)
 
 # Admin auth — login page (obscured URL), POST /login, POST /logout, GET /me.
 # Mounted before the other admin routers so it takes precedence on its
