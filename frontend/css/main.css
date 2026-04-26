@@ -294,7 +294,6 @@ body {
   font-size: 0.74rem;
   color: var(--rc-text-dim);
 }
-.ether-meta-title { color: var(--rc-text); }
 .ether-meta-artist { font-style: italic; }
 .ether-meta-sep {
   color: var(--rc-border);
