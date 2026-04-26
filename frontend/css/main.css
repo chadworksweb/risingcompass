@@ -628,6 +628,18 @@ body {
   text-overflow: ellipsis;
 }
 
+.song-title-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--rc-ease);
+}
+.song-title-link:hover,
+.song-title-link:focus-visible {
+  border-bottom-color: var(--rc-accent);
+  outline: none;
+}
+
 .song-artist {
   font-size: 0.78rem;
   color: var(--rc-text-dim);
