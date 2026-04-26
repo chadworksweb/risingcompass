@@ -133,5 +133,338 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', renderToday);
+  // --- Annual Rollups ----------------------------------------------------
+
+  const periodFmt = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+  function fmtPeriod(start, end) {
+    if (!start || !end) return '';
+    const s = new Date(start + 'T00:00:00');
+    const e = new Date(end + 'T00:00:00');
+    return `${periodFmt.format(s)} – ${periodFmt.format(e)}`;
+  }
+
+  function rollupRowHtml(item) {
+    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}/` : null;
+    const deadpan = songHref
+      ? `<a href="${songHref}">${escapeHtml(item.deadpan_line || item.title)}</a>`
+      : escapeHtml(item.deadpan_line || item.title);
+    const dominant = item.dominant_topic
+      ? `<div class="eac-chips"><span class="eac-chip eac-chip--dominant">${escapeHtml(String(item.dominant_topic).replace(/-/g,' '))}</span></div>`
+      : '';
+    return `
+      <li class="eac-row">
+        <span class="eac-pos">${item.position}</span>
+        <div class="eac-text">
+          <p class="eac-deadpan">${deadpan}</p>
+          <div class="eac-meta"><span class="eac-artist">${escapeHtml(item.artist)}</span></div>
+          ${dominant}
+        </div>
+      </li>`;
+  }
+
+  function rankedRowHtml(t, isDominant) {
+    const cls = isDominant ? 'eac-topic-row eac-topic-row--dominant' : 'eac-topic-row';
+    const pct = `${(t.percent * 100).toFixed(1)}%`;
+    return `
+      <li class="${cls}">
+        <span class="eac-topic-name">${escapeHtml(String(t.topic).replace(/-/g,' '))}</span>
+        <span class="eac-topic-count">${t.count}</span>
+        <span class="eac-topic-pct">${pct}</span>
+      </li>`;
+  }
+
+  // ---- Force-directed constellation -----------------------------------
+  // Build pack §8 — vanilla JS, no library. Tuning constants are
+  // starting points; expect to hand-tune as real data arrives.
+
+  const VIEW_W = 600;
+  const VIEW_H = 480;
+  const CENTER = { x: VIEW_W / 2, y: VIEW_H / 2 };
+  const MAX_R = Math.min(VIEW_W, VIEW_H) * 0.42;
+  const MIN_R = 18;
+
+  const ATTRACTION_K = 0.04;
+  const REPULSION_K  = 600;
+  const DAMPING      = 0.85;
+  const SETTLE_KE    = 0.05;
+  const SETTLE_TICKS = 60;
+  const MAX_TICKS    = 600;
+
+  let _constellationRaf = null;
+
+  function stopConstellationLoop() {
+    if (_constellationRaf) {
+      cancelAnimationFrame(_constellationRaf);
+      _constellationRaf = null;
+    }
+  }
+
+  function buildConstellation(distribution) {
+    const starsG = document.getElementById('constellation-stars');
+    const labelsG = document.getElementById('constellation-labels');
+    const empty = document.getElementById('constellation-empty');
+    if (!starsG || !labelsG || !empty) return;
+
+    stopConstellationLoop();
+    starsG.innerHTML = '';
+    labelsG.innerHTML = '';
+
+    if (!distribution || !distribution.length) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+
+    const total = distribution.reduce((s, d) => s + d.count, 0) || 1;
+
+    // Build node objects.
+    const maxCount = Math.max(...distribution.map((d) => d.count));
+    const nodes = distribution.map((d, i) => {
+      const freqPercentile = d.count / maxCount; // 0..1, dominant=1
+      const targetR = MIN_R + (1 - freqPercentile) * (MAX_R - MIN_R);
+      const angle = (i / distribution.length) * Math.PI * 2;
+      // Initial position: scattered near target radius with jitter
+      const r0 = targetR * (0.6 + Math.random() * 0.6);
+      const a0 = angle + (Math.random() - 0.5) * 0.6;
+      return {
+        topic: d.topic,
+        count: d.count,
+        percent: d.count / total,
+        targetR,
+        x: CENTER.x + Math.cos(a0) * r0,
+        y: CENTER.y + Math.sin(a0) * r0,
+        vx: 0,
+        vy: 0,
+        dominant: i === 0,
+        // Visual encoding from frequency:
+        coreR: 2.5 + freqPercentile * 4.5,         // 2.5–7
+        haloR: 14 + freqPercentile * 26,           // 14–40
+        opacity: 0.4 + freqPercentile * 0.6,       // 0.4–1.0
+      };
+    });
+
+    // Render initial DOM. We update transform on each tick.
+    nodes.forEach((n, idx) => {
+      const haloCls = n.dominant ? 'star-halo star-halo--gold' : 'star-halo';
+      const coreCls = n.dominant ? 'star-core star-core--gold' : 'star-core';
+      const labelCls = n.dominant ? 'star-label star-label--gold' : 'star-label';
+      const display = String(n.topic).replace(/-/g, ' ');
+      const labelSize = 11 + (n.count / maxCount) * 4;
+
+      const halo = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      halo.setAttribute('class', haloCls);
+      halo.setAttribute('r', n.haloR);
+      halo.setAttribute('opacity', n.opacity * 0.9);
+      starsG.appendChild(halo);
+
+      const core = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      core.setAttribute('class', coreCls);
+      core.setAttribute('r', n.coreR);
+      core.setAttribute('opacity', Math.min(n.opacity + 0.15, 1));
+      starsG.appendChild(core);
+
+      const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      hit.setAttribute('class', 'star-hit');
+      hit.setAttribute('r', Math.max(n.haloR, 22));
+      hit.setAttribute('data-idx', idx);
+      starsG.appendChild(hit);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('class', labelCls);
+      label.setAttribute('font-size', labelSize.toFixed(1));
+      label.setAttribute('opacity', Math.max(n.opacity, 0.55));
+      label.textContent = display;
+      labelsG.appendChild(label);
+
+      n.dom = { halo, core, hit, label, labelSize };
+    });
+
+    // Re-energize on hover (small impulse outward).
+    starsG.addEventListener('pointerover', (ev) => {
+      const idx = ev.target.getAttribute && ev.target.getAttribute('data-idx');
+      if (idx == null) return;
+      const n = nodes[+idx];
+      if (!n) return;
+      const dx = n.x - CENTER.x;
+      const dy = n.y - CENTER.y;
+      const len = Math.hypot(dx, dy) || 1;
+      n.vx += (dx / len) * 1.2 + (Math.random() - 0.5) * 1.2;
+      n.vy += (dy / len) * 1.2 + (Math.random() - 0.5) * 1.2;
+      _settledTicks = 0;
+    });
+
+    // Sim loop.
+    let ticks = 0;
+    let _settledTicks = 0;
+    function tick() {
+      ticks++;
+
+      // Attraction toward target radius.
+      for (const n of nodes) {
+        const dx = n.x - CENTER.x;
+        const dy = n.y - CENTER.y;
+        const r = Math.hypot(dx, dy) || 0.0001;
+        const radialErr = r - n.targetR;
+        const ux = dx / r;
+        const uy = dy / r;
+        n.vx -= ATTRACTION_K * radialErr * ux;
+        n.vy -= ATTRACTION_K * radialErr * uy;
+      }
+
+      // Pairwise repulsion.
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          let d = Math.hypot(dx, dy);
+          if (d < 0.5) d = 0.5;
+          const f = REPULSION_K / (d * d);
+          const ux = dx / d;
+          const uy = dy / d;
+          a.vx += ux * f;
+          a.vy += uy * f;
+          b.vx -= ux * f;
+          b.vy -= uy * f;
+        }
+      }
+
+      // Integrate + damp.
+      let ke = 0;
+      for (const n of nodes) {
+        n.vx *= DAMPING;
+        n.vy *= DAMPING;
+        n.x += n.vx;
+        n.y += n.vy;
+        // Clamp to viewport with margin so labels don't clip.
+        const margin = 28;
+        if (n.x < margin) { n.x = margin; n.vx *= -0.4; }
+        if (n.x > VIEW_W - margin) { n.x = VIEW_W - margin; n.vx *= -0.4; }
+        if (n.y < margin) { n.y = margin; n.vy *= -0.4; }
+        if (n.y > VIEW_H - margin) { n.y = VIEW_H - margin; n.vy *= -0.4; }
+        ke += n.vx * n.vx + n.vy * n.vy;
+      }
+
+      // Paint.
+      for (const n of nodes) {
+        const { halo, core, hit, label, labelSize } = n.dom;
+        halo.setAttribute('cx', n.x);
+        halo.setAttribute('cy', n.y);
+        core.setAttribute('cx', n.x);
+        core.setAttribute('cy', n.y);
+        hit.setAttribute('cx', n.x);
+        hit.setAttribute('cy', n.y);
+        // Label sits below the star, with offset proportional to halo size.
+        label.setAttribute('x', n.x);
+        label.setAttribute('y', n.y + n.haloR * 0.55 + labelSize + 2);
+      }
+
+      if (ke / nodes.length < SETTLE_KE) _settledTicks++; else _settledTicks = 0;
+      if (_settledTicks >= SETTLE_TICKS || ticks >= MAX_TICKS) {
+        _constellationRaf = null;
+        return;
+      }
+      _constellationRaf = requestAnimationFrame(tick);
+    }
+    _constellationRaf = requestAnimationFrame(tick);
+  }
+
+  async function loadYear(year) {
+    const list = document.getElementById('year-list');
+    const meta = document.getElementById('rollup-meta');
+    const status = document.getElementById('rollup-status');
+    const ranked = document.getElementById('topic-ranked');
+    if (!list || !meta || !ranked) return;
+
+    list.innerHTML = `<li class="eac-loading">Loading ${year}…</li>`;
+    ranked.innerHTML = `<li class="eac-loading">—</li>`;
+
+    try {
+      const data = await API.getEtherYear(year);
+      const period = fmtPeriod(data.period_start, data.period_end);
+      const totalSongs = data.total_compass_songs_in_period || 0;
+      const auditCount = data.audit_flagged_count || 0;
+      meta.textContent =
+        `${period} · ${totalSongs} classified song${totalSongs === 1 ? '' : 's'}`
+        + (auditCount ? ` · ${auditCount} audit-flagged` : '');
+
+      // Status line — coverage honesty.
+      const hasTopTwenty = data.top_20_deadpan && data.top_20_deadpan.length > 0;
+      if (status) {
+        if (totalSongs > 0 && !hasTopTwenty) {
+          status.hidden = false;
+          status.textContent =
+            'No tagged songs in this year yet — every row is awaiting the deferred backfill or a fresh classifier run.';
+        } else {
+          status.hidden = true;
+        }
+      }
+
+      // Top 20 deadpan.
+      if (hasTopTwenty) {
+        list.innerHTML = data.top_20_deadpan.map(rollupRowHtml).join('');
+      } else {
+        list.innerHTML = `<li class="eac-loading">—</li>`;
+      }
+
+      // Ranked topic list.
+      if (data.topic_distribution && data.topic_distribution.length) {
+        ranked.innerHTML = data.topic_distribution
+          .map((t, i) => rankedRowHtml(t, i === 0))
+          .join('');
+      } else {
+        ranked.innerHTML = `<li class="eac-loading">No topics yet for ${year}.</li>`;
+      }
+
+      // Constellation.
+      buildConstellation(data.topic_distribution || []);
+    } catch (err) {
+      console.error(`Failed to load /year/${year}:`, err);
+      meta.textContent = '';
+      list.innerHTML = `<li class="eac-loading">Could not load ${year}.</li>`;
+      ranked.innerHTML = `<li class="eac-loading">—</li>`;
+      if (status) status.hidden = true;
+      buildConstellation([]);
+    }
+  }
+
+  async function initRollups() {
+    const select = document.getElementById('year-select');
+    if (!select) return;
+
+    let years;
+    try {
+      const out = await API.getEtherYears();
+      years = (out && out.years) || [];
+    } catch (err) {
+      console.error('Failed to load /years:', err);
+      return;
+    }
+
+    if (!years.length) {
+      const meta = document.getElementById('rollup-meta');
+      if (meta) meta.textContent = 'No yearly data yet.';
+      return;
+    }
+
+    // Newest first in the dropdown.
+    const sorted = [...years].sort((a, b) => b - a);
+    select.innerHTML = sorted.map((y) => `<option value="${y}">${y}</option>`).join('');
+    const initial = sorted[0];
+    select.value = String(initial);
+
+    select.addEventListener('change', () => {
+      const y = parseInt(select.value, 10);
+      if (!isNaN(y)) loadYear(y);
+    });
+
+    loadYear(initial);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderToday();
+    initRollups();
+  });
 })();

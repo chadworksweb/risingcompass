@@ -77,14 +77,60 @@
     <section class="eac-section eac-rollups" aria-labelledby="rollups-heading">
       <header class="eac-section-head">
         <h2 id="rollups-heading" class="eac-section-title">Annual Rollups</h2>
+        <div class="eac-year-control">
+          <label for="year-select" class="sr-only">Year</label>
+          <select id="year-select" class="eac-year-select" aria-label="Select year">
+            <option value="">—</option>
+          </select>
+        </div>
       </header>
-      <div class="eac-coming">
-        <p>
-          A year selector lands here next. Per year: the position-weighted
-          top 20 deadpan, plus a force-directed map of every topic the year
-          carried &mdash; each topic a point of light, sized by frequency.
-        </p>
-        <p class="eac-coming-meta">Coming in the next pass.</p>
+
+      <p class="eac-rollup-meta" id="rollup-meta">&nbsp;</p>
+
+      <div class="eac-rollup-status" id="rollup-status" hidden></div>
+
+      <div class="eac-rollup-grid">
+        <div class="eac-rollup-col eac-rollup-col-deadpan">
+          <h3 class="eac-subsection-title">The Top 20, Deadpan</h3>
+          <ol class="eac-list" id="year-list">
+            <li class="eac-loading">Pick a year to load the rollup.</li>
+          </ol>
+        </div>
+
+        <div class="eac-rollup-col eac-rollup-col-topics">
+          <h3 class="eac-subsection-title">The Topic Field</h3>
+          <div class="eac-constellation-wrap">
+            <svg id="constellation"
+                 viewBox="0 0 600 480"
+                 class="eac-constellation"
+                 role="img"
+                 aria-labelledby="constellation-desc">
+              <title id="constellation-desc">Force-directed map of topics for the selected year</title>
+              <defs>
+                <radialGradient id="star-glow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%"  stop-color="#f0ebdd" stop-opacity="0.7"/>
+                  <stop offset="50%" stop-color="#d8d4c8" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#d8d4c8" stop-opacity="0"/>
+                </radialGradient>
+                <radialGradient id="star-glow-gold" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%"  stop-color="#f3dca0" stop-opacity="0.85"/>
+                  <stop offset="50%" stop-color="#c9a960" stop-opacity="0.25"/>
+                  <stop offset="100%" stop-color="#c9a960" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <g id="constellation-stars"></g>
+              <g id="constellation-labels"></g>
+            </svg>
+            <p class="eac-constellation-empty" id="constellation-empty" hidden>
+              No tagged topics yet. The constellation lights up as the year fills.
+            </p>
+          </div>
+
+          <h3 class="eac-subsection-title eac-subsection-title-second">Ranked</h3>
+          <ol class="eac-topic-list" id="topic-ranked">
+            <li class="eac-loading">—</li>
+          </ol>
+        </div>
       </div>
     </section>
 
