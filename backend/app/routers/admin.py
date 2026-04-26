@@ -96,6 +96,22 @@ def recalibrate_dashboard(
     return templates.TemplateResponse(request=request, name="recalibrate.html")
 
 
+@router.get("/ether-audits", response_class=HTMLResponse)
+def ether_audits_dashboard(
+    request: Request,
+    admin=Depends(optional_admin_session),
+):
+    """Serve the Ether Audits triage UI. Returns 404 to unauthed callers."""
+    if admin is None:
+        raise HTTPException(status_code=404)
+    from app.services.ether_taxonomy import VALID_SLUGS
+    return templates.TemplateResponse(
+        request=request,
+        name="ether_audits.html",
+        context={"ether_slugs": sorted(VALID_SLUGS)},
+    )
+
+
 @router.post("/reading", response_model=DailyReadingOut, dependencies=[Depends(verify_admin_key)])
 def create_reading(data: ReadingCreate, db: Session = Depends(get_db)):
     """Create a new daily reading."""

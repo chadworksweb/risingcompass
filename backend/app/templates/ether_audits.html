@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ether Audits — The Rising Compass</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-card: #f3f3f9;
+      --bg-input: #ffffff;
+      --bg-callout: #fff7e6;
+      --border: #a8a8b8;
+      --border-soft: #d2d2dc;
+      --text: #15151f;
+      --text-bright: #000000;
+      --text-dim: #555566;
+      --accent: #008f72;
+      --accent-strong: #007360;
+      --warn: #b87300;
+      --danger: #c03a1e;
+      --violet: #7a2cc0;
+      --blue: #1e5fb0;
+      --green: #1a8f3a;
+      --orange: #b87300;
+      --red: #c02020;
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.4rem; color: var(--text-bright); margin: 0 0 1rem; font-weight: 600; }
+    h2 { font-size: 0.95rem; color: var(--text-bright); margin: 0 0 0.4rem; font-weight: 600; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .back-link {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-input);
+      margin-bottom: 1rem;
+    }
+    .header-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+    .total-pill {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 999px;
+      padding: 0.15rem 0.7rem;
+    }
+    .intro {
+      color: var(--text-dim);
+      font-size: 0.86rem;
+      margin: 0 0 1rem;
+    }
+    .callout {
+      background: var(--bg-callout);
+      border: 1px solid #f0d18a;
+      border-left: 3px solid var(--warn);
+      border-radius: 4px;
+      padding: 0.7rem 0.9rem;
+      font-size: 0.82rem;
+      margin: 0 0 1.5rem;
+      color: #5a4218;
+    }
+    .callout strong { color: var(--text-bright); }
+    .callout code {
+      font-family: var(--mono);
+      background: rgba(0,0,0,0.06);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.78rem;
+    }
+    .empty {
+      padding: 2.4rem 1.5rem;
+      text-align: center;
+      color: var(--text-dim);
+      background: var(--bg-card);
+      border: 1px dashed var(--border-soft);
+      border-radius: 6px;
+      font-style: italic;
+    }
+    .audit-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+    }
+    .song-line {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      margin-bottom: 0.4rem;
+    }
+    .song-title {
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--text-bright);
+    }
+    .song-artist { color: var(--text); }
+    .song-meta {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--text-dim);
+    }
+    .tier-pill {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.1rem 0.55rem;
+      border-radius: 3px;
+      border: 1px solid currentColor;
+    }
+    .tier-violet { color: var(--violet); }
+    .tier-blue { color: var(--blue); }
+    .tier-green { color: var(--green); }
+    .tier-orange { color: var(--orange); }
+    .tier-red { color: var(--red); }
+
+    .deadpan {
+      font-style: italic;
+      color: var(--text);
+      margin: 0.5rem 0 0.9rem;
+      padding-left: 0.7rem;
+      border-left: 2px solid var(--border-soft);
+    }
+    .audit-row {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 0.4rem 0.9rem;
+      font-size: 0.86rem;
+      margin-bottom: 0.35rem;
+    }
+    .audit-label {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding-top: 0.1rem;
+    }
+    .audit-value { color: var(--text); }
+    .audit-value code {
+      font-family: var(--mono);
+      background: rgba(0,0,0,0.06);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+      padding-top: 0.8rem;
+      border-top: 1px solid var(--border-soft);
+    }
+    button {
+      font: inherit;
+      padding: 0.45rem 0.9rem;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.84rem;
+    }
+    button:hover { background: #ebebf2; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    button.primary:hover { background: var(--accent-strong); }
+    button.danger {
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    button.danger:hover { background: rgba(192, 58, 30, 0.08); }
+    button.warn {
+      color: var(--warn);
+      border-color: var(--warn);
+    }
+    button.warn:hover { background: rgba(184, 115, 0, 0.08); }
+
+    .form-block {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      background: var(--bg-input);
+    }
+    .form-block.open { display: block; }
+    .form-block label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin: 0.4rem 0 0.25rem;
+    }
+    .form-block label:first-child { margin-top: 0; }
+    .form-block select,
+    .form-block input[type="text"],
+    .form-block textarea {
+      width: 100%;
+      padding: 0.45rem 0.6rem;
+      font: inherit;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-input);
+      color: var(--text);
+    }
+    .form-block textarea {
+      resize: vertical;
+      min-height: 140px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .hint {
+      color: var(--text-dim);
+      font-size: 0.78rem;
+      margin: 0.3rem 0 0;
+    }
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--text-bright);
+      color: #fff;
+      padding: 0.7rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .toast.error { background: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a href="/api/admin/dashboard" class="back-link">← Admin Control Center</a>
+
+  <div class="header-row">
+    <h1>Ether Audits</h1>
+    <span class="total-pill" id="total-pill">—</span>
+  </div>
+  <p class="intro">
+    Songs the ether tagger couldn't honestly fit into the closed 24-topic taxonomy.
+    Triage each one: remap to an existing slug, re-run the tagger after expanding
+    the taxonomy, or reject if no topic genuinely applies.
+  </p>
+
+  <div class="callout">
+    <strong>Accept-new-tag flow:</strong> "Accept" isn't a button. To accept the
+    agent's proposed tag, edit <code>backend/app/services/ether_taxonomy.py</code>,
+    add the slug, deploy, then click <strong>Re-run tagger</strong> on this row
+    so the agent can use the expanded <code>VALID_SLUGS</code>. Taxonomy expansion
+    deserves a code review — that's the friction by design.
+  </div>
+
+  <div id="queue-container">
+    <div class="empty">Loading…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+{# Inject the current taxonomy slugs from services/ether_taxonomy.py so the
+   remap dropdown stays in sync without a separate API endpoint. Must run
+   before the main app script reads window.__ETHER_SLUGS__. #}
+<script>
+window.__ETHER_SLUGS__ = {{ ether_slugs | tojson }};
+</script>
+
+<script>
+const COLOR_LABELS = {
+  violet: "Ascended",
+  blue: "Elevated",
+  green: "Decent",
+  orange: "Degraded",
+  red: "Corrupted",
+};
+
+async function fetchQueue() {
+  const resp = await fetch("/api/admin/ether-audits/queue?limit=200", {
+    credentials: "same-origin",
+  });
+  if (!resp.ok) throw new Error(`queue ${resp.status}`);
+  return resp.json();
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("error", !!isError);
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function tierPillHtml(color) {
+  const safe = ["violet","blue","green","orange","red"].includes(color) ? color : "green";
+  return `<span class="tier-pill tier-${safe}">${escapeHtml(COLOR_LABELS[safe] || safe)}</span>`;
+}
+
+let TAXONOMY_SLUGS = [];
+
+async function loadTaxonomySlugs() {
+  // Lifted from a hidden endpoint — but for v1 we hardcode-mirror the module list.
+  // Build pack §2: the slugs are the constant set the agent saw at build time.
+  // If they drift, the remap dropdown drifts. Source-of-truth is
+  // services/ether_taxonomy.py.
+  TAXONOMY_SLUGS = window.__ETHER_SLUGS__ || [];
+}
+
+function renderQueue(data) {
+  const container = document.getElementById("queue-container");
+  document.getElementById("total-pill").textContent =
+    data.total === 1 ? "1 open" : `${data.total} open`;
+
+  if (!data.items.length) {
+    container.innerHTML = `
+      <div class="empty">
+        No ether audits — the taxonomy is honest right now.
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = data.items.map(renderCard).join("");
+  data.items.forEach(item => wireCard(item.id));
+}
+
+function renderCard(item) {
+  const chargeStr = item.charge_value == null
+    ? ""
+    : (item.charge_value > 0 ? `+${item.charge_value}` : String(item.charge_value));
+  const meta = [
+    `id ${item.id}`,
+    `${item.year}`,
+    `#${item.chart_position}`,
+    chargeStr,
+    item.created_at ? new Date(item.created_at).toISOString().slice(0,10) : null,
+  ].filter(Boolean).join(" · ");
+
+  const proposedSlug = item.proposed_tag
+    ? `<code>${escapeHtml(item.proposed_tag)}</code>`
+    : `<em>(none)</em>`;
+
+  const slugOptions = ['<option value="">— pick a slug —</option>']
+    .concat(TAXONOMY_SLUGS.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`))
+    .join("");
+
+  return `
+    <div class="audit-card" id="card-${item.id}">
+      <div class="song-line">
+        <span class="song-title">${escapeHtml(item.title)}</span>
+        <span class="song-artist">— ${escapeHtml(item.artist)}</span>
+        ${tierPillHtml(item.rubric_color)}
+        <span class="song-meta">${escapeHtml(meta)}</span>
+      </div>
+
+      ${item.deadpan_line
+        ? `<div class="deadpan">${escapeHtml(item.deadpan_line)}</div>`
+        : ""}
+
+      <div class="audit-row">
+        <div class="audit-label">Reason</div>
+        <div class="audit-value">${escapeHtml(item.reason) || "<em>(empty)</em>"}</div>
+      </div>
+      <div class="audit-row">
+        <div class="audit-label">Proposed tag</div>
+        <div class="audit-value">${proposedSlug}</div>
+      </div>
+      <div class="audit-row">
+        <div class="audit-label">Rationale</div>
+        <div class="audit-value">${escapeHtml(item.rationale) || "<em>(empty)</em>"}</div>
+      </div>
+
+      <div class="actions">
+        <button data-action="open-remap" data-id="${item.id}" class="primary">Remap to existing</button>
+        <button data-action="open-retag" data-id="${item.id}" class="warn">Re-run tagger</button>
+        <button data-action="open-reject" data-id="${item.id}" class="danger">Reject</button>
+      </div>
+
+      <div class="form-block" id="form-remap-${item.id}">
+        <label for="remap-topic-${item.id}">Topic slug</label>
+        <select id="remap-topic-${item.id}">${slugOptions}</select>
+        <p class="hint">Pick whichever existing slug actually fits this song. The audit clears.</p>
+        <label for="remap-note-${item.id}">Note (optional, log-only)</label>
+        <input type="text" id="remap-note-${item.id}" placeholder="Why this slug, briefly">
+        <div class="form-actions">
+          <button data-action="submit-remap" data-id="${item.id}" class="primary">Save remap</button>
+          <button data-action="cancel" data-id="${item.id}" data-form="remap">Cancel</button>
+        </div>
+      </div>
+
+      <div class="form-block" id="form-retag-${item.id}">
+        <p class="hint" style="margin-top:0;">
+          Paste the lyrics. The tagger re-runs with the current taxonomy. If
+          you're accepting the proposed slug, make sure you've added it to
+          <code>ether_taxonomy.py</code> and deployed first.
+        </p>
+        <label for="retag-lyrics-${item.id}">Lyrics</label>
+        <textarea id="retag-lyrics-${item.id}" placeholder="Paste full lyrics here"></textarea>
+        <div class="form-actions">
+          <button data-action="submit-retag" data-id="${item.id}" class="primary">Re-run tagger</button>
+          <button data-action="cancel" data-id="${item.id}" data-form="retag">Cancel</button>
+        </div>
+      </div>
+
+      <div class="form-block" id="form-reject-${item.id}">
+        <label for="reject-note-${item.id}">Note (optional, log-only)</label>
+        <input type="text" id="reject-note-${item.id}" placeholder="Why no topic genuinely fits">
+        <p class="hint">Audit clears, <code>topics: []</code> remains.</p>
+        <div class="form-actions">
+          <button data-action="submit-reject" data-id="${item.id}" class="danger">Confirm reject</button>
+          <button data-action="cancel" data-id="${item.id}" data-form="reject">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function closeAllForms(id) {
+  ["remap","retag","reject"].forEach(f => {
+    const el = document.getElementById(`form-${f}-${id}`);
+    if (el) el.classList.remove("open");
+  });
+}
+
+function wireCard(id) {
+  const card = document.getElementById(`card-${id}`);
+  if (!card) return;
+  card.addEventListener("click", async (ev) => {
+    const target = ev.target.closest("button");
+    if (!target) return;
+    const action = target.dataset.action;
+    if (!action) return;
+
+    if (action === "open-remap") {
+      closeAllForms(id);
+      document.getElementById(`form-remap-${id}`).classList.add("open");
+    } else if (action === "open-retag") {
+      closeAllForms(id);
+      document.getElementById(`form-retag-${id}`).classList.add("open");
+    } else if (action === "open-reject") {
+      closeAllForms(id);
+      document.getElementById(`form-reject-${id}`).classList.add("open");
+    } else if (action === "cancel") {
+      const form = target.dataset.form;
+      const el = document.getElementById(`form-${form}-${id}`);
+      if (el) el.classList.remove("open");
+    } else if (action === "submit-remap") {
+      await submitRemap(id, target);
+    } else if (action === "submit-retag") {
+      await submitRetag(id, target);
+    } else if (action === "submit-reject") {
+      await submitReject(id, target);
+    }
+  });
+}
+
+async function postJSON(url, body) {
+  const resp = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!resp.ok) {
+    let detail = `${resp.status}`;
+    try {
+      const j = await resp.json();
+      if (j.detail) detail = j.detail;
+    } catch {}
+    throw new Error(detail);
+  }
+  return resp.json();
+}
+
+async function submitRemap(id, btn) {
+  const topic = (document.getElementById(`remap-topic-${id}`).value || "").trim();
+  const note = (document.getElementById(`remap-note-${id}`).value || "").trim();
+  if (!topic) {
+    showToast("Pick a slug first", true);
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await postJSON(`/api/admin/ether-audits/${id}/remap`, { topic, note: note || null });
+    showToast(`Remapped to ${topic}`);
+    await refresh();
+  } catch (err) {
+    showToast(err.message || "remap failed", true);
+    btn.disabled = false;
+  }
+}
+
+async function submitRetag(id, btn) {
+  const lyrics = (document.getElementById(`retag-lyrics-${id}`).value || "").trim();
+  if (!lyrics) {
+    showToast("Paste lyrics first", true);
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Tagging…";
+  try {
+    const out = await postJSON(`/api/admin/ether-audits/${id}/retag`, { lyrics });
+    if (out.status === "retagged") {
+      showToast(`Retagged: ${out.topics.join(", ")}`);
+    } else {
+      showToast("Tagger audited again — left in queue", true);
+    }
+    await refresh();
+  } catch (err) {
+    showToast(err.message || "retag failed", true);
+    btn.disabled = false;
+    btn.textContent = "Re-run tagger";
+  }
+}
+
+async function submitReject(id, btn) {
+  const note = (document.getElementById(`reject-note-${id}`).value || "").trim();
+  btn.disabled = true;
+  try {
+    await postJSON(`/api/admin/ether-audits/${id}/reject`, { note: note || null });
+    showToast("Audit cleared");
+    await refresh();
+  } catch (err) {
+    showToast(err.message || "reject failed", true);
+    btn.disabled = false;
+  }
+}
+
+async function refresh() {
+  try {
+    const data = await fetchQueue();
+    renderQueue(data);
+  } catch (err) {
+    document.getElementById("queue-container").innerHTML =
+      `<div class="empty">Failed to load queue: ${escapeHtml(err.message || "unknown error")}</div>`;
+  }
+}
+
+// Bootstrap
+loadTaxonomySlugs();
+refresh();
+</script>
+
+</body>
+</html>
