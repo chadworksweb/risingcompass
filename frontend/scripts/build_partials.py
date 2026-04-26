@@ -40,10 +40,12 @@ INCLUDE_RE = re.compile(
 # /amendments/, /lyrical-charger/ for ~24h). The check below makes sure we
 # never ship an HTML file that uses one of these partials without the link.
 PARTIALS_REQUIRING_MAIN_CSS = {"header", "footer"}
+# Require the absolute /css/main.css form. Relative variants (`../css/main.css`
+# or `css/main.css`) work only when the URL sits at one specific path depth;
+# add a stray trailing slash anywhere upstream and they 404 silently. Tripped
+# us once on /songs/<slug>/ on 2026-04-26. Absolute path = depth-independent.
 MAIN_CSS_RE = re.compile(
-    # Match any link whose href ends with `css/main.css` (with optional ?cachebust).
-    # Handles `css/main.css`, `/css/main.css`, and `../css/main.css`.
-    r"""<link[^>]+href=["'][^"']*?css/main\.css(?:\?[^"']*)?["']""",
+    r"""<link[^>]+href=["']/css/main\.css(?:\?[^"']*)?["']""",
 )
 
 

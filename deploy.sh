@@ -31,6 +31,13 @@ if ! git -C "$REPO_ROOT" diff --quiet -- frontend/sitemap.xml; then
     git -C "$REPO_ROOT" push origin master
 fi
 
+echo "=== Pushing local commits to origin ==="
+# Without this, any commit you made locally right before running deploy.sh
+# is silently skipped — the server only sees what's already on origin.
+# Only the partials/sitemap auto-commits above push themselves; everything
+# else has to ride on this push.
+git -C "$REPO_ROOT" push origin master
+
 echo "=== Pulling latest code ==="
 ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git pull origin master'"
 
