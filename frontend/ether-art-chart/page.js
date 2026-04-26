@@ -85,6 +85,8 @@
         <div class="eac-text">
           <p class="eac-deadpan">${deadpan}</p>
           <div class="eac-meta">
+            <span class="eac-meta-title">${escapeHtml(item.title)}</span>
+            <span class="eac-meta-sep">·</span>
             <span class="eac-artist">${escapeHtml(item.artist)}</span>
             ${chargeText(item) ? `<span class="eac-meta-sep">·</span>${chargeText(item)}` : ''}
             ${auditNote}
@@ -157,7 +159,11 @@
         <span class="eac-pos">${item.position}</span>
         <div class="eac-text">
           <p class="eac-deadpan">${deadpan}</p>
-          <div class="eac-meta"><span class="eac-artist">${escapeHtml(item.artist)}</span></div>
+          <div class="eac-meta">
+            <span class="eac-meta-title">${escapeHtml(item.title)}</span>
+            <span class="eac-meta-sep">·</span>
+            <span class="eac-artist">${escapeHtml(item.artist)}</span>
+          </div>
           ${dominant}
         </div>
       </li>`;

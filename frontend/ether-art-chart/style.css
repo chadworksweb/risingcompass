@@ -201,6 +201,7 @@ a:hover { border-bottom-color: var(--eac-gold); }
   font-size: 0.95rem;
   color: var(--eac-ink-dim);
 }
+.eac-meta-title { color: var(--eac-ink); }
 .eac-artist { font-style: italic; }
 .eac-meta-sep {
   color: var(--eac-rule);

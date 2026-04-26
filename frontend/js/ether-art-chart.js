@@ -66,6 +66,8 @@ const EtherArtChart = (() => {
         <div class="ether-text">
           <div class="ether-deadpan">${deadpan}</div>
           <div class="ether-meta">
+            <span class="ether-meta-title">${escapeHtml(item.title)}</span>
+            <span class="ether-meta-sep">·</span>
             <span class="ether-meta-artist">${escapeHtml(item.artist)}</span>
             ${item.dominant_topic ? `<span class="ether-meta-sep">·</span>${topicChipHtml(item.dominant_topic)}` : ''}
           </div>
