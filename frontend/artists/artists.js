@@ -96,7 +96,7 @@
           for (const a of artists) {
             if (a.indexed && a.slug) {
               html += `<li class="result-item result-artist">
-                <a href="artist.html?slug=${encodeURIComponent(a.slug)}">
+                <a href="/artists/artist.html?slug=${encodeURIComponent(a.slug)}">
                   <span class="result-name">${escapeHtml(a.name)}</span>
                   <span class="result-meta">${a.calibrated_song_count} song${a.calibrated_song_count !== 1 ? 's' : ''} classified</span>
                 </a>
