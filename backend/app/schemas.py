@@ -38,6 +38,7 @@ class ReadingSongOut(BaseModel):
     charge_summary: Optional[str] = None
     chart_source: Optional[str] = None
     instrumental: bool = False
+    song_slug: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

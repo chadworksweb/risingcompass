@@ -71,9 +71,9 @@
         </li>`;
     }
 
-    const deadpan = songHref
-      ? `<a href="${songHref}">${escapeHtml(item.deadpan_line)}</a>`
-      : escapeHtml(item.deadpan_line);
+    const titleHtml = songHref
+      ? `<a href="${songHref}">${escapeHtml(item.title)}</a>`
+      : escapeHtml(item.title);
 
     const auditNote = (!item.topics || !item.topics.length)
       ? `<span class="eac-meta-sep">·</span><span class="eac-audit-note">no taxonomy match</span>`
@@ -83,9 +83,9 @@
       <li class="eac-row">
         <span class="eac-pos">${item.position}</span>
         <div class="eac-text">
-          <p class="eac-deadpan">${deadpan}</p>
+          <p class="eac-deadpan">${escapeHtml(item.deadpan_line)}</p>
           <div class="eac-meta">
-            <span class="eac-meta-title">${escapeHtml(item.title)}</span>
+            <span class="eac-meta-title">${titleHtml}</span>
             <span class="eac-meta-sep">·</span>
             <span class="eac-artist">${escapeHtml(item.artist)}</span>
             ${chargeText(item) ? `<span class="eac-meta-sep">·</span>${chargeText(item)}` : ''}
@@ -148,9 +148,9 @@
 
   function rollupRowHtml(item) {
     const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}/` : null;
-    const deadpan = songHref
-      ? `<a href="${songHref}">${escapeHtml(item.deadpan_line || item.title)}</a>`
-      : escapeHtml(item.deadpan_line || item.title);
+    const titleHtml = songHref
+      ? `<a href="${songHref}">${escapeHtml(item.title)}</a>`
+      : escapeHtml(item.title);
     const dominant = item.dominant_topic
       ? `<div class="eac-chips"><span class="eac-chip eac-chip--dominant">${escapeHtml(String(item.dominant_topic).replace(/-/g,' '))}</span></div>`
       : '';
@@ -158,9 +158,9 @@
       <li class="eac-row">
         <span class="eac-pos">${item.position}</span>
         <div class="eac-text">
-          <p class="eac-deadpan">${deadpan}</p>
+          <p class="eac-deadpan">${escapeHtml(item.deadpan_line || item.title)}</p>
           <div class="eac-meta">
-            <span class="eac-meta-title">${escapeHtml(item.title)}</span>
+            <span class="eac-meta-title">${titleHtml}</span>
             <span class="eac-meta-sep">·</span>
             <span class="eac-artist">${escapeHtml(item.artist)}</span>
           </div>

@@ -171,6 +171,8 @@ def get_year_songs(
     Historical years (<=2025): CompassSong table, ordered by chart_position.
     Live years (>=2026): ReadingSong table, deduplicated, ordered by days_on_chart.
     """
+    from app.services.artist_utils import generate_song_slug
+
     if year > LIVE_YEAR_CUTOFF:
         # Live year — deduplicate from ReadingSong
         all_songs = _aggregate_live_year(db, year)
@@ -190,6 +192,7 @@ def get_year_songs(
                     "instrumental": s.get("instrumental", False),
                     "position": s["position"],
                     "days_on_chart": s["days_on_chart"],
+                    "song_slug": generate_song_slug(s["title"], s["artist"]),
                 }
                 for s in page
             ],
@@ -223,6 +226,7 @@ def get_year_songs(
                     "position": s.chart_position,
                     "days_on_chart": 1,
                     "instrumental": s.instrumental or False,
+                    "song_slug": generate_song_slug(s.title, s.artist),
                 }
                 for s in songs
             ],

@@ -56,17 +56,17 @@ const EtherArtChart = (() => {
         </li>`;
     }
 
-    const deadpan = songHref
-      ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.deadpan_line)}</a>`
-      : escapeHtml(item.deadpan_line);
+    const titleHtml = songHref
+      ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
+      : escapeHtml(item.title);
 
     return `
       <li class="ether-row" style="${tickStyle}">
         <span class="ether-pos">${item.position}</span>
         <div class="ether-text">
-          <div class="ether-deadpan">${deadpan}</div>
+          <div class="ether-deadpan">${escapeHtml(item.deadpan_line)}</div>
           <div class="ether-meta">
-            <span class="ether-meta-title">${escapeHtml(item.title)}</span>
+            <span class="ether-meta-title">${titleHtml}</span>
             <span class="ether-meta-sep">·</span>
             <span class="ether-meta-artist">${escapeHtml(item.artist)}</span>
             ${item.dominant_topic ? `<span class="ether-meta-sep">·</span>${topicChipHtml(item.dominant_topic)}` : ''}

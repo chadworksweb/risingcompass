@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/compass", tags=["compass"])
 
 def _song_out(rs: ReadingSong) -> ReadingSongOut:
     """Build ReadingSongOut by joining ReadingSong with its linked CompassSong."""
+    from app.services.artist_utils import generate_song_slug
     cs = rs.compass_song
     return ReadingSongOut(
         id=rs.id,
@@ -29,6 +30,7 @@ def _song_out(rs: ReadingSong) -> ReadingSongOut:
         charge_summary=cs.charge_summary if cs else None,
         chart_source=rs.chart_source,
         instrumental=bool(cs.instrumental) if cs else False,
+        song_slug=generate_song_slug(rs.title, rs.artist),
     )
 
 

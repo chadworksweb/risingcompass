@@ -187,12 +187,16 @@ const App = (() => {
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
       const instrClass = song.instrumental ? ' instrumental' : '';
+      const songHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}/` : null;
+      const titleHtml = songHref
+        ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
+        : escapeHtml(song.title);
       html += `
         <li class="song-item${hasTooltip ? ' has-tooltip' : ''}${instrClass}">
           <span class="song-pos">${song.position}</span>
           <span class="song-dot ${song.instrumental ? '' : song.rubric_color}"></span>
           <div class="song-info">
-            <div class="song-title">${escapeHtml(song.title)}</div>
+            <div class="song-title">${titleHtml}</div>
             <div class="song-artist">${escapeHtml(song.artist)}</div>
           </div>
           <div class="song-actions">
@@ -2066,12 +2070,16 @@ const App = (() => {
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
       const instrClass = song.instrumental ? ' instrumental' : '';
+      const yearSongHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}/` : null;
+      const yearTitleHtml = yearSongHref
+        ? `<a href="${yearSongHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
+        : escapeHtml(song.title);
       html += `
         <li class="song-item${hasTooltip ? ' has-tooltip' : ''}${instrClass}">
           <span class="song-pos">${pos}</span>
           <span class="song-dot ${song.instrumental ? '' : song.rubric_color}"></span>
           <div class="song-info">
-            <div class="song-title">${escapeHtml(song.title)}</div>
+            <div class="song-title">${yearTitleHtml}</div>
             <div class="song-artist">${escapeHtml(song.artist)}${isLive && song.days_on_chart > 1 ? ` <span class="song-days">${song.days_on_chart}d</span>` : ''}</div>
           </div>
           <div class="song-actions">
