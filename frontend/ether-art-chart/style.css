@@ -452,25 +452,88 @@ a:hover { border-bottom-color: var(--eac-gold); }
 .eac-constellation-tooltip {
   position: absolute;
   z-index: 10;
-  background: rgba(14, 14, 24, 0.94);
+  background: rgba(14, 14, 24, 0.96);
   border: 1px solid var(--eac-rule);
-  padding: 0.45rem 0.75rem;
-  font-family: 'Cormorant SC', serif;
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--eac-ink);
+  padding: 0.55rem 0.8rem 0.6rem;
   border-radius: 3px;
   pointer-events: none;
-  white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-  /* Translate up-and-right of cursor; positioned via JS in CSS pixels. */
-  transform: translate(8px, -50%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  /* Offset up-and-right of cursor; positioned via JS in CSS pixels. */
+  transform: translate(10px, -50%);
+  max-width: 320px;
+  min-width: 180px;
+  color: var(--eac-ink);
+  font-family: 'Cardo', Georgia, serif;
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 .eac-constellation-tooltip[hidden] { display: none; }
-.eac-constellation-tooltip .ttp-name { color: var(--eac-ink-bright); }
-.eac-constellation-tooltip .ttp-stat { color: var(--eac-gold); margin-left: 0.5em; }
-.eac-constellation-tooltip .ttp-sep { color: var(--eac-ink-dim); margin: 0 0.25em; }
+
+.eac-constellation-tooltip .ttp-stat {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--eac-gold);
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--eac-rule);
+}
+.eac-constellation-tooltip .ttp-sep {
+  color: var(--eac-ink-dim);
+  margin: 0 0.4em;
+}
+
+.eac-constellation-tooltip .ttp-songs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.eac-constellation-tooltip .ttp-songs li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.5rem;
+  row-gap: 0.05rem;
+  align-items: baseline;
+  padding: 0.18rem 0;
+}
+.eac-constellation-tooltip .ttp-songs li + li {
+  border-top: 1px solid rgba(42, 39, 56, 0.6);
+  padding-top: 0.3rem;
+  margin-top: 0.05rem;
+}
+.eac-constellation-tooltip .ttp-pos {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--eac-ink-dim);
+  grid-row: span 2;
+  align-self: start;
+  padding-top: 0.05rem;
+  min-width: 1.2em;
+  text-align: right;
+}
+.eac-constellation-tooltip .ttp-deadpan {
+  color: var(--eac-ink-bright);
+  font-style: italic;
+  grid-column: 2;
+}
+.eac-constellation-tooltip .ttp-artist {
+  font-size: 0.76rem;
+  color: var(--eac-ink-dim);
+  grid-column: 2;
+}
+.eac-constellation-tooltip .ttp-more {
+  font-family: 'Cormorant SC', serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--eac-ink-dim);
+  margin-top: 0.4rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(42, 39, 56, 0.6);
+  text-align: right;
+}
 
 .eac-constellation-empty {
   position: absolute;

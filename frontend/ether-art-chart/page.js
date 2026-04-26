@@ -98,15 +98,46 @@
 
   function computeTodayDistribution(items) {
     const counts = {};
+    const songsByTopic = {};
     for (const item of items || []) {
       if (!item.topics || !item.topics.length) continue;
       for (const t of item.topics) {
         counts[t] = (counts[t] || 0) + 1;
+        if (!songsByTopic[t]) songsByTopic[t] = [];
+        songsByTopic[t].push({
+          deadpan: item.deadpan_line || item.title,
+          artist: item.artist,
+          song_slug: item.song_slug,
+          position: item.position,
+        });
       }
     }
+    // Sort songs within each topic by chart position (1 first).
+    for (const t of Object.keys(songsByTopic)) {
+      songsByTopic[t].sort((a, b) => (a.position || 999) - (b.position || 999));
+    }
     return Object.entries(counts)
-      .map(([topic, count]) => ({ topic, count }))
+      .map(([topic, count]) => ({ topic, count, songs: songsByTopic[topic] }))
       .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
+  }
+
+  function attachSongsToYearDistribution(distribution, top20) {
+    // The annual /year endpoint counts every song that carried a topic
+    // (potentially hundreds). The tooltip lists what we have on hand:
+    // any of the top-20-deadpan whose dominant_topic matches.
+    if (!distribution || !distribution.length) return distribution || [];
+    const byTopic = {};
+    for (const t of top20 || []) {
+      if (!t.dominant_topic) continue;
+      if (!byTopic[t.dominant_topic]) byTopic[t.dominant_topic] = [];
+      byTopic[t.dominant_topic].push({
+        deadpan: t.deadpan_line || t.title,
+        artist: t.artist,
+        song_slug: t.song_slug,
+        position: t.position,
+      });
+    }
+    return distribution.map((d) => ({ ...d, songs: byTopic[d.topic] || [] }));
   }
 
   async function renderToday() {
@@ -264,12 +295,25 @@
 
     function setTooltipForNode(node) {
       if (!tooltip) return;
-      const display = String(node.topic).replace(/-/g, ' ');
       const pct = (node.percent * 100).toFixed(1);
-      tooltip.innerHTML =
-        `<span class="ttp-name">${escapeHtml(display)}</span>`
-        + `<span class="ttp-stat">${node.count} song${node.count === 1 ? '' : 's'}`
-        + `<span class="ttp-sep">·</span>${pct}%</span>`;
+      const header =
+        `<div class="ttp-stat">${node.count} song${node.count === 1 ? '' : 's'}`
+        + `<span class="ttp-sep">·</span>${pct}%</div>`;
+
+      const songs = (node.songs || []).slice(0, 12);
+      let songList = '';
+      if (songs.length) {
+        const items = songs.map((s) => {
+          const pos = s.position ? `<span class="ttp-pos">${s.position}</span>` : '';
+          return `<li>${pos}<span class="ttp-deadpan">${escapeHtml(s.deadpan)}</span>`
+            + `<span class="ttp-artist">${escapeHtml(s.artist)}</span></li>`;
+        });
+        songList = `<ul class="ttp-songs">${items.join('')}</ul>`;
+        const more = (node.songs || []).length - songs.length;
+        if (more > 0) songList += `<div class="ttp-more">+${more} more</div>`;
+      }
+
+      tooltip.innerHTML = header + songList;
       tooltip.hidden = false;
     }
 
@@ -340,6 +384,7 @@
         topic: d.topic,
         count: d.count,
         percent: d.count / total,
+        songs: d.songs || [],
         targetR,
         x: CENTER.x + Math.cos(a0) * r0,
         y: CENTER.y + Math.sin(a0) * r0,
@@ -522,7 +567,10 @@
       }
 
       // Constellation.
-      buildConstellation(data.topic_distribution || [], 'constellation-annual');
+      buildConstellation(
+        attachSongsToYearDistribution(data.topic_distribution || [], data.top_20_deadpan || []),
+        'constellation-annual',
+      );
     } catch (err) {
       console.error(`Failed to load /year/${year}:`, err);
       meta.textContent = '';
