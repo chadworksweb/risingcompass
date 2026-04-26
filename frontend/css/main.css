@@ -208,6 +208,15 @@ body {
   padding: 0 var(--rc-card-padding);
 }
 
+/* Daily Songs and Weekly Albums each get their own full-width row.
+   Row 1 stays split (Compass | Aggregate Charge); rows 2 and 3 stack.
+   Ether Art Chart step 8 will reintroduce a row-2 split by adding the
+   ether card to the right of Daily Songs. */
+#reading-panel,
+#album-reading-panel {
+  grid-column: 1 / -1;
+}
+
 #compass-panel {
   display: flex;
   flex-direction: column;
