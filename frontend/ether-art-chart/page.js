@@ -115,17 +115,7 @@
         meta.textContent = d ? dateFmt.format(d) : '';
       }
 
-      const total = data.items.length;
-      const tagged = data.items.filter((i) => i.deadpan_line).length;
-      if (status) {
-        if (tagged < total) {
-          status.hidden = false;
-          status.textContent =
-            `${tagged} of ${total} tagged — the rest will fill in as new compass songs come through, or when the deferred backfill runs.`;
-        } else {
-          status.hidden = true;
-        }
-      }
+      if (status) status.hidden = true;
 
       list.innerHTML = data.items.map(rowHtml).join('');
     } catch (err) {

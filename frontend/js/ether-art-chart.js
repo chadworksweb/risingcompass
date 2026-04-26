@@ -88,13 +88,7 @@ const EtherArtChart = (() => {
       }
 
       const rows = data.items.map(rowHtml).join('');
-      const taggedCount = data.items.filter((i) => i.deadpan_line).length;
-      const total = data.items.length;
-      const untaggedNote = taggedCount < total
-        ? `<p class="ether-status">${taggedCount} of ${total} tagged · the rest will fill in as new songs come through, or the deferred backfill runs.</p>`
-        : '';
-
-      container.innerHTML = `${untaggedNote}<ol class="ether-list">${rows}</ol>`;
+      container.innerHTML = `<ol class="ether-list">${rows}</ol>`;
     } catch (err) {
       console.error('Failed to load ether art chart:', err);
       container.innerHTML = `
