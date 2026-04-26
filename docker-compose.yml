@@ -17,6 +17,7 @@ services:
       - RC_API_KEY=${RC_API_KEY:-change-me}
       - RC_SERVICE_KEY=${RC_SERVICE_KEY}
       - RC_BACKUP_KEY=${RC_BACKUP_KEY}
+      - RC_READING_CRON_KEY=${RC_READING_CRON_KEY}
       - ADMIN_LOGIN_URL_TOKEN=${ADMIN_LOGIN_URL_TOKEN}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/rising_compass.db}
       - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
