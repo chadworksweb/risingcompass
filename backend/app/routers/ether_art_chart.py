@@ -64,10 +64,19 @@ class EtherYearDeadpanItem(BaseModel):
     song_slug: str
 
 
+class TopicSong(BaseModel):
+    title: str
+    artist: str
+    deadpan_line: Optional[str]
+    song_slug: str
+    position: Optional[int] = None  # rank within this topic, 1-based
+
+
 class TopicDistributionItem(BaseModel):
     topic: str
     count: int
     percent: float
+    top_songs: list[TopicSong] = []
 
 
 class EtherYearOut(BaseModel):
@@ -238,11 +247,60 @@ def get_year(year: int, db: Session = Depends(get_db)):
     ).fetchall()
 
     total_count = sum(int(r.cnt) for r in dist_rows) or 1
+
+    # Top songs per topic — for tooltip use. Ranked by position-weighted
+    # song-days across the year, including songs that carry the topic
+    # non-dominantly. Capped at 8 per topic in Python.
+    TOP_SONGS_PER_TOPIC = 8
+    song_rows = db.execute(
+        text(
+            """
+            WITH song_year_appearances AS (
+              SELECT
+                rs.compass_song_id,
+                SUM(21 - rs.position) AS weight_sum
+              FROM reading_songs rs
+              JOIN daily_readings dr ON dr.id = rs.reading_id
+              WHERE strftime('%Y', dr.date) = :year
+                AND rs.position BETWEEN 1 AND 20
+                AND rs.compass_song_id IS NOT NULL
+              GROUP BY rs.compass_song_id
+            )
+            SELECT
+              je.value AS topic,
+              cs.title, cs.artist, cs.deadpan_line,
+              s.weight_sum
+            FROM song_year_appearances s
+            JOIN compass_songs cs ON cs.id = s.compass_song_id,
+                 json_each(cs.topics) je
+            WHERE cs.deadpan_line IS NOT NULL
+              AND cs.topics IS NOT NULL
+            ORDER BY je.value, s.weight_sum DESC
+            """
+        ),
+        {"year": year_str},
+    ).fetchall()
+
+    top_songs_by_topic: dict[str, list[TopicSong]] = {}
+    for sr in song_rows:
+        topic = str(sr.topic)
+        bucket = top_songs_by_topic.setdefault(topic, [])
+        if len(bucket) >= TOP_SONGS_PER_TOPIC:
+            continue
+        bucket.append(TopicSong(
+            title=sr.title,
+            artist=sr.artist,
+            deadpan_line=sr.deadpan_line,
+            song_slug=generate_song_slug(sr.title, sr.artist),
+            position=len(bucket) + 1,
+        ))
+
     distribution = [
         TopicDistributionItem(
             topic=str(r.topic),
             count=int(r.cnt),
             percent=round(int(r.cnt) / total_count, 4),
+            top_songs=top_songs_by_topic.get(str(r.topic), []),
         )
         for r in dist_rows
     ]

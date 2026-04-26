@@ -121,29 +121,26 @@
       .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
   }
 
-  function attachSongsToYearDistribution(distribution, top20) {
-    // The annual /year endpoint counts every song that carried a topic
-    // (potentially hundreds). The tooltip lists what we have on hand:
-    // any of the top-20-deadpan whose dominant_topic matches.
+  function adaptYearDistribution(distribution) {
+    // The /year endpoint now returns top_songs per topic — server picks
+    // the highest position-weighted carriers (dominant or not). Just
+    // reshape into the {deadpan, artist, song_slug, position} shape the
+    // tooltip renderer expects.
     if (!distribution || !distribution.length) return distribution || [];
-    const byTopic = {};
-    for (const t of top20 || []) {
-      if (!t.dominant_topic) continue;
-      if (!byTopic[t.dominant_topic]) byTopic[t.dominant_topic] = [];
-      byTopic[t.dominant_topic].push({
-        deadpan: t.deadpan_line || t.title,
-        artist: t.artist,
-        song_slug: t.song_slug,
-        position: t.position,
-      });
-    }
-    return distribution.map((d) => ({ ...d, songs: byTopic[d.topic] || [] }));
+    return distribution.map((d) => ({
+      ...d,
+      songs: (d.top_songs || []).map((s) => ({
+        deadpan: s.deadpan_line || s.title,
+        artist: s.artist,
+        song_slug: s.song_slug,
+        position: s.position,
+      })),
+    }));
   }
 
   async function renderToday() {
     const list = document.getElementById('today-list');
     const meta = document.getElementById('today-meta');
-    const status = document.getElementById('today-status');
     if (!list) return;
 
     try {
@@ -159,8 +156,6 @@
         meta.textContent = d ? dateFmt.format(d) : '';
       }
 
-      if (status) status.hidden = true;
-
       list.innerHTML = data.items.map(rowHtml).join('');
 
       // Today's constellation — derive distribution from the items
@@ -175,7 +170,6 @@
     } catch (err) {
       console.error('Failed to load /today:', err);
       list.innerHTML = `<li class="eac-loading">Could not load today&rsquo;s ether.</li>`;
-      if (status) status.hidden = true;
       buildConstellation([], 'constellation-today');
     }
   }
@@ -562,7 +556,7 @@
 
       // Constellation.
       buildConstellation(
-        attachSongsToYearDistribution(data.topic_distribution || [], data.top_20_deadpan || []),
+        adaptYearDistribution(data.topic_distribution || []),
         'constellation-annual',
       );
     } catch (err) {
