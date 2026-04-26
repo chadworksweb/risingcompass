@@ -433,6 +433,21 @@ a:hover { border-bottom-color: var(--eac-gold); }
   fill: transparent;
   cursor: pointer;
 }
+.eac-constellation .star-halo,
+.eac-constellation .star-core,
+.eac-constellation .star-label {
+  transition: opacity 0.18s ease;
+}
+.eac-constellation--has-hover .star-halo,
+.eac-constellation--has-hover .star-core,
+.eac-constellation--has-hover .star-label {
+  opacity: 0.35;
+}
+.eac-constellation--has-hover .star-halo.is-hot,
+.eac-constellation--has-hover .star-core.is-hot,
+.eac-constellation--has-hover .star-label.is-hot {
+  opacity: 1;
+}
 
 .eac-constellation-tooltip {
   position: absolute;

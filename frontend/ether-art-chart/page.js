@@ -241,9 +241,6 @@
   const SETTLE_KE    = 0.05;
   const SETTLE_TICKS = 60;
   const MAX_TICKS    = 600;
-  const MAGNET_K     = 0.30;  // per-tick pull each non-magnetic node feels
-  const HOVER_HALO   = 1.55;  // halo size multiplier on the hovered star
-  const HOVER_CORE   = 1.7;   // core size multiplier on the hovered star
 
   // Per-instance raf handles, keyed by id-prefix. Both today's and the
   // selected-year constellation can run simultaneously; their loops
@@ -272,16 +269,28 @@
     }
 
     function setHotNode(node) {
-      // Mark the hovered node as the magnet. The tick loop reads this
-      // and (a) pulls every other node toward it, (b) renders this one
-      // bigger. No CSS class flicker — pure physics.
-      starsG.__magneticNode = node;
-      if (typeof starsG.__resumeSim === 'function') starsG.__resumeSim();
+      if (!svg) return;
+      svg.classList.add('eac-constellation--has-hover');
+      const all = starsG.__nodes || [];
+      for (const m of all) {
+        if (!m.dom) continue;
+        const isHot = m === node;
+        m.dom.halo.classList.toggle('is-hot', isHot);
+        m.dom.core.classList.toggle('is-hot', isHot);
+        m.dom.label.classList.toggle('is-hot', isHot);
+      }
     }
 
     function clearHot() {
-      starsG.__magneticNode = null;
-      if (typeof starsG.__resumeSim === 'function') starsG.__resumeSim();
+      if (!svg) return;
+      svg.classList.remove('eac-constellation--has-hover');
+      const all = starsG.__nodes || [];
+      for (const m of all) {
+        if (!m.dom) continue;
+        m.dom.halo.classList.remove('is-hot');
+        m.dom.core.classList.remove('is-hot');
+        m.dom.label.classList.remove('is-hot');
+      }
     }
 
     function setTooltipForNode(node) {
@@ -470,21 +479,6 @@
         }
       }
 
-      // Magnetic pull — when a star is hovered, every other node feels
-      // a small constant tug toward it. Repulsion still keeps neighbors
-      // from collapsing, so the system finds a tighter equilibrium.
-      const magneticNode = starsG.__magneticNode;
-      if (magneticNode) {
-        for (const n of nodes) {
-          if (n === magneticNode) continue;
-          const dx = magneticNode.x - n.x;
-          const dy = magneticNode.y - n.y;
-          const r = Math.hypot(dx, dy) || 0.0001;
-          n.vx += (dx / r) * MAGNET_K;
-          n.vy += (dy / r) * MAGNET_K;
-        }
-      }
-
       // Integrate + damp.
       let ke = 0;
       for (const n of nodes) {
@@ -502,28 +496,18 @@
       }
 
       // Paint.
-      const hot = starsG.__magneticNode;
       for (const n of nodes) {
         const { halo, core, hit, label, labelSize } = n.dom;
-        const isHot = n === hot;
-        const haloR = isHot ? n.haloR * HOVER_HALO : n.haloR;
-        const coreR = isHot ? n.coreR * HOVER_CORE : n.coreR;
         halo.setAttribute('cx', n.x);
         halo.setAttribute('cy', n.y);
-        halo.setAttribute('r', haloR);
         core.setAttribute('cx', n.x);
         core.setAttribute('cy', n.y);
-        core.setAttribute('r', coreR);
         hit.setAttribute('cx', n.x);
         hit.setAttribute('cy', n.y);
         // Label sits below the star, with offset proportional to halo size.
         label.setAttribute('x', n.x);
-        label.setAttribute('y', n.y + haloR * 0.55 + labelSize + 2);
+        label.setAttribute('y', n.y + n.haloR * 0.55 + labelSize + 2);
       }
-
-      // While a magnet is engaged, never let the sim sleep — we need
-      // every tick to keep applying pull and to repaint hover scale.
-      if (starsG.__magneticNode) _settledTicks = 0;
 
       if (ke / nodes.length < SETTLE_KE) _settledTicks++; else _settledTicks = 0;
       if (_settledTicks >= SETTLE_TICKS || ticks >= MAX_TICKS) {
@@ -532,16 +516,6 @@
       }
       _constellationRafs[prefix] = requestAnimationFrame(tick);
     }
-
-    // Expose a resume hook so the hover handler can wake a settled sim
-    // when the user starts hovering.
-    starsG.__resumeSim = () => {
-      if (_constellationRafs[prefix]) return;
-      ticks = 0;
-      _settledTicks = 0;
-      _constellationRafs[prefix] = requestAnimationFrame(tick);
-    };
-
     _constellationRafs[prefix] = requestAnimationFrame(tick);
   }
 
