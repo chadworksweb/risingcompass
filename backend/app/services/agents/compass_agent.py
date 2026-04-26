@@ -40,10 +40,14 @@ def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "co
 
 def _store_calibration(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
-                          db: Session) -> int | None:
+                          db: Session, *, lyrics: str | None = None) -> int | None:
     """Store or update a calibration in the CompassSong table for future reuse.
 
     Returns the compass_songs.id for the stored/updated row, or None if skipped.
+
+    `lyrics` is required for the Ether Art Chart tagger hook on new rows; if
+    omitted the tagger is skipped and the three ether columns stay NULL
+    (caught by the deferred backfill pass).
     """
     # Skip storing if calibration failed (rubric_color is None)
     if result.get("rubric_color") is None:
@@ -127,6 +131,33 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             )
         except Exception:
             logger.exception("Daily corpus log failed for compass song %d", song.id)
+
+        # Ether Art Chart — name what the song IS. Forward-only on fresh rows;
+        # the deferred backfill script handles existing rows. Runs after
+        # record_and_reconcile so song.effects_prose is available to ground
+        # the tagger. Fails soft — on error, the three ether columns stay
+        # NULL and the row is picked up by the next backfill pass.
+        if lyrics and not getattr(song, "deadpan_line", None):
+            try:
+                from app.services.agents.ether_tagger import tag_song as _ether_tag
+                ether = _ether_tag(
+                    title=title,
+                    artist=artist,
+                    lyrics=lyrics,
+                    rubric_color=result.get("rubric_color"),
+                    charge_value=result.get("charge_value"),
+                    charge_summary=result.get("charge_summary"),
+                    effects_prose=getattr(song, "effects_prose", None),
+                )
+                if ether:
+                    song.deadpan_line = ether["deadpan_line"]
+                    song.topics = json.dumps(ether["topics"])
+                    song.topic_audit = (
+                        json.dumps(ether["topic_audit"]) if ether["topic_audit"] else None
+                    )
+                    db.flush()
+            except Exception:
+                logger.exception("Ether tagger hook failed for compass song %d", song.id)
 
         return song.id
 
@@ -221,7 +252,7 @@ def run_compass_agent(
         # Store for future reuse (skip for draft-only / case study mode)
         cs_id = None
         if not draft_only:
-            cs_id = _store_calibration(title, artist, position, chart_source, result, True, db)
+            cs_id = _store_calibration(title, artist, position, chart_source, result, True, db, lyrics=lyrics)
         logger.info("Calibrated and cached: %s by %s → %s", title, artist, result["rubric_color"])
 
         calibrated_songs.append({

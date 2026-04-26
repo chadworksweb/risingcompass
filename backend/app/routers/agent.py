@@ -484,6 +484,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     cs_id = _store_calibration(
         draft_song.title, draft_song.artist, draft_song.position,
         draft_song.chart_source or "spotify", result, True, db,
+        lyrics=data.lyrics,
     )
     draft_song.compass_song_id = cs_id
 
@@ -774,6 +775,7 @@ async def backfill_calibrate(
         _store_calibration(
             song.title, song.artist, song.chart_position or 0,
             song.chart_source or "billboard", result, True, db,
+            lyrics=lyrics,
         )
 
         calibrated_count += 1
