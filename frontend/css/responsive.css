@@ -14,6 +14,7 @@
   }
 
   #reading-panel,
+  #ether-placeholder,
   #album-reading-panel {
     grid-column: span 1 !important;
   }
