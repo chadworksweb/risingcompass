@@ -223,6 +223,91 @@
     }
   }
 
+  function wireConstellationHover(starsG, prefix) {
+    const svg = starsG.parentNode;
+    const wrap = svg && svg.parentNode;
+    const tooltip = document.getElementById(`${prefix}-tooltip`);
+
+    function nodeFromEvent(ev) {
+      const target = ev.target;
+      if (!target || !target.getAttribute) return null;
+      const idx = target.getAttribute('data-idx');
+      if (idx == null) return null;
+      const all = starsG.__nodes || [];
+      return all[+idx] || null;
+    }
+
+    function setHotNode(node) {
+      if (!svg) return;
+      svg.classList.add('eac-constellation--has-hover');
+      const all = starsG.__nodes || [];
+      for (const m of all) {
+        if (!m.dom) continue;
+        const isHot = m === node;
+        m.dom.halo.classList.toggle('is-hot', isHot);
+        m.dom.core.classList.toggle('is-hot', isHot);
+        m.dom.label.classList.toggle('is-hot', isHot);
+      }
+    }
+
+    function clearHot() {
+      if (!svg) return;
+      svg.classList.remove('eac-constellation--has-hover');
+      const all = starsG.__nodes || [];
+      for (const m of all) {
+        if (!m.dom) continue;
+        m.dom.halo.classList.remove('is-hot');
+        m.dom.core.classList.remove('is-hot');
+        m.dom.label.classList.remove('is-hot');
+      }
+    }
+
+    function setTooltipForNode(node) {
+      if (!tooltip) return;
+      const display = String(node.topic).replace(/-/g, ' ');
+      const pct = (node.percent * 100).toFixed(1);
+      tooltip.innerHTML =
+        `<span class="ttp-name">${escapeHtml(display)}</span>`
+        + `<span class="ttp-stat">${node.count} song${node.count === 1 ? '' : 's'}`
+        + `<span class="ttp-sep">·</span>${pct}%</span>`;
+      tooltip.hidden = false;
+    }
+
+    function positionTooltipAt(clientX, clientY) {
+      if (!tooltip || !wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      const x = Math.max(8, Math.min(rect.width - 8, clientX - rect.left));
+      const y = Math.max(8, Math.min(rect.height - 8, clientY - rect.top));
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = `${y}px`;
+    }
+
+    starsG.addEventListener('pointerover', (ev) => {
+      const node = nodeFromEvent(ev);
+      if (!node) return;
+      setHotNode(node);
+      setTooltipForNode(node);
+      positionTooltipAt(ev.clientX, ev.clientY);
+    });
+
+    starsG.addEventListener('pointermove', (ev) => {
+      if (tooltip && !tooltip.hidden) positionTooltipAt(ev.clientX, ev.clientY);
+      const node = nodeFromEvent(ev);
+      if (node) {
+        setHotNode(node);
+        setTooltipForNode(node);
+      }
+    });
+
+    if (wrap) {
+      wrap.addEventListener('pointerleave', () => {
+        clearHot();
+        if (tooltip) tooltip.hidden = true;
+      });
+    }
+  }
+
+
   function buildConstellation(distribution, prefix) {
     const starsG = document.getElementById(`${prefix}-stars`);
     const labelsG = document.getElementById(`${prefix}-labels`);
@@ -235,6 +320,7 @@
 
     if (!distribution || !distribution.length) {
       empty.hidden = false;
+      starsG.__nodes = [];
       return;
     }
     empty.hidden = true;
@@ -303,19 +389,13 @@
       n.dom = { halo, core, hit, label, labelSize };
     });
 
-    // Re-energize on hover (small impulse outward).
-    starsG.addEventListener('pointerover', (ev) => {
-      const idx = ev.target.getAttribute && ev.target.getAttribute('data-idx');
-      if (idx == null) return;
-      const n = nodes[+idx];
-      if (!n) return;
-      const dx = n.x - CENTER.x;
-      const dy = n.y - CENTER.y;
-      const len = Math.hypot(dx, dy) || 1;
-      n.vx += (dx / len) * 1.2 + (Math.random() - 0.5) * 1.2;
-      n.vy += (dy / len) * 1.2 + (Math.random() - 0.5) * 1.2;
-      _settledTicks = 0;
-    });
+    // Hover interaction. Stash the live nodes array on the group so the
+    // listeners (attached once) read whatever the latest rebuild wrote.
+    starsG.__nodes = nodes;
+    if (!starsG.__hoverWired) {
+      wireConstellationHover(starsG, prefix);
+      starsG.__hoverWired = true;
+    }
 
     // Sim loop.
     let ticks = 0;
