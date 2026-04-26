@@ -229,6 +229,36 @@ body {
   border-bottom-color: var(--rc-accent);
 }
 
+.ether-open-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  margin-top: auto;
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-text-bright);
+  background: transparent;
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius-sm);
+  text-decoration: none;
+  transition: background var(--rc-ease), color var(--rc-ease);
+}
+.ether-open-btn:hover {
+  background: var(--rc-accent-hover);
+  color: var(--rc-text-bright);
+}
+.ether-open-btn svg {
+  transition: transform var(--rc-ease);
+}
+.ether-open-btn:hover svg {
+  transform: translateX(2px);
+}
+
 .ether-status {
   font-size: 0.72rem;
   color: var(--rc-text-dim);
