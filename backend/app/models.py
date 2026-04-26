@@ -141,6 +141,9 @@ class LibrarySong(Base):
     track_number = Column(Integer, nullable=True)  # position within album
     source = Column(String(20), default="manual")  # manual / agent
     effects_prose = Column(Text)  # 3-paragraph per-song description
+    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
+    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
+    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
     created_at = Column(DateTime, default=datetime.utcnow)
 
     album = relationship("AlbumDeepDive", back_populates="library_songs")
@@ -957,3 +960,62 @@ class AdminLoginAttempt(Base):
     success = Column(Boolean, nullable=False, default=False)
     reason = Column(Text)
     attempted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class BackfillJob(Base):
+    """Backfill Console job — a batch of songs to push through the
+    standard calibrate-then-tag SOP. Created from the admin UI; runs in
+    a background asyncio task per job. Resumable across restarts via
+    the `status` + `paused_flag` columns.
+    """
+    __tablename__ = "backfill_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    label = Column(Text, nullable=False)
+    target_table = Column(String(20), nullable=False)  # 'compass' | 'library'
+    passes = Column(String(20), nullable=False)  # 'calibrate' | 'tag' | 'both'
+    status = Column(String(20), nullable=False, default="queued")
+    paused_flag = Column(Integer, nullable=False, default=0)
+    total_rows = Column(Integer, nullable=False, default=0)
+    completed_rows = Column(Integer, nullable=False, default=0)
+    failed_rows = Column(Integer, nullable=False, default=0)
+    created_by = Column(Integer)  # admin_users.id
+    note = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+
+
+class BackfillJobRow(Base):
+    """One song in a BackfillJob's input list. State machine driven."""
+    __tablename__ = "backfill_job_rows"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(Integer, nullable=False)
+    position = Column(Integer, nullable=False)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    # Compass-target metadata (NULL when target is library)
+    year = Column(Integer)
+    chart_position = Column(Integer)
+    # Library-target metadata (NULL when target is compass)
+    album_id = Column(Integer)
+    track_number = Column(Integer)
+    # Lyrics: paste-only in v1; Musixmatch fetch lands here too
+    lyrics = Column(Text)
+    lyrics_source = Column(String(20))  # 'paste' | 'musixmatch'
+    # Per-row state machine: queued | needs_lyrics | calibrating
+    #                       | tagging | done | failed | skipped
+    status = Column(String(20), nullable=False, default="queued")
+    error = Column(Text)
+    # Result hand-off — which song row was created/updated
+    result_song_source = Column(String(20))  # 'compass' | 'library'
+    result_song_id = Column(Integer)
+    # Cached calibrator + tagger output for quick UI display
+    rubric_color = Column(Text)
+    charge_value = Column(Integer)
+    deadpan_line = Column(Text)
+    topics = Column(Text)
+    topic_audit = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
