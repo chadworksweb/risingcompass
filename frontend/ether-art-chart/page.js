@@ -174,11 +174,11 @@
   // Build pack §8 — vanilla JS, no library. Tuning constants are
   // starting points; expect to hand-tune as real data arrives.
 
-  const VIEW_W = 600;
-  const VIEW_H = 480;
+  const VIEW_W = 960;
+  const VIEW_H = 440;
   const CENTER = { x: VIEW_W / 2, y: VIEW_H / 2 };
   const MAX_R = Math.min(VIEW_W, VIEW_H) * 0.42;
-  const MIN_R = 18;
+  const MIN_R = 22;
 
   const ATTRACTION_K = 0.04;
   const REPULSION_K  = 600;

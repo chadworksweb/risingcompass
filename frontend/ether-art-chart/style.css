@@ -324,6 +324,13 @@ a:hover { border-bottom-color: var(--eac-gold); }
   font-style: italic;
 }
 
+/* Topic Field claims its own full-width row at the top of the rollup
+   section. Constellation reads as the centerpiece; ranked + top-20 sit
+   below in a 2-col grid. */
+.eac-topic-field {
+  margin-bottom: 3rem;
+}
+
 .eac-rollup-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -439,6 +446,10 @@ a:hover { border-bottom-color: var(--eac-gold); }
   font-style: italic;
   font-size: 0.96rem;
 }
+/* Override .eac-constellation-empty's display:flex so the [hidden] attribute
+   actually hides it. Without this the empty-state text overlays the
+   live constellation whenever the data is present. */
+.eac-constellation-empty[hidden] { display: none; }
 
 @media (max-width: 820px) {
   .eac-rollup-grid {
