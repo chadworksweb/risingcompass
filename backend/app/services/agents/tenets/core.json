@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "ratified_at": "2026-04-21",
+  "ratified_at": "2026-04-26",
   "tiers": [
     {
       "slug": "violet",
@@ -164,6 +164,14 @@
       "ratified_at": "2026-04-22",
       "status": "ratified",
       "text": "Vocabulary is not substance. Naming the sacred — god, spirit, universe, soul, divine — does not activate Ascended tenets. The song must deliver what those tenets require (subject beyond self, universal address, surrender, collective perspective). Test: mentally swap the spiritual noun (god → universe → self). If the activation would change, the activation is vocabulary-driven and should be zero. A song that says 'god' but is structurally a 1:1 transaction does not earn Ascended on vocabulary alone. A song that never names the divine but genuinely delivers collective witness earns it fully. Activation is about what the lyrics do, not what they invoke."
+    },
+    {
+      "id": "R4",
+      "title": "Heartbreak distortion vs. predatory control.",
+      "version": "1.0",
+      "ratified_at": "2026-04-26",
+      "status": "ratified",
+      "text": "Heartbreak distortion vs. predatory control. When a song contains both possessive/controlling language AND clear lyrical evidence of grief, loss, or being left, classify the possessive language as distorted heartbreak (Degraded), not predatory intent (Corrupted). Two cases: (a) Clinging-after-loss — the target has already left or is leaving and the surveillance/possession language is the symptom of being unable to release them. Lands in Degraded, severity from high (~-25) to mid (~-50) depending on intensity. (b) Active control over someone present — the narrator threatens, monitors, or asserts ownership over someone still in their orbit, or someone they are trying to keep down. Lands in Corrupted. The test is power: a narrator clinging to an absence has none — they are mourning out loud. A narrator wielding ownership over someone in their orbit has it and is using it. Pathological inability to let go of someone who left is not contempt; it is distorted attachment. Canonical example: \"Every Breath You Take\" (The Police, 1983). The same song contains \"Since you've gone, I've been lost without a trace / I keep crying baby, baby, please\" alongside \"I'll be watching you / you belong to me.\" She has gone. The narrator is grieving, not threatening. → Degraded."
     }
   ]
 }
