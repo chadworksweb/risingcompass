@@ -448,14 +448,20 @@ a:hover { border-bottom-color: var(--eac-gold); }
 .eac-constellation-tooltip {
   position: absolute;
   z-index: 10;
-  background: rgba(14, 14, 24, 0.96);
-  border: 1px solid var(--eac-rule);
+  /* Lifted off the panel: slightly warmer charcoal + faint gold-tinted
+     border + layered drop shadow so the card visibly hovers over the
+     constellation instead of sinking into the same near-black. */
+  background: rgba(28, 24, 36, 0.97);
+  border: 1px solid rgba(201, 169, 96, 0.22);
   padding: 0.55rem 0.8rem 0.6rem;
-  border-radius: 3px;
+  border-radius: 4px;
   pointer-events: none;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
-  /* Offset up-and-right of cursor; positioned via JS in CSS pixels. */
-  transform: translate(10px, -50%);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.7),
+    0 4px 10px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(201, 169, 96, 0.05);
+  /* Offset further from the cursor so the card breathes. */
+  transform: translate(22px, -50%);
   max-width: 320px;
   min-width: 180px;
   color: var(--eac-ink);
