@@ -433,21 +433,17 @@ a:hover { border-bottom-color: var(--eac-gold); }
   fill: transparent;
   cursor: pointer;
 }
+/* Hover: just scale the star under the cursor with a soft ease.
+   transform-box:fill-box anchors the scale to the circle's own center
+   (otherwise it'd scale toward the SVG origin). */
 .eac-constellation .star-halo,
-.eac-constellation .star-core,
-.eac-constellation .star-label {
-  transition: opacity 0.18s ease;
+.eac-constellation .star-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.22s cubic-bezier(0.33, 1, 0.68, 1);
 }
-.eac-constellation--has-hover .star-halo,
-.eac-constellation--has-hover .star-core,
-.eac-constellation--has-hover .star-label {
-  opacity: 0.35;
-}
-.eac-constellation--has-hover .star-halo.is-hot,
-.eac-constellation--has-hover .star-core.is-hot,
-.eac-constellation--has-hover .star-label.is-hot {
-  opacity: 1;
-}
+.eac-constellation .star-halo.is-hot { transform: scale(1.45); }
+.eac-constellation .star-core.is-hot { transform: scale(1.6); }
 
 .eac-constellation-tooltip {
   position: absolute;

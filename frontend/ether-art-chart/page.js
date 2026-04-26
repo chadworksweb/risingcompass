@@ -269,27 +269,21 @@
     }
 
     function setHotNode(node) {
-      if (!svg) return;
-      svg.classList.add('eac-constellation--has-hover');
       const all = starsG.__nodes || [];
       for (const m of all) {
         if (!m.dom) continue;
         const isHot = m === node;
         m.dom.halo.classList.toggle('is-hot', isHot);
         m.dom.core.classList.toggle('is-hot', isHot);
-        m.dom.label.classList.toggle('is-hot', isHot);
       }
     }
 
     function clearHot() {
-      if (!svg) return;
-      svg.classList.remove('eac-constellation--has-hover');
       const all = starsG.__nodes || [];
       for (const m of all) {
         if (!m.dom) continue;
         m.dom.halo.classList.remove('is-hot');
         m.dom.core.classList.remove('is-hot');
-        m.dom.label.classList.remove('is-hot');
       }
     }
 
