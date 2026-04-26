@@ -34,6 +34,18 @@ INCLUDE_RE = re.compile(
     re.DOTALL,
 )
 
+# Partials that depend on global stylesheet rules in /css/main.css. Pages
+# that use any of these MUST load main.css or the partial renders unstyled.
+# Caught us once already (commit a2a318b on 2026-04-25 broke /tenets/,
+# /amendments/, /lyrical-charger/ for ~24h). The check below makes sure we
+# never ship an HTML file that uses one of these partials without the link.
+PARTIALS_REQUIRING_MAIN_CSS = {"header", "footer"}
+MAIN_CSS_RE = re.compile(
+    # Match any link whose href ends with `css/main.css` (with optional ?cachebust).
+    # Handles `css/main.css`, `/css/main.css`, and `../css/main.css`.
+    r"""<link[^>]+href=["'][^"']*?css/main\.css(?:\?[^"']*)?["']""",
+)
+
 
 def load_partial(name: str) -> str:
     path = PARTIALS_DIR / f"{name}.html"
@@ -51,6 +63,23 @@ def render(content: str) -> str:
     return INCLUDE_RE.sub(repl, content)
 
 
+def find_main_css_violations(path: Path, content: str) -> str | None:
+    """Pages that include shared header/footer partials must also load
+    /css/main.css (the stylesheet is where .rc-header / .site-footer / etc.
+    live). Returns a one-line violation string, or None if the file is fine."""
+    used = set()
+    for m in INCLUDE_RE.finditer(content):
+        name = m.group(2)
+        if name in PARTIALS_REQUIRING_MAIN_CSS:
+            used.add(name)
+    if not used:
+        return None
+    if MAIN_CSS_RE.search(content):
+        return None
+    parts = ", ".join(sorted(used))
+    return f"{path.relative_to(ROOT)}: uses shared partial(s) [{parts}] but does not load /css/main.css"
+
+
 def iter_html_files() -> list[Path]:
     out: list[Path] = []
     for path in ROOT.rglob("*.html"):
@@ -62,12 +91,17 @@ def iter_html_files() -> list[Path]:
 
 
 def build_once(check: bool = False) -> int:
-    """Process all HTML files. Returns 0 on success, 1 if --check found drift."""
+    """Process all HTML files. Returns 0 on success, 1 if --check found drift
+    or a main.css gate violation."""
     drift = 0
     written = 0
+    violations: list[str] = []
     for path in iter_html_files():
         original = path.read_text(encoding="utf-8")
         rendered = render(original)
+        v = find_main_css_violations(path, rendered)
+        if v:
+            violations.append(v)
         if rendered == original:
             continue
         if check:
@@ -77,15 +111,21 @@ def build_once(check: bool = False) -> int:
             path.write_text(rendered, encoding="utf-8")
             written += 1
             print(f"updated: {path.relative_to(ROOT)}")
+    for v in violations:
+        print(f"VIOLATION: {v}", file=sys.stderr)
     if check:
         if drift:
             print(f"{drift} file(s) need rebuild — run scripts/build_partials.py", file=sys.stderr)
-            return 1
-        return 0
+        if violations:
+            print(f"{len(violations)} file(s) use shared partials without loading /css/main.css", file=sys.stderr)
+        return 1 if (drift or violations) else 0
     if written == 0:
         print("partials: up to date")
     else:
         print(f"partials: {written} file(s) updated")
+    if violations:
+        print(f"{len(violations)} file(s) use shared partials without loading /css/main.css", file=sys.stderr)
+        return 1
     return 0
 
 
