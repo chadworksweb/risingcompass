@@ -1,0 +1,345 @@
+/* ============================================================
+   Methodology page — supplements main.css
+   Existing classes used: .methodology-content, .method-block,
+   .method-block-ruled, .method-block-label, .charge-legend,
+   .charge-legend-seg, .tier-popup, .rubric-q, .key-points
+   ============================================================ */
+
+.m-main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  color: var(--rc-text);
+}
+
+/* ─── Hero / Preamble ─────────────────────────────────────── */
+
+.m-hero {
+  padding: 1.5rem 0 2.5rem;
+  border-bottom: 1px solid var(--rc-border);
+  margin-bottom: 2rem;
+}
+
+.m-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+  margin: 0 0 0.75rem;
+}
+
+.m-title {
+  font-size: clamp(1.6rem, 4.2vw, 2.4rem);
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  margin: 0 0 0.6rem;
+  letter-spacing: -0.005em;
+}
+
+.m-kicker {
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+  margin: 0 0 1.5rem;
+  font-style: italic;
+}
+
+.m-preamble p {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--rc-text);
+  margin: 0 0 0.9rem;
+}
+
+.m-preamble em {
+  color: var(--rc-text-bright);
+  font-style: italic;
+}
+
+/* Jump nav */
+.m-jump {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin: 1.75rem 0 1.5rem;
+}
+
+.m-jump-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  text-decoration: none;
+  color: var(--rc-text);
+  transition: border-color var(--rc-ease), background var(--rc-ease);
+}
+
+.m-jump-link:hover {
+  border-color: var(--rc-accent);
+  background: var(--rc-bg-card-hover, var(--rc-bg-card));
+}
+
+.m-jump-num {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--rc-accent);
+  min-width: 1ch;
+}
+
+.m-jump-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--rc-text-bright);
+}
+
+/* Living-instrument callout */
+.m-living-callout {
+  margin: 1.75rem 0 0;
+  padding: 1.1rem 1.2rem;
+  border-left: 3px solid var(--rc-accent);
+  background: var(--rc-bg-card);
+  border-radius: 0 var(--rc-radius-md) var(--rc-radius-md) 0;
+}
+
+.m-living-callout p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--rc-text);
+}
+
+.m-living-callout strong {
+  color: var(--rc-text-bright);
+}
+
+/* Origin card */
+.m-origin {
+  margin: 1.5rem 0 0;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  background: var(--rc-bg-card);
+}
+
+.m-origin-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+  margin: 0 0 0.6rem;
+}
+
+.m-origin p {
+  font-size: 0.88rem;
+  line-height: 1.65;
+  margin: 0 0 0.7rem;
+  color: var(--rc-text);
+}
+
+.m-origin p:last-child {
+  margin-bottom: 0;
+}
+
+.m-origin a {
+  color: var(--rc-accent);
+}
+
+/* ─── Numbered Section Frame ──────────────────────────────── */
+
+.m-section {
+  padding: 2.5rem 0 1rem;
+  border-top: 1px solid var(--rc-border);
+  scroll-margin-top: 1rem;
+}
+
+.m-section:first-of-type {
+  border-top: none;
+  padding-top: 1rem;
+}
+
+.m-section-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 0 1.75rem;
+}
+
+.m-section-num {
+  flex: 0 0 auto;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: var(--rc-accent);
+  color: #0a0a14;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.m-section-eyebrow {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+  margin: 0 0 0.2rem;
+}
+
+.m-section-title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+
+.m-section-body {
+  /* methodology-content base styles come from main.css */
+}
+
+/* ─── Inline CTAs inside section bodies ───────────────────── */
+
+.m-cta-row {
+  margin-top: 1rem;
+}
+
+.m-cta {
+  display: inline-block;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius-md);
+  color: var(--rc-accent);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: background var(--rc-ease), color var(--rc-ease);
+}
+
+.m-cta:hover {
+  background: var(--rc-accent);
+  color: #0a0a14;
+}
+
+/* ─── key-points list (already used elsewhere; safe defaults) */
+
+.methodology-content .key-points {
+  margin: 0.5rem 0 0.8rem;
+  padding-left: 1.1rem;
+}
+
+.methodology-content .key-points li {
+  margin-bottom: 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--rc-text);
+}
+
+.methodology-content .key-points strong {
+  color: var(--rc-text-bright);
+}
+
+/* ─── Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .m-main {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .m-section-header {
+    gap: 0.75rem;
+  }
+
+  .m-section-num {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.92rem;
+  }
+
+  .m-section-title {
+    font-size: 1.25rem;
+  }
+}
+
+/* ─── Homepage methodology teaser card ────────────────────── */
+
+.methodology-teaser {
+  padding: 0.5rem 0 0.25rem;
+}
+
+.methodology-teaser-lede {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--rc-text);
+  margin: 0 0 1rem;
+}
+
+.methodology-teaser-lede strong {
+  color: var(--rc-text-bright);
+}
+
+.methodology-teaser-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.methodology-teaser-cell {
+  padding: 0.7rem 0.85rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+}
+
+.methodology-teaser-cell-num {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--rc-accent);
+  margin: 0 0 0.2rem;
+}
+
+.methodology-teaser-cell-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--rc-text-bright);
+  margin: 0 0 0.3rem;
+}
+
+.methodology-teaser-cell-desc {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--rc-text-dim);
+  margin: 0;
+}
+
+.methodology-teaser-cta {
+  display: inline-block;
+  padding: 0.7rem 1.2rem;
+  background: var(--rc-accent);
+  color: #0a0a14;
+  text-decoration: none;
+  border-radius: var(--rc-radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: filter var(--rc-ease);
+}
+
+.methodology-teaser-cta:hover {
+  filter: brightness(1.1);
+}

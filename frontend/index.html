@@ -63,6 +63,7 @@
   <link rel="stylesheet" href="/css/compass.css">
   <link rel="stylesheet" href="/css/responsive.css">
   <link rel="stylesheet" href="/calibration-log/calibration-log.css">
+  <link rel="stylesheet" href="/methodology/methodology.css">
 </head>
 <body>
   <a href="#compass-panel" class="skip-nav">Skip to main content</a>
@@ -187,165 +188,42 @@
       </div>
     </div>
 
-    <!-- Methodology Section -->
+    <!-- Methodology Section (teaser — full page at /methodology/) -->
     <div class="section-content" id="section-methodology">
-      <div class="card methodology-content" id="methodology-panel">
+      <div class="card methodology-teaser" id="methodology-panel">
+        <p class="methodology-teaser-lede">
+          The Rising Compass is a <strong>living instrument</strong>, not a verdict. It reads what the songs dominating popular culture are saying, against a published rubric anyone can read or amend. Mistakes are part of the mechanism. Where we agree becomes ratified. Where we don't becomes discourse.
+        </p>
 
-        <!-- ═══ INTRO ═══ -->
-        <div class="method-block">
-          <h2 class="method-block-first">What is The Rising Compass?</h2>
-          <p>The Rising Compass is a diagnostic tool for popular music. It reads the lyrics of the songs dominating popular culture — the ones heard most, shared most, and internalized most — and measures what those lyrics actually say.</p>
-          <p>The compass is a mirror, not an attack. It doesn't judge — it reflects. It shows us what our music is doing to the listener, clearly and without agenda. A mirror doesn't have an opinion about what it shows you. You can look at it or look away.</p>
-        </div>
-
-        <!-- ═══ THE FIVE TIERS ═══ -->
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">The Calibration System</div>
-          <h2>The Five Tiers</h2>
-          <p>Every song is calibrated into one of five tiers. The tiers form a perspective spectrum — from collective consciousness at the top to ego black-hole at the bottom.</p>
-
-          <div class="charge-legend">
-            <div class="charge-legend-bar">
-              <button class="charge-legend-seg" data-tier="ascended" style="background:var(--rc-violet)">Ascended</button>
-              <button class="charge-legend-seg" data-tier="elevated" style="background:var(--rc-blue)">Elevated</button>
-              <button class="charge-legend-seg" data-tier="decent" style="background:var(--rc-green)">Decent</button>
-              <button class="charge-legend-seg" data-tier="degraded" style="background:var(--rc-orange)">Degraded</button>
-              <button class="charge-legend-seg" data-tier="corrupted" style="background:var(--rc-red)">Corrupted</button>
-            </div>
+        <div class="methodology-teaser-grid">
+          <div class="methodology-teaser-cell">
+            <p class="methodology-teaser-cell-num">01</p>
+            <p class="methodology-teaser-cell-label">The Instrument</p>
+            <p class="methodology-teaser-cell-desc">Five tiers, charge value, sequential reading, contamination.</p>
           </div>
-          <div class="tier-popup" id="tier-popup">
-            <div class="tier-popup-inner">
-              <button class="tier-popup-close" aria-label="Close">&times;</button>
-              <div class="tier-popup-dot-wrap"><span class="tier-popup-dot" id="tier-popup-dot"></span></div>
-              <h4 id="tier-popup-title"></h4>
-              <p id="tier-popup-desc"></p>
-            </div>
+          <div class="methodology-teaser-cell">
+            <p class="methodology-teaser-cell-num">02</p>
+            <p class="methodology-teaser-cell-label">The Gears</p>
+            <p class="methodology-teaser-cell-desc">The agent and the tenets. Neither alone is enough.</p>
           </div>
-
-          <p>Each tier is defined by 11–13 specific tenets — 58 total across the five tiers, symmetric from top to bottom. A song's tier is determined by which tenets its lyrics satisfy, not by topic, genre, or how it sounds.</p>
-
-          <h3>Charge Value</h3>
-          <p>Within each tier, songs receive a <strong>charge value</strong> from +100 to &minus;100. This captures where a song sits within its tier and relative to the whole spectrum. Ascended songs carry high positive charges. Corrupted songs carry deep negative charges. Decent sits near zero — the baseline.</p>
-        </div>
-
-        <!-- ═══ HOW IT WORKS ═══ -->
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Mechanics</div>
-          <h2>How the Compass Works</h2>
-          <p>Each day, the top 20 songs from the Spotify Top 50 USA chart are calibrated. The compass reading is a <strong>weighted average</strong> — songs ranked higher on the chart carry more weight because they reach more people. Position #1 has 20x the weight of position #20.</p>
-          <p>The result is a single compass degree that reflects the aggregate direction of what popular music is saying today. The further from center (90&deg;), the stronger the signal — above 90&deg; trends negative, below 90&deg; trends positive.</p>
-
-          <h3>Start at Zero</h3>
-          <p>Every song starts at Decent — charge zero. This is not a judgment. It's the starting position. From zero, the calibrator must build a case using <strong>specific lyrical evidence</strong> to move the needle in either direction. If no clear case can be built, the song stays Decent. The burden of proof increases with distance from zero.</p>
-
-          <h3>Topics Don't Determine Tiers</h3>
-          <p>The compass calibrates <strong>messaging</strong> — what the lyrics say and do on the page. Not topics. The same topic can land at any tier depending on what the lyrics contain. Love, struggle, partying, faith, heartbreak — all neutral. What the song does with the topic is everything.</p>
-        </div>
-
-        <!-- ═══ CONTAMINATION ═══ -->
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Special Conditions</div>
-          <h2>Contamination</h2>
-          <p>Contamination applies only to the top 3 tiers — Ascended, Elevated, and Decent. It flags songs that carry content undercutting their substance: substance promotion, casual objectification, ego payloads hidden inside otherwise genuine processing.</p>
-          <p>A substance <em>reference</em> is not contamination. Substance <em>promotion</em> is. The distinction matters — acknowledging something exists vs. celebrating or normalizing it.</p>
-          <p>Contamination is more dangerous than pure degradation because the listener absorbs the payload without conscious detection. The song sounds fine. The lyrics deliver something else underneath.</p>
-        </div>
-
-        <!-- ═══ DATA SOURCE ═══ -->
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Data</div>
-          <h2>Data Sources</h2>
-          <p><strong>Historical archive:</strong> 700+ songs from the Billboard Year-End Hot 100 top 10, spanning 1960 to present. Originally published on <a href="https://chadrising.com" target="_blank" style="color:var(--rc-accent);">chadrising.com</a>, now being recalibrated through the current 58-tenet rubric.</p>
-          <p><strong>Daily readings:</strong> Top 20 from the Spotify Top 50 USA chart, calibrated each day at 3am ET and published after human review.</p>
-          <p><strong>Calibration engine:</strong> Claude Opus — Anthropic's most capable model — calibrates each song using the full rubric. Every calibration is reviewed and can be corrected. Calibrated songs become reference points for future calibrations.</p>
-        </div>
-
-        <!-- ═══ RUBRIC DEEP DIVE ═══ -->
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">The Rubric</div>
-          <h2>How Songs Are Read</h2>
-          <p>The calibrator reads lyrics sequentially — line by line, accumulating meaning the way a human reads a poem. Each line reshapes what came before it. The same words mean different things depending on what preceded them. After reading the full song, the dominant arc is identified. That is what gets calibrated.</p>
-          <p>The calibrator evaluates what the <strong>words say</strong>, not how the song sounds. Production, melody, and vocal tone are irrelevant. A melancholic track with degraded lyrics is degraded. A catchy track with thoughtful lyrics isn't automatically shallow. Strip the instrumentation and read what's on the page.</p>
-          <p>Songs are calibrated individually, never by artist. The same artist can have an Ascended song and a Corrupted song. Each work stands alone.</p>
-
-          <h3>Why "Decent" and Not "Good"</h3>
-          <p>The middle tier is called <strong>Decent</strong> — not "balanced," not "good," not "healthy." Deliberately. A song that's just entertainment, just filling time, just pleasant background noise — that's fine. It's decent. But the compass exists to show that music <em>can</em> do more. Decent isn't the goal. It's the floor for not doing harm.</p>
-        </div>
-
-        <!-- ═══ TRANSPARENCY ═══ -->
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Honesty as Strategy</div>
-          <h2>Transparency</h2>
-          <p>The compass is only useful if you can see its work. Every calibration, every change, every disagreement is visible — not hidden in a database nobody can audit. Below is how the compass holds itself accountable.</p>
-
-          <h3>Three Independent Measurements Per Song</h3>
-          <p>A single AI reading is never the final word. Each song sits at the intersection of three independent signals that together form the full picture:</p>
-          <ul class="key-points">
-            <li><strong>Agent consensus</strong> — every submission of a song re-runs the agent. Each run is logged with its own tier, charge, and summary. The canonical classification drifts toward the confidence-weighted mean as runs accumulate. The more readings a song receives, the tighter the confidence interval on its true charge.</li>
-            <li><strong>Audience Vibe</strong> — a separate democratic needle anyone can push once per year. The crowd gets to place the song where <em>they</em> think it belongs, independent of the agent's diagnosis.</li>
-            <li><strong>The gap between them</strong> — when the compass and the crowd diverge, that divergence is the signal. Either the rubric has a blind spot the public is exposing, or the crowd is drifting and the compass is holding the line. Both outcomes are valuable data.</li>
-          </ul>
-
-          <h3>Every Run Is Public</h3>
-          <p>Every song page shows the full <strong>Calibration History</strong>: each individual agent run with its own charge, tier, summary, and confidence. If one reading says &minus;38 and another says &minus;30, both are visible side by side — not averaged into a single number that hides the disagreement. We're honest that Claude doesn't produce identical readings every time, and we turn that variance into the mechanism: statistical convergence across runs builds confidence.</p>
-
-          <h3>"Did We Get It Wrong?" — The Feedback Layer</h3>
-          <p>Every song page has a link to file a report if you disagree with a calibration. Two kinds of reports:</p>
-          <ul class="key-points">
-            <li><strong>Misread</strong> — the compass read the lyrics wrong, missed context, or applied a tenet incorrectly.</li>
-            <li><strong>Satirical</strong> — the song depicts behavior to expose it rather than endorse it. The compass reads literally on first pass (words are words), and satire requires human verification. When a satire flag is verified, an admin can invoke a recalibration under a parallel satire tenet set.</li>
-          </ul>
-          <p>Reports trigger manual review. Nothing auto-reclassifies. The reasoning for every accepted flag is public.</p>
-
-          <h3>The Public Calibration Log</h3>
-          <p>When a calibration changes, the reasoning is shown permanently on the song's page:</p>
-          <ul class="key-points">
-            <li><strong>Recalibrations</strong> — when a song's classification is changed (via accepted satire flag, public-interest review, or consensus drift across runs), the before/after charge and an admin-written public summary are logged on the song page. The compass changes its mind in public — including what the public was doing when it changed.</li>
-            <li><strong>Resets</strong> — when an entry is returned to an uncalibrated state (duplicates, corrections, incomplete lyrics), the reason is recorded publicly. The row persists so every downstream reference still resolves.</li>
-            <li><strong>Runs</strong> — every agent run ever fired on a song, chronologically, with its full summary.</li>
-          </ul>
-          <p>The compass is the constitution of lyrical classification. Every constitution that survives has an amendment process. Ours is public, documented, and accountable by design.</p>
-        </div>
-
-        <!-- ═══ FAQ ═══ -->
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Common Questions</div>
-          <h2>Topics vs. Messaging</h2>
-          <p>The most common source of confusion. People assume certain topics are inherently good or bad. They're not. Here's how the same topic lands at different tiers:</p>
-
-          <div class="rubric-faq">
-            <div class="rubric-q">
-              <h4>"It's a love song — isn't that automatically good?"</h4>
-              <p>Love is a topic. It can carry any frequency. A love song about growing together and becoming better people is <strong>Elevated</strong>. A love song about "I love you, you love me, we're happy" is <strong>Decent</strong> — pleasant, not harmful, but just treading water. A love song about getting drunk together is <strong>Degraded</strong>. A love song about possession, objectification, or reducing a person to a body is <strong>Corrupted</strong>. Same topic. Four different tiers.</p>
-            </div>
-
-            <div class="rubric-q">
-              <h4>"What about breakup songs?"</h4>
-              <p>A breakup song that processes grief honestly — sits in the pain, learns something, moves through it with dignity — is <strong>Elevated</strong>. A breakup song that agitates contempt, revenge fantasies, or wallows in self-pity is <strong>Degraded</strong> or <strong>Corrupted</strong>. Processing vs. agitating. That's the whole distinction.</p>
-            </div>
-
-            <div class="rubric-q">
-              <h4>"Party songs are just fun — why are they rated low?"</h4>
-              <p>They're not — automatically. A party song that's pure fun with no harmful payload is <strong>Decent</strong>. But most chart party songs carry substance celebration, objectification, or ego worship as the actual content. The "party" is the cover. The payload is what we measure.</p>
-            </div>
-
-            <div class="rubric-q">
-              <h4>"Isn't it normal for songs to be about relationships?"</h4>
-              <p>Normal, yes. Automatically elevated, no. The cultural assumption that pairing off, dating, and romantic attraction are inherently positive is part of what the compass examines. A relationship song that demonstrates growth, mutual elevation, or genuine vulnerability earns its way up. One that just describes being in love — surface-level coupling as content — is Decent at best. The bar isn't "is this about love?" The bar is "what does this love <em>do</em>?"</p>
-            </div>
-
-            <div class="rubric-q">
-              <h4>"A sad song about real pain — how is that not automatically good?"</h4>
-              <p>Struggle and pain are topics, not virtues. A song about struggle that processes it with dignity and helps the listener grow is <strong>Elevated</strong>. A song that glamorizes suffering, wallows without direction, or uses pain as ego currency is <strong>Degraded</strong>. Naming real pain isn't enough. What the song does with that pain is what matters.</p>
-            </div>
-
-            <div class="rubric-q">
-              <h4>"Music is artistic expression. You can't judge art!"</h4>
-              <p>It is art. Nobody said it wasn't. But art isn't automatically good for you. Fast food is real food. It's engineered, it's everywhere, and people love it. It's also destructive, and it still wrecks your body whether you enjoy eating it or not. Some music works the same way. Real creative work that still carries a destructive message. The compass doesn't measure whether something is art. It measures what the lyrics actually say.</p>
-            </div>
+          <div class="methodology-teaser-cell">
+            <p class="methodology-teaser-cell-num">03</p>
+            <p class="methodology-teaser-cell-label">The Forces</p>
+            <p class="methodology-teaser-cell-desc">Misread reports, amendments, calibration log, audience vibe.</p>
+          </div>
+          <div class="methodology-teaser-cell">
+            <p class="methodology-teaser-cell-num">04</p>
+            <p class="methodology-teaser-cell-label">The Data</p>
+            <p class="methodology-teaser-cell-desc">Today's reading, per-song stats, artist trajectories, the archive.</p>
+          </div>
+          <div class="methodology-teaser-cell">
+            <p class="methodology-teaser-cell-num">05</p>
+            <p class="methodology-teaser-cell-label">The New Label</p>
+            <p class="methodology-teaser-cell-desc">Replacing "explicit" with a live, color-coded charge reading.</p>
           </div>
         </div>
 
+        <a href="/methodology/" class="methodology-teaser-cta">Read the full methodology &rarr;</a>
       </div>
     </div>
 
@@ -367,7 +245,7 @@
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
-  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
 </footer>
 <!-- /INCLUDE:footer -->
 
