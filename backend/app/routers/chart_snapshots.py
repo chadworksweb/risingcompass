@@ -1,18 +1,25 @@
 """Per-chart daily snapshot endpoints — public read + admin/cron refresh.
 
-The canonical daily reading still flows through compass.py + agent.py. This
-router is the lighter "show today's chart top 20 as a panel" mechanism for
-secondary charts (Spotify Viral 50 today; Apple Music / Billboard / etc.
-later). Charge values come from compass_songs via case-insensitive lookup.
+The canonical daily reading flows through compass.py + agent.py and gets
+its own DailyReading record + approval flow. This router is the lighter
+"show today's chart top 20 as a panel" mechanism for secondary charts
+(Spotify Viral 50 today; Apple Music / Billboard / etc. later). Charge
+values come from compass_songs via case-insensitive lookup.
 
 Adding a new chart = register one entry in CHART_REGISTRY plus a fetcher
 in services/agents/chart_source.py. No schema change.
 
-The refresh endpoint also queues a Backfill Console job for any chart
-entries not yet in compass_songs. The job sits in needs_lyrics state
-until an admin pastes lyrics through the existing Backfill UI — same
-paste-only flow the daily reading uses. The engine then calibrates and
-the panel auto-picks up the new colors.
+Calibration uses the SAME SOP as the daily reading: refresh fires
+run_compass_agent which creates an AgentDraft (draft_type=<chart_slug>),
+auto-fills cache hits from compass_songs, and emails the admin with a
+list of songs awaiting lyrics. Admin pastes lyrics via the existing
+supply-lyrics endpoint; each paste calibrates and writes to
+compass_songs, and the panel auto-picks up the new colors.
+
+Chart drafts don't get published as DailyReadings — approve_draft
+branches on draft_type and skips the DailyReading creation for charts
+(the compass_songs writes during supply-lyrics already do the user-
+visible work).
 """
 
 import asyncio
@@ -27,9 +34,10 @@ from sqlalchemy.orm import Session
 
 from app.auth import verify_reading_cron_key
 from app.database import SessionLocal, get_db
-from app.models import BackfillJob, BackfillJobRow, ChartSnapshot, CompassSong
+from app.models import AgentDraft, ChartSnapshot, CompassSong
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import fetch_top_songs, fetch_viral_songs
+from app.services.agents.compass_agent import run_compass_agent
 from app.services.artist_utils import generate_song_slug
 
 logger = logging.getLogger(__name__)
@@ -47,6 +55,18 @@ CHART_REGISTRY: dict[str, dict] = {
         "fetcher": fetch_top_songs,
     },
 }
+
+
+def is_chart_draft_type(draft_type: str | None) -> bool:
+    """True if this AgentDraft.draft_type names a registered chart slug.
+
+    Used by approve_draft / cleanup logic in agent.py to branch — chart
+    drafts don't publish a DailyReading, they only carry the lyrics-paste
+    workflow that populates compass_songs.
+    """
+    if not draft_type:
+        return False
+    return any(entry["slug"] == draft_type for entry in CHART_REGISTRY.values())
 
 
 class ChartSnapshotOut(BaseModel):
@@ -147,89 +167,81 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
 admin_router = APIRouter(prefix="/api/admin/agent/cron", tags=["chart-snapshots-admin"])
 
 
-def _enqueue_backfill_for_uncalibrated(
-    db: Session, chart_slug: str, snapshot_date: date, songs: list[dict]
-) -> int | None:
-    """If any snapshot songs aren't in compass_songs, spawn a Backfill job
-    for them. Returns the new job_id, or None when nothing to backfill."""
-    uncalibrated = [
-        s for s in songs
-        if not _lookup_compass_song(db, s["title"], s["artist"])
-    ]
-    if not uncalibrated:
-        return None
-
-    job = BackfillJob(
-        label=f"{chart_slug}-uncal-{snapshot_date.isoformat()}",
-        target_table="compass",
-        passes="both",
-        status="queued",
-        paused_flag=0,
-        total_rows=len(uncalibrated),
-        completed_rows=0,
-        failed_rows=0,
-        note=f"Auto-created by refresh-chart-snapshot/{chart_slug} on {snapshot_date.isoformat()}",
-    )
-    db.add(job)
-    db.flush()
-    for idx, s in enumerate(uncalibrated, start=1):
-        # Rows start in needs_lyrics — admin pastes lyrics through the
-        # Backfill Console UI, then the engine calibrates.
-        db.add(BackfillJobRow(
-            job_id=job.id,
-            position=idx,
-            title=s["title"],
-            artist=s["artist"],
-            status="needs_lyrics",
-        ))
-    db.commit()
-    db.refresh(job)
-    logger.info(
-        "Auto-queued backfill job %s for %s (%d uncalibrated songs)",
-        job.id, chart_slug, len(uncalibrated),
-    )
-    return job.id
-
-
 @admin_router.post(
     "/refresh-chart-snapshot/{key}",
     dependencies=[Depends(verify_reading_cron_key)],
 )
 async def refresh_snapshot(key: str):
-    """Fetch the chart, overwrite today's snapshot, and queue a backfill
-    job for any songs not yet in compass_songs. X-Reading-Cron-Key authed.
+    """Fetch the chart, write today's snapshot, and run the compass agent.
 
-    The backfill job sits in needs_lyrics state — admin pastes lyrics
-    through the Backfill Console UI, then the engine calibrates and the
-    panel auto-picks up the new colors.
+    Mirrors the daily reading SOP — run_compass_agent calibrates whatever
+    is already in compass_songs (cache hits) and creates an AgentDraft
+    for the rest, sending an email with the list of songs awaiting lyrics.
+    Admin pastes lyrics through the existing /drafts/{ref}/songs/{id}/lyrics
+    endpoint; each paste calibrates and writes to compass_songs.
+
+    Pinning: if a draft already exists for today + this chart, we skip the
+    Spotify fetch and reuse the pinned song list. Same intent as the
+    daily reading's chart pinning — the draft is the source of truth for
+    "what songs are in today's reading," even if the chart has shifted
+    since the cron first ran.
 
     Async so the blocking Playwright fetcher can run via run_in_executor.
-    No dep-injected DB session because the fetch takes 15-30s and the
-    embedded replica's Hrana stream times out by the time we'd write —
-    fresh SessionLocal opened after the fetch, same pattern as
-    artists_admin's long-running transactions.
+    No dep-injected DB session: the fetch takes 15-30s and the embedded
+    replica's Hrana stream times out by the time we'd write — fresh
+    SessionLocal opened after the fetch, same pattern as artists_admin's
+    long-running transactions.
     """
     entry = CHART_REGISTRY.get(key)
     if not entry:
         raise HTTPException(status_code=404, detail="Unknown chart key")
 
+    chart_slug = entry["slug"]
+    today = date.today()
+
+    # Pin: skip the fetch entirely if a draft already exists for today.
+    db: Session = SessionLocal()
+    try:
+        existing_draft = (
+            db.query(AgentDraft)
+            .filter(AgentDraft.date == today, AgentDraft.draft_type == chart_slug)
+            .order_by(AgentDraft.id.asc())
+            .first()
+        )
+        if existing_draft and existing_draft.songs:
+            logger.info(
+                "Chart pinned: reusing draft %s with %d songs (skipping fetch)",
+                existing_draft.label, len(existing_draft.songs),
+            )
+            return {
+                "chart_source": chart_slug,
+                "date": today.isoformat(),
+                "draft_id": existing_draft.id,
+                "draft_label": existing_draft.label,
+                "note": "draft already exists; chart pinned",
+            }
+    finally:
+        db.close()
+
+    # First call of the day — fetch fresh.
     fetcher: Callable[..., list[dict]] = entry["fetcher"]
     songs = await asyncio.get_event_loop().run_in_executor(None, lambda: fetcher(count=20))
     if not songs:
         raise HTTPException(status_code=502, detail=f"Failed to fetch {entry['label']}")
 
-    today = date.today()
-    db: Session = SessionLocal()
+    db = SessionLocal()
     try:
-        written = _replace_snapshot(db, entry["slug"], today, songs)
-        logger.info("Wrote %d %s rows for %s", written, entry["slug"], today)
-        job_id = _enqueue_backfill_for_uncalibrated(db, entry["slug"], today, songs)
+        _replace_snapshot(db, chart_slug, today, songs)
+        # run_compass_agent: cache-hits auto-calibrate, the rest are left for
+        # admin to supply lyrics via the existing /drafts/{ref}/songs/{id}/lyrics
+        # endpoint. Email is sent automatically.
+        draft = run_compass_agent(songs, db, reading_date=today, draft_type=chart_slug)
     finally:
         db.close()
 
     return {
-        "chart_source": entry["slug"],
+        "chart_source": chart_slug,
         "date": today.isoformat(),
-        "rows": written,
-        "backfill_job_id": job_id,
+        "draft_id": draft.id,
+        "draft_label": draft.label,
     }

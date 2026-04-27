@@ -54,14 +54,19 @@ def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:
     return draft
 
 
-def _cleanup_day_drafts(reading_date, db: Session) -> int:
-    """Delete all drafts and their songs for a given date.
+def _cleanup_day_drafts(reading_date, draft_type, db: Session) -> int:
+    """Delete drafts of a given (date, draft_type) and their songs.
 
-    Called after a draft is approved and its data has been written to
-    daily_readings + reading_songs + compass_songs. Drafts are transient
-    and should not persist after their data is in use.
+    Filtered by draft_type so approving the daily reading doesn't nuke a
+    same-day chart-snapshot draft (Viral 50, etc.) that's still being
+    worked on.
     """
-    drafts = db.query(AgentDraft).filter(AgentDraft.date == reading_date).all()
+    drafts = (
+        db.query(AgentDraft)
+        .filter(AgentDraft.date == reading_date)
+        .filter(AgentDraft.draft_type == draft_type)
+        .all()
+    )
     count = 0
     for draft in drafts:
         db.query(AgentDraftSong).filter(AgentDraftSong.draft_id == draft.id).delete()
@@ -69,7 +74,7 @@ def _cleanup_day_drafts(reading_date, db: Session) -> int:
         count += 1
     if count:
         db.commit()
-        logger.info("Cleaned up %d draft(s) for %s", count, reading_date)
+        logger.info("Cleaned up %d %s draft(s) for %s", count, draft_type, reading_date)
     return count
 
 
@@ -316,7 +321,16 @@ def publish_draft_via_form(draft_ref: str, token: str = Query(...), db: Session 
 
 @router.post("/drafts/{draft_ref}/approve", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
 def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
-    """Approve a draft and publish it as a DailyReading."""
+    """Approve a draft.
+
+    Daily/manual drafts publish a DailyReading + ReadingSongs.
+    Chart-snapshot drafts (Viral 50, etc.) only mark the draft approved —
+    their user-visible payload (chart_snapshots row positions and
+    compass_songs entries) is already written by the cron + supply-lyrics
+    flow. The draft is just the email-and-lyrics-paste vehicle.
+    """
+    from app.routers.chart_snapshots import is_chart_draft_type
+
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft cannot be approved in its current state")
@@ -330,37 +344,39 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
             detail=f"Cannot approve: {len(missing)} song(s) still need lyrics: {', '.join(missing)}",
         )
 
-    # Check for existing reading on this date
-    existing = db.query(DailyReading).filter(DailyReading.date == draft.date).first()
-    if existing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"A reading already exists for {draft.date}",
-        )
+    is_chart = is_chart_draft_type(draft.draft_type)
 
-    # Create DailyReading from draft
-    label = f"reading_{draft.date.isoformat()}"
-    reading = DailyReading(
-        date=draft.date,
-        label=label,
-        compass_degree=draft.compass_degree,
-        charge_level=draft.charge_level,
-        contamination_count=draft.contamination_count,
-        editorial_summary=draft.editorial_summary,
-    )
-    db.add(reading)
-    db.flush()
+    if not is_chart:
+        # Daily-reading publish path
+        existing = db.query(DailyReading).filter(DailyReading.date == draft.date).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A reading already exists for {draft.date}",
+            )
 
-    for song in draft.songs:
-        rs = ReadingSong(
-            reading_id=reading.id,
-            compass_song_id=song.compass_song_id,
-            title=song.title,
-            artist=song.artist,
-            position=song.position,
-            chart_source=song.chart_source,
+        label = f"reading_{draft.date.isoformat()}"
+        reading = DailyReading(
+            date=draft.date,
+            label=label,
+            compass_degree=draft.compass_degree,
+            charge_level=draft.charge_level,
+            contamination_count=draft.contamination_count,
+            editorial_summary=draft.editorial_summary,
         )
-        db.add(rs)
+        db.add(reading)
+        db.flush()
+
+        for song in draft.songs:
+            rs = ReadingSong(
+                reading_id=reading.id,
+                compass_song_id=song.compass_song_id,
+                title=song.title,
+                artist=song.artist,
+                position=song.position,
+                chart_source=song.chart_source,
+            )
+            db.add(rs)
 
     draft.status = "approved"
     db.commit()
@@ -369,8 +385,9 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     # Snapshot response before cleanup deletes the draft
     response = DraftOut.model_validate(draft)
 
-    # Cleanup: delete all drafts for this date and their songs
-    _cleanup_day_drafts(draft.date, db)
+    # Cleanup: only nuke drafts of the SAME type so a daily approval
+    # doesn't kill a same-day Viral 50 draft and vice versa.
+    _cleanup_day_drafts(draft.date, draft.draft_type, db)
 
     return response
 
