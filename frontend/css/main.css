@@ -209,8 +209,10 @@ body {
 }
 
 /* Row 2 splits: Daily Top 20 Songs (left, 42%) | Ether Art Chart (right, 1fr).
-   Row 3 (albums) spans full width. */
-#album-reading-panel {
+   Row 3 (albums) spans full width.
+   Row 4 (Spotify Viral 50 USA) spans full width. */
+#album-reading-panel,
+#viral-reading-panel {
   grid-column: 1 / -1;
 }
 
@@ -629,6 +631,7 @@ body {
 .song-dot.green { background: var(--rc-green); }
 .song-dot.orange { background: var(--rc-orange); }
 .song-dot.red { background: var(--rc-red); box-shadow: var(--rc-glow-sm) var(--rc-red); }
+.song-dot.uncalibrated { background: var(--rc-text-dim); opacity: 0.5; box-shadow: none; }
 
 /* Instrumentals — greyed out, no compass contribution */
 .song-item.instrumental { opacity: 0.4; }

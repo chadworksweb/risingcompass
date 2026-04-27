@@ -56,5 +56,6 @@ const API = (() => {
     getEtherToday: () => get('/api/ether-art-chart/today'),
     getEtherYears: () => get('/api/ether-art-chart/years'),
     getEtherYear: (year) => get(`/api/ether-art-chart/year/${year}`),
+    getChartSnapshot: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/current`),
   };
 })();
