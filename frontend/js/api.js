@@ -7,7 +7,7 @@ const API = (() => {
     : 'https://api.risingcompass.net';
 
   const API_KEY = isLocal
-    ? ''
+    ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
     : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
 
   // Turso cold connections + occasional 502/504 from nginx during container
