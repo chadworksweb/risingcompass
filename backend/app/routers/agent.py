@@ -20,7 +20,7 @@ from app.schemas import (
     SupplyLyricsIn,
     PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
 )
-from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key
+from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
 from app.config import settings
 from app.routers.admin import verify_admin_key
 from app.services.agents.compass_agent import run_compass_agent, _store_calibration
@@ -450,7 +450,7 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
     return draft
 
 
-@router.post("/drafts/{draft_ref}/songs/{song_id}/lyrics", response_model=DraftOut, dependencies=[Depends(verify_admin_key)])
+@router.post("/drafts/{draft_ref}/songs/{song_id}/lyrics", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
 async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
     """Supply lyrics for an uncalibrated song in a draft, triggering calibration.
 

@@ -183,3 +183,33 @@ def verify_reading_cron_key(x_reading_cron_key: Optional[str] = Header(default=N
         raise HTTPException(status_code=403, detail="Missing reading cron key")
     if not hmac.compare_digest(x_reading_cron_key, expected):
         raise HTTPException(status_code=403, detail="Invalid reading cron key")
+
+
+def verify_admin_or_lyrics_key(
+    request: Request,
+    rc_admin_session: Optional[str] = Cookie(default=None),
+    x_lyrics_supply_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Dual auth for the supply-lyrics endpoint: browser session cookie OR
+    RC_LYRICS_SUPPLY_KEY header. Browser admins keep the same flow; terminal
+    scripts can curl with just the header. Header takes precedence when both
+    are present so a stale cookie doesn't shadow an explicit service call."""
+    if x_lyrics_supply_key is not None:
+        expected = settings.rc_lyrics_supply_key
+        if not expected:
+            raise HTTPException(status_code=503, detail="Lyrics supply key not configured")
+        if not hmac.compare_digest(x_lyrics_supply_key, expected):
+            raise HTTPException(status_code=403, detail="Invalid lyrics supply key")
+        return None
+    if not rc_admin_session:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = admin_auth_svc.lookup_session(db, rc_admin_session)
+    if not result:
+        raise HTTPException(status_code=401, detail="Session invalid or expired")
+    sess, user = result
+    admin_auth_svc.touch_session(db, sess)
+    request.state.admin_user_id = user.id
+    request.state.admin_username = user.username
+    request.state.admin_role = user.role
+    return user
