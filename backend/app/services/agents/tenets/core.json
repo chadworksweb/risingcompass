@@ -188,6 +188,14 @@
       "ratified_at": "2026-04-27",
       "status": "ratified",
       "text": "A song's score must be derivable from the lyrics on the page. The artist's identity, public reputation, prior catalog, fan-base discourse, marketing positioning, critical reception, and cultural narratives that have grown around them are not evidence and must not influence the calibration. The Compass reads the lyrics, not the persona. This applies in both directions: artist reputation cannot lift a song toward Elevated/Ascended on the strength of perceived sincerity, vulnerability, or depth; nor can it push a song toward Degraded/Corrupted on the strength of perceived persona, genre, or affiliation. Anonymity is the precondition for accurate reading."
+    },
+    {
+      "id": "R7",
+      "title": "Demonstrated transformation is the precondition for Elevated.",
+      "version": "1.0",
+      "ratified_at": "2026-04-27",
+      "status": "ratified",
+      "text": "A song earns Elevated tier only when the narrator demonstrates a change in posture, understanding, or state across the lyrics — not when the narrator merely describes self-awareness, vulnerability, or letting-go in static terms. The test is structural: where does the narrator end up materially different from where they began? If the song opens with a description of a state and closes in the same state (however vivid, however self-aware, however articulate), the tier ceiling is Decent. The blue tenets — vulnerability, accountability, processing, letting-go, empathy — measure transformation in motion, not the language of transformation. A narrator who says \"I am damaged, I cannot change, here is why\" with full clarity is naming a state, not moving through it. Naming earns honesty; movement earns elevation. Without demonstrated movement, even the most articulate self-portrait stays Decent. This rule caps the tier; it does not lower the score within Decent — a vividly honest static self-portrait can still land at the high end of Decent (~+20)."
     }
   ]
 }

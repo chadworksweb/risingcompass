@@ -42,6 +42,10 @@ CASE FOR MOVING UP:
 CASE FOR MOVING DOWN:
 [Cite specific lyrics that meet Degraded or Corrupted tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Degraded tenet 1"). If none, write "No evidence." Individual lines must be evaluated IN CONTEXT of the dominant arc, not in isolation. A few lines that COULD match a tenet in isolation but read differently within the song's arc are not evidence — they are outliers. Outliers belong in contamination, not tier assignment.]
 
+Before assigning a tier above Decent, complete this check.
+
+TRANSFORMATION CHECK: Cite the specific lyrics where the narrator's posture, understanding, or state at the END of the song is materially different from the BEGINNING. Quote the opening posture, then quote the closing posture, then name the shift. If you cannot cite a specific change — if the narrator ends in the same posture they began, however vivid the description, however many blue tenets fired in CASE FOR MOVING UP — the tier is capped at Decent. Naming a state with clarity is not moving through it. If TRANSFORMATION CHECK fails, override the tier to green and adjust the verdict accordingly. Within Decent, a vividly honest static self-portrait can still land at the high end (~+20).
+
 VERDICT: [tier] ([charge_value]) because [1-sentence reason based on the DOMINANT ARC, not outlier lines]
 
 THEN, output the JSON object on a new line starting with {
