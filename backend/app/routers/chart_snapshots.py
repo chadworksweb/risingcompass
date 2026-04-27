@@ -7,8 +7,14 @@ later). Charge values come from compass_songs via case-insensitive lookup.
 
 Adding a new chart = register one entry in CHART_REGISTRY plus a fetcher
 in services/agents/chart_source.py. No schema change.
+
+The refresh endpoint also auto-fills compass_songs for any chart entries
+that aren't there yet — it spawns a Backfill Console job
+(target=compass, passes=both) so every chart self-calibrates over time
+without manual intervention.
 """
 
+import asyncio
 import logging
 from datetime import date
 from typing import Callable
@@ -20,10 +26,11 @@ from sqlalchemy.orm import Session
 
 from app.auth import verify_reading_cron_key
 from app.database import get_db
-from app.models import ChartSnapshot, CompassSong
+from app.models import BackfillJob, BackfillJobRow, ChartSnapshot, CompassSong
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import fetch_top_songs, fetch_viral_songs
 from app.services.artist_utils import generate_song_slug
+from app.services.backfill import orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -140,22 +147,84 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
 admin_router = APIRouter(prefix="/api/admin/agent/cron", tags=["chart-snapshots-admin"])
 
 
+def _enqueue_backfill_for_uncalibrated(
+    db: Session, chart_slug: str, snapshot_date: date, songs: list[dict]
+) -> int | None:
+    """If any snapshot songs aren't in compass_songs, spawn a Backfill job
+    for them. Returns the new job_id, or None when nothing to backfill."""
+    uncalibrated = [
+        s for s in songs
+        if not _lookup_compass_song(db, s["title"], s["artist"])
+    ]
+    if not uncalibrated:
+        return None
+
+    job = BackfillJob(
+        label=f"{chart_slug}-uncal-{snapshot_date.isoformat()}",
+        target_table="compass",
+        passes="both",
+        status="queued",
+        paused_flag=0,
+        total_rows=len(uncalibrated),
+        completed_rows=0,
+        failed_rows=0,
+        note=f"Auto-created by refresh-chart-snapshot/{chart_slug} on {snapshot_date.isoformat()}",
+    )
+    db.add(job)
+    db.flush()
+    for idx, s in enumerate(uncalibrated, start=1):
+        # status="needs_lyrics" so the orchestrator will fetch via Musixmatch
+        db.add(BackfillJobRow(
+            job_id=job.id,
+            position=idx,
+            title=s["title"],
+            artist=s["artist"],
+            status="needs_lyrics",
+        ))
+    db.commit()
+    db.refresh(job)
+    logger.info(
+        "Auto-queued backfill job %s for %s (%d uncalibrated songs)",
+        job.id, chart_slug, len(uncalibrated),
+    )
+    return job.id
+
+
 @admin_router.post(
     "/refresh-chart-snapshot/{key}",
     dependencies=[Depends(verify_reading_cron_key)],
 )
-def refresh_snapshot(key: str, db: Session = Depends(get_db)):
-    """Fetch the chart and overwrite today's snapshot. X-Reading-Cron-Key authed."""
+async def refresh_snapshot(key: str, db: Session = Depends(get_db)):
+    """Fetch the chart, overwrite today's snapshot, and auto-spawn a backfill
+    job for any songs not yet in compass_songs. X-Reading-Cron-Key authed.
+
+    Async because the orchestrator's start_job uses asyncio.create_task to
+    spawn the worker on the running event loop. The blocking Playwright
+    fetcher runs in a thread executor.
+    """
     entry = CHART_REGISTRY.get(key)
     if not entry:
         raise HTTPException(status_code=404, detail="Unknown chart key")
 
     fetcher: Callable[..., list[dict]] = entry["fetcher"]
-    songs = fetcher(count=20)
+    songs = await asyncio.get_event_loop().run_in_executor(None, lambda: fetcher(count=20))
     if not songs:
         raise HTTPException(status_code=502, detail=f"Failed to fetch {entry['label']}")
 
     today = date.today()
     written = _replace_snapshot(db, entry["slug"], today, songs)
     logger.info("Wrote %d %s rows for %s", written, entry["slug"], today)
-    return {"chart_source": entry["slug"], "date": today.isoformat(), "rows": written}
+
+    job_id = _enqueue_backfill_for_uncalibrated(db, entry["slug"], today, songs)
+    if job_id is not None:
+        try:
+            orchestrator.start_job(job_id)
+        except Exception:
+            logger.exception("Failed to start backfill job %s — leaving in queued state", job_id)
+
+    return {
+        "chart_source": entry["slug"],
+        "date": today.isoformat(),
+        "rows": written,
+        "backfill_job_id": job_id,
+    }
