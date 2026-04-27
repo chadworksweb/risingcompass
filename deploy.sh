@@ -41,8 +41,11 @@ git -C "$REPO_ROOT" push origin master
 echo "=== Pulling latest code ==="
 ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git pull origin master'"
 
-# Detect what changed in the pull
-CHANGED=$(ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git diff --name-only HEAD~1 HEAD'")
+# Detect what changed in the pull. Use ORIG_HEAD (set by `git pull` to the
+# pre-pull commit) so multi-commit pulls are detected in full. HEAD~1 only
+# inspects the most recent commit, which silently misses changes when a
+# partials/sitemap auto-commit lands on top of a real change.
+CHANGED=$(ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git diff --name-only ORIG_HEAD HEAD'")
 
 BACKEND_CHANGED=false
 FRONTEND_CHANGED=false
