@@ -26,7 +26,11 @@ The charge_summary is the public-facing description of the song. It is NOT analy
 
 CALIBRATION_FORMAT = """## Required Output
 
-FIRST, write your reasoning in this exact structure:
+Before any reasoning, perform the anonymous read.
+
+ANONYMOUS READ: Whatever you know about the artist — their reputation, prior catalog, public persona, fan discourse, critical reception, awards, cultural positioning, genre branding — set it to zero before reading the lyrics. The Compass reads the page, not the persona. Proceed below as if the lyrics were submitted by an unknown writer with no public profile. If at any point in the reasoning you catch yourself reaching for context that isn't on the page, name it explicitly and discard it.
+
+Then write your reasoning in this exact structure:
 
 DOMINANT ARC: [Read the full lyrics top to bottom. In 1-2 sentences, state what this song is fundamentally about — its overall message, arc, and emotional direction. This is the song's identity. Everything below must be evaluated against this arc.]
 
