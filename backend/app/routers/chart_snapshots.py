@@ -195,13 +195,18 @@ def _enqueue_backfill_for_uncalibrated(
     "/refresh-chart-snapshot/{key}",
     dependencies=[Depends(verify_reading_cron_key)],
 )
-async def refresh_snapshot(key: str, db: Session = Depends(get_db)):
+async def refresh_snapshot(key: str):
     """Fetch the chart, overwrite today's snapshot, and auto-spawn a backfill
     job for any songs not yet in compass_songs. X-Reading-Cron-Key authed.
 
     Async because the orchestrator's start_job uses asyncio.create_task to
     spawn the worker on the running event loop. The blocking Playwright
     fetcher runs in a thread executor.
+
+    No dep-injected DB session: Playwright takes 15-30s and the embedded
+    replica's Hrana stream times out by the time we'd write. Fresh
+    SessionLocal opened after the fetch — same pattern as the long-running
+    admin transactions in artists_admin.
     """
     entry = CHART_REGISTRY.get(key)
     if not entry:
@@ -213,10 +218,14 @@ async def refresh_snapshot(key: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=502, detail=f"Failed to fetch {entry['label']}")
 
     today = date.today()
-    written = _replace_snapshot(db, entry["slug"], today, songs)
-    logger.info("Wrote %d %s rows for %s", written, entry["slug"], today)
+    db: Session = SessionLocal()
+    try:
+        written = _replace_snapshot(db, entry["slug"], today, songs)
+        logger.info("Wrote %d %s rows for %s", written, entry["slug"], today)
+        job_id = _enqueue_backfill_for_uncalibrated(db, entry["slug"], today, songs)
+    finally:
+        db.close()
 
-    job_id = _enqueue_backfill_for_uncalibrated(db, entry["slug"], today, songs)
     if job_id is not None:
         # Spawn a background task that auto-fetches lyrics via the daily
         # agent's multi-source fetcher (lyrics.ovh / Genius / AZLyrics —
