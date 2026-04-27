@@ -61,6 +61,28 @@ class ReadingSong(Base):
     compass_song = relationship("CompassSong")
 
 
+class ChartSnapshot(Base):
+    """Per-chart daily top-N snapshot. Independent of daily_readings.
+
+    Each (date, chart_source) is a self-contained list. Charge values are
+    looked up live against compass_songs at render time — this row stores
+    only the chart's own (title, artist, position).
+    """
+    __tablename__ = "chart_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False)
+    chart_source = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False)
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("date", "chart_source", "position", name="uq_chart_snapshots_date_source_pos"),
+    )
+
+
 class WeeklyAlbumReading(Base):
     __tablename__ = "weekly_album_readings"
 
