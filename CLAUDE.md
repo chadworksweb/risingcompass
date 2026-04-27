@@ -69,6 +69,12 @@ the login URL — it isn't linked from anywhere.
   08:00 UTC against `POST /api/admin/agent/cron/calibrate-live` with the
   `X-Reading-Cron-Key` header. Distinct from `RC_BACKUP_KEY` so cron lanes
   can be rotated independently.
+- `RC_LYRICS_SUPPLY_KEY=<service token>` — accepted by
+  `POST /api/admin/agent/drafts/{ref}/songs/{id}/lyrics` via the
+  `X-Lyrics-Supply-Key` header, in addition to the browser session cookie.
+  Lets terminal scripts (`backend/scripts/supply_lyrics.py`) supply lyrics
+  without going through the cookie flow. If env-listed in
+  `docker-compose.yml`, must also be added there for the container to see it.
 - `RC_ADMIN_KEY` is now used **only** to sign one-time HMAC tokens in
   approval emails. Keep it set and stable across deploys.
 
