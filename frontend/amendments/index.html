@@ -88,6 +88,17 @@
       <!-- one .am-group per status; populated from amendments[] -->
     </section>
 
+    <div class="am-modal" id="venue-modal" role="dialog" aria-modal="true" aria-labelledby="venue-modal-title" aria-describedby="venue-modal-body" hidden>
+      <div class="am-modal-backdrop" data-modal-close></div>
+      <div class="am-modal-card">
+        <button type="button" class="am-modal-close" aria-label="Close" data-modal-close>&times;</button>
+        <h2 class="am-modal-title" id="venue-modal-title">Coming soon</h2>
+        <p class="am-modal-body" id="venue-modal-body">
+          The deliberation venue is still being stood up. This button will open the live venue when it's ready.
+        </p>
+      </div>
+    </div>
+
     <footer class="am-footer">
       <p class="footer-note">Schema <span id="schema-version">—</span> · Updated <span id="updated-at">—</span></p>
     </footer>

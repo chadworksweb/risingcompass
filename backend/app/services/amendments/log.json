@@ -4,7 +4,8 @@
   "venue": {
     "platform": "discord",
     "url": "https://discord.gg/STUB_INVITE_TO_UPDATE",
-    "note": "Deliberations happen off-site. The record below is curated from the Rising Compass Discord (or anywhere the discourse occurs). Rising Compass holds the public record; the venue is transparent."
+    "coming_soon": true,
+    "note": "Deliberations happen off-site, in the open. Rising Compass holds the public record. The venue goes live once the record begins."
   },
   "thresholds": {
     "co_sponsors_required": 7,

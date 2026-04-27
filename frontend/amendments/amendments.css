@@ -214,6 +214,87 @@ body {
   text-transform: uppercase;
 }
 
+/* ─── Venue modal ─────────────────────────────────────────────────── */
+
+.am-modal[hidden] { display: none; }
+
+.am-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.am-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 8, 14, 0.78);
+  cursor: pointer;
+}
+
+.am-modal-card {
+  position: relative;
+  z-index: 1;
+  max-width: 460px;
+  width: 100%;
+  background: var(--am-bg-soft);
+  border: 1px solid var(--am-gold);
+  border-radius: 2px;
+  padding: 36px 32px 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+  animation: am-modal-in 0.18s ease-out;
+}
+
+@keyframes am-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.am-modal-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--am-ink-dim);
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.am-modal-close:hover,
+.am-modal-close:focus-visible {
+  color: var(--am-ink-bright);
+  outline: none;
+}
+
+.am-modal-title {
+  font-family: 'Cormorant SC', serif;
+  font-weight: 500;
+  font-size: 1.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--am-gold);
+  margin: 0 0 14px;
+}
+
+.am-modal-body {
+  font-family: 'Cardo', serif;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--am-ink);
+  margin: 0;
+}
+
+body.am-modal-open {
+  overflow: hidden;
+}
+
 /* ─── Examples toggle + banner ────────────────────────────────────── */
 
 .am-toggle-row {

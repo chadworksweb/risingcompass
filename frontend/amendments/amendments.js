@@ -68,17 +68,65 @@
     root.replaceChildren();
     if (!venue || !venue.url) return;
     const label = venue.platform === 'discord' ? 'Join the Discord' : 'Open the venue';
-    root.appendChild(html('a', {
-      class: 'am-cta',
-      href: venue.url,
-      target: '_blank',
-      rel: 'noopener',
-    }, label));
+
+    if (venue.coming_soon) {
+      const btn = html('button', {
+        type: 'button',
+        class: 'am-cta',
+        'aria-haspopup': 'dialog',
+        'aria-controls': 'venue-modal',
+      }, label);
+      btn.addEventListener('click', openVenueModal);
+      root.appendChild(btn);
+    } else {
+      root.appendChild(html('a', {
+        class: 'am-cta',
+        href: venue.url,
+        target: '_blank',
+        rel: 'noopener',
+      }, label));
+    }
+
     if (venue.note) {
       const noteWrap = html('p', { class: 'am-cta-note' }, venue.note);
       root.parentElement.appendChild(noteWrap);
     }
   }
+
+  // ─── venue modal ────────────────────────────────────────────────
+
+  let venueModalLastFocus = null;
+
+  function openVenueModal() {
+    const modal = document.getElementById('venue-modal');
+    if (!modal) return;
+    venueModalLastFocus = document.activeElement;
+    modal.hidden = false;
+    document.body.classList.add('am-modal-open');
+    document.addEventListener('keydown', onVenueModalKey);
+    const closeBtn = modal.querySelector('.am-modal-close');
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeVenueModal() {
+    const modal = document.getElementById('venue-modal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove('am-modal-open');
+    document.removeEventListener('keydown', onVenueModalKey);
+    if (venueModalLastFocus && typeof venueModalLastFocus.focus === 'function') {
+      venueModalLastFocus.focus();
+    }
+  }
+
+  function onVenueModalKey(e) {
+    if (e.key === 'Escape') closeVenueModal();
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t && t.matches && t.matches('[data-modal-close]')) closeVenueModal();
+  });
 
   // ─── thresholds ─────────────────────────────────────────────────
 
