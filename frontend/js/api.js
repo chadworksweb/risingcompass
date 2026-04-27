@@ -13,7 +13,10 @@ const API = (() => {
   // Turso cold connections + occasional 502/504 from nginx during container
   // restarts cause transient failures. Retry twice with short backoff before
   // giving up on GETs — 4xx won't be retried since those won't improve.
-  async function get(path, { attempts = 3, timeoutMs = 8000 } = {}) {
+  // 20s timeout is generous for local dev where the FastAPI process talks to
+  // remote Turso over WAN; production hits the same DB from a much closer
+  // region and is typically <1s, well inside the budget.
+  async function get(path, { attempts = 3, timeoutMs = 20000 } = {}) {
     const headers = {};
     if (API_KEY) headers['X-Api-Key'] = API_KEY;
     let lastErr;
