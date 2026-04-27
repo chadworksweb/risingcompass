@@ -54,7 +54,6 @@
 
     <section class="am-hero">
       <h1 class="am-title">Amendments</h1>
-      <p class="am-under-dev">UNDER DEVELOPMENT</p>
       <p class="am-kicker">The public record of changes proposed to the tenets.</p>
       <p class="am-preamble">
         The tenets are publicly amendable — not by vote, but by deliberation.
@@ -70,6 +69,20 @@
     <section class="am-thresholds" aria-label="Ratification thresholds">
       <div class="am-thresh-grid" id="thresholds"></div>
     </section>
+
+    <div class="am-toggle-row" id="examples-toggle-row" hidden>
+      <button id="examples-toggle" class="am-toggle-btn" type="button" aria-pressed="false">
+        Show example proposals
+      </button>
+    </div>
+
+    <div class="am-examples-banner" id="examples-banner" hidden>
+      <p>
+        <strong>Examples only.</strong>
+        These are sample proposals showing what each status looks like.
+        None are real. The amendment record is currently empty.
+      </p>
+    </div>
 
     <section class="am-sections" id="sections" aria-label="Amendments by status">
       <!-- one .am-group per status; populated from amendments[] -->

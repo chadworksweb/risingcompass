@@ -245,13 +245,41 @@
     const cta = document.getElementById('venue-cta');
     const thresholds = document.getElementById('thresholds');
     const sections = document.getElementById('sections');
+    const toggleRow = document.getElementById('examples-toggle-row');
+    const toggleBtn = document.getElementById('examples-toggle');
+    const banner = document.getElementById('examples-banner');
 
     try {
       const data = await fetchLog();
       renderVenueCta(cta, data.venue);
       renderThresholds(thresholds, data.thresholds);
-      renderGroups(sections, data);
       renderFooterMeta(data);
+
+      const realCount = (data.amendments || []).length;
+      const exampleCount = (data.example_amendments || []).length;
+      let showingExamples = false;
+
+      const renderForMode = () => {
+        const list = showingExamples ? data.example_amendments : data.amendments;
+        renderGroups(sections, { ...data, amendments: list });
+        if (banner) banner.hidden = !showingExamples;
+        if (toggleBtn) {
+          toggleBtn.textContent = showingExamples ? 'Hide example proposals' : 'Show example proposals';
+          toggleBtn.setAttribute('aria-pressed', String(showingExamples));
+        }
+      };
+
+      // Default render: real amendments only.
+      renderForMode();
+
+      // Show the toggle only when the record is empty AND we have examples to show.
+      if (toggleRow && toggleBtn && exampleCount > 0 && realCount === 0) {
+        toggleRow.hidden = false;
+        toggleBtn.addEventListener('click', () => {
+          showingExamples = !showingExamples;
+          renderForMode();
+        });
+      }
     } catch (err) {
       console.error('Failed to load amendment log:', err);
       const msg = html('p', { class: 'am-empty' }, 'The amendment log is momentarily out of reach. Please reload.');

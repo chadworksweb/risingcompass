@@ -18,7 +18,8 @@
     { "key": "covered",      "label": "Already Covered", "description": "Raised in good faith, but the substance is already held by an existing tenet. Logged publicly so the coverage of the constitution is made explicit over time." },
     { "key": "rejected",     "label": "Rejected",        "description": "Went through deliberation and did not clear the ratification bar." }
   ],
-  "amendments": [
+  "amendments": [],
+  "example_amendments": [
     {
       "id": "amend-0001",
       "status": "proposed",
