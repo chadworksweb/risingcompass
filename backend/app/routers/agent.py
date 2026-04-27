@@ -454,72 +454,112 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
 async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
     """Supply lyrics for an uncalibrated song in a draft, triggering calibration.
 
-    After calibration, stores the result in CompassSong for future cache hits
-    and recalculates draft metrics if all songs are now calibrated.
+    Hrana stream timeout safety: the Turso embedded-replica session can't
+    survive the multi-second calibrator + ether_tagger Anthropic calls. So
+    we hold no DB session across the calibrator call. Read phase snapshots
+    what we need then closes the FastAPI-injected session; calibration runs
+    against no DB; writes happen in a fresh session whose Hrana stream is
+    fresh and only has to cover the small ether_tagger window inside
+    _store_calibration. Editorial regen, if needed, opens its own session.
     """
+    from app.database import SessionLocal
+
+    # === READ + SNAPSHOT — release Hrana stream before the long API call ===
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft is not pending")
-
-    # Find the specific draft song
     draft_song = next((s for s in draft.songs if s.id == song_id), None)
     if not draft_song:
         raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
+    snap = {
+        "song_id": draft_song.id,
+        "title": draft_song.title,
+        "artist": draft_song.artist,
+        "position": draft_song.position,
+        "chart_source": draft_song.chart_source or "spotify",
+    }
+    db.close()
 
-    # Calibrate with the supplied lyrics
-    result = await calibrate_song_async(draft_song.title, draft_song.artist, lyrics=data.lyrics, db=db)
-
-    # Update the draft song
-    draft_song.rubric_color = result["rubric_color"]
-    draft_song.charge_value = result.get("charge_value")
-    draft_song.contaminated = result["contaminated"]
-    draft_song.contamination_note = result["contamination_note"]
-    draft_song.dogma_referenced = bool(result.get("dogma_referenced", False))
-    draft_song.dogma_note = result.get("dogma_note")
-    draft_song.charge_summary = result["charge_summary"]
-    draft_song.confidence = result.get("confidence")
-    draft_song.lyrics_available = True
-
-    # Store in CompassSong table for future cache hits
-    cs_id = _store_calibration(
-        draft_song.title, draft_song.artist, draft_song.position,
-        draft_song.chart_source or "spotify", result, True, db,
-        lyrics=data.lyrics,
+    # === CALIBRATE — no DB held ===
+    result = await calibrate_song_async(
+        snap["title"], snap["artist"],
+        lyrics=data.lyrics, db=None, skip_cache=True,
     )
-    draft_song.compass_song_id = cs_id
 
-    # Recalculate draft metrics if all songs are now calibrated
-    all_calibrated = all(s.rubric_color is not None for s in draft.songs)
-    if all_calibrated:
-        song_dicts = [
-            {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
-            for s in draft.songs
-        ]
-        draft.compass_degree = compute_degree(song_dicts)
-        draft.charge_level = degree_to_charge(draft.compass_degree)
-        draft.contamination_count = count_contaminated(
-            [{"contaminated": s.contaminated} for s in draft.songs]
+    # === WRITE PHASE — fresh session, fresh Hrana stream ===
+    editorial_input = None
+    write_db = SessionLocal()
+    try:
+        cs_id = _store_calibration(
+            snap["title"], snap["artist"], snap["position"],
+            snap["chart_source"], result, True, write_db,
+            lyrics=data.lyrics,
         )
 
-        # Regenerate editorial now that all songs have data
-        from app.services.agents.compass_agent import _generate_editorial
-        calibrated_dicts = [
-            {
-                "title": s.title, "artist": s.artist, "position": s.position,
-                "rubric_color": s.rubric_color, "charge_value": s.charge_value,
-                "contaminated": s.contaminated, "contamination_note": s.contamination_note,
-                "charge_summary": s.charge_summary, "confidence": s.confidence,
-                "lyrics_available": s.lyrics_available, "chart_source": s.chart_source,
-            }
-            for s in draft.songs
-        ]
-        editorial = _generate_editorial(calibrated_dicts)
-        if editorial:
-            draft.editorial_summary = editorial
+        draft = _resolve_draft(draft_ref, write_db)
+        ds = next(s for s in draft.songs if s.id == snap["song_id"])
+        ds.rubric_color = result["rubric_color"]
+        ds.charge_value = result.get("charge_value")
+        ds.contaminated = result["contaminated"]
+        ds.contamination_note = result["contamination_note"]
+        ds.dogma_referenced = bool(result.get("dogma_referenced", False))
+        ds.dogma_note = result.get("dogma_note")
+        ds.charge_summary = result["charge_summary"]
+        ds.confidence = result.get("confidence")
+        ds.lyrics_available = True
+        ds.compass_song_id = cs_id
 
-    db.commit()
-    db.refresh(draft)
-    return draft
+        all_calibrated = all(s.rubric_color is not None for s in draft.songs)
+        if all_calibrated:
+            song_dicts = [
+                {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
+                for s in draft.songs
+            ]
+            draft.compass_degree = compute_degree(song_dicts)
+            draft.charge_level = degree_to_charge(draft.compass_degree)
+            draft.contamination_count = count_contaminated(
+                [{"contaminated": s.contaminated} for s in draft.songs]
+            )
+            editorial_input = [
+                {
+                    "title": s.title, "artist": s.artist, "position": s.position,
+                    "rubric_color": s.rubric_color, "charge_value": s.charge_value,
+                    "contaminated": s.contaminated, "contamination_note": s.contamination_note,
+                    "charge_summary": s.charge_summary, "confidence": s.confidence,
+                    "lyrics_available": s.lyrics_available, "chart_source": s.chart_source,
+                }
+                for s in draft.songs
+            ]
+
+        write_db.commit()
+    finally:
+        write_db.close()
+
+    # === EDITORIAL REGEN — separate session, no DB held during API call ===
+    if editorial_input:
+        try:
+            from app.services.agents.compass_agent import _generate_editorial
+            editorial = _generate_editorial(editorial_input)
+            if editorial:
+                ed_db = SessionLocal()
+                try:
+                    ed_draft = _resolve_draft(draft_ref, ed_db)
+                    ed_draft.editorial_summary = editorial
+                    ed_db.commit()
+                finally:
+                    ed_db.close()
+        except Exception:
+            logger.exception("Editorial regen failed for draft %s", draft_ref)
+
+    # === RESPONSE — fresh session, eager-load, detach, return ===
+    resp_db = SessionLocal()
+    try:
+        out = _resolve_draft(draft_ref, resp_db)
+        _ = list(out.songs)
+        resp_db.expunge_all()
+        return out
+    finally:
+        resp_db.close()
 
 
 @router.post("/drafts/{draft_ref}/songs/{song_id}/correct", response_model=CorrectionApplyOut, dependencies=[Depends(verify_admin_key)])
