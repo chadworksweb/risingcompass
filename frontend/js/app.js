@@ -101,11 +101,92 @@ const App = (() => {
         EtherArtChart.render();
       }
 
+      // Render the Spotify Viral 50 panel (independent fetch). Failure here
+      // must not break the rest of the homepage.
+      loadViralReading();
+
     } catch (err) {
       console.error('Failed to load compass data:', err);
       document.getElementById('reading-content').innerHTML =
         '<div class="error-msg">Could not load compass data. Is the API running?</div>';
     }
+  }
+
+  async function loadViralReading() {
+    const container = document.getElementById('viral-reading-content');
+    if (!container) return;
+    try {
+      const data = await API.getChartSnapshot('viral');
+      renderViralReading(data);
+    } catch (err) {
+      console.warn('Viral chart fetch failed:', err);
+      container.innerHTML = '<div class="no-reading"><p>Viral chart not available yet.</p></div>';
+    }
+  }
+
+  function renderViralReading(data) {
+    const container = document.getElementById('viral-reading-content');
+    if (!container) return;
+    if (!data || !Array.isArray(data.songs) || data.songs.length === 0) {
+      container.innerHTML = '<div class="no-reading"><p>No viral chart snapshot yet.</p></div>';
+      return;
+    }
+
+    const sortedSongs = [...data.songs].sort((a, b) => a.position - b.position);
+
+    let html = '';
+    html += `<div class="reading-meta" style="font-family:var(--rc-font-mono);font-size:0.75rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--rc-text-dim);margin-bottom:0.75rem;">${formatDate(data.date)} · ${sortedSongs.length} songs</div>`;
+    html += '<ul class="song-list">';
+    sortedSongs.forEach(song => {
+      const hasMEI = song.message_analysis || song.expression_analysis || song.intention_analysis;
+      const hasSummary = song.charge_summary || song.contamination_note;
+      const hasTooltip = hasMEI || hasSummary;
+      const uncalibrated = !song.rubric_color;
+      let tooltipHtml = '';
+      if (hasTooltip && !uncalibrated) {
+        const songHex = COLOR_HEX[song.rubric_color] || '#888';
+        const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
+        const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
+        let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
+        if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
+        if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
+        const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color || '', pos: song.position });
+        if (song.charge_summary) disputeParams.set('cs', song.charge_summary);
+        lines += `<div class="mei-dispute"><a href="/misread-submission.html?${disputeParams.toString()}">Did we get it wrong?</a></div>`;
+        tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
+      }
+      const instrClass = song.instrumental ? ' instrumental' : '';
+      const songHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
+      const titleHtml = songHref
+        ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
+        : escapeHtml(song.title);
+      const dotClass = uncalibrated ? 'uncalibrated' : (song.instrumental ? '' : song.rubric_color);
+      html += `
+        <li class="song-item${hasTooltip && !uncalibrated ? ' has-tooltip' : ''}${instrClass}">
+          <span class="song-pos">${song.position}</span>
+          <span class="song-dot ${dotClass}"${uncalibrated ? ' title="Not yet calibrated"' : ''}></span>
+          <div class="song-info">
+            <div class="song-title">${titleHtml}</div>
+            <div class="song-artist">${escapeHtml(song.artist)}</div>
+          </div>
+          <div class="song-actions">
+            ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
+            ${hasTooltip && !uncalibrated ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
+          </div>
+          ${tooltipHtml}
+        </li>
+      `;
+    });
+    html += '</ul>';
+
+    const uncalibratedCount = sortedSongs.filter(s => !s.rubric_color).length;
+    if (uncalibratedCount > 0) {
+      html += `<div class="instrumental-note">${uncalibratedCount} song${uncalibratedCount > 1 ? 's' : ''} not yet calibrated — shown in gray.</div>`;
+    }
+
+    crossfade(container, html, () => {
+      initSongTooltips(container);
+    });
   }
 
   function renderReading(data) {
@@ -2592,40 +2673,8 @@ const App = (() => {
   };
 })();
 
-// --- Tier Popup ---
-(function() {
-  const TIER_DATA = {
-    ascended: { title: 'Ascended', color: 'var(--rc-violet)', desc: 'Collective perspective. The lyrics speak from, to, or about something larger than any one person. Community, humanity, the divine. Universal love, prophetic witness, collective healing. The song\u2019s purpose is selfless.' },
-    elevated: { title: 'Elevated', color: 'var(--rc-blue)', desc: 'Self without ego. Honest internal work on the page. The narrator questions their own behavior, takes accountability, processes through something with visible movement. Growth demonstrated, not just wished for. Vulnerability without performance.' },
-    decent:   { title: 'Decent', color: 'var(--rc-green)', desc: 'Catch-all. The lyrics don\u2019t push in either direction. Pleasant, fun, romantic, sad, nostalgic \u2014 but no internal work being done and no ego being served. The song is what it is. This is the baseline for popular music, and it\u2019s not a failure.' },
-    degraded: { title: 'Degraded', color: 'var(--rc-orange)', desc: 'Ego self. The lyrics serve the narrator\u2019s ego, promote avoidance, or steer away from growth. Surface-level status markers as aspiration. Manipulation framed as love. Wallowing without movement. Blame without accountability.' },
-    corrupted:{ title: 'Corrupted', color: 'var(--rc-red)', desc: 'Ego black-hole. The lyrics actively destroy, dehumanize, or consume. Explicit objectification, substance celebration as identity, violence as entertainment, possession as desire. The song\u2019s core stance is destruction \u2014 of self, of others, of meaning itself.' }
-  };
-
-  document.addEventListener('DOMContentLoaded', function() {
-    const popup = document.getElementById('tier-popup');
-    if (!popup) return;
-    const dot = document.getElementById('tier-popup-dot');
-    const title = document.getElementById('tier-popup-title');
-    const desc = document.getElementById('tier-popup-desc');
-
-    document.querySelectorAll('.charge-legend-seg[data-tier]').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const t = TIER_DATA[this.dataset.tier];
-        if (!t) return;
-        dot.style.background = t.color;
-        title.textContent = t.title;
-        desc.textContent = t.desc;
-        popup.classList.add('active');
-      });
-    });
-
-    popup.querySelector('.tier-popup-close').addEventListener('click', () => popup.classList.remove('active'));
-    popup.addEventListener('click', function(e) {
-      if (e.target === popup) popup.classList.remove('active');
-    });
-  });
-})();
+// Tier popup moved to /js/tier-popup.js. Loaded only on pages that show
+// the .charge-legend-seg buttons (currently /methodology/).
 
 // Boot
 document.addEventListener('DOMContentLoaded', App.init);
