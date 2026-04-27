@@ -25,10 +25,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth import verify_reading_cron_key
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models import BackfillJob, BackfillJobRow, ChartSnapshot, CompassSong
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import fetch_top_songs, fetch_viral_songs
+from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.artist_utils import generate_song_slug
 from app.services.backfill import orchestrator
 
@@ -217,10 +218,12 @@ async def refresh_snapshot(key: str, db: Session = Depends(get_db)):
 
     job_id = _enqueue_backfill_for_uncalibrated(db, entry["slug"], today, songs)
     if job_id is not None:
-        try:
-            orchestrator.start_job(job_id)
-        except Exception:
-            logger.exception("Failed to start backfill job %s — leaving in queued state", job_id)
+        # Spawn a background task that auto-fetches lyrics via the daily
+        # agent's multi-source fetcher (lyrics.ovh / Genius / AZLyrics —
+        # no API key needed) and then hands the job off to the orchestrator.
+        # Returns immediately so the cron HTTP call doesn't sit on Playwright
+        # + 15× lyrics fetches (~2 minutes).
+        asyncio.create_task(_auto_fill_lyrics_then_start(job_id))
 
     return {
         "chart_source": entry["slug"],
@@ -228,3 +231,51 @@ async def refresh_snapshot(key: str, db: Session = Depends(get_db)):
         "rows": written,
         "backfill_job_id": job_id,
     }
+
+
+async def _auto_fill_lyrics_then_start(job_id: int) -> None:
+    """Background: fetch lyrics for every needs_lyrics row, then start the job.
+
+    Existing Backfill Console design is paste-only — admin pastes lyrics, then
+    resumes. Chart-snapshot auto-spawned jobs can't wait for that, so we
+    pre-populate lyrics from the same fetcher the daily reading agent uses.
+    Rows that fail to find lyrics from any source stay needs_lyrics; the
+    engine pauses and an admin can paste manually if they want to recover them.
+    """
+    loop = asyncio.get_event_loop()
+    db: Session = SessionLocal()
+    try:
+        rows = (
+            db.query(BackfillJobRow)
+            .filter(BackfillJobRow.job_id == job_id)
+            .filter(BackfillJobRow.status == "needs_lyrics")
+            .order_by(BackfillJobRow.position.asc())
+            .all()
+        )
+        for row in rows:
+            try:
+                lyrics = await loop.run_in_executor(
+                    None, lambda t=row.title, a=row.artist: fetch_lyrics(t, a)
+                )
+            except Exception:
+                logger.exception("Lyrics fetch crashed for job=%s row=%s", job_id, row.id)
+                lyrics = None
+
+            if lyrics:
+                row.lyrics = lyrics.strip()
+                row.lyrics_source = "auto"
+                row.status = "queued"
+                row.error = None
+                db.commit()
+            else:
+                logger.info(
+                    "No lyrics found for '%s' by '%s' (job=%s row=%s) — staying needs_lyrics",
+                    row.title, row.artist, job_id, row.id,
+                )
+    finally:
+        db.close()
+
+    try:
+        orchestrator.start_job(job_id)
+    except Exception:
+        logger.exception("Failed to start backfill job %s after lyrics fill", job_id)
