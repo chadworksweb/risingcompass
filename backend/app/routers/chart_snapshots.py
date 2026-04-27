@@ -8,10 +8,11 @@ later). Charge values come from compass_songs via case-insensitive lookup.
 Adding a new chart = register one entry in CHART_REGISTRY plus a fetcher
 in services/agents/chart_source.py. No schema change.
 
-The refresh endpoint also auto-fills compass_songs for any chart entries
-that aren't there yet — it spawns a Backfill Console job
-(target=compass, passes=both) so every chart self-calibrates over time
-without manual intervention.
+The refresh endpoint also queues a Backfill Console job for any chart
+entries not yet in compass_songs. The job sits in needs_lyrics state
+until an admin pastes lyrics through the existing Backfill UI — same
+paste-only flow the daily reading uses. The engine then calibrates and
+the panel auto-picks up the new colors.
 """
 
 import asyncio
@@ -29,9 +30,7 @@ from app.database import SessionLocal, get_db
 from app.models import BackfillJob, BackfillJobRow, ChartSnapshot, CompassSong
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import fetch_top_songs, fetch_viral_songs
-from app.services.agents.lyrics_source import fetch_lyrics
 from app.services.artist_utils import generate_song_slug
-from app.services.backfill import orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +173,8 @@ def _enqueue_backfill_for_uncalibrated(
     db.add(job)
     db.flush()
     for idx, s in enumerate(uncalibrated, start=1):
-        # status="needs_lyrics" so the orchestrator will fetch via Musixmatch
+        # Rows start in needs_lyrics — admin pastes lyrics through the
+        # Backfill Console UI, then the engine calibrates.
         db.add(BackfillJobRow(
             job_id=job.id,
             position=idx,
@@ -196,17 +196,18 @@ def _enqueue_backfill_for_uncalibrated(
     dependencies=[Depends(verify_reading_cron_key)],
 )
 async def refresh_snapshot(key: str):
-    """Fetch the chart, overwrite today's snapshot, and auto-spawn a backfill
+    """Fetch the chart, overwrite today's snapshot, and queue a backfill
     job for any songs not yet in compass_songs. X-Reading-Cron-Key authed.
 
-    Async because the orchestrator's start_job uses asyncio.create_task to
-    spawn the worker on the running event loop. The blocking Playwright
-    fetcher runs in a thread executor.
+    The backfill job sits in needs_lyrics state — admin pastes lyrics
+    through the Backfill Console UI, then the engine calibrates and the
+    panel auto-picks up the new colors.
 
-    No dep-injected DB session: Playwright takes 15-30s and the embedded
-    replica's Hrana stream times out by the time we'd write. Fresh
-    SessionLocal opened after the fetch — same pattern as the long-running
-    admin transactions in artists_admin.
+    Async so the blocking Playwright fetcher can run via run_in_executor.
+    No dep-injected DB session because the fetch takes 15-30s and the
+    embedded replica's Hrana stream times out by the time we'd write —
+    fresh SessionLocal opened after the fetch, same pattern as
+    artists_admin's long-running transactions.
     """
     entry = CHART_REGISTRY.get(key)
     if not entry:
@@ -226,65 +227,9 @@ async def refresh_snapshot(key: str):
     finally:
         db.close()
 
-    if job_id is not None:
-        # Spawn a background task that auto-fetches lyrics via the daily
-        # agent's multi-source fetcher (lyrics.ovh / Genius / AZLyrics —
-        # no API key needed) and then hands the job off to the orchestrator.
-        # Returns immediately so the cron HTTP call doesn't sit on Playwright
-        # + 15× lyrics fetches (~2 minutes).
-        asyncio.create_task(_auto_fill_lyrics_then_start(job_id))
-
     return {
         "chart_source": entry["slug"],
         "date": today.isoformat(),
         "rows": written,
         "backfill_job_id": job_id,
     }
-
-
-async def _auto_fill_lyrics_then_start(job_id: int) -> None:
-    """Background: fetch lyrics for every needs_lyrics row, then start the job.
-
-    Existing Backfill Console design is paste-only — admin pastes lyrics, then
-    resumes. Chart-snapshot auto-spawned jobs can't wait for that, so we
-    pre-populate lyrics from the same fetcher the daily reading agent uses.
-    Rows that fail to find lyrics from any source stay needs_lyrics; the
-    engine pauses and an admin can paste manually if they want to recover them.
-    """
-    loop = asyncio.get_event_loop()
-    db: Session = SessionLocal()
-    try:
-        rows = (
-            db.query(BackfillJobRow)
-            .filter(BackfillJobRow.job_id == job_id)
-            .filter(BackfillJobRow.status == "needs_lyrics")
-            .order_by(BackfillJobRow.position.asc())
-            .all()
-        )
-        for row in rows:
-            try:
-                lyrics = await loop.run_in_executor(
-                    None, lambda t=row.title, a=row.artist: fetch_lyrics(t, a)
-                )
-            except Exception:
-                logger.exception("Lyrics fetch crashed for job=%s row=%s", job_id, row.id)
-                lyrics = None
-
-            if lyrics:
-                row.lyrics = lyrics.strip()
-                row.lyrics_source = "auto"
-                row.status = "queued"
-                row.error = None
-                db.commit()
-            else:
-                logger.info(
-                    "No lyrics found for '%s' by '%s' (job=%s row=%s) — staying needs_lyrics",
-                    row.title, row.artist, job_id, row.id,
-                )
-    finally:
-        db.close()
-
-    try:
-        orchestrator.start_job(job_id)
-    except Exception:
-        logger.exception("Failed to start backfill job %s after lyrics fill", job_id)
