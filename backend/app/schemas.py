@@ -347,6 +347,8 @@ class DraftSongOut(BaseModel):
     chart_source: Optional[str] = None
     confidence: Optional[float] = None
     lyrics_available: bool = False
+    dogma_referenced: bool = False
+    dogma_note: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
