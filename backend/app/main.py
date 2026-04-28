@@ -22,23 +22,32 @@ logger = logging.getLogger(__name__)
 
 
 def _cleanup_orphan_drafts():
-    """Delete drafts whose date already has a published reading.
+    """Delete daily/manual drafts whose date already has a published reading.
 
     Drafts are transient — they should be deleted after approval. But if
     approval happens outside the normal endpoint (direct DB, manual fix),
     orphan drafts can linger. This runs once at startup as a safety net.
+
+    Filtered to daily/manual draft types only — chart-snapshot drafts
+    (Viral 50, etc.) live alongside the daily reading on the same date and
+    are not orphaned by the existence of a DailyReading.
     """
     db = SessionLocal()
     try:
         published_dates = {r.date for r in db.query(DailyReading.date).all()}
-        orphans = db.query(AgentDraft).filter(AgentDraft.date.in_(published_dates)).all()
+        orphans = (
+            db.query(AgentDraft)
+            .filter(AgentDraft.date.in_(published_dates))
+            .filter(AgentDraft.draft_type.in_(("daily", "manual")))
+            .all()
+        )
         if not orphans:
             return
         for draft in orphans:
             db.query(AgentDraftSong).filter(AgentDraftSong.draft_id == draft.id).delete()
             db.delete(draft)
         db.commit()
-        logger.info("Startup cleanup: deleted %d orphan draft(s)", len(orphans))
+        logger.info("Startup cleanup: deleted %d orphan daily/manual draft(s)", len(orphans))
     finally:
         db.close()
 
