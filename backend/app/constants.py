@@ -40,3 +40,33 @@ HISTORICAL_DEGREES = {
     "orange": 135.0,
     "red": 180.0,
 }
+
+
+# Human-readable display names per AgentDraft.draft_type. Single source of
+# truth for "what do we call this draft" in emails, approval pages, admin
+# UI. Add a new chart by registering it both here and in CHART_REGISTRY
+# (routers/chart_snapshots.py).
+DRAFT_TYPE_DISPLAY_NAMES = {
+    "daily": "Daily Reading",
+    "manual": "Manual Reading",
+    "spotify_top50_usa": "Spotify Top 50 USA",
+    "spotify_viral50_usa": "Spotify Viral 50 USA",
+}
+
+
+def draft_display_name(draft_type) -> str:
+    """Human label for a draft.draft_type. Falls back to 'Daily Reading' for
+    legacy/null types and to the raw slug for unregistered charts."""
+    if not draft_type:
+        return "Daily Reading"
+    return DRAFT_TYPE_DISPLAY_NAMES.get(draft_type, draft_type)
+
+
+def is_chart_draft_type(draft_type) -> bool:
+    """True if this draft_type names a chart-snapshot (Viral 50, etc.) rather
+    than the canonical daily/manual reading. Used by every cleanup, approval,
+    and naming branch that must not treat chart drafts the same as readings.
+    """
+    if not draft_type:
+        return False
+    return draft_type not in ("daily", "manual")

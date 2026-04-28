@@ -6,7 +6,7 @@ from typing import Optional
 import httpx
 
 from app.config import Settings
-from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG
+from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG, draft_display_name, is_chart_draft_type
 from app.services.charge_calc import degree_to_score_display
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,14 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
 
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
     needs_lyrics = [s for s in songs if s.rubric_color is None]
-    subject = f"Rising Compass Draft — {draft.date} — {charge_label}"
+    display = draft_display_name(getattr(draft, "draft_type", None))
+    is_chart = is_chart_draft_type(getattr(draft, "draft_type", None))
+    # Chart drafts don't have a meaningful aggregate charge until every song is
+    # in compass_songs, so leave it off the subject.
+    if is_chart:
+        subject = f"Rising Compass — {display} — {draft.date}"
+    else:
+        subject = f"Rising Compass — {display} — {draft.date} — {charge_label}"
     if needs_lyrics:
         subject += f" ({len(needs_lyrics)} song{'s' if len(needs_lyrics) != 1 else ''} need lyrics)"
 
@@ -153,7 +160,7 @@ def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optiona
         <!-- Header -->
         <div style="background:#0a0a14;padding:24px 28px;border-radius:8px 8px 0 0;">
             <div style="font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#00d4aa;margin-bottom:6px;">The Rising Compass</div>
-            <div style="font-size:22px;font-weight:300;color:#eeeef4;">Agent Draft — <span style="font-weight:600;">{draft.date}</span></div>
+            <div style="font-size:22px;font-weight:300;color:#eeeef4;">{draft_display_name(getattr(draft, 'draft_type', None))} — <span style="font-weight:600;">{draft.date}</span></div>
         </div>
 
         <!-- Metrics bar -->

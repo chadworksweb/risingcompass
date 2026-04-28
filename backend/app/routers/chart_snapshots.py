@@ -57,18 +57,6 @@ CHART_REGISTRY: dict[str, dict] = {
 }
 
 
-def is_chart_draft_type(draft_type: str | None) -> bool:
-    """True if this AgentDraft.draft_type names a registered chart slug.
-
-    Used by approve_draft / cleanup logic in agent.py to branch — chart
-    drafts don't publish a DailyReading, they only carry the lyrics-paste
-    workflow that populates compass_songs.
-    """
-    if not draft_type:
-        return False
-    return any(entry["slug"] == draft_type for entry in CHART_REGISTRY.values())
-
-
 class ChartSnapshotOut(BaseModel):
     chart_source: str
     label: str

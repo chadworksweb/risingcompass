@@ -32,7 +32,7 @@ from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
 from app.services.contamination import count_contaminated, enforce_contamination_rule
-from app.constants import COLOR_LABELS, COLOR_HEX
+from app.constants import COLOR_LABELS, COLOR_HEX, draft_display_name, is_chart_draft_type
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
 
@@ -84,11 +84,14 @@ def _build_approval_html(draft) -> str:
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
     score = degree_to_score_display(draft.compass_degree)
     song_count = len(draft.songs) if draft.songs else 0
+    display = draft_display_name(getattr(draft, "draft_type", None))
+    is_chart = is_chart_draft_type(getattr(draft, "draft_type", None))
+    headline = f"{display} Approved" if is_chart else "Reading Published"
 
     return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Reading Published — {draft.date}</title>
+<title>{headline} — {draft.date}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   * {{ margin:0; padding:0; box-sizing:border-box; }}
@@ -112,8 +115,8 @@ def _build_approval_html(draft) -> str:
       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
     </svg>
   </div>
-  <h1>Reading Published</h1>
-  <div class="date">{draft.date}</div>
+  <h1>{headline}</h1>
+  <div class="date">{display} · {draft.date}</div>
   <div class="metrics">
     <div class="metric">
       <div class="metric-label">Charge</div>
@@ -268,11 +271,14 @@ def approve_draft_confirm_page(draft_ref: str, token: str = Query(...), db: Sess
     charge_color = COLOR_HEX.get(draft.charge_level, "#999")
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
     score = degree_to_score_display(draft.compass_degree)
+    display = draft_display_name(getattr(draft, "draft_type", None))
+    is_chart = is_chart_draft_type(getattr(draft, "draft_type", None))
+    headline = f"Approve {display}?" if is_chart else "Publish This Reading?"
 
     return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Confirm Reading — {draft.date}</title>
+<title>Confirm {display} — {draft.date}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   * {{ margin:0; padding:0; box-sizing:border-box; }}
@@ -290,8 +296,8 @@ def approve_draft_confirm_page(draft_ref: str, token: str = Query(...), db: Sess
 </style>
 </head><body>
 <div class="card">
-  <h1>Publish This Reading?</h1>
-  <div class="date">{draft.date}</div>
+  <h1>{headline}</h1>
+  <div class="date">{display} · {draft.date}</div>
   <div class="metrics">
     <div class="metric">
       <div class="metric-label">Charge</div>
@@ -329,8 +335,6 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     compass_songs entries) is already written by the cron + supply-lyrics
     flow. The draft is just the email-and-lyrics-paste vehicle.
     """
-    from app.routers.chart_snapshots import is_chart_draft_type
-
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft cannot be approved in its current state")
@@ -344,9 +348,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
             detail=f"Cannot approve: {len(missing)} song(s) still need lyrics: {', '.join(missing)}",
         )
 
-    is_chart = is_chart_draft_type(draft.draft_type)
-
-    if not is_chart:
+    if not is_chart_draft_type(draft.draft_type):
         # Daily-reading publish path
         existing = db.query(DailyReading).filter(DailyReading.date == draft.date).first()
         if existing:
