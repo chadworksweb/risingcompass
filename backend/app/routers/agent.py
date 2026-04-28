@@ -579,7 +579,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
         resp_db.close()
 
 
-@router.post("/drafts/{draft_ref}/songs/{song_id}/correct", response_model=CorrectionApplyOut, dependencies=[Depends(verify_admin_key)])
+@router.post("/drafts/{draft_ref}/songs/{song_id}/correct", response_model=CorrectionApplyOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
 def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionIn, db: Session = Depends(get_db)):
     """Admin override of an agent-classified draft song, before draft approval.
 
