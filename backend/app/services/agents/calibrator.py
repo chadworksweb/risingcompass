@@ -100,8 +100,11 @@ async def calibrate_song_async(
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    # Build few-shot examples from existing data
-    examples = build_few_shot_examples(db, target_year=target_year) if db else ""
+    # Few-shot examples disabled. Today's corpus skews 1960s and creates a
+    # self-reinforcing loop (today's call becomes tomorrow's example), so the
+    # rubric stands alone. The 58-tenet definition + per-tier sub-ranges in
+    # RUBRIC_DEFINITION carry the anchoring without a corpus draw.
+    examples = ""
 
     system_prompt, user_prompt = build_calibration_prompt(
         title, artist, lyrics=lyrics, examples=examples

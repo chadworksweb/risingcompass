@@ -114,7 +114,8 @@ def recalibrate_song_satire(
         raise ValueError("Lyrics are required for satire recalibration.")
 
     client = Anthropic(api_key=settings.anthropic_api_key)
-    examples = build_few_shot_examples(db) if db else ""
+    # Few-shot examples disabled — see calibrator.py for rationale.
+    examples = ""
 
     system_prompt, user_prompt = _build_satire_prompt(
         title, artist, lyrics, examples,
@@ -201,7 +202,8 @@ def recalibrate_song_rubric_update(
         raise ValueError("Lyrics are required for rubric_update recalibration.")
 
     client = Anthropic(api_key=settings.anthropic_api_key)
-    examples = build_few_shot_examples(db) if db else ""
+    # Few-shot examples disabled — see calibrator.py for rationale.
+    examples = ""
 
     system_prompt, user_prompt = build_calibration_prompt(
         title, artist, lyrics=lyrics, examples=examples,
