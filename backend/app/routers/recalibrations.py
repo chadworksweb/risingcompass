@@ -476,6 +476,28 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
         logger.exception("effects_prose regeneration failed on accept for %s/%s",
                          p.song_source, p.song_id)
 
+    # Regenerate societal effects prose alongside the listener prose. Same
+    # fail-soft contract; uses ether fields when available on the song row.
+    try:
+        from app.services.societal_effects_prose import generate_societal_effects_prose
+        new_soc_prose = generate_societal_effects_prose(
+            title=song.title,
+            artist=getattr(song, "artist", "") or "",
+            rubric_color=song.rubric_color,
+            charge_value=song.charge_value,
+            charge_summary=song.charge_summary,
+            contaminated=bool(getattr(song, "contaminated", False)),
+            contamination_note=getattr(song, "contamination_note", None),
+            deadpan_line=getattr(song, "deadpan_line", None),
+            topics=getattr(song, "topics", None),
+            effects_prose=getattr(song, "effects_prose", None),
+        )
+        if new_soc_prose:
+            song.societal_effects_prose = new_soc_prose
+    except Exception:
+        logger.exception("societal_effects_prose regeneration failed on accept for %s/%s",
+                         p.song_source, p.song_id)
+
     # Consensus restart on ANY accepted recalibration (2026-04-23): supersede
     # prior calibration_runs so the consensus engine starts fresh against the
     # new authoritative reading, and log the accepted calibration as the new

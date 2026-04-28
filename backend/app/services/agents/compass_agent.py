@@ -173,6 +173,32 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             except Exception:
                 logger.exception("Ether tagger hook failed for compass song %d", song.id)
 
+        # Societal effects prose — what running this program at scale would do
+        # to a society. Runs AFTER the ether tagger so deadpan_line + topics
+        # are available to ground the read in the cultural surface area, not
+        # only the lyrics. Fails soft; backfill picks up missing rows.
+        if not getattr(song, "societal_effects_prose", None):
+            try:
+                from app.services.societal_effects_prose import generate_societal_effects_prose
+                soc_prose = generate_societal_effects_prose(
+                    title=song.title,
+                    artist=getattr(song, "artist", "") or "",
+                    rubric_color=song.rubric_color,
+                    charge_value=song.charge_value,
+                    charge_summary=song.charge_summary,
+                    contaminated=bool(getattr(song, "contaminated", False)),
+                    contamination_note=getattr(song, "contamination_note", None),
+                    lyrics=lyrics,
+                    deadpan_line=getattr(song, "deadpan_line", None),
+                    topics=getattr(song, "topics", None),
+                    effects_prose=getattr(song, "effects_prose", None),
+                )
+                if soc_prose:
+                    song.societal_effects_prose = soc_prose
+                    db.flush()
+            except Exception:
+                logger.exception("Societal effects prose hook failed for compass song %d", song.id)
+
         return song.id
 
 

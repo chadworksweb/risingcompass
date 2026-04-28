@@ -736,6 +736,23 @@
       effectsEl.innerHTML = proseHtml;
     }
 
+    // Section 3b: Societal Effects — only render when prose exists. No
+    // tier-generic fallback; a generic per-tier read would defeat the point
+    // of a song-specific society-scale diagnosis.
+    const societalSection = document.getElementById('section-societal-effects');
+    if (!isUncalibrated && song.societal_effects_prose) {
+      const socHtml = song.societal_effects_prose
+        .split(/\n{2,}/)
+        .map(p => p.trim())
+        .filter(Boolean)
+        .map(p => `<p>${escapeHtml(p)}</p>`)
+        .join('');
+      document.getElementById('societal-effects-prose').innerHTML = socHtml;
+      societalSection.hidden = false;
+    } else {
+      societalSection.hidden = true;
+    }
+
     // Section 3: Contamination
     const contamSection = document.getElementById('section-contamination');
     contamSection.hidden = isUncalibrated;

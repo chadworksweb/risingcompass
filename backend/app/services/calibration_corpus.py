@@ -469,6 +469,35 @@ def record_and_reconcile(
             except Exception:
                 logger.exception("effects_prose hook failed for %s/%s", source, song.id)
 
+        # Societal effects prose hook. Fires when (a) the listener prose just
+        # generated/regenerated AND (b) the row has ether tags to ground the
+        # societal read. On first calibration topics are still NULL (the
+        # ether tagger runs later in compass_agent), so this hook only
+        # triggers on reconcile passes — first-row generation happens in
+        # compass_agent right after the tagger sets topics.
+        soc_missing = not getattr(song, "societal_effects_prose", None)
+        has_topics = bool(getattr(song, "topics", None))
+        if (cur_color and cur_summary and has_topics
+                and (soc_missing or tier_or_summary_changed)):
+            try:
+                from app.services.societal_effects_prose import generate_societal_effects_prose
+                soc_prose = generate_societal_effects_prose(
+                    title=getattr(song, "title", None) or title or "",
+                    artist=getattr(song, "artist", None) or artist or "",
+                    rubric_color=cur_color,
+                    charge_value=getattr(song, "charge_value", None),
+                    charge_summary=cur_summary,
+                    contaminated=bool(getattr(song, "contaminated", False)),
+                    contamination_note=getattr(song, "contamination_note", None),
+                    deadpan_line=getattr(song, "deadpan_line", None),
+                    topics=getattr(song, "topics", None),
+                    effects_prose=getattr(song, "effects_prose", None),
+                )
+                if soc_prose:
+                    song.societal_effects_prose = soc_prose
+            except Exception:
+                logger.exception("societal_effects_prose hook failed for %s/%s", source, song.id)
+
     return {
         "run_id": run.id,
         "user_run": {

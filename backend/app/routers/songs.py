@@ -421,6 +421,7 @@ def _resolve_song(source: str, song_id: int, db) -> dict | None:
         "dogma_note": getattr(row, "dogma_note", None),
         "charge_summary": getattr(row, "charge_summary", None),
         "effects_prose": getattr(row, "effects_prose", None),
+        "societal_effects_prose": getattr(row, "societal_effects_prose", None),
         "uncalibrated": is_uncalibrated,
         "song_source": source,
         "song_id": song_id,
