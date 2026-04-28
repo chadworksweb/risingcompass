@@ -209,6 +209,17 @@
   /* methodology-content base styles come from main.css */
 }
 
+.methodology-content a {
+  color: var(--rc-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.methodology-content a:hover {
+  color: var(--rc-text-bright);
+}
+
 /* ─── Inline CTAs inside section bodies ───────────────────── */
 
 .m-cta-row {
