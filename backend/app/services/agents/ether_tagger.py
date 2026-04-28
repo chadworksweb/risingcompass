@@ -26,7 +26,14 @@ logger = logging.getLogger(__name__)
 AGENT_MODEL = settings.agent_model
 
 MAX_TOPICS = 3
-DEADPAN_LENGTH_CAP_MULTIPLIER = 2  # truncate if > 2× (artist+title) length
+# Flat cap on deadpan_line in characters. The previous heuristic
+# (2× artist+title length) chopped legitimate deadpans whenever the
+# title+artist were short — e.g. "Jane!" by "The Long Faces" gave
+# a 38-char cap and truncated "Gothic character sketch of a [...]"
+# mid-sentence. Every clean deadpan in the corpus today is ≤42 chars,
+# so 80 is generous headroom while still enforcing the museum-placard
+# brevity the prompt asks for.
+MAX_DEADPAN_LENGTH = 80
 
 
 _VOICE_BLOCK = """You are the Ether Tagger for The Rising Compass.
@@ -296,10 +303,8 @@ def _sanitize(
     if not deadpan:
         return None
 
-    expected_len = max(len(title) + len(artist), 12)
-    cap = expected_len * DEADPAN_LENGTH_CAP_MULTIPLIER
-    if len(deadpan) > cap:
-        deadpan = _truncate_to_word_boundary(deadpan, cap)
+    if len(deadpan) > MAX_DEADPAN_LENGTH:
+        deadpan = _truncate_to_word_boundary(deadpan, MAX_DEADPAN_LENGTH)
 
     raw_topics = parsed.get("topics") or []
     if not isinstance(raw_topics, list):
