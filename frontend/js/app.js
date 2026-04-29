@@ -101,9 +101,10 @@ const App = (() => {
         EtherArtChart.render();
       }
 
-      // Render the Spotify Viral 50 panel (independent fetch). Failure here
-      // must not break the rest of the homepage.
-      loadViralReading();
+      // Spotify Viral 50 panel — currently locked (under development).
+      // Same treatment as the album panel: blurred placeholder with
+      // "Under Development" overlay, no chart fetch.
+      renderLockedChartPanel('viral-reading-panel', 'viral-reading-content');
 
     } catch (err) {
       console.error('Failed to load compass data:', err);
@@ -112,81 +113,37 @@ const App = (() => {
     }
   }
 
-  async function loadViralReading() {
-    const container = document.getElementById('viral-reading-content');
-    if (!container) return;
-    try {
-      const data = await API.getChartSnapshot('viral');
-      renderViralReading(data);
-    } catch (err) {
-      console.warn('Viral chart fetch failed:', err);
-      container.innerHTML = '<div class="no-reading"><p>Viral chart not available yet.</p></div>';
-    }
-  }
-
-  function renderViralReading(data) {
-    const container = document.getElementById('viral-reading-content');
-    if (!container) return;
-    if (!data || !Array.isArray(data.songs) || data.songs.length === 0) {
-      container.innerHTML = '<div class="no-reading"><p>No viral chart snapshot yet.</p></div>';
-      return;
-    }
-
-    const sortedSongs = [...data.songs].sort((a, b) => a.position - b.position);
-
-    let html = '';
-    html += `<div class="reading-meta" style="font-family:var(--rc-font-mono);font-size:0.75rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--rc-text-dim);margin-bottom:0.75rem;">${formatDate(data.date)} · ${sortedSongs.length} songs</div>`;
-    html += '<ul class="song-list">';
-    sortedSongs.forEach(song => {
-      const hasMEI = song.message_analysis || song.expression_analysis || song.intention_analysis;
-      const hasSummary = song.charge_summary || song.contamination_note;
-      const hasTooltip = hasMEI || hasSummary;
-      const uncalibrated = !song.rubric_color;
-      let tooltipHtml = '';
-      if (hasTooltip && !uncalibrated) {
-        const songHex = COLOR_HEX[song.rubric_color] || '#888';
-        const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
-        const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
-        let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
-        if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
-        if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
-        const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color || '', pos: song.position });
-        if (song.charge_summary) disputeParams.set('cs', song.charge_summary);
-        lines += `<div class="mei-dispute"><a href="/misread-submission.html?${disputeParams.toString()}">Did we get it wrong?</a></div>`;
-        tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
-      }
-      const instrClass = song.instrumental ? ' instrumental' : '';
-      const songHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
-      const titleHtml = songHref
-        ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
-        : escapeHtml(song.title);
-      const dotClass = uncalibrated ? 'uncalibrated' : (song.instrumental ? '' : song.rubric_color);
-      html += `
-        <li class="song-item${hasTooltip && !uncalibrated ? ' has-tooltip' : ''}${instrClass}">
-          <span class="song-pos">${song.position}</span>
-          <span class="song-dot ${dotClass}"${uncalibrated ? ' title="Not yet calibrated"' : ''}></span>
-          <div class="song-info">
-            <div class="song-title">${titleHtml}</div>
-            <div class="song-artist">${escapeHtml(song.artist)}</div>
-          </div>
-          <div class="song-actions">
-            ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
-            ${hasTooltip && !uncalibrated ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
-          </div>
-          ${tooltipHtml}
-        </li>
-      `;
-    });
-    html += '</ul>';
-
-    const uncalibratedCount = sortedSongs.filter(s => !s.rubric_color).length;
-    if (uncalibratedCount > 0) {
-      html += `<div class="instrumental-note">${uncalibratedCount} song${uncalibratedCount > 1 ? 's' : ''} not yet calibrated — shown in gray.</div>`;
-    }
-
-    crossfade(container, html, () => {
-      initSongTooltips(container);
-    });
+  // Locked-chart placeholder used by both the album and viral panels while
+  // they're paused (no Musixmatch wiring → manual lyrics supply isn't
+  // sustainable). Renders a blurred 10-row song-list under an
+  // "Under Development" overlay. Container CSS supplies the 2-col grid.
+  function renderLockedChartPanel(panelId, contentId) {
+    const panel = document.getElementById(panelId);
+    const container = document.getElementById(contentId);
+    if (!panel || !container) return;
+    panel.style.display = '';
+    const readingPanel = document.getElementById('reading-panel');
+    if (readingPanel) readingPanel.style.gridColumn = '';
+    container.innerHTML = `
+      <div style="position:relative;min-height:200px;">
+        <ul class="song-list" style="opacity:0.12;pointer-events:none;">
+          ${Array.from({length: 10}, (_, i) => `
+            <li class="song-item">
+              <span class="song-pos">${i + 1}</span>
+              <span class="song-dot orange"></span>
+              <div class="song-info">
+                <div class="song-title" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${60 + Math.random() * 30}%;">&nbsp;</div>
+                <div class="song-artist" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${40 + Math.random() * 20}%;margin-top:4px;">&nbsp;</div>
+              </div>
+            </li>
+          `).join('')}
+        </ul>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0.5rem;">
+          <span style="font-size:1.4rem;opacity:0.4;" aria-hidden="true">&#x1F6A7;</span>
+          <span style="font-family:var(--rc-font-mono);font-size:0.82rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--rc-text-dim);">Under Development</span>
+        </div>
+      </div>
+    `;
   }
 
   function renderReading(data) {
@@ -339,36 +296,8 @@ const App = (() => {
     });
   }
 
-  function renderAlbumReading(data) {
-    const panel = document.getElementById('album-reading-panel');
-    const container = document.getElementById('album-reading-content');
-    if (!panel || !container) return;
-
-    // Album panel is under development — show placeholder with overlay
-    panel.style.display = '';
-    const readingPanel = document.getElementById('reading-panel');
-    if (readingPanel) readingPanel.style.gridColumn = '';
-
-    container.innerHTML = `
-      <div style="position:relative;min-height:200px;">
-        <ul class="song-list" style="opacity:0.12;pointer-events:none;">
-          ${Array.from({length: 10}, (_, i) => `
-            <li class="song-item">
-              <span class="song-pos">${i + 1}</span>
-              <span class="song-dot orange"></span>
-              <div class="song-info">
-                <div class="song-title" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${60 + Math.random() * 30}%;">&nbsp;</div>
-                <div class="song-artist" style="background:var(--rc-border);color:transparent;border-radius:3px;width:${40 + Math.random() * 20}%;margin-top:4px;">&nbsp;</div>
-              </div>
-            </li>
-          `).join('')}
-        </ul>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0.5rem;">
-          <span style="font-size:1.4rem;opacity:0.4;" aria-hidden="true">&#x1F6A7;</span>
-          <span style="font-family:var(--rc-font-mono);font-size:0.82rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--rc-text-dim);">Under Development</span>
-        </div>
-      </div>
-    `;
+  function renderAlbumReading(/* data */) {
+    renderLockedChartPanel('album-reading-panel', 'album-reading-content');
   }
 
   // --- Ghost Trail (past 30 days on compass) ---

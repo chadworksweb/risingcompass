@@ -15,12 +15,15 @@
 
   #reading-panel,
   #ether-art-chart-panel,
-  #album-reading-panel {
+  #album-reading-panel,
+  #viral-reading-panel {
     grid-column: span 1 !important;
   }
 
-  /* Albums: collapse the 5x2 grid back to a single column on phones. */
-  #album-reading-content .song-list {
+  /* Locked panels (album + viral): collapse the 2-col grid back to a
+     single column on phones. */
+  #album-reading-content .song-list,
+  #viral-reading-content .song-list {
     grid-template-columns: 1fr;
   }
 

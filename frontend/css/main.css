@@ -365,8 +365,11 @@ body {
   font-size: 0.86rem;
 }
 
-/* Weekly Top 10 Albums — 5-row x 2-column grid (build pack §11 step 8). */
-#album-reading-content .song-list {
+/* Locked-chart panels (album + viral) render a 2-column placeholder grid
+   under an "Under Development" overlay. Both share the same lockdown
+   styling so they read as a coherent paused-feature set. */
+#album-reading-content .song-list,
+#viral-reading-content .song-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem 1rem;
