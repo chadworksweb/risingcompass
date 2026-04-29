@@ -45,9 +45,16 @@ def _store_calibration(title: str, artist: str, chart_position: int,
 
     Returns the compass_songs.id for the stored/updated row, or None if skipped.
 
-    `lyrics` is required for the Ether Art Chart tagger hook on new rows; if
-    omitted the tagger is skipped and the three ether columns stay NULL
-    (caught by the deferred backfill pass).
+    Hrana stream safety: this function does only fast DB work — compass_songs
+    upsert + corpus record_and_reconcile (also DB-only). The ether tagger and
+    societal-effects prose calls (multi-second Anthropic round-trips that
+    used to outlast the libSQL Hrana stream TTL when held inside the same
+    session) are split out into `_run_post_calibration_enrichment`. Callers
+    must invoke that helper after committing the compass_songs row, so the
+    long calls happen with no DB session held.
+
+    The `lyrics` kwarg is preserved for signature compatibility but is no
+    longer used here. Pass it to `_run_post_calibration_enrichment` instead.
     """
     # Skip storing if calibration failed (rubric_color is None)
     if result.get("rubric_color") is None:
@@ -132,74 +139,151 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         except Exception:
             logger.exception("Daily corpus log failed for compass song %d", song.id)
 
-        # Ether Art Chart — name what the song IS. Forward-only on fresh rows;
-        # the deferred backfill script handles existing rows. Runs after
-        # record_and_reconcile so song.effects_prose is available to ground
-        # the tagger. Fails soft — on error, the three ether columns stay
-        # NULL and the row is picked up by the next backfill pass.
-        if lyrics and not getattr(song, "deadpan_line", None):
+        return song.id
+
+
+def _run_post_calibration_enrichment(cs_id: int, lyrics: str | None) -> None:
+    """Run the ether tagger and societal-effects prose for a compass_song row,
+    each in its own short-lived DB session with the Anthropic call held
+    OUTSIDE any session.
+
+    Pattern per step:
+        1. Open a read session, snapshot what the API call needs, close.
+        2. Make the Anthropic call (no DB held).
+        3. Open a fresh write session, persist the result, commit, close.
+
+    This is what splits the multi-second API window from the libSQL Hrana
+    stream so the stream TTL never elapses mid-transaction. Both steps fail
+    soft — on error the corresponding columns stay NULL and the deferred
+    backfill pass picks them up.
+
+    Idempotent: skips work for any compass_song that already has the field
+    populated. Safe to call multiple times for the same cs_id.
+
+    Must be called AFTER the caller commits the compass_songs row that
+    `_store_calibration` created/updated. Pre-commit calls will read the
+    pre-image and write back stale state.
+    """
+    if cs_id is None:
+        return
+
+    from app.database import SessionLocal
+
+    # ---------- Ether Art Chart ----------
+    if lyrics:
+        try:
+            r_db = SessionLocal()
             try:
+                song = r_db.get(CompassSong, cs_id)
+                if not song:
+                    return
+                if getattr(song, "deadpan_line", None):
+                    ether_snap = None
+                else:
+                    ether_snap = {
+                        "title": song.title,
+                        "artist": song.artist or "",
+                        "rubric_color": song.rubric_color,
+                        "charge_value": song.charge_value,
+                        "charge_summary": song.charge_summary,
+                        "effects_prose": getattr(song, "effects_prose", None),
+                    }
+            finally:
+                r_db.close()
+
+            if ether_snap is not None:
                 from app.services.agents.ether_tagger import tag_song as _ether_tag
                 ether = _ether_tag(
-                    title=title,
-                    artist=artist,
+                    title=ether_snap["title"],
+                    artist=ether_snap["artist"],
                     lyrics=lyrics,
-                    rubric_color=result.get("rubric_color"),
-                    charge_value=result.get("charge_value"),
-                    charge_summary=result.get("charge_summary"),
-                    effects_prose=getattr(song, "effects_prose", None),
+                    rubric_color=ether_snap["rubric_color"],
+                    charge_value=ether_snap["charge_value"],
+                    charge_summary=ether_snap["charge_summary"],
+                    effects_prose=ether_snap["effects_prose"],
                 )
                 if ether:
-                    song.deadpan_line = ether["deadpan_line"]
-                    song.topics = json.dumps(ether["topics"])
-                    song.topic_audit = (
-                        json.dumps(ether["topic_audit"]) if ether["topic_audit"] else None
-                    )
-                    db.flush()
+                    w_db = SessionLocal()
+                    try:
+                        song = w_db.get(CompassSong, cs_id)
+                        if song:
+                            song.deadpan_line = ether["deadpan_line"]
+                            song.topics = json.dumps(ether["topics"])
+                            song.topic_audit = (
+                                json.dumps(ether["topic_audit"]) if ether["topic_audit"] else None
+                            )
+                            w_db.commit()
+                    finally:
+                        w_db.close()
+
                     if ether["topic_audit"]:
                         try:
                             from app.services.agents.ether_audit_notifier import send_ether_audit_email
                             send_ether_audit_email(
-                                song_id=song.id,
-                                title=title,
-                                artist=artist,
+                                song_id=cs_id,
+                                title=ether_snap["title"],
+                                artist=ether_snap["artist"],
                                 audit=ether["topic_audit"],
                                 settings=settings,
                             )
                         except Exception:
                             logger.exception(
-                                "Ether audit notify dispatch failed for compass song %d", song.id
+                                "Ether audit notify dispatch failed for compass song %d", cs_id
                             )
-            except Exception:
-                logger.exception("Ether tagger hook failed for compass song %d", song.id)
+        except Exception:
+            logger.exception("Ether tagger hook failed for compass song %d", cs_id)
 
-        # Societal effects prose — what running this program at scale would do
-        # to a society. Runs AFTER the ether tagger so deadpan_line + topics
-        # are available to ground the read in the cultural surface area, not
-        # only the lyrics. Fails soft; backfill picks up missing rows.
-        if not getattr(song, "societal_effects_prose", None):
-            try:
-                from app.services.societal_effects_prose import generate_societal_effects_prose
-                soc_prose = generate_societal_effects_prose(
-                    title=song.title,
-                    artist=getattr(song, "artist", "") or "",
-                    rubric_color=song.rubric_color,
-                    charge_value=song.charge_value,
-                    charge_summary=song.charge_summary,
-                    contaminated=bool(getattr(song, "contaminated", False)),
-                    contamination_note=getattr(song, "contamination_note", None),
-                    lyrics=lyrics,
-                    deadpan_line=getattr(song, "deadpan_line", None),
-                    topics=getattr(song, "topics", None),
-                    effects_prose=getattr(song, "effects_prose", None),
-                )
-                if soc_prose:
-                    song.societal_effects_prose = soc_prose
-                    db.flush()
-            except Exception:
-                logger.exception("Societal effects prose hook failed for compass song %d", song.id)
+    # ---------- Societal effects prose ----------
+    try:
+        r_db = SessionLocal()
+        try:
+            song = r_db.get(CompassSong, cs_id)
+            if not song:
+                return
+            if getattr(song, "societal_effects_prose", None):
+                soc_snap = None
+            else:
+                soc_snap = {
+                    "title": song.title,
+                    "artist": song.artist or "",
+                    "rubric_color": song.rubric_color,
+                    "charge_value": song.charge_value,
+                    "charge_summary": song.charge_summary,
+                    "contaminated": bool(getattr(song, "contaminated", False)),
+                    "contamination_note": getattr(song, "contamination_note", None),
+                    "deadpan_line": getattr(song, "deadpan_line", None),
+                    "topics": getattr(song, "topics", None),
+                    "effects_prose": getattr(song, "effects_prose", None),
+                }
+        finally:
+            r_db.close()
 
-        return song.id
+        if soc_snap is not None:
+            from app.services.societal_effects_prose import generate_societal_effects_prose
+            soc_prose = generate_societal_effects_prose(
+                title=soc_snap["title"],
+                artist=soc_snap["artist"],
+                rubric_color=soc_snap["rubric_color"],
+                charge_value=soc_snap["charge_value"],
+                charge_summary=soc_snap["charge_summary"],
+                contaminated=soc_snap["contaminated"],
+                contamination_note=soc_snap["contamination_note"],
+                lyrics=lyrics,
+                deadpan_line=soc_snap["deadpan_line"],
+                topics=soc_snap["topics"],
+                effects_prose=soc_snap["effects_prose"],
+            )
+            if soc_prose:
+                w_db = SessionLocal()
+                try:
+                    song = w_db.get(CompassSong, cs_id)
+                    if song:
+                        song.societal_effects_prose = soc_prose
+                        w_db.commit()
+                finally:
+                    w_db.close()
+    except Exception:
+        logger.exception("Societal effects prose hook failed for compass song %d", cs_id)
 
 
 def run_compass_agent(
@@ -301,6 +385,7 @@ def run_compass_agent(
             "position": position,
             "chart_source": chart_source,
             "compass_song_id": cs_id,
+            "_enrichment_lyrics": lyrics if cs_id is not None else None,
             "lyrics_available": True,
             **result,
         })
@@ -368,6 +453,17 @@ def run_compass_agent(
 
     db.commit()
     db.refresh(draft)
+
+    # Run ether tagger + societal-effects enrichment now that the
+    # compass_songs rows are committed. Each helper opens its own short
+    # session for the read snapshot, makes the Anthropic call with no DB
+    # held, then opens a fresh session to persist. Fails soft per row.
+    if not draft_only:
+        for s in calibrated_songs:
+            cs_id = s.get("compass_song_id")
+            enrich_lyrics = s.get("_enrichment_lyrics")
+            if cs_id is not None:
+                _run_post_calibration_enrichment(cs_id, enrich_lyrics)
 
     # Send email notification (skip for draft-only / case study mode)
     if not draft_only:

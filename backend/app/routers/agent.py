@@ -23,7 +23,7 @@ from app.schemas import (
 from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
 from app.config import settings
 from app.routers.admin import verify_admin_key
-from app.services.agents.compass_agent import run_compass_agent, _store_calibration
+from app.services.agents.compass_agent import run_compass_agent, _store_calibration, _run_post_calibration_enrichment
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import record_and_reconcile
 from app.services.agents.chart_source import fetch_top_songs
@@ -554,6 +554,13 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     finally:
         write_db.close()
 
+    # === ENRICHMENT — ether tagger + societal effects, each in its own short
+    # session with the Anthropic call held outside any session. Must run
+    # after the compass_songs row is committed (above) so the read snapshots
+    # see the freshly-written row. Fails soft per step. ===
+    if cs_id is not None:
+        _run_post_calibration_enrichment(cs_id, data.lyrics)
+
     # === EDITORIAL REGEN — separate session, no DB held during API call ===
     if editorial_input:
         try:
@@ -831,11 +838,19 @@ async def backfill_calibrate(
             skip_cache=True, target_year=year,
         )
 
-        _store_calibration(
+        cs_id = _store_calibration(
             song.title, song.artist, song.chart_position or 0,
             song.chart_source or "billboard", result, True, db,
             lyrics=lyrics,
         )
+        # Commit the compass_songs row before running enrichment — the ether
+        # tagger + societal-effects helpers open their own short sessions and
+        # need to read this row by id. Per-song commit also keeps the libSQL
+        # Hrana stream window short across the loop, instead of one giant
+        # transaction across every backfilled song.
+        db.commit()
+        if cs_id is not None:
+            _run_post_calibration_enrichment(cs_id, lyrics)
 
         calibrated_count += 1
         results.append(BackfillSongOut(
