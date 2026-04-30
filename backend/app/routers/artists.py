@@ -150,7 +150,10 @@ def artist_search(
     if cached is not None:
         return cached
 
+    # Match against both raw lowercase and an &->and-normalized form so
+    # "Hall and Oates" finds "Hall & Oates" and vice versa.
     like_pat = f"%{q_lower}%"
+    like_pat_norm = f"%{q_lower.replace('&', 'and')}%"
 
     db = SessionLocal()
     try:
@@ -161,6 +164,7 @@ def artist_search(
                 SELECT id, name, slug
                 FROM artists
                 WHERE lower(name) LIKE :pat
+                   OR replace(lower(name), '&', 'and') LIKE :pat_norm
                 LIMIT :limit
             )
             SELECT
@@ -183,7 +187,7 @@ def artist_search(
             """
         )
         indexed_rows = db.execute(
-            indexed_sql, {"pat": like_pat, "limit": limit}
+            indexed_sql, {"pat": like_pat, "pat_norm": like_pat_norm, "limit": limit}
         ).all()
 
         results: list[dict] = []
@@ -206,15 +210,18 @@ def artist_search(
                 SELECT MIN(artist) AS name, COUNT(*) AS song_count
                 FROM (
                     SELECT artist FROM compass_songs
-                     WHERE lower(artist) LIKE :pat
+                     WHERE (lower(artist) LIKE :pat
+                            OR replace(lower(artist), '&', 'and') LIKE :pat_norm)
                        AND charge_value IS NOT NULL
                     UNION ALL
                     SELECT artist FROM library_songs
-                     WHERE lower(artist) LIKE :pat
+                     WHERE (lower(artist) LIKE :pat
+                            OR replace(lower(artist), '&', 'and') LIKE :pat_norm)
                        AND charge_value IS NOT NULL
                     UNION ALL
                     SELECT artist FROM submitted_songs
-                     WHERE lower(artist) LIKE :pat
+                     WHERE (lower(artist) LIKE :pat
+                            OR replace(lower(artist), '&', 'and') LIKE :pat_norm)
                        AND charge_value IS NOT NULL
                        AND artist IS NOT NULL
                 )
@@ -227,7 +234,8 @@ def artist_search(
             # because they're already in `indexed_lower`.
             unindexed_rows = db.execute(
                 unindexed_sql,
-                {"pat": like_pat, "limit": remaining + len(indexed_lower) + 10},
+                {"pat": like_pat, "pat_norm": like_pat_norm,
+                 "limit": remaining + len(indexed_lower) + 10},
             ).all()
 
             added = 0

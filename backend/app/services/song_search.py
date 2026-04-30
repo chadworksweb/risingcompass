@@ -26,15 +26,16 @@ _NORM_RE = re.compile(r"[^a-z0-9]+")
 
 
 def normalize_for_search(s: str | None) -> str:
-    """Lowercase + strip every non-alphanumeric character.
+    """Lowercase + canonicalize ampersand-vs-and + strip non-alphanumeric.
 
     "T.G.A." -> "tga"; "don't stop me now" -> "dontstopmenow";
-    "feat." -> "feat"; "AC/DC" -> "acdc". Lets substring search catch
-    hits that diverge only in punctuation/spacing/casing.
+    "feat." -> "feat"; "AC/DC" -> "acdc". "&" is replaced with "and"
+    before stripping, so "Ask & Tell" and "Ask and Tell" both normalize
+    to "askandtell" — a search for either form finds both.
     """
     if not s:
         return ""
-    return _NORM_RE.sub("", s.lower())
+    return _NORM_RE.sub("", s.lower().replace("&", "and"))
 
 
 _SONG_MODELS = {

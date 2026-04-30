@@ -352,20 +352,29 @@ def song_detail(slug: str):
 
 @router.get("")
 def song_search(q: str = "", limit: int = 20):
-    """Search songs by title across all tables. Returns matches with slugs."""
+    """Search songs by title across all tables. Returns matches with slugs.
+
+    Treats "&" and "and" as equivalent on both sides of the substring match,
+    so "ask & tell" and "ask and tell" both find the same row.
+    """
     db = SessionLocal()
     try:
         if len(q.strip()) < 2:
             return {"results": []}
 
         q_lower = q.strip().lower()
+        q_norm = q_lower.replace("&", "and")
         results = []
         seen = set()  # (title_lower, artist_lower) to dedupe
 
         for source, Model in [("compass", CompassSong), ("library", LibrarySong), ("submitted", SubmittedSong)]:
+            title_norm_expr = func.replace(func.lower(Model.title), "&", "and")
             query = (
                 db.query(Model)
-                .filter(func.lower(Model.title).contains(q_lower))
+                .filter(or_(
+                    func.lower(Model.title).contains(q_lower),
+                    title_norm_expr.contains(q_norm),
+                ))
                 .filter(Model.charge_value.isnot(None))
             )
             if Model is SubmittedSong:
