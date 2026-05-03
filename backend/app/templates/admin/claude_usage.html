@@ -1,0 +1,443 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'claude-usage' %}
+{% block title %}Claude Usage — Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+  .cu-controls { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .cu-controls label { color: var(--text-dim); font-size: 0.78rem; font-weight: 600; }
+  .cu-controls select, .cu-controls input { padding: 0.35rem 0.6rem; font-size: 0.82rem; max-width: 220px; }
+
+  /* Hero */
+  .cu-hero { display: grid; grid-template-columns: 1.7fr 1fr; gap: 1.6rem; padding: 1.6rem 1.8rem; background: linear-gradient(135deg, #f3faf7 0%, #ffffff 60%); border: 1px solid var(--border-soft); border-radius: 8px; margin-bottom: 1.5rem; align-items: stretch; }
+  .cu-hero-primary { display: flex; flex-direction: column; }
+  .cu-hero-secondary { padding-left: 1.6rem; border-left: 1px solid var(--border-soft); display: flex; flex-direction: column; justify-content: flex-end; }
+  .cu-hero-label { color: var(--text-dim); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.35rem; }
+  .cu-hero-value { color: var(--accent); font-size: 4.2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; line-height: 1; letter-spacing: -0.03em; }
+  .cu-hero-value-sm { color: var(--text); font-size: 2.4rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; letter-spacing: -0.01em; }
+  .cu-hero-sub { color: var(--text-dim); font-size: 0.85rem; margin-top: 0.55rem; font-family: 'JetBrains Mono', monospace; }
+  @media (max-width: 720px) {
+    .cu-hero { grid-template-columns: 1fr; }
+    .cu-hero-secondary { padding-left: 0; border-left: none; border-top: 1px solid var(--border-soft); padding-top: 1rem; }
+    .cu-hero-value { font-size: 3rem; }
+  }
+
+  /* Section title */
+  .cu-section-title { color: var(--text-dim); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin: 1.6rem 0 0.5rem; display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+  .cu-section-title .legend { display: flex; gap: 0.7rem; flex-wrap: wrap; font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 0.72rem; color: var(--text-dim); }
+  .cu-section-title .legend .chip { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .cu-section-title .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  /* Daily stacked chart */
+  .cu-daily { display: flex; align-items: flex-end; gap: 6px; min-height: 220px; padding: 1.8rem 0.8rem 0.6rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; overflow-x: auto; }
+  .cu-daily-col { display: flex; flex-direction: column; align-items: center; min-width: 38px; }
+  .cu-daily-stack { width: 26px; display: flex; flex-direction: column-reverse; position: relative; min-height: 2px; }
+  .cu-daily-seg { width: 100%; min-height: 1px; }
+  .cu-daily-seg:last-child { border-top-left-radius: 2px; border-top-right-radius: 2px; }
+  .cu-daily-cost { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); font-size: 0.66rem; color: var(--text); font-weight: 700; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+  .cu-daily-label { font-size: 0.62rem; color: var(--text-hint); font-family: 'JetBrains Mono', monospace; margin-top: 0.45rem; white-space: nowrap; }
+
+  /* Demoted stat strip */
+  .cu-strip { display: flex; flex-wrap: wrap; gap: 0; margin: 0.8rem 0 0; padding: 0.7rem 1rem; background: #ffffff; border: 1px solid var(--border-soft); border-radius: 6px; font-size: 0.8rem; }
+  .cu-strip-item { padding: 0 1rem; border-right: 1px solid var(--border-soft); }
+  .cu-strip-item:last-child { border-right: none; }
+  .cu-strip-item:first-child { padding-left: 0; }
+  .cu-strip-item .label { color: var(--text-dim); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .cu-strip-item .val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-weight: 600; margin-top: 0.1rem; }
+  .cu-strip-item .val.err { color: var(--red); }
+
+  /* Tables */
+  .cu-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; background: #ffffff; border: 1px solid var(--border-soft); border-radius: 6px; overflow: hidden; }
+  .cu-table th { text-align: left; background: var(--panel-strong); padding: 0.5rem 0.7rem; color: var(--text); font-weight: 700; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+  .cu-table td { padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border-soft); color: var(--text); font-family: 'JetBrains Mono', monospace; vertical-align: middle; }
+  .cu-table td.t { font-family: inherit; }
+  .cu-table tr:last-child td { border-bottom: none; }
+  .cu-table .err { color: var(--red); }
+
+  /* Money-first cost cell in by-site table */
+  .cu-cost-cell { width: 220px; }
+  .cu-cost-amount { font-size: 1.05rem; font-weight: 700; color: var(--accent-strong); font-family: 'JetBrains Mono', monospace; line-height: 1.1; }
+  .cu-cost-bar { height: 6px; background: var(--panel-strong); border-radius: 3px; overflow: hidden; margin-top: 0.35rem; }
+  .cu-cost-bar .fill { height: 100%; border-radius: 3px; }
+
+  /* Recent calls list */
+  .cu-call-row { padding: 0.6rem 0.8rem; background: #ffffff; border: 1px solid var(--border-soft); border-radius: 4px; margin-bottom: 0.35rem; font-size: 0.82rem; }
+  .cu-call-head { display: grid; grid-template-columns: 140px 1fr 110px 70px 130px; gap: 0.6rem; align-items: center; font-family: 'JetBrains Mono', monospace; }
+  .cu-call-cost-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+  .cu-call-cost-amount { font-size: 1rem; font-weight: 800; color: var(--accent-strong); font-family: 'JetBrains Mono', monospace; line-height: 1; letter-spacing: -0.01em; }
+  .cu-call-cost-bar { width: 100%; height: 4px; background: var(--panel-strong); border-radius: 2px; overflow: hidden; }
+  .cu-call-cost-bar .fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .cu-call-context { padding-left: 140px; padding-top: 0.25rem; font-size: 0.76rem; color: var(--text-dim); }
+  .cu-call-context strong { color: var(--text); font-weight: 600; }
+  .cu-call-error { padding-left: 140px; padding-top: 0.25rem; font-size: 0.76rem; color: var(--red); font-family: 'JetBrains Mono', monospace; }
+
+  .cu-pill { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--panel-strong); color: var(--text-dim); font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
+  .cu-pill.ok { background: #dff3e8; color: var(--tier-green); }
+  .cu-pill.err { background: #fce4dc; color: var(--red); }
+  .cu-pagination { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; }
+  .cu-pagination button { padding: 0.3rem 0.8rem; font-size: 0.78rem; }
+  .cu-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .cu-page-info { color: var(--text-dim); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; }
+  .cu-empty { color: var(--text-dim); font-size: 0.85rem; padding: 1rem; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:1rem;">
+  <h2 class="section-title" style="margin:0;">Claude API Usage</h2>
+  <div class="cu-controls">
+    <label for="cuDays">Window</label>
+    <select id="cuDays" onchange="cuLoad()">
+      <option value="1">Last 24h</option>
+      <option value="7">Last 7 days</option>
+      <option value="30" selected>Last 30 days</option>
+      <option value="90">Last 90 days</option>
+      <option value="365">Last 365 days</option>
+    </select>
+  </div>
+</div>
+
+<div id="cuHero" class="cu-hero">
+  <div class="cu-hero-primary">
+    <div class="cu-hero-label" id="cuHeroLabel">Spend in last 30 days</div>
+    <div class="cu-hero-value" id="cuHeroSpend">$0.00</div>
+    <div class="cu-hero-sub" id="cuHeroSub">— calls</div>
+  </div>
+  <div class="cu-hero-secondary">
+    <div class="cu-hero-label">All-time</div>
+    <div class="cu-hero-value-sm" id="cuHeroAllTime">$0.00</div>
+    <div class="cu-hero-sub" id="cuHeroAllTimeSub">— calls</div>
+  </div>
+</div>
+
+<h3 class="cu-section-title">Daily spend <span class="legend" id="cuLegend"></span></h3>
+<div id="cuDaily" class="cu-daily"></div>
+
+<div id="cuStrip" class="cu-strip"></div>
+
+<h3 class="cu-section-title">Cost by call site</h3>
+<table class="cu-table" id="cuBySite">
+  <thead>
+    <tr>
+      <th class="cu-cost-cell">Cost</th>
+      <th>Call site</th>
+      <th>Calls</th>
+      <th>Tokens (in / out)</th>
+      <th>Avg / call</th>
+    </tr>
+  </thead>
+  <tbody id="cuBySiteBody"></tbody>
+</table>
+
+<h3 class="cu-section-title">Cost by model</h3>
+<table class="cu-table" id="cuByModel">
+  <thead>
+    <tr>
+      <th style="width:160px;">Cost</th>
+      <th>Model</th>
+      <th>Calls</th>
+    </tr>
+  </thead>
+  <tbody id="cuByModelBody"></tbody>
+</table>
+
+<h3 class="cu-section-title">Recent calls</h3>
+<div class="cu-controls" style="margin-bottom:0.6rem;">
+  <label for="cuFilterSite">Filter</label>
+  <select id="cuFilterSite" onchange="cuLoadCalls(0)">
+    <option value="">All call sites</option>
+  </select>
+  <label style="margin-left:1rem;"><input type="checkbox" id="cuOnlyErrors" onchange="cuLoadCalls(0)" style="width:auto;"> Errors only</label>
+  <span class="cu-page-info" id="cuTotal" style="margin-left:auto;"></span>
+</div>
+<div id="cuCalls"></div>
+<div class="cu-pagination">
+  <button id="cuPrev" onclick="cuPrev()">← Prev</button>
+  <span class="cu-page-info" id="cuPageInfo"></span>
+  <button id="cuNext" onclick="cuNext()">Next →</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CU_PAGE_SIZE = 50;
+const CU_PALETTE = ['#008f72', '#3a7bd5', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626', '#475569', '#a855f7'];
+let cuOffset = 0;
+let cuTotal = 0;
+let cuSiteColors = {}; // call_site -> hex
+
+function cuFmtUsd(n) {
+  if (n == null) return '—';
+  if (n < 0.01 && n > 0) return '$' + n.toFixed(6);
+  return '$' + n.toFixed(2);
+}
+function cuFmtUsdBig(n) {
+  if (n == null) return '$0.00';
+  if (n >= 1000) return '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return '$' + n.toFixed(2);
+}
+function cuFmtTokens(n) {
+  if (n == null) return '0';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
+  return String(n);
+}
+function cuFmtNum(n) {
+  return (n || 0).toLocaleString();
+}
+function cuWindowLabel(days) {
+  days = parseInt(days, 10);
+  if (days === 1) return 'Spend in last 24 hours';
+  if (days === 7) return 'Spend in last 7 days';
+  if (days === 30) return 'Spend in last 30 days';
+  if (days === 90) return 'Spend in last 90 days';
+  if (days === 365) return 'Spend in last 365 days';
+  return `Spend in last ${days} days`;
+}
+
+function onAdminReady() {
+  cuLoad();
+}
+
+async function cuLoad() {
+  const days = document.getElementById('cuDays').value;
+  try {
+    const resp = await adminFetch(`/api/admin/claude-usage/summary?days=${days}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    cuAssignSiteColors(data.by_call_site || []);
+    cuRenderHero(data, days);
+    cuRenderDaily(data.daily || [], data.daily_by_call_site || [], data.by_call_site || []);
+    cuRenderStrip(data);
+    cuRenderBySite(data.by_call_site || []);
+    cuRenderByModel(data.by_model || []);
+    cuPopulateSiteFilter(data.by_call_site || []);
+    cuOffset = 0;
+    cuLoadCalls(0);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function cuAssignSiteColors(rows) {
+  cuSiteColors = {};
+  rows.forEach((r, i) => {
+    cuSiteColors[r.call_site] = CU_PALETTE[i % CU_PALETTE.length];
+  });
+}
+
+function cuRenderHero(data, days) {
+  const t = data.totals || {};
+  const at = data.all_time || {};
+  document.getElementById('cuHeroLabel').textContent = cuWindowLabel(days);
+  document.getElementById('cuHeroSpend').textContent = cuFmtUsdBig(t.total_cost_usd || 0);
+  const avg = t.calls ? (t.total_cost_usd / t.calls) : 0;
+  document.getElementById('cuHeroSub').textContent =
+    `${cuFmtNum(t.calls)} calls · avg ${cuFmtUsd(avg)}/call`;
+  document.getElementById('cuHeroAllTime').textContent = cuFmtUsdBig(at.total_cost_usd || 0);
+  document.getElementById('cuHeroAllTimeSub').textContent = `${cuFmtNum(at.calls)} calls total`;
+}
+
+function cuRenderDaily(daily, dailyBySite, bySite) {
+  const el = document.getElementById('cuDaily');
+  const legendEl = document.getElementById('cuLegend');
+
+  if (!daily.length) {
+    el.innerHTML = '<div class="cu-empty" style="width:100%;">No calls in this window.</div>';
+    legendEl.innerHTML = '';
+    return;
+  }
+
+  // Build map: day -> { total, calls, sites: { call_site: cost } }
+  const map = {};
+  daily.forEach(d => { map[d.day] = { total: d.cost_usd || 0, calls: d.calls || 0, sites: {} }; });
+  dailyBySite.forEach(r => {
+    if (!map[r.day]) map[r.day] = { total: 0, calls: 0, sites: {} };
+    map[r.day].sites[r.call_site] = r.cost_usd || 0;
+  });
+
+  const days = Object.keys(map).sort();
+  const max = Math.max(...days.map(d => map[d].total)) || 0.000001;
+
+  // Site stacking order: most expensive first (bottom of stack -> top)
+  const siteOrder = bySite.map(r => r.call_site);
+
+  el.innerHTML = days.map(day => {
+    const cell = map[day];
+    const stackHeightPct = (cell.total / max) * 100;
+    const segs = siteOrder
+      .filter(s => (cell.sites[s] || 0) > 0)
+      .map(s => {
+        const cost = cell.sites[s];
+        const segPct = (cost / cell.total) * 100;
+        const color = cuSiteColors[s] || '#888';
+        const tip = `${day} · ${escHtml(s)} · ${cuFmtUsd(cost)}`;
+        return `<div class="cu-daily-seg" style="height:${segPct}%;background:${color};" title="${escHtml(tip)}"></div>`;
+      })
+      .join('');
+    const dayTip = `${day} · ${cuFmtUsd(cell.total)} · ${cell.calls} calls`;
+    return `<div class="cu-daily-col">
+      <div class="cu-daily-stack" style="height:${Math.max(2, stackHeightPct)}%;" title="${escHtml(dayTip)}">
+        <div class="cu-daily-cost">${cuFmtUsd(cell.total)}</div>
+        ${segs || `<div class="cu-daily-seg" style="height:100%;background:var(--panel-strong);"></div>`}
+      </div>
+      <div class="cu-daily-label">${escHtml(day.slice(5))}</div>
+    </div>`;
+  }).join('');
+
+  // Legend: top spenders only (5 max), stable colors
+  legendEl.innerHTML = bySite.slice(0, 5).map(r => {
+    const color = cuSiteColors[r.call_site] || '#888';
+    return `<span class="chip"><span class="swatch" style="background:${color};"></span>${escHtml(r.call_site)}</span>`;
+  }).join('');
+}
+
+function cuRenderStrip(data) {
+  const t = data.totals || {};
+  const errPct = t.calls ? (100 * t.error_calls / t.calls).toFixed(1) : '0.0';
+  const avg = t.calls ? (t.total_cost_usd / t.calls) : 0;
+  const errClass = t.error_calls > 0 ? 'val err' : 'val';
+  document.getElementById('cuStrip').innerHTML = `
+    <div class="cu-strip-item"><div class="label">Input</div><div class="val">${cuFmtTokens(t.input_tokens)}</div></div>
+    <div class="cu-strip-item"><div class="label">Output</div><div class="val">${cuFmtTokens(t.output_tokens)}</div></div>
+    <div class="cu-strip-item"><div class="label">Cache read</div><div class="val">${cuFmtTokens(t.cache_read_tokens)}</div></div>
+    <div class="cu-strip-item"><div class="label">Cache write</div><div class="val">${cuFmtTokens(t.cache_creation_tokens)}</div></div>
+    <div class="cu-strip-item"><div class="label">Errors</div><div class="${errClass}">${cuFmtNum(t.error_calls)} <span style="color:var(--text-dim);font-weight:500;">(${errPct}%)</span></div></div>
+    <div class="cu-strip-item"><div class="label">Avg / call</div><div class="val">${cuFmtUsd(avg)}</div></div>
+  `;
+}
+
+function cuRenderBySite(rows) {
+  const tbody = document.getElementById('cuBySiteBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="cu-empty">No usage in this window.</td></tr>';
+    return;
+  }
+  const maxCost = rows[0].cost_usd || 1;
+  tbody.innerHTML = rows.map(r => {
+    const pct = (r.cost_usd / maxCost) * 100;
+    const color = cuSiteColors[r.call_site] || 'var(--accent)';
+    return `<tr>
+      <td class="cu-cost-cell">
+        <div class="cu-cost-amount">${cuFmtUsd(r.cost_usd)}</div>
+        <div class="cu-cost-bar"><div class="fill" style="width:${pct}%;background:${color};"></div></div>
+      </td>
+      <td class="t"><strong>${escHtml(r.call_site)}</strong></td>
+      <td>${cuFmtNum(r.calls)}</td>
+      <td>${cuFmtTokens(r.input_tokens)} / ${cuFmtTokens(r.output_tokens)}</td>
+      <td>${cuFmtUsd(r.avg_cost_usd)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function cuRenderByModel(rows) {
+  const tbody = document.getElementById('cuByModelBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="cu-empty">No usage in this window.</td></tr>';
+    return;
+  }
+  const maxCost = rows[0].cost_usd || 1;
+  tbody.innerHTML = rows.map(r => {
+    const pct = (r.cost_usd / maxCost) * 100;
+    return `<tr>
+      <td>
+        <div class="cu-cost-amount">${cuFmtUsd(r.cost_usd)}</div>
+        <div class="cu-cost-bar"><div class="fill" style="width:${pct}%;background:var(--accent);"></div></div>
+      </td>
+      <td class="t">${escHtml(r.model)}</td>
+      <td>${cuFmtNum(r.calls)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function cuPopulateSiteFilter(rows) {
+  const sel = document.getElementById('cuFilterSite');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All call sites</option>' +
+    rows.map(r => `<option value="${escHtml(r.call_site)}">${escHtml(r.call_site)}</option>`).join('');
+  if (current && rows.some(r => r.call_site === current)) sel.value = current;
+}
+
+async function cuLoadCalls(offset) {
+  const days = document.getElementById('cuDays').value;
+  const site = document.getElementById('cuFilterSite').value;
+  const onlyErrors = document.getElementById('cuOnlyErrors').checked;
+  const params = new URLSearchParams({
+    limit: String(CU_PAGE_SIZE),
+    offset: String(offset),
+    days,
+  });
+  if (site) params.set('call_site', site);
+  if (onlyErrors) params.set('only_errors', 'true');
+  try {
+    const resp = await adminFetch('/api/admin/claude-usage/calls?' + params.toString());
+    if (!resp.ok) return;
+    const data = await resp.json();
+    cuOffset = data.offset || 0;
+    cuTotal = data.total || 0;
+    cuRenderCalls(data.calls || []);
+    cuUpdatePagination();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function cuRenderCalls(calls) {
+  const el = document.getElementById('cuCalls');
+  if (!calls.length) {
+    el.innerHTML = '<div class="cu-empty">No calls.</div>';
+    return;
+  }
+  const maxCost = Math.max(...calls.map(c => c.total_cost_usd || 0)) || 0.000001;
+  el.innerHTML = calls.map(c => {
+    const when = c.ts ? new Date(c.ts).toLocaleString() : '—';
+    const pill = c.ok ? '<span class="cu-pill ok">ok</span>' : '<span class="cu-pill err">error</span>';
+    let ctxLine = '';
+    if (c.context && typeof c.context === 'object') {
+      const parts = [];
+      if (c.context.title) parts.push(`<strong>${escHtml(c.context.title)}</strong>`);
+      if (c.context.artist) parts.push(`— ${escHtml(c.context.artist)}`);
+      if (!parts.length) {
+        const keys = Object.keys(c.context).slice(0, 4);
+        keys.forEach(k => parts.push(`${k}=${escHtml(String(c.context[k] ?? ''))}`));
+      }
+      if (parts.length) ctxLine = `<div class="cu-call-context">${parts.join(' ')}</div>`;
+    }
+    const errLine = c.error ? `<div class="cu-call-error">${escHtml(c.error)}</div>` : '';
+    const costPct = ((c.total_cost_usd || 0) / maxCost) * 100;
+    return `<div class="cu-call-row">
+      <div class="cu-call-head">
+        <span style="color:var(--text-dim);">${when}</span>
+        <span><strong>${escHtml(c.call_site)}</strong> <span style="color:var(--text-dim);">${escHtml(c.model)}</span> ${pill}</span>
+        <span style="color:var(--text-dim);">in ${cuFmtTokens(c.input_tokens)} · out ${cuFmtTokens(c.output_tokens)}</span>
+        <span style="color:var(--text-dim);">${c.duration_ms || 0}ms</span>
+        <span class="cu-call-cost-cell">
+          <span class="cu-call-cost-amount">${cuFmtUsd(c.total_cost_usd)}</span>
+          <span class="cu-call-cost-bar"><span class="fill" style="width:${costPct}%;"></span></span>
+        </span>
+      </div>
+      ${ctxLine}
+      ${errLine}
+    </div>`;
+  }).join('');
+}
+
+function cuUpdatePagination() {
+  const start = cuTotal === 0 ? 0 : cuOffset + 1;
+  const end = Math.min(cuOffset + CU_PAGE_SIZE, cuTotal);
+  document.getElementById('cuPageInfo').textContent = `${start}–${end} of ${cuTotal.toLocaleString()}`;
+  document.getElementById('cuTotal').textContent = `${cuTotal.toLocaleString()} matching call${cuTotal === 1 ? '' : 's'}`;
+  document.getElementById('cuPrev').disabled = cuOffset <= 0;
+  document.getElementById('cuNext').disabled = cuOffset + CU_PAGE_SIZE >= cuTotal;
+}
+
+function cuPrev() {
+  if (cuOffset <= 0) return;
+  cuLoadCalls(Math.max(0, cuOffset - CU_PAGE_SIZE));
+}
+function cuNext() {
+  if (cuOffset + CU_PAGE_SIZE >= cuTotal) return;
+  cuLoadCalls(cuOffset + CU_PAGE_SIZE);
+}
+</script>
+{% endblock %}

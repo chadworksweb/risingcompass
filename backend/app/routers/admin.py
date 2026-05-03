@@ -66,6 +66,7 @@ _ADMIN_SECTIONS = {
     "submissions": "admin/submissions.html",
     "lc-activity": "admin/lc_activity.html",
     "api-monitor": "admin/api_monitor.html",
+    "claude-usage": "admin/claude_usage.html",
     "v1-test": "admin/v1_test.html",
 }
 

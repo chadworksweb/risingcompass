@@ -826,6 +826,38 @@ class ApiCallLog(Base):
     context_json = Column(Text)
 
 
+class ClaudeApiUsage(Base):
+    """One row per Anthropic messages.create() call from the backend.
+
+    Distinct from api_call_log (inbound) — this tracks OUTBOUND spend on the
+    Claude API. call_site identifies which feature made the call ("calibrator",
+    "satire_recalibrator", "ether_tagger", etc); context_json captures the
+    feature-specific args (song title/artist, draft id, etc) so the admin tab
+    can show exactly what was being processed when the cost was incurred.
+    """
+    __tablename__ = "claude_api_usage"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ts = Column(DateTime, default=datetime.utcnow, nullable=False)
+    call_site = Column(String(64), nullable=False)
+    model = Column(String(64), nullable=False)
+    input_tokens = Column(Integer, nullable=False, default=0)
+    output_tokens = Column(Integer, nullable=False, default=0)
+    cache_creation_tokens = Column(Integer, nullable=False, default=0)
+    cache_read_tokens = Column(Integer, nullable=False, default=0)
+    input_cost_usd = Column(Float, nullable=False, default=0.0)
+    output_cost_usd = Column(Float, nullable=False, default=0.0)
+    cache_creation_cost_usd = Column(Float, nullable=False, default=0.0)
+    cache_read_cost_usd = Column(Float, nullable=False, default=0.0)
+    total_cost_usd = Column(Float, nullable=False, default=0.0)
+    duration_ms = Column(Integer)
+    stop_reason = Column(String(32))
+    ok = Column(Integer, nullable=False, default=1)
+    error = Column(Text)
+    pricing_source = Column(String(32))
+    context_json = Column(Text)
+
+
 class ArtistVerification(Base):
     """Artist-level verification record. One-to-one with Artist.
 

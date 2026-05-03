@@ -19,6 +19,7 @@ from typing import Optional
 from anthropic import Anthropic
 
 from app.config import settings
+from app.services.claude_meter import tracked_create
 from app.services.ether_taxonomy import VALID_SLUGS, taxonomy_for_prompt
 
 logger = logging.getLogger(__name__)
@@ -367,7 +368,10 @@ def _call_model(
         charge_summary=charge_summary, effects_prose=effects_prose,
     )
     try:
-        response = client.messages.create(
+        response = tracked_create(
+            client,
+            call_site="ether_tagger",
+            context={"title": title, "artist": artist},
             model=AGENT_MODEL,
             max_tokens=512,
             temperature=0,

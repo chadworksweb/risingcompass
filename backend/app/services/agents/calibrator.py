@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import CompassSong
+from app.services.claude_meter import tracked_create_async
 from app.services.contamination import enforce_contamination_rule
 from app.services.agents.compass_agent_rubric import (
     build_few_shot_examples,
@@ -110,7 +111,10 @@ async def calibrate_song_async(
         title, artist, lyrics=lyrics, examples=examples
     )
 
-    response = await client.messages.create(
+    response = await tracked_create_async(
+        client,
+        call_site="calibrator",
+        context={"title": title, "artist": artist, "target_year": target_year},
         model=AGENT_MODEL,
         max_tokens=2048,
         temperature=0,

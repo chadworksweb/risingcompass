@@ -14,6 +14,7 @@ from app.models import AgentDraft, AgentDraftSong, CompassSong
 from app.services.agents.calibrator import calibrate_song, lookup_calibrated, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
+from app.services.claude_meter import tracked_create
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated, enforce_contamination_rule
@@ -486,7 +487,10 @@ def _generate_editorial(calibrated_songs: list[dict]) -> str | None:
         client = Anthropic(api_key=settings.anthropic_api_key)
         system_prompt, user_prompt = build_editorial_prompt(calibrated_songs)
 
-        response = client.messages.create(
+        response = tracked_create(
+            client,
+            call_site="editorial_summary",
+            context={"song_count": len(calibrated_songs)},
             model=AGENT_MODEL,
             max_tokens=256,
             system=system_prompt,

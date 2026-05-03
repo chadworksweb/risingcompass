@@ -23,6 +23,7 @@ from app.services.agents.compass_agent_rubric import (
     RUBRIC_DEFINITION, CALIBRATION_FORMAT, build_few_shot_examples,
     build_calibration_prompt,
 )
+from app.services.claude_meter import tracked_create
 from app.services.contamination import enforce_contamination_rule
 
 logger = logging.getLogger(__name__)
@@ -122,7 +123,10 @@ def recalibrate_song_satire(
         original_color, original_charge, original_summary,
     )
 
-    response = client.messages.create(
+    response = tracked_create(
+        client,
+        call_site="satire_recalibrator",
+        context={"title": title, "artist": artist},
         model=AGENT_MODEL,
         max_tokens=8192,
         temperature=0,
@@ -209,7 +213,10 @@ def recalibrate_song_rubric_update(
         title, artist, lyrics=lyrics, examples=examples,
     )
 
-    response = client.messages.create(
+    response = tracked_create(
+        client,
+        call_site="rubric_update_recalibrator",
+        context={"title": title, "artist": artist},
         model=AGENT_MODEL,
         max_tokens=2048,
         temperature=0,

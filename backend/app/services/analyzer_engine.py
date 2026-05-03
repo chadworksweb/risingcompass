@@ -10,6 +10,7 @@ from app.constants import COLOR_LABELS
 from app.services.agents.calibrator import calibrate_song_async, lookup_calibrated, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_narrative_prompt
 from app.services.agents.lyrics_source import fetch_lyrics
+from app.services.claude_meter import tracked_create
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 
@@ -196,7 +197,10 @@ def _generate_narrative(song_results: list[dict], aggregate: dict) -> str | None
     client = Anthropic(api_key=settings.anthropic_api_key)
     system_prompt, user_prompt = build_narrative_prompt(song_results, aggregate)
 
-    response = client.messages.create(
+    response = tracked_create(
+        client,
+        call_site="analyzer_narrative",
+        context={"song_count": len(song_results)},
         model=AGENT_MODEL,
         max_tokens=256,
         system=system_prompt,

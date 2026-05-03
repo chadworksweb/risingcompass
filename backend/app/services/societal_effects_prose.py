@@ -24,6 +24,7 @@ from typing import Optional
 from anthropic import Anthropic
 
 from app.config import settings
+from app.services.claude_meter import tracked_create
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,10 @@ def generate_societal_effects_prose(
 
     try:
         client = Anthropic(api_key=settings.anthropic_api_key)
-        response = client.messages.create(
+        response = tracked_create(
+            client,
+            call_site="societal_effects_prose",
+            context={"title": title, "artist": artist, "rubric_color": rubric_color},
             model=AGENT_MODEL,
             max_tokens=900,
             temperature=0.3,

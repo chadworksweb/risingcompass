@@ -292,6 +292,8 @@ from app.routers import lc_events_admin
 app.include_router(lc_events_admin.router)
 from app.routers import api_clients_admin
 app.include_router(api_clients_admin.router)
+from app.routers import claude_usage_admin
+app.include_router(claude_usage_admin.router)
 app.include_router(stream.router)
 app.include_router(db_search.router)
 app.include_router(artists_admin.router)
