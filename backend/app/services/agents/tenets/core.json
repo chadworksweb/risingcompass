@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "ratified_at": "2026-04-26",
+  "ratified_at": "2026-05-04",
   "tiers": [
     {
       "slug": "violet",
@@ -212,6 +212,14 @@
       "ratified_at": "2026-04-30",
       "status": "ratified",
       "text": "SCOPE: Inherits from R7. This rule applies only to songs reaching Elevated via the internal-work route. It does NOT apply to collective-stance routes (protest, advocacy, justice-seeking, witness, systemic critique, or violet-content capped to Elevated by violet-note-specifics). Those routes earn Elevated on the strength of the stance, not narrator movement, and outward imperatives directed at the world (\"set us free,\" \"stop the war,\" \"let my people go\") are the legitimate vocabulary of advocacy — not failed transformation.\n\nWhen the route IS internal-work: a song earns Elevated only when the narrator's own posture, internal state, or behavior changes across the lyrics. Movement cannot be demanded of the world, the other person, or circumstances. Imperatives addressed to others (\"stay gone,\" \"leave me alone,\" \"come back,\" \"be different\"), interrogative requests (\"won't you,\" \"can you\"), and conditional preconditions (\"if you'd just,\" \"when you finally\") are wishes directed outward — they describe what the narrator wants from someone else, not a change in the narrator. A wish addressed to another person is still a wish. Aesthetic markers of transformation — vivid imagery, conditional verbs, collective vocabulary, dignified resignation, idealized memory — do not constitute transformation. Vividness is not movement. Honesty is not movement. The presence of craft is not movement. The Compass measures what the narrator does on the page, not what the lyrics perform around the narrator's stasis. If the song's most defensible argument for Elevated (via the internal-work route) relies on stylistic markers rather than a cited change in the narrator, the song stays Decent. R9 is the synthesis cap for the internal-work route: when R7 (subjunctive transformation) and R8 (collective ownership) have closed their specific failure modes and a song still finds a narrow band that performs movement without enacting it, R9 names the meta-pattern and holds the tier at Decent."
+    },
+    {
+      "id": "R10",
+      "title": "Closing stance caps the tier on collective-stance routes.",
+      "version": "1.0",
+      "ratified_at": "2026-05-04",
+      "status": "ratified",
+      "text": "A song closing posture caps the tier on collective-stance routes. On witness, protest, advocacy, and systemic-critique routes -- the routes R7/R9 explicitly exempt from internal-work transformation requirements -- the final stance the song leaves the listener in determines how high the tier can land. A song that names injustice, dysfunction, or apathy throughout and refuses it in the body but ENDS by repeating, accepting, or sinking back into the same stance cannot reach Ascended, and may be capped at high Elevated or below depending on how thoroughly the closing reverts. The test is asymmetric: read the final 4-8 lines as the song stated thesis. If the closing relands in the very condition the body was critiquing, treat it as a structural cap pulling the calibration toward the negative direction. The mirror also holds: a song that struggles through doubt, pain, or witness and ENDS at substantive affirmation, refusal, or resolve gets the elevation that closing earns. R10 differs from R7/R9 (which cap the internal-work route on narrator non-movement) and from R8 (which catches collective ownership of dysfunction): R10 is about the structural weight of the final stance on routes that do not require narrator transformation. Canonical example: The Way It Is (Bruce Hornsby & the Range, 1986). Three vignettes naming class contempt, racial discrimination, and resigned acceptance, with the hook but dont you believe them refusing the resignation throughout the body. The song ENDS by repeating thats just the way it is without the rebuttal -- the closing relands inside the condition the song was challenging. Without R10 the song reads Ascended on the substance of the witness and refusal; with R10 it caps at high Elevated (~+74) because the closing reverts."
     }
   ]
 }
