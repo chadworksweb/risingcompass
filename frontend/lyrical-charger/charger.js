@@ -498,6 +498,14 @@ async function submitLyrics() {
 
     const data = await resp.json();
 
+    if (data.status === 'lyrics_mismatch' || data.status === 'lyrics_diverge_from_prior') {
+      stopProgress();
+      showError(data.block_reason || 'These lyrics don\'t appear to match this song.');
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
     if (data.status === 'error') {
       stopProgress();
       showError('Could not calibrate these lyrics. Try different lyrics or check formatting.');
@@ -710,11 +718,20 @@ function renderResults(data) {
   const chargeClass = getChargeClass(charge);
 
   resultCalibration.innerHTML = `
-    <div class="tier-badge">
-      <span class="tier-badge-dot" style="background: var(--tier-${color})"></span>
-      <span class="tier-badge-label">${label}</span>
-    </div>
+    <span class="result-compass-badge" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="48" height="48">
+        <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+        <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+        <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+      </svg>
+    </span>
     <div class="charge-display ${chargeClass}">${sign}${charge}</div>
+    <span class="tier-badge-label">${label}</span>
   `;
 
   // Summary
@@ -763,13 +780,19 @@ function renderResults(data) {
     resultContamination.classList.add('hidden');
   }
 
-  // Misread link
+  // Misread link + view-details link
   const misreadParams = new URLSearchParams();
   misreadParams.set('title', data.title || '');
   misreadParams.set('artist', data.artist || '');
   misreadParams.set('color', data.tier || '');
   if (data.charge_summary) misreadParams.set('cs', data.charge_summary);
-  resultMisread.innerHTML = `<a href="/misread-submission.html?${misreadParams.toString()}" class="misread-link">Did we get it wrong?</a>`;
+  const detailsLink = data.song_slug
+    ? `<a href="/songs/${encodeURIComponent(data.song_slug)}" class="details-link">View complete song details</a>`
+    : '';
+  resultMisread.innerHTML = `
+    ${detailsLink}
+    <a href="/misread-submission.html?${misreadParams.toString()}" class="misread-link">Did we get it wrong?</a>
+  `;
 }
 
 // ============================================================

@@ -645,7 +645,17 @@ class ConsensusOut(BaseModel):
 
 
 class LyricsCalibrateOut(BaseModel):
-    status: str  # "scored" | "error"
+    # "scored"                    — calibration succeeded, full payload below
+    # "error"                     — calibrator returned no color (rare; legacy)
+    # "lyrics_mismatch"           — Layer 1 (identity guard, Opus): the lyrics
+    #                               clearly belong to a different song than the
+    #                               submitted (title, artist). Nothing recorded.
+    # "lyrics_diverge_from_prior" — Layer 2 (divergence guard): a prior
+    #                               submission for this same (title, artist)
+    #                               had radically different lyrics. Refusing to
+    #                               fold this run into consensus. Nothing
+    #                               recorded.
+    status: str
     tier: Optional[str] = None
     tier_label: Optional[str] = None
     charge: Optional[int] = None
@@ -655,9 +665,14 @@ class LyricsCalibrateOut(BaseModel):
     confidence: float = 0.0
     title: Optional[str] = None
     artist: Optional[str] = None
+    # Set on rejection statuses — short user-facing reason for the block.
+    block_reason: Optional[str] = None
     # Consensus across all prior runs when the song already existed. Null
     # when this is the first run on this (title, artist) pair.
     consensus: Optional[ConsensusOut] = None
+    # URL slug for the song's detail page, e.g. /songs/{song_slug}.
+    # Set on "scored". None on rejection/error statuses.
+    song_slug: Optional[str] = None
 
 
 class SongSearchIn(BaseModel):

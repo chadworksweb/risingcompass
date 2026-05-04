@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    CheckConstraint, Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, UniqueConstraint
+    CheckConstraint, Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, LargeBinary, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -777,6 +777,7 @@ class CalibrationRun(Base):
     agent_model = Column(String(80))
     triggered_by = Column(String(40))
     lyrics_hash = Column(String(64))
+    lyrics_fingerprint = Column(LargeBinary)  # 128-fn MinHash signature for divergence detection — see services/lyrics_fingerprint.py
     run_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     superseded = Column(Boolean, default=False, nullable=False)  # true if a later rubric_update invalidated this run
     superseded_reason = Column(String(100))  # e.g. rubric_change_slug that invalidated this

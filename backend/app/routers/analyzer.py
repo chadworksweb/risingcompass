@@ -27,14 +27,19 @@ from app.schemas import (
 from app.models import SubmittedSong
 from app.constants import COLOR_LABELS
 from app.services.analyzer_engine import run_analysis
-from app.services.agents.calibrator import calibrate_song_async
+from app.services.agents.calibrator import calibrate_song_async, lookup_calibrated
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import (
     record_and_reconcile, hash_lyrics, find_canonical_song,
-    get_or_create_song,
+    get_or_create_song, fetch_run_fingerprints,
 )
+from app.services.lyrics_fingerprint import (
+    compute_fingerprint, max_jaccard, DIVERGENCE_THRESHOLD,
+)
+from app.services.identity_guard import check_lyrics_identity
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
+from app.routers.songs import _get_or_create_slug
 from app.auth import verify_api_or_service_key
 
 logger = logging.getLogger(__name__)
@@ -539,10 +544,79 @@ async def calibrate_lyrics_endpoint(
 
     title = body.title.strip()
     artist = body.artist.strip()
+    fingerprint = compute_fingerprint(body.lyrics)
 
-    db = SessionLocal()
     try:
-        calibration = await calibrate_song_async(title, artist, body.lyrics, db)
+        # Phase 1: read-only session. Gather everything needed before the
+        # Opus calls so the SQLAlchemy connection is not held idle through
+        # them. Holding a Hrana stream across a 20-30s Opus call kills it
+        # (404 "stream not found" on the next commit).
+        read_db = SessionLocal()
+        try:
+            pre_canonical = find_canonical_song(title, artist, read_db)
+            pre_canonical_info = (
+                (pre_canonical[0], pre_canonical[1].id) if pre_canonical else None
+            )
+
+            if pre_canonical and fingerprint:
+                prior_fps = fetch_run_fingerprints(
+                    read_db, pre_canonical[0], pre_canonical[1].id
+                )
+                if prior_fps:
+                    similarity = max_jaccard(fingerprint, prior_fps)
+                    if similarity < DIVERGENCE_THRESHOLD:
+                        if is_public:
+                            _log_error_event(
+                                "submission_lyrics_diverge", request,
+                                payload={"title": title, "artist": artist,
+                                         "source": source, "similarity": round(similarity, 3),
+                                         "prior_runs": len(prior_fps)},
+                            )
+                        return LyricsCalibrateOut(
+                            status="lyrics_diverge_from_prior",
+                            title=title, artist=artist,
+                            block_reason=(
+                                "These lyrics look very different from prior submissions "
+                                "for this song. Double-check the title and artist, or paste "
+                                "the lyrics for the correct version."
+                            ),
+                        )
+
+            # Cache lookup before closing the session. calibrate_song_async
+            # would do this internally, but holding the session through its
+            # Opus call is exactly the Hrana-timeout case we are avoiding.
+            cached_calibration = lookup_calibrated(title, artist, read_db)
+        finally:
+            read_db.close()
+
+        # Phase 2: no DB session held. Opus calls only.
+        identity = await check_lyrics_identity(
+            title=title, artist=artist, lyrics=body.lyrics
+        )
+        if identity["verdict"] == "no":
+            if is_public:
+                _log_error_event(
+                    "submission_lyrics_mismatch", request,
+                    payload={"title": title, "artist": artist, "source": source,
+                             "guard_reason": identity["reason"]},
+                )
+            return LyricsCalibrateOut(
+                status="lyrics_mismatch",
+                title=title, artist=artist,
+                block_reason=(
+                    "These lyrics don't match this song. Check the title and artist, "
+                    "or paste the lyrics for the correct track."
+                ),
+            )
+
+        if cached_calibration:
+            calibration = cached_calibration
+        else:
+            # skip_cache=True since Phase 1 already did the lookup; db=None
+            # so calibrate_song_async does not open its own session.
+            calibration = await calibrate_song_async(
+                title, artist, body.lyrics, db=None, skip_cache=True,
+            )
 
         color = calibration.get("rubric_color")
         if color is None:
@@ -552,103 +626,117 @@ async def calibrate_lyrics_endpoint(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Look up any pre-existing canonical BEFORE creating the new row so
-        # we can distinguish "fresh song" from "re-run of known song" and
-        # route the run to the right target.
-        pre_canonical = find_canonical_song(title, artist, db)
-
-        submitted, _created = get_or_create_song(
-            db, SubmittedSong,
-            title=title,
-            artist=artist,
-            rubric_color=color,
-            charge_value=calibration.get("charge_value"),
-            contaminated=calibration.get("contaminated", False),
-            contamination_note=calibration.get("contamination_note"),
-            dogma_referenced=bool(calibration.get("dogma_referenced", False)),
-            dogma_note=calibration.get("dogma_note"),
-            charge_summary=calibration.get("charge_summary"),
-            confidence=calibration.get("confidence"),
-            source=source,
-            ip_address=get_remote_address(request),
-        )
-        db.commit()
-        db.refresh(submitted)
-        structured = (
-            [{"name": a.name, "role": a.role, "position": i} for i, a in enumerate(body.artists)]
-            if body.artists else None
-        )
-        try_link_song(title, artist, "submitted", submitted.id, db, structured=structured)
-
-        consensus_info = None
+        # Phase 3: fresh write session. pool_pre_ping reconnects any stale
+        # Hrana stream the pool was holding while Phase 2 ran.
+        write_db = SessionLocal()
         try:
-            if pre_canonical:
-                # Re-run of a song we've seen before — log against the
-                # established canonical, seed if needed, let consensus update.
-                result = record_and_reconcile(
-                    db,
-                    title=title,
-                    artist=artist,
-                    calibration=calibration,
-                    triggered_by="lyrical_charger",
-                    lyrics_hash=hash_lyrics(body.lyrics),
-                    agent_model=calibration.get("agent_model"),
-                    direct_song_source=pre_canonical[0],
-                    direct_song_id=pre_canonical[1].id,
-                    is_new_row=False,
-                )
-            else:
-                # First-ever submission of this (title, artist). Log against
-                # the brand-new submitted row, skip the seed (would duplicate
-                # this very run), no consensus on a single data point.
-                result = record_and_reconcile(
-                    db,
-                    title=title,
-                    artist=artist,
-                    calibration=calibration,
-                    triggered_by="lyrical_charger",
-                    lyrics_hash=hash_lyrics(body.lyrics),
-                    agent_model=calibration.get("agent_model"),
-                    direct_song_source="submitted",
-                    direct_song_id=submitted.id,
-                    is_new_row=True,
-                )
-            db.commit()
-            consensus_info = result.get("consensus")
-        except Exception:
-            db.rollback()
-            logger.exception("Corpus/consensus step failed (non-fatal)")
+            submitted, _created = get_or_create_song(
+                write_db, SubmittedSong,
+                title=title,
+                artist=artist,
+                rubric_color=color,
+                charge_value=calibration.get("charge_value"),
+                contaminated=calibration.get("contaminated", False),
+                contamination_note=calibration.get("contamination_note"),
+                dogma_referenced=bool(calibration.get("dogma_referenced", False)),
+                dogma_note=calibration.get("dogma_note"),
+                charge_summary=calibration.get("charge_summary"),
+                confidence=calibration.get("confidence"),
+                source=source,
+                ip_address=get_remote_address(request),
+            )
+            write_db.commit()
+            write_db.refresh(submitted)
+            structured = (
+                [{"name": a.name, "role": a.role, "position": i} for i, a in enumerate(body.artists)]
+                if body.artists else None
+            )
+            try_link_song(title, artist, "submitted", submitted.id, write_db, structured=structured)
 
-        if is_public:
-            schedule_event(background_tasks, "submission_success", request,
-                           payload={"title": title, "artist": artist, "source": source,
-                                    "tier": color, "charge": calibration.get("charge_value"),
-                                    "contaminated": calibration.get("contaminated", False),
-                                    "confidence": calibration.get("confidence")},
-                           submission_id=submitted.id)
+            consensus_info = None
+            try:
+                if pre_canonical_info:
+                    result = record_and_reconcile(
+                        write_db,
+                        title=title,
+                        artist=artist,
+                        calibration=calibration,
+                        triggered_by="lyrical_charger",
+                        lyrics_hash=hash_lyrics(body.lyrics),
+                        lyrics_fingerprint=fingerprint,
+                        agent_model=calibration.get("agent_model"),
+                        direct_song_source=pre_canonical_info[0],
+                        direct_song_id=pre_canonical_info[1],
+                        is_new_row=False,
+                    )
+                else:
+                    result = record_and_reconcile(
+                        write_db,
+                        title=title,
+                        artist=artist,
+                        calibration=calibration,
+                        triggered_by="lyrical_charger",
+                        lyrics_hash=hash_lyrics(body.lyrics),
+                        lyrics_fingerprint=fingerprint,
+                        agent_model=calibration.get("agent_model"),
+                        direct_song_source="submitted",
+                        direct_song_id=submitted.id,
+                        is_new_row=True,
+                    )
+                write_db.commit()
+                consensus_info = result.get("consensus")
+            except Exception:
+                write_db.rollback()
+                logger.exception("Corpus/consensus step failed (non-fatal)")
 
-        return LyricsCalibrateOut(
-            status="scored",
-            tier=color,
-            tier_label=COLOR_LABELS.get(color),
-            charge=calibration.get("charge_value"),
-            contaminated=calibration.get("contaminated", False),
-            contamination_note=calibration.get("contamination_note"),
-            charge_summary=calibration.get("charge_summary"),
-            confidence=calibration.get("confidence", 0.0),
-            title=title,
-            artist=artist,
-            consensus=consensus_info if consensus_info else None,
-        )
+            # Slug for the song detail page link returned to the frontend.
+            # Resolves to the canonical row this submission ended up against
+            # (compass/library when one existed, submitted when this is the
+            # first time we've seen this title+artist).
+            song_slug = None
+            try:
+                if pre_canonical_info:
+                    song_slug = _get_or_create_slug(
+                        title, artist, pre_canonical_info[0], pre_canonical_info[1], write_db,
+                    )
+                else:
+                    song_slug = _get_or_create_slug(
+                        title, artist, "submitted", submitted.id, write_db,
+                    )
+            except Exception:
+                logger.exception("song_slug resolution failed (non-fatal)")
+
+            if is_public:
+                schedule_event(background_tasks, "submission_success", request,
+                               payload={"title": title, "artist": artist, "source": source,
+                                        "tier": color, "charge": calibration.get("charge_value"),
+                                        "contaminated": calibration.get("contaminated", False),
+                                        "confidence": calibration.get("confidence")},
+                               submission_id=submitted.id)
+
+            return LyricsCalibrateOut(
+                status="scored",
+                tier=color,
+                tier_label=COLOR_LABELS.get(color),
+                charge=calibration.get("charge_value"),
+                contaminated=calibration.get("contaminated", False),
+                contamination_note=calibration.get("contamination_note"),
+                charge_summary=calibration.get("charge_summary"),
+                confidence=calibration.get("confidence", 0.0),
+                title=title,
+                artist=artist,
+                consensus=consensus_info if consensus_info else None,
+                song_slug=song_slug,
+            )
+        finally:
+            write_db.close()
     except Exception:
         logger.exception("Calibration failed for submitted lyrics")
         if is_public:
             _log_error_event("submission_other_error", request,
                              payload={"reason": "calibrator_exception", "title": title,
                                       "artist": artist, "source": source})
-        raise HTTPException(500, "Calibration failed — try again")
-    finally:
-        db.close()
+        raise HTTPException(500, "Calibration failed -- try again")
 
 
 # ------------------------------------------------------------------
@@ -726,6 +814,12 @@ async def calibrate_search(
 
     db = SessionLocal()
     try:
+        # Search-flow lyrics come from Musixmatch keyed by track_id, so
+        # there's no surface for an identity↔lyrics mismatch. We still
+        # fingerprint the run so paste-path submissions of the same song
+        # later have something to compare against (Layer 2 cross-path).
+        fingerprint = compute_fingerprint(lyrics)
+
         calibration = await calibrate_song_async(title, artist, lyrics, db)
 
         color = calibration.get("rubric_color")
@@ -778,6 +872,7 @@ async def calibrate_search(
                     calibration=calibration,
                     triggered_by="lyrical_charger_search",
                     lyrics_hash=hash_lyrics(lyrics),
+                    lyrics_fingerprint=fingerprint,
                     agent_model=calibration.get("agent_model"),
                     direct_song_source=pre_canonical[0],
                     direct_song_id=pre_canonical[1].id,
@@ -791,6 +886,7 @@ async def calibrate_search(
                     calibration=calibration,
                     triggered_by="lyrical_charger_search",
                     lyrics_hash=hash_lyrics(lyrics),
+                    lyrics_fingerprint=fingerprint,
                     agent_model=calibration.get("agent_model"),
                     direct_song_source="submitted",
                     direct_song_id=submitted.id,

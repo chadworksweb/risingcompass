@@ -10,12 +10,55 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-class _LibsqlConnProxy:
-    """Wrap libsql.Connection to satisfy SQLAlchemy's pysqlite dialect probes.
+def _coerce_libsql_param(value):
+    if isinstance(value, memoryview):
+        return value.tobytes()
+    return value
 
-    SQLAlchemy's sqlite dialect calls .create_function() to register a Python REGEXP.
-    libsql doesn't support user-defined functions, but RC never queries with REGEXP,
-    so a no-op satisfies the dialect.
+
+def _coerce_libsql_params(parameters):
+    if parameters is None:
+        return None
+    if isinstance(parameters, dict):
+        return {k: _coerce_libsql_param(v) for k, v in parameters.items()}
+    if isinstance(parameters, (list, tuple)):
+        return type(parameters)(_coerce_libsql_param(v) for v in parameters)
+    return parameters
+
+
+class _LibsqlCursorProxy:
+    """Wrap libsql cursor so memoryview bind params are coerced to bytes.
+
+    SQLAlchemy's SQLite dialect converts Python bytes to memoryview at bind
+    time for BLOB columns, but libsql's bind layer rejects memoryview with
+    "Unsupported parameter type <memory at ...>". Coerce back here, the last
+    layer before the libsql cursor sees the params.
+    """
+
+    def __init__(self, cursor):
+        object.__setattr__(self, "_cursor", cursor)
+
+    def execute(self, statement, parameters=None):
+        if parameters is None:
+            return self._cursor.execute(statement)
+        return self._cursor.execute(statement, _coerce_libsql_params(parameters))
+
+    def executemany(self, statement, seq_of_parameters):
+        return self._cursor.executemany(
+            statement, [_coerce_libsql_params(p) for p in seq_of_parameters]
+        )
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+
+class _LibsqlConnProxy:
+    """Wrap libsql.Connection to satisfy SQLAlchemy's pysqlite dialect probes
+    and intercept cursor() so BLOB params are coerced before the libsql bind.
+
+    SQLAlchemy's sqlite dialect calls .create_function() to register a Python
+    REGEXP. libsql doesn't support user-defined functions, but RC never
+    queries with REGEXP, so a no-op satisfies the dialect.
     """
 
     def __init__(self, conn):
@@ -23,6 +66,9 @@ class _LibsqlConnProxy:
 
     def create_function(self, *args, **kwargs):
         return None
+
+    def cursor(self):
+        return _LibsqlCursorProxy(self._conn.cursor())
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
@@ -80,6 +126,29 @@ def _set_foreign_keys(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+
+
+# libsql raises plain ValueError("Hrana: ... stream not found ...") when the
+# server-side Hrana stream has expired. The SQLite dialect's is_disconnect()
+# does not recognize this, so pool_pre_ping cannot recycle the connection and
+# the same stale connection gets handed to the next caller. Tag these as
+# disconnects so the pool invalidates and reconnects.
+_HRANA_DISCONNECT_MARKERS = (
+    "stream not found",
+    "Hrana:",
+    "stream error",
+)
+
+
+@event.listens_for(engine, "handle_error", retval=False)
+def _flag_hrana_disconnect(ctx):
+    err = ctx.original_exception
+    if isinstance(err, ValueError):
+        msg = str(err)
+        if any(m in msg for m in _HRANA_DISCONNECT_MARKERS):
+            ctx.is_disconnect = True
+
+
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

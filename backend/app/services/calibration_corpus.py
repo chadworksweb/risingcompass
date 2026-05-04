@@ -244,6 +244,7 @@ def log_run(
     song_source: str | None = None,
     song_id: int | None = None,
     lyrics_hash: str | None = None,
+    lyrics_fingerprint: bytes | None = None,
     agent_model: str | None = None,
 ) -> CalibrationRun:
     """Record one agent run. Always writes. The caller has already committed
@@ -265,10 +266,31 @@ def log_run(
         agent_model=agent_model,
         triggered_by=triggered_by,
         lyrics_hash=lyrics_hash,
+        lyrics_fingerprint=lyrics_fingerprint,
     )
     db.add(run)
     db.flush()
     return run
+
+
+def fetch_run_fingerprints(
+    db: Session, source: str, song_id: int
+) -> list[bytes]:
+    """Return all non-superseded MinHash fingerprints for a canonical row.
+
+    Used by the Lyrical Charger divergence guard to compare a new submission
+    against prior runs for the same (title, artist). NULLs are filtered out
+    — older runs predate the fingerprint column and contribute no signal.
+    """
+    rows = (
+        db.query(CalibrationRun.lyrics_fingerprint)
+        .filter(CalibrationRun.song_source == source)
+        .filter(CalibrationRun.song_id == song_id)
+        .filter(CalibrationRun.superseded.is_(False))
+        .filter(CalibrationRun.lyrics_fingerprint.isnot(None))
+        .all()
+    )
+    return [r[0] for r in rows if r[0]]
 
 
 def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
@@ -378,6 +400,7 @@ def record_and_reconcile(
     calibration: dict,
     triggered_by: str,
     lyrics_hash: str | None = None,
+    lyrics_fingerprint: bytes | None = None,
     agent_model: str | None = None,
     direct_song_source: str | None = None,
     direct_song_id: int | None = None,
@@ -426,6 +449,7 @@ def record_and_reconcile(
         song_source=source,
         song_id=song.id if song else None,
         lyrics_hash=lyrics_hash,
+        lyrics_fingerprint=lyrics_fingerprint,
         agent_model=agent_model,
     )
 

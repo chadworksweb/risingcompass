@@ -880,25 +880,20 @@ main {
 
 /* Calibration display */
 .result-calibration {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
   padding: 2rem 0;
 }
 
-.tier-badge {
+.result-compass-badge {
   display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.8rem 1.8rem;
-  border-radius: var(--rc-radius);
-  background: var(--rc-bg-panel);
-  border: 1px solid var(--rc-border);
+  flex-shrink: 0;
 }
 
-.tier-badge-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.result-compass-badge svg {
+  display: block;
 }
 
 .tier-badge-label {
@@ -910,11 +905,11 @@ main {
 }
 
 .charge-display {
-  margin-top: 1rem;
   font-family: var(--rc-font-mono);
   font-size: 2.5rem;
   font-weight: 700;
   text-shadow: 0 0 15px currentColor;
+  line-height: 1;
 }
 
 .charge-positive { color: var(--rc-blue); }
@@ -1049,9 +1044,14 @@ main {
 .result-misread {
   text-align: center;
   margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.misread-link {
+.misread-link,
+.details-link {
   font-size: 0.72rem;
   color: var(--rc-text-dim);
   text-decoration: underline;
@@ -1059,7 +1059,8 @@ main {
   transition: color var(--rc-ease);
 }
 
-.misread-link:hover {
+.misread-link:hover,
+.details-link:hover {
   color: var(--rc-accent);
 }
 
