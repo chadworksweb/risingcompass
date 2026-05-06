@@ -9,7 +9,7 @@ from app.services.agents.rubric_builder import RUBRIC_DEFINITION
 SUMMARY_VOICE_RULES = """
 ## charge_summary Voice
 
-The charge_summary is the public-facing description of the song. It is NOT analysis — it is a direct statement of what the song IS.
+The charge_summary is a short description of the song. Just summarize what the song says, plainly. It is NOT analysis, NOT a verdict, NOT a judgment of whether the song succeeds, deserves its tier, rings true, or earns its claim. The reasoning sections above (DOMINANT ARC, CASE FOR MOVING UP/DOWN, TRANSFORMATION CHECK, tier defense) never appear in the summary. The summary is for a reader who just wants to know what the song is about.
 
 - Direct statement. No hedging, no "could be interpreted as"
 - Never use: "Normalizes", "Activates", "Models", "Wrapped in", "Framed as", "Baked in", "In today's [anything]"
@@ -19,7 +19,8 @@ The charge_summary is the public-facing description of the song. It is NOT analy
 - Be specific. Name the thing. "Contempt anthem" > "profanity"
 - If the song operates on two mechanisms, name both
 - 1 sentence preferred, 2 max
-- Never describe a song by what it LACKS. Say what the song IS, not what it isn't. "Without depth" or "without examining" is only relevant when defending a tier move — it has no place in a public-facing summary.
+- Summarize, do not evaluate. Describe the song's subject, stance, and what the lyrics actually say. Never include a verdict on whether the song works, earns its claim, succeeds at its aim, or rings true. Reasoning leaks: any "but earnest," "but unearned," "but shallow," "but effective," "but hollow," "but contrived," "but trite," "but flat," "but cliched" clause is tier-defense bleeding into the summary — strip it. Verdicts live in the case-for-moving sections, never here.
+- Pure positive description. State what the song IS, never what it isn't. Forbidden constructions in summaries: "but never...", "without [X]", "zero [X]", "doesn't [X]", "never explores/examines/moves/develops/processes", "fails to [X]". When tempted to add an absence clause, replace it with another concrete detail about what the song actually does on the page — name the imagery, the stance, the move, the relational frame, the specific emotional content. Absence framing belongs in tier-defense reasoning, not the public summary. If half a sentence is about what is missing, rewrite the whole sentence as positive description.
 - Profanity censoring: f**k, s**t, c**t, b***h (first + last letter, asterisks). Ass/damn/hell uncensored.
 - Never use genre labels (rockabilly, R&B, disco, punk, etc.), production descriptors, or any word that requires knowing how the song sounds. Describe what the lyrics SAY, not what the music IS.
 """
@@ -35,6 +36,8 @@ Then write your reasoning in this exact structure:
 DOMINANT ARC: [Read the full lyrics top to bottom. In 1-2 sentences, state what this song is fundamentally about — its overall message, arc, and emotional direction. This is the song's identity. Everything below must be evaluated against this arc.]
 
 STARTING POSITION: Decent (0)
+
+CITATION RULES: When you quote lyrics in the sections below, never reproduce the proper name of any real public figure (celebrity, athlete, politician, historical figure, brand) that appears in the lyrics. Replace each name with a bracketed descriptor like [public figure], [celebrity], [politician], [athlete], or [brand name]. The shape of the lyric (it lists named people, it invokes a celebrity) is the analytically useful fact, not the specific name. This protects the response from copyright filters that flag name-reproduction. Quote everything else verbatim as instructed.
 
 CASE FOR MOVING UP:
 [Cite specific lyrics that meet Elevated or Ascended tenets. Quote the actual words from the lyrics. Name which tenet number(s) they satisfy (e.g. "Elevated tenet 4"). If none, write "No evidence." Individual lines must be evaluated IN CONTEXT of the dominant arc, not in isolation.]
