@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "ratified_at": "2026-05-04",
+  "ratified_at": "2026-05-06",
   "tiers": [
     {
       "slug": "violet",
@@ -220,6 +220,14 @@
       "ratified_at": "2026-05-04",
       "status": "ratified",
       "text": "A song closing posture caps the tier on collective-stance routes. On witness, protest, advocacy, and systemic-critique routes -- the routes R7/R9 explicitly exempt from internal-work transformation requirements -- the final stance the song leaves the listener in determines how high the tier can land. A song that names injustice, dysfunction, or apathy throughout and refuses it in the body but ENDS by repeating, accepting, or sinking back into the same stance cannot reach Ascended, and may be capped at high Elevated or below depending on how thoroughly the closing reverts. The test is asymmetric: read the final 4-8 lines as the song stated thesis. If the closing relands in the very condition the body was critiquing, treat it as a structural cap pulling the calibration toward the negative direction. The mirror also holds: a song that struggles through doubt, pain, or witness and ENDS at substantive affirmation, refusal, or resolve gets the elevation that closing earns. R10 differs from R7/R9 (which cap the internal-work route on narrator non-movement) and from R8 (which catches collective ownership of dysfunction): R10 is about the structural weight of the final stance on routes that do not require narrator transformation. Canonical example: The Way It Is (Bruce Hornsby & the Range, 1986). Three vignettes naming class contempt, racial discrimination, and resigned acceptance, with the hook but dont you believe them refusing the resignation throughout the body. The song ENDS by repeating thats just the way it is without the rebuttal -- the closing relands inside the condition the song was challenging. Without R10 the song reads Ascended on the substance of the witness and refusal; with R10 it caps at high Elevated (~+74) because the closing reverts."
+    },
+    {
+      "id": "R11",
+      "title": "Encouragement filter -- second-person affirmation is a positive route to Elevated.",
+      "version": "1.0",
+      "ratified_at": "2026-05-06",
+      "status": "ratified",
+      "text": "R11 creates a positive route to Elevated for songs whose primary mode is direct second-person address delivering substantive affirmation to the listener. When the lyrics name a specific inner dignity, capacity, courage, strength, or worth in the listener -- and the case for moving up rests on that substance, not on the narrator internal work -- the encouragement route activates. The route lands low to mid Elevated (+25 to +39) by default. Higher elevation requires the affirmation to be precise about a specific kind of dignity AND carried by concrete imagery or metaphor that delivers the truth without diluting it. Vague platitudes (you can do anything, you are amazing, you are special) do not activate -- they stay Decent. Specifics (the strength to carry on inside you, courage to face fears, look inside your heart and find the answer, you have always been the hero of your own story) do activate. The narrator does not need to transform on this route; the narrator is messenger or witness to the listener truth, not a self-examiner. The transformation check (inward subjunctive, outward wish, aesthetic markers) does not cap on the encouragement route, mirroring the collective-stance exemption in R7/R9. R11 differs from R7/R9 (which cap the internal-work route on narrator non-movement), R8 (collective ownership of dysfunction), and R10 (closing-stance cap on collective-stance routes): R11 speaks directly to the listener about the listener inner state. Canonical example: Hero (Mariah Carey, 1994). Second-person address asserting inner heroism, strength, courage, and the power to overcome fear and sorrow as already inside the listener. Without R11 the song reads Decent because no internal-work route activates and no collective-stance route applies. With R11 it lands low Elevated (~+28) on the substance of what is delivered to the listener."
     }
   ]
 }
