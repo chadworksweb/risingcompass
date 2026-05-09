@@ -342,7 +342,7 @@ function initDonateWidget() {
 
   function refreshSubmit() {
     const amt = effectiveAmount();
-    submit.textContent = `Give $${amt.toFixed(amt % 1 === 0 ? 0 : 2)}`;
+    submit.textContent = `Donate $${amt.toFixed(amt % 1 === 0 ? 0 : 2)}`;
     submit.disabled = !(consent.checked && amt >= 1);
   }
 

@@ -1327,8 +1327,13 @@ body::-webkit-scrollbar {
 .donate-amounts {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.donate-amounts #donate-submit {
+  margin-left: auto;
 }
 
 .donate-preset {
