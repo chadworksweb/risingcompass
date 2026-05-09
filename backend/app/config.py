@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     turnstile_site_key: str = ""
     turnstile_secret: str = ""
 
+    # Stripe (Lyrical Charger patronage). Same Stripe account as chadlewine.com,
+    # but a separate webhook endpoint with its own signing secret.
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+
     # Audience Vibe — gap threshold that opens an admin review case.
     # Roadmap calls this "TBD"; starting at 25 and tunable from .env.
     vibe_review_threshold: int = 25

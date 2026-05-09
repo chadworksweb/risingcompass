@@ -50,9 +50,9 @@
     <!-- ======================== SCREEN 0: UNAVAILABLE ======================== -->
     <section id="screen-unavailable" class="screen">
       <div class="unavail-hero">
-        <h2 class="unavail-headline">Lyrical Charger is taking a breath.</h2>
+        <h2 class="unavail-headline">Lyrical Charger is temporarily unavailable.</h2>
         <p class="unavail-msg" id="unavail-message">
-          The engine is temporarily offline. Drop your email and we'll let you know the moment it's back.
+          We're restocking the engine. Drop your email and we'll let you know the moment it's back.
         </p>
       </div>
 
@@ -71,7 +71,7 @@
       </div>
 
       <div class="unavail-card unavail-grass">
-        <h3 class="unavail-card-title">Why this is offline</h3>
+        <h3 class="unavail-card-title">Why this is unavailable</h3>
         <p>
           Every reading Lyrical Charger does costs real money — each classification calls a paid AI engine,
           plus the daily Top 20 reading on <a href="https://risingcompass.net/">The Rising Compass</a>, the corpus reconciliation,
@@ -84,9 +84,45 @@
           If Lyrical Charger has shifted how you hear music, throw a few bucks toward keeping it alive and free.
           Every patronage goes directly toward API credits and hosting.
         </p>
-        <a id="unavail-donate" class="btn btn-donate" href="https://chadlewine.com/?source=lyrical-charger" target="_blank" rel="noopener">
-          Support this tool &rarr;
-        </a>
+
+        <div id="donate-widget" class="donate-widget">
+          <div class="donate-amounts" role="group" aria-label="Patronage amount">
+            <button type="button" class="donate-preset donate-preset--active" data-amount="5">$5</button>
+            <button type="button" class="donate-preset" data-amount="10">$10</button>
+            <button type="button" class="donate-preset" data-amount="25">$25</button>
+            <button type="button" class="donate-preset" data-amount="50">$50</button>
+            <div class="donate-custom">
+              <span class="donate-dollar">$</span>
+              <input id="donate-custom-input" class="donate-input" type="number" min="1" step="1" placeholder="Other" inputmode="numeric">
+            </div>
+          </div>
+
+          <label class="donate-consent">
+            <input type="checkbox" id="donate-consent">
+            <span>
+              I agree to the <button type="button" id="donate-terms-trigger" class="donate-terms-trigger">terms</button> of patronage.
+            </span>
+          </label>
+          <p id="donate-terms" class="donate-terms hidden">
+            Patronage is a voluntary, non-refundable gift. It does not entitle the patron to any goods,
+            services, rights, or benefits, and creates no obligation on the part of The Rising Compass to
+            provide anything in return.
+          </p>
+
+          <button type="button" id="donate-submit" class="btn btn-donate" disabled>Give $5</button>
+          <p id="donate-status" class="donate-status" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== SCREEN: THANK YOU (donation return) ======================== -->
+    <section id="screen-thanks" class="screen">
+      <div class="thanks-card">
+        <h2 class="thanks-headline">Thank you.</h2>
+        <p class="thanks-msg">Your patronage just bought more readings for the world. Every dollar goes straight to API credits and hosting.</p>
+        <div class="thanks-actions">
+          <button type="button" id="thanks-continue" class="btn btn-primary">Back to Lyrical Charger</button>
+        </div>
       </div>
     </section>
 
@@ -162,10 +198,7 @@
 
       <div class="below-fold">
         <p>Built on the same engine that analyzes the most popular top 20 songs in the USA every day.</p>
-        <p class="below-fold-grass">
-          Grassroots. One person. No VC.
-          <a href="https://chadlewine.com/?source=lyrical-charger" target="_blank" rel="noopener">Support this tool</a>.
-        </p>
+        <p class="below-fold-grass">Grassroots. One person. No VC. <a href="#" id="entry-donate-link">Support this tool</a>.</p>
       </div>
 
     </section>

@@ -292,6 +292,8 @@ from app.routers import lc_events_admin
 app.include_router(lc_events_admin.router)
 from app.routers import lc_status_admin
 app.include_router(lc_status_admin.router)
+from app.routers import patronage
+app.include_router(patronage.router)
 from app.routers import api_clients_admin
 app.include_router(api_clients_admin.router)
 from app.routers import claude_usage_admin

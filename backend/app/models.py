@@ -1095,3 +1095,18 @@ class LyricalChargerSubscriber(Base):
     email = Column(Text, nullable=False, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     notified_at = Column(DateTime, nullable=True)
+
+
+class Donation(Base):
+    __tablename__ = "rc_donations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stripe_session_id = Column(Text, nullable=False, unique=True)
+    amount_cents = Column(Integer, nullable=False)
+    currency = Column(Text, nullable=False, default="usd")
+    status = Column(Text, nullable=False, default="pending")
+    source = Column(Text, nullable=True)
+    customer_email = Column(Text, nullable=True)
+    payment_intent_id = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)

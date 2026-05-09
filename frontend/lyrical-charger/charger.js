@@ -321,6 +321,154 @@ function wireSubscribeForm() {
 
 checkAvailability();
 
+// ============================================================
+// Donate widget (Stripe Checkout — same account as chadlewine)
+// ============================================================
+function initDonateWidget() {
+  const widget = $('#donate-widget');
+  if (!widget || widget.dataset.wired) return;
+  widget.dataset.wired = '1';
+
+  const presets = $$('#donate-widget .donate-preset');
+  const customInput = $('#donate-custom-input');
+  const consent = $('#donate-consent');
+  const submit = $('#donate-submit');
+  const status = $('#donate-status');
+  const terms = $('#donate-terms');
+  const termsTrigger = $('#donate-terms-trigger');
+
+  let activeAmount = 5;
+  let usingCustom = false;
+
+  function refreshSubmit() {
+    const amt = effectiveAmount();
+    submit.textContent = `Give $${amt.toFixed(amt % 1 === 0 ? 0 : 2)}`;
+    submit.disabled = !(consent.checked && amt >= 1);
+  }
+
+  function effectiveAmount() {
+    if (usingCustom) {
+      const n = parseFloat(customInput.value);
+      return isFinite(n) ? n : 0;
+    }
+    return activeAmount;
+  }
+
+  presets.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeAmount = parseFloat(btn.dataset.amount);
+      usingCustom = false;
+      customInput.value = '';
+      presets.forEach((b) => b.classList.remove('donate-preset--active'));
+      btn.classList.add('donate-preset--active');
+      refreshSubmit();
+    });
+  });
+
+  customInput.addEventListener('input', () => {
+    if (customInput.value !== '') {
+      usingCustom = true;
+      presets.forEach((b) => b.classList.remove('donate-preset--active'));
+    } else {
+      usingCustom = false;
+      // Restore last preset selection
+      const def = $$('#donate-widget .donate-preset')[0];
+      if (def) def.classList.add('donate-preset--active');
+      activeAmount = 5;
+    }
+    refreshSubmit();
+  });
+
+  consent.addEventListener('change', refreshSubmit);
+
+  if (termsTrigger) {
+    termsTrigger.addEventListener('click', () => {
+      terms.classList.toggle('hidden');
+    });
+  }
+
+  submit.addEventListener('click', async () => {
+    const amt = effectiveAmount();
+    if (amt < 1 || !consent.checked) return;
+
+    submit.disabled = true;
+    const prevText = submit.textContent;
+    submit.textContent = 'Redirecting...';
+    status.className = 'donate-status';
+    status.textContent = '';
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (API_KEY) headers['X-Api-Key'] = API_KEY;
+      const origin = window.location.origin;
+      const path = window.location.pathname;
+      const resp = await fetch(`${API_HOST}/api/patronage`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          amount: amt,
+          source: 'lyrical_charger',
+          success_url: `${origin}${path}?donated={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${origin}${path}?donate_cancelled=1`,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        const detail = err.detail || `HTTP ${resp.status}`;
+        throw new Error(typeof detail === 'string' ? detail : 'Stripe error');
+      }
+      const data = await resp.json();
+      if (!data.url) throw new Error('No checkout URL returned.');
+      // Stripe replaces {CHECKOUT_SESSION_ID} with the real id on the success_url
+      window.location.href = data.url;
+    } catch (err) {
+      status.className = 'donate-status error';
+      status.textContent = err.message || 'Could not start checkout. Try again.';
+      submit.disabled = false;
+      submit.textContent = prevText;
+    }
+  });
+
+  refreshSubmit();
+}
+
+initDonateWidget();
+
+// Entry-screen "Support this tool" link: bring up the donate widget.
+// When LC is online, the unavailable screen is hidden but the widget
+// inside it is still in the DOM — we toggle to it on click and let
+// the user dismiss with the back/refresh.
+const entryDonateLink = document.getElementById('entry-donate-link');
+if (entryDonateLink) {
+  entryDonateLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('unavail-message');
+    const headline = document.querySelector('.unavail-headline');
+    const subscribeCard = document.querySelector('#screen-unavailable .unavail-card');
+    if (headline) headline.textContent = 'Support Lyrical Charger.';
+    if (msg) msg.textContent = "Thanks for keeping this tool alive and free.";
+    if (subscribeCard) subscribeCard.style.display = 'none';
+    showScreen('screen-unavailable');
+  });
+}
+
+// Donation return: ?donated=cs_test_... means Stripe redirected here
+// after a successful checkout. Show the thanks screen.
+function handleDonationReturn() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('donated')) {
+    showScreen('screen-thanks');
+    const continueBtn = document.getElementById('thanks-continue');
+    if (continueBtn) {
+      continueBtn.addEventListener('click', () => {
+        const url = window.location.origin + window.location.pathname;
+        window.location.href = url;
+      });
+    }
+  }
+}
+handleDonationReturn();
+
 async function initBotProtection() {
   try {
     const headers = {};
