@@ -1324,6 +1324,12 @@ body::-webkit-scrollbar {
   margin-top: 0.4rem;
 }
 
+.donate-widget {
+  /* Used by container queries on the donate button so the layout
+     responds to the CRT content area width, not the viewport. */
+  container-type: inline-size;
+}
+
 .donate-amounts {
   display: flex;
   flex-wrap: wrap;
@@ -1334,6 +1340,22 @@ body::-webkit-scrollbar {
 
 .donate-amounts #donate-submit {
   margin-left: auto;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  /* Match the height of the preset buttons / custom input so the
+     row reads as a single horizontal control strip when it fits. */
+  line-height: 1.2;
+}
+
+/* When the donate widget container is too narrow to fit presets +
+   button inline, stretch the button to full width on its own row
+   instead of leaving it hanging in space at the right. */
+@container (max-width: 480px) {
+  .donate-amounts #donate-submit {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
 .donate-preset {
