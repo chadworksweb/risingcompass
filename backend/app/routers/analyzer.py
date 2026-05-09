@@ -23,8 +23,12 @@ from app.schemas import (
     PlaylistResolveIn, PlaylistResolveOut, PlaylistTrackOut,
     LyricsCalibrateIn, LyricsCalibrateOut,
     SongSearchIn, SongSearchOut, SearchCalibrateIn,
+    LCAvailabilityOut, LCSubscribeIn, LCSubscribeOut,
 )
-from app.models import SubmittedSong
+from app.models import SubmittedSong, LyricalChargerSubscriber
+from app.services.feature_flags import (
+    is_lyrical_charger_disabled, lyrical_charger_disabled_message,
+)
 from app.constants import COLOR_LABELS
 from app.services.analyzer_engine import run_analysis
 from app.services.agents.calibrator import calibrate_song_async, lookup_calibrated
@@ -113,6 +117,91 @@ async def analyzer_config():
     }
 
 
+@router.get("/availability", response_model=LCAvailabilityOut)
+async def analyzer_availability():
+    """Public availability gate for the LC frontend.
+
+    Returns `{available, message}`. When `available=false`, the frontend
+    swaps in the unavailable screen with a subscribe form. When `true`,
+    `message` is null and the regular UI renders.
+    """
+    db = SessionLocal()
+    try:
+        if is_lyrical_charger_disabled(db):
+            return LCAvailabilityOut(
+                available=False,
+                message=lyrical_charger_disabled_message(db),
+            )
+        return LCAvailabilityOut(available=True, message=None)
+    finally:
+        db.close()
+
+
+def _check_lc_available_or_503() -> None:
+    """Raise 503 with a structured detail when LC is flagged as disabled."""
+    db = SessionLocal()
+    try:
+        if is_lyrical_charger_disabled(db):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "available": False,
+                    "message": lyrical_charger_disabled_message(db),
+                },
+            )
+    finally:
+        db.close()
+
+
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+@router.post("/subscribe", response_model=LCSubscribeOut)
+@limiter.limit("10/hour")
+async def lc_subscribe(
+    body: LCSubscribeIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """Capture an email so we can notify the user when LC comes back online.
+
+    Always available (does NOT 503 when LC is disabled — that's the whole
+    point of this endpoint). Honeypot + Turnstile still apply.
+    """
+    await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+
+    email = body.email.strip().lower()
+    if not _EMAIL_RE.match(email) or len(email) > 254:
+        raise HTTPException(422, "Please enter a valid email address.")
+
+    db = SessionLocal()
+    try:
+        existing = (
+            db.query(LyricalChargerSubscriber)
+            .filter(LyricalChargerSubscriber.email == email)
+            .first()
+        )
+        if existing:
+            schedule_event(background_tasks, "lc_subscribe_duplicate", request,
+                           payload={"email_hash_prefix": email[:2]})
+            return LCSubscribeOut(
+                status="already_subscribed",
+                message="You're already on the list. We'll email you when Lyrical Charger is back online.",
+            )
+
+        sub = LyricalChargerSubscriber(email=email)
+        db.add(sub)
+        db.commit()
+        schedule_event(background_tasks, "lc_subscribe_new", request,
+                       payload={"email_hash_prefix": email[:2]})
+        return LCSubscribeOut(
+            status="subscribed",
+            message="Thanks. We'll email you when Lyrical Charger is back online.",
+        )
+    finally:
+        db.close()
+
+
 @router.post("/page-view")
 @limiter.limit("60/hour")
 async def page_view(request: Request, background_tasks: BackgroundTasks):
@@ -160,6 +249,7 @@ async def session_cleanup_loop():
 @router.post("/sessions", status_code=201, response_model=AnalyzerSessionOut)
 @limiter.limit("10/hour")
 async def create_session(body: AnalyzerSessionCreate, request: Request, background_tasks: BackgroundTasks):
+    _check_lc_available_or_503()
     session_id = secrets.token_hex(5)  # 10-char hex string
     now = datetime.now(timezone.utc)
     ttl = settings.analyzer_session_ttl
@@ -293,6 +383,7 @@ async def get_session(session_id: str, request: Request):
 @router.post("/resolve-playlist", response_model=PlaylistResolveOut)
 @limiter.limit("20/hour")
 async def resolve_playlist(body: PlaylistResolveIn, request: Request):
+    _check_lc_available_or_503()
     playlist_id = _extract_playlist_id(body.spotify_url)
     if not playlist_id:
         raise HTTPException(400, "Invalid Spotify playlist URL, URI, or ID")
@@ -509,6 +600,7 @@ async def calibrate_lyrics_endpoint(
     }
 
     if is_public:
+        _check_lc_available_or_503()
         await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 
     source = _resolve_source(tier, body.source)
@@ -746,6 +838,7 @@ async def calibrate_lyrics_endpoint(
 @limiter.limit("20/hour")
 async def search_songs(body: SongSearchIn, request: Request, background_tasks: BackgroundTasks):
     """Search for songs via Musixmatch. Returns empty list if API key not configured."""
+    _check_lc_available_or_503()
     request.state.call_context = {
         "query": (body.query or "")[:200],
         "artist": (body.artist or "")[:200],
@@ -788,6 +881,7 @@ async def calibrate_search(
     }
 
     if is_public:
+        _check_lc_available_or_503()
         await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 
     source = _resolve_source(tier, body.source)

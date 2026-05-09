@@ -1029,3 +1029,44 @@ class ArtistVerificationDetailOut(BaseModel):
     artist_slug: str
     verification: Optional[ArtistVerificationOut] = None
     blocks: list[ArtistVerificationBlockOut] = []
+
+
+class LCAvailabilityOut(BaseModel):
+    available: bool
+    message: Optional[str] = None
+
+
+class LCSubscribeIn(BaseModel):
+    email: str = Field(..., min_length=4, max_length=254)
+    hp_website: str = ""
+    turnstile_token: str = ""
+
+
+class LCSubscribeOut(BaseModel):
+    status: str  # "subscribed" | "already_subscribed"
+    message: str
+
+
+class LCSubscriberOut(BaseModel):
+    id: int
+    email: str
+    created_at: datetime.datetime
+    notified_at: Optional[datetime.datetime] = None
+
+
+class LCStatusOut(BaseModel):
+    disabled: bool
+    message: str
+    subscribers_total: int
+    subscribers_unnotified: int
+
+
+class LCToggleIn(BaseModel):
+    disabled: bool
+    message: Optional[str] = None  # null/omitted leaves the existing message in place
+
+
+class LCNotifyOut(BaseModel):
+    sent: int
+    skipped: int
+    failed: int

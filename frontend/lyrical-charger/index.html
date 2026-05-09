@@ -47,6 +47,49 @@
 
   <main>
 
+    <!-- ======================== SCREEN 0: UNAVAILABLE ======================== -->
+    <section id="screen-unavailable" class="screen">
+      <div class="unavail-hero">
+        <h2 class="unavail-headline">Lyrical Charger is taking a breath.</h2>
+        <p class="unavail-msg" id="unavail-message">
+          The engine is temporarily offline. Drop your email and we'll let you know the moment it's back.
+        </p>
+      </div>
+
+      <div class="unavail-card">
+        <h3 class="unavail-card-title">Notify me when it's back</h3>
+        <form id="unavail-subscribe-form" class="unavail-subscribe">
+          <input type="email" id="unavail-email" placeholder="you@example.com" autocomplete="email" maxlength="254" required>
+          <button type="submit" id="unavail-submit" class="btn btn-primary">Notify me</button>
+        </form>
+        <p class="unavail-status" id="unavail-status" aria-live="polite"></p>
+        <!-- Honeypot — bots fill this in, humans never see it -->
+        <div class="hp-field" aria-hidden="true">
+          <label for="unavail-hp">Website (leave blank)</label>
+          <input type="text" id="unavail-hp" name="website" autocomplete="off" tabindex="-1" value="">
+        </div>
+      </div>
+
+      <div class="unavail-card unavail-grass">
+        <h3 class="unavail-card-title">Why this is offline</h3>
+        <p>
+          Every reading Lyrical Charger does costs real money — each classification calls a paid AI engine,
+          plus the daily Top 20 reading on <a href="https://risingcompass.net/">The Rising Compass</a>, the corpus reconciliation,
+          and the infrastructure that holds it all together.
+        </p>
+        <p class="unavail-grass-em">
+          This is grassroots. One person. No VC. No investors. No ads.
+        </p>
+        <p>
+          If Lyrical Charger has shifted how you hear music, throw a few bucks toward keeping it alive and free.
+          Every patronage goes directly toward API credits and hosting.
+        </p>
+        <a id="unavail-donate" class="btn btn-donate" href="https://chadlewine.com/?source=lyrical-charger" target="_blank" rel="noopener">
+          Support this tool &rarr;
+        </a>
+      </div>
+    </section>
+
     <!-- ======================== SCREEN 1: ENTRY ======================== -->
     <section id="screen-entry" class="screen active">
 
@@ -119,6 +162,10 @@
 
       <div class="below-fold">
         <p>Built on the same engine that analyzes the most popular top 20 songs in the USA every day.</p>
+        <p class="below-fold-grass">
+          Grassroots. One person. No VC.
+          <a href="https://chadlewine.com/?source=lyrical-charger" target="_blank" rel="noopener">Support this tool</a>.
+        </p>
       </div>
 
     </section>

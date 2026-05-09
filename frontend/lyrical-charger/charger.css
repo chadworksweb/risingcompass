@@ -1181,3 +1181,147 @@ body::-webkit-scrollbar {
     font-size: 1.3rem;
   }
 }
+
+/* ============================================================
+   Screen 0: Unavailable
+   ============================================================ */
+.unavail-hero {
+  text-align: center;
+  margin: 1.5rem 0 2rem;
+}
+
+.unavail-headline {
+  font-size: 1.6rem;
+  color: var(--rc-text-bright);
+  margin-bottom: 0.8rem;
+  letter-spacing: 0.01em;
+}
+
+.unavail-msg {
+  color: var(--rc-text-dim);
+  font-size: 0.95rem;
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.unavail-card {
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.unavail-card-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--rc-text-dim);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.unavail-subscribe {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.unavail-subscribe input[type="email"] {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text-bright);
+  font-family: inherit;
+  font-size: 0.95rem;
+  border-radius: var(--rc-radius);
+}
+
+.unavail-subscribe input[type="email"]:focus {
+  outline: none;
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 8px var(--rc-accent-glow);
+}
+
+.unavail-subscribe .btn-primary {
+  width: auto;
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
+.unavail-status {
+  font-size: 0.85rem;
+  color: var(--rc-text-dim);
+  margin-top: 0.8rem;
+  min-height: 1.2em;
+}
+
+.unavail-status.success { color: var(--rc-green); }
+.unavail-status.error   { color: var(--rc-orange); }
+
+.unavail-grass p {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  margin-bottom: 0.9rem;
+  color: var(--rc-text);
+}
+
+.unavail-grass p:last-of-type {
+  margin-bottom: 1.2rem;
+}
+
+.unavail-grass-em {
+  color: var(--rc-text-bright) !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.unavail-grass a {
+  color: var(--rc-accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--rc-accent);
+}
+
+.unavail-grass a:hover {
+  border-bottom-style: solid;
+}
+
+.btn-donate {
+  display: inline-block;
+  width: auto;
+  padding: 0.7rem 1.4rem;
+  background: var(--rc-violet);
+  color: #ffffff;
+  border: 2px solid var(--rc-violet);
+  text-decoration: none;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: var(--rc-radius);
+  transition: all var(--rc-ease) ease;
+}
+
+.btn-donate:hover {
+  background: transparent;
+  color: var(--rc-violet);
+  box-shadow: 0 0 16px rgba(170, 84, 255, 0.4);
+}
+
+/* Persistent grassroots line on the main entry screen */
+.below-fold-grass {
+  margin-top: 0.6rem;
+}
+
+.below-fold-grass a {
+  color: var(--rc-accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--rc-accent);
+}
+
+.below-fold-grass a:hover {
+  border-bottom-style: solid;
+}

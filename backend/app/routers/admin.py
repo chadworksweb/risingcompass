@@ -68,6 +68,7 @@ _ADMIN_SECTIONS = {
     "api-monitor": "admin/api_monitor.html",
     "claude-usage": "admin/claude_usage.html",
     "v1-test": "admin/v1_test.html",
+    "lc-status": "admin/lc_status.html",
 }
 
 

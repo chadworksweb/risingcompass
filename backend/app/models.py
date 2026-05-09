@@ -1078,3 +1078,20 @@ class BackfillJobRow(Base):
     topic_audit = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SystemFlag(Base):
+    __tablename__ = "system_flags"
+
+    key = Column(Text, primary_key=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class LyricalChargerSubscriber(Base):
+    __tablename__ = "lyrical_charger_subscribers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(Text, nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    notified_at = Column(DateTime, nullable=True)

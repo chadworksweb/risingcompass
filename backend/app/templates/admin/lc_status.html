@@ -1,0 +1,217 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'lc-status' %}
+{% block title %}LC Status — Admin{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="lcsState">—</div><div class="label">Current state</div></div>
+  <div class="stat-card"><div class="val" id="lcsTotal">—</div><div class="label">Subscribers (all)</div></div>
+  <div class="stat-card"><div class="val" id="lcsUnnotified">—</div><div class="label">Unnotified</div></div>
+</div>
+
+<h2 class="section-title">Toggle</h2>
+<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;">
+  <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;">
+    <button id="lcsBtnDisable" class="btn btn-primary" onclick="lcsToggle(true)">Take LC offline</button>
+    <button id="lcsBtnEnable" class="btn btn-primary" onclick="lcsToggle(false)">Bring LC back online</button>
+    <span id="lcsToggleNote" style="font-size:0.82rem;color:var(--text-dim);"></span>
+  </div>
+  <label style="display:block;font-size:0.82rem;color:var(--text-dim);margin-bottom:0.3rem;">Unavailable message (shown to users on the LC page)</label>
+  <textarea id="lcsMessage" rows="3" style="width:100%;font-family:inherit;font-size:0.9rem;padding:0.5rem;border:1px solid var(--border);border-radius:4px;"></textarea>
+  <div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;">
+    <button class="btn btn-secondary" style="font-size:0.82rem;padding:0.4rem 0.9rem;" onclick="lcsSaveMessage()">Save message</button>
+    <button class="btn btn-secondary" style="font-size:0.82rem;padding:0.4rem 0.9rem;" onclick="lcsResetMessage()">Reset to default</button>
+    <span id="lcsMessageNote" style="font-size:0.78rem;color:var(--text-dim);"></span>
+  </div>
+</div>
+
+<h2 class="section-title">Notify subscribers</h2>
+<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;">
+  <p style="font-size:0.88rem;color:var(--text-dim);margin:0 0 0.6rem;">
+    Sends a "we're back online" email via Resend to every subscriber whose <code>notified_at</code> is null.
+    Only available when LC is currently online — toggle it back on first.
+  </p>
+  <button id="lcsBtnNotify" class="btn btn-primary" onclick="lcsNotify()">Notify all unnotified subscribers</button>
+  <span id="lcsNotifyNote" style="font-size:0.82rem;color:var(--text-dim);margin-left:0.8rem;"></span>
+</div>
+
+<h2 class="section-title">Subscribers</h2>
+<div style="display:flex;gap:0.5rem;margin-bottom:0.8rem;align-items:center;">
+  <label style="font-size:0.82rem;color:var(--text-dim);"><input type="checkbox" id="lcsOnlyUnnotified" onchange="loadSubscribers()"> Only unnotified</label>
+  <button onclick="loadSubscribers()" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Refresh</button>
+</div>
+<table class="data-table" id="lcsTable" style="width:100%;font-size:0.85rem;">
+  <thead>
+    <tr>
+      <th style="text-align:left;">Email</th>
+      <th style="text-align:left;">Subscribed</th>
+      <th style="text-align:left;">Notified</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="lcsTableBody"><tr><td colspan="4" style="color:var(--text-dim);">Loading...</td></tr></tbody>
+</table>
+<div class="pagination" id="lcsPagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let lcsPage = 1;
+const LCS_PER_PAGE = 50;
+
+function onAdminReady() {
+  loadStatus();
+  loadSubscribers();
+}
+
+function fmtDate(iso) {
+  if (!iso) return '<span style="color:var(--text-dim);">—</span>';
+  const d = new Date(iso);
+  return d.toLocaleString();
+}
+
+async function loadStatus() {
+  try {
+    const resp = await adminFetch('/api/admin/lc-status');
+    if (!resp.ok) throw new Error('status fetch failed');
+    const s = await resp.json();
+    document.getElementById('lcsState').textContent = s.disabled ? 'OFFLINE' : 'online';
+    document.getElementById('lcsState').style.color = s.disabled ? '#cc3333' : '#33aa55';
+    document.getElementById('lcsTotal').textContent = s.subscribers_total;
+    document.getElementById('lcsUnnotified').textContent = s.subscribers_unnotified;
+    document.getElementById('lcsMessage').value = s.message || '';
+
+    const enableBtn = document.getElementById('lcsBtnEnable');
+    const disableBtn = document.getElementById('lcsBtnDisable');
+    enableBtn.disabled = !s.disabled;
+    disableBtn.disabled = s.disabled;
+    enableBtn.style.opacity = s.disabled ? '1' : '0.5';
+    disableBtn.style.opacity = s.disabled ? '0.5' : '1';
+
+    const notifyBtn = document.getElementById('lcsBtnNotify');
+    notifyBtn.disabled = s.disabled || s.subscribers_unnotified === 0;
+    notifyBtn.style.opacity = notifyBtn.disabled ? '0.5' : '1';
+    document.getElementById('lcsNotifyNote').textContent =
+      s.disabled ? '(toggle LC online first)'
+      : (s.subscribers_unnotified === 0 ? '(no unnotified subscribers)' : '');
+  } catch (e) {
+    document.getElementById('lcsState').textContent = 'error';
+  }
+}
+
+async function lcsToggle(disabled) {
+  const message = document.getElementById('lcsMessage').value.trim();
+  const note = document.getElementById('lcsToggleNote');
+  note.textContent = 'Saving...';
+  try {
+    const resp = await adminFetch('/api/admin/lc-status/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({disabled, message: message || null}),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    note.textContent = disabled ? 'LC is now OFFLINE.' : 'LC is back online.';
+    await loadStatus();
+  } catch (e) {
+    note.textContent = 'Toggle failed: ' + e.message;
+  }
+}
+
+async function lcsSaveMessage() {
+  const message = document.getElementById('lcsMessage').value.trim();
+  const note = document.getElementById('lcsMessageNote');
+  note.textContent = 'Saving...';
+  try {
+    // Pass current disabled state through, only updating message.
+    const status = await (await adminFetch('/api/admin/lc-status')).json();
+    const resp = await adminFetch('/api/admin/lc-status/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({disabled: status.disabled, message: message || ''}),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    note.textContent = 'Saved.';
+    await loadStatus();
+  } catch (e) {
+    note.textContent = 'Save failed: ' + e.message;
+  }
+}
+
+async function lcsResetMessage() {
+  document.getElementById('lcsMessage').value = '';
+  await lcsSaveMessage();
+}
+
+async function lcsNotify() {
+  const note = document.getElementById('lcsNotifyNote');
+  if (!confirm('Send the "we are back online" email to every unnotified subscriber? This cannot be undone.')) {
+    return;
+  }
+  note.textContent = 'Sending...';
+  document.getElementById('lcsBtnNotify').disabled = true;
+  try {
+    const resp = await adminFetch('/api/admin/lc-status/notify', {method: 'POST'});
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    const r = await resp.json();
+    note.textContent = `Sent ${r.sent} | failed ${r.failed}`;
+    await loadStatus();
+    await loadSubscribers();
+  } catch (e) {
+    note.textContent = 'Notify failed: ' + e.message;
+  }
+}
+
+async function loadSubscribers() {
+  const onlyUnnotified = document.getElementById('lcsOnlyUnnotified').checked;
+  const tbody = document.getElementById('lcsTableBody');
+  tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim);">Loading...</td></tr>';
+  try {
+    const url = `/api/admin/lc-status/subscribers?page=${lcsPage}&per_page=${LCS_PER_PAGE}&only_unnotified=${onlyUnnotified}`;
+    const resp = await adminFetch(url);
+    if (!resp.ok) throw new Error('subscribers fetch failed');
+    const data = await resp.json();
+    if (data.subscribers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim);">No subscribers.</td></tr>';
+    } else {
+      tbody.innerHTML = data.subscribers.map(s => `
+        <tr>
+          <td>${s.email}</td>
+          <td>${fmtDate(s.created_at)}</td>
+          <td>${fmtDate(s.notified_at)}</td>
+          <td><button onclick="lcsDelete(${s.id})" style="font-size:0.78rem;padding:0.2rem 0.5rem;">delete</button></td>
+        </tr>
+      `).join('');
+    }
+    renderPagination(data.total);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:#cc3333;">Error: ${e.message}</td></tr>`;
+  }
+}
+
+function renderPagination(total) {
+  const pages = Math.ceil(total / LCS_PER_PAGE) || 1;
+  const wrap = document.getElementById('lcsPagination');
+  if (pages <= 1) { wrap.innerHTML = ''; return; }
+  let html = '';
+  for (let p = 1; p <= pages; p++) {
+    html += `<button onclick="lcsPage=${p};loadSubscribers();" class="${p === lcsPage ? 'active' : ''}" style="padding:0.3rem 0.7rem;margin-right:0.2rem;">${p}</button>`;
+  }
+  wrap.innerHTML = html;
+}
+
+async function lcsDelete(id) {
+  if (!confirm('Delete this subscriber?')) return;
+  try {
+    const resp = await adminFetch(`/api/admin/lc-status/subscribers/${id}`, {method: 'DELETE'});
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    await loadSubscribers();
+    await loadStatus();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+</script>
+{% endblock %}

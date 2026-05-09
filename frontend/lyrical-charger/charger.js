@@ -254,6 +254,73 @@ function firePageView() {
 }
 firePageView();
 
+// --- Availability gate ---
+// Fetches /api/analyzer/availability on load. When LC is disabled, hides
+// the entry/processing/results screens, shows the unavailable screen with
+// the admin-supplied message and the subscribe form.
+async function checkAvailability() {
+  try {
+    const headers = {};
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    const resp = await fetch(`${API_BASE}/availability`, { headers });
+    if (!resp.ok) return;  // best-effort; let the user try and surface the 503 later
+    const data = await resp.json();
+    if (data.available) return;
+
+    const msg = $('#unavail-message');
+    if (msg && data.message) msg.textContent = data.message;
+
+    showScreen('screen-unavailable');
+    wireSubscribeForm();
+  } catch {
+    // Network error — let the page render normally so the user can try.
+  }
+}
+
+function wireSubscribeForm() {
+  const form = $('#unavail-subscribe-form');
+  const status = $('#unavail-status');
+  const submit = $('#unavail-submit');
+  if (!form || form.dataset.wired) return;
+  form.dataset.wired = '1';
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('#unavail-email').value.trim();
+    const hp = $('#unavail-hp')?.value || '';
+    if (!email) return;
+
+    submit.disabled = true;
+    status.className = 'unavail-status';
+    status.textContent = 'Sending...';
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (API_KEY) headers['X-Api-Key'] = API_KEY;
+      const resp = await fetch(`${API_BASE}/subscribe`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ email, hp_website: hp, turnstile_token: getTurnstileToken() }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const detail = (data && data.detail) || `HTTP ${resp.status}`;
+        throw new Error(typeof detail === 'string' ? detail : 'Subscribe failed.');
+      }
+      status.className = 'unavail-status success';
+      status.textContent = data.message || 'Thanks. We\'ll email you when LC is back.';
+      $('#unavail-email').value = '';
+    } catch (err) {
+      status.className = 'unavail-status error';
+      status.textContent = err.message || 'Could not subscribe. Try again in a moment.';
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+checkAvailability();
+
 async function initBotProtection() {
   try {
     const headers = {};
@@ -483,6 +550,19 @@ async function submitLyrics() {
       stopProgress();
       showError("You've hit the free daily limit (20 readings). Try again tomorrow.");
       showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    if (resp.status === 503) {
+      // LC was flipped to disabled while this page was open.
+      stopProgress();
+      const data = await resp.json().catch(() => ({}));
+      const msg = data?.detail?.message || 'Lyrical Charger is temporarily offline.';
+      const u = $('#unavail-message');
+      if (u) u.textContent = msg;
+      showScreen('screen-unavailable');
+      wireSubscribeForm();
       btnSubmit.disabled = false;
       return;
     }
