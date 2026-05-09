@@ -402,7 +402,7 @@ function initDonateWidget() {
       if (API_KEY) headers['X-Api-Key'] = API_KEY;
       const origin = window.location.origin;
       const path = window.location.pathname;
-      const resp = await fetch(`${API_HOST}/api/patronage`, {
+      const resp = await fetch(`${API_HOST}/api/donate`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

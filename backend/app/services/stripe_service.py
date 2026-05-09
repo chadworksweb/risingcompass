@@ -1,12 +1,12 @@
-"""Stripe wrapper for Lyrical Charger patronage.
+"""Stripe wrapper for Lyrical Charger donations.
 
 Mirrors chadlewine/src/lib/stripe.ts. Same Stripe account, separate
 webhook endpoint with its own signing secret.
 
-Patronage is mode='payment' (one-time gift), submit_type='donate' so
+Donations are mode='payment' (one-time gift), submit_type='donate' so
 Stripe Checkout shows a "Donate" button instead of "Pay". Line items
 carry a source tag in the product name so receipts read
-"Patronage: Lyrical Charger" rather than a bare "Patronage".
+"Donation: Lyrical Charger" rather than a bare "Donation".
 """
 
 import logging
@@ -30,14 +30,14 @@ def to_cents(dollars: float) -> int:
     return int(round(float(dollars) * 100))
 
 
-def create_patronage_session(
+def create_donation_session(
     *,
     amount_dollars: float,
     success_url: str,
     cancel_url: str,
     source: str,
 ) -> stripe.checkout.Session:
-    """Create a one-shot Stripe Checkout session for a patronage gift.
+    """Create a one-shot Stripe Checkout session for a donation.
 
     Returns the full Session object. The caller persists session.id +
     amount_cents in rc_donations and redirects the user to session.url.
@@ -47,9 +47,9 @@ def create_patronage_session(
 
     cents = to_cents(amount_dollars)
     if cents < 100:
-        raise ValueError("Minimum patronage is $1.00")
+        raise ValueError("Minimum donation is $1.00")
 
-    product_name = f"Patronage: {source}" if source else "Patronage"
+    product_name = f"Donation: {source}" if source else "Donation"
 
     return _client().checkout.sessions.create(
         params={

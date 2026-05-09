@@ -1,7 +1,7 @@
-"""Lyrical Charger patronage routes — Stripe Checkout + webhook.
+"""Lyrical Charger donation routes — Stripe Checkout + webhook.
 
 Public endpoints (Lyrical Charger frontend):
-  POST /api/patronage          -> creates a Checkout session, persists a
+  POST /api/donate             -> creates a Checkout session, persists a
                                   pending Donation row, returns session URL
   POST /api/stripe-webhook     -> Stripe signs webhook events with our
                                   per-endpoint secret; on
@@ -9,7 +9,7 @@ Public endpoints (Lyrical Charger frontend):
                                   Donation row to succeeded with the final
                                   amount + customer email
 
-Patronage is voluntary, non-refundable, and creates no obligation. The
+Donations are voluntary, non-refundable, and create no obligation. The
 disclosure shows up next to the consent checkbox in the LC widget.
 """
 
@@ -26,23 +26,23 @@ from pydantic import BaseModel, Field
 from app.auth import verify_api_or_service_key
 from app.database import SessionLocal
 from app.models import Donation
-from app.services.stripe_service import create_patronage_session, construct_event
+from app.services.stripe_service import create_donation_session, construct_event
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["patronage"])
+router = APIRouter(tags=["donate"])
 
 
 # --- Schemas (kept inline; small surface, not reused elsewhere) -------------
 
-class PatronageIn(BaseModel):
+class DonateIn(BaseModel):
     amount: float = Field(..., gt=0)
     source: str = Field("lyrical_charger", max_length=50)
     success_url: str = Field(..., max_length=500)
     cancel_url: str = Field(..., max_length=500)
 
 
-class PatronageOut(BaseModel):
+class DonateOut(BaseModel):
     url: str
     session_id: str
 
@@ -79,25 +79,25 @@ def _validate_return_url(url: str) -> None:
         raise HTTPException(400, f"return URL origin not allowed: {origin}")
 
 
-# --- POST /api/patronage ----------------------------------------------------
+# --- POST /api/donate -------------------------------------------------------
 
-@router.post("/api/patronage", response_model=PatronageOut,
+@router.post("/api/donate", response_model=DonateOut,
              dependencies=[Depends(verify_api_or_service_key)])
-async def create_patronage(body: PatronageIn, request: Request):
+async def create_donation(body: DonateIn, request: Request):
     """Create a Stripe Checkout session and persist a pending donation row.
 
-    Always available — the LC unavailable flag does NOT gate this. The
+    Always available -- the LC unavailable flag does NOT gate this. The
     whole point of the donate widget is that it stays reachable while
     the engine is down.
     """
     if body.amount < 1:
-        raise HTTPException(400, "Minimum patronage is $1.00")
+        raise HTTPException(400, "Minimum donation is $1.00")
 
     _validate_return_url(body.success_url)
     _validate_return_url(body.cancel_url)
 
     try:
-        session = create_patronage_session(
+        session = create_donation_session(
             amount_dollars=body.amount,
             success_url=body.success_url,
             cancel_url=body.cancel_url,
@@ -105,7 +105,7 @@ async def create_patronage(body: PatronageIn, request: Request):
         )
     except RuntimeError as e:
         logger.error("Stripe not configured: %s", e)
-        raise HTTPException(503, "Patronage is not configured.")
+        raise HTTPException(503, "Donations are not configured.")
     except stripe.error.StripeError as e:
         logger.exception("Stripe checkout session create failed")
         raise HTTPException(502, f"Payment processor error: {e.user_message or 'try again'}")
@@ -125,14 +125,14 @@ async def create_patronage(body: PatronageIn, request: Request):
         db.add(donation)
         db.commit()
     except Exception:
-        # Persist failure is non-fatal — Stripe is the source of truth.
+        # Persist failure is non-fatal -- Stripe is the source of truth.
         # The webhook can still upsert by stripe_session_id.
         logger.exception("Failed to persist pending Donation row")
         db.rollback()
     finally:
         db.close()
 
-    return PatronageOut(url=session.url, session_id=session.id)
+    return DonateOut(url=session.url, session_id=session.id)
 
 
 # --- POST /api/stripe-webhook ----------------------------------------------
@@ -176,7 +176,7 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(defaul
 
         if event_type == "checkout.session.completed":
             if not donation:
-                # Webhook beat the persist on /api/patronage — upsert.
+                # Webhook beat the persist on /api/donate -- upsert.
                 donation = Donation(
                     stripe_session_id=session_id,
                     amount_cents=int(obj.get("amount_total") or 0),

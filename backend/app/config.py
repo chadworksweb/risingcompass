@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     turnstile_site_key: str = ""
     turnstile_secret: str = ""
 
-    # Stripe (Lyrical Charger patronage). Same Stripe account as chadlewine.com,
+    # Stripe (Lyrical Charger donations). Same Stripe account as chadlewine.com,
     # but a separate webhook endpoint with its own signing secret.
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
