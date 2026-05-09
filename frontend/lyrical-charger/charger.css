@@ -1280,13 +1280,13 @@ body::-webkit-scrollbar {
   letter-spacing: 0.01em;
 }
 
-.unavail-grass a {
+.unavail-grass a:not(.btn-donate) {
   color: var(--rc-accent);
   text-decoration: none;
   border-bottom: 1px dotted var(--rc-accent);
 }
 
-.unavail-grass a:hover {
+.unavail-grass a:not(.btn-donate):hover {
   border-bottom-style: solid;
 }
 

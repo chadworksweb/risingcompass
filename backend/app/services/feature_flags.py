@@ -12,7 +12,7 @@ from app.models import SystemFlag
 LC_DISABLED_KEY = "lyrical_charger.disabled"
 LC_DISABLED_MESSAGE_KEY = "lyrical_charger.disabled_message"
 DEFAULT_LC_DISABLED_MESSAGE = (
-    "Lyrical Charger is temporarily offline while we restock the engine. "
+    "Lyrical Charger is temporarily unavailable while we restock the engine. "
     "Drop your email below and we'll let you know the moment it's back."
 )
 
