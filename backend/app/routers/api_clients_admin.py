@@ -224,3 +224,35 @@ def revoke_key(key_id: int, db: Session = Depends(get_db)):
     key.revoked_at = datetime.utcnow()
     db.commit()
     return {"revoked": True, "already": False}
+
+
+@router.post("/{client_id}/keys/rotate", dependencies=[Depends(verify_admin_key)], status_code=201)
+def rotate_key(client_id: int, body: KeyCreateIn, db: Session = Depends(get_db)):
+    """Issue a fresh key and revoke every currently-active key for this client.
+    Returns the new raw key once. Use this when the prior key is lost or
+    suspected leaked.
+    """
+    client = db.query(ApiClient).filter(ApiClient.id == client_id).first()
+    if not client:
+        raise HTTPException(404, "Client not found")
+
+    now = datetime.utcnow()
+    active_keys = (
+        db.query(ApiClientKey)
+        .filter(ApiClientKey.client_id == client_id)
+        .filter(ApiClientKey.revoked_at.is_(None))
+        .all()
+    )
+    revoked_count = 0
+    for k in active_keys:
+        k.revoked_at = now
+        revoked_count += 1
+
+    raw = issue_key(db, client, label=body.label or "rotated")
+    db.commit()
+    return {
+        "raw_key": raw,
+        "key_prefix": raw[:8],
+        "label": body.label or "rotated",
+        "revoked_count": revoked_count,
+    }

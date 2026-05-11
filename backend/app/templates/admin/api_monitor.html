@@ -22,8 +22,8 @@
       <button onclick="hideNewClientForm()" style="background:#555;">Cancel</button>
     </div>
   </div>
-  <div class="sub-header" style="grid-template-columns:2fr 1fr 100px 90px 90px 120px 100px;gap:0.5rem;">
-    <span>Slug / Name</span><span>Plan</span><span>Behavior</span><span>Calls 7d</span><span>Errors 7d</span><span>Last active</span><span>Status</span>
+  <div class="sub-header" style="grid-template-columns:2fr 1fr 100px 90px 90px 120px 100px 90px;gap:0.5rem;">
+    <span>Slug / Name</span><span>Plan</span><span>Behavior</span><span>Calls 7d</span><span>Errors 7d</span><span>Last active</span><span>Status</span><span></span>
   </div>
   <div id="apiClientsList"></div>
 </div>
@@ -31,6 +31,20 @@
 <div id="apiClientDetail" class="hidden">
   <button onclick="backToClientList()" style="padding:0.3rem 0.8rem;font-size:0.8rem;margin-bottom:1rem;">← All clients</button>
   <div id="clientDetailBody"></div>
+</div>
+
+<div id="keyRevealModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:1.25rem;max-width:640px;width:90%;">
+    <h3 style="margin:0 0 0.6rem;font-size:0.95rem;">New API key</h3>
+    <p id="keyRevealBlurb" style="color:#555;font-size:0.82rem;margin:0 0 0.8rem;">Copy this key now. It will never be shown again.</p>
+    <div style="display:flex;gap:0.4rem;align-items:stretch;">
+      <input type="text" id="keyRevealValue" readonly style="flex:1;font-family:JetBrains Mono,monospace;font-size:0.82rem;padding:0.5rem 0.6rem;background:#f3f3f9;border:1px solid #d2d2dc;border-radius:4px;" onclick="this.select();">
+      <button id="keyRevealCopy" onclick="copyRevealedKey()" style="padding:0.4rem 0.9rem;font-size:0.82rem;">Copy</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:0.9rem;">
+      <button onclick="closeKeyRevealModal()" style="padding:0.4rem 0.9rem;font-size:0.82rem;background:#555;">Close</button>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -57,7 +71,7 @@ async function loadApiClients() {
     el.innerHTML = clients.map(c => {
       const last = c.last_activity ? new Date(c.last_activity).toLocaleString() : '—';
       const statusColor = c.status === 'active' ? '#1a8f3a' : (c.status === 'suspended' ? '#b87300' : '#c02020');
-      return `<div style="display:grid;grid-template-columns:2fr 1fr 100px 90px 90px 120px 100px;gap:0.5rem;align-items:center;padding:0.7rem 0.8rem;background:var(--panel);border-radius:4px;margin-bottom:0.4rem;font-size:0.85rem;cursor:pointer;" onclick="openClient(${c.id})">
+      return `<div style="display:grid;grid-template-columns:2fr 1fr 100px 90px 90px 120px 100px 90px;gap:0.5rem;align-items:center;padding:0.7rem 0.8rem;background:var(--panel);border-radius:4px;margin-bottom:0.4rem;font-size:0.85rem;cursor:pointer;" onclick="openClient(${c.id})">
         <div><strong style="color:var(--accent);">${escHtml(c.slug)}</strong><br><span style="color:#555;font-size:0.78rem;">${escHtml(c.name)}</span></div>
         <span style="color:#555;">${escHtml(c.plan_tier || '—')}</span>
         <span style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:${c.behavior === 'public' ? '#7a2cc0' : '#1a8f3a'};">${c.behavior}</span>
@@ -65,6 +79,7 @@ async function loadApiClients() {
         <span style="color:${c.errors_7d > 0 ? '#c02020' : '#555'};">${c.errors_7d}</span>
         <span style="color:#555;font-size:0.78rem;">${last}</span>
         <span style="color:${statusColor};font-size:0.78rem;">${c.status}</span>
+        <button onclick="event.stopPropagation(); rotateKey(${c.id}, '${escHtml(c.slug)}')" style="padding:0.25rem 0.55rem;font-size:0.72rem;background:#15151f;color:#fff;border:1px solid #555;border-radius:3px;cursor:pointer;">Rotate</button>
       </div>`;
     }).join('');
   } catch (e) { console.error(e); }
@@ -186,7 +201,10 @@ function renderClientDetail(det, callsData) {
 
     <h3 style="font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">API Keys</h3>
     <div>${keysHtml}</div>
-    <button onclick="generateKey(${c.id})" style="margin-top:0.5rem;padding:0.3rem 0.8rem;font-size:0.8rem;">+ Generate new key</button>
+    <div style="display:flex;gap:0.4rem;margin-top:0.5rem;">
+      <button onclick="generateKey(${c.id})" style="padding:0.3rem 0.8rem;font-size:0.8rem;">+ Generate new key</button>
+      <button onclick="rotateKey(${c.id}, '${escHtml(c.slug)}')" style="padding:0.3rem 0.8rem;font-size:0.8rem;background:#15151f;color:#fff;border:1px solid #555;">Rotate (revoke all + new)</button>
+    </div>
 
     <h3 style="font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;">Top Endpoints (7d)</h3>
     <div>${endpointsHtml}</div>
@@ -205,8 +223,28 @@ async function generateKey(clientId) {
     });
     if (!resp.ok) { alert((await resp.json()).detail || 'Key generation failed'); return; }
     const { raw_key } = await resp.json();
-    prompt('Copy this key NOW — it will never be shown again:', raw_key);
+    showKeyRevealModal(raw_key, 'Copy this key now. It will never be shown again.');
     openClient(clientId);
+  } catch (e) { alert(e.message); }
+}
+
+async function rotateKey(clientId, slug) {
+  if (!confirm(`Rotate the key for "${slug}"?\n\nAll currently-active keys for this client will be revoked, and a new one will be issued. Any caller using an old key will immediately get 403s.`)) return;
+  const label = prompt('Label for the new key (optional):') || '';
+  try {
+    const resp = await fetch(`/api/admin/api-clients/${clientId}/keys/rotate`, {
+      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    });
+    if (!resp.ok) { alert((await resp.json()).detail || 'Rotate failed'); return; }
+    const { raw_key, revoked_count } = await resp.json();
+    const blurb = `New key issued. ${revoked_count} prior key${revoked_count === 1 ? '' : 's'} revoked. Copy this now — it will never be shown again.`;
+    showKeyRevealModal(raw_key, blurb);
+    if (!document.getElementById('apiClientDetail').classList.contains('hidden')) {
+      openClient(clientId);
+    } else {
+      loadApiClients();
+    }
   } catch (e) { alert(e.message); }
 }
 
@@ -219,6 +257,39 @@ async function revokeKey(keyId, clientId) {
     if (!resp.ok) return;
     openClient(clientId);
   } catch (e) { alert(e.message); }
+}
+
+function showKeyRevealModal(rawKey, blurb) {
+  document.getElementById('keyRevealValue').value = rawKey;
+  document.getElementById('keyRevealBlurb').textContent = blurb || 'Copy this key now. It will never be shown again.';
+  document.getElementById('keyRevealCopy').textContent = 'Copy';
+  document.getElementById('keyRevealModal').classList.remove('hidden');
+  setTimeout(() => {
+    const inp = document.getElementById('keyRevealValue');
+    inp.focus();
+    inp.select();
+  }, 50);
+}
+
+function closeKeyRevealModal() {
+  document.getElementById('keyRevealModal').classList.add('hidden');
+  document.getElementById('keyRevealValue').value = '';
+}
+
+async function copyRevealedKey() {
+  const raw = document.getElementById('keyRevealValue').value;
+  const btn = document.getElementById('keyRevealCopy');
+  try {
+    await navigator.clipboard.writeText(raw);
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  } catch (e) {
+    const inp = document.getElementById('keyRevealValue');
+    inp.select();
+    document.execCommand('copy');
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  }
 }
 </script>
 {% endblock %}
