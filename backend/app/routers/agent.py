@@ -500,15 +500,30 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     db.close()
 
     # === CALIBRATE — no DB held ===
-    result = await calibrate_song_async(
-        snap["title"], snap["artist"],
-        lyrics=data.lyrics, db=None, skip_cache=True,
-    )
+    # Two modes:
+    #   1. Terminal mode (Claude Code as model): data.calibration is supplied,
+    #      so no Anthropic call. Server skips calibrator, enrichment, and
+    #      editorial regen — those are also Anthropic paths. See
+    #      feedback_rc_no_api_in_terminal: terminal work must not draw from
+    #      the public-traffic ANTHROPIC_API_KEY budget.
+    #   2. Browser/admin mode: no calibration supplied. Falls through to
+    #      calibrate_song_async (Anthropic) and the full enrichment chain.
+    terminal_mode = data.calibration is not None
+    if terminal_mode:
+        result = data.calibration.model_dump()
+    else:
+        result = await calibrate_song_async(
+            snap["title"], snap["artist"],
+            lyrics=data.lyrics, db=None, skip_cache=True,
+        )
 
     # === WRITE PHASE — fresh session, fresh Hrana stream ===
     editorial_input = None
     write_db = SessionLocal()
     try:
+        # Terminal-mode effects_prose / societal_effects_prose travel inside
+        # `result` and are written by _store_calibration, which gates the
+        # Anthropic prose-gen hook inside record_and_reconcile.
         cs_id = _store_calibration(
             snap["title"], snap["artist"], snap["position"],
             snap["chart_source"], result, True, write_db,
@@ -557,12 +572,16 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     # === ENRICHMENT — ether tagger + societal effects, each in its own short
     # session with the Anthropic call held outside any session. Must run
     # after the compass_songs row is committed (above) so the read snapshots
-    # see the freshly-written row. Fails soft per step. ===
-    if cs_id is not None:
+    # see the freshly-written row. Fails soft per step.
+    # Skipped in terminal mode — those are Anthropic paths. Backfill scripts
+    # or a later admin pass fill the columns in. ===
+    if cs_id is not None and not terminal_mode:
         _run_post_calibration_enrichment(cs_id, data.lyrics)
 
-    # === EDITORIAL REGEN — separate session, no DB held during API call ===
-    if editorial_input:
+    # === EDITORIAL REGEN — separate session, no DB held during API call.
+    # Also an Anthropic path: skipped in terminal mode. Use PUT
+    # /drafts/{ref} with editorial_summary to set it from terminal. ===
+    if editorial_input and not terminal_mode:
         try:
             from app.services.agents.compass_agent import _generate_editorial
             editorial = _generate_editorial(editorial_input)

@@ -81,6 +81,13 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                 existing = c
                 break
 
+    # Terminal-mode callers may include effects_prose / societal_effects_prose
+    # in the result dict (Claude Code wrote them). Pre-writing them here gates
+    # the Anthropic prose-gen hook in record_and_reconcile, which only fires
+    # when those columns are missing. See feedback_rc_no_api_in_terminal.
+    supplied_effects_prose = result.get("effects_prose")
+    supplied_societal_prose = result.get("societal_effects_prose")
+
     if existing:
         existing.rubric_color = result["rubric_color"]
         existing.charge_value = result.get("charge_value")
@@ -90,6 +97,10 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         existing.dogma_note = result.get("dogma_note")
         existing.charge_summary = result["charge_summary"]
         existing.chart_source = chart_source
+        if supplied_effects_prose is not None:
+            existing.effects_prose = supplied_effects_prose
+        if supplied_societal_prose is not None:
+            existing.societal_effects_prose = supplied_societal_prose
         db.flush()
         return existing.id
     else:
@@ -109,6 +120,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             dogma_note=result.get("dogma_note"),
             charge_summary=result["charge_summary"],
             chart_source=chart_source,
+            effects_prose=supplied_effects_prose,
+            societal_effects_prose=supplied_societal_prose,
         )
         db.add(song)
         db.flush()

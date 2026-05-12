@@ -411,8 +411,30 @@ class DraftSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TerminalCalibrationIn(BaseModel):
+    """Claude-Code-supplied calibration result, sent alongside lyrics from terminal
+    so the server skips every Anthropic call in the supply-lyrics path (calibrator,
+    ether tagger, effects prose, societal effects prose, editorial regen).
+
+    The droplet's ANTHROPIC_API_KEY budget is reserved for live public traffic
+    (daily cron, Lyrical Charger, badge calibrations). Operator-initiated terminal
+    work must not draw from it. See feedback_rc_no_api_in_terminal memory.
+    """
+    rubric_color: str = Field(..., pattern="^(violet|blue|green|orange|red)$")
+    charge_value: int = Field(..., ge=-100, le=100)
+    charge_summary: str = Field(..., min_length=10)
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    dogma_referenced: bool = False
+    dogma_note: Optional[str] = None
+    confidence: float = 1.0
+    effects_prose: Optional[str] = None
+    societal_effects_prose: Optional[str] = None
+
+
 class SupplyLyricsIn(BaseModel):
     lyrics: str = Field(..., min_length=50)
+    calibration: Optional[TerminalCalibrationIn] = None
 
 
 class DraftTriggerSongIn(BaseModel):
