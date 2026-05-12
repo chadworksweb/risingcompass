@@ -600,7 +600,7 @@ class SongRecalibration(Base):
     public_summary = Column(Text, nullable=False)  # the public-facing story
     internal_notes = Column(Text)
     flag_count_snapshot = Column(Text)  # JSON: {misread: N, satirical: N} at moment of recalibration
-    vibe_snapshot = Column(Text)  # JSON: {value, pushes_up, pushes_down} (future, when vibe ships)
+    vibe_snapshot = Column(Text)  # JSON: {value, pushes_up, pushes_down} captured from audience_vibe_needles at apply time (wired 2026-05-12)
     rubric_change_slug = Column(String(100))  # groups songs recalibrated by the same rubric change
     rubric_change_note = Column(Text)  # 1-2 sentence description of the rubric rule that triggered this
     applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)

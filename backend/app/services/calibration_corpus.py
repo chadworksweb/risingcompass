@@ -18,6 +18,7 @@ variance awareness.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from typing import Optional
 
@@ -52,6 +53,29 @@ def hash_lyrics(lyrics: str | None) -> str | None:
     if not normalized:
         return None
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _vibe_snapshot_json(db: Session, source: str, song_id: int) -> Optional[str]:
+    """Snapshot the audience-vibe needle at recalibration time.
+
+    Returns JSON {value, pushes_up, pushes_down} for storage on
+    SongRecalibration.vibe_snapshot, or None when the needle is untouched
+    (no pushes recorded). Fails soft so a consensus-drift recalibration
+    never blocks on a vibe read.
+    """
+    try:
+        from app.services.audience_vibe import get_state
+        state = get_state(db, source, song_id, device_id=None)
+        if state.get("pushes_up_total", 0) == 0 and state.get("pushes_down_total", 0) == 0:
+            return None
+        return json.dumps({
+            "value": state["value"],
+            "pushes_up": state["pushes_up_total"],
+            "pushes_down": state["pushes_down_total"],
+        })
+    except Exception:
+        logger.exception("vibe_snapshot read failed for %s/%s", source, song_id)
+        return None
 
 
 def _derive_tier(charge: int) -> str:
@@ -386,6 +410,7 @@ def apply_consensus_to_song(
                 f"to {new_color} ({new_charge})."
             ),
             internal_notes=None,
+            vibe_snapshot=_vibe_snapshot_json(db, source, song.id),
         )
         db.add(recal)
 

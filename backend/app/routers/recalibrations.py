@@ -85,6 +85,29 @@ def _resolve_song(db: Session, source: str, song_id: int):
     return row
 
 
+def _vibe_snapshot(db: Session, source: str, song_id: int) -> Optional[str]:
+    """Snapshot the audience-vibe needle at the moment of recalibration.
+
+    Returns a JSON string in the documented shape {value, pushes_up,
+    pushes_down}, or None if the needle hasn't been touched yet (zero
+    pushes recorded). Fails soft: any exception logs and returns None
+    so a recalibration apply never blocks on a vibe read.
+    """
+    try:
+        from app.services.audience_vibe import get_state
+        state = get_state(db, source, song_id, device_id=None)
+        if state.get("pushes_up_total", 0) == 0 and state.get("pushes_down_total", 0) == 0:
+            return None
+        return json.dumps({
+            "value": state["value"],
+            "pushes_up": state["pushes_up_total"],
+            "pushes_down": state["pushes_down_total"],
+        })
+    except Exception:
+        logger.exception("vibe_snapshot read failed for %s/%s", source, song_id)
+        return None
+
+
 def _flag_counts_for_song(db: Session, source: str, song_id: int, title: str, artist: str) -> dict:
     """Snapshot of distinct-device flag counts at this moment."""
     title_l = (title or "").strip().lower()
@@ -407,11 +430,11 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
 
     song = _resolve_song(db, p.song_source, p.song_id)
 
-    # Snapshot the public state at the moment of recalibration. Vibe snapshot
-    # is reserved for when the vibe layer ships — schema slot already exists.
+    # Snapshot the public state at the moment of recalibration.
     flag_counts = _flag_counts_for_song(
         db, p.song_source, p.song_id, song.title, getattr(song, "artist", "") or "",
     )
+    vibe_snapshot = _vibe_snapshot(db, p.song_source, p.song_id)
 
     # Snapshot the song's CURRENT summary before we overwrite it. The proposal
     # only carries before_charge/before_color; the summary lives on the song
@@ -434,6 +457,7 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
         public_summary=data.public_summary,
         internal_notes=data.internal_notes,
         flag_count_snapshot=json.dumps(flag_counts),
+        vibe_snapshot=vibe_snapshot,
         rubric_change_slug=p.rubric_change_slug,
         rubric_change_note=p.rubric_change_note,
     )
