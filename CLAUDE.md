@@ -70,11 +70,20 @@ the login URL — it isn't linked from anywhere.
   `X-Reading-Cron-Key` header. Distinct from `RC_BACKUP_KEY` so cron lanes
   can be rotated independently.
 - `RC_LYRICS_SUPPLY_KEY=<service token>` — accepted by
-  `POST /api/admin/agent/drafts/{ref}/songs/{id}/lyrics` via the
-  `X-Lyrics-Supply-Key` header, in addition to the browser session cookie.
-  Lets terminal scripts (`backend/scripts/supply_lyrics.py`) supply lyrics
-  without going through the cookie flow. If env-listed in
-  `docker-compose.yml`, must also be added there for the container to see it.
+  `POST /api/admin/agent/drafts/{ref}/songs/{id}/lyrics` (lyrics endpoint) and
+  `POST /api/admin/agent/drafts/{ref}/songs/{id}/correct` (override endpoint)
+  via the `X-Lyrics-Supply-Key` header, in addition to the browser session cookie.
+  Terminal scripts that use this:
+  - `backend/scripts/calibrate_song.py` — fresh calibration, sends lyrics +
+    Claude-Code-supplied calibration object. Server skips every Anthropic
+    call. Use this for any song with no prior `compass_songs` row.
+  - `backend/scripts/correct_song.py` — override of an already-calibrated
+    song. Only mirrors to `compass_songs` if `agent_draft_songs.compass_song_id`
+    is already set; do not use for fresh songs.
+  - `backend/scripts/supply_lyrics.py` — legacy server-side Anthropic
+    calibrator path; do not run from terminal (API boundary lockdown).
+  If env-listed in `docker-compose.yml`, must also be added there for the
+  container to see it.
 - `RC_ADMIN_KEY` is now used **only** to sign one-time HMAC tokens in
   approval emails. Keep it set and stable across deploys.
 
