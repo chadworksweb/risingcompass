@@ -22,7 +22,6 @@ class CompassSong(Base):
     dogma_referenced = Column(Boolean, default=False)
     dogma_note = Column(Text)
     charge_summary = Column(Text)
-    why_calibration = Column(Text)
     chart_source = Column(Text, default="billboard_hot_100")
     instrumental = Column(Boolean, default=False)
     effects_prose = Column(Text)  # 3-paragraph per-song description of what the song transmits

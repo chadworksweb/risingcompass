@@ -45,7 +45,7 @@ _SONG_MODELS = {
     "stream": StreamSong,
 }
 
-_PII_FIELDS = {"ip_address", "device_id", "email", "confidence", "why_calibration"}
+_PII_FIELDS = {"ip_address", "device_id", "email", "confidence"}
 
 _COMMON_FIELDS = [
     "id", "title", "artist", "rubric_color", "charge_value",
@@ -68,7 +68,6 @@ def _serialize_common(row, source: str, include_pii: bool) -> dict:
         out["chart_position"] = getattr(row, "chart_position", None)
         out["chart_source"] = getattr(row, "chart_source", None)
         if include_pii:
-            out["why_calibration"] = getattr(row, "why_calibration", None)
             out["instrumental"] = getattr(row, "instrumental", None)
     elif source == "library":
         out["album_id"] = getattr(row, "album_id", None)

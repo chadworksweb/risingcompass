@@ -536,104 +536,7 @@ class MisreadBanOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# --- Backfill ---
-class BackfillSongOut(BaseModel):
-    id: int
-    title: str
-    artist: str
-    year: int
-    rubric_color: str
-    charge_value: Optional[int] = None
-    contaminated: bool = False
-    contamination_note: Optional[str] = None
-    charge_summary: Optional[str] = None
-    confidence: Optional[float] = None
-    lyrics_available: bool = False
-    instrumental: bool = False
-
-    model_config = {"from_attributes": True}
-
-
-class BackfillResult(BaseModel):
-    year: int
-    total_songs: int
-    recalibrated: int
-    skipped_calibrated: int
-    songs: list[BackfillSongOut]
-
-
-# --- Lyrical Charger ---
-class AnalyzerSongIn(BaseModel):
-    title: str = Field(..., min_length=1, max_length=200)
-    artist: str = Field(..., min_length=1, max_length=200)
-
-
-class AnalyzerSessionCreate(BaseModel):
-    songs: list[AnalyzerSongIn] = Field(..., min_length=1, max_length=10)
-    weighted: bool = True
-
-
-class AnalyzerSessionOut(BaseModel):
-    session_id: str
-    song_count: int
-    stream_url: str
-    expires_at: datetime.datetime
-
-
-class AnalyzerSongResult(BaseModel):
-    index: int
-    title: str
-    artist: str
-    status: str  # "scored" | "no_lyrics" | "error"
-    tier: Optional[str] = None  # color: "violet", "blue", etc.
-    tier_label: Optional[str] = None  # "Ascended", "Elevated", etc.
-    charge: Optional[int] = None  # -100 to +100
-    contaminated: bool = False
-    contamination_note: Optional[str] = None
-    charge_summary: Optional[str] = None
-    confidence: float = 0.0
-    lyrics_found: bool = False
-
-
-class AnalyzerAggregate(BaseModel):
-    compass_degree: float
-    charge_score: int
-    charge_level: str  # color
-    charge_label: str  # tier name
-    tier_distribution: dict[str, int]
-    contamination_count: int
-    total_songs: int
-    calibrated_songs: int
-    uncalibrated_songs: int
-
-
-class AnalyzerSessionStatus(BaseModel):
-    session_id: str
-    status: str  # "pending" | "processing" | "completed" | "error"
-    total_songs: int
-    completed_songs: int
-    songs: list[AnalyzerSongResult] = []
-    aggregate: Optional[AnalyzerAggregate] = None
-    narrative: Optional[str] = None
-
-
-class PlaylistResolveIn(BaseModel):
-    spotify_url: str = Field(..., min_length=1)
-
-
-class PlaylistTrackOut(BaseModel):
-    title: str
-    artist: str
-
-
-class PlaylistResolveOut(BaseModel):
-    playlist_name: str
-    playlist_owner: str
-    track_count: int
-    tracks: list[PlaylistTrackOut]
-
-
-# --- Lyrical Charger v2: Direct lyrics calibration ---
+# --- Lyrical Charger: Direct lyrics calibration ---
 class ArtistEntry(BaseModel):
     """One credited artist on a song. Role is primary or featured."""
     name: str = Field(..., min_length=1, max_length=200)
@@ -828,13 +731,6 @@ class CorrectionApplyOut(BaseModel):
     """Returned by the correct endpoint — the updated draft plus the new audit row."""
     draft: DraftOut
     correction: PrePublishCorrectionOut
-
-
-class CalibrationLogPromoteIn(BaseModel):
-    """Payload for the promote endpoint. human_rationale is optional — can be
-    added or edited at promote time, or left unchanged."""
-    human_rationale: Optional[str] = None
-    tags: Optional[str] = None
 
 
 class FeedSongAnchor(BaseModel):

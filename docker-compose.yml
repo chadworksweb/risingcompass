@@ -41,6 +41,11 @@ services:
       - DO_SPACES_REGION=${DO_SPACES_REGION:-nyc3}
       - DO_SPACES_PREFIX=${DO_SPACES_PREFIX:-le-projects-01/risingcompass}
       - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      # Gate for scripts/server_only/*. Local terminal sessions don't see this
+      # var, so server-only scripts refuse to run there. Tools placed under
+      # scripts/server_only/ may legitimately call the Anthropic API from
+      # inside the container.
+      - RC_SERVER_TOOLS=1
     restart: unless-stopped
 
   nginx:

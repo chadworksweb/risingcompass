@@ -4,18 +4,42 @@ Mirrors what the live calibrator does (same prompt builder, same model,
 temperature 0) but never writes to the DB. Useful for inspecting the
 chain-of-thought when you want to know WHY the calibrator landed where it did.
 
+*** SERVER-SIDE ONLY. ***
+Hits the Anthropic API directly. Runs only when the RC_SERVER_TOOLS=1
+env var is set, which docker-compose injects into the rc-backend
+container. Terminal sessions hit the guard below and exit 1. To run:
+
+    ssh deploy@le-projects-01
+    docker compose exec backend bash -lc 'cat lyrics.txt | python scripts/server_only/inspect_calibration.py "<title>" "<artist>"'
+
+Why guarded: the Anthropic API budget is reserved for live public traffic
+(daily cron, Lyrical Charger, badge calibrations). Operator-initiated
+calibration work runs through Claude Code in the operator's terminal,
+not the API. See feedback_rc_no_api_in_terminal memory + 2026-05-06b.
+
 Usage:
     cat lyrics.txt | python inspect_calibration.py "<title>" "<artist>"
 """
 import asyncio
+import os
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
+
+if os.environ.get("RC_SERVER_TOOLS") != "1":
+    sys.stderr.write(
+        "REFUSED: inspect_calibration.py calls Anthropic directly and is "
+        "reserved for server-side admin use.\n"
+        "Set RC_SERVER_TOOLS=1 (docker-compose does this for rc-backend) "
+        "and run inside the container:\n"
+        "  docker compose exec backend python scripts/server_only/inspect_calibration.py ...\n"
+    )
+    sys.exit(1)
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")

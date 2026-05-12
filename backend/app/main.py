@@ -78,7 +78,6 @@ async def lifespan(app: FastAPI):
 
     _cleanup_orphan_drafts()
     keepalive_task = asyncio.create_task(keepalive_loop(interval_seconds=45))
-    cleanup_task = asyncio.create_task(analyzer.session_cleanup_loop())
 
     # Start the api-key last_used_at flusher. Writes go to Turso primary on
     # a background thread so no user request blocks on them.
@@ -97,10 +96,9 @@ async def lifespan(app: FastAPI):
     from app.services.backfill.orchestrator import reset_running_jobs_on_startup
     reset_running_jobs_on_startup()
 
-    logger.info("DB keepalive + Lyrical Charger session cleanup schedulers started")
+    logger.info("DB keepalive scheduler started")
     yield
     keepalive_task.cancel()
-    cleanup_task.cancel()
     # Final flush on shutdown so recently-seen keys don't lose their stamps.
     try:
         flush_last_used_once()
