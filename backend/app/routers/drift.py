@@ -173,11 +173,14 @@ def get_year_songs(
     """
     from app.services.artist_utils import generate_song_slug
 
+    from app.services.artist_utils import normalize_artist_name, resolve_artist_slugs
+
     if year > LIVE_YEAR_CUTOFF:
         # Live year — deduplicate from ReadingSong
         all_songs = _aggregate_live_year(db, year)
         total = len(all_songs)
         page = all_songs[offset:offset + limit]
+        slug_map = resolve_artist_slugs([s["artist"] for s in page], db)
 
         return {
             "songs": [
@@ -193,6 +196,7 @@ def get_year_songs(
                     "position": s["position"],
                     "days_on_chart": s["days_on_chart"],
                     "song_slug": generate_song_slug(s["title"], s["artist"]),
+                    "artist_slug": slug_map.get(normalize_artist_name(s["artist"] or "").lower()),
                 }
                 for s in page
             ],
@@ -212,6 +216,7 @@ def get_year_songs(
             .limit(limit)
             .all()
         )
+        slug_map = resolve_artist_slugs([s.artist for s in songs], db)
 
         return {
             "songs": [
@@ -227,6 +232,7 @@ def get_year_songs(
                     "days_on_chart": 1,
                     "instrumental": s.instrumental or False,
                     "song_slug": generate_song_slug(s.title, s.artist),
+                    "artist_slug": slug_map.get(normalize_artist_name(s.artist or "").lower()),
                 }
                 for s in songs
             ],

@@ -235,7 +235,7 @@ const App = (() => {
           <span class="song-dot ${song.instrumental ? '' : song.rubric_color}"></span>
           <div class="song-info">
             <div class="song-title">${titleHtml}</div>
-            <div class="song-artist">${escapeHtml(song.artist)}</div>
+            <div class="song-artist">${artistHtml(song.artist, song.artist_slug, 'song-artist-name')}</div>
           </div>
           <div class="song-actions">
             ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
@@ -2090,7 +2090,7 @@ const App = (() => {
           <span class="song-dot ${song.instrumental ? '' : song.rubric_color}"></span>
           <div class="song-info">
             <div class="song-title">${yearTitleHtml}</div>
-            <div class="song-artist">${escapeHtml(song.artist)}${isLive && song.days_on_chart > 1 ? ` <span class="song-days">${song.days_on_chart}d</span>` : ''}</div>
+            <div class="song-artist">${artistHtml(song.artist, song.artist_slug, 'song-artist-name')}${isLive && song.days_on_chart > 1 ? ` <span class="song-days">${song.days_on_chart}d</span>` : ''}</div>
           </div>
           <div class="song-actions">
             ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
@@ -2222,7 +2222,7 @@ const App = (() => {
           <td class="yo-pos">${pos}</td>
           <td><span class="song-dot ${s.instrumental ? '' : s.rubric_color}"></span></td>
           <td class="yo-title">${escapeHtml(s.title)}${s.instrumental ? ' <em class="instr-tag">(instrumental)</em>' : ''}</td>
-          <td class="yo-artist">${escapeHtml(s.artist)}</td>
+          <td class="yo-artist">${artistHtml(s.artist, s.artist_slug, 'yo-artist-link')}</td>
           ${isLive ? `<td class="yo-days">${s.days_on_chart}</td>` : ''}
           <td class="yo-charge">${cv}</td>
         </tr>`;
@@ -2419,7 +2419,7 @@ const App = (() => {
         html += `
           <div class="album-card" onclick="App.showAlbum('${a.slug}')">
             <div class="album-card-title">${colorDot}${escapeHtml(a.title)}</div>
-            <div class="album-card-artist">${escapeHtml(a.artist)}</div>
+            <div class="album-card-artist">${artistHtml(a.artist, a.artist_slug, 'album-card-artist-link')}</div>
             ${a.release_year ? `<div class="album-card-year">${a.release_year}</div>` : ''}
           </div>
         `;
@@ -2445,7 +2445,7 @@ const App = (() => {
 
       let html = `<button class="album-back" onclick="App.backToAlbums()">&larr; Back to albums</button>`;
       html += `<h3 style="color:var(--rc-text-bright);margin-bottom:0.2rem;">${escapeHtml(album.title)}</h3>`;
-      html += `<p style="color:var(--rc-text-dim);margin-bottom:1rem;">${escapeHtml(album.artist)} ${album.release_year ? `(${album.release_year})` : ''}</p>`;
+      html += `<p style="color:var(--rc-text-dim);margin-bottom:1rem;">${artistHtml(album.artist, album.artist_slug, 'album-detail-artist')} ${album.release_year ? `(${album.release_year})` : ''}</p>`;
 
       if (album.summary) {
         html += `<p style="font-size:0.9rem;margin-bottom:1.5rem;line-height:1.6;">${escapeHtml(album.summary)}</p>`;
@@ -2590,6 +2590,14 @@ const App = (() => {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  function artistHtml(name, slug, className) {
+    const inner = escapeHtml(name);
+    if (slug) {
+      return `<a class="${className} artist-link" href="/artists/${encodeURIComponent(slug)}" onclick="event.stopPropagation();">${inner}</a>`;
+    }
+    return `<span class="${className}">${inner}</span>`;
   }
 
   // --- Public ---

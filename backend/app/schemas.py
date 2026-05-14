@@ -39,6 +39,7 @@ class ReadingSongOut(BaseModel):
     chart_source: Optional[str] = None
     instrumental: bool = False
     song_slug: Optional[str] = None
+    artist_slug: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -111,6 +112,7 @@ class WeeklyAlbumEntryOut(BaseModel):
     contamination_note: Optional[str] = None
     charge_summary: Optional[str] = None
     chart_source: Optional[str] = None
+    artist_slug: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -246,6 +248,7 @@ class AlbumOut(BaseModel):
     overall_color: Optional[str] = None
     summary: Optional[str] = None
     tracks: list[AlbumTrackOut] = []
+    artist_slug: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -257,6 +260,7 @@ class AlbumSummary(BaseModel):
     slug: str
     release_year: Optional[int] = None
     overall_color: Optional[str] = None
+    artist_slug: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -741,6 +745,7 @@ class FeedSongAnchor(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
     slug: Optional[str] = None
+    artist_slug: Optional[str] = None
 
 
 class FeedEntryBefore(BaseModel):

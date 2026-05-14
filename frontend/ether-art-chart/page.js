@@ -28,6 +28,14 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  function artistHtml(name, slug, className) {
+    const inner = escapeHtml(name);
+    if (slug) {
+      return `<a class="${className} artist-link" href="/artists/${encodeURIComponent(slug)}" onclick="event.stopPropagation();">${inner}</a>`;
+    }
+    return `<span class="${className}">${inner}</span>`;
+  }
+
   function chipsHtml(topics) {
     if (!topics || !topics.length) return '';
     const rendered = topics.map((t, i) => {
@@ -64,7 +72,7 @@
           <div class="eac-text">
             <p class="eac-deadpan">${titleHtml}<span class="eac-untagged-pill">untagged</span></p>
             <div class="eac-meta">
-              <span class="eac-artist">${escapeHtml(item.artist)}</span>
+              ${artistHtml(item.artist, item.artist_slug, 'eac-artist')}
               ${chargeText(item) ? `<span class="eac-meta-sep">·</span>${chargeText(item)}` : ''}
             </div>
           </div>
@@ -87,7 +95,7 @@
           <div class="eac-meta">
             <span class="eac-meta-title">${titleHtml}</span>
             <span class="eac-meta-sep">·</span>
-            <span class="eac-artist">${escapeHtml(item.artist)}</span>
+            ${artistHtml(item.artist, item.artist_slug, 'eac-artist')}
             ${chargeText(item) ? `<span class="eac-meta-sep">·</span>${chargeText(item)}` : ''}
             ${auditNote}
           </div>
@@ -107,6 +115,7 @@
         songsByTopic[t].push({
           deadpan: item.deadpan_line || item.title,
           artist: item.artist,
+          artist_slug: item.artist_slug,
           song_slug: item.song_slug,
           position: item.position,
         });
@@ -132,6 +141,7 @@
       songs: (d.top_songs || []).map((s) => ({
         deadpan: s.deadpan_line || s.title,
         artist: s.artist,
+        artist_slug: s.artist_slug,
         song_slug: s.song_slug,
         position: s.position,
       })),
@@ -201,7 +211,7 @@
           <div class="eac-meta">
             <span class="eac-meta-title">${titleHtml}</span>
             <span class="eac-meta-sep">·</span>
-            <span class="eac-artist">${escapeHtml(item.artist)}</span>
+            ${artistHtml(item.artist, item.artist_slug, 'eac-artist')}
           </div>
           ${dominant}
         </div>
@@ -294,7 +304,7 @@
         const items = songs.map((s) => {
           const pos = s.position ? `<span class="ttp-pos">${s.position}</span>` : '';
           return `<li>${pos}<span class="ttp-deadpan">${escapeHtml(s.deadpan)}</span>`
-            + `<span class="ttp-artist">${escapeHtml(s.artist)}</span></li>`;
+            + `${artistHtml(s.artist, s.artist_slug, 'ttp-artist')}</li>`;
         });
         songList = `<ul class="ttp-songs">${items.join('')}</ul>`;
         const more = (node.songs || []).length - songs.length;

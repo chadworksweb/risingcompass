@@ -116,8 +116,13 @@
     const { day, year } = fmtDate(entry.occurred_at);
     const typeLabel = EVENT_TYPE_LABELS[entry.event_type] || entry.event_type;
     const anchor = entry.song_anchor;
+    const artistFrag = anchor
+      ? (anchor.artist_slug
+          ? `<a class="cl-anchor-artist artist-link" href="/artists/${encodeURIComponent(anchor.artist_slug)}" onclick="event.stopPropagation();">${escapeHtml(anchor.artist)}</a>`
+          : escapeHtml(anchor.artist))
+      : '';
     const titleHtml = anchor && anchor.slug
-      ? `<a href="/songs/${encodeURIComponent(anchor.slug)}">${escapeHtml(anchor.title)} <span style="color:var(--rc-text-dim);font-weight:400">— ${escapeHtml(anchor.artist)}</span></a>`
+      ? `<a href="/songs/${encodeURIComponent(anchor.slug)}">${escapeHtml(anchor.title)}</a> <span style="color:var(--rc-text-dim);font-weight:400">&mdash; ${artistFrag}</span>`
       : escapeHtml(entry.title);
 
     const pipelineBadge = entry.pipeline

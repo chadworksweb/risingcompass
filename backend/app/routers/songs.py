@@ -400,6 +400,13 @@ def song_search(q: str = "", limit: int = 20):
             if len(results) >= limit:
                 break
 
+        # Batch-attach artist_slug for each result row.
+        from app.services.artist_utils import normalize_artist_name, resolve_artist_slugs
+        slug_map = resolve_artist_slugs([r.get("artist") for r in results], db)
+        for r in results:
+            primary = normalize_artist_name(r.get("artist") or "").lower()
+            r["artist_slug"] = slug_map.get(primary)
+
         return {"results": results}
     finally:
         db.close()

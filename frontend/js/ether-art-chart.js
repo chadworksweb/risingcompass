@@ -29,6 +29,14 @@ const EtherArtChart = (() => {
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  function artistHtml(name, slug, className) {
+    const inner = escapeHtml(name);
+    if (slug) {
+      return `<a class="${className} artist-link" href="/artists/${encodeURIComponent(slug)}" onclick="event.stopPropagation();">${inner}</a>`;
+    }
+    return `<span class="${className}">${inner}</span>`;
+  }
+
   function topicChipHtml(topic) {
     if (!topic) return '';
     const t = String(topic).replace(/-/g, ' ');
@@ -51,7 +59,7 @@ const EtherArtChart = (() => {
           <span class="ether-pos">${item.position}</span>
           <div class="ether-text">
             <div class="ether-deadpan">${titleHtml}</div>
-            <div class="ether-meta">${escapeHtml(item.artist)} <span class="ether-untagged-pill">untagged</span></div>
+            <div class="ether-meta">${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')} <span class="ether-untagged-pill">untagged</span></div>
           </div>
         </li>`;
     }
@@ -68,7 +76,7 @@ const EtherArtChart = (() => {
           <div class="ether-meta">
             <span class="ether-meta-title">${titleHtml}</span>
             <span class="ether-meta-sep">·</span>
-            <span class="ether-meta-artist">${escapeHtml(item.artist)}</span>
+            ${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')}
             ${item.dominant_topic ? `<span class="ether-meta-sep">·</span>${topicChipHtml(item.dominant_topic)}` : ''}
           </div>
         </div>

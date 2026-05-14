@@ -122,6 +122,37 @@ def generate_song_slug(title: str, artist: str) -> str:
     return slugify(f"{title} {artist}")
 
 
+def resolve_artist_slugs(names, db) -> dict[str, str]:
+    """Batch-resolve artist-name strings to Artist.slug.
+
+    Returns {lowercased_primary_name: slug}. Multi-artist credits
+    ("Justin Bieber, Nicki Minaj") collapse to the primary artist via
+    normalize_artist_name — public link points to the lead.
+
+    One query regardless of input size. Names with no Artist row are
+    simply absent from the result; callers should treat absence as
+    "render as plain text."
+    """
+    if not names:
+        return {}
+    primaries: set[str] = set()
+    for raw in names:
+        if not raw:
+            continue
+        primary = normalize_artist_name(raw).lower()
+        if primary:
+            primaries.add(primary)
+    if not primaries:
+        return {}
+    rows = (
+        db.query(Artist.name, Artist.slug)
+        .filter(func.lower(Artist.name).in_(primaries))
+        .filter(Artist.slug.isnot(None))
+        .all()
+    )
+    return {row.name.lower(): row.slug for row in rows}
+
+
 async def resolve_artist_releases(artist_id: int) -> dict:
     """Resolve release metadata for an artist via MB (primary) or Spotify (fallback).
 

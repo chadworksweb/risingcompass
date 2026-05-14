@@ -9,15 +9,17 @@ from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyR
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
+from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
 from app.constants import CHART_SOURCES, HISTORICAL_DEGREES
 
 router = APIRouter(prefix="/api/compass", tags=["compass"])
 
 
-def _song_out(rs: ReadingSong) -> ReadingSongOut:
+def _song_out(rs: ReadingSong, slug_map: dict[str, str] | None = None) -> ReadingSongOut:
     """Build ReadingSongOut by joining ReadingSong with its linked CompassSong."""
-    from app.services.artist_utils import generate_song_slug
     cs = rs.compass_song
+    primary = normalize_artist_name(rs.artist or "").lower()
+    artist_slug = (slug_map or {}).get(primary)
     return ReadingSongOut(
         id=rs.id,
         title=rs.title,
@@ -31,11 +33,13 @@ def _song_out(rs: ReadingSong) -> ReadingSongOut:
         chart_source=rs.chart_source,
         instrumental=bool(cs.instrumental) if cs else False,
         song_slug=generate_song_slug(rs.title, rs.artist),
+        artist_slug=artist_slug,
     )
 
 
-def _reading_with_songs(reading: DailyReading) -> DailyReadingOut:
+def _reading_with_songs(reading: DailyReading, db: Session) -> DailyReadingOut:
     """Build DailyReadingOut with songs resolved through compass_song FK."""
+    slug_map = resolve_artist_slugs([rs.artist for rs in reading.songs], db)
     return DailyReadingOut(
         id=reading.id,
         date=reading.date,
@@ -43,7 +47,7 @@ def _reading_with_songs(reading: DailyReading) -> DailyReadingOut:
         charge_level=reading.charge_level,
         contamination_count=reading.contamination_count,
         editorial_summary=reading.editorial_summary,
-        songs=[_song_out(rs) for rs in reading.songs],
+        songs=[_song_out(rs, slug_map) for rs in reading.songs],
     )
 
 
@@ -83,6 +87,23 @@ def get_current(db: Session = Depends(get_db)):
     # Build album fields
     album_kwargs = {}
     if album_reading:
+        album_slug_map = resolve_artist_slugs([a.artist for a in album_reading.albums], db)
+        album_entries = []
+        from app.schemas import WeeklyAlbumEntryOut
+        for a in album_reading.albums:
+            primary = normalize_artist_name(a.artist or "").lower()
+            album_entries.append(WeeklyAlbumEntryOut(
+                id=a.id,
+                title=a.title,
+                artist=a.artist,
+                position=a.position,
+                rubric_color=a.rubric_color,
+                contaminated=a.contaminated,
+                contamination_note=a.contamination_note,
+                charge_summary=a.charge_summary,
+                chart_source=a.chart_source,
+                artist_slug=album_slug_map.get(primary),
+            ))
         album_kwargs = dict(
             has_album_reading=True,
             album_week_date=album_reading.week_date,
@@ -90,7 +111,7 @@ def get_current(db: Session = Depends(get_db)):
             album_charge_level=album_reading.charge_level,
             album_contamination_count=album_reading.contamination_count,
             album_editorial_summary=album_reading.editorial_summary,
-            album_entries=album_reading.albums,
+            album_entries=album_entries,
         )
 
     if not reading:
@@ -104,6 +125,7 @@ def get_current(db: Session = Depends(get_db)):
             **album_kwargs,
         )
 
+    slug_map = resolve_artist_slugs([rs.artist for rs in reading.songs], db)
     return CompassCurrent(
         has_reading=True,
         date=reading.date,
@@ -111,7 +133,7 @@ def get_current(db: Session = Depends(get_db)):
         charge_level=reading.charge_level,
         contamination_count=reading.contamination_count,
         editorial_summary=reading.editorial_summary,
-        songs=[_song_out(rs) for rs in reading.songs],
+        songs=[_song_out(rs, slug_map) for rs in reading.songs],
         historical_degree=hist_deg,
         historical_charge=hist_charge,
         **album_kwargs,
@@ -162,4 +184,4 @@ def get_reading(reading_date: date, db: Session = Depends(get_db)):
     )
     if not reading:
         raise HTTPException(status_code=404, detail="No reading for this date")
-    return _reading_with_songs(reading)
+    return _reading_with_songs(reading, db)

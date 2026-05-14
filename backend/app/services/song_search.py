@@ -120,6 +120,15 @@ def _attach_slugs(items: list[dict], db: Session) -> None:
         it["slug"] = slug_map.get((it["song_source"], it["id"]))
 
 
+def _attach_artist_slugs(items: list[dict], db: Session) -> None:
+    """Batch-attach artist slugs (one query). Multi-artist credits resolve to the primary."""
+    from app.services.artist_utils import resolve_artist_slugs, normalize_artist_name
+    slug_map = resolve_artist_slugs([it.get("artist") for it in items], db)
+    for it in items:
+        primary = normalize_artist_name(it.get("artist") or "").lower()
+        it["artist_slug"] = slug_map.get(primary)
+
+
 def search_unified(
     db: Session,
     *,
@@ -218,6 +227,7 @@ def search_unified(
 
     if attach_slugs and items:
         _attach_slugs(items, db)
+        _attach_artist_slugs(items, db)
 
     return {
         "total": total,

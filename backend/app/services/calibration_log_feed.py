@@ -24,10 +24,11 @@ from typing import Iterable, Optional
 from sqlalchemy.orm import Session
 
 from app.models import (
-    CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
+    Artist, CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
     PrePublishCorrection, SongRecalibration,
 )
-from app.services.artist_utils import generate_song_slug
+from sqlalchemy import func
+from app.services.artist_utils import generate_song_slug, normalize_artist_name
 
 
 _SONG_MODELS = {
@@ -67,12 +68,29 @@ def _lookup_song_anchor(
         slug = slug_row.slug if slug_row else generate_song_slug(row.title, row.artist)
         slug_cache[cache_key] = slug
 
+    artist_slug = None
+    primary = normalize_artist_name(row.artist or "").lower()
+    if primary:
+        artist_cache_key = ("artist", primary)
+        if artist_cache_key in slug_cache:
+            artist_slug = slug_cache[artist_cache_key]
+        else:
+            artist_row = (
+                db.query(Artist.slug)
+                .filter(func.lower(Artist.name) == primary)
+                .filter(Artist.slug.isnot(None))
+                .first()
+            )
+            artist_slug = artist_row[0] if artist_row else None
+            slug_cache[artist_cache_key] = artist_slug
+
     return {
         "song_source": song_source,
         "song_id": song_id,
         "title": row.title,
         "artist": row.artist,
         "slug": slug,
+        "artist_slug": artist_slug,
     }
 
 

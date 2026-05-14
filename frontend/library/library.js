@@ -45,6 +45,14 @@
     return d.innerHTML;
   }
 
+  function artistHtml(name, slug, className) {
+    const inner = escapeHtml(name || '-');
+    if (slug) {
+      return `<a class="${className} artist-link" href="/artists/${encodeURIComponent(slug)}" onclick="event.stopPropagation();">${inner}</a>`;
+    }
+    return `<span class="${className}">${inner}</span>`;
+  }
+
   // --- Gate ---
   function openLibrary() {
     gate.style.display = 'none';
@@ -155,7 +163,7 @@
         <div class="lib-card-head">
           <div class="lib-card-identity">
             <div class="lib-card-title">${titleHtml}</div>
-            <div class="lib-card-artist">${escapeHtml(it.artist || '—')}</div>
+            <div class="lib-card-artist">${it.artist ? artistHtml(it.artist, it.artist_slug, 'lib-card-artist-link') : '&mdash;'}</div>
           </div>
           <div class="lib-card-tier" style="color:${color}">
             <span class="lib-card-tier-label">${escapeHtml(tier)}</span>

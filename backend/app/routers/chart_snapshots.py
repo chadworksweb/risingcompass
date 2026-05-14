@@ -38,7 +38,7 @@ from app.models import AgentDraft, ChartSnapshot, CompassSong
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import fetch_top_songs, fetch_viral_songs
 from app.services.agents.compass_agent import run_compass_agent
-from app.services.artist_utils import generate_song_slug
+from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class ChartSnapshotOut(BaseModel):
     songs: list[ReadingSongOut]
 
 
-def _build_song(snap: ChartSnapshot, cs: CompassSong | None) -> ReadingSongOut:
+def _build_song(snap: ChartSnapshot, cs: CompassSong | None, artist_slug: str | None = None) -> ReadingSongOut:
     return ReadingSongOut(
         id=snap.id,
         title=snap.title,
@@ -78,6 +78,7 @@ def _build_song(snap: ChartSnapshot, cs: CompassSong | None) -> ReadingSongOut:
         chart_source=snap.chart_source,
         instrumental=bool(cs.instrumental) if cs else False,
         song_slug=generate_song_slug(snap.title, snap.artist),
+        artist_slug=artist_slug,
     )
 
 
@@ -140,7 +141,15 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
         .all()
     )
 
-    songs = [_build_song(snap, _lookup_compass_song(db, snap.title, snap.artist)) for snap in snaps]
+    slug_map = resolve_artist_slugs([snap.artist for snap in snaps], db)
+    songs = [
+        _build_song(
+            snap,
+            _lookup_compass_song(db, snap.title, snap.artist),
+            slug_map.get(normalize_artist_name(snap.artist or "").lower()),
+        )
+        for snap in snaps
+    ]
 
     return ChartSnapshotOut(
         chart_source=chart_slug,

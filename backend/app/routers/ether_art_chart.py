@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import CompassSong, DailyReading, ReadingSong
-from app.services.artist_utils import generate_song_slug
+from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class EtherTodayItem(BaseModel):
     song_slug: str
     rubric_color: Optional[str]
     charge_value: Optional[int]
+    artist_slug: Optional[str] = None
 
 
 class EtherTodayOut(BaseModel):
@@ -62,6 +63,7 @@ class EtherYearDeadpanItem(BaseModel):
     deadpan_line: Optional[str]
     dominant_topic: Optional[str]
     song_slug: str
+    artist_slug: Optional[str] = None
 
 
 class TopicSong(BaseModel):
@@ -70,6 +72,7 @@ class TopicSong(BaseModel):
     deadpan_line: Optional[str]
     song_slug: str
     position: Optional[int] = None  # rank within this topic, 1-based
+    artist_slug: Optional[str] = None
 
 
 class TopicDistributionItem(BaseModel):
@@ -127,10 +130,12 @@ def get_today(db: Session = Depends(get_db)):
     if not reading:
         return EtherTodayOut(date=None, items=[])
 
+    slug_map = resolve_artist_slugs([rs.artist for rs in reading.songs], db)
     items: list[EtherTodayItem] = []
     for rs in sorted(reading.songs, key=lambda r: r.position):
         cs: Optional[CompassSong] = rs.compass_song
         topics = _decode_topics(cs.topics if cs else None)
+        primary = normalize_artist_name(rs.artist or "").lower()
         items.append(EtherTodayItem(
             position=rs.position,
             title=rs.title,
@@ -142,6 +147,7 @@ def get_today(db: Session = Depends(get_db)):
             song_slug=generate_song_slug(rs.title, rs.artist),
             rubric_color=cs.rubric_color if cs else None,
             charge_value=cs.charge_value if cs else None,
+            artist_slug=slug_map.get(primary),
         ))
 
     return EtherTodayOut(date=reading.date, items=items)
@@ -213,9 +219,11 @@ def get_year(year: int, db: Session = Depends(get_db)):
         {"year": year_str},
     ).fetchall()
 
+    top_20_slug_map = resolve_artist_slugs([row.artist for row in top_rows], db)
     top_20: list[EtherYearDeadpanItem] = []
     for idx, row in enumerate(top_rows, start=1):
         topics = _decode_topics(row.topics)
+        primary = normalize_artist_name(row.artist or "").lower()
         top_20.append(EtherYearDeadpanItem(
             position=idx,
             title=row.title,
@@ -223,6 +231,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
             deadpan_line=row.deadpan_line,
             dominant_topic=topics[0] if topics else None,
             song_slug=generate_song_slug(row.title, row.artist),
+            artist_slug=top_20_slug_map.get(primary),
         ))
 
     # Topic distribution — distinct (song, topic) pairs across the year.
@@ -281,18 +290,21 @@ def get_year(year: int, db: Session = Depends(get_db)):
         {"year": year_str},
     ).fetchall()
 
+    topic_slug_map = resolve_artist_slugs([sr.artist for sr in song_rows], db)
     top_songs_by_topic: dict[str, list[TopicSong]] = {}
     for sr in song_rows:
         topic = str(sr.topic)
         bucket = top_songs_by_topic.setdefault(topic, [])
         if len(bucket) >= TOP_SONGS_PER_TOPIC:
             continue
+        primary = normalize_artist_name(sr.artist or "").lower()
         bucket.append(TopicSong(
             title=sr.title,
             artist=sr.artist,
             deadpan_line=sr.deadpan_line,
             song_slug=generate_song_slug(sr.title, sr.artist),
             position=len(bucket) + 1,
+            artist_slug=topic_slug_map.get(primary),
         ))
 
     distribution = [
