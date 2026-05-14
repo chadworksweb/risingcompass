@@ -794,11 +794,27 @@ body {
   border-color: var(--rc-accent);
 }
 
-/* Compact release list (right column) */
+/* Compact release list (right column).
+ * Capped height + scroll so the releases panel never pushes the rest of
+ * the artist page down when "View more" loads additional rows. */
 .release-compact-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: 26rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rc-border) transparent;
+}
+.release-compact-list::-webkit-scrollbar {
+  width: 6px;
+}
+.release-compact-list::-webkit-scrollbar-thumb {
+  background: var(--rc-border);
+  border-radius: 3px;
+}
+.release-compact-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .release-compact-item {
