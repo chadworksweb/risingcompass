@@ -64,8 +64,110 @@
   <link rel="stylesheet" href="/css/responsive.css">
   <link rel="stylesheet" href="/calibration-log/calibration-log.css">
   <link rel="stylesheet" href="/methodology/methodology.css">
+
+  <!-- Splash gate: while body.rc-splash is on, everything below the header is
+       hidden and a single big loader is shown. The gate holds for a minimum of
+       3000ms AND until DOMContentLoaded, then the dashboard reveals all at
+       once. The 3s also gives the data fetches time to land so the reveal
+       usually shows a fully-populated dashboard instead of per-tile loaders. -->
+  <style>
+    #rc-splash { display: none; }
+    body.rc-splash .main-dashboard,
+    body.rc-splash .secondary-nav,
+    body.rc-splash .lc-promo,
+    body.rc-splash .site-footer { display: none !important; }
+    body.rc-splash #rc-splash {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.9rem;
+      min-height: calc(100vh - 12rem);
+      padding: 3rem 2rem;
+    }
+    #rc-splash.is-fading {
+      opacity: 0;
+      transition: opacity 0.45s ease;
+      pointer-events: none;
+    }
+    #rc-splash .rc-splash-loader {
+      width: 140px;
+      height: 140px;
+      display: block;
+    }
+    #rc-splash .rc-splash-arc {
+      animation: rc-spin 1.6s linear infinite;
+      transform-origin: 32px 32px;
+    }
+    #rc-splash .rc-splash-needle {
+      animation: rc-needle-sweep 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+      transform-origin: 32px 32px;
+    }
+    #rc-splash .rc-splash-label {
+      margin-top: 0.8rem;
+      color: #eeeef4;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 1rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      animation: rc-loader-pulse 1.8s ease-in-out infinite;
+    }
+    #rc-splash .rc-splash-sub {
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      font-style: italic;
+    }
+    @keyframes rc-spin { to { transform: rotate(360deg); } }
+    @keyframes rc-needle-sweep {
+      0%   { transform: rotate(-70deg); }
+      50%  { transform: rotate(70deg); }
+      100% { transform: rotate(-70deg); }
+    }
+    @keyframes rc-loader-pulse {
+      0%, 100% { opacity: 0.55; }
+      50%      { opacity: 1; }
+    }
+  </style>
+  <script>
+    // Splash gate timer. Captures start at script execution so the gate
+    // measures from the earliest possible moment. Waits for DOMContentLoaded
+    // AND a minimum of 3000ms before lifting the splash class. If JS load
+    // takes longer than 3s the splash holds until JS is ready; if shorter,
+    // it pads out to a full 3s so the reveal feels intentional.
+    (function() {
+      var GATE_MS = 3000;
+      var FADE_MS = 450;
+      var gateStart = Date.now();
+      function hideSplash() {
+        var splash = document.getElementById('rc-splash');
+        if (splash) splash.classList.add('is-fading');
+        document.body.classList.remove('rc-splash');
+        setTimeout(function() {
+          if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+        }, FADE_MS + 50);
+      }
+      function attemptHide() {
+        var elapsed = Date.now() - gateStart;
+        var wait = Math.max(0, GATE_MS - elapsed);
+        setTimeout(hideSplash, wait);
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attemptHide);
+      } else {
+        attemptHide();
+      }
+      // Safety net: drop the splash after 10s no matter what so a JS error
+      // can't strand the user on the splash screen.
+      setTimeout(function() {
+        if (document.body && document.body.classList.contains('rc-splash')) {
+          hideSplash();
+        }
+      }, 10000);
+    })();
+  </script>
 </head>
-<body>
+<body class="rc-splash">
   <a href="#compass-panel" class="skip-nav">Skip to main content</a>
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
@@ -73,6 +175,26 @@
     <h1 class="site-title">The Rising <span>Compass</span></h1>
     <p class="site-subtitle">Frequency Diagnostic for Popular Music</p>
   </header>
+
+  <div id="rc-splash" role="status" aria-label="Loading The Rising Compass">
+    <svg class="rc-splash-loader" viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <linearGradient id="rc-splash-grad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#9933ff"/>
+          <stop offset="25%" stop-color="#3388ff"/>
+          <stop offset="50%" stop-color="#33cc55"/>
+          <stop offset="75%" stop-color="#ffbb33"/>
+          <stop offset="100%" stop-color="#ff3333"/>
+        </linearGradient>
+      </defs>
+      <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+      <circle class="rc-splash-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#rc-splash-grad)" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
+      <line class="rc-splash-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
+    </svg>
+    <div class="rc-splash-label">Loading the compass</div>
+    <div class="rc-splash-sub">reading today&rsquo;s signal&hellip;</div>
+  </div>
 
   <main class="main-dashboard">
     <!-- ROW 1 LEFT: Compass -->
