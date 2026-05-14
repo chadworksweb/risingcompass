@@ -64,74 +64,8 @@
   <link rel="stylesheet" href="/css/responsive.css">
   <link rel="stylesheet" href="/calibration-log/calibration-log.css">
   <link rel="stylesheet" href="/methodology/methodology.css">
-
-  <!-- Critical inline: page-level loader. Hides the dashboard, secondary nav,
-       promo, and footer while CSS/JS are still loading so the area below the
-       header doesn't look frozen for ~2s. App.init removes the rc-loading
-       class once the structure has been rendered; per-tile loaders inside
-       each card then cover the in-flight data fetches. -->
-  <style>
-    #rc-page-loader { display: none; }
-    body.rc-loading .main-dashboard > .card,
-    body.rc-loading .secondary-nav,
-    body.rc-loading .lc-promo,
-    body.rc-loading .site-footer { display: none !important; }
-    body.rc-loading #rc-page-loader {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.6rem;
-      grid-column: 1 / -1;
-      min-height: 65vh;
-      padding: 4rem 2rem;
-    }
-    #rc-page-loader.rc-loader-fading { opacity: 0; transition: opacity 0.3s ease; }
-    #rc-page-loader .rc-loader { width: 96px; height: 96px; display: block; }
-    #rc-page-loader .rc-loader-arc {
-      animation: rc-spin 1.4s linear infinite;
-      transform-origin: 32px 32px;
-    }
-    #rc-page-loader .rc-loader-needle {
-      animation: rc-needle-sweep 2.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-      transform-origin: 32px 32px;
-    }
-    #rc-page-loader .rc-loader-label {
-      margin-top: 0.5rem;
-      color: #eeeef4;
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
-      font-size: 0.85rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      animation: rc-loader-pulse 1.6s ease-in-out infinite;
-    }
-    #rc-page-loader .rc-loader-sub {
-      color: rgba(255, 255, 255, 0.55);
-      font-size: 0.78rem;
-      letter-spacing: 0.04em;
-      font-style: italic;
-    }
-    @keyframes rc-spin { to { transform: rotate(360deg); } }
-    @keyframes rc-needle-sweep {
-      0%   { transform: rotate(-70deg); }
-      50%  { transform: rotate(70deg); }
-      100% { transform: rotate(-70deg); }
-    }
-    @keyframes rc-loader-pulse {
-      0%, 100% { opacity: 0.55; }
-      50%      { opacity: 1; }
-    }
-  </style>
-  <script>
-    // Safety net: if JS never reaches App.init (script error, network), drop
-    // the rc-loading class after 8s so the page is at least readable. App.init
-    // removes the class itself the moment structure renders.
-    setTimeout(function() {
-      if (document.body) document.body.classList.remove('rc-loading');
-    }, 8000);
-  </script>
 </head>
-<body class="rc-loading">
+<body>
   <a href="#compass-panel" class="skip-nav">Skip to main content</a>
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
@@ -141,30 +75,31 @@
   </header>
 
   <main class="main-dashboard">
-    <div id="rc-page-loader" role="status" aria-label="Loading the compass">
-      <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
-        <defs>
-          <linearGradient id="rc-page-loader-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="#9933ff"/>
-            <stop offset="25%" stop-color="#3388ff"/>
-            <stop offset="50%" stop-color="#33cc55"/>
-            <stop offset="75%" stop-color="#ffbb33"/>
-            <stop offset="100%" stop-color="#ff3333"/>
-          </linearGradient>
-        </defs>
-        <circle class="rc-loader-track" cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
-        <circle class="rc-loader-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#rc-page-loader-grad)" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
-        <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
-      </svg>
-      <div class="rc-loader-label">Loading the compass</div>
-      <div class="rc-loader-sub">reading today's signal&hellip;</div>
-    </div>
     <!-- ROW 1 LEFT: Compass -->
     <div class="card" id="compass-panel" style="position:relative;">
       <div class="card-header">Today's Charge</div>
       <div id="contam-container"></div>
-      <div id="compass-container"></div>
+      <div id="compass-container">
+        <div class="trajectory-loading" role="status" aria-label="Loading today's charge">
+          <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <linearGradient id="rc-compass-init-grad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#9933ff"/>
+                <stop offset="25%" stop-color="#3388ff"/>
+                <stop offset="50%" stop-color="#33cc55"/>
+                <stop offset="75%" stop-color="#ffbb33"/>
+                <stop offset="100%" stop-color="#ff3333"/>
+              </linearGradient>
+            </defs>
+            <circle class="rc-loader-track" cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+            <circle class="rc-loader-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#rc-compass-init-grad)" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
+            <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round" transform-origin="32 32"/>
+            <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
+          </svg>
+          <div class="rc-loader-label">Loading today's charge</div>
+          <div class="rc-loader-sub">tuning the compass&hellip;</div>
+        </div>
+      </div>
     </div>
 
     <!-- ROW 1 RIGHT: Aggregate Charge Index + Calculator -->
@@ -186,7 +121,27 @@
       </div>
       <div id="charge-container" style="margin-bottom:1rem;"></div>
       <div class="era-content active" id="era-daily">
-        <div id="daily-chart-container"></div>
+        <div id="daily-chart-container">
+          <div class="trajectory-loading" role="status" aria-label="Loading daily chart">
+            <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="rc-daily-init-grad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#9933ff"/>
+                  <stop offset="25%" stop-color="#3388ff"/>
+                  <stop offset="50%" stop-color="#33cc55"/>
+                  <stop offset="75%" stop-color="#ffbb33"/>
+                  <stop offset="100%" stop-color="#ff3333"/>
+                </linearGradient>
+              </defs>
+              <circle class="rc-loader-track" cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+              <circle class="rc-loader-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#rc-daily-init-grad)" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
+              <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round" transform-origin="32 32"/>
+              <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
+            </svg>
+            <div class="rc-loader-label">Loading daily chart</div>
+            <div class="rc-loader-sub">reading the last 365 days&hellip;</div>
+          </div>
+        </div>
       </div>
       <div class="era-content" id="era-aggregate">
         <div class="era-chart-calc">
@@ -247,7 +202,9 @@
     <div class="section-content" id="section-history">
       <div class="card" id="history-panel">
         <div class="card-header">The Drift — Decade by Decade</div>
-        <div id="drift-content"></div>
+        <div id="drift-content">
+          <div class="loading" role="status">Loading historical drift&hellip;</div>
+        </div>
       </div>
     </div>
 
