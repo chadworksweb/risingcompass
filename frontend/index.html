@@ -66,10 +66,11 @@
   <link rel="stylesheet" href="/methodology/methodology.css">
 
   <!-- Splash gate: while body.rc-splash is on, everything below the header is
-       hidden and a single big loader is shown. The gate holds for a minimum of
-       3000ms AND until DOMContentLoaded, then the dashboard reveals all at
-       once. The 3s also gives the data fetches time to land so the reveal
-       usually shows a fully-populated dashboard instead of per-tile loaders. -->
+       hidden and a single big loader fills the area. The gate holds for a
+       minimum of 4000ms AND until DOMContentLoaded, then the dashboard reveals
+       all at once. Stage labels advance on a timer so the user sees what is
+       conceptually happening (initializing -> rubric -> today's charge ->
+       trajectory -> stitching). Mirrors the Lyrical Charger progress pattern. -->
   <style>
     #rc-splash { display: none; }
     body.rc-splash .main-dashboard,
@@ -81,7 +82,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 0.9rem;
+      gap: 0.7rem;
       min-height: calc(100vh - 12rem);
       padding: 3rem 2rem;
     }
@@ -103,20 +104,52 @@
       animation: rc-needle-sweep 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
       transform-origin: 32px 32px;
     }
-    #rc-splash .rc-splash-label {
-      margin-top: 0.8rem;
+    #rc-splash .rc-splash-stage {
+      margin-top: 1rem;
       color: #eeeef4;
       font-family: 'JetBrains Mono', ui-monospace, monospace;
-      font-size: 1rem;
-      letter-spacing: 0.32em;
+      font-size: 0.95rem;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      animation: rc-loader-pulse 1.8s ease-in-out infinite;
+      text-align: center;
+      transition: opacity 0.25s ease;
     }
-    #rc-splash .rc-splash-sub {
+    #rc-splash .rc-splash-detail {
       color: rgba(255, 255, 255, 0.55);
       font-size: 0.82rem;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.04em;
       font-style: italic;
+      text-align: center;
+      min-height: 1.2em;
+      transition: opacity 0.25s ease;
+    }
+    #rc-splash .rc-splash-bar-wrap {
+      width: min(360px, 80vw);
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    #rc-splash .rc-splash-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #rc-splash .rc-splash-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #9933ff, #3388ff, #33cc55, #ffbb33, #ff3333);
+      border-radius: 2px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    #rc-splash .rc-splash-pct {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.45);
+      letter-spacing: 0.1em;
+      text-align: right;
     }
     @keyframes rc-spin { to { transform: rotate(360deg); } }
     @keyframes rc-needle-sweep {
@@ -124,46 +157,72 @@
       50%  { transform: rotate(70deg); }
       100% { transform: rotate(-70deg); }
     }
-    @keyframes rc-loader-pulse {
-      0%, 100% { opacity: 0.55; }
-      50%      { opacity: 1; }
-    }
   </style>
   <script>
-    // Splash gate timer. Captures start at script execution so the gate
-    // measures from the earliest possible moment. Waits for DOMContentLoaded
-    // AND a minimum of 3000ms before lifting the splash class. If JS load
-    // takes longer than 3s the splash holds until JS is ready; if shorter,
-    // it pads out to a full 3s so the reveal feels intentional.
+    // Splash gate. Holds for max(4000ms, DOMContentLoaded). During the gate,
+    // stage labels advance on a timer so the user sees what's happening:
+    // initializing the compass, loading the rubric, reading today's charge,
+    // pulling the trajectory, stitching the dashboard.
     (function() {
-      var GATE_MS = 3000;
+      var GATE_MS = 4000;
       var FADE_MS = 450;
       var gateStart = Date.now();
+
+      var STAGES = [
+        { at: 0,    pct: 6,   label: 'Initializing the compass',  detail: 'priming the needle…' },
+        { at: 750,  pct: 24,  label: 'Loading the rubric',        detail: '58 tenets across 5 tiers' },
+        { at: 1600, pct: 48,  label: 'Reading today’s charge', detail: 'today’s top 20 through the compass' },
+        { at: 2500, pct: 72,  label: 'Pulling the trajectory',    detail: 'trailing 365 days, day by day' },
+        { at: 3400, pct: 92,  label: 'Stitching the dashboard',   detail: 'composing the view…' }
+      ];
+
+      function setStage(s) {
+        var labelEl = document.getElementById('rc-splash-stage');
+        var detailEl = document.getElementById('rc-splash-detail');
+        var fillEl = document.getElementById('rc-splash-bar-fill');
+        var pctEl = document.getElementById('rc-splash-pct');
+        if (labelEl) labelEl.textContent = s.label;
+        if (detailEl) detailEl.textContent = s.detail;
+        if (fillEl) fillEl.style.width = s.pct + '%';
+        if (pctEl) pctEl.textContent = s.pct + '%';
+      }
+
+      // Schedule stages relative to gateStart so the user sees progress
+      // regardless of when DOMContentLoaded fires.
+      STAGES.forEach(function(s) {
+        setTimeout(function() { setStage(s); }, s.at);
+      });
+
       function hideSplash() {
+        setStage({ pct: 100, label: 'Ready', detail: 'opening the dashboard' });
         var splash = document.getElementById('rc-splash');
         if (splash) splash.classList.add('is-fading');
-        document.body.classList.remove('rc-splash');
+        // small breath so the user sees the "Ready" beat before reveal
         setTimeout(function() {
+          document.body.classList.remove('rc-splash');
           if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
         }, FADE_MS + 50);
       }
+
       function attemptHide() {
         var elapsed = Date.now() - gateStart;
         var wait = Math.max(0, GATE_MS - elapsed);
         setTimeout(hideSplash, wait);
       }
+
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', attemptHide);
       } else {
         attemptHide();
       }
-      // Safety net: drop the splash after 10s no matter what so a JS error
+
+      // Safety net: drop the splash after 12s no matter what so a JS error
       // can't strand the user on the splash screen.
       setTimeout(function() {
         if (document.body && document.body.classList.contains('rc-splash')) {
           hideSplash();
         }
-      }, 10000);
+      }, 12000);
     })();
   </script>
 </head>
@@ -176,7 +235,7 @@
     <p class="site-subtitle">Frequency Diagnostic for Popular Music</p>
   </header>
 
-  <div id="rc-splash" role="status" aria-label="Loading The Rising Compass">
+  <div id="rc-splash" role="status" aria-live="polite" aria-label="Loading The Rising Compass">
     <svg class="rc-splash-loader" viewBox="0 0 64 64" aria-hidden="true">
       <defs>
         <linearGradient id="rc-splash-grad" x1="0" y1="0" x2="1" y2="0">
@@ -192,8 +251,14 @@
       <line class="rc-splash-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round"/>
       <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
     </svg>
-    <div class="rc-splash-label">Loading the compass</div>
-    <div class="rc-splash-sub">reading today&rsquo;s signal&hellip;</div>
+    <div class="rc-splash-stage" id="rc-splash-stage">Initializing the compass</div>
+    <div class="rc-splash-detail" id="rc-splash-detail">priming the needle&hellip;</div>
+    <div class="rc-splash-bar-wrap">
+      <div class="rc-splash-bar">
+        <div class="rc-splash-bar-fill" id="rc-splash-bar-fill"></div>
+      </div>
+      <div class="rc-splash-pct" id="rc-splash-pct">0%</div>
+    </div>
   </div>
 
   <main class="main-dashboard">
