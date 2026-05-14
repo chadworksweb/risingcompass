@@ -46,10 +46,23 @@ const App = (() => {
     initCalcOverlay();
     initEraTabs();
     initCalendarPicker();
+    hidePageLoader();
     await loadCurrent();
     loadDailyChart();
     loadTrajectory();
     loadGhostTrail();
+  }
+
+  function hidePageLoader() {
+    // Structure is rendered (compass needle, charge bar, contamination, nav).
+    // Fade the page-level loader out and uncover the dashboard so the
+    // per-tile loaders inside each card take over for the data fetches.
+    const loader = document.getElementById('rc-page-loader');
+    if (loader) loader.classList.add('rc-loader-fading');
+    document.body.classList.remove('rc-loading');
+    if (loader) {
+      setTimeout(() => { loader.remove(); }, 350);
+    }
   }
 
   function initCalcOverlay() {
