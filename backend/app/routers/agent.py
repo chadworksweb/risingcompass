@@ -3,6 +3,7 @@
 import json
 import logging
 import math
+import re
 from datetime import date
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,80 @@ def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     return draft
+
+
+def _published_reading_for_ref(draft_ref: str, db: Session) -> DailyReading | None:
+    """If a draft was approved and then cleaned up, find the published reading.
+
+    Daily drafts are deleted by _cleanup_day_drafts immediately after approval,
+    so a re-click on the email link would otherwise 404. The draft_ref label
+    embeds the date (e.g. daily_2026-05-14_draft), which we use to locate the
+    DailyReading row that the approval produced.
+    """
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", draft_ref)
+    if not m:
+        return None
+    try:
+        reading_date = date.fromisoformat(m.group(1))
+    except ValueError:
+        return None
+    return db.query(DailyReading).filter(DailyReading.date == reading_date).first()
+
+
+def _build_already_published_html(reading: DailyReading) -> str:
+    """Page shown when an approval link is clicked after the reading was published."""
+    charge_color = COLOR_HEX.get(reading.charge_level, "#999")
+    charge_label = COLOR_LABELS.get(reading.charge_level, reading.charge_level)
+    score = degree_to_score_display(reading.compass_degree)
+    contam = reading.contamination_count if reading.contamination_count is not None else 0
+
+    return f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reading Already Published - {reading.date}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:#0a0a14; color:#eeeef4; font-family:'Inter',-apple-system,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }}
+  .card {{ background:#1a1a2e; border-radius:12px; padding:48px; max-width:480px; width:90%; text-align:center; border:1px solid #2a2a4e; }}
+  .check {{ width:64px; height:64px; border-radius:50%; background:rgba(0,212,170,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 24px; }}
+  .check svg {{ width:32px; height:32px; color:#00d4aa; }}
+  h1 {{ font-size:22px; font-weight:600; margin-bottom:8px; }}
+  .date {{ font-size:14px; color:#88ccaa; margin-bottom:32px; }}
+  .metrics {{ display:flex; justify-content:center; gap:32px; margin-bottom:32px; }}
+  .metric {{ text-align:center; }}
+  .metric-label {{ font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:#666; margin-bottom:6px; }}
+  .metric-value {{ font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; }}
+  .note {{ font-size:13px; color:#888; margin-bottom:24px; }}
+  .editorial {{ font-size:14px; line-height:1.6; color:#aaa; font-style:italic; padding:0 8px; }}
+</style>
+</head><body>
+<div class="card">
+  <div class="check">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+  </div>
+  <h1>Reading Already Published</h1>
+  <div class="date">{reading.date}</div>
+  <div class="note">This reading was approved earlier. Nothing to do.</div>
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Charge</div>
+      <div class="metric-value" style="color:{charge_color};">{score}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Level</div>
+      <div class="metric-value" style="color:{charge_color};">{charge_label}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Contaminated</div>
+      <div class="metric-value" style="color:{'#ff3333' if contam > 0 else '#00d4aa'};">{contam}</div>
+    </div>
+  </div>
+  <div class="editorial">{reading.editorial_summary or ''}</div>
+</div>
+</body></html>"""
 
 
 def _cleanup_day_drafts(reading_date, draft_type, db: Session) -> int:
@@ -262,7 +337,14 @@ def approve_draft_confirm_page(draft_ref: str, token: str = Query(...), db: Sess
     """
     if not verify_approval_token(draft_ref, token):
         raise HTTPException(status_code=403, detail="Invalid or expired approval link")
-    draft = _resolve_draft(draft_ref, db)
+    try:
+        draft = _resolve_draft(draft_ref, db)
+    except HTTPException as e:
+        if e.status_code == 404:
+            reading = _published_reading_for_ref(draft_ref, db)
+            if reading:
+                return HTMLResponse(_build_already_published_html(reading))
+        raise
 
     if draft.status != "pending":
         return _build_approval_html(draft)
@@ -320,7 +402,14 @@ def publish_draft_via_form(draft_ref: str, token: str = Query(...), db: Session 
     """POST approval from the email confirmation page (form submit with token in query)."""
     if not verify_approval_token(draft_ref, token):
         raise HTTPException(status_code=403, detail="Invalid or expired approval link")
-    draft = approve_draft(draft_ref, db)
+    try:
+        draft = approve_draft(draft_ref, db)
+    except HTTPException as e:
+        if e.status_code == 404:
+            reading = _published_reading_for_ref(draft_ref, db)
+            if reading:
+                return HTMLResponse(_build_already_published_html(reading))
+        raise
     return _build_approval_html(draft)
 
 
