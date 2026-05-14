@@ -102,6 +102,19 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         if supplied_societal_prose is not None:
             existing.societal_effects_prose = supplied_societal_prose
         db.flush()
+        # Best-effort: ensure the artist entity + song_artists credit exist for
+        # this row. Idempotent on re-runs since link_song_artists checks for
+        # an existing (song, artist) pair before inserting.
+        try:
+            from app.services.artist_linker import link_song_artists, parse_artist_string
+            link_song_artists(
+                db,
+                song_source="compass",
+                song_id=existing.id,
+                entries=parse_artist_string(existing.artist or ""),
+            )
+        except Exception:
+            logger.exception("artist link failed for existing compass song %d", existing.id)
         return existing.id
     else:
         current_year = date.today().year
@@ -152,6 +165,20 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             )
         except Exception:
             logger.exception("Daily corpus log failed for compass song %d", song.id)
+
+        # Best-effort artist linking: upsert Artist rows + song_artists credits
+        # using the same parser the LC submit and admin library paths use.
+        # Caller's commit picks these inserts up.
+        try:
+            from app.services.artist_linker import link_song_artists, parse_artist_string
+            link_song_artists(
+                db,
+                song_source="compass",
+                song_id=song.id,
+                entries=parse_artist_string(song.artist or ""),
+            )
+        except Exception:
+            logger.exception("artist link failed for new compass song %d", song.id)
 
         return song.id
 
