@@ -678,17 +678,56 @@
       ? (song.charge_value > 0 ? '+' : '') + song.charge_value
       : 'N/A';
 
+    // SEO/GEO tagline — the song/artist string that should saturate the page.
+    // Embedded in <title>, meta, og:*, JSON-LD, and every section H2 so the
+    // page reads as the natural-language query a listener or LLM would search:
+    // 'what does listening to "X" by Y do to the listener'.
+    const tagline = song.artist
+      ? `"${song.title}" by ${song.artist}`
+      : `"${song.title}"`;
+
     // Page meta
-    document.getElementById('page-title').textContent =
-      `What Might "${song.title}" Do to the Listener? — The Rising Compass`;
-    document.getElementById('meta-description').content = isUncalibrated
-      ? `${song.title} by ${song.artist}: currently uncalibrated. Previous calibrations and reasoning shown below.`
-      : song.charge_summary || `${song.title} by ${song.artist}: ${tierLabel} (${chargeDisplay}). Lyrical effects classified by The Rising Compass.`;
+    const pageTitle = `What Might Listening to ${tagline} Do to the Listener? — The Rising Compass`;
+    document.title = pageTitle;
+    const pageTitleEl = document.getElementById('page-title');
+    if (pageTitleEl) pageTitleEl.textContent = pageTitle;
+
+    const summaryLine = isUncalibrated
+      ? `${tagline} is currently uncalibrated by The Rising Compass. Previous calibrations and reasoning shown below.`
+      : song.charge_summary
+        ? `${tagline}: ${song.charge_summary}`
+        : `${tagline}: classified ${tierLabel} (${chargeDisplay}) by The Rising Compass — a lyrical effects label scored on a 58-tenet rubric.`;
+    document.getElementById('meta-description').content = summaryLine;
     document.getElementById('og-title').content =
-      `"${song.title}" by ${song.artist} — Lyrical Effects Label`;
-    document.getElementById('og-description').content = isUncalibrated
-      ? `"${song.title}" by ${song.artist} is currently uncalibrated.`
-      : song.charge_summary || `Classified as ${tierLabel} (${chargeDisplay}) by The Rising Compass.`;
+      `${tagline} — Lyrical Effects Label · The Rising Compass`;
+    document.getElementById('og-description').content = summaryLine;
+
+    // Canonical + og:url — use the slug-based URL so social shares and
+    // crawlers don't dedupe to /songs/song.html.
+    if (song.slug) {
+      const canonicalUrl = `https://risingcompass.net/songs/${song.slug}`;
+      const ogUrlEl = document.getElementById('og-url');
+      if (ogUrlEl) ogUrlEl.content = canonicalUrl;
+      const canonicalEl = document.getElementById('canonical-link');
+      if (canonicalEl) canonicalEl.href = canonicalUrl;
+    }
+
+    // Section headings — every H2 inherits the tagline so the page is dense
+    // with the song/artist string for search + generative engines.
+    const setH2 = (sectionId, text) => {
+      const h2 = document.querySelector(`#${sectionId} h2`);
+      if (h2) h2.textContent = text;
+    };
+    setH2('section-summary', `Summary of ${tagline}`);
+    setH2('section-effects', `What Might Listening to ${tagline} Do to the Listener?`);
+    setH2('section-societal-effects', `What Might Listening to ${tagline} Do to a Society?`);
+    setH2('section-details', `Classification Details for ${tagline}`);
+    setH2('section-history', `Calibration Log for ${tagline}`);
+    setH2('section-vibe', `Audience Vibe on ${tagline}`);
+    setH2('section-runs', `Calibration History for ${tagline}`);
+    setH2('section-flags', `Flag Activity on ${tagline}`);
+    setH2('section-about', `How Is ${tagline} Classified?`);
+    setH2('section-artist-claim', `Are You the Artist of ${tagline}?`);
 
     // Hero
     document.getElementById('song-title').textContent = song.title;
@@ -716,8 +755,8 @@
     const summaryText = document.getElementById('summary-text');
     summaryText.classList.remove('is-loading');
     summaryText.textContent = isUncalibrated
-      ? 'This song is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.'
-      : song.charge_summary || `This song is classified as ${tierLabel}.`;
+      ? `${tagline} is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.`
+      : song.charge_summary || `${tagline} is classified as ${tierLabel} by The Rising Compass.`;
 
     // Section 3: Effects — per-song prose if available, else tier-generic fallback.
     const effectsSection = document.getElementById('section-effects');
@@ -759,21 +798,22 @@
     if (isUncalibrated) {
       // Skip contamination rendering for uncalibrated songs
     } else if (song.contaminated) {
-      document.getElementById('contam-heading').textContent = 'Contamination Warning';
+      document.getElementById('contam-heading').textContent = `Contamination Warning for ${tagline}`;
       document.getElementById('contam-answer').textContent =
-        song.contamination_note || 'This song contains contaminated content that undermines its higher-tier substance.';
+        song.contamination_note || `${tagline} contains contaminated content that undermines its higher-tier substance.`;
       contamSection.style.borderLeftColor = 'var(--rc-orange)';
     } else {
-      document.getElementById('contam-heading').textContent = 'Contamination Status';
-      document.getElementById('contam-answer').textContent = 'No contamination detected. The lyrical content is consistent with its classification tier.';
+      document.getElementById('contam-heading').textContent = `Contamination Status of ${tagline}`;
+      document.getElementById('contam-answer').textContent = `No contamination detected in ${tagline}. The lyrical content is consistent with its classification tier.`;
     }
 
     // Section 3b: Dogma Reference — only surfaces when the tag fired.
     const dogmaSection = document.getElementById('section-dogma');
     if (!isUncalibrated && song.dogma_referenced) {
       dogmaSection.hidden = false;
+      setH2('section-dogma', `Dogma Reference in ${tagline}`);
       document.getElementById('dogma-answer').textContent =
-        song.dogma_note || 'This song references a specific doctrinal framework.';
+        song.dogma_note || `${tagline} references a specific doctrinal framework.`;
     } else {
       dogmaSection.hidden = true;
     }
