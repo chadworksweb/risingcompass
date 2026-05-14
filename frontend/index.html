@@ -289,7 +289,7 @@
       </div>
     </div>
 
-    <!-- ROW 1 RIGHT: Aggregate Charge Index + Calculator -->
+    <!-- ROW 1 RIGHT: Aggregate Charge Index -->
     <div class="card" id="trajectory-panel">
       <div class="era-tabs">
         <button class="era-tab active" data-era="daily">
@@ -299,11 +299,6 @@
         <button class="era-tab" data-era="aggregate">
           <span class="era-tab-title">Aggregate Charge Index</span>
           <span class="era-tab-tagline">where we've been and where we are</span>
-        </button>
-        <button class="era-tab-icon" id="calc-overlay-toggle" title="Calculator" aria-label="Calculator" hidden>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="12" y2="18"/>
-          </svg>
         </button>
       </div>
       <div id="charge-container" style="margin-bottom:1rem;"></div>
@@ -331,12 +326,7 @@
         </div>
       </div>
       <div class="era-content" id="era-aggregate">
-        <div class="era-chart-calc">
-          <div id="trajectory-container"></div>
-          <div class="calc-overlay" id="calc-overlay" hidden>
-            <div id="era-calculator"></div>
-          </div>
-        </div>
+        <div id="trajectory-container"></div>
       </div>
     </div>
 
