@@ -222,10 +222,13 @@ body {
 }
 /* Content area grows to fill the panel so years with fewer than 20 songs
    (historical backfills like 1996 — 11 rows) leave breathing room before
-   the "Open The Ether Art Chart" CTA instead of packing tight. The CTA
-   already has margin-top:auto as a fallback. */
+   the "Open The Ether Art Chart" CTA instead of packing tight. Internal
+   padding-bottom guarantees a visible gap even when the panel isn't
+   stretched (e.g. when neither sibling is naturally tall enough to
+   force flex:1 to grow). */
 #ether-art-chart-content {
   flex: 1;
+  padding-bottom: 2rem;
 }
 
 .ether-card-link {
