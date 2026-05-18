@@ -105,14 +105,19 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         # Best-effort: ensure the artist entity + song_artists credit exist for
         # this row. Idempotent on re-runs since link_song_artists checks for
         # an existing (song, artist) pair before inserting.
+        # SAVEPOINT-wrapped so any Hrana stream failure inside the linker (the
+        # embedded-replica session can lose its stream mid-flight on
+        # multi-statement writes) is contained — the outer transaction stays
+        # intact and the caller's later queries don't hit PendingRollbackError.
         try:
-            from app.services.artist_linker import link_song_artists, parse_artist_string
-            link_song_artists(
-                db,
-                song_source="compass",
-                song_id=existing.id,
-                entries=parse_artist_string(existing.artist or ""),
-            )
+            with db.begin_nested():
+                from app.services.artist_linker import link_song_artists, parse_artist_string
+                link_song_artists(
+                    db,
+                    song_source="compass",
+                    song_id=existing.id,
+                    entries=parse_artist_string(existing.artist or ""),
+                )
         except Exception:
             logger.exception("artist link failed for existing compass song %d", existing.id)
         return existing.id
@@ -143,26 +148,28 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         # corpus grows on chart debuts. Subsequent days where the song stays
         # on the chart do NOT re-log: the corpus is agent practice on new
         # data, not redundant re-entries for the same song.
+        # SAVEPOINT-wrapped: see comment in the existing-row branch above.
         try:
-            from app.services.calibration_corpus import record_and_reconcile
-            record_and_reconcile(
-                db,
-                title=title, artist=artist,
-                calibration={
-                    "rubric_color": result["rubric_color"],
-                    "charge_value": result.get("charge_value"),
-                    "charge_summary": result["charge_summary"],
-                    "contaminated": result["contaminated"],
-                    "contamination_note": result["contamination_note"],
-                    "dogma_referenced": bool(result.get("dogma_referenced", False)),
-                    "dogma_note": result.get("dogma_note"),
-                    "confidence": result.get("confidence"),
-                },
-                triggered_by="compass_daily",
-                direct_song_source="compass",
-                direct_song_id=song.id,
-                is_new_row=True,
-            )
+            with db.begin_nested():
+                from app.services.calibration_corpus import record_and_reconcile
+                record_and_reconcile(
+                    db,
+                    title=title, artist=artist,
+                    calibration={
+                        "rubric_color": result["rubric_color"],
+                        "charge_value": result.get("charge_value"),
+                        "charge_summary": result["charge_summary"],
+                        "contaminated": result["contaminated"],
+                        "contamination_note": result["contamination_note"],
+                        "dogma_referenced": bool(result.get("dogma_referenced", False)),
+                        "dogma_note": result.get("dogma_note"),
+                        "confidence": result.get("confidence"),
+                    },
+                    triggered_by="compass_daily",
+                    direct_song_source="compass",
+                    direct_song_id=song.id,
+                    is_new_row=True,
+                )
         except Exception:
             logger.exception("Daily corpus log failed for compass song %d", song.id)
 
@@ -170,13 +177,14 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         # using the same parser the LC submit and admin library paths use.
         # Caller's commit picks these inserts up.
         try:
-            from app.services.artist_linker import link_song_artists, parse_artist_string
-            link_song_artists(
-                db,
-                song_source="compass",
-                song_id=song.id,
-                entries=parse_artist_string(song.artist or ""),
-            )
+            with db.begin_nested():
+                from app.services.artist_linker import link_song_artists, parse_artist_string
+                link_song_artists(
+                    db,
+                    song_source="compass",
+                    song_id=song.id,
+                    entries=parse_artist_string(song.artist or ""),
+                )
         except Exception:
             logger.exception("artist link failed for new compass song %d", song.id)
 
