@@ -994,12 +994,18 @@ body {
 }
 
 /* === Trajectory Zoom Controls === */
+/* Zoom bar holds the year-window readout on the left and the
+   Ableton-style brace locator filling the remaining width. Preset
+   buttons used to live here; pan/zoom drag + brace handles replace
+   them. */
 .traj-zoom-bar {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.3rem;
-  margin-bottom: 0.3rem;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.4rem;
 }
+.traj-zoom-bar .traj-zoom-window { flex-shrink: 0; }
+.traj-zoom-bar .traj-overview { flex: 1; margin-top: 0; }
 
 .traj-zoom-btn {
   font-family: var(--rc-font-mono);
@@ -1134,36 +1140,101 @@ body {
   pointer-events: none;
 }
 
-/* Time Machine drawer — collapsed by default, slides open on click of
-   the toggle bar. grid-template-rows trick gives an automatic-height
-   transition without needing to measure content. */
+/* Time Machine toggle — centered pill with clock icon. Idle state is
+   muted; hover/open lights it accent-colored with a soft glow, and the
+   clock's minute hand starts ticking. Reads as a discoverable feature,
+   not a UI divider. */
 .traj-tm-toggle {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  width: 100%;
-  margin-top: 0.55rem;
-  padding: 0.4rem 0.6rem;
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--rc-border);
+  gap: 0.55rem;
+  margin: 0.75rem auto 0;
+  padding: 0.45rem 1.1rem 0.45rem 0.85rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 100%);
+  border: 1px solid var(--rc-border);
+  border-radius: 999px;
   font-family: var(--rc-font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.12em;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--rc-text-dim);
   cursor: pointer;
-  transition: color var(--rc-ease-fast);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  width: max-content;
+  -webkit-tap-highlight-color: transparent;
 }
-.traj-tm-toggle:hover { color: var(--rc-text); }
+.traj-tm-toggle::before {
+  /* Soft outer halo — visible only when hovered/open */
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  background: radial-gradient(closest-side, rgba(0, 212, 170, 0.25), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+.traj-tm-toggle:hover {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+  background: linear-gradient(180deg, rgba(0,212,170,0.08), rgba(0,212,170,0.015));
+  box-shadow: 0 0 18px rgba(0, 212, 170, 0.25), inset 0 0 10px rgba(0, 212, 170, 0.08);
+}
+.traj-tm-toggle:hover::before { opacity: 1; }
+.traj-tm-toggle[aria-expanded="true"] {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+  background: linear-gradient(180deg, rgba(0,212,170,0.12), rgba(0,212,170,0.03));
+  box-shadow: 0 0 16px rgba(0, 212, 170, 0.3), inset 0 0 12px rgba(0, 212, 170, 0.12);
+}
+.traj-tm-label {
+  line-height: 1;
+}
+.traj-tm-icon {
+  color: currentColor;
+  flex-shrink: 0;
+  transform-origin: center;
+}
+/* Clock hands rotate from the face center. Minute hand spins fast when
+   the drawer is open or being hovered; hour hand crawls a fraction of
+   the speed — readable as "time is passing" without looking glitchy. */
+.traj-tm-clock-min,
+.traj-tm-clock-hr {
+  transform-origin: 12px 12px;
+}
+.traj-tm-toggle:hover .traj-tm-clock-min,
+.traj-tm-toggle[aria-expanded="true"] .traj-tm-clock-min {
+  animation: traj-tm-tick-min 4s linear infinite;
+}
+.traj-tm-toggle:hover .traj-tm-clock-hr,
+.traj-tm-toggle[aria-expanded="true"] .traj-tm-clock-hr {
+  animation: traj-tm-tick-hr 48s linear infinite;
+}
+@keyframes traj-tm-tick-min {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes traj-tm-tick-hr {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
 .traj-tm-chevron {
-  color: var(--rc-text-dim);
-  transition: transform 0.25s ease, color var(--rc-ease-fast);
+  color: currentColor;
+  flex-shrink: 0;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.traj-tm-toggle:hover .traj-tm-chevron { color: var(--rc-text); }
 .traj-tm-toggle[aria-expanded="true"] .traj-tm-chevron {
   transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .traj-tm-toggle:hover .traj-tm-clock-min,
+  .traj-tm-toggle:hover .traj-tm-clock-hr,
+  .traj-tm-toggle[aria-expanded="true"] .traj-tm-clock-min,
+  .traj-tm-toggle[aria-expanded="true"] .traj-tm-clock-hr {
+    animation: none;
+  }
 }
 .traj-tm-drawer {
   display: grid;

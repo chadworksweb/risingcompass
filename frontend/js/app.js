@@ -730,43 +730,9 @@ const App = (() => {
 
   }
 
-  // Maps the current [zoomStartYear, zoomEndYear] window back to one of the
-  // preset buttons if it matches exactly — otherwise no preset is active.
-  function matchedPreset() {
-    if (!allYearData.length) return null;
-    const firstYear = allYearData[0].year;
-    const lastYear = allYearData[allYearData.length - 1].year;
-    if (zoomStartYear === firstYear && zoomEndYear === lastYear) return 'all';
-    if (zoomEndYear !== lastYear) return null;
-    const span = lastYear - zoomStartYear + 1;
-    if (span === 30) return '30';
-    if (span === 20) return '20';
-    if (span === 10) return '10';
-    return null;
-  }
-
-  function snapToPreset(zoom) {
-    const firstYear = allYearData[0].year;
-    const lastYear = allYearData[allYearData.length - 1].year;
-    if (zoom === 'all') {
-      zoomStartYear = firstYear;
-    } else if (zoom === '30') {
-      zoomStartYear = Math.max(firstYear, lastYear - 29);
-    } else if (zoom === '20') {
-      zoomStartYear = Math.max(firstYear, lastYear - 19);
-    } else if (zoom === '10') {
-      zoomStartYear = Math.max(firstYear, lastYear - 9);
-    }
-    zoomEndYear = lastYear;
-  }
-
   function updateZoomWindowLabel(container) {
     const lbl = container.querySelector('.traj-zoom-window');
     if (lbl) lbl.textContent = `${zoomStartYear} – ${zoomEndYear}`;
-    const preset = matchedPreset();
-    container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.zoom === preset);
-    });
     updateOverviewViewport(container);
   }
 
@@ -1109,15 +1075,17 @@ const App = (() => {
       container.innerHTML = `
         <div class="traj-zoom-bar">
           <span class="traj-zoom-window" aria-live="polite">${firstYear} – ${lastYear}</span>
-          <button class="traj-zoom-btn active" data-zoom="all">All</button>
-          <button class="traj-zoom-btn" data-zoom="30">30Y</button>
-          <button class="traj-zoom-btn" data-zoom="20">20Y</button>
-          <button class="traj-zoom-btn" data-zoom="10">10Y</button>
+          <div class="traj-overview" role="slider" aria-label="Year range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
         </div>
         <div class="traj-chart-area"></div>
-        <div class="traj-overview" role="slider" aria-label="Year range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
         <button class="traj-tm-toggle" type="button" aria-expanded="false" aria-controls="traj-tm-drawer">
-          <span>Time Machine</span>
+          <svg class="traj-tm-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+            <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <line class="traj-tm-clock-min" x1="12" y1="12" x2="12" y2="6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line class="traj-tm-clock-hr" x1="12" y1="12" x2="15.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="1" fill="currentColor"/>
+          </svg>
+          <span class="traj-tm-label">Time Machine</span>
           <svg class="traj-tm-chevron" viewBox="0 0 24 24" width="10" height="10" aria-hidden="true">
             <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -1128,13 +1096,6 @@ const App = (() => {
           </div>
         </div>
       `;
-
-      container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          snapToPreset(btn.dataset.zoom);
-          applyZoom(container);
-        });
-      });
 
       const tmToggle = container.querySelector('.traj-tm-toggle');
       const tmDrawer = container.querySelector('.traj-tm-drawer');
@@ -1338,7 +1299,13 @@ const App = (() => {
         </div>
         <div class="traj-chart-area"></div>
         <button class="traj-tm-toggle" type="button" aria-expanded="false" aria-controls="daily-traj-tm-drawer">
-          <span>Time Machine</span>
+          <svg class="traj-tm-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+            <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <line class="traj-tm-clock-min" x1="12" y1="12" x2="12" y2="6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line class="traj-tm-clock-hr" x1="12" y1="12" x2="15.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="1" fill="currentColor"/>
+          </svg>
+          <span class="traj-tm-label">Time Machine</span>
           <svg class="traj-tm-chevron" viewBox="0 0 24 24" width="10" height="10" aria-hidden="true">
             <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
