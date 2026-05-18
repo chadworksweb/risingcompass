@@ -417,6 +417,20 @@ body {
   opacity: 0.55;
 }
 
+/* No-data state: user picked a year/day with nothing on file. Everything
+   inside the compass card fades to barely-visible so the stale reading
+   doesn't read as the answer. */
+#compass-panel #compass-container,
+#compass-panel #contam-container,
+#compass-panel #compass-date {
+  transition: opacity 0.3s ease;
+}
+#compass-panel.is-no-data #compass-container,
+#compass-panel.is-no-data #contam-container,
+#compass-panel.is-no-data #compass-date {
+  opacity: 0.2;
+}
+
 /* === Calibration Log mini-feed (homepage) === */
 #cl-mini-panel .card-header {
   display: flex;

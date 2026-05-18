@@ -1312,7 +1312,8 @@ const App = (() => {
   // today's reading.
   function setCompassMode(mode, opts) {
     opts = opts || {};
-    const header = document.querySelector('#compass-panel .card-header');
+    const panel = document.getElementById('compass-panel');
+    const header = panel && panel.querySelector('.card-header');
     if (!header) return;
     let text = "Today's Charge";
     let faded = false;
@@ -1326,9 +1327,13 @@ const App = (() => {
     } else if (mode === 'historical') {
       text = 'Historical Reading';
       faded = true;
+    } else if (mode === 'nodata') {
+      text = 'No Data';
+      faded = true;
     }
     header.textContent = text;
     header.classList.toggle('compass-header-faded', faded);
+    if (panel) panel.classList.toggle('is-no-data', mode === 'nodata');
   }
 
   // Resolve whether an iso date string represents what loadCurrent rendered
@@ -2491,9 +2496,12 @@ const App = (() => {
           viewArchiveReading(el.dataset.date);
           announce(`Loading reading for ${el.dataset.date}.`);
         } else {
-          // No daily reading for this day — both panels need to drop their
-          // stale content and show their respective empty states.
+          // No daily reading for this day — both panels drop their stale
+          // content, the compass fades to "No Data", and the date label
+          // matches the picked day.
           renderReadingEmpty('date', formatDate(el.dataset.date));
+          setCompassDate(formatDate(el.dataset.date));
+          setCompassMode('nodata');
           if (typeof EtherArtChart !== 'undefined') {
             EtherArtChart.render({ mode: 'date', date: el.dataset.date });
           }
@@ -2582,8 +2590,11 @@ const App = (() => {
       setCompassMode('year', { year, isYTD });
     } else {
       // No drift data for this year — daily reading panel gets the same
-      // empty-state treatment the ether card already does on its own.
+      // empty-state treatment the ether card already does on its own,
+      // and the compass fades to an unreadable state with "No Data" header.
       renderReadingEmpty('year', String(year));
+      setCompassDate(String(year));
+      setCompassMode('nodata');
     }
     // Fire the ether render regardless of drift coverage — it owns its own
     // empty state ("No reading available for [year]") so a 1973 click no
