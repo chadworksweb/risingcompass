@@ -312,6 +312,8 @@ const App = (() => {
   // Zoom is now a free year range; presets snap the handles to common spans.
   let zoomStartYear = null;
   let zoomEndYear = null;
+  // Shared TM-drawer open state, so toggling on one chart persists to the other.
+  let tmDrawerOpen = false;
   let chartPoints = [];
   let chartData = [];
   let chartHasYTD = false;
@@ -1137,14 +1139,11 @@ const App = (() => {
       });
 
       const tmToggle = container.querySelector('.traj-tm-toggle');
-      const tmDrawer = container.querySelector('.traj-tm-drawer');
       tmToggle.addEventListener('click', () => {
-        const open = !tmDrawer.classList.contains('is-open');
-        tmDrawer.classList.toggle('is-open', open);
-        tmToggle.setAttribute('aria-expanded', String(open));
-        if (open) tmDrawer.removeAttribute('inert');
-        else tmDrawer.setAttribute('inert', '');
+        tmDrawerOpen = !tmDrawerOpen;
+        applyTmDrawerState();
       });
+      applyTmDrawerState();
 
       renderOverview(container);
       applyZoom(container);
@@ -1196,6 +1195,19 @@ const App = (() => {
   function setCompassDate(text) {
     const dateEl = document.getElementById('compass-date-svg');
     if (dateEl) dateEl.textContent = text;
+  }
+
+  // Apply the shared tmDrawerOpen flag to every TM drawer + toggle in the
+  // document. Both era tabs render their own copies, but they share state.
+  function applyTmDrawerState() {
+    document.querySelectorAll('.traj-tm-drawer').forEach((drawer) => {
+      drawer.classList.toggle('is-open', tmDrawerOpen);
+      if (tmDrawerOpen) drawer.removeAttribute('inert');
+      else drawer.setAttribute('inert', '');
+    });
+    document.querySelectorAll('.traj-tm-toggle').forEach((toggle) => {
+      toggle.setAttribute('aria-expanded', String(tmDrawerOpen));
+    });
   }
 
   // Empty state for the Daily Top 20 panel — fires when the calendar picks
@@ -1374,14 +1386,11 @@ const App = (() => {
       });
 
       const tmToggle = container.querySelector('.traj-tm-toggle');
-      const tmDrawer = container.querySelector('.traj-tm-drawer');
       tmToggle.addEventListener('click', () => {
-        const open = !tmDrawer.classList.contains('is-open');
-        tmDrawer.classList.toggle('is-open', open);
-        tmToggle.setAttribute('aria-expanded', String(open));
-        if (open) tmDrawer.removeAttribute('inert');
-        else tmDrawer.setAttribute('inert', '');
+        tmDrawerOpen = !tmDrawerOpen;
+        applyTmDrawerState();
       });
+      applyTmDrawerState();
 
       renderDailyOverview(container);
       applyDailyZoom(container);
