@@ -58,12 +58,15 @@ class EtherTodayOut(BaseModel):
 
 class EtherYearDeadpanItem(BaseModel):
     position: int
+    position_letter: Optional[str] = None  # 'A' / 'B' for double-A-side splits
     title: str
     artist: str
     deadpan_line: Optional[str]
     dominant_topic: Optional[str]
     song_slug: str
     artist_slug: Optional[str] = None
+    rubric_color: Optional[str] = None
+    charge_value: Optional[int] = None
 
 
 class TopicSong(BaseModel):
@@ -251,7 +254,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                 )
                 SELECT
                   cs.id, cs.title, cs.artist, cs.deadpan_line, cs.topics,
-                  s.weight_sum
+                  cs.rubric_color, cs.charge_value, s.weight_sum
                 FROM song_year_appearances s
                 JOIN compass_songs cs ON cs.id = s.compass_song_id
                 WHERE cs.deadpan_line IS NOT NULL
@@ -264,16 +267,19 @@ def get_year(year: int, db: Session = Depends(get_db)):
     else:
         # Historical path: compass_songs has one row per song per year
         # with chart_position 1..N. Order by chart_position directly.
+        # chart_position_letter ('A'/'B') marks double-A-side splits so
+        # 9A and 9B both render under position 9 with letter suffixes.
         top_rows = db.execute(
             text(
                 """
                 SELECT
                   cs.id, cs.title, cs.artist, cs.deadpan_line, cs.topics,
-                  cs.chart_position AS weight_sum
+                  cs.rubric_color, cs.charge_value,
+                  cs.chart_position, cs.chart_position_letter
                 FROM compass_songs cs
                 WHERE cs.year = :year_int
                   AND cs.deadpan_line IS NOT NULL
-                ORDER BY cs.chart_position ASC, cs.id ASC
+                ORDER BY cs.chart_position ASC, cs.chart_position_letter ASC, cs.id ASC
                 LIMIT 20
                 """
             ),
@@ -285,14 +291,25 @@ def get_year(year: int, db: Session = Depends(get_db)):
     for idx, row in enumerate(top_rows, start=1):
         topics = _decode_topics(row.topics)
         primary = normalize_artist_name(row.artist or "").lower()
+        # Modern uses sequential idx; historical uses cs.chart_position +
+        # cs.chart_position_letter so 9A/9B read as the same chart slot.
+        if has_daily:
+            position_num = idx
+            position_letter = None
+        else:
+            position_num = int(row.chart_position) if row.chart_position is not None else idx
+            position_letter = row.chart_position_letter or None
         top_20.append(EtherYearDeadpanItem(
-            position=idx,
+            position=position_num,
+            position_letter=position_letter,
             title=row.title,
             artist=row.artist,
             deadpan_line=row.deadpan_line,
             dominant_topic=topics[0] if topics else None,
             song_slug=generate_song_slug(row.title, row.artist),
             artist_slug=top_20_slug_map.get(primary),
+            rubric_color=row.rubric_color,
+            charge_value=row.charge_value,
         ))
 
     # Topic distribution — distinct (song, topic) pairs across the year.

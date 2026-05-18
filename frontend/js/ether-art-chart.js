@@ -59,6 +59,10 @@ const EtherArtChart = (() => {
 
     const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
 
+    // Position display merges chart_position + letter so 9A and 9B both
+    // read as the same chart slot with their A/B suffix.
+    const positionDisplay = `${item.position}${item.position_letter || ''}`;
+
     if (!item.deadpan_line) {
       // Pre-tagger row — show the title, dim style, "untagged" hint.
       const titleHtml = songHref
@@ -66,7 +70,7 @@ const EtherArtChart = (() => {
         : `<span class="ether-title-link">${escapeHtml(item.title)}</span>`;
       return `
         <li class="ether-row ether-row--untagged" style="${tickStyle}">
-          <span class="ether-pos">${item.position}</span>
+          <span class="ether-pos">${positionDisplay}</span>
           <div class="ether-text">
             <div class="ether-deadpan">${titleHtml}</div>
             <div class="ether-meta">${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')} <span class="ether-untagged-pill">untagged</span></div>
@@ -80,7 +84,7 @@ const EtherArtChart = (() => {
 
     return `
       <li class="ether-row" style="${tickStyle}">
-        <span class="ether-pos">${item.position}</span>
+        <span class="ether-pos">${positionDisplay}</span>
         <div class="ether-text">
           <div class="ether-deadpan">${escapeHtml(item.deadpan_line)}</div>
           <div class="ether-meta">
@@ -115,16 +119,19 @@ const EtherArtChart = (() => {
     }
     if (mode === 'year' && opts.year) {
       const data = await API.getEtherYear(opts.year);
-      // Adapt EtherYearOut.top_20_deadpan into the row shape (no rubric_color).
+      // Year endpoint now returns rubric_color + position_letter so the
+      // row template can color the tick and render double-A-side splits
+      // (e.g. 9A / 9B) under the same chart slot.
       const items = (data.top_20_deadpan || []).map(x => ({
         position: x.position,
+        position_letter: x.position_letter,
         title: x.title,
         artist: x.artist,
         artist_slug: x.artist_slug,
         song_slug: x.song_slug,
         deadpan_line: x.deadpan_line,
         dominant_topic: x.dominant_topic,
-        rubric_color: null,
+        rubric_color: x.rubric_color,
       }));
       return { items, label: String(opts.year) };
     }
