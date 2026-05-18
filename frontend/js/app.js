@@ -1042,24 +1042,97 @@ const App = (() => {
       if (drag) end();
     });
 
+    // --- Pinch zoom (two fingers) ---
+    // Anchor the year under the pinch midpoint so pinch-out zooms toward
+    // that point. 8px distance-change threshold filters jitter so a
+    // resting two-finger touch doesn't drift the zoom.
+    let pinch = null;
+    const distance = (t0, t1) => Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    const midX = (t0, t1) => (t0.clientX + t1.clientX) / 2;
+
+    const startPinch = (t0, t1) => {
+      const rect = chartArea.getBoundingClientRect();
+      const mx = midX(t0, t1);
+      const pctX = Math.max(0, Math.min(1, (mx - rect.left) / rect.width));
+      const span = zoomEndYear - zoomStartYear + 1;
+      pinch = {
+        d0: distance(t0, t1) || 1,
+        startMidX: mx,
+        anchorYear: zoomStartYear + pctX * (span - 1),
+        pctX,
+        startSpan: span,
+        rectWidth: rect.width || 1,
+      };
+      // Pinch wins over any in-progress single-finger drag.
+      if (drag) {
+        drag = null;
+        chartArea.classList.remove('traj-dragging');
+      }
+    };
+
+    const movePinch = (t0, t1) => {
+      if (!pinch) return;
+      const d = distance(t0, t1);
+      if (Math.abs(d - pinch.d0) < 8) return;
+      const ratio = Math.max(0.05, Math.min(20, d / pinch.d0));
+      const firstYear = allYearData[0].year;
+      const lastYear = allYearData[allYearData.length - 1].year;
+      const newSpan = Math.max(1, Math.round(pinch.startSpan / ratio));
+      // Anchor year stays at pctX of the new span (map-style zoom).
+      let newStart = Math.round(pinch.anchorYear - pinch.pctX * (newSpan - 1));
+      // Centroid drift during pinch = pan.
+      const mx = midX(t0, t1);
+      const pxPerYearAtStart = pinch.rectWidth / pinch.startSpan;
+      const yearShift = Math.round(-(mx - pinch.startMidX) / pxPerYearAtStart);
+      newStart += yearShift;
+      let newEnd = newStart + newSpan - 1;
+      if (newStart < firstYear) { newStart = firstYear; newEnd = Math.min(lastYear, newStart + newSpan - 1); }
+      if (newEnd > lastYear) { newEnd = lastYear; newStart = Math.max(firstYear, newEnd - newSpan + 1); }
+      newStart = Math.max(firstYear, newStart);
+      newEnd = Math.min(lastYear, newEnd);
+      if (newStart !== zoomStartYear || newEnd !== zoomEndYear) {
+        zoomStartYear = newStart;
+        zoomEndYear = newEnd;
+        scheduleRender();
+      }
+    };
+
+    const endPinch = () => {
+      if (!pinch) return;
+      pinch = null;
+      tmStopPlayback();
+      initTimeMachineControls(container);
+    };
+
     chartArea.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      start(t.clientX, t.clientY);
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        start(t.clientX, t.clientY);
+      } else if (e.touches.length === 2) {
+        startPinch(e.touches[0], e.touches[1]);
+      }
     }, { passive: true });
     chartArea.addEventListener('touchmove', (e) => {
-      if (!drag || e.touches.length !== 1) return;
-      const t = e.touches[0];
-      // Touch: pan only. Pass start Y as clientY so dy is 0 — vertical
-      // drag is left to the page (touch-action: pan-y), so the user
-      // can still scroll past the chart with a vertical swipe.
-      move(t.clientX, drag.y);
-      if (drag.moved) e.preventDefault();
+      if (pinch && e.touches.length === 2) {
+        movePinch(e.touches[0], e.touches[1]);
+        e.preventDefault();
+        return;
+      }
+      if (drag && e.touches.length === 1) {
+        const t = e.touches[0];
+        // Touch single-finger: pan only. Pass start Y so dy is 0 — vertical
+        // drag is left to the page (touch-action: pan-y), so the user can
+        // still scroll past the chart with a vertical swipe.
+        move(t.clientX, drag.y);
+        if (drag.moved) e.preventDefault();
+      }
     }, { passive: false });
-    chartArea.addEventListener('touchend', () => {
-      if (drag) end();
+    chartArea.addEventListener('touchend', (e) => {
+      if (pinch && e.touches.length < 2) endPinch();
+      if (drag && e.touches.length === 0) end();
     });
     chartArea.addEventListener('touchcancel', () => {
+      if (pinch) endPinch();
       if (drag) end();
     });
   }
@@ -1664,21 +1737,91 @@ const App = (() => {
     });
     window.addEventListener('mousemove', (e) => { if (drag) moveDrag(e.clientX, e.clientY); });
     window.addEventListener('mouseup', () => { if (drag) endDrag(); });
+    // --- Pinch zoom (two fingers) ---
+    let pinch = null;
+    const distance = (t0, t1) => Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    const midX = (t0, t1) => (t0.clientX + t1.clientX) / 2;
+
+    const startPinch = (t0, t1) => {
+      const rect = chartArea.getBoundingClientRect();
+      const mx = midX(t0, t1);
+      const pctX = Math.max(0, Math.min(1, (mx - rect.left) / rect.width));
+      const span = dailyZoomEndIdx - dailyZoomStartIdx + 1;
+      pinch = {
+        d0: distance(t0, t1) || 1,
+        startMidX: mx,
+        anchorIdx: dailyZoomStartIdx + pctX * (span - 1),
+        pctX,
+        startSpan: span,
+        rectWidth: rect.width || 1,
+      };
+      if (drag) {
+        drag = null;
+        chartArea.classList.remove('traj-dragging');
+      }
+    };
+
+    const movePinch = (t0, t1) => {
+      if (!pinch) return;
+      const d = distance(t0, t1);
+      if (Math.abs(d - pinch.d0) < 8) return;
+      const ratio = Math.max(0.05, Math.min(20, d / pinch.d0));
+      const lastIdx = dailyChartData.length - 1;
+      const newSpan = Math.max(1, Math.round(pinch.startSpan / ratio));
+      let newStart = Math.round(pinch.anchorIdx - pinch.pctX * (newSpan - 1));
+      const mx = midX(t0, t1);
+      const pxPerIdxAtStart = pinch.rectWidth / pinch.startSpan;
+      const idxShift = Math.round(-(mx - pinch.startMidX) / pxPerIdxAtStart);
+      newStart += idxShift;
+      let newEnd = newStart + newSpan - 1;
+      if (newStart < 0) { newStart = 0; newEnd = Math.min(lastIdx, newStart + newSpan - 1); }
+      if (newEnd > lastIdx) { newEnd = lastIdx; newStart = Math.max(0, newEnd - newSpan + 1); }
+      newStart = Math.max(0, newStart);
+      newEnd = Math.min(lastIdx, newEnd);
+      if (newStart !== dailyZoomStartIdx || newEnd !== dailyZoomEndIdx) {
+        dailyZoomStartIdx = newStart;
+        dailyZoomEndIdx = newEnd;
+        scheduleRender();
+      }
+    };
+
+    const endPinch = () => {
+      if (!pinch) return;
+      pinch = null;
+      dtmStopPlayback();
+      initDailyTimeMachineControls(container);
+    };
+
     chartArea.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      startDrag(t.clientX, t.clientY);
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        startDrag(t.clientX, t.clientY);
+      } else if (e.touches.length === 2) {
+        startPinch(e.touches[0], e.touches[1]);
+      }
     }, { passive: true });
     chartArea.addEventListener('touchmove', (e) => {
-      if (!drag || e.touches.length !== 1) return;
-      const t = e.touches[0];
-      // Touch: pan only — pass start Y as clientY so dy is 0. Vertical
-      // gestures pass through to the page (touch-action: pan-y).
-      moveDrag(t.clientX, drag.y);
-      if (drag.moved) e.preventDefault();
+      if (pinch && e.touches.length === 2) {
+        movePinch(e.touches[0], e.touches[1]);
+        e.preventDefault();
+        return;
+      }
+      if (drag && e.touches.length === 1) {
+        const t = e.touches[0];
+        // Touch single-finger: pan only — pass start Y as clientY so
+        // dy is 0. Vertical gestures pass through to the page.
+        moveDrag(t.clientX, drag.y);
+        if (drag.moved) e.preventDefault();
+      }
     }, { passive: false });
-    chartArea.addEventListener('touchend', () => { if (drag) endDrag(); });
-    chartArea.addEventListener('touchcancel', () => { if (drag) endDrag(); });
+    chartArea.addEventListener('touchend', (e) => {
+      if (pinch && e.touches.length < 2) endPinch();
+      if (drag && e.touches.length === 0) endDrag();
+    });
+    chartArea.addEventListener('touchcancel', () => {
+      if (pinch) endPinch();
+      if (drag) endDrag();
+    });
   }
 
   // Skipped-day visual placement: a reading with charge_level === 'skipped'
