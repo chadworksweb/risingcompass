@@ -1337,7 +1337,17 @@ const App = (() => {
           <button class="traj-zoom-btn" data-zoom="w">W</button>
         </div>
         <div class="traj-chart-area"></div>
-        <div class="timemachine-controls"></div>
+        <button class="traj-tm-toggle" type="button" aria-expanded="false" aria-controls="daily-traj-tm-drawer">
+          <span>Time Machine</span>
+          <svg class="traj-tm-chevron" viewBox="0 0 24 24" width="10" height="10" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="traj-tm-drawer" id="daily-traj-tm-drawer" inert>
+          <div class="traj-tm-drawer-inner">
+            <div class="timemachine-controls"></div>
+          </div>
+        </div>
       `;
 
       container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
@@ -1345,6 +1355,16 @@ const App = (() => {
           dailyCurrentZoom = btn.dataset.zoom;
           applyDailyZoom(container);
         });
+      });
+
+      const tmToggle = container.querySelector('.traj-tm-toggle');
+      const tmDrawer = container.querySelector('.traj-tm-drawer');
+      tmToggle.addEventListener('click', () => {
+        const open = !tmDrawer.classList.contains('is-open');
+        tmDrawer.classList.toggle('is-open', open);
+        tmToggle.setAttribute('aria-expanded', String(open));
+        if (open) tmDrawer.removeAttribute('inert');
+        else tmDrawer.setAttribute('inert', '');
       });
 
       applyDailyZoom(container);
