@@ -132,33 +132,55 @@ const EtherArtChart = (() => {
     return { items: data.items || [], label: data.date ? formatDate(data.date) : '' };
   }
 
+  // Up-front label for the chosen mode — used so the description and the
+  // empty-state notice both name the period the user asked for, even if
+  // the fetch 404s or returns nothing.
+  function previewLabel(opts) {
+    const mode = opts && opts.mode ? opts.mode : 'today';
+    if (mode === 'date' && opts.date) return formatDate(opts.date);
+    if (mode === 'year' && opts.year) return String(opts.year);
+    return '';
+  }
+
+  function applyDesc(mode, label) {
+    if (mode === 'date' && label) {
+      setDesc(`${label} — the same top 20 named for what the lyrics really say, with topic tags.`);
+    } else if (mode === 'year' && label) {
+      setDesc(`${label} — the year's top 20 named for what the lyrics really say.`);
+    } else {
+      setDesc(DEFAULT_DESC);
+    }
+  }
+
   async function render(opts) {
     const container = document.getElementById('ether-art-chart-content');
     if (!container) return;
 
     const mode = opts && opts.mode ? opts.mode : 'today';
+    const upfrontLabel = previewLabel(opts || {});
+    applyDesc(mode, upfrontLabel);
 
     try {
       const { items, label } = await fetchByMode(opts || {});
-
-      if (mode === 'date' && label) {
-        setDesc(`${label} — the same top 20 named for what the lyrics really say, with topic tags.`);
-      } else if (mode === 'year' && label) {
-        setDesc(`${label} — the year's top 20 named for what the lyrics really say.`);
-      } else {
-        setDesc(DEFAULT_DESC);
-      }
+      // Refresh desc with the canonical label from the server (it may
+      // resolve a slightly different formatted string than the up-front
+      // preview, e.g. for /today).
+      applyDesc(mode, label || upfrontLabel);
 
       if (!items.length) {
-        container.innerHTML = `<div class="ether-empty">No reading available for ${escapeHtml(label) || 'this period'}.</div>`;
+        const shown = label || upfrontLabel;
+        container.innerHTML = `<div class="ether-empty">No reading available for ${escapeHtml(shown) || 'this period'}.</div>`;
         return;
       }
 
       container.innerHTML = `<ol class="ether-list">${items.map(rowHtml).join('')}</ol>`;
     } catch (err) {
       console.error('Failed to load ether art chart:', err);
+      const shown = upfrontLabel;
       if (mode === 'date') {
-        container.innerHTML = `<div class="ether-empty">No ether reading for that date.</div>`;
+        container.innerHTML = `<div class="ether-empty">No ether reading${shown ? ' for ' + escapeHtml(shown) : ' for that date'}.</div>`;
+      } else if (mode === 'year') {
+        container.innerHTML = `<div class="ether-empty">No reading available for ${escapeHtml(shown) || 'this year'}.</div>`;
       } else {
         container.innerHTML = `<div class="ether-empty">Could not load the ether-art chart.</div>`;
       }

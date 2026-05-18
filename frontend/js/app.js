@@ -1663,6 +1663,10 @@ const App = (() => {
         if (el.classList.contains('cal-has-data')) {
           viewArchiveReading(el.dataset.date);
           announce(`Loading reading for ${el.dataset.date}.`);
+        } else if (typeof EtherArtChart !== 'undefined') {
+          // Daily reading panel has no archive for this day, but the ether
+          // card should still react so it doesn't sit on stale content.
+          EtherArtChart.render({ mode: 'date', date: el.dataset.date });
         }
         renderCalendar();
         break;
@@ -1746,9 +1750,12 @@ const App = (() => {
       const isYTD = year === new Date().getFullYear();
       setCompassDate(isYTD ? `${year} YTD` : String(year));
       setCompassMode('year', { year, isYTD });
-      if (typeof EtherArtChart !== 'undefined') {
-        EtherArtChart.render({ mode: 'year', year });
-      }
+    }
+    // Fire the ether render regardless of drift coverage — it owns its own
+    // empty state ("No reading available for [year]") so a 1973 click no
+    // longer leaves the card sitting on the previous selection's data.
+    if (typeof EtherArtChart !== 'undefined') {
+      EtherArtChart.render({ mode: 'year', year });
     }
   }
 
