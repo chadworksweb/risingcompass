@@ -835,6 +835,26 @@ const App = (() => {
     if (dateEl) dateEl.textContent = text;
   }
 
+  // Empty state for the Daily Top 20 panel — fires when the calendar picks
+  // a year/day that has no coverage, so the panel stops sitting on stale
+  // content from the previous selection. Mirrors the ether card's notice.
+  function renderReadingEmpty(kind, label) {
+    const yearBtn = document.getElementById('year-view-btn');
+    if (yearBtn) yearBtn.remove();
+    const header = document.querySelector('#reading-panel .card-header');
+    const desc = document.querySelector('#reading-panel .card-desc');
+    const container = document.getElementById('reading-content');
+    if (header) header.textContent = kind === 'year'
+      ? `${label} — No Data`
+      : `${label} — No Reading`;
+    if (desc) desc.textContent = kind === 'year'
+      ? "No Billboard or daily-reading data on the compass for this year."
+      : "No daily reading archived for this date.";
+    if (container) {
+      container.innerHTML = `<div class="no-reading"><p>No data available for ${escapeHtml(label)}.</p></div>`;
+    }
+  }
+
   // Header above the compass. Modes mirror the data the compass is currently
   // showing — 'today' is the only un-dimmed state. Other modes get a faded
   // pill class so the user can tell at a glance that they're not looking at
@@ -1663,10 +1683,13 @@ const App = (() => {
         if (el.classList.contains('cal-has-data')) {
           viewArchiveReading(el.dataset.date);
           announce(`Loading reading for ${el.dataset.date}.`);
-        } else if (typeof EtherArtChart !== 'undefined') {
-          // Daily reading panel has no archive for this day, but the ether
-          // card should still react so it doesn't sit on stale content.
-          EtherArtChart.render({ mode: 'date', date: el.dataset.date });
+        } else {
+          // No daily reading for this day — both panels need to drop their
+          // stale content and show their respective empty states.
+          renderReadingEmpty('date', formatDate(el.dataset.date));
+          if (typeof EtherArtChart !== 'undefined') {
+            EtherArtChart.render({ mode: 'date', date: el.dataset.date });
+          }
         }
         renderCalendar();
         break;
@@ -1750,6 +1773,10 @@ const App = (() => {
       const isYTD = year === new Date().getFullYear();
       setCompassDate(isYTD ? `${year} YTD` : String(year));
       setCompassMode('year', { year, isYTD });
+    } else {
+      // No drift data for this year — daily reading panel gets the same
+      // empty-state treatment the ether card already does on its own.
+      renderReadingEmpty('year', String(year));
     }
     // Fire the ether render regardless of drift coverage — it owns its own
     // empty state ("No reading available for [year]") so a 1973 click no
