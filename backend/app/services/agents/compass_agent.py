@@ -329,7 +329,7 @@ def _run_post_calibration_enrichment(cs_id: int, lyrics: str | None) -> None:
 
 def run_compass_agent(
     songs_input: list[dict],
-    db: Session,
+    db: Session | None = None,
     reading_date: date | None = None,
     draft_only: bool = False,
     draft_type: str = "daily",
@@ -338,17 +338,29 @@ def run_compass_agent(
 
     Songs are calibrated once and cached. Returning chart songs reuse stored calibrations.
 
+    Session lifecycle: this function manages its own short-lived DB sessions
+    per op. The `db` argument is kept for backwards compatibility but is not
+    used internally — holding one session across the per-song Anthropic loop
+    is what let Hrana streams die mid-cron (incident 2026-05-17/18). Pattern
+    mirrors `_run_post_calibration_enrichment`: open, do work, close, do
+    Anthropic call with no session held, open fresh session for next write.
+    Returned `AgentDraft` is detached with `songs` eagerly loaded so
+    `DraftOut` (from_attributes=True) serializes without a live session.
+
     Args:
         songs_input: List of dicts with title, artist, position, chart_source.
-        db: Database session.
+        db: Ignored. Accepted for backwards compatibility with existing callers.
         reading_date: Date for the reading (defaults to today).
         draft_only: If True, skip writing to the CompassSong table and skip email.
             Use for case studies / album deep dives that shouldn't pollute
             the compass or drift data.
 
     Returns:
-        The created AgentDraft.
+        The created AgentDraft (detached, songs eagerly loaded).
     """
+    from app.database import SessionLocal
+    from sqlalchemy.orm import joinedload
+
     if reading_date is None:
         reading_date = date.today()
 
@@ -362,28 +374,28 @@ def run_compass_agent(
         position = song_in["position"]
         chart_source = song_in.get("chart_source", "spotify")
 
-        # Check cache first
-        cached = lookup_calibrated(title, artist, db)
+        # Cache lookup — short session
+        cache_db = SessionLocal()
+        try:
+            cached = lookup_calibrated(title, artist, cache_db)
+        finally:
+            cache_db.close()
+
         if cached:
             enforce_contamination_rule(cached)
-
             logger.info("Cache hit: %s by %s", title, artist)
-
             calibrated_songs.append({
                 "title": title,
                 "artist": artist,
                 "position": position,
                 "chart_source": chart_source,
-                "lyrics_available": True,  # was calibrated before
+                "lyrics_available": True,
                 **cached,
             })
             continue
 
-        # Cache miss — use manual lyrics if provided
         lyrics = song_in.get("lyrics")
-
         if not lyrics:
-            # No lyrics from any source — include song uncalibrated, needs human intervention
             agent_notes_parts.append(f"No lyrics found for \"{title}\" — awaiting human calibration")
             logger.warning("No lyrics found for %s by %s — song left uncalibrated", title, artist)
             calibrated_songs.append({
@@ -402,9 +414,9 @@ def run_compass_agent(
             })
             continue
 
-        result = calibrate_song(title, artist, lyrics=lyrics, db=db)
+        # Anthropic call WITHOUT holding a DB session
+        result = calibrate_song(title, artist, lyrics=lyrics, db=None)
 
-        # Flag incomplete calibrations — missing color, score, or summary
         if not result.get("rubric_color") or result.get("charge_value") is None or not result.get("charge_summary"):
             missing = [f for f, v in [
                 ("rubric_color", result.get("rubric_color")),
@@ -414,10 +426,15 @@ def run_compass_agent(
             logger.error("INCOMPLETE calibration for %s by %s — missing: %s", title, artist, ", ".join(missing))
             warnings.append(f"incomplete: {title} (missing {', '.join(missing)})")
 
-        # Store for future reuse (skip for draft-only / case study mode)
+        # Store calibration — short session (commits before close so the row survives)
         cs_id = None
         if not draft_only:
-            cs_id = _store_calibration(title, artist, position, chart_source, result, True, db, lyrics=lyrics)
+            store_db = SessionLocal()
+            try:
+                cs_id = _store_calibration(title, artist, position, chart_source, result, True, store_db, lyrics=lyrics)
+                store_db.commit()
+            finally:
+                store_db.close()
         logger.info("Calibrated and cached: %s by %s → %s", title, artist, result["rubric_color"])
 
         calibrated_songs.append({
@@ -448,57 +465,56 @@ def run_compass_agent(
     charge = degree_to_charge(degree)
     contam = count_contaminated(calibrated_songs)
 
-    # Generate editorial summary
+    # Generate editorial summary (Anthropic call, no DB session held)
     editorial = _generate_editorial(calibrated_songs)
-
-    # Assemble agent notes
     agent_notes = "; ".join(agent_notes_parts) if agent_notes_parts else None
 
-    # Save draft to DB
-    label = _generate_draft_label(db, reading_date, draft_type=draft_type)
-    draft = AgentDraft(
-        label=label,
-        draft_type=draft_type,
-        date=reading_date,
-        status="pending",
-        compass_degree=degree,
-        charge_level=charge,
-        contamination_count=contam,
-        editorial_summary=editorial,
-        agent_model=AGENT_MODEL,
-        agent_notes=agent_notes,
-        agent_warnings=json.dumps(warnings) if warnings else None,
-    )
-    db.add(draft)
-    db.flush()
-
-    for s in calibrated_songs:
-        draft_song = AgentDraftSong(
-            draft_id=draft.id,
-            compass_song_id=s.get("compass_song_id"),
-            title=s["title"],
-            artist=s["artist"],
-            position=s["position"],
-            rubric_color=s["rubric_color"],
-            charge_value=s.get("charge_value"),
-            contaminated=s["contaminated"],
-            contamination_note=s["contamination_note"],
-            dogma_referenced=bool(s.get("dogma_referenced", False)),
-            dogma_note=s.get("dogma_note"),
-            charge_summary=s["charge_summary"],
-            chart_source=s["chart_source"],
-            confidence=s["confidence"],
-            lyrics_available=s["lyrics_available"],
+    # Persist draft + draft_songs — short session
+    write_db = SessionLocal()
+    try:
+        label = _generate_draft_label(write_db, reading_date, draft_type=draft_type)
+        draft = AgentDraft(
+            label=label,
+            draft_type=draft_type,
+            date=reading_date,
+            status="pending",
+            compass_degree=degree,
+            charge_level=charge,
+            contamination_count=contam,
+            editorial_summary=editorial,
+            agent_model=AGENT_MODEL,
+            agent_notes=agent_notes,
+            agent_warnings=json.dumps(warnings) if warnings else None,
         )
-        db.add(draft_song)
+        write_db.add(draft)
+        write_db.flush()
+        draft_id = draft.id
 
-    db.commit()
-    db.refresh(draft)
+        for s in calibrated_songs:
+            draft_song = AgentDraftSong(
+                draft_id=draft_id,
+                compass_song_id=s.get("compass_song_id"),
+                title=s["title"],
+                artist=s["artist"],
+                position=s["position"],
+                rubric_color=s["rubric_color"],
+                charge_value=s.get("charge_value"),
+                contaminated=s["contaminated"],
+                contamination_note=s["contamination_note"],
+                dogma_referenced=bool(s.get("dogma_referenced", False)),
+                dogma_note=s.get("dogma_note"),
+                charge_summary=s["charge_summary"],
+                chart_source=s["chart_source"],
+                confidence=s["confidence"],
+                lyrics_available=s["lyrics_available"],
+            )
+            write_db.add(draft_song)
+        write_db.commit()
+    finally:
+        write_db.close()
 
     # Run ether tagger + societal-effects enrichment now that the
-    # compass_songs rows are committed. Each helper opens its own short
-    # session for the read snapshot, makes the Anthropic call with no DB
-    # held, then opens a fresh session to persist. Fails soft per row.
+    # compass_songs rows are committed. Each helper owns its own session.
     if not draft_only:
         for s in calibrated_songs:
             cs_id = s.get("compass_song_id")
@@ -506,14 +522,27 @@ def run_compass_agent(
             if cs_id is not None:
                 _run_post_calibration_enrichment(cs_id, enrich_lyrics)
 
-    # Send email notification (skip for draft-only / case study mode)
-    if not draft_only:
-        email_sent = send_draft_email(draft, draft.songs, settings, db=db)
-        if not email_sent:
-            warnings.append("email_failed: notification not sent")
-            draft.agent_warnings = json.dumps(warnings) if warnings else None
-            db.commit()
-            db.refresh(draft)
+    # Re-fetch with eagerly-loaded songs, send email, detach, return
+    fetch_db = SessionLocal()
+    try:
+        draft = (
+            fetch_db.query(AgentDraft)
+            .options(joinedload(AgentDraft.songs))
+            .filter(AgentDraft.id == draft_id)
+            .one()
+        )
+        if not draft_only:
+            email_sent = send_draft_email(draft, draft.songs, settings, db=fetch_db)
+            if not email_sent:
+                warnings.append("email_failed: notification not sent")
+                draft.agent_warnings = json.dumps(warnings) if warnings else None
+                fetch_db.commit()
+                fetch_db.refresh(draft)
+        fetch_db.expunge(draft)
+        for s in draft.songs:
+            fetch_db.expunge(s)
+    finally:
+        fetch_db.close()
 
     return draft
 

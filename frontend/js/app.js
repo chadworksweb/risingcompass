@@ -957,8 +957,41 @@ const App = (() => {
     });
   }
 
+  // Skipped-day visual placement: a reading with charge_level === 'skipped'
+  // (cron didn't run, no data) sits at the mean of its nearest non-skipped
+  // neighbors so the trajectory line stays smooth. The original sentinel
+  // degree is preserved on _originalDegree for handlers that drive the
+  // compass / charge bar — those still read "no data" when the user clicks
+  // through to that day. Visual-only; never feeds aggregation.
+  function interpolateSkippedDegrees(data) {
+    const n = data.length;
+    if (!n) return data;
+    const prev = new Array(n).fill(-1);
+    const next = new Array(n).fill(-1);
+    let last = -1;
+    for (let i = 0; i < n; i++) {
+      prev[i] = last;
+      if (data[i].charge_level !== 'skipped') last = i;
+    }
+    last = -1;
+    for (let i = n - 1; i >= 0; i--) {
+      next[i] = last;
+      if (data[i].charge_level !== 'skipped') last = i;
+    }
+    return data.map((d, i) => {
+      if (d.charge_level !== 'skipped') return d;
+      const p = prev[i], x = next[i];
+      let interp = d.compass_degree;
+      if (p >= 0 && x >= 0) interp = (data[p].compass_degree + data[x].compass_degree) / 2;
+      else if (p >= 0) interp = data[p].compass_degree;
+      else if (x >= 0) interp = data[x].compass_degree;
+      return { ...d, _originalDegree: d.compass_degree, compass_degree: interp };
+    });
+  }
+
   function renderDailyChart(data, container) {
     if (!data.length) return;
+    data = interpolateSkippedDegrees(data);
 
     const W = 320, H = 120;
     const padL = 30, padR = 16, padT = 10, padB = 22;
@@ -972,6 +1005,7 @@ const App = (() => {
       degree: d.compass_degree,
       date: d.date,
       color: d.charge_level,
+      originalDegree: (typeof d._originalDegree === 'number') ? d._originalDegree : d.compass_degree,
     }));
 
     const linePath = dailyChartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
@@ -1130,8 +1164,9 @@ const App = (() => {
       const p = dailyChartPoints[nearest];
       const d = data[nearest];
       setCompassDate(formatDate(d.date));
-      Compass.setDegree(p.degree, p.color);
-      Charge.setLevel(p.color, 0, 0, p.degree);
+      const driveDeg = p.originalDegree;
+      Compass.setDegree(driveDeg, p.color);
+      Charge.setLevel(p.color, 0, 0, driveDeg);
       viewArchiveReading(d.date);
 
       const dot = document.getElementById('daily-hover-dot');

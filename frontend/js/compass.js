@@ -152,9 +152,42 @@ const Compass = (() => {
     }
   }
 
+  // Skipped-day visual placement: ghost needle for a skipped reading
+  // (no cron data) sits at the mean of nearest non-skipped neighbors so
+  // the trail stays smooth. Color stays gray (charge_level === 'skipped'
+  // falls through the COLOR_HEX || '#888' below). Visual only.
+  function _interpolateSkipped(readings) {
+    const n = readings.length;
+    if (!n) return readings;
+    // readings arrive newest-first; build neighbor maps in array order
+    const prev = new Array(n).fill(-1);
+    const next = new Array(n).fill(-1);
+    let last = -1;
+    for (let i = 0; i < n; i++) {
+      prev[i] = last;
+      if (readings[i].charge_level !== 'skipped') last = i;
+    }
+    last = -1;
+    for (let i = n - 1; i >= 0; i--) {
+      next[i] = last;
+      if (readings[i].charge_level !== 'skipped') last = i;
+    }
+    return readings.map((r, i) => {
+      if (r.charge_level !== 'skipped') return r;
+      const p = prev[i], x = next[i];
+      let interp = r.compass_degree;
+      if (p >= 0 && x >= 0) interp = (readings[p].compass_degree + readings[x].compass_degree) / 2;
+      else if (p >= 0) interp = readings[p].compass_degree;
+      else if (x >= 0) interp = readings[x].compass_degree;
+      return Object.assign({}, r, { compass_degree: interp });
+    });
+  }
+
   function setGhostTrail(readings) {
     const group = document.getElementById('compass-ghost-trail');
     if (!group || !readings.length) return;
+
+    readings = _interpolateSkipped(readings);
 
     // readings: newest first, each has compass_degree + charge_level
     // Render as thin radial sweeps from center, fading with age

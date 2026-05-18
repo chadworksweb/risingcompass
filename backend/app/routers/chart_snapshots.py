@@ -232,7 +232,7 @@ async def refresh_snapshot(key: str):
         # run_compass_agent: cache-hits auto-calibrate, the rest are left for
         # admin to supply lyrics via the existing /drafts/{ref}/songs/{id}/lyrics
         # endpoint. Email is sent automatically.
-        draft = run_compass_agent(songs, db, reading_date=today, draft_type=chart_slug)
+        draft = run_compass_agent(songs, reading_date=today, draft_type=chart_slug)
     finally:
         db.close()
 

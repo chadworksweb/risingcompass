@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
+from sqlalchemy.orm import joinedload
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong, PrePublishCorrection
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
@@ -224,7 +225,84 @@ def trigger_calibration(data: DraftTriggerIn, db: Session = Depends(get_db)):
     songs_input = [s.model_dump() for s in data.songs]
     reading_date = data.date or date.today()
 
-    draft = run_compass_agent(songs_input, db, reading_date=reading_date, draft_only=data.draft_only, draft_type="manual")
+    draft = run_compass_agent(songs_input, reading_date=reading_date, draft_only=data.draft_only, draft_type="manual")
+    return draft
+
+
+def _calibrate_live_impl() -> AgentDraft:
+    """Shared implementation for /calibrate-live and /cron/calibrate-live.
+
+    Owns its own short-lived sessions for chart-pin lookup and post-run
+    pin-message append. `run_compass_agent` is responsible for the heavy
+    work and manages its own sessions internally.
+    """
+    today = date.today()
+
+    # Chart-pin lookup — short session
+    chart_pinned = False
+    pinned_label = None
+    songs = None
+    cp_db = SessionLocal()
+    try:
+        existing_draft = (
+            cp_db.query(AgentDraft)
+            .options(joinedload(AgentDraft.songs))
+            .filter(AgentDraft.date == today)
+            .filter(AgentDraft.draft_type == "daily")
+            .order_by(AgentDraft.id.asc())
+            .first()
+        )
+        if existing_draft and existing_draft.songs:
+            songs = [
+                {
+                    "title": s.title,
+                    "artist": s.artist,
+                    "position": s.position,
+                    "chart_source": s.chart_source or "spotify_top50_usa",
+                }
+                for s in sorted(existing_draft.songs, key=lambda s: s.position)
+            ]
+            chart_pinned = True
+            pinned_label = existing_draft.label
+            logger.info("Chart pinned: reusing %d songs from %s", len(songs), pinned_label)
+    finally:
+        cp_db.close()
+
+    if not chart_pinned:
+        songs = fetch_top_songs(count=20)
+        if not songs:
+            raise HTTPException(status_code=502, detail="Failed to fetch chart data from Spotify")
+
+    draft = run_compass_agent(songs, reading_date=today, draft_type="daily")
+
+    if not chart_pinned:
+        return draft
+
+    # Append chart-pin notice — short session, re-fetch detached with eager songs
+    upd_db = SessionLocal()
+    try:
+        persisted = upd_db.get(AgentDraft, draft.id)
+        pin_msg = f"chart_pinned: reusing {len(songs)} songs from {pinned_label}"
+        if persisted.agent_notes:
+            persisted.agent_notes += f"; {pin_msg}"
+        else:
+            persisted.agent_notes = pin_msg
+        existing_warnings = json.loads(persisted.agent_warnings) if persisted.agent_warnings else []
+        existing_warnings.append(pin_msg)
+        persisted.agent_warnings = json.dumps(existing_warnings)
+        upd_db.commit()
+        draft = (
+            upd_db.query(AgentDraft)
+            .options(joinedload(AgentDraft.songs))
+            .filter(AgentDraft.id == draft.id)
+            .one()
+        )
+        upd_db.expunge(draft)
+        for s in draft.songs:
+            upd_db.expunge(s)
+    finally:
+        upd_db.close()
+
     return draft
 
 
@@ -236,64 +314,29 @@ def calibrate_live(db: Session = Depends(get_db)):
     reuse the same song list (from the first draft) so the reading is
     stable regardless of intra-day playlist shuffling.
     """
-    today = date.today()
-
-    # Pin chart: reuse song list from first daily draft of the day if one exists
-    existing_draft = (
-        db.query(AgentDraft)
-        .filter(AgentDraft.date == today)
-        .filter(AgentDraft.draft_type == "daily")
-        .order_by(AgentDraft.id.asc())
-        .first()
-    )
-    chart_pinned = False
-    if existing_draft and existing_draft.songs:
-        songs = [
-            {
-                "title": s.title,
-                "artist": s.artist,
-                "position": s.position,
-                "chart_source": s.chart_source or "spotify_top50_usa",
-            }
-            for s in sorted(existing_draft.songs, key=lambda s: s.position)
-        ]
-        chart_pinned = True
-        logger.info("Chart pinned: reusing %d songs from %s", len(songs), existing_draft.label)
-    else:
-        songs = fetch_top_songs(count=20)
-        if not songs:
-            raise HTTPException(status_code=502, detail="Failed to fetch chart data from Spotify")
-
-    draft = run_compass_agent(songs, db, reading_date=today, draft_type="daily")
-
-    # Surface chart pinning in agent_notes and warnings
-    if chart_pinned:
-        pin_msg = f"chart_pinned: reusing {len(songs)} songs from {existing_draft.label}"
-        # Append to agent_notes
-        if draft.agent_notes:
-            draft.agent_notes += f"; {pin_msg}"
-        else:
-            draft.agent_notes = pin_msg
-        # Append to warnings
-        existing_warnings = json.loads(draft.agent_warnings) if draft.agent_warnings else []
-        existing_warnings.append(pin_msg)
-        draft.agent_warnings = json.dumps(existing_warnings)
-        db.commit()
-        db.refresh(draft)
-
-    return draft
+    return _calibrate_live_impl()
 
 
 @router.post("/cron/calibrate-live", response_model=DraftOut, dependencies=[Depends(verify_reading_cron_key)])
 def cron_calibrate_live(db: Session = Depends(get_db)):
     """Service endpoint called by the daily cron at 08:00 UTC with X-Reading-Cron-Key.
 
-    Same logic as /calibrate-live but service-token authed instead of admin
-    session, mirroring the /api/admin/backup pattern. Kept on a separate
-    endpoint (and separate key) so the human admin path and the cron path
-    can be revoked independently.
+    Same logic as /calibrate-live but service-token authed. Wrapped with a
+    one-shot retry on Hrana disconnect: if a stream dies somewhere in the
+    pipeline despite the short-session refactor, the second attempt picks
+    up via the chart-pin path (existing draft's songs become the input
+    list) and finishes without re-fetching Spotify.
     """
-    return calibrate_live(db=db)
+    try:
+        return _calibrate_live_impl()
+    except Exception as exc:
+        msg = str(exc)
+        if "stream not found" in msg or "Hrana:" in msg:
+            logger.warning(
+                "Hrana stream died during cron — retrying once: %s", msg
+            )
+            return _calibrate_live_impl()
+        raise
 
 
 @router.get("/drafts", response_model=PaginatedDrafts, dependencies=[Depends(verify_admin_key)])
