@@ -1068,14 +1068,14 @@ body {
   display: none !important;
 }
 
-/* Ableton-style overview/locator strip — sits above the main chart with
-   a faded mini-trajectory of the FULL range and a translucent brace
-   showing the currently-zoomed window. Drag the brace body to pan; drag
-   either edge to zoom; click outside the brace to jump it. */
+/* Ableton-style overview/locator strip — sits below the main chart
+   with a faded mini-trajectory of the FULL range and a translucent
+   brace showing the currently-zoomed window. Drag the brace body to
+   pan; drag either edge to zoom; click outside the brace to jump it. */
 .traj-overview {
   position: relative;
   height: 28px;
-  margin-bottom: 0.4rem;
+  margin-top: 0.5rem;
   background: rgba(255, 255, 255, 0.025);
   border-radius: var(--rc-radius-xs);
   cursor: crosshair;
@@ -1132,6 +1132,52 @@ body {
   );
   opacity: 0.6;
   pointer-events: none;
+}
+
+/* Time Machine drawer — collapsed by default, slides open on click of
+   the toggle bar. grid-template-rows trick gives an automatic-height
+   transition without needing to measure content. */
+.traj-tm-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.55rem;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--rc-border);
+  font-family: var(--rc-font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  cursor: pointer;
+  transition: color var(--rc-ease-fast);
+}
+.traj-tm-toggle:hover { color: var(--rc-text); }
+.traj-tm-chevron {
+  color: var(--rc-text-dim);
+  transition: transform 0.25s ease, color var(--rc-ease-fast);
+}
+.traj-tm-toggle:hover .traj-tm-chevron { color: var(--rc-text); }
+.traj-tm-toggle[aria-expanded="true"] .traj-tm-chevron {
+  transform: rotate(180deg);
+}
+.traj-tm-drawer {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease;
+}
+.traj-tm-drawer.is-open {
+  grid-template-rows: 1fr;
+}
+.traj-tm-drawer-inner {
+  overflow: hidden;
+}
+.traj-tm-drawer-inner .timemachine-controls {
+  padding-top: 0.5rem;
 }
 
 /* === Historical Trajectory Chart === */

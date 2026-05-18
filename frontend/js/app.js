@@ -1114,9 +1114,19 @@ const App = (() => {
           <button class="traj-zoom-btn" data-zoom="20">20Y</button>
           <button class="traj-zoom-btn" data-zoom="10">10Y</button>
         </div>
-        <div class="traj-overview" role="slider" aria-label="Year range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
         <div class="traj-chart-area"></div>
-        <div class="timemachine-controls"></div>
+        <div class="traj-overview" role="slider" aria-label="Year range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
+        <button class="traj-tm-toggle" type="button" aria-expanded="false" aria-controls="traj-tm-drawer">
+          <span>Time Machine</span>
+          <svg class="traj-tm-chevron" viewBox="0 0 24 24" width="10" height="10" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="traj-tm-drawer" id="traj-tm-drawer" inert>
+          <div class="traj-tm-drawer-inner">
+            <div class="timemachine-controls"></div>
+          </div>
+        </div>
       `;
 
       container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
@@ -1124,6 +1134,16 @@ const App = (() => {
           snapToPreset(btn.dataset.zoom);
           applyZoom(container);
         });
+      });
+
+      const tmToggle = container.querySelector('.traj-tm-toggle');
+      const tmDrawer = container.querySelector('.traj-tm-drawer');
+      tmToggle.addEventListener('click', () => {
+        const open = !tmDrawer.classList.contains('is-open');
+        tmDrawer.classList.toggle('is-open', open);
+        tmToggle.setAttribute('aria-expanded', String(open));
+        if (open) tmDrawer.removeAttribute('inert');
+        else tmDrawer.setAttribute('inert', '');
       });
 
       renderOverview(container);
