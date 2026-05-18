@@ -1,8 +1,14 @@
 /* === Ether Art Chart — homepage card renderer ===
  *
- * Fetches /api/ether-art-chart/today and renders today's top 20 as
+ * Renders today's top 20 (or an arbitrary date / year) as
  * "[rank]  [deadpan line]  ·  [topic chip]" rows into the card slot
  * to the right of Daily Top 20 Songs.
+ *
+ * Modes:
+ *   render()                          → today
+ *   render({mode:'today'})            → today
+ *   render({mode:'date', date:'...'}) → specific YYYY-MM-DD
+ *   render({mode:'year', year:1986})  → year aggregate (top_20_deadpan)
  *
  * Forward-only state: rows that pre-date the ether tagger have
  * `deadpan_line: null` and render as the song title in dim style with
@@ -11,7 +17,9 @@
  * deadpan line with no chip — that's the spec.
  *
  * Tier accents come from rubric_color so the row's left tick matches
- * the corresponding row on the Daily Top 20 card.
+ * the corresponding row on the Daily Top 20 card. Year mode has no
+ * per-song rubric color, so the tick stays transparent there — that
+ * mirrors how the year reading panel treats per-song coloring.
  */
 const EtherArtChart = (() => {
   const COLOR_HEX = {
@@ -21,6 +29,8 @@ const EtherArtChart = (() => {
     orange: '#ffbb33',
     red: '#ff3333',
   };
+
+  const DEFAULT_DESC = "A second view on the same top 20 — songs named for what they are, plus the topics pulled through the ether.";
 
   function escapeHtml(s) {
     if (s == null) return '';
@@ -83,24 +93,75 @@ const EtherArtChart = (() => {
       </li>`;
   }
 
-  async function render() {
+  function setDesc(text) {
+    const panel = document.getElementById('ether-art-chart-panel');
+    if (!panel) return;
+    const desc = panel.querySelector('.card-desc');
+    if (desc) desc.textContent = text;
+  }
+
+  function formatDate(isoDate) {
+    if (!isoDate) return '';
+    const [y, m, d] = isoDate.split('-');
+    const dt = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  async function fetchByMode(opts) {
+    const mode = opts && opts.mode ? opts.mode : 'today';
+    if (mode === 'date' && opts.date) {
+      const data = await API.getEtherDate(opts.date);
+      return { items: data.items || [], label: formatDate(data.date || opts.date) };
+    }
+    if (mode === 'year' && opts.year) {
+      const data = await API.getEtherYear(opts.year);
+      // Adapt EtherYearOut.top_20_deadpan into the row shape (no rubric_color).
+      const items = (data.top_20_deadpan || []).map(x => ({
+        position: x.position,
+        title: x.title,
+        artist: x.artist,
+        artist_slug: x.artist_slug,
+        song_slug: x.song_slug,
+        deadpan_line: x.deadpan_line,
+        dominant_topic: x.dominant_topic,
+        rubric_color: null,
+      }));
+      return { items, label: String(opts.year) };
+    }
+    const data = await API.getEtherToday();
+    return { items: data.items || [], label: data.date ? formatDate(data.date) : '' };
+  }
+
+  async function render(opts) {
     const container = document.getElementById('ether-art-chart-content');
     if (!container) return;
 
+    const mode = opts && opts.mode ? opts.mode : 'today';
+
     try {
-      const data = await API.getEtherToday();
-      if (!data || !data.items || !data.items.length) {
-        container.innerHTML = `
-          <div class="ether-empty">No reading available yet.</div>`;
+      const { items, label } = await fetchByMode(opts || {});
+
+      if (mode === 'date' && label) {
+        setDesc(`${label} — the same top 20 named through the ether, with topic tags.`);
+      } else if (mode === 'year' && label) {
+        setDesc(`${label} — the year's top 20 named through the ether.`);
+      } else {
+        setDesc(DEFAULT_DESC);
+      }
+
+      if (!items.length) {
+        container.innerHTML = `<div class="ether-empty">No reading available for ${escapeHtml(label) || 'this period'}.</div>`;
         return;
       }
 
-      const rows = data.items.map(rowHtml).join('');
-      container.innerHTML = `<ol class="ether-list">${rows}</ol>`;
+      container.innerHTML = `<ol class="ether-list">${items.map(rowHtml).join('')}</ol>`;
     } catch (err) {
       console.error('Failed to load ether art chart:', err);
-      container.innerHTML = `
-        <div class="ether-empty">Could not load the ether-art chart.</div>`;
+      if (mode === 'date') {
+        container.innerHTML = `<div class="ether-empty">No ether reading for that date.</div>`;
+      } else {
+        container.innerHTML = `<div class="ether-empty">Could not load the ether-art chart.</div>`;
+      }
     }
   }
 

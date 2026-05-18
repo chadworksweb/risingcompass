@@ -1692,6 +1692,9 @@ const App = (() => {
       Compass.setDegree(yd.compass_degree, yd.charge_level);
       Charge.setLevel(yd.charge_level, 0, 0, yd.compass_degree);
       setCompassDate(String(year));
+      if (typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render({ mode: 'year', year });
+      }
     }
   }
 
@@ -2299,6 +2302,11 @@ const App = (() => {
 
       // Show "View Songs" button under compass
       showDailyViewButton(date, reading.compass_degree, reading.charge_level);
+
+      // Re-render the ether panel for the same date so the two cards stay in lockstep.
+      if (typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render({ mode: 'date', date });
+      }
     } catch (err) {
       console.error('Failed to load reading:', err);
     }

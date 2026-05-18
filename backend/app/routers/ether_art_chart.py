@@ -112,21 +112,7 @@ def _decode_topics(raw: Optional[str]) -> list[str]:
 
 # --- Endpoints ---
 
-@router.get("/today", response_model=EtherTodayOut)
-def get_today(db: Session = Depends(get_db)):
-    """Most recent daily reading rendered through the ether-art lens.
-
-    Items mirror the Daily Top 20 ordering. `topics` may be empty when a
-    song is audit-flagged; `deadpan_line` may be NULL on rows that
-    predate the tagger (forward-only — the deferred backfill fills them).
-    """
-    reading = (
-        db.query(DailyReading)
-        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
-        .order_by(DailyReading.date.desc())
-        .first()
-    )
-
+def _render_reading_as_ether(reading: Optional[DailyReading], db: Session) -> EtherTodayOut:
     if not reading:
         return EtherTodayOut(date=None, items=[])
 
@@ -149,8 +135,48 @@ def get_today(db: Session = Depends(get_db)):
             charge_value=cs.charge_value if cs else None,
             artist_slug=slug_map.get(primary),
         ))
-
     return EtherTodayOut(date=reading.date, items=items)
+
+
+@router.get("/today", response_model=EtherTodayOut)
+def get_today(db: Session = Depends(get_db)):
+    """Most recent daily reading rendered through the ether-art lens.
+
+    Items mirror the Daily Top 20 ordering. `topics` may be empty when a
+    song is audit-flagged; `deadpan_line` may be NULL on rows that
+    predate the tagger (forward-only — the deferred backfill fills them).
+    """
+    reading = (
+        db.query(DailyReading)
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .order_by(DailyReading.date.desc())
+        .first()
+    )
+    return _render_reading_as_ether(reading, db)
+
+
+@router.get("/date/{date_str}", response_model=EtherTodayOut)
+def get_by_date(date_str: str, db: Session = Depends(get_db)):
+    """Specific daily reading rendered through the ether-art lens.
+
+    Same shape as /today, just pinned to the requested date. Used by the
+    homepage card so it follows the calendar picker on the Daily Top 20
+    panel.
+    """
+    try:
+        target = date.fromisoformat(date_str)
+    except ValueError:
+        raise HTTPException(400, "invalid date — expected YYYY-MM-DD")
+
+    reading = (
+        db.query(DailyReading)
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .filter(DailyReading.date == target)
+        .first()
+    )
+    if not reading:
+        raise HTTPException(404, "no reading for that date")
+    return _render_reading_as_ether(reading, db)
 
 
 @router.get("/years", response_model=EtherYearsOut)
