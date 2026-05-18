@@ -310,7 +310,9 @@ const App = (() => {
 
   // --- Trajectory Chart (year-by-year with zoom + Time Machine) ---
   let allYearData = [];
-  let currentZoom = 'all';
+  // Zoom is now a free year range; presets snap the handles to common spans.
+  let zoomStartYear = null;
+  let zoomEndYear = null;
   let chartPoints = [];
   let chartData = [];
   let chartHasYTD = false;
@@ -705,6 +707,13 @@ const App = (() => {
       tmPosition = parseInt(slider.value);
       updateTimeMachine(tmPosition);
     });
+    // Sync ether card on slider release so the API isn't hit on every tick.
+    slider.addEventListener('change', () => {
+      const yr = chartData[Math.round(tmPosition)];
+      if (yr && typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render({ mode: 'year', year: yr.year });
+      }
+    });
 
     // Reset — restoreCompassState last so the saved (live) compass wins over
     // updateTimeMachine's position-derived needle update.
@@ -714,25 +723,77 @@ const App = (() => {
       updateTimeMachine(tmPosition);
       restoreCompassState();
       document.getElementById('timemachine-reset').style.display = 'none';
+      if (typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render();
+      }
     });
 
   }
 
-  function applyZoom(container) {
+  // Maps the current [zoomStartYear, zoomEndYear] window back to one of the
+  // preset buttons if it matches exactly — otherwise no preset is active.
+  function matchedPreset() {
+    if (!allYearData.length) return null;
+    const firstYear = allYearData[0].year;
     const lastYear = allYearData[allYearData.length - 1].year;
-    let filtered;
-    switch (currentZoom) {
-      case '10': filtered = allYearData.filter(d => d.year > lastYear - 10); break;
-      case '20': filtered = allYearData.filter(d => d.year > lastYear - 20); break;
-      case '30': filtered = allYearData.filter(d => d.year > lastYear - 30); break;
-      default: filtered = allYearData;
+    if (zoomStartYear === firstYear && zoomEndYear === lastYear) return 'all';
+    if (zoomEndYear !== lastYear) return null;
+    const span = lastYear - zoomStartYear + 1;
+    if (span === 30) return '30';
+    if (span === 20) return '20';
+    if (span === 10) return '10';
+    return null;
+  }
+
+  function snapToPreset(zoom) {
+    const firstYear = allYearData[0].year;
+    const lastYear = allYearData[allYearData.length - 1].year;
+    if (zoom === 'all') {
+      zoomStartYear = firstYear;
+    } else if (zoom === '30') {
+      zoomStartYear = Math.max(firstYear, lastYear - 29);
+    } else if (zoom === '20') {
+      zoomStartYear = Math.max(firstYear, lastYear - 19);
+    } else if (zoom === '10') {
+      zoomStartYear = Math.max(firstYear, lastYear - 9);
     }
+    zoomEndYear = lastYear;
+  }
+
+  function updateZoomLabels(container) {
+    const startLbl = container.querySelector('.traj-zoom-label-start');
+    const endLbl = container.querySelector('.traj-zoom-label-end');
+    if (startLbl) startLbl.textContent = String(zoomStartYear);
+    if (endLbl) endLbl.textContent = String(zoomEndYear);
+    const fill = container.querySelector('.traj-zoom-track-fill');
+    const firstYear = allYearData[0].year;
+    const lastYear = allYearData[allYearData.length - 1].year;
+    const span = lastYear - firstYear || 1;
+    if (fill) {
+      const left = ((zoomStartYear - firstYear) / span) * 100;
+      const right = ((lastYear - zoomEndYear) / span) * 100;
+      fill.style.left = left + '%';
+      fill.style.right = right + '%';
+    }
+  }
+
+  function syncZoomSliders(container) {
+    const startSlider = container.querySelector('.traj-zoom-start');
+    const endSlider = container.querySelector('.traj-zoom-end');
+    if (startSlider) startSlider.value = zoomStartYear;
+    if (endSlider) endSlider.value = zoomEndYear;
+    updateZoomLabels(container);
+  }
+
+  function applyZoom(container) {
+    const filtered = allYearData.filter(d => d.year >= zoomStartYear && d.year <= zoomEndYear);
     tmStopPlayback();
     renderTrajectoryChart(filtered, container);
     initTimeMachineControls(container);
 
+    const preset = matchedPreset();
     container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.zoom === currentZoom);
+      btn.classList.toggle('active', btn.dataset.zoom === preset);
     });
   }
 
@@ -770,6 +831,10 @@ const App = (() => {
       }
 
       allYearData = yearData;
+      const firstYear = allYearData[0].year;
+      const lastYear = allYearData[allYearData.length - 1].year;
+      zoomStartYear = firstYear;
+      zoomEndYear = lastYear;
 
       container.innerHTML = `
         <div class="traj-zoom-bar">
@@ -778,16 +843,52 @@ const App = (() => {
           <button class="traj-zoom-btn" data-zoom="20">20Y</button>
           <button class="traj-zoom-btn" data-zoom="10">10Y</button>
         </div>
+        <div class="traj-zoom-range">
+          <div class="traj-zoom-track"><div class="traj-zoom-track-fill"></div></div>
+          <input type="range" class="traj-zoom-handle traj-zoom-start" min="${firstYear}" max="${lastYear}" value="${firstYear}" step="1" aria-label="Zoom start year">
+          <input type="range" class="traj-zoom-handle traj-zoom-end" min="${firstYear}" max="${lastYear}" value="${lastYear}" step="1" aria-label="Zoom end year">
+          <div class="traj-zoom-labels">
+            <span class="traj-zoom-label-start">${firstYear}</span>
+            <span class="traj-zoom-label-end">${lastYear}</span>
+          </div>
+        </div>
         <div class="traj-chart-area"></div>
         <div class="timemachine-controls"></div>
       `;
 
       container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          currentZoom = btn.dataset.zoom;
+          snapToPreset(btn.dataset.zoom);
+          syncZoomSliders(container);
           applyZoom(container);
         });
       });
+
+      const startSlider = container.querySelector('.traj-zoom-start');
+      const endSlider = container.querySelector('.traj-zoom-end');
+      const onDrag = () => {
+        let s = parseInt(startSlider.value);
+        let e = parseInt(endSlider.value);
+        // Clamp handles so start stays <= end; allow a 1-year window minimum.
+        if (s > e) {
+          if (document.activeElement === startSlider) {
+            s = e;
+            startSlider.value = s;
+          } else {
+            e = s;
+            endSlider.value = e;
+          }
+        }
+        zoomStartYear = s;
+        zoomEndYear = e;
+        updateZoomLabels(container);
+      };
+      startSlider.addEventListener('input', onDrag);
+      endSlider.addEventListener('input', onDrag);
+      // Re-render chart only on release so each tick doesn't tear down the time-machine slider.
+      const onRelease = () => applyZoom(container);
+      startSlider.addEventListener('change', onRelease);
+      endSlider.addEventListener('change', onRelease);
 
       applyZoom(container);
     } catch (err) {
@@ -1429,6 +1530,13 @@ const App = (() => {
       dtmPosition = parseInt(slider.value);
       updateDailyTimeMachine(dtmPosition);
     });
+    // Sync ether card on slider release so the API isn't hit on every tick.
+    slider.addEventListener('change', () => {
+      const pt = dailyChartPoints[Math.round(dtmPosition)];
+      if (pt && pt.date && typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render({ mode: 'date', date: pt.date });
+      }
+    });
 
     // Reset — restoreCompassState last so the live daily compass wins over
     // updateDailyTimeMachine's position-derived needle update.
@@ -1438,6 +1546,9 @@ const App = (() => {
       updateDailyTimeMachine(dtmPosition);
       restoreCompassState();
       document.getElementById('daily-timemachine-reset').style.display = 'none';
+      if (typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render();
+      }
     });
   }
 
