@@ -1037,7 +1037,7 @@ const App = (() => {
     if (!container) return;
 
     container.innerHTML = `
-      <div class="trajectory-loading" role="status" aria-label="Loading aggregate trajectory">
+      <div class="trajectory-loading" role="status" aria-label="Loading historical trajectory">
         <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
           <defs>
             <linearGradient id="rc-loader-grad" x1="0" y1="0" x2="1" y2="0">
@@ -1053,7 +1053,7 @@ const App = (() => {
           <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round" transform-origin="32 32"/>
           <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
         </svg>
-        <div class="rc-loader-label">Loading aggregate</div>
+        <div class="rc-loader-label">Loading historical</div>
         <div class="rc-loader-sub">tuning the compass…</div>
       </div>`;
 
