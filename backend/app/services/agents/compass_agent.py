@@ -538,9 +538,8 @@ def run_compass_agent(
                 draft.agent_warnings = json.dumps(warnings) if warnings else None
                 fetch_db.commit()
                 fetch_db.refresh(draft)
+        # cascade="all" on AgentDraft.songs expunges children automatically
         fetch_db.expunge(draft)
-        for s in draft.songs:
-            fetch_db.expunge(s)
     finally:
         fetch_db.close()
 

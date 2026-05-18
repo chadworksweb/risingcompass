@@ -297,9 +297,8 @@ def _calibrate_live_impl() -> AgentDraft:
             .filter(AgentDraft.id == draft.id)
             .one()
         )
+        # cascade="all" on AgentDraft.songs expunges children automatically
         upd_db.expunge(draft)
-        for s in draft.songs:
-            upd_db.expunge(s)
     finally:
         upd_db.close()
 
