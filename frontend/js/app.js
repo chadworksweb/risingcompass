@@ -40,7 +40,6 @@ const App = (() => {
   // --- Initialize ---
   async function init() {
     Compass.render('compass-container');
-    Charge.render('charge-container');
     Contamination.render('contam-container');
     initNav();
     initEraTabs();
