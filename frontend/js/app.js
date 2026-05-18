@@ -1236,7 +1236,7 @@ const App = (() => {
   let savedDateText = null;
   // Tracks the date string the homepage's "today" view rendered with —
   // used so any source that drives the compass (calendar, daily chart,
-  // aggregate chart) can decide whether to dim the "Today's Charge"
+  // historical chart) can decide whether to dim the "Today's Charge"
   // header or swap it to a past/year/historical label.
   let currentTodayDate = null;
 

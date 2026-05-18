@@ -503,7 +503,7 @@
   }
 
   /* ========== TRAJECTORY CHART + TIME MACHINE ==========
-     Harvested from js/app.js (homepage aggregate chart). Same viewBox, same
+     Harvested from js/app.js (homepage historical chart). Same viewBox, same
      gradient stops, same clip-path reveal, same hover/click, same YTD
      scaffolding (held inert — release trajectories don't have a YTD year),
      same zoom bar, same time-machine controls + state machine.
