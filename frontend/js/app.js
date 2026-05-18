@@ -510,6 +510,9 @@ const App = (() => {
 
       loadYearSongs(d.year, p.degree, p.color);
       syncCalendar(d.year);
+      if (typeof EtherArtChart !== 'undefined') {
+        EtherArtChart.render({ mode: 'year', year: d.year });
+      }
 
       const dot = document.getElementById('traj-hover-dot');
       if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
