@@ -407,6 +407,16 @@ body {
   margin-bottom: 0.4rem;
 }
 
+/* Compass card header dims when the compass is showing past / year / historical
+   data — so the user can tell at a glance that what's on screen isn't today. */
+#compass-panel .card-header {
+  transition: color 0.25s ease, opacity 0.25s ease;
+}
+#compass-panel .card-header.compass-header-faded {
+  color: var(--rc-text-dim);
+  opacity: 0.55;
+}
+
 /* === Calibration Log mini-feed (homepage) === */
 #cl-mini-panel .card-header {
   display: flex;

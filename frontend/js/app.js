@@ -78,6 +78,11 @@ const App = (() => {
       if (dateSvg) dateSvg.textContent = dateText;
       if (dateHtml) dateHtml.textContent = dateText;
 
+      // Capture today's ISO date so later sources can tell whether they're
+      // re-rendering today's reading vs. an archived one.
+      currentTodayDate = data.has_reading ? data.date : null;
+      setCompassMode(data.has_reading ? 'today' : 'historical');
+
       // Render right panel
       renderReading(data);
 
@@ -499,6 +504,7 @@ const App = (() => {
       const p = chartPoints[nearest];
       const d = chartData[nearest];
       setCompassDate(p.isYTD ? `${d.year} YTD` : String(d.year));
+      setCompassMode('year', { year: d.year, isYTD: p.isYTD });
       Compass.setDegree(p.degree, p.color);
       Charge.setLevel(p.color, 0, 0, p.degree);
 
@@ -565,6 +571,7 @@ const App = (() => {
     Compass.setDegree(deg, tier);
     Charge.setLevel(tier, 0, 0, deg);
     setCompassDate(isYTD ? `${nearest.year} YTD` : String(nearest.year));
+    setCompassMode('year', { year: nearest.year, isYTD });
   }
 
   function tmAnimate(timestamp) {
@@ -789,6 +796,11 @@ const App = (() => {
   let savedDegree = null;
   let savedCharge = null;
   let savedDateText = null;
+  // Tracks the date string the homepage's "today" view rendered with —
+  // used so any source that drives the compass (calendar, daily chart,
+  // aggregate chart) can decide whether to dim the "Today's Charge"
+  // header or swap it to a past/year/historical label.
+  let currentTodayDate = null;
 
   function saveCompassState() {
     if (savedDegree !== null) return; // already saved
@@ -821,6 +833,44 @@ const App = (() => {
   function setCompassDate(text) {
     const dateEl = document.getElementById('compass-date-svg');
     if (dateEl) dateEl.textContent = text;
+  }
+
+  // Header above the compass. Modes mirror the data the compass is currently
+  // showing — 'today' is the only un-dimmed state. Other modes get a faded
+  // pill class so the user can tell at a glance that they're not looking at
+  // today's reading.
+  function setCompassMode(mode, opts) {
+    opts = opts || {};
+    const header = document.querySelector('#compass-panel .card-header');
+    if (!header) return;
+    let text = "Today's Charge";
+    let faded = false;
+    if (mode === 'date') {
+      text = 'Past Charge';
+      faded = true;
+    } else if (mode === 'year') {
+      const year = opts.year;
+      text = opts.isYTD ? `${year} YTD Charge` : `${year} Charge`;
+      faded = true;
+    } else if (mode === 'historical') {
+      text = 'Historical Aggregate';
+      faded = true;
+    }
+    header.textContent = text;
+    header.classList.toggle('compass-header-faded', faded);
+  }
+
+  // Resolve whether an iso date string represents what loadCurrent rendered
+  // as "today". Falls back to today's local date if loadCurrent never
+  // captured one (e.g. compass shown before the first reading lands).
+  function isTodayDate(isoDate) {
+    if (!isoDate) return false;
+    if (currentTodayDate) return isoDate === currentTodayDate;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return isoDate === `${y}-${m}-${d}`;
   }
 
   // --- Era Panel Tabs ---
@@ -1164,6 +1214,7 @@ const App = (() => {
       const p = dailyChartPoints[nearest];
       const d = data[nearest];
       setCompassDate(formatDate(d.date));
+      setCompassMode(isTodayDate(d.date) ? 'today' : 'date');
       const driveDeg = p.originalDegree;
       Compass.setDegree(driveDeg, p.color);
       Charge.setLevel(p.color, 0, 0, driveDeg);
@@ -1225,6 +1276,7 @@ const App = (() => {
     Compass.setDegree(deg, tier);
     Charge.setLevel(tier, 0, 0, deg);
     setCompassDate(formatDate(nearestPt.date));
+    setCompassMode(isTodayDate(nearestPt.date) ? 'today' : 'date');
   }
 
   function dtmAnimate(timestamp) {
@@ -1691,7 +1743,9 @@ const App = (() => {
       loadYearSongs(year, yd.compass_degree, yd.charge_level);
       Compass.setDegree(yd.compass_degree, yd.charge_level);
       Charge.setLevel(yd.charge_level, 0, 0, yd.compass_degree);
-      setCompassDate(String(year));
+      const isYTD = year === new Date().getFullYear();
+      setCompassDate(isYTD ? `${year} YTD` : String(year));
+      setCompassMode('year', { year, isYTD });
       if (typeof EtherArtChart !== 'undefined') {
         EtherArtChart.render({ mode: 'year', year });
       }
@@ -2299,6 +2353,10 @@ const App = (() => {
       Charge.setLevel(reading.charge_level, redCount, reading.songs.length, reading.compass_degree);
       Contamination.setCount(reading.contamination_count, reading.songs.length);
       renderReading({ has_reading: true, ...reading });
+
+      // Date label + header swap so the compass card matches what we're showing.
+      setCompassDate(formatDate(reading.date));
+      setCompassMode(isTodayDate(reading.date) ? 'today' : 'date');
 
       // Show "View Songs" button under compass
       showDailyViewButton(date, reading.compass_degree, reading.charge_level);
