@@ -767,6 +767,167 @@ const App = (() => {
     container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.zoom === preset);
     });
+    updateOverviewViewport(container);
+  }
+
+  // --- Ableton-style overview locator ---
+  // Static mini-trajectory of the FULL year range with a draggable viewport
+  // brace on top showing the currently-zoomed window. Drag the body to pan;
+  // drag either edge to zoom; click empty space to jump the viewport.
+  function renderOverview(container) {
+    const overviewEl = container.querySelector('.traj-overview');
+    if (!overviewEl || !allYearData.length) return;
+    const W = 320, H = 28;
+    const padT = 4, padB = 4;
+    const chartH = H - padT - padB;
+    const data = allYearData;
+    const maxIdx = data.length - 1;
+    const pts = data.map((d, i) => ({
+      x: maxIdx > 0 ? (i / maxIdx) * W : W / 2,
+      y: padT + (d.compass_degree / 180) * chartH,
+    }));
+    const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    overviewEl.innerHTML = `
+      <svg class="traj-overview-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        <path class="traj-overview-line" d="${linePath}" fill="none" stroke-width="1"/>
+      </svg>
+      <div class="traj-overview-viewport" data-handle="pan">
+        <div class="traj-overview-handle traj-overview-handle--left" data-handle="left" aria-label="Drag to set start year"></div>
+        <div class="traj-overview-handle traj-overview-handle--right" data-handle="right" aria-label="Drag to set end year"></div>
+        <div class="traj-overview-grip" aria-hidden="true"></div>
+      </div>`;
+  }
+
+  function updateOverviewViewport(container) {
+    const overviewEl = container.querySelector('.traj-overview');
+    if (!overviewEl || !allYearData.length) return;
+    const vp = overviewEl.querySelector('.traj-overview-viewport');
+    if (!vp) return;
+    const firstYear = allYearData[0].year;
+    const lastYear = allYearData[allYearData.length - 1].year;
+    const totalSpan = Math.max(1, lastYear - firstYear);
+    const leftPct = ((zoomStartYear - firstYear) / totalSpan) * 100;
+    const widthPct = Math.max(2, ((zoomEndYear - zoomStartYear) / totalSpan) * 100);
+    vp.style.left = leftPct + '%';
+    vp.style.width = widthPct + '%';
+  }
+
+  function initOverviewControls(container) {
+    const overviewEl = container.querySelector('.traj-overview');
+    if (!overviewEl) return;
+
+    let drag = null;
+    let rafPending = false;
+    const scheduleRender = () => {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        applyZoomChartOnly(container);
+      });
+    };
+
+    const overviewRect = () => overviewEl.getBoundingClientRect();
+    const yearAtX = (clientX) => {
+      const rect = overviewRect();
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const firstYear = allYearData[0].year;
+      const lastYear = allYearData[allYearData.length - 1].year;
+      return Math.round(firstYear + pct * (lastYear - firstYear));
+    };
+
+    const start = (handle, clientX) => {
+      drag = {
+        handle,
+        startX: clientX,
+        startZoom: { s: zoomStartYear, e: zoomEndYear },
+        width: overviewRect().width || 1,
+      };
+      overviewEl.classList.add('is-active');
+    };
+
+    const move = (clientX) => {
+      if (!drag) return;
+      const firstYear = allYearData[0].year;
+      const lastYear = allYearData[allYearData.length - 1].year;
+      const totalSpan = Math.max(1, lastYear - firstYear);
+      const pxPerYear = drag.width / totalSpan;
+      const yearDelta = Math.round((clientX - drag.startX) / pxPerYear);
+
+      let newStart = drag.startZoom.s;
+      let newEnd = drag.startZoom.e;
+
+      if (drag.handle === 'pan') {
+        const span = newEnd - newStart;
+        newStart += yearDelta;
+        newEnd = newStart + span;
+        if (newStart < firstYear) { newStart = firstYear; newEnd = newStart + span; }
+        if (newEnd > lastYear) { newEnd = lastYear; newStart = newEnd - span; }
+      } else if (drag.handle === 'left') {
+        newStart = Math.max(firstYear, Math.min(newEnd - 1, newStart + yearDelta));
+      } else if (drag.handle === 'right') {
+        newEnd = Math.min(lastYear, Math.max(newStart + 1, newEnd + yearDelta));
+      }
+
+      if (newStart !== zoomStartYear || newEnd !== zoomEndYear) {
+        zoomStartYear = newStart;
+        zoomEndYear = newEnd;
+        scheduleRender();
+      }
+    };
+
+    const end = () => {
+      const wasDrag = !!drag;
+      drag = null;
+      overviewEl.classList.remove('is-active');
+      if (wasDrag) {
+        tmStopPlayback();
+        initTimeMachineControls(container);
+      }
+    };
+
+    overviewEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const el = e.target.closest('[data-handle]');
+      if (el) {
+        start(el.dataset.handle, e.clientX);
+      } else {
+        // Empty overview area: jump viewport center to click position, keep span.
+        const targetCenter = yearAtX(e.clientX);
+        const firstYear = allYearData[0].year;
+        const lastYear = allYearData[allYearData.length - 1].year;
+        const span = zoomEndYear - zoomStartYear;
+        let ns = targetCenter - Math.floor(span / 2);
+        let ne = ns + span;
+        if (ns < firstYear) { ns = firstYear; ne = ns + span; }
+        if (ne > lastYear) { ne = lastYear; ns = ne - span; }
+        zoomStartYear = ns;
+        zoomEndYear = ne;
+        applyZoom(container);
+      }
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (drag) move(e.clientX);
+    });
+    window.addEventListener('mouseup', () => {
+      if (drag) end();
+    });
+
+    overviewEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const tgt = document.elementFromPoint(t.clientX, t.clientY);
+      const el = tgt && tgt.closest('[data-handle]');
+      if (el) start(el.dataset.handle, t.clientX);
+    }, { passive: true });
+    overviewEl.addEventListener('touchmove', (e) => {
+      if (!drag || e.touches.length !== 1) return;
+      move(e.touches[0].clientX);
+      e.preventDefault();
+    }, { passive: false });
+    overviewEl.addEventListener('touchend', () => { if (drag) end(); });
+    overviewEl.addEventListener('touchcancel', () => { if (drag) end(); });
   }
 
   // Re-renders the SVG only — used during pan/zoom drag so we don't tear
@@ -953,6 +1114,7 @@ const App = (() => {
           <button class="traj-zoom-btn" data-zoom="20">20Y</button>
           <button class="traj-zoom-btn" data-zoom="10">10Y</button>
         </div>
+        <div class="traj-overview" role="slider" aria-label="Year range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
         <div class="traj-chart-area"></div>
         <div class="timemachine-controls"></div>
       `;
@@ -964,8 +1126,10 @@ const App = (() => {
         });
       });
 
+      renderOverview(container);
       applyZoom(container);
       initChartPanZoom(container);
+      initOverviewControls(container);
     } catch (err) {
       container.innerHTML = '<p style="color:var(--rc-text-dim);font-size:0.8rem;">Could not load trajectory</p>';
     }

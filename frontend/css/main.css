@@ -1024,24 +1024,114 @@ body {
 }
 
 /* Year window label sits inside the zoom bar, left-aligned, showing the
-   current pan/zoom window. Updates live as the user drags the chart. */
+   current pan/zoom window. The leading dot turns accent-colored when a
+   drag is happening, so the user can see "the function is active" at a
+   glance without watching the cursor. */
 .traj-zoom-window {
   margin-right: auto;
   font-family: var(--rc-font-mono);
   font-size: 0.62rem;
   color: var(--rc-text-dim);
   letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.traj-zoom-window::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rc-border);
+  transition: background var(--rc-ease-fast), box-shadow var(--rc-ease-fast);
+}
+.traj-chart-area.traj-dragging ~ .timemachine-controls,
+.traj-chart-area.traj-dragging .traj-zoom-window::before,
+#trajectory-container .traj-overview.is-active ~ .traj-zoom-window::before {
+  /* Selector siblings only — leave above for reference */
+}
+#trajectory-container:has(.traj-chart-area.traj-dragging) .traj-zoom-window::before,
+#trajectory-container:has(.traj-overview.is-active) .traj-zoom-window::before {
+  background: var(--rc-accent);
+  box-shadow: 0 0 8px var(--rc-accent);
 }
 
-/* The trajectory chart is itself a pan/zoom surface — horizontal drag
-   pans the year window, vertical drag changes zoom level. Hint with a
-   grab cursor and disable the hover tooltip while dragging. */
+/* The main trajectory chart is itself a pan/zoom surface — horizontal
+   drag pans, vertical drag changes zoom level. Hint with a grab cursor
+   and hide the hover tooltip during drag. */
 .traj-chart-area { cursor: grab; touch-action: none; }
 .traj-chart-area.traj-dragging { cursor: grabbing; }
 .traj-chart-area.traj-dragging .traj-tooltip,
 .traj-chart-area.traj-dragging #traj-hover-line,
 .traj-chart-area.traj-dragging #traj-hover-dot {
   display: none !important;
+}
+
+/* Ableton-style overview/locator strip — sits above the main chart with
+   a faded mini-trajectory of the FULL range and a translucent brace
+   showing the currently-zoomed window. Drag the brace body to pan; drag
+   either edge to zoom; click outside the brace to jump it. */
+.traj-overview {
+  position: relative;
+  height: 28px;
+  margin-bottom: 0.4rem;
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: var(--rc-radius-xs);
+  cursor: crosshair;
+  touch-action: none;
+  overflow: hidden;
+}
+.traj-overview-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.traj-overview-line {
+  stroke: var(--rc-text-dim);
+  opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+.traj-overview-viewport {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 212, 170, 0.12);
+  border-left: 2px solid var(--rc-accent);
+  border-right: 2px solid var(--rc-accent);
+  cursor: grab;
+  transition: background var(--rc-ease-fast);
+}
+.traj-overview-viewport:active { cursor: grabbing; }
+.traj-overview.is-active .traj-overview-viewport {
+  background: rgba(0, 212, 170, 0.2);
+}
+.traj-overview-handle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 12px;
+  cursor: ew-resize;
+  /* invisible-but-fat hit target around the visible 2px border */
+}
+.traj-overview-handle--left { left: -7px; }
+.traj-overview-handle--right { right: -7px; }
+.traj-overview-grip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 8px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--rc-accent) 0 1px,
+    transparent 1px 3px
+  );
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 /* === Historical Trajectory Chart === */
