@@ -729,9 +729,36 @@ const App = (() => {
 
   }
 
+  function matchedPreset() {
+    if (!allYearData.length) return null;
+    const firstYear = allYearData[0].year;
+    const lastYear = allYearData[allYearData.length - 1].year;
+    if (zoomStartYear === firstYear && zoomEndYear === lastYear) return 'all';
+    if (zoomEndYear !== lastYear) return null;
+    const span = lastYear - zoomStartYear + 1;
+    if (span === 30) return '30';
+    if (span === 20) return '20';
+    if (span === 10) return '10';
+    return null;
+  }
+
+  function snapToPreset(zoom) {
+    const firstYear = allYearData[0].year;
+    const lastYear = allYearData[allYearData.length - 1].year;
+    if (zoom === 'all') zoomStartYear = firstYear;
+    else if (zoom === '30') zoomStartYear = Math.max(firstYear, lastYear - 29);
+    else if (zoom === '20') zoomStartYear = Math.max(firstYear, lastYear - 19);
+    else if (zoom === '10') zoomStartYear = Math.max(firstYear, lastYear - 9);
+    zoomEndYear = lastYear;
+  }
+
   function updateZoomWindowLabel(container) {
     const lbl = container.querySelector('.traj-zoom-window');
     if (lbl) lbl.textContent = `${zoomStartYear} – ${zoomEndYear}`;
+    const active = matchedPreset();
+    container.querySelectorAll('.traj-zoom-presets .traj-zoom-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.zoom === active);
+    });
     updateOverviewViewport(container);
   }
 
@@ -1074,6 +1101,12 @@ const App = (() => {
       container.innerHTML = `
         <div class="traj-zoom-bar">
           <span class="traj-zoom-window" aria-live="polite">${firstYear} – ${lastYear}</span>
+          <div class="traj-zoom-presets">
+            <button class="traj-zoom-btn active" data-zoom="all">All</button>
+            <button class="traj-zoom-btn" data-zoom="30">30Y</button>
+            <button class="traj-zoom-btn" data-zoom="20">20Y</button>
+            <button class="traj-zoom-btn" data-zoom="10">10Y</button>
+          </div>
           <div class="traj-overview" role="slider" aria-label="Year range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
         </div>
         <div class="traj-chart-area"></div>
@@ -1095,6 +1128,13 @@ const App = (() => {
           </div>
         </div>
       `;
+
+      container.querySelectorAll('.traj-zoom-presets .traj-zoom-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          snapToPreset(btn.dataset.zoom);
+          applyZoom(container);
+        });
+      });
 
       const tmToggle = container.querySelector('.traj-tm-toggle');
       const tmDrawer = container.querySelector('.traj-tm-drawer');
@@ -1220,7 +1260,11 @@ const App = (() => {
   let dailyChartLoaded = false;
   let dailyChartData = [];
   let dailyChartPoints = [];
-  let dailyCurrentZoom = 'year';
+  // Daily zoom is index-based (start/end into dailyChartData chronologically).
+  // Preset buttons (Year/Q/M/W) snap the window to common spans, brace + drag
+  // operate on the same start/end pair. null = full range default.
+  let dailyZoomStartIdx = null;
+  let dailyZoomEndIdx = null;
   let dtmPlaying = false;
   let dtmAnimFrame = null;
   let dtmPosition = 0;
@@ -1288,13 +1332,19 @@ const App = (() => {
       }
 
       dailyChartData = data;
+      dailyZoomStartIdx = 0;
+      dailyZoomEndIdx = dailyChartData.length - 1;
 
       container.innerHTML = `
         <div class="traj-zoom-bar">
-          <button class="traj-zoom-btn active" data-zoom="year">Year</button>
-          <button class="traj-zoom-btn" data-zoom="q">Q</button>
-          <button class="traj-zoom-btn" data-zoom="m">M</button>
-          <button class="traj-zoom-btn" data-zoom="w">W</button>
+          <span class="traj-zoom-window daily-zoom-window" aria-live="polite"></span>
+          <div class="traj-zoom-presets">
+            <button class="traj-zoom-btn active" data-zoom="year">Year</button>
+            <button class="traj-zoom-btn" data-zoom="q">Q</button>
+            <button class="traj-zoom-btn" data-zoom="m">M</button>
+            <button class="traj-zoom-btn" data-zoom="w">W</button>
+          </div>
+          <div class="traj-overview daily-overview" role="slider" aria-label="Date range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
         </div>
         <div class="traj-chart-area"></div>
         <button class="traj-tm-toggle" type="button" aria-expanded="false" aria-controls="daily-traj-tm-drawer">
@@ -1316,9 +1366,9 @@ const App = (() => {
         </div>
       `;
 
-      container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+      container.querySelectorAll('.traj-zoom-presets .traj-zoom-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          dailyCurrentZoom = btn.dataset.zoom;
+          snapDailyPreset(btn.dataset.zoom);
           applyDailyZoom(container);
         });
       });
@@ -1333,47 +1383,288 @@ const App = (() => {
         else tmDrawer.setAttribute('inert', '');
       });
 
+      renderDailyOverview(container);
       applyDailyZoom(container);
+      initDailyChartPanZoom(container);
+      initDailyOverviewControls(container);
     } catch (err) {
       container.innerHTML = '<p style="color:var(--rc-text-dim);font-size:0.8rem;">Could not load daily chart</p>';
     }
   }
 
-  function applyDailyZoom(container) {
-    const now = new Date();
-    let filtered;
-    switch (dailyCurrentZoom) {
-      case 'w': {
-        const cutoff = new Date(now);
-        cutoff.setDate(cutoff.getDate() - 7);
-        filtered = dailyChartData.filter(d => new Date(d.date) >= cutoff);
-        break;
-      }
-      case 'm': {
-        const cutoff = new Date(now);
-        cutoff.setDate(cutoff.getDate() - 30);
-        filtered = dailyChartData.filter(d => new Date(d.date) >= cutoff);
-        break;
-      }
-      case 'q': {
-        const cutoff = new Date(now);
-        cutoff.setDate(cutoff.getDate() - 90);
-        filtered = dailyChartData.filter(d => new Date(d.date) >= cutoff);
-        break;
-      }
-      default:
-        filtered = dailyChartData;
+  function matchedDailyPreset() {
+    if (!dailyChartData.length) return null;
+    const lastIdx = dailyChartData.length - 1;
+    if (dailyZoomEndIdx !== lastIdx) return null;
+    if (dailyZoomStartIdx === 0) return 'year';
+    const span = dailyZoomEndIdx - dailyZoomStartIdx + 1;
+    if (span === 90) return 'q';
+    if (span === 30) return 'm';
+    if (span === 7) return 'w';
+    return null;
+  }
+
+  function snapDailyPreset(zoom) {
+    if (!dailyChartData.length) return;
+    const lastIdx = dailyChartData.length - 1;
+    dailyZoomEndIdx = lastIdx;
+    if (zoom === 'year') dailyZoomStartIdx = 0;
+    else if (zoom === 'q') dailyZoomStartIdx = Math.max(0, lastIdx - 89);
+    else if (zoom === 'm') dailyZoomStartIdx = Math.max(0, lastIdx - 29);
+    else if (zoom === 'w') dailyZoomStartIdx = Math.max(0, lastIdx - 6);
+  }
+
+  function formatDateShort(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    const dt = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function updateDailyZoomWindowLabel(container) {
+    const lbl = container.querySelector('.daily-zoom-window');
+    if (lbl && dailyChartData.length) {
+      const s = dailyChartData[dailyZoomStartIdx];
+      const e = dailyChartData[dailyZoomEndIdx];
+      lbl.textContent = `${formatDateShort(s && s.date)} – ${formatDateShort(e && e.date)}`;
     }
+    const active = matchedDailyPreset();
+    container.querySelectorAll('.traj-zoom-presets .traj-zoom-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.zoom === active);
+    });
+    updateDailyOverviewViewport(container);
+  }
 
-    if (!filtered.length) filtered = dailyChartData;
+  function applyDailyZoomChartOnly(container) {
+    const filtered = dailyChartData.slice(dailyZoomStartIdx, dailyZoomEndIdx + 1);
+    if (!filtered.length) return;
+    renderDailyChart(filtered, container);
+    updateDailyZoomWindowLabel(container);
+  }
 
+  function applyDailyZoom(container) {
+    const filtered = dailyChartData.slice(dailyZoomStartIdx, dailyZoomEndIdx + 1);
+    if (!filtered.length) return;
     dtmStopPlayback();
     renderDailyChart(filtered, container);
     initDailyTimeMachineControls(container);
+    updateDailyZoomWindowLabel(container);
+  }
 
-    container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.zoom === dailyCurrentZoom);
+  function renderDailyOverview(container) {
+    const overviewEl = container.querySelector('.daily-overview');
+    if (!overviewEl || !dailyChartData.length) return;
+    const W = 320, H = 28;
+    const padT = 4, padB = 4;
+    const chartH = H - padT - padB;
+    const maxIdx = dailyChartData.length - 1;
+    const pts = dailyChartData.map((d, i) => ({
+      x: maxIdx > 0 ? (i / maxIdx) * W : W / 2,
+      y: padT + (d.compass_degree / 180) * chartH,
+    }));
+    const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    overviewEl.innerHTML = `
+      <svg class="traj-overview-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        <path class="traj-overview-line" d="${linePath}" fill="none" stroke-width="1"/>
+      </svg>
+      <div class="traj-overview-viewport" data-handle="pan">
+        <div class="traj-overview-handle traj-overview-handle--left" data-handle="left" aria-label="Drag to set start date"></div>
+        <div class="traj-overview-handle traj-overview-handle--right" data-handle="right" aria-label="Drag to set end date"></div>
+        <div class="traj-overview-grip" aria-hidden="true"></div>
+      </div>`;
+  }
+
+  function updateDailyOverviewViewport(container) {
+    const overviewEl = container.querySelector('.daily-overview');
+    if (!overviewEl || !dailyChartData.length) return;
+    const vp = overviewEl.querySelector('.traj-overview-viewport');
+    if (!vp) return;
+    const lastIdx = dailyChartData.length - 1 || 1;
+    const leftPct = (dailyZoomStartIdx / lastIdx) * 100;
+    const widthPct = Math.max(2, ((dailyZoomEndIdx - dailyZoomStartIdx) / lastIdx) * 100);
+    vp.style.left = leftPct + '%';
+    vp.style.width = widthPct + '%';
+  }
+
+  function initDailyOverviewControls(container) {
+    const overviewEl = container.querySelector('.daily-overview');
+    if (!overviewEl) return;
+    let drag = null;
+    let rafPending = false;
+    const scheduleRender = () => {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        applyDailyZoomChartOnly(container);
+      });
+    };
+    const overviewRect = () => overviewEl.getBoundingClientRect();
+    const idxAtX = (clientX) => {
+      const rect = overviewRect();
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      return Math.round(pct * (dailyChartData.length - 1));
+    };
+    const start = (handle, clientX) => {
+      drag = {
+        handle, startX: clientX,
+        startZoom: { s: dailyZoomStartIdx, e: dailyZoomEndIdx },
+        width: overviewRect().width || 1,
+      };
+      overviewEl.classList.add('is-active');
+    };
+    const move = (clientX) => {
+      if (!drag) return;
+      const lastIdx = dailyChartData.length - 1;
+      const totalSpan = Math.max(1, lastIdx);
+      const pxPerIdx = drag.width / totalSpan;
+      const idxDelta = Math.round((clientX - drag.startX) / pxPerIdx);
+      let newStart = drag.startZoom.s;
+      let newEnd = drag.startZoom.e;
+      if (drag.handle === 'pan') {
+        const span = newEnd - newStart;
+        newStart += idxDelta;
+        newEnd = newStart + span;
+        if (newStart < 0) { newStart = 0; newEnd = newStart + span; }
+        if (newEnd > lastIdx) { newEnd = lastIdx; newStart = newEnd - span; }
+      } else if (drag.handle === 'left') {
+        newStart = Math.max(0, Math.min(newEnd - 1, newStart + idxDelta));
+      } else if (drag.handle === 'right') {
+        newEnd = Math.min(lastIdx, Math.max(newStart + 1, newEnd + idxDelta));
+      }
+      if (newStart !== dailyZoomStartIdx || newEnd !== dailyZoomEndIdx) {
+        dailyZoomStartIdx = newStart;
+        dailyZoomEndIdx = newEnd;
+        scheduleRender();
+      }
+    };
+    const end = () => {
+      const wasDrag = !!drag;
+      drag = null;
+      overviewEl.classList.remove('is-active');
+      if (wasDrag) {
+        dtmStopPlayback();
+        initDailyTimeMachineControls(container);
+      }
+    };
+    overviewEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const el = e.target.closest('[data-handle]');
+      if (el) {
+        start(el.dataset.handle, e.clientX);
+      } else {
+        const target = idxAtX(e.clientX);
+        const lastIdx = dailyChartData.length - 1;
+        const span = dailyZoomEndIdx - dailyZoomStartIdx;
+        let ns = target - Math.floor(span / 2);
+        let ne = ns + span;
+        if (ns < 0) { ns = 0; ne = ns + span; }
+        if (ne > lastIdx) { ne = lastIdx; ns = ne - span; }
+        dailyZoomStartIdx = ns;
+        dailyZoomEndIdx = ne;
+        applyDailyZoom(container);
+      }
+      e.preventDefault();
     });
+    window.addEventListener('mousemove', (e) => { if (drag) move(e.clientX); });
+    window.addEventListener('mouseup', () => { if (drag) end(); });
+    overviewEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const tgt = document.elementFromPoint(t.clientX, t.clientY);
+      const el = tgt && tgt.closest('[data-handle]');
+      if (el) start(el.dataset.handle, t.clientX);
+    }, { passive: true });
+    overviewEl.addEventListener('touchmove', (e) => {
+      if (!drag || e.touches.length !== 1) return;
+      move(e.touches[0].clientX);
+      e.preventDefault();
+    }, { passive: false });
+    overviewEl.addEventListener('touchend', () => { if (drag) end(); });
+    overviewEl.addEventListener('touchcancel', () => { if (drag) end(); });
+  }
+
+  function initDailyChartPanZoom(container) {
+    const chartArea = container.querySelector('.traj-chart-area');
+    if (!chartArea) return;
+    let drag = null;
+    let rafPending = false;
+    const scheduleRender = () => {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        applyDailyZoomChartOnly(container);
+      });
+    };
+    const startDrag = (clientX, clientY) => {
+      drag = {
+        x: clientX, y: clientY,
+        startZoom: { s: dailyZoomStartIdx, e: dailyZoomEndIdx },
+        width: chartArea.getBoundingClientRect().width || 1,
+        moved: false,
+      };
+      chartArea.classList.add('traj-dragging');
+    };
+    const moveDrag = (clientX, clientY) => {
+      if (!drag) return;
+      const dx = clientX - drag.x;
+      const dy = clientY - drag.y;
+      if (!drag.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) drag.moved = true;
+      if (!drag.moved) return;
+      const lastIdx = dailyChartData.length - 1;
+      const initSpan = drag.startZoom.e - drag.startZoom.s + 1;
+      const pxPerIdx = drag.width / initSpan;
+      const idxShift = -dx / pxPerIdx;
+      const zoomFactor = Math.pow(2, dy / 200);
+      const targetSpan = Math.max(1, Math.round(initSpan * zoomFactor));
+      const center = (drag.startZoom.s + drag.startZoom.e) / 2 + idxShift;
+      let newStart = Math.round(center - targetSpan / 2);
+      let newEnd = newStart + targetSpan - 1;
+      if (newStart < 0) { newStart = 0; newEnd = Math.min(lastIdx, newStart + targetSpan - 1); }
+      if (newEnd > lastIdx) { newEnd = lastIdx; newStart = Math.max(0, newEnd - targetSpan + 1); }
+      newStart = Math.max(0, newStart);
+      newEnd = Math.min(lastIdx, newEnd);
+      if (newStart !== dailyZoomStartIdx || newEnd !== dailyZoomEndIdx) {
+        dailyZoomStartIdx = newStart;
+        dailyZoomEndIdx = newEnd;
+        scheduleRender();
+      }
+    };
+    const endDrag = () => {
+      if (!drag) return;
+      const wasDrag = drag.moved;
+      drag = null;
+      chartArea.classList.remove('traj-dragging');
+      if (wasDrag) {
+        chartArea.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }, { once: true, capture: true });
+        dtmStopPlayback();
+        initDailyTimeMachineControls(container);
+      }
+    };
+    chartArea.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      startDrag(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => { if (drag) moveDrag(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', () => { if (drag) endDrag(); });
+    chartArea.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      startDrag(t.clientX, t.clientY);
+    }, { passive: true });
+    chartArea.addEventListener('touchmove', (e) => {
+      if (!drag || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      moveDrag(t.clientX, t.clientY);
+      if (drag.moved) e.preventDefault();
+    }, { passive: false });
+    chartArea.addEventListener('touchend', () => { if (drag) endDrag(); });
+    chartArea.addEventListener('touchcancel', () => { if (drag) endDrag(); });
   }
 
   // Skipped-day visual placement: a reading with charge_level === 'skipped'

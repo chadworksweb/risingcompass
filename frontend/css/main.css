@@ -994,18 +994,27 @@ body {
 }
 
 /* === Trajectory Zoom Controls === */
-/* Zoom bar holds the year-window readout on the left and the
-   Ableton-style brace locator filling the remaining width. Preset
-   buttons used to live here; pan/zoom drag + brace handles replace
-   them. */
+/* Zoom bar wraps three children: year/date readout (left), preset
+   buttons (right), and the locator brace (full-width, breaks to its
+   own row so it always has room to be draggable). */
 .traj-zoom-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.5rem 0.7rem;
   margin-bottom: 0.4rem;
 }
 .traj-zoom-bar .traj-zoom-window { flex-shrink: 0; }
-.traj-zoom-bar .traj-overview { flex: 1; margin-top: 0; }
+.traj-zoom-presets {
+  display: flex;
+  gap: 0.3rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.traj-zoom-bar .traj-overview {
+  flex: 1 0 100%;
+  margin-top: 0;
+}
 
 .traj-zoom-btn {
   font-family: var(--rc-font-mono);
