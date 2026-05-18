@@ -54,7 +54,7 @@ const Charge = (() => {
     if (totalSongs > 0) {
       label.innerHTML = `${redCount} of ${totalSongs} top songs carry red-charge lyrics`;
     } else {
-      label.innerHTML = `Showing historical aggregate`;
+      label.innerHTML = `Showing historical reading`;
     }
   }
 

@@ -73,7 +73,7 @@ const App = (() => {
       // Set compass date (SVG element inside compass, fallback to HTML div)
       const dateSvg = document.getElementById('compass-date-svg');
       const dateHtml = document.getElementById('compass-date');
-      const dateText = data.has_reading ? formatDate(data.date) : 'Historical Aggregate';
+      const dateText = data.has_reading ? formatDate(data.date) : 'Historical Reading';
       if (dateSvg) dateSvg.textContent = dateText;
       if (dateHtml) dateHtml.textContent = dateText;
 
@@ -162,7 +162,7 @@ const App = (() => {
       container.innerHTML = `
         <div class="no-reading">
           <p>No daily reading yet.</p>
-          <p>The compass is showing the historical aggregate of 650+ Billboard #1 songs analyzed from 1960-2024.</p>
+          <p>The compass is showing the historical reading across 650+ Billboard #1 songs analyzed from 1960-2024.</p>
         </div>
       `;
       return;
@@ -1196,7 +1196,7 @@ const App = (() => {
       text = opts.isYTD ? `${year} YTD Charge` : `${year} Charge`;
       faded = true;
     } else if (mode === 'historical') {
-      text = 'Historical Aggregate';
+      text = 'Historical Reading';
       faded = true;
     }
     header.textContent = text;
@@ -1931,7 +1931,7 @@ const App = (() => {
       }
       html += '</div>';
     } else {
-      html += `<div class="cal-hist-msg">Year-level aggregate only.<br>No daily readings before 2026.</div>`;
+      html += `<div class="cal-hist-msg">Year-level reading only.<br>No daily readings before 2026.</div>`;
     }
     return html;
   }
@@ -2186,10 +2186,10 @@ const App = (() => {
     const isCurrentYear = year === new Date().getFullYear();
     if (year > 2025) {
       if (header) header.textContent = isCurrentYear ? `${year} — Year to Date` : `${year} — Charting Songs`;
-      if (desc) desc.textContent = isCurrentYear ? 'Live aggregate, updated daily. Weighted by chart position and days on chart.' : 'Frequency-weighted by chart position and days on chart.';
+      if (desc) desc.textContent = isCurrentYear ? 'Live year-to-date reading, updated daily. Weighted by chart position and days on chart.' : 'Frequency-weighted by chart position and days on chart.';
     } else {
       if (header) header.textContent = `${year} — Billboard Top Songs`;
-      if (desc) desc.textContent = 'Position-weighted aggregate of the year\u2019s biggest hits.';
+      if (desc) desc.textContent = 'Position-weighted reading of the year\u2019s biggest hits.';
     }
 
     // Load songs into reading panel (no scroll)
