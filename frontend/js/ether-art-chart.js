@@ -142,9 +142,9 @@ const EtherArtChart = (() => {
       const { items, label } = await fetchByMode(opts || {});
 
       if (mode === 'date' && label) {
-        setDesc(`${label} — the same top 20 named through the ether, with topic tags.`);
+        setDesc(`${label} — the same top 20 named for what the lyrics really say, with topic tags.`);
       } else if (mode === 'year' && label) {
-        setDesc(`${label} — the year's top 20 named through the ether.`);
+        setDesc(`${label} — the year's top 20 named for what the lyrics really say.`);
       } else {
         setDesc(DEFAULT_DESC);
       }
