@@ -181,14 +181,20 @@ def get_by_date(date_str: str, db: Session = Depends(get_db)):
 
 @router.get("/years", response_model=EtherYearsOut)
 def list_years(db: Session = Depends(get_db)):
-    """Years that have any daily-reading coverage. Used by the year
-    selector on the product page."""
+    """Years that have any coverage — daily-reading (modern) or
+    compass_songs (historical backfill). Used by the year selector on
+    the product page."""
     rows = db.execute(
         text(
-            "SELECT DISTINCT CAST(strftime('%Y', dr.date) AS INTEGER) AS y "
-            "FROM daily_readings dr "
-            "WHERE dr.date IS NOT NULL "
-            "ORDER BY y ASC"
+            """
+            SELECT DISTINCT y FROM (
+              SELECT CAST(strftime('%Y', dr.date) AS INTEGER) AS y
+              FROM daily_readings dr WHERE dr.date IS NOT NULL
+              UNION
+              SELECT year AS y FROM compass_songs WHERE year IS NOT NULL
+            )
+            ORDER BY y ASC
+            """
         )
     ).fetchall()
     years = [int(r[0]) for r in rows if r[0] is not None]
@@ -197,16 +203,20 @@ def list_years(db: Session = Depends(get_db)):
 
 @router.get("/year/{year}", response_model=EtherYearOut)
 def get_year(year: int, db: Session = Depends(get_db)):
-    """Position-weighted top 20 deadpan + topic distribution for a year.
+    """Top 20 deadpan + topic distribution for a year.
 
-    Top 20 is weighted by song-days at chart positions 1–20: a #1
-    placement is worth 20 weight units, a #20 placement 1 unit. Songs
-    without a deadpan_line (pre-tagger or audit-flagged) are excluded
-    from the top 20 list but still counted in the totals.
+    Two data paths:
+      - Modern years (have daily_readings): position-weighted song-days
+        from reading_songs. A #1 placement is worth 20 weight units, a
+        #20 placement 1 unit.
+      - Historical years (no daily_readings, e.g. backfilled Billboard
+        Year-End Hot 100 top 10): straight query against compass_songs
+        ordered by chart_position. Position-weighting isn't meaningful
+        here because each song has one row per year, not one per day.
 
-    Topic distribution counts each (compass_song, topic) pair once per
-    song — not once per song-day. We're measuring topic prevalence in
-    the year's catalog, not amplifying by chart longevity.
+    Songs without a deadpan_line are excluded from the top 20 list but
+    still counted in the totals. Topic distribution counts each
+    (compass_song, topic) pair once per song — not once per song-day.
     """
     today = date.today()
     if year < 1900 or year > today.year + 1:
@@ -217,33 +227,58 @@ def get_year(year: int, db: Session = Depends(get_db)):
 
     year_str = f"{year:04d}"
 
-    # Top 20 by position-weighted song-days (build pack §6)
-    top_rows = db.execute(
-        text(
-            """
-            WITH song_year_appearances AS (
-              SELECT
-                rs.compass_song_id,
-                SUM(21 - rs.position) AS weight_sum
-              FROM reading_songs rs
-              JOIN daily_readings dr ON dr.id = rs.reading_id
-              WHERE strftime('%Y', dr.date) = :year
-                AND rs.position BETWEEN 1 AND 20
-                AND rs.compass_song_id IS NOT NULL
-              GROUP BY rs.compass_song_id
-            )
-            SELECT
-              cs.id, cs.title, cs.artist, cs.deadpan_line, cs.topics,
-              s.weight_sum
-            FROM song_year_appearances s
-            JOIN compass_songs cs ON cs.id = s.compass_song_id
-            WHERE cs.deadpan_line IS NOT NULL
-            ORDER BY s.weight_sum DESC
-            LIMIT 20
-            """
-        ),
+    # Detect data path — does this year have any daily_readings rows?
+    has_daily = db.execute(
+        text("SELECT 1 FROM daily_readings WHERE strftime('%Y', date) = :year LIMIT 1"),
         {"year": year_str},
-    ).fetchall()
+    ).scalar()
+
+    if has_daily:
+        # Modern path: position-weighted song-days (build pack §6)
+        top_rows = db.execute(
+            text(
+                """
+                WITH song_year_appearances AS (
+                  SELECT
+                    rs.compass_song_id,
+                    SUM(21 - rs.position) AS weight_sum
+                  FROM reading_songs rs
+                  JOIN daily_readings dr ON dr.id = rs.reading_id
+                  WHERE strftime('%Y', dr.date) = :year
+                    AND rs.position BETWEEN 1 AND 20
+                    AND rs.compass_song_id IS NOT NULL
+                  GROUP BY rs.compass_song_id
+                )
+                SELECT
+                  cs.id, cs.title, cs.artist, cs.deadpan_line, cs.topics,
+                  s.weight_sum
+                FROM song_year_appearances s
+                JOIN compass_songs cs ON cs.id = s.compass_song_id
+                WHERE cs.deadpan_line IS NOT NULL
+                ORDER BY s.weight_sum DESC
+                LIMIT 20
+                """
+            ),
+            {"year": year_str},
+        ).fetchall()
+    else:
+        # Historical path: compass_songs has one row per song per year
+        # with chart_position 1..N. Order by chart_position directly.
+        top_rows = db.execute(
+            text(
+                """
+                SELECT
+                  cs.id, cs.title, cs.artist, cs.deadpan_line, cs.topics,
+                  cs.chart_position AS weight_sum
+                FROM compass_songs cs
+                WHERE cs.year = :year_int
+                  AND cs.deadpan_line IS NOT NULL
+                ORDER BY cs.chart_position ASC, cs.id ASC
+                LIMIT 20
+                """
+            ),
+            {"year_int": year},
+        ).fetchall()
 
     top_20_slug_map = resolve_artist_slugs([row.artist for row in top_rows], db)
     top_20: list[EtherYearDeadpanItem] = []
@@ -261,60 +296,94 @@ def get_year(year: int, db: Session = Depends(get_db)):
         ))
 
     # Topic distribution — distinct (song, topic) pairs across the year.
-    dist_rows = db.execute(
-        text(
-            """
-            WITH year_compass_songs AS (
-              SELECT DISTINCT cs.id, cs.topics
-              FROM compass_songs cs
-              JOIN reading_songs rs ON rs.compass_song_id = cs.id
-              JOIN daily_readings dr ON dr.id = rs.reading_id
-              WHERE strftime('%Y', dr.date) = :year
-                AND cs.topics IS NOT NULL
-            )
-            SELECT je.value AS topic, COUNT(*) AS cnt
-            FROM year_compass_songs ycs, json_each(ycs.topics) je
-            GROUP BY je.value
-            ORDER BY cnt DESC
-            """
-        ),
-        {"year": year_str},
-    ).fetchall()
+    if has_daily:
+        dist_rows = db.execute(
+            text(
+                """
+                WITH year_compass_songs AS (
+                  SELECT DISTINCT cs.id, cs.topics
+                  FROM compass_songs cs
+                  JOIN reading_songs rs ON rs.compass_song_id = cs.id
+                  JOIN daily_readings dr ON dr.id = rs.reading_id
+                  WHERE strftime('%Y', dr.date) = :year
+                    AND cs.topics IS NOT NULL
+                )
+                SELECT je.value AS topic, COUNT(*) AS cnt
+                FROM year_compass_songs ycs, json_each(ycs.topics) je
+                GROUP BY je.value
+                ORDER BY cnt DESC
+                """
+            ),
+            {"year": year_str},
+        ).fetchall()
+    else:
+        dist_rows = db.execute(
+            text(
+                """
+                WITH year_compass_songs AS (
+                  SELECT id, topics FROM compass_songs
+                  WHERE year = :year_int AND topics IS NOT NULL
+                )
+                SELECT je.value AS topic, COUNT(*) AS cnt
+                FROM year_compass_songs ycs, json_each(ycs.topics) je
+                GROUP BY je.value
+                ORDER BY cnt DESC
+                """
+            ),
+            {"year_int": year},
+        ).fetchall()
 
     total_count = sum(int(r.cnt) for r in dist_rows) or 1
 
-    # Top songs per topic — for tooltip use. Ranked by position-weighted
-    # song-days across the year, including songs that carry the topic
-    # non-dominantly. Capped at 8 per topic in Python.
+    # Top songs per topic — for tooltip use. Ranked by song-days
+    # (modern) or chart_position (historical). Capped at 8 per topic.
     TOP_SONGS_PER_TOPIC = 8
-    song_rows = db.execute(
-        text(
-            """
-            WITH song_year_appearances AS (
-              SELECT
-                rs.compass_song_id,
-                SUM(21 - rs.position) AS weight_sum
-              FROM reading_songs rs
-              JOIN daily_readings dr ON dr.id = rs.reading_id
-              WHERE strftime('%Y', dr.date) = :year
-                AND rs.position BETWEEN 1 AND 20
-                AND rs.compass_song_id IS NOT NULL
-              GROUP BY rs.compass_song_id
-            )
-            SELECT
-              je.value AS topic,
-              cs.title, cs.artist, cs.deadpan_line,
-              s.weight_sum
-            FROM song_year_appearances s
-            JOIN compass_songs cs ON cs.id = s.compass_song_id,
-                 json_each(cs.topics) je
-            WHERE cs.deadpan_line IS NOT NULL
-              AND cs.topics IS NOT NULL
-            ORDER BY je.value, s.weight_sum DESC
-            """
-        ),
-        {"year": year_str},
-    ).fetchall()
+    if has_daily:
+        song_rows = db.execute(
+            text(
+                """
+                WITH song_year_appearances AS (
+                  SELECT
+                    rs.compass_song_id,
+                    SUM(21 - rs.position) AS weight_sum
+                  FROM reading_songs rs
+                  JOIN daily_readings dr ON dr.id = rs.reading_id
+                  WHERE strftime('%Y', dr.date) = :year
+                    AND rs.position BETWEEN 1 AND 20
+                    AND rs.compass_song_id IS NOT NULL
+                  GROUP BY rs.compass_song_id
+                )
+                SELECT
+                  je.value AS topic,
+                  cs.title, cs.artist, cs.deadpan_line,
+                  s.weight_sum
+                FROM song_year_appearances s
+                JOIN compass_songs cs ON cs.id = s.compass_song_id,
+                     json_each(cs.topics) je
+                WHERE cs.deadpan_line IS NOT NULL
+                  AND cs.topics IS NOT NULL
+                ORDER BY je.value, s.weight_sum DESC
+                """
+            ),
+            {"year": year_str},
+        ).fetchall()
+    else:
+        song_rows = db.execute(
+            text(
+                """
+                SELECT
+                  je.value AS topic,
+                  cs.title, cs.artist, cs.deadpan_line,
+                  cs.chart_position AS weight_sum
+                FROM compass_songs cs, json_each(cs.topics) je
+                WHERE cs.year = :year_int
+                  AND cs.deadpan_line IS NOT NULL
+                  AND cs.topics IS NOT NULL
+                ORDER BY je.value, cs.chart_position ASC
+                """
+            ),
+            {"year_int": year},
+        ).fetchall()
 
     topic_slug_map = resolve_artist_slugs([sr.artist for sr in song_rows], db)
     top_songs_by_topic: dict[str, list[TopicSong]] = {}
@@ -344,32 +413,54 @@ def get_year(year: int, db: Session = Depends(get_db)):
     ]
 
     # Audit-flagged count + total compass_songs in period
-    audit_count = db.execute(
-        text(
-            """
-            SELECT COUNT(DISTINCT cs.id)
-            FROM compass_songs cs
-            JOIN reading_songs rs ON rs.compass_song_id = cs.id
-            JOIN daily_readings dr ON dr.id = rs.reading_id
-            WHERE strftime('%Y', dr.date) = :year
-              AND cs.topic_audit IS NOT NULL
-            """
-        ),
-        {"year": year_str},
-    ).scalar() or 0
+    if has_daily:
+        audit_count = db.execute(
+            text(
+                """
+                SELECT COUNT(DISTINCT cs.id)
+                FROM compass_songs cs
+                JOIN reading_songs rs ON rs.compass_song_id = cs.id
+                JOIN daily_readings dr ON dr.id = rs.reading_id
+                WHERE strftime('%Y', dr.date) = :year
+                  AND cs.topic_audit IS NOT NULL
+                """
+            ),
+            {"year": year_str},
+        ).scalar() or 0
+    else:
+        audit_count = db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM compass_songs cs
+                WHERE cs.year = :year_int AND cs.topic_audit IS NOT NULL
+                """
+            ),
+            {"year_int": year},
+        ).scalar() or 0
 
-    total_in_period = db.execute(
-        text(
-            """
-            SELECT COUNT(DISTINCT cs.id)
-            FROM compass_songs cs
-            JOIN reading_songs rs ON rs.compass_song_id = cs.id
-            JOIN daily_readings dr ON dr.id = rs.reading_id
-            WHERE strftime('%Y', dr.date) = :year
-            """
-        ),
-        {"year": year_str},
-    ).scalar() or 0
+    if has_daily:
+        total_in_period = db.execute(
+            text(
+                """
+                SELECT COUNT(DISTINCT cs.id)
+                FROM compass_songs cs
+                JOIN reading_songs rs ON rs.compass_song_id = cs.id
+                JOIN daily_readings dr ON dr.id = rs.reading_id
+                WHERE strftime('%Y', dr.date) = :year
+                """
+            ),
+            {"year": year_str},
+        ).scalar() or 0
+    else:
+        total_in_period = db.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM compass_songs cs WHERE cs.year = :year_int
+                """
+            ),
+            {"year_int": year},
+        ).scalar() or 0
 
     return EtherYearOut(
         year=year,
