@@ -1073,9 +1073,12 @@ body {
 }
 
 /* The main trajectory chart is itself a pan/zoom surface — horizontal
-   drag pans, vertical drag changes zoom level. Hint with a grab cursor
-   and hide the hover tooltip during drag. */
-.traj-chart-area { cursor: grab; touch-action: none; }
+   drag pans, vertical drag changes zoom level (mouse only).
+   touch-action: pan-y lets the page scroll vertically when the user
+   gestures vertically over the chart; horizontal drags are still
+   captured for pan. Hint with a grab cursor and hide the hover tooltip
+   during drag. */
+.traj-chart-area { cursor: grab; touch-action: pan-y; }
 .traj-chart-area.traj-dragging { cursor: grabbing; }
 .traj-chart-area.traj-dragging .traj-tooltip,
 .traj-chart-area.traj-dragging #traj-hover-line,
@@ -1133,6 +1136,14 @@ body {
 }
 .traj-overview-handle--left { left: -7px; }
 .traj-overview-handle--right { right: -7px; }
+/* Coarse pointers (touch) get a chunkier hit area so the handles are
+   actually grabbable with a finger. Visible 2px brace borders stay
+   the same — only the invisible target widens. */
+@media (pointer: coarse) {
+  .traj-overview-handle { width: 28px; }
+  .traj-overview-handle--left { left: -15px; }
+  .traj-overview-handle--right { right: -15px; }
+}
 .traj-overview-grip {
   position: absolute;
   left: 50%;

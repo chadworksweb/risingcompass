@@ -1050,7 +1050,10 @@ const App = (() => {
     chartArea.addEventListener('touchmove', (e) => {
       if (!drag || e.touches.length !== 1) return;
       const t = e.touches[0];
-      move(t.clientX, t.clientY);
+      // Touch: pan only. Pass start Y as clientY so dy is 0 — vertical
+      // drag is left to the page (touch-action: pan-y), so the user
+      // can still scroll past the chart with a vertical swipe.
+      move(t.clientX, drag.y);
       if (drag.moved) e.preventDefault();
     }, { passive: false });
     chartArea.addEventListener('touchend', () => {
@@ -1669,7 +1672,9 @@ const App = (() => {
     chartArea.addEventListener('touchmove', (e) => {
       if (!drag || e.touches.length !== 1) return;
       const t = e.touches[0];
-      moveDrag(t.clientX, t.clientY);
+      // Touch: pan only — pass start Y as clientY so dy is 0. Vertical
+      // gestures pass through to the page (touch-action: pan-y).
+      moveDrag(t.clientX, drag.y);
       if (drag.moved) e.preventDefault();
     }, { passive: false });
     chartArea.addEventListener('touchend', () => { if (drag) endDrag(); });
