@@ -1023,91 +1023,25 @@ body {
   border-color: var(--rc-accent);
 }
 
-/* Dual-handle year range below the preset buttons. Two overlapping
-   range inputs with native thumbs are clickable; the track is a plain
-   div underneath. pointer-events:none on the input keeps the whole bar
-   from absorbing clicks except at the thumbs. */
-.traj-zoom-range {
-  position: relative;
-  height: 32px;
-  margin: 0.1rem 0 0.4rem;
-  padding: 0 7px;
-}
-.traj-zoom-track {
-  position: absolute;
-  left: 7px;
-  right: 7px;
-  top: 14px;
-  height: 4px;
-  background: var(--rc-border);
-  border-radius: 2px;
-  pointer-events: none;
-}
-.traj-zoom-track-fill {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  background: var(--rc-accent);
-  border-radius: 2px;
-  transition: left var(--rc-ease-fast), right var(--rc-ease-fast);
-}
-.traj-zoom-handle {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 32px;
-  margin: 0;
-  background: transparent;
-  pointer-events: none;
-  -webkit-appearance: none;
-  appearance: none;
-}
-.traj-zoom-handle::-webkit-slider-runnable-track {
-  background: transparent;
-  border: none;
-  height: 32px;
-}
-.traj-zoom-handle::-moz-range-track {
-  background: transparent;
-  border: none;
-  height: 32px;
-}
-.traj-zoom-handle::-webkit-slider-thumb {
-  pointer-events: auto;
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--rc-accent);
-  border: 2px solid var(--rc-bg-panel);
-  box-shadow: 0 0 0 1px var(--rc-accent);
-  cursor: grab;
-  margin-top: 7px;
-}
-.traj-zoom-handle::-webkit-slider-thumb:active { cursor: grabbing; }
-.traj-zoom-handle::-moz-range-thumb {
-  pointer-events: auto;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--rc-accent);
-  border: 2px solid var(--rc-bg-panel);
-  box-shadow: 0 0 0 1px var(--rc-accent);
-  cursor: grab;
-}
-.traj-zoom-labels {
-  position: absolute;
-  left: 7px;
-  right: 7px;
-  top: 26px;
-  display: flex;
-  justify-content: space-between;
+/* Year window label sits inside the zoom bar, left-aligned, showing the
+   current pan/zoom window. Updates live as the user drags the chart. */
+.traj-zoom-window {
+  margin-right: auto;
   font-family: var(--rc-font-mono);
   font-size: 0.62rem;
   color: var(--rc-text-dim);
-  pointer-events: none;
+  letter-spacing: 0.04em;
+}
+
+/* The trajectory chart is itself a pan/zoom surface — horizontal drag
+   pans the year window, vertical drag changes zoom level. Hint with a
+   grab cursor and disable the hover tooltip while dragging. */
+.traj-chart-area { cursor: grab; touch-action: none; }
+.traj-chart-area.traj-dragging { cursor: grabbing; }
+.traj-chart-area.traj-dragging .traj-tooltip,
+.traj-chart-area.traj-dragging #traj-hover-line,
+.traj-chart-area.traj-dragging #traj-hover-dot {
+  display: none !important;
 }
 
 /* === Historical Trajectory Chart === */

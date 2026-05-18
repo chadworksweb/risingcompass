@@ -760,40 +760,149 @@ const App = (() => {
     zoomEndYear = lastYear;
   }
 
-  function updateZoomLabels(container) {
-    const startLbl = container.querySelector('.traj-zoom-label-start');
-    const endLbl = container.querySelector('.traj-zoom-label-end');
-    if (startLbl) startLbl.textContent = String(zoomStartYear);
-    if (endLbl) endLbl.textContent = String(zoomEndYear);
-    const fill = container.querySelector('.traj-zoom-track-fill');
-    const firstYear = allYearData[0].year;
-    const lastYear = allYearData[allYearData.length - 1].year;
-    const span = lastYear - firstYear || 1;
-    if (fill) {
-      const left = ((zoomStartYear - firstYear) / span) * 100;
-      const right = ((lastYear - zoomEndYear) / span) * 100;
-      fill.style.left = left + '%';
-      fill.style.right = right + '%';
-    }
+  function updateZoomWindowLabel(container) {
+    const lbl = container.querySelector('.traj-zoom-window');
+    if (lbl) lbl.textContent = `${zoomStartYear} – ${zoomEndYear}`;
+    const preset = matchedPreset();
+    container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.zoom === preset);
+    });
   }
 
-  function syncZoomSliders(container) {
-    const startSlider = container.querySelector('.traj-zoom-start');
-    const endSlider = container.querySelector('.traj-zoom-end');
-    if (startSlider) startSlider.value = zoomStartYear;
-    if (endSlider) endSlider.value = zoomEndYear;
-    updateZoomLabels(container);
+  // Re-renders the SVG only — used during pan/zoom drag so we don't tear
+  // down the time-machine slider on every tick.
+  function applyZoomChartOnly(container) {
+    const filtered = allYearData.filter(d => d.year >= zoomStartYear && d.year <= zoomEndYear);
+    if (!filtered.length) return;
+    renderTrajectoryChart(filtered, container);
+    updateZoomWindowLabel(container);
   }
 
   function applyZoom(container) {
     const filtered = allYearData.filter(d => d.year >= zoomStartYear && d.year <= zoomEndYear);
+    if (!filtered.length) return;
     tmStopPlayback();
     renderTrajectoryChart(filtered, container);
     initTimeMachineControls(container);
+    updateZoomWindowLabel(container);
+  }
 
-    const preset = matchedPreset();
-    container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.zoom === preset);
+  // Drag the chart itself: horizontal pans the year window, vertical
+  // zooms (up = in, down = out). Threshold of 4px distinguishes a click
+  // from a drag so the existing year-select click handler still works.
+  function initChartPanZoom(container) {
+    const chartArea = container.querySelector('.traj-chart-area');
+    if (!chartArea) return;
+
+    let drag = null;
+    let rafPending = false;
+    const scheduleRender = () => {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        applyZoomChartOnly(container);
+      });
+    };
+
+    const start = (clientX, clientY) => {
+      drag = {
+        x: clientX, y: clientY,
+        startZoom: { s: zoomStartYear, e: zoomEndYear },
+        width: chartArea.getBoundingClientRect().width || 1,
+        moved: false,
+      };
+      chartArea.classList.add('traj-dragging');
+    };
+
+    const move = (clientX, clientY) => {
+      if (!drag) return;
+      const dx = clientX - drag.x;
+      const dy = clientY - drag.y;
+      if (!drag.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+        drag.moved = true;
+      }
+      if (!drag.moved) return;
+
+      const firstYear = allYearData[0].year;
+      const lastYear = allYearData[allYearData.length - 1].year;
+      const initSpan = drag.startZoom.e - drag.startZoom.s + 1;
+      const pxPerYear = drag.width / initSpan;
+
+      // Drag right → window shifts left to reveal earlier years.
+      const yearShift = -dx / pxPerYear;
+      // Drag up (negative dy) zooms in. 200px = 2x zoom step.
+      const zoomFactor = Math.pow(2, dy / 200);
+      const targetSpan = Math.max(1, Math.round(initSpan * zoomFactor));
+
+      const center = (drag.startZoom.s + drag.startZoom.e) / 2 + yearShift;
+      let newStart = Math.round(center - targetSpan / 2);
+      let newEnd = newStart + targetSpan - 1;
+
+      // Clamp to overall available range, preserving span where possible.
+      if (newStart < firstYear) {
+        newStart = firstYear;
+        newEnd = Math.min(lastYear, newStart + targetSpan - 1);
+      }
+      if (newEnd > lastYear) {
+        newEnd = lastYear;
+        newStart = Math.max(firstYear, newEnd - targetSpan + 1);
+      }
+      newStart = Math.max(firstYear, newStart);
+      newEnd = Math.min(lastYear, newEnd);
+
+      if (newStart !== zoomStartYear || newEnd !== zoomEndYear) {
+        zoomStartYear = newStart;
+        zoomEndYear = newEnd;
+        scheduleRender();
+      }
+    };
+
+    const end = () => {
+      if (!drag) return;
+      const wasDrag = drag.moved;
+      drag = null;
+      chartArea.classList.remove('traj-dragging');
+      if (wasDrag) {
+        // Suppress the click that follows mouseup so we don't select a year.
+        chartArea.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }, { once: true, capture: true });
+        // Re-attach the time-machine slider against the final zoom window.
+        tmStopPlayback();
+        initTimeMachineControls(container);
+      }
+    };
+
+    chartArea.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      start(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (drag) move(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', () => {
+      if (drag) end();
+    });
+
+    chartArea.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      start(t.clientX, t.clientY);
+    }, { passive: true });
+    chartArea.addEventListener('touchmove', (e) => {
+      if (!drag || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      move(t.clientX, t.clientY);
+      if (drag.moved) e.preventDefault();
+    }, { passive: false });
+    chartArea.addEventListener('touchend', () => {
+      if (drag) end();
+    });
+    chartArea.addEventListener('touchcancel', () => {
+      if (drag) end();
     });
   }
 
@@ -838,19 +947,11 @@ const App = (() => {
 
       container.innerHTML = `
         <div class="traj-zoom-bar">
+          <span class="traj-zoom-window" aria-live="polite">${firstYear} – ${lastYear}</span>
           <button class="traj-zoom-btn active" data-zoom="all">All</button>
           <button class="traj-zoom-btn" data-zoom="30">30Y</button>
           <button class="traj-zoom-btn" data-zoom="20">20Y</button>
           <button class="traj-zoom-btn" data-zoom="10">10Y</button>
-        </div>
-        <div class="traj-zoom-range">
-          <div class="traj-zoom-track"><div class="traj-zoom-track-fill"></div></div>
-          <input type="range" class="traj-zoom-handle traj-zoom-start" min="${firstYear}" max="${lastYear}" value="${firstYear}" step="1" aria-label="Zoom start year">
-          <input type="range" class="traj-zoom-handle traj-zoom-end" min="${firstYear}" max="${lastYear}" value="${lastYear}" step="1" aria-label="Zoom end year">
-          <div class="traj-zoom-labels">
-            <span class="traj-zoom-label-start">${firstYear}</span>
-            <span class="traj-zoom-label-end">${lastYear}</span>
-          </div>
         </div>
         <div class="traj-chart-area"></div>
         <div class="timemachine-controls"></div>
@@ -859,38 +960,12 @@ const App = (() => {
       container.querySelectorAll('.traj-zoom-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           snapToPreset(btn.dataset.zoom);
-          syncZoomSliders(container);
           applyZoom(container);
         });
       });
 
-      const startSlider = container.querySelector('.traj-zoom-start');
-      const endSlider = container.querySelector('.traj-zoom-end');
-      const onDrag = () => {
-        let s = parseInt(startSlider.value);
-        let e = parseInt(endSlider.value);
-        // Clamp handles so start stays <= end; allow a 1-year window minimum.
-        if (s > e) {
-          if (document.activeElement === startSlider) {
-            s = e;
-            startSlider.value = s;
-          } else {
-            e = s;
-            endSlider.value = e;
-          }
-        }
-        zoomStartYear = s;
-        zoomEndYear = e;
-        updateZoomLabels(container);
-      };
-      startSlider.addEventListener('input', onDrag);
-      endSlider.addEventListener('input', onDrag);
-      // Re-render chart only on release so each tick doesn't tear down the time-machine slider.
-      const onRelease = () => applyZoom(container);
-      startSlider.addEventListener('change', onRelease);
-      endSlider.addEventListener('change', onRelease);
-
       applyZoom(container);
+      initChartPanZoom(container);
     } catch (err) {
       container.innerHTML = '<p style="color:var(--rc-text-dim);font-size:0.8rem;">Could not load trajectory</p>';
     }
