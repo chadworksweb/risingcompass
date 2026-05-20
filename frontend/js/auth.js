@@ -20,7 +20,7 @@ const Auth = (() => {
   const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   const PK_TEST = 'pk_test_cm9idXN0LW1hbW1vdGgtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
-  const PK_LIVE = '';  // TODO: set when prod Clerk env is created
+  const PK_LIVE = 'pk_live_Y2xlcmsucmlzaW5nY29tcGFzcy5uZXQk';
 
   const PK = isLocal ? PK_TEST : (PK_LIVE || PK_TEST);
 
