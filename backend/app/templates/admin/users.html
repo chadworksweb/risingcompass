@@ -1,0 +1,156 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'users' %}
+{% block title %}Users -- Admin{% endblock %}
+
+{% block content %}
+<style>
+  .users-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+  .users-table thead { background: var(--panel-strong); }
+  .users-table th { text-align: left; padding: 0.55rem 0.75rem; border-bottom: 2px solid var(--border); color: var(--text); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+  .users-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border-soft); vertical-align: top; color: var(--text); }
+  .users-table tr:hover td { background: rgba(0, 143, 114, 0.04); }
+  .u-handle { font-family: monospace; font-weight: 600; color: var(--accent-strong); }
+  .u-handle-blank { color: var(--text-hint); font-style: italic; }
+  .u-anon { font-family: monospace; font-size: 0.78rem; color: var(--text-hint); }
+  .u-tier-badge { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; padding: 0.15rem 0.55rem; border-radius: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .u-tier-badge.id_verified { background: rgba(0, 143, 114, 0.12); color: var(--accent-strong); border: 1px solid var(--accent); }
+  .u-tier-badge.handled { background: var(--panel-strong); color: var(--text-dim); border: 1px solid var(--border); }
+  .u-tier-badge.pending { background: #fff0d0; color: var(--tier-orange); border: 1px solid var(--tier-orange); }
+  .u-tier-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .u-status-active { color: var(--text-dim); }
+  .u-status-suspended { color: var(--tier-orange); font-weight: 700; }
+  .u-status-banned { color: var(--red); font-weight: 700; }
+  .u-verification { font-size: 0.78rem; color: var(--text-dim); }
+  .u-verification-verified { color: var(--accent-strong); font-weight: 600; }
+  .users-table th.col-counts, .u-counts { text-align: center; width: 110px; }
+  .u-counts { font-family: monospace; font-size: 0.85rem; color: var(--text-dim); white-space: nowrap; }
+  .u-counts a { color: var(--accent-strong); text-decoration: none; }
+  .u-counts a:hover { text-decoration: underline; }
+  .users-table .u-handle, .users-table .u-handle-blank { cursor: pointer; }
+  .users-table tr { cursor: pointer; }
+  .users-total { color: var(--text-dim); font-size: 0.8rem; font-weight: 600; margin-bottom: 0.6rem; }
+</style>
+
+<div class="filter-bar" id="userFilters">
+  <button class="filter-btn active" data-filter="tier" data-value="">All tiers</button>
+  <button class="filter-btn" data-filter="tier" data-value="id_verified">Tier 2 (verified)</button>
+  <button class="filter-btn" data-filter="tier" data-value="handled">Tier 1</button>
+  <button class="filter-btn" data-filter="tier" data-value="pending">Pending onboarding</button>
+</div>
+<div class="filter-bar" id="userStatusFilters">
+  <button class="filter-btn active" data-filter="status" data-value="">All status</button>
+  <button class="filter-btn" data-filter="status" data-value="active">Active</button>
+  <button class="filter-btn" data-filter="status" data-value="suspended">Suspended</button>
+  <button class="filter-btn" data-filter="status" data-value="banned">Banned</button>
+</div>
+
+<div class="users-total" id="userTotal">--</div>
+<div id="userList"><p style="color:#666;">Loading...</p></div>
+<div class="status-msg" id="userStatus"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const userFilters = { tier: '', status: '' };
+
+function onAdminReady() {
+  document.querySelectorAll('#userFilters .filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      userFilters.tier = b.dataset.value;
+      document.querySelectorAll('#userFilters .filter-btn').forEach((x) => x.classList.toggle('active', x === b));
+      loadUsers();
+    });
+  });
+  document.querySelectorAll('#userStatusFilters .filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      userFilters.status = b.dataset.value;
+      document.querySelectorAll('#userStatusFilters .filter-btn').forEach((x) => x.classList.toggle('active', x === b));
+      loadUsers();
+    });
+  });
+  loadUsers();
+}
+
+async function loadUsers() {
+  const listEl = document.getElementById('userList');
+  listEl.innerHTML = '<p style="color:#666;">Loading...</p>';
+  try {
+    const params = new URLSearchParams({ limit: '100' });
+    if (userFilters.tier) params.set('tier', userFilters.tier);
+    if (userFilters.status) params.set('status', userFilters.status);
+    const resp = await adminFetch(`/api/admin/users?${params.toString()}`);
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderUsers(data);
+  } catch (err) {
+    listEl.innerHTML = `<p style="color:var(--red);">${esc(err.message || 'Failed.')}</p>`;
+  }
+}
+
+function renderUsers(data) {
+  document.getElementById('userTotal').textContent = `${data.total} user(s)`;
+  const el = document.getElementById('userList');
+  if (!data.items.length) {
+    el.innerHTML = '<p style="color:#666;">No users match.</p>';
+    return;
+  }
+  const rows = data.items.map(renderRow).join('');
+  el.innerHTML = `
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>Handle</th>
+          <th>Tier</th>
+          <th>Status</th>
+          <th>Verification</th>
+          <th class="col-counts">Comments</th>
+          <th class="col-counts">Misread</th>
+          <th>Joined</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderRow(u) {
+  const handleCell = u.handle
+    ? `<span class="u-handle">@${esc(u.handle)}</span><br><span class="u-anon">${esc(u.anon_id)}</span>`
+    : `<span class="u-handle-blank">(no handle yet)</span><br><span class="u-anon">${esc(u.anon_id)}</span>`;
+
+  const tierLabel = { id_verified: 'Verified', handled: 'Tier 1', pending: 'Pending' }[u.tier] || u.tier;
+  const tierBadge = `<span class="u-tier-badge ${esc(u.tier)}"><span class="dot"></span>${esc(tierLabel)}</span>`;
+
+  let statusCell;
+  if (u.status === 'banned') {
+    statusCell = `<span class="u-status-banned">Banned</span><br><span class="u-verification">${esc(u.banned_reason || '')}</span>`;
+  } else if (u.status === 'suspended') {
+    statusCell = `<span class="u-status-suspended">Suspended</span><br><span class="u-verification">until ${u.suspended_until ? new Date(u.suspended_until).toLocaleString() : '?'}</span>`;
+  } else {
+    statusCell = `<span class="u-status-active">Active</span>`;
+  }
+
+  let verCell;
+  if (u.last_verification_status === 'verified' && u.last_verified_at) {
+    verCell = `<span class="u-verification-verified">Verified</span><br><span class="u-verification">${esc(u.last_verification_provider || '')} &middot; ${new Date(u.last_verified_at).toLocaleDateString()}</span>`;
+  } else if (u.last_verification_status) {
+    verCell = `<span class="u-verification">${esc(u.last_verification_status)}</span><br><span class="u-verification">${esc(u.last_verification_provider || '')}</span>`;
+  } else {
+    verCell = `<span class="u-verification">--</span>`;
+  }
+
+  const detailUrl = `/api/admin/dashboard/user/${encodeURIComponent(u.anon_id)}`;
+  return `
+    <tr onclick="if(event.target.tagName!=='A'){window.location='${detailUrl}'}">
+      <td><a href="${detailUrl}" style="text-decoration:none;color:inherit;">${handleCell}</a></td>
+      <td>${tierBadge}</td>
+      <td>${statusCell}</td>
+      <td>${verCell}</td>
+      <td class="u-counts"><a href="${detailUrl}#comments">${u.comment_count}</a></td>
+      <td class="u-counts">${u.misread_count}</td>
+      <td class="u-verification">${new Date(u.created_at).toLocaleDateString()}</td>
+    </tr>
+  `;
+}
+</script>
+{% endblock %}

@@ -17,7 +17,7 @@
 
   /* Text */
   --rc-text: #c8c8d8;
-  --rc-text-dim: #808094;
+  --rc-text-dim: #c0c0ca;
   --rc-text-bright: #eeeef4;
   --rc-accent: #00d4aa;
 
@@ -176,6 +176,57 @@ body {
 @media (max-width: 600px) {
   .rc-header { padding: 0.75rem 1rem; }
   .rc-back-link { font-size: 0.85rem; }
+  .rc-account-link { font-size: 0.78rem; padding: 0.3rem 0.65rem; }
+}
+
+/* Sitewide auth indicator. Renders "Sign in" by default; flips to "Account"
+   when localStorage.rc_authed is set (written by /account/ on session
+   confirm, cleared on sign-out). Self-correcting -- a stale "Account" label
+   just links to /account/, which re-renders the sign-in widget. */
+.rc-account-link {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  font-family: var(--rc-font);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  color: var(--rc-text-dim);
+  border: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.rc-account-link:hover,
+.rc-account-link:focus-visible {
+  color: var(--rc-text-bright);
+  outline: none;
+}
+.rc-account-link[data-state="in"] {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+  background: var(--rc-accent-subtle);
+}
+.rc-account-link[data-state="in"]:hover,
+.rc-account-link[data-state="in"]:focus-visible {
+  background: var(--rc-accent-hover);
+}
+
+/* Homepage variant -- the homepage has its own .site-header (giant title),
+   not the rc-header partial, so the account link floats top-right of the
+   viewport instead of living inside a flex header. */
+.rc-account-link-floating {
+  position: fixed;
+  top: 0.75rem;
+  right: 1rem;
+  z-index: 100;
+  margin-left: 0;
+  background: rgba(18, 18, 30, 0.85);
+  backdrop-filter: blur(6px);
+}
+.rc-account-link-floating[data-state="in"] {
+  background: var(--rc-accent-subtle);
 }
 
 .site-title {
@@ -2538,6 +2589,11 @@ td.yo-charge {
   margin-top: var(--rc-gap-dashboard);
   font-size: 0.75rem;
   color: var(--rc-text-dim);
+  /* Sitewide footer mirrors the header treatment so the venue pages
+     (cream body) and the dashboard (dark body) both render the
+     footer as a dark panel. Otherwise the cream bleeds through and
+     the footer disappears on motion-desk / amendments. */
+  background: var(--rc-bg-panel);
 }
 
 .site-footer a {

@@ -5,7 +5,13 @@
   const feedEl = document.getElementById('cl-feed');
   const paginationEl = document.querySelector('.cl-pagination');
   const loadMoreBtn = document.getElementById('cl-load-more');
+  const viewAllWrap = document.querySelector('.cl-view-all-wrap');
   const filterBtns = document.querySelectorAll('.cl-filter');
+
+  // Homepage shows the compact row list capped at PAGE_SIZE with a "view all"
+  // link out to the standalone page. The standalone page keeps the original
+  // detail-card view with Load more pagination.
+  const isHomepage = !!document.getElementById('section-calibration-log');
 
   let activeType = '';
   let offset = 0;
@@ -21,6 +27,11 @@
   };
 
   const EVENT_TYPE_LABELS = {
+    pre_publish_correction: 'Pre-publish',
+    recalibration: 'Recalibration',
+  };
+
+  const EVENT_TYPE_LABELS_FULL = {
     pre_publish_correction: 'Pre-publish correction',
     recalibration: 'Recalibration',
   };
@@ -82,6 +93,27 @@
     `;
   }
 
+  function compactSide(side) {
+    if (!side) return '';
+    const tier = side.rubric_color;
+    const tierDot = tier ? `<span class="cl-row-dot cl-row-dot-${tier}"></span>` : '';
+    const charge = formatCharge(side.charge_value);
+    return `<span class="cl-row-side">${tierDot}<span class="cl-row-charge">${charge}</span></span>`;
+  }
+
+  function compactDiff(entry) {
+    const hasBefore = entry.before && (entry.before.rubric_color || entry.before.charge_value !== null);
+    const hasAfter = entry.after && (entry.after.rubric_color || entry.after.charge_value !== null);
+    if (!hasBefore && !hasAfter) return '<span class="cl-row-diff-empty">&mdash;</span>';
+    return `
+      <span class="cl-row-diff">
+        ${compactSide(entry.before)}
+        <span class="cl-row-diff-arrow">&rarr;</span>
+        ${compactSide(entry.after)}
+      </span>
+    `;
+  }
+
   function tagsMarkup(tags) {
     if (!tags) return '';
     const parts = tags.split(',').map(t => t.trim()).filter(Boolean);
@@ -112,9 +144,22 @@
     return div.innerHTML;
   }
 
-  function entryMarkup(entry) {
+  function anchorTitleHtml(entry, { withArtist = true } = {}) {
+    const anchor = entry.song_anchor;
+    if (!anchor) return escapeHtml(entry.title);
+    const titleLink = anchor.slug
+      ? `<a href="/songs/${encodeURIComponent(anchor.slug)}" onclick="event.stopPropagation();">${escapeHtml(anchor.title)}</a>`
+      : escapeHtml(anchor.title);
+    if (!withArtist) return titleLink;
+    const artistLink = anchor.artist_slug
+      ? `<a class="cl-anchor-artist" href="/artists/${encodeURIComponent(anchor.artist_slug)}" onclick="event.stopPropagation();">${escapeHtml(anchor.artist)}</a>`
+      : escapeHtml(anchor.artist || '');
+    return `${titleLink}<span class="cl-row-artist"> &mdash; ${artistLink}</span>`;
+  }
+
+  function entryMarkupCard(entry) {
     const { day, year } = fmtDate(entry.occurred_at);
-    const typeLabel = EVENT_TYPE_LABELS[entry.event_type] || entry.event_type;
+    const typeLabel = EVENT_TYPE_LABELS_FULL[entry.event_type] || entry.event_type;
     const anchor = entry.song_anchor;
     const artistFrag = anchor
       ? (anchor.artist_slug
@@ -154,6 +199,44 @@
     `;
   }
 
+  function entryMarkupCompact(entry) {
+    const { day } = fmtDate(entry.occurred_at);
+    const typeLabel = EVENT_TYPE_LABELS[entry.event_type] || entry.event_type;
+    const pipelineBadge = entry.pipeline
+      ? `<span class="cl-badge">${escapeHtml(PIPELINE_LABELS[entry.pipeline] || entry.pipeline)}</span>`
+      : '';
+    const lensBadge = entry.lens && entry.lens !== 'standard'
+      ? `<span class="cl-badge">Lens: ${escapeHtml(entry.lens)}</span>`
+      : '';
+    const hasDetails = !!(entry.rubric_change_note || entry.human_rationale || entry.public_summary || entry.tags || pipelineBadge || lensBadge);
+
+    const detailsBody = hasDetails ? `
+      <div class="cl-row-details">
+        <div class="cl-row-details-inner">
+          ${(pipelineBadge || lensBadge) ? `<div class="cl-row-details-badges">${pipelineBadge}${lensBadge}</div>` : ''}
+          ${rubricChangeMarkup(entry.rubric_change_note)}
+          ${rationaleMarkup(entry)}
+          ${tagsMarkup(entry.tags)}
+        </div>
+      </div>
+    ` : '';
+
+    return `
+      <div class="cl-row" data-has-details="${hasDetails ? '1' : '0'}" data-expanded="false">
+        <div class="cl-row-summary" role="button" tabindex="0" aria-expanded="false"${hasDetails ? '' : ' data-no-expand="1"'}>
+          <span class="cl-row-date">${day}</span>
+          <span class="cl-row-type cl-row-type-${entry.event_type}">${escapeHtml(typeLabel)}</span>
+          <span class="cl-row-title">${anchorTitleHtml(entry)}</span>
+          ${compactDiff(entry)}
+          <span class="cl-row-caret" aria-hidden="true">${hasDetails ? '▾' : ''}</span>
+        </div>
+        ${detailsBody}
+      </div>
+    `;
+  }
+
+  const renderEntry = isHomepage ? entryMarkupCompact : entryMarkupCard;
+
   async function loadPage(reset = false) {
     if (loading) return;
     loading = true;
@@ -173,16 +256,47 @@
       if (data.items.length === 0 && offset === 0) {
         feedEl.innerHTML = '<div class="cl-empty">No entries in the log yet.</div>';
       } else {
-        feedEl.insertAdjacentHTML('beforeend', data.items.map(entryMarkup).join(''));
+        feedEl.insertAdjacentHTML('beforeend', data.items.map(renderEntry).join(''));
       }
       offset += data.items.length;
-      paginationEl.hidden = offset >= total;
+
+      if (isHomepage) {
+        // Homepage caps at PAGE_SIZE and links out to the full log.
+        if (viewAllWrap) viewAllWrap.hidden = data.items.length === 0;
+      } else if (paginationEl) {
+        paginationEl.hidden = offset >= total;
+      }
     } catch (err) {
       console.error(err);
       feedEl.innerHTML = '<div class="cl-empty">Could not load the log. Try again in a moment.</div>';
     } finally {
       loading = false;
     }
+  }
+
+  function toggleRow(summary) {
+    if (summary.dataset.noExpand === '1') return;
+    const row = summary.closest('.cl-row');
+    if (!row) return;
+    const expanded = summary.getAttribute('aria-expanded') === 'true';
+    summary.setAttribute('aria-expanded', String(!expanded));
+    row.dataset.expanded = String(!expanded);
+  }
+
+  if (isHomepage) {
+    feedEl.addEventListener('click', (e) => {
+      if (e.target.closest('a')) return;
+      const summary = e.target.closest('.cl-row-summary');
+      if (!summary) return;
+      toggleRow(summary);
+    });
+    feedEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const summary = e.target.closest('.cl-row-summary');
+      if (!summary) return;
+      e.preventDefault();
+      toggleRow(summary);
+    });
   }
 
   filterBtns.forEach(btn => {
@@ -194,7 +308,9 @@
     });
   });
 
-  loadMoreBtn.addEventListener('click', () => loadPage(false));
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', () => loadPage(false));
+  }
 
   loadPage(true);
 })();

@@ -74,6 +74,20 @@
           .then(block => { if (block) renderArtistVerifiedBlock(block); })
           .catch(err => console.warn('Artist verified block unavailable:', err));
       }
+      // Lobby comments -- only mountable when we have a polymorphic (source, id)
+      // pair. Songs without a compass/library mapping have no stable id to
+      // anchor a thread to, so the section stays hidden.
+      if (song.song_source && song.song_id && typeof Comments !== 'undefined') {
+        const cmtEl = document.getElementById('song-comments');
+        if (cmtEl) {
+          cmtEl.hidden = false;
+          Comments.mount(cmtEl, {
+            targetType: 'song',
+            targetSource: song.song_source,
+            targetId: song.song_id,
+          });
+        }
+      }
     } catch (err) {
       console.error('Failed to load song:', err);
       document.getElementById('song-title').textContent = '';

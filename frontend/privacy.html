@@ -100,6 +100,47 @@
     </svg>
     <span>The Rising Compass</span>
   </a>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
+  <script>
+    (function(){
+      function sync() {
+        try {
+          var link = document.getElementById('rc-account-link');
+          if (!link) return;
+          var authed = localStorage.getItem('rc_authed') === '1';
+          if (authed) {
+            link.textContent = 'Account';
+            link.setAttribute('data-state', 'in');
+            link.href = '/account/';
+          } else {
+            link.textContent = 'Sign in';
+            link.setAttribute('data-state', 'out');
+            // Preserve where the user came from so /account/ can route
+            // them back after sign-in / sign-up. Only path + query +
+            // hash; never an absolute URL.
+            var ret = window.location.pathname + window.location.search + window.location.hash;
+            if (ret && !ret.startsWith('/account/')) {
+              link.href = '/account/?returnTo=' + encodeURIComponent(ret);
+            } else {
+              link.href = '/account/';
+            }
+          }
+        } catch (_) {}
+      }
+      sync();
+      // bfcache restore: pages cached by back/forward don't re-execute
+      // scripts, but pageshow fires. Re-read localStorage so a sign-out
+      // in another tab / on /account/ is reflected when the user
+      // navigates back here.
+      window.addEventListener('pageshow', sync);
+      // Cross-tab sync: storage events fire in OTHER tabs when one tab
+      // writes to localStorage. Catches the case where the user signs
+      // out in one tab and switches to a tab that still says Account.
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'rc_authed' || e.key === null) sync();
+      });
+    })();
+  </script>
 </header>
 <!-- /INCLUDE:header -->
 

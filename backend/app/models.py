@@ -324,9 +324,12 @@ class MisreadSubmission(Base):
     song_artist = Column(Text, nullable=False)
     song_color = Column(Text, nullable=False)
     song_position = Column(Integer)
-    first_name = Column(Text, nullable=False)
-    last_name = Column(Text, nullable=False)
-    email = Column(Text, nullable=False)
+    # Public Participation Phase 2.1: new rows are account-linked.
+    # Legacy rows keep user_id=NULL and rely on first_name/email below.
+    user_id = Column(Integer, ForeignKey("users.id"))
+    first_name = Column(Text)  # nullable: required only for legacy anonymous flow
+    last_name = Column(Text)
+    email = Column(Text)
     message = Column(Text, nullable=False)
     device_id = Column(Text)
     ip_address = Column(Text)
@@ -1109,3 +1112,197 @@ class Donation(Base):
     payment_intent_id = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+
+
+class Comment(Base):
+    """Lobby comment. Polymorphic target by (target_type, target_source, target_id):
+      target_type    -- 'song' | 'artist' | 'release'
+      target_source  -- 'compass' | 'library' | 'submitted' (songs only)
+      target_id      -- integer FK into the matching table
+
+    Threading is 2 levels max -- a top-level comment plus flat replies.
+    parent_id chains the reply; thread_root_id points at the top-level
+    ancestor (self for top-level rows) so thread fetch is O(1).
+
+    Soft-delete and hide are distinct:
+      deleted_at -- author removed their own comment (renders as [deleted])
+      hidden_at  -- admin or auto-hide trigger suppressed it (author sees
+                    the reason; no shadow-ban)
+    """
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    target_type = Column(Text, nullable=False)
+    target_source = Column(Text)
+    target_id = Column(Integer, nullable=False)
+    parent_id = Column(Integer, ForeignKey("comments.id"))
+    thread_root_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    content_length = Column(Integer, nullable=False)
+    edited_at = Column(DateTime)
+    # Three distinct removal states with different semantics:
+    #   withdrawn_at -- user "take back". Attribution kept; original content
+    #                   revealable on press-and-hold.
+    #   deleted_at   -- admin moderation delete. No attribution, no reveal.
+    #   hidden_at    -- admin suppression pending review. Reversible.
+    withdrawn_at = Column(DateTime)
+    deleted_at = Column(DateTime)
+    hidden_at = Column(DateTime)
+    hidden_reason = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CommentReport(Base):
+    """One per (reporter, comment) -- the UNIQUE constraint enforces no
+    double-counting. 3 distinct rows in 'pending' status with created_at
+    inside the last 24h triggers auto-hide on the target comment."""
+    __tablename__ = "comment_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    comment_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
+    reporter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
+    notes = Column(Text)
+    status = Column(Text, nullable=False, default="pending")
+    resolved_at = Column(DateTime)
+    resolved_by_admin_id = Column(Integer)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class AccountVerification(Base):
+    """One row per (user, provider, provider_reference) verification attempt.
+
+    status mirrors Stripe Identity's lifecycle:
+      requires_input  -- session created, user hasn't completed flow
+      processing      -- Stripe is reviewing the submission
+      verified        -- success; webhook flipped users.tier to 'id_verified'
+      canceled        -- user abandoned, or admin canceled
+
+    UNIQUE (provider, provider_reference) guards against webhook replays
+    creating duplicate rows. The provider_reference is the
+    VerificationSession id from Stripe.
+    """
+    __tablename__ = "account_verifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    provider = Column(Text, nullable=False)
+    provider_reference = Column(Text, nullable=False)
+    status = Column(Text, nullable=False, default="requires_input")
+    verified_at = Column(DateTime)
+    failure_reason = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class AdminAlertPref(Base):
+    """Toggle row per (alert_key, channel). Composite PK -- one knob per
+    delivery surface. Channel is currently always 'email' but the column
+    is in place for SMS / Slack / webhook without a migration."""
+    __tablename__ = "admin_alert_prefs"
+
+    alert_key = Column(Text, primary_key=True)
+    channel = Column(Text, primary_key=True, default="email")
+    enabled = Column(Boolean, nullable=False, default=True)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class ModerationEvent(Base):
+    """Append-only audit of every consequential moderation action.
+
+    action values: 'auto_hide' | 'admin_hide' | 'admin_unhide' |
+                   'cooldown' | 'ban' | 'unban' | 'dismiss_report'
+    target_user_id and/or target_comment_id are populated depending on
+    action scope. actor_admin_id is null for auto_hide.
+    """
+    __tablename__ = "moderation_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    action = Column(Text, nullable=False)
+    actor_admin_id = Column(Integer)
+    target_user_id = Column(Integer)
+    target_comment_id = Column(Integer)
+    reason = Column(Text)
+    details = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class Motion(Base):
+    """Public Participation Phase 3.2 -- Motion Desk filing.
+
+    Motions deliberate the framework, never a single song's output.
+    motion_type taxonomy:
+
+      amend_tenet | new_tenet | remove_tenet -- changes to the tenets
+        (the five tiers and their numbered criteria).
+      amend_rule  | new_rule  | remove_rule  -- changes to the
+        procedural rules (R1, R2, ...) in tenets/core.json.
+      process    -- proposals about methodology / morality / AI
+        framework that do not target a single tenet or rule id.
+
+    target_kind / target_ref are polymorphic:
+      target_kind='tenet'    target_ref='violet-01'    (or rule, modifier)
+      target_kind='rule'     target_ref='R1'
+      target_kind='modifier' target_ref='contamination'
+      Both NULL for process motions and new_tenet/new_rule.
+
+    Lifecycle: filed -> in_deliberation -> ratified | rejected | covered.
+    'covered' means already addressed by an existing tenet/rule.
+
+    Tier 2 (id_verified) gates filing. Anonymous + Tier 1 read.
+
+    Songs are NEVER targets. Songs can be cited inside the reasoning
+    text as evidence ("songs A and B both read like X under this tenet,
+    which is why I'm filing this"). Per-song "the agent got this wrong"
+    lives in MisreadSubmission, not here.
+    """
+    __tablename__ = "motions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    motion_type = Column(Text, nullable=False)
+    target_kind = Column(Text)  # tenet | rule | modifier | NULL (process / new_*)
+    target_ref = Column(Text)  # id within target_kind, or NULL
+    claim = Column(Text, nullable=False)  # one-line summary
+    reasoning = Column(Text, nullable=False)  # full argument
+    citations = Column(Text)  # JSON array of URL strings
+    filed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(Text, nullable=False, default="filed")
+    resolution_summary = Column(Text)
+    resolved_at = Column(DateTime)
+    resolved_by_admin_id = Column(Integer)
+    filed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class User(Base):
+    """Public Participation Tier 1 user (Clerk-backed email + phone account).
+
+    Row is lazily created on the first authenticated API call after Clerk
+    JWT verification (require_clerk_user in app/auth.py). handle is NULL
+    until the user calls POST /api/users/me/setup -- frontend treats
+    handle IS NULL as "onboarding incomplete" and forces the picker.
+
+    tier transitions: pending -> handled (handle claimed) -> id_verified
+    (Persona/Stripe Identity, Phase 3). status drives moderation: active
+    is normal; suspended sets suspended_until; banned closes the account.
+    """
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clerk_user_id = Column(Text, nullable=False, unique=True)
+    handle = Column(Text, unique=True)
+    avatar_url = Column(Text)
+    tier = Column(Text, nullable=False, default="pending")
+    anon_id = Column(Text, nullable=False, unique=True)
+    status = Column(Text, nullable=False, default="active")
+    banned_at = Column(DateTime)
+    banned_reason = Column(Text)
+    suspended_until = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )

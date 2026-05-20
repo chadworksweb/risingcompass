@@ -361,6 +361,7 @@ def artist_summary(slug: str):
             catalog_tier_hex = COLOR_HEX.get(catalog_tier, "#999")
 
         payload = {
+            "id": artist.id,
             "name": artist.name,
             "slug": artist.slug,
             "stats": {

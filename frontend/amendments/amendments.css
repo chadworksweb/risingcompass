@@ -4,18 +4,27 @@
    ========================================================================== */
 
 :root {
-  --am-bg: #0a0a12;
-  --am-bg-soft: #0e0e18;
-  --am-ink: #d8d4c8;
-  --am-ink-bright: #f0ebdd;
-  --am-ink-dim: #8a8476;
-  --am-rule: #2a2738;
-  --am-gold: #c9a960;
-  --am-proposed: #3388ff;
-  --am-deliberating: #c9a960;
-  --am-ratified: #33cc55;
-  --am-covered: #8a8476;
-  --am-rejected: #ff3333;
+  /* Cream/brown deliberation palette. Matches motion-desk. The
+     tenets page stays dark on purpose -- the constitution and the
+     room where it's deliberated should not look the same. */
+  --am-bg: #f0e6cc;            /* page background */
+  --am-bg-soft: #e6dcbf;       /* cards, panels, modal */
+  --am-ink: #3d2a18;           /* body text */
+  --am-ink-bright: #2a1c0e;    /* headings */
+  --am-ink-dim: #7a5a3a;       /* chrome, meta, italic copy */
+  --am-rule: #b09269;          /* borders */
+  --am-gold: #a07a2a;          /* gold accent deepened for cream */
+  --am-proposed: #1e5fb0;
+  --am-deliberating: #966619;
+  --am-ratified: #1f8a3a;
+  --am-covered: #6f5635;
+  --am-rejected: #b02824;
+
+  /* Type stacks. Cormorant SC is reserved for actual heading titles
+     only (page H1, group H2s, modal H2). All other chrome uses the
+     system sans stack. */
+  --am-font-title: 'Cormorant SC', serif;
+  --am-font-chrome: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -47,7 +56,7 @@ body {
   background: var(--am-ink-bright); color: var(--am-bg);
   padding: 8px 16px; z-index: 100;
   text-decoration: none;
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   letter-spacing: 0.08em;
 }
 .skip-nav:focus { top: 0; }
@@ -69,7 +78,7 @@ body {
   gap: 10px;
   color: var(--am-ink);
   text-decoration: none;
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-weight: 500;
   font-size: 0.95rem;
   letter-spacing: 0.12em;
@@ -95,7 +104,7 @@ body {
 }
 
 .am-title {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-title);
   font-weight: 500;
   font-size: clamp(2.4rem, 5vw, 3.8rem);
   letter-spacing: 0.16em;
@@ -122,10 +131,11 @@ body {
 .am-kicker {
   font-family: 'Cardo', serif;
   font-style: italic;
-  font-size: 1.1rem;
+  font-size: 1.35rem;
   color: var(--am-ink-dim);
   margin: 0 0 32px;
   letter-spacing: 0.02em;
+  line-height: 1.5;
 }
 
 .am-preamble {
@@ -154,7 +164,7 @@ body {
   background: var(--am-bg-soft);
   color: var(--am-ink-bright);
   text-decoration: none;
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-weight: 500;
   font-size: 0.95rem;
   letter-spacing: 0.16em;
@@ -168,7 +178,8 @@ body {
 .am-cta-note {
   font-family: 'Cardo', serif;
   font-style: italic;
-  font-size: 0.9rem;
+  font-size: 1.1rem;
+  line-height: 1.55;
   color: var(--am-ink-dim);
   margin: 14px 0 0;
   max-width: 520px;
@@ -197,7 +208,7 @@ body {
 }
 
 .am-thresh-value {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-size: 2.2rem;
   font-weight: 600;
   color: var(--am-ink-bright);
@@ -206,7 +217,7 @@ body {
 }
 
 .am-thresh-label {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-size: 0.8rem;
   letter-spacing: 0.16em;
   color: var(--am-ink-dim);
@@ -274,7 +285,7 @@ body {
 }
 
 .am-modal-title {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-title);
   font-weight: 500;
   font-size: 1.6rem;
   letter-spacing: 0.18em;
@@ -310,7 +321,7 @@ body.am-modal-open {
   border-radius: 2px;
   background: transparent;
   color: var(--am-ink-dim);
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-weight: 500;
   font-size: 0.9rem;
   letter-spacing: 0.16em;
@@ -347,7 +358,7 @@ body.am-modal-open {
 }
 
 .am-examples-banner strong {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -376,7 +387,7 @@ body.am-modal-open {
 }
 
 .am-group-label {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-title);
   font-weight: 600;
   font-size: clamp(1.5rem, 2.6vw, 2rem);
   letter-spacing: 0.18em;
@@ -386,7 +397,7 @@ body.am-modal-open {
 }
 
 .am-group-count {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-size: 0.85rem;
   letter-spacing: 0.14em;
   color: var(--status-color, var(--am-ink-dim));
@@ -397,7 +408,8 @@ body.am-modal-open {
 .am-group-description {
   font-family: 'Cardo', serif;
   font-style: italic;
-  font-size: 1rem;
+  font-size: 1.2rem;
+  line-height: 1.6;
   color: var(--am-ink-dim);
   margin: 0 0 24px;
   max-width: 620px;
@@ -406,7 +418,8 @@ body.am-modal-open {
 .am-empty {
   font-family: 'Cardo', serif;
   font-style: italic;
-  font-size: 0.95rem;
+  font-size: 1.15rem;
+  line-height: 1.55;
   color: var(--am-ink-dim);
   margin: 0;
   padding: 16px 0;
@@ -424,7 +437,7 @@ body.am-modal-open {
 }
 
 .am-card-id {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-size: 0.75rem;
   letter-spacing: 0.18em;
   color: var(--status-color, var(--am-ink-dim));
@@ -460,7 +473,7 @@ body.am-modal-open {
   margin: 14px 0 0;
 }
 .am-card-section h4 {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-size: 0.78rem;
   letter-spacing: 0.16em;
   color: var(--am-ink-dim);
@@ -494,7 +507,7 @@ body.am-modal-open {
   transition: width 0.4s ease-out;
 }
 .am-progress-label {
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-size: 0.75rem;
   letter-spacing: 0.14em;
   color: var(--am-ink-dim);
@@ -508,7 +521,7 @@ body.am-modal-open {
   gap: 6px;
   margin: 14px 0 0;
   color: var(--status-color, var(--am-ink));
-  font-family: 'Cormorant SC', serif;
+  font-family: var(--am-font-chrome);
   font-size: 0.85rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -529,8 +542,8 @@ body.am-modal-open {
 }
 
 .footer-note {
-  font-family: 'Cormorant SC', serif;
-  font-size: 0.8rem;
+  font-family: var(--am-font-chrome);
+  font-size: 1rem;
   letter-spacing: 0.2em;
   color: var(--am-ink-dim);
   margin: 0;

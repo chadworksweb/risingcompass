@@ -32,6 +32,7 @@
 
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/responsive.css">
+  <script src="/js/auth.js"></script>
   <style>
     .misread-page {
       max-width: 640px;
@@ -339,6 +340,47 @@
     </svg>
     <span>The Rising Compass</span>
   </a>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
+  <script>
+    (function(){
+      function sync() {
+        try {
+          var link = document.getElementById('rc-account-link');
+          if (!link) return;
+          var authed = localStorage.getItem('rc_authed') === '1';
+          if (authed) {
+            link.textContent = 'Account';
+            link.setAttribute('data-state', 'in');
+            link.href = '/account/';
+          } else {
+            link.textContent = 'Sign in';
+            link.setAttribute('data-state', 'out');
+            // Preserve where the user came from so /account/ can route
+            // them back after sign-in / sign-up. Only path + query +
+            // hash; never an absolute URL.
+            var ret = window.location.pathname + window.location.search + window.location.hash;
+            if (ret && !ret.startsWith('/account/')) {
+              link.href = '/account/?returnTo=' + encodeURIComponent(ret);
+            } else {
+              link.href = '/account/';
+            }
+          }
+        } catch (_) {}
+      }
+      sync();
+      // bfcache restore: pages cached by back/forward don't re-execute
+      // scripts, but pageshow fires. Re-read localStorage so a sign-out
+      // in another tab / on /account/ is reflected when the user
+      // navigates back here.
+      window.addEventListener('pageshow', sync);
+      // Cross-tab sync: storage events fire in OTHER tabs when one tab
+      // writes to localStorage. Catches the case where the user signs
+      // out in one tab and switches to a tab that still says Account.
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'rc_authed' || e.key === null) sync();
+      });
+    })();
+  </script>
 </header>
 <!-- /INCLUDE:header -->
 
@@ -381,20 +423,6 @@
         </span>
       </label>
     </div>
-    <div class="misread-row">
-      <div class="misread-field">
-        <label for="first-name">First Name</label>
-        <input type="text" id="first-name" required placeholder="Jane">
-      </div>
-      <div class="misread-field">
-        <label for="last-name">Last Name</label>
-        <input type="text" id="last-name" required placeholder="Doe">
-      </div>
-    </div>
-    <div class="misread-field">
-      <label for="email">Email</label>
-      <input type="email" id="email" required placeholder="jane@example.com">
-    </div>
     <div class="misread-field">
       <label for="message" id="message-label">Why do you think this was misread?</label>
       <textarea id="message" required placeholder="Be specific. Reference lyrics, themes, or context that supports a different calibration."></textarea>
@@ -404,11 +432,20 @@
       <textarea id="proof-context" placeholder="Cite specific lyrics that read as satire, point to public statements about the song, or explain how the lyrical structure exposes rather than endorses what it depicts."></textarea>
     </div>
     <div class="misread-consent">
-      By submitting, you consent to your device ID and IP address being recorded for moderation purposes.
+      Filed as <strong id="misread-author">@you</strong>. Reports are tied to your account; your device ID and IP are recorded for moderation. For broader proposals about how songs are judged, use the Motion Desk (coming soon).
     </div>
     <button type="submit" class="misread-submit" id="submit-btn">Submit Report</button>
     <div class="misread-error" id="error-msg" style="display:none;"></div>
   </form>
+
+  <!-- Sign-in gate (shown when no Tier 1 session) -->
+  <div class="misread-signin-gate" id="signin-gate" style="display:none;">
+    <p>Reports are tied to your account so the same person can't file the same flag twice.</p>
+    <a class="misread-submit" href="/account/" style="display:inline-block;text-decoration:none;">Sign in or create an account</a>
+    <p style="margin-top:1rem;color:var(--rc-text-dim);font-size:0.78rem;">
+      Already submitted reports before account-link was required? Those legacy reports are kept on file. Going forward, new reports require sign-in.
+    </p>
+  </div>
 
   <!-- Success state -->
   <div class="misread-success" id="success-state" style="display:none;">
@@ -527,6 +564,38 @@
 
   checkBan();
 
+  // --- Tier 1 gate (Phase 2.1) ---
+  // Show the form only when a Clerk session resolves to a user with a handle.
+  // Otherwise hide the form and surface a Sign-in CTA. Anonymous device-id
+  // submission was removed -- legacy rows stay on file but new submissions
+  // require an account.
+  const formEl = document.getElementById('misread-form');
+  const gateEl = document.getElementById('signin-gate');
+  const authorEl = document.getElementById('misread-author');
+  formEl.style.display = 'none';
+
+  (async function authGate() {
+    if (typeof Auth === 'undefined') {
+      gateEl.style.display = '';
+      return;
+    }
+    try {
+      await Auth.init();
+      const me = await Auth.getMe();
+      if (!me) { gateEl.style.display = ''; return; }
+      if (!me.handle) {
+        gateEl.querySelector('a').textContent = 'Pick your handle first';
+        gateEl.style.display = '';
+        return;
+      }
+      authorEl.textContent = '@' + me.handle;
+      formEl.style.display = '';
+    } catch (err) {
+      console.error('Auth init failed:', err);
+      gateEl.style.display = '';
+    }
+  })();
+
   // --- Form submission ---
   const form = document.getElementById('misread-form');
   const submitBtn = document.getElementById('submit-btn');
@@ -575,9 +644,6 @@
       song_artist: songArtist,
       song_color: songColor,
       song_position: songPos ? parseInt(songPos) : null,
-      first_name: document.getElementById('first-name').value.trim(),
-      last_name: document.getElementById('last-name').value.trim(),
-      email: document.getElementById('email').value.trim(),
       message: messageTextarea.value.trim(),
       device_id: deviceId,
       report_type: reportType,
@@ -585,7 +651,10 @@
     };
 
     try {
-      const resp = await fetch(`${API_BASE}/api/misread`, {
+      // Tier 1 endpoint -- Auth.authedFetch adds the Bearer JWT. X-Api-Key
+      // is also required (the public misread router is mounted with the
+      // api_key_dep) so we forward it on every call.
+      const resp = await Auth.authedFetch('/api/misread', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...API_HEADERS },
         body: JSON.stringify(body),

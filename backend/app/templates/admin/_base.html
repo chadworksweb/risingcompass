@@ -24,8 +24,138 @@
     --tier-red: #c02020;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
   h1 { color: var(--accent); margin-bottom: 1rem; font-size: 1.5rem; }
+
+  /* ---- Sidebar shell ---- */
+  :root { --sidebar-w: 220px; }
+  .admin-shell { display: flex; min-height: 100vh; }
+  .admin-sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 1rem 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    transition: transform 0.25s ease, width 0.25s ease;
+  }
+  .admin-sidebar-brand {
+    padding: 0.15rem 1.1rem 0.9rem 3rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 0.75rem;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
+  .admin-nav-group { margin: 1rem 0 0.25rem; }
+  .admin-nav-group:first-child { margin-top: 0; }
+  .admin-nav-group-label {
+    padding: 0.35rem 1.1rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: var(--text-hint);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .admin-nav-item {
+    display: block;
+    padding: 0.5rem 1.1rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    font-weight: 500;
+  }
+  .admin-nav-item:hover { color: var(--text); background: rgba(0, 143, 114, 0.05); }
+  .admin-nav-item.active {
+    color: var(--accent);
+    background: #ffffff;
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+  .admin-main {
+    flex: 1;
+    min-width: 0;
+    padding: 1.5rem 2rem 2rem;
+  }
+  /* Section sub-tabs -- pill bar under the H1 for sections with multiple
+     surfaces (e.g. Moderation hosts Comments, and later Misread / Artist
+     Verified). Distinct visual treatment from the sidebar so the
+     hierarchy reads correctly. */
+  .admin-subtabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: -0.25rem 0 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-subtab {
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.12s ease, border-color 0.12s ease;
+  }
+  .admin-subtab:hover { color: var(--text); }
+  .admin-subtab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* Toggle pill -- always visible, top-left corner. Becomes a hamburger
+     when the sidebar is collapsed. */
+  .sidebar-toggle {
+    position: fixed;
+    top: 0.6rem;
+    left: 0.6rem;
+    z-index: 1100;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    font-weight: 700;
+  }
+  .sidebar-toggle:hover { background: var(--panel-strong); color: var(--text); }
+  .sidebar-toggle svg { display: block; }
+
+  /* Collapsed state */
+  body.sidebar-collapsed .admin-sidebar {
+    transform: translateX(calc(-1 * var(--sidebar-w)));
+    width: 0;
+    border-right: none;
+  }
+  body.sidebar-collapsed .admin-main { padding-left: 3.2rem; }
+
+  @media (max-width: 800px) {
+    .admin-sidebar {
+      position: fixed;
+      z-index: 1000;
+      box-shadow: 4px 0 12px rgba(0,0,0,0.08);
+    }
+    .admin-main { padding: 1rem; padding-top: 3rem; }
+    /* On mobile, default to collapsed; user reveals on demand. */
+    body:not(.sidebar-open) .admin-sidebar { transform: translateX(calc(-1 * var(--sidebar-w))); }
+  }
+
   .form-group { margin-bottom: 1rem; }
   label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--text-dim); font-weight: 600; }
   input, select, textarea { width: 100%; padding: 0.5rem; background: #ffffff; border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.9rem; }
@@ -212,31 +342,95 @@
 </head>
 <body>
 
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" type="button">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="4" x2="13" y2="4"/>
+    <line x1="3" y1="8" x2="13" y2="8"/>
+    <line x1="3" y1="12" x2="13" y2="12"/>
+  </svg>
+</button>
 <button class="logout-btn" onclick="doLogout()">Sign out</button>
 
 <div class="admin-panel visible" id="adminPanel">
-<h1>The Rising Compass — Admin</h1>
+<div class="admin-shell">
 
-<nav class="tab-bar">
-  {% set active = active_section|default('') %}
-  <a class="tab-btn {% if active == 'db' %}active{% endif %}" href="/api/admin/dashboard/db">DB</a>
-  <a class="tab-btn {% if active == 'daily-songs' %}active{% endif %}" href="/api/admin/dashboard/daily-songs">Daily Songs</a>
-  <a class="tab-btn {% if active == 'weekly-albums' %}active{% endif %}" href="/api/admin/dashboard/weekly-albums">Weekly Albums</a>
-  <a class="tab-btn {% if active == 'misread' %}active{% endif %}" href="/api/admin/dashboard/misread">Misread Reports</a>
-  <a class="tab-btn {% if active == 'artist-verified' %}active{% endif %}" href="/api/admin/dashboard/artist-verified">Artist Verified</a>
-  <a class="tab-btn {% if active == 'submissions' %}active{% endif %}" href="/api/admin/dashboard/submissions">LC Submissions</a>
-  <a class="tab-btn {% if active == 'lc-activity' %}active{% endif %}" href="/api/admin/dashboard/lc-activity">LC Activity</a>
-  <a class="tab-btn {% if active == 'lc-status' %}active{% endif %}" href="/api/admin/dashboard/lc-status">LC Status</a>
-  <a class="tab-btn {% if active == 'api-monitor' %}active{% endif %}" href="/api/admin/dashboard/api-monitor">API Monitor</a>
-  <a class="tab-btn {% if active == 'claude-usage' %}active{% endif %}" href="/api/admin/dashboard/claude-usage">Claude Usage</a>
-  <a class="tab-btn {% if active == 'v1-test' %}active{% endif %}" href="/api/admin/dashboard/v1-test">V1 Test</a>
-  <a class="tab-btn {% if active == 'recalibrate' %}active{% endif %}" href="/api/admin/recalibrate">Recalibrate</a>
-  <a class="tab-btn {% if active == 'ether-audits' %}active{% endif %}" href="/api/admin/ether-audits">Ether Audits</a>
-  <a class="tab-btn {% if active == 'backfill' %}active{% endif %}" href="/api/admin/backfill">Backfill</a>
-</nav>
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-brand">Rising Compass</div>
+    {% set active = active_section|default('') %}
 
-{% block content %}{% endblock %}
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Readings</div>
+      <a class="admin-nav-item {% if active == 'daily-songs' %}active{% endif %}" href="/api/admin/dashboard/daily-songs">Daily Songs</a>
+      <a class="admin-nav-item {% if active == 'weekly-albums' %}active{% endif %}" href="/api/admin/dashboard/weekly-albums">Weekly Albums</a>
+    </div>
 
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Calibration</div>
+      <a class="admin-nav-item {% if active == 'recalibrate' %}active{% endif %}" href="/api/admin/recalibrate">Recalibrate</a>
+      <a class="admin-nav-item {% if active == 'misread' %}active{% endif %}" href="/api/admin/dashboard/misread">Misread Reports</a>
+      <a class="admin-nav-item {% if active == 'ether-audits' %}active{% endif %}" href="/api/admin/ether-audits">Ether Audits</a>
+      <a class="admin-nav-item {% if active == 'backfill' %}active{% endif %}" href="/api/admin/backfill">Backfill</a>
+      <a class="admin-nav-item {% if active == 'v1-test' %}active{% endif %}" href="/api/admin/dashboard/v1-test">V1 Test</a>
+    </div>
+
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Community</div>
+      <a class="admin-nav-item {% if active == 'users' %}active{% endif %}" href="/api/admin/dashboard/users">Users</a>
+      <a class="admin-nav-item {% if active == 'lobby-mod' %}active{% endif %}" href="/api/admin/dashboard/lobby-mod">Moderation</a>
+      <a class="admin-nav-item {% if active == 'motions' %}active{% endif %}" href="/api/admin/dashboard/motions">Motions</a>
+      <a class="admin-nav-item {% if active == 'artist-verified' %}active{% endif %}" href="/api/admin/dashboard/artist-verified">Artist Verified</a>
+    </div>
+
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Lyrical Charger</div>
+      <a class="admin-nav-item {% if active == 'submissions' %}active{% endif %}" href="/api/admin/dashboard/submissions">Submissions</a>
+      <a class="admin-nav-item {% if active == 'lc-activity' %}active{% endif %}" href="/api/admin/dashboard/lc-activity">Activity</a>
+      <a class="admin-nav-item {% if active == 'lc-status' %}active{% endif %}" href="/api/admin/dashboard/lc-status">Status</a>
+    </div>
+
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">System</div>
+      <a class="admin-nav-item {% if active == 'alerts' %}active{% endif %}" href="/api/admin/dashboard/alerts">Alerts</a>
+      <a class="admin-nav-item {% if active == 'db' %}active{% endif %}" href="/api/admin/dashboard/db">DB</a>
+      <a class="admin-nav-item {% if active == 'api-monitor' %}active{% endif %}" href="/api/admin/dashboard/api-monitor">API Monitor</a>
+      <a class="admin-nav-item {% if active == 'claude-usage' %}active{% endif %}" href="/api/admin/dashboard/claude-usage">Claude Usage</a>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    {# Central source of truth for the H1 on each admin section. Add an
+       entry here when wiring a new dashboard page so the heading stays
+       in sync with the sidebar label. Falls back to a generic title if
+       the active_section key is missing. #}
+    {% set section_titles = {
+      'db': 'Database',
+      'daily-songs': 'Daily Songs',
+      'weekly-albums': 'Weekly Albums',
+      'misread': 'Misread Reports',
+      'lobby-mod': 'Moderation',
+      'artist-verified': 'Artist Verified',
+      'submissions': 'Lyrical Charger Submissions',
+      'lc-activity': 'Lyrical Charger Activity',
+      'lc-status': 'Lyrical Charger Status',
+      'api-monitor': 'API Monitor',
+      'claude-usage': 'Claude API Usage',
+      'v1-test': 'V1 Test',
+      'recalibrate': 'Recalibrate',
+      'ether-audits': 'Ether Audits',
+      'backfill': 'Backfill Console',
+      'alerts': 'Alerts',
+      'users': 'Users',
+      'motions': 'Motions',
+    } %}
+    <h1>{{ section_titles.get(active|default(''), 'Admin') }}</h1>
+    {# Optional sub-tab bar between H1 and content. Templates override
+       {% block subtabs %} when a section has multiple views (e.g. the
+       Moderation section will host Comments, Misread, Artist Verified). #}
+    {% block subtabs %}{% endblock %}
+    {% block content %}{% endblock %}
+  </main>
+
+</div><!-- /.admin-shell -->
 </div><!-- /.admin-panel -->
 
 <script>
@@ -259,7 +453,10 @@ function adminHeaders() {
 }
 
 async function adminFetch(input, init) {
-  const opts = Object.assign({ credentials: 'include' }, init || {});
+  // Admin dashboards must never serve cached responses -- counts and queue
+  // state change constantly and we want every navigation to reflect the
+  // latest DB state without a hard refresh.
+  const opts = Object.assign({ credentials: 'include', cache: 'no-store' }, init || {});
   const resp = await fetch(input, opts);
   if (resp.status === 401) {
     // Session expired or revoked. Push to home — the obscured login URL is
@@ -287,6 +484,42 @@ function escHtml(s) {
 
 const colors = ['violet','blue','green','orange','red'];
 const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','orange':'Degraded','red':'Corrupted'};
+
+// Sidebar collapse toggle. State persists in localStorage so the chosen
+// width carries between admin pages. On mobile (<800px) we use a separate
+// .sidebar-open flag because the default state is collapsed there.
+(function () {
+  const SIDEBAR_KEY = 'rc_admin_sidebar_collapsed';
+  const btn = document.getElementById('sidebarToggle');
+  if (!btn) return;
+  const mq = window.matchMedia('(max-width: 800px)');
+
+  function apply() {
+    if (mq.matches) {
+      const open = sessionStorage.getItem('rc_admin_sidebar_mobile_open') === '1';
+      document.body.classList.toggle('sidebar-open', open);
+      document.body.classList.remove('sidebar-collapsed');
+    } else {
+      const collapsed = localStorage.getItem(SIDEBAR_KEY) === '1';
+      document.body.classList.toggle('sidebar-collapsed', collapsed);
+      document.body.classList.remove('sidebar-open');
+    }
+  }
+
+  btn.addEventListener('click', () => {
+    if (mq.matches) {
+      const open = !(sessionStorage.getItem('rc_admin_sidebar_mobile_open') === '1');
+      sessionStorage.setItem('rc_admin_sidebar_mobile_open', open ? '1' : '0');
+    } else {
+      const collapsed = !(localStorage.getItem(SIDEBAR_KEY) === '1');
+      localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+    }
+    apply();
+  });
+
+  mq.addEventListener('change', apply);
+  apply();
+})();
 </script>
 
 {% block scripts %}{% endblock %}

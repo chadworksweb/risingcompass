@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     approval_email: str = ""
     misread_notify_email: str = ""
     ether_audit_notify_email: str = ""  # falls back to misread_notify_email when unset
+    admin_alert_email: str = ""  # admin inbox for activity heartbeat + moderation alerts (subject prefixed [RC-ACTIVITY] / [RC-MOD])
 
     # Site URL for approval links in emails
     site_url: str = "http://localhost:8000"
@@ -73,10 +74,28 @@ class Settings(BaseSettings):
     # but a separate webhook endpoint with its own signing secret.
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    # Distinct webhook secret for Stripe Identity events. Keeps a leaked
+    # donation-webhook signing key from forging Tier 2 verification events
+    # (and vice versa). Set when the Identity webhook endpoint is created
+    # in the Stripe dashboard.
+    stripe_identity_webhook_secret: str = ""
+    # URL the user lands on after the Stripe-hosted verification flow.
+    # Defaults to /account/ on the frontend.
+    stripe_identity_return_url: str = ""
 
     # Audience Vibe — gap threshold that opens an admin review case.
     # Roadmap calls this "TBD"; starting at 25 and tunable from .env.
     vibe_review_threshold: int = 25
+
+    # Clerk (Public Participation: Tier 1 auth — email + phone). The middleware
+    # verifies JWTs against the JWKS endpoint and trusts Clerk's verification
+    # claims for email + phone. All OAuth providers are disabled in the Clerk
+    # dashboard; Twilio Lookup carrier filter is required to be ON so VoIP /
+    # disposable numbers don't defeat ban-stickiness.
+    clerk_publishable_key: str = ""
+    clerk_secret_key: str = ""
+    clerk_jwks_url: str = ""  # e.g. https://<frontend-api>.clerk.accounts.dev/.well-known/jwks.json
+    clerk_authorized_party: str = ""  # e.g. https://risingcompass.net — rejected if azp claim mismatches
 
     # DO Spaces backup destination
     do_spaces_key: str = ""

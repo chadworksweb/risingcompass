@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion ledger -- The Rising Compass</title>
+  <meta name="description" content="Every motion ever filed on the Rising Compass framework -- proposed, deliberating, ratified, covered, rejected. Public reading, no sign-in required.">
+  <link rel="canonical" href="https://risingcompass.net/motion-desk/motion-ledger/">
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/motion-desk/motion-ledger/">
+  <meta property="og:title" content="Motion ledger -- The Rising Compass">
+  <meta property="og:description" content="Every motion ever filed on the Rising Compass framework.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Motion ledger -- The Rising Compass">
+  <meta name="twitter:description" content="Every motion ever filed on the Rising Compass framework.">
+  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Cormorant+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/motion-desk/motion-desk.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
+  <script>
+    (function(){
+      function sync() {
+        try {
+          var link = document.getElementById('rc-account-link');
+          if (!link) return;
+          var authed = localStorage.getItem('rc_authed') === '1';
+          if (authed) {
+            link.textContent = 'Account';
+            link.setAttribute('data-state', 'in');
+            link.href = '/account/';
+          } else {
+            link.textContent = 'Sign in';
+            link.setAttribute('data-state', 'out');
+            var ret = window.location.pathname + window.location.search + window.location.hash;
+            if (ret && !ret.startsWith('/account/')) {
+              link.href = '/account/?returnTo=' + encodeURIComponent(ret);
+            } else {
+              link.href = '/account/';
+            }
+          }
+        } catch (_) {}
+      }
+      sync();
+      window.addEventListener('pageshow', sync);
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'rc_authed' || e.key === null) sync();
+      });
+    })();
+  </script>
+</header>
+<!-- /INCLUDE:header -->
+
+  <main id="main" class="md-main">
+
+    <section class="md-hero">
+      <p class="md-eyebrow"><a href="/motion-desk/">Motion Desk</a></p>
+      <h1 class="md-title">Motion ledger</h1>
+      <p class="md-kicker">Every motion ever filed, on the record.</p>
+    </section>
+
+    <nav class="md-tabbar md-tabbar-routed" aria-label="Motion Desk sections">
+      <a class="md-tab" href="/motion-desk/file-a-motion/">File a motion</a>
+      <a class="md-tab active" href="/motion-desk/motion-ledger/" aria-current="page">Motion ledger</a>
+    </nav>
+
+    <section class="md-record" aria-label="Public motion ledger">
+      <p class="md-record-help">
+        Every motion ever filed, public from the moment it lands.
+        Amendments to tenets also appear on the
+        <a href="/amendments/">amendment record</a>.
+      </p>
+
+      <div class="md-filter-row">
+        <button class="md-filter active" data-status="open" type="button">Open</button>
+        <button class="md-filter" data-status="filed" type="button">Filed</button>
+        <button class="md-filter" data-status="in_deliberation" type="button">In deliberation</button>
+        <button class="md-filter" data-status="ratified" type="button">Ratified</button>
+        <button class="md-filter" data-status="covered" type="button">Covered</button>
+        <button class="md-filter" data-status="rejected" type="button">Rejected</button>
+        <button class="md-filter" data-status="all" type="button">All</button>
+      </div>
+      <div class="md-filter-row" id="typeFilters">
+        <button class="md-filter active" data-type="all" type="button">All types</button>
+        <button class="md-filter" data-type="amend_tenet" type="button">Amend tenet</button>
+        <button class="md-filter" data-type="new_tenet" type="button">New tenet</button>
+        <button class="md-filter" data-type="remove_tenet" type="button">Remove tenet</button>
+        <button class="md-filter" data-type="amend_rule" type="button">Amend rule</button>
+        <button class="md-filter" data-type="new_rule" type="button">New rule</button>
+        <button class="md-filter" data-type="remove_rule" type="button">Remove rule</button>
+        <button class="md-filter" data-type="process" type="button">Process</button>
+      </div>
+
+      <div class="md-record-list" id="recordList">
+        <p class="md-empty">Loading...</p>
+      </div>
+    </section>
+
+    <footer class="md-footer">
+      <p class="footer-note">
+        See also: <a href="/motion-desk/file-a-motion/">file a motion</a> &middot; <a href="/tenets/">the tenets</a> &middot; <a href="/amendments/">the amendment record</a>
+      </p>
+    </footer>
+
+  </main>
+
+  <script src="/js/auth.js" defer></script>
+  <script src="/motion-desk/motion-desk.js" defer></script>
+  <!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
+</body>
+</html>

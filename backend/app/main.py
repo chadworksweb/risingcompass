@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
-from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots
+from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +271,31 @@ app.include_router(tenets.router, dependencies=_api_key_dep)
 app.include_router(amendments.router, dependencies=_api_key_dep)
 app.include_router(ether_art_chart.router, dependencies=_api_key_dep)
 app.include_router(chart_snapshots.public_router, dependencies=_api_key_dep)
+
+# Public Participation Tier 1 user endpoints. Self-authenticating via
+# Clerk session JWT (require_clerk_user) -- no X-Api-Key gate here, since
+# the JWT itself is the authorization. Lazy-creates a users row on first
+# authenticated hit.
+app.include_router(users.router)
+
+# Public Participation Lobby comments. Reads are anonymous; writes require
+# require_clerk_user (Tier 1) and a claimed handle. No X-Api-Key gate --
+# the JWT (when present) is the authorization for writes.
+app.include_router(comments.router)
+app.include_router(comments_admin.router)
+app.include_router(alerts_admin.router)
+app.include_router(users_admin.router)
+
+# Public Participation Motion Desk (Phase 3.2). Filing requires Tier 2
+# (id_verified); reads are public. Admin queue mounts below alongside
+# the other admin routers.
+app.include_router(motions.router)
+app.include_router(motions_admin.router)
+
+# Stripe Identity webhook (Phase 3.1). Distinct from the donation webhook
+# (/api/stripe-webhook) -- different signing secret so a leak on one
+# stream can't forge events on the other.
+app.include_router(identity_webhook.router)
 
 # Admin auth — login page (obscured URL), POST /login, POST /logout, GET /me.
 # Mounted before the other admin routers so it takes precedence on its

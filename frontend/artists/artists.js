@@ -225,6 +225,22 @@
     try {
       renderBreakdown(data.stats);
     } catch (err) { console.error('renderBreakdown failed:', err); }
+    // Lobby comments anchored on the artist row. Needs the integer id
+    // returned by the summary endpoint (added 2026-05-19).
+    try {
+      if (data && data.id && typeof Comments !== 'undefined') {
+        const cmtEl = document.getElementById('artist-comments');
+        if (cmtEl) {
+          cmtEl.hidden = false;
+          Comments.mount(cmtEl, {
+            targetType: 'artist',
+            targetSource: null,
+            targetId: data.id,
+          });
+        }
+      }
+    } catch (err) { console.error('Comments mount failed:', err); }
+
     try {
       maybeInjectJsonLd();
     } catch (err) { console.error('maybeInjectJsonLd failed:', err); }

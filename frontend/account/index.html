@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account &mdash; The Rising Compass</title>
+  <meta name="description" content="Your Rising Compass account. Sign in, claim your handle, manage your profile.">
+  <link rel="canonical" href="https://risingcompass.net/account/">
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta name="robots" content="noindex">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="account.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
+  <script>
+    (function(){
+      function sync() {
+        try {
+          var link = document.getElementById('rc-account-link');
+          if (!link) return;
+          var authed = localStorage.getItem('rc_authed') === '1';
+          if (authed) {
+            link.textContent = 'Account';
+            link.setAttribute('data-state', 'in');
+            link.href = '/account/';
+          } else {
+            link.textContent = 'Sign in';
+            link.setAttribute('data-state', 'out');
+            // Preserve where the user came from so /account/ can route
+            // them back after sign-in / sign-up. Only path + query +
+            // hash; never an absolute URL.
+            var ret = window.location.pathname + window.location.search + window.location.hash;
+            if (ret && !ret.startsWith('/account/')) {
+              link.href = '/account/?returnTo=' + encodeURIComponent(ret);
+            } else {
+              link.href = '/account/';
+            }
+          }
+        } catch (_) {}
+      }
+      sync();
+      // bfcache restore: pages cached by back/forward don't re-execute
+      // scripts, but pageshow fires. Re-read localStorage so a sign-out
+      // in another tab / on /account/ is reflected when the user
+      // navigates back here.
+      window.addEventListener('pageshow', sync);
+      // Cross-tab sync: storage events fire in OTHER tabs when one tab
+      // writes to localStorage. Catches the case where the user signs
+      // out in one tab and switches to a tab that still says Account.
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'rc_authed' || e.key === null) sync();
+      });
+    })();
+  </script>
+</header>
+<!-- /INCLUDE:header -->
+
+  <main id="main" class="account-main">
+
+    <section class="account-card" id="acct-loading" aria-live="polite">
+      <p class="account-loading">Loading account...</p>
+    </section>
+
+    <section class="account-card account-card-clerk" id="acct-signed-out" hidden>
+      <div id="clerk-mount"></div>
+    </section>
+
+    <section class="account-card" id="acct-onboarding" hidden>
+      <h1 class="account-title">Pick your handle</h1>
+      <p class="account-sub">
+        Your handle is how you appear in the Lobby. 3-20 characters, letters,
+        numbers, or underscores. You can't change it later without an admin
+        unlocking it, so think before you pick.
+      </p>
+      <form id="handle-form" class="account-form" novalidate>
+        <label class="account-label" for="handle-input">Handle</label>
+        <input
+          id="handle-input"
+          name="handle"
+          type="text"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          minlength="3"
+          maxlength="20"
+          pattern="[a-zA-Z0-9_]{3,20}"
+          required
+        >
+
+        <label class="account-label" for="avatar-input">Avatar URL <span class="account-optional">(optional)</span></label>
+        <input
+          id="avatar-input"
+          name="avatar_url"
+          type="url"
+          maxlength="500"
+          placeholder="https://"
+        >
+
+        <p class="account-error" id="handle-error" hidden></p>
+
+        <button type="submit" class="account-btn">Claim handle</button>
+      </form>
+      <p class="account-escape">
+        Not ready? <a href="#" id="onboarding-signout">Sign out</a> and come back later.
+      </p>
+    </section>
+
+    <section class="account-card" id="acct-profile" hidden>
+      <h1 class="account-title">Your account</h1>
+      <div class="account-profile">
+        <img id="profile-avatar" class="account-avatar" alt="" hidden>
+        <div class="account-profile-text">
+          <p class="account-handle" id="profile-handle"></p>
+          <p class="account-tier" id="profile-tier"></p>
+        </div>
+      </div>
+
+      <div class="account-verify" id="acct-verify" hidden>
+        <h2 class="account-verify-title">Verify your identity</h2>
+        <p class="account-verify-sub">
+          Tier 1 lets you comment in the Lobby and flag misreads. Filing formal motions in the
+          Motion Desk and arguing in the Chamber requires a verified real-name account. Verification
+          uses Stripe Identity -- you'll be asked for a government ID and a live selfie; takes about
+          two minutes. Your legal name is recorded but only displayed in the Chamber.
+        </p>
+        <p class="account-error" id="verify-error" hidden></p>
+        <button type="button" class="account-btn" id="verify-btn">Verify with Stripe Identity</button>
+      </div>
+
+      <div class="account-verified-badge" id="acct-verified-badge" hidden>
+        <span class="account-verified-dot" aria-hidden="true"></span>
+        <span>Verified person -- Tier 2</span>
+      </div>
+
+      <button type="button" class="account-btn account-btn-secondary" id="signout-btn">Sign out</button>
+    </section>
+
+    <p class="account-fatal" id="acct-fatal" hidden></p>
+
+  </main>
+
+  <script src="/js/auth.js" defer></script>
+  <script src="account.js" defer></script>
+
+  <!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
+</body>
+</html>

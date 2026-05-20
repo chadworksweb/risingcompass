@@ -1,0 +1,253 @@
+/* Account page -- sign-in, handle picker, profile. Tier-1 surface for
+   Public Participation. Uses the global :root tokens from main.css. */
+
+.account-main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+  font-family: var(--rc-font);
+  color: var(--rc-text);
+}
+
+.account-card {
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: 8px;
+  padding: 1.75rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Clerk's widget brings its own headline + sub copy + footer ("Already have
+   an account? Sign in", verify-email step, etc). Remove the panel chrome so
+   the widget stands on its own. */
+.account-card-clerk {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.account-title {
+  margin: 0 0 0.5rem;
+  color: var(--rc-text-bright);
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.account-sub {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--rc-text);
+}
+
+.account-loading {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--rc-text-dim);
+  text-align: center;
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.account-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  margin-top: 0.75rem;
+}
+
+.account-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--rc-text-dim);
+}
+
+.account-form input {
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  color: var(--rc-text-bright);
+  font-family: var(--rc-font-mono);
+  font-size: 0.95rem;
+  transition: border-color 0.15s ease;
+}
+
+.account-form input:focus {
+  outline: none;
+  border-color: var(--rc-accent);
+}
+
+.account-form input:invalid:not(:placeholder-shown) {
+  border-color: var(--rc-red);
+}
+
+.account-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: var(--rc-red);
+}
+
+.account-btn {
+  margin-top: 1.25rem;
+  background: var(--rc-accent-subtle);
+  border: 1px solid var(--rc-accent);
+  color: var(--rc-accent);
+  border-radius: 6px;
+  padding: 0.7rem 1rem;
+  font-family: var(--rc-font);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.account-btn:hover,
+.account-btn:focus-visible {
+  background: var(--rc-accent-hover);
+  outline: none;
+}
+
+.account-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-btn-secondary {
+  background: transparent;
+  border-color: var(--rc-border);
+  color: var(--rc-text);
+}
+
+.account-btn-secondary:hover,
+.account-btn-secondary:focus-visible {
+  background: var(--rc-bg-card);
+}
+
+.account-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0 1.25rem;
+}
+
+.account-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--rc-border);
+  background: var(--rc-bg-card);
+}
+
+.account-profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.account-handle {
+  margin: 0;
+  font-family: var(--rc-font-mono);
+  font-size: 1.05rem;
+  color: var(--rc-text-bright);
+}
+
+.account-tier {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rc-text-dim);
+}
+
+.account-escape {
+  margin: 1rem 0 0;
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+  text-align: center;
+}
+.account-escape a {
+  color: var(--rc-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.account-escape a:hover,
+.account-escape a:focus-visible {
+  color: var(--rc-accent);
+  outline: none;
+}
+
+.account-verify {
+  margin-top: 1.5rem;
+  padding: 1.1rem 1.2rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: 6px;
+}
+.account-verify-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+}
+.account-verify-sub {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--rc-text-dim);
+}
+
+.account-verified-badge {
+  margin-top: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--rc-accent-subtle);
+  border: 1px solid var(--rc-accent);
+  border-radius: 6px;
+  color: var(--rc-accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.account-verified-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rc-accent);
+  box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.18);
+}
+
+.account-fatal {
+  margin: 1.5rem 0 0;
+  padding: 1rem;
+  background: rgba(255, 51, 51, 0.08);
+  border: 1px solid rgba(255, 51, 51, 0.25);
+  border-radius: 6px;
+  color: var(--rc-red);
+  font-size: 0.85rem;
+}
+
+/* Clerk component theming. Clerk renders inside #clerk-mount; we override
+   the most jarring defaults so the form sits inside the dark panel. */
+#clerk-mount {
+  margin-top: 0.5rem;
+}
+
+#clerk-mount .cl-rootBox,
+#clerk-mount .cl-card {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}

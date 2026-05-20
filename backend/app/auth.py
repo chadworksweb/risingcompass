@@ -17,16 +17,22 @@ service-tier access and vice versa.
 
 import hashlib
 import hmac
+import logging
 import time
 from typing import Optional
 
+import jwt as _jwt
 from fastapi import Cookie, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal, get_db
+from app.models import User
 from app.services import admin_auth as admin_auth_svc
+from app.services import clerk as clerk_svc
 from app.services.api_clients import resolve_key
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve(x_api_key: str):
@@ -183,6 +189,95 @@ def verify_reading_cron_key(x_reading_cron_key: Optional[str] = Header(default=N
         raise HTTPException(status_code=403, detail="Missing reading cron key")
     if not hmac.compare_digest(x_reading_cron_key, expected):
         raise HTTPException(status_code=403, detail="Invalid reading cron key")
+
+
+def _extract_clerk_token(
+    authorization: Optional[str], session_cookie: Optional[str]
+) -> Optional[str]:
+    """Pick the Clerk session JWT off the request. Authorization: Bearer wins
+    over the __session cookie so an explicit header beats a stale cookie."""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(None, 1)[1].strip()
+        if token:
+            return token
+    if session_cookie:
+        return session_cookie
+    return None
+
+
+def require_clerk_user(
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+    __session: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> User:
+    """Public Participation Tier 1 auth dependency. Verifies the Clerk
+    session JWT, lazy-provisions a local users row on first sight, and
+    attaches user metadata to request.state for downstream handlers.
+
+    Returns the local User row (handle may be NULL pre-onboarding).
+    Endpoints that require posting privileges should additionally check
+    user.handle is not None and user.status == 'active'.
+
+    401 on missing / invalid token. 403 on banned account.
+    """
+    token = _extract_clerk_token(authorization, __session)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        claims = clerk_svc.verify_clerk_jwt(token)
+    except _jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired")
+    except _jwt.PyJWTError as exc:
+        logger.warning("Clerk JWT verification failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid session")
+    except RuntimeError as exc:
+        # Misconfiguration (e.g. CLERK_JWKS_URL not set). 503 so the client
+        # knows this is a server-side issue, not their token.
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    clerk_user_id = claims.get("sub")
+    if not clerk_user_id:
+        raise HTTPException(status_code=401, detail="Token missing subject")
+
+    user = clerk_svc.ensure_user_for_clerk_id(db, clerk_user_id)
+
+    if user.status == "banned":
+        raise HTTPException(status_code=403, detail="Account banned")
+
+    request.state.user_id = user.id
+    request.state.clerk_user_id = clerk_user_id
+    request.state.user_tier = user.tier
+    return user
+
+
+def optional_clerk_user(
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+    __session: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Same as require_clerk_user but returns None instead of raising. Used by
+    public endpoints that show extra state to authed users (e.g. comment
+    threads showing "you reported this" hints)."""
+    token = _extract_clerk_token(authorization, __session)
+    if not token:
+        return None
+    try:
+        claims = clerk_svc.verify_clerk_jwt(token)
+    except (_jwt.PyJWTError, RuntimeError):
+        return None
+    clerk_user_id = claims.get("sub")
+    if not clerk_user_id:
+        return None
+    user = clerk_svc.ensure_user_for_clerk_id(db, clerk_user_id)
+    if user.status == "banned":
+        return None
+    request.state.user_id = user.id
+    request.state.clerk_user_id = clerk_user_id
+    request.state.user_tier = user.tier
+    return user
 
 
 def verify_admin_or_lyrics_key(

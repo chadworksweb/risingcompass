@@ -478,13 +478,15 @@ class PaginatedDrafts(BaseModel):
 
 # --- Misread Submissions ---
 class MisreadSubmissionCreate(BaseModel):
+    """Account-linked submission. first_name/last_name/email are optional --
+    they're ignored when the JWT-resolved user has a handle (Phase 2.1)."""
     song_title: str = Field(..., max_length=300)
     song_artist: str = Field(..., max_length=300)
     song_color: str = Field(..., max_length=20)
     song_position: Optional[int] = None
-    first_name: str = Field(..., max_length=100)
-    last_name: str = Field(..., max_length=100)
-    email: str = Field(..., max_length=254)
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
+    email: Optional[str] = Field(default=None, max_length=254)
     message: str = Field(..., max_length=5000)
     device_id: Optional[str] = Field(None, max_length=200)
     report_type: str = Field("misread", max_length=20)  # misread | satirical
@@ -498,9 +500,12 @@ class MisreadSubmissionOut(BaseModel):
     song_artist: str
     song_color: str
     song_position: Optional[int] = None
-    first_name: str
-    last_name: str
-    email: str
+    user_id: Optional[int] = None
+    user_handle: Optional[str] = None
+    user_anon_id: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
     message: str
     device_id: Optional[str] = None
     ip_address: Optional[str] = None

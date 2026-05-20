@@ -18,8 +18,11 @@ from app.schemas import (
 )
 from app.config import settings
 from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG
+from app.auth import require_clerk_user
+from app.models import User
 from app.routers.admin import verify_admin_key
 from app.routers.analyzer import limiter
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -228,8 +231,28 @@ def _is_banned(db: Session, device_id: Optional[str], ip: Optional[str]) -> bool
 
 @router.post("/api/misread", response_model=MisreadSubmissionOut, status_code=201)
 @limiter.limit("5/hour")
-def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session = Depends(get_db)):
-    """Submit a misread calibration report or a satirical flag."""
+def submit_misread(
+    data: MisreadSubmissionCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_clerk_user),
+):
+    """Submit a misread calibration report or a satirical flag.
+
+    Public Participation Phase 2.1: new submissions are account-linked.
+    Tier 1 (Clerk JWT + handle) is required. The first_name/last_name/email
+    fields in the payload are ignored -- the local users row carries the
+    identity. device_id is still recorded so legacy ban entries remain
+    enforceable during the transition.
+    """
+    if user.handle is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Pick a handle on your account page before filing a report.",
+        )
+    if user.status == "banned":
+        raise HTTPException(status_code=403, detail="Account banned")
+
     ip = request.client.host if request.client else None
 
     if data.report_type not in VALID_REPORT_TYPES:
@@ -250,14 +273,34 @@ def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session 
 
     song_source, song_id = _resolve_polymorphic_song(db, data.song_title, data.song_artist)
 
+    # One report per user per song per report_type. Prevents a single user
+    # repeatedly flagging the same song to inflate the count -- the public
+    # badge is meant to reflect listener consensus, not one person's volume.
+    title_l = (data.song_title or "").strip().lower()
+    artist_l = (data.song_artist or "").strip().lower()
+    duplicate = (
+        db.query(MisreadSubmission)
+        .filter(MisreadSubmission.user_id == user.id)
+        .filter(MisreadSubmission.report_type == data.report_type)
+        .filter(func.lower(MisreadSubmission.song_title) == title_l)
+        .filter(func.lower(MisreadSubmission.song_artist) == artist_l)
+        .first()
+    )
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="You've already filed this report on this song.",
+        )
+
     submission = MisreadSubmission(
         song_title=data.song_title,
         song_artist=data.song_artist,
         song_color=data.song_color,
         song_position=data.song_position,
-        first_name=data.first_name,
-        last_name=data.last_name,
-        email=data.email,
+        user_id=user.id,
+        first_name=None,  # account-linked submissions don't carry these fields
+        last_name=None,
+        email=None,
         message=data.message,
         device_id=data.device_id,
         ip_address=ip,
@@ -270,10 +313,36 @@ def submit_misread(data: MisreadSubmissionCreate, request: Request, db: Session 
     db.commit()
     db.refresh(submission)
 
-    _send_receipt_email(submission)
     _send_admin_notification_email(submission)
 
-    return submission
+    return _serialize_for_out(submission, user)
+
+
+def _serialize_for_out(submission: MisreadSubmission, user: Optional[User]) -> dict:
+    """Hydrate user_handle/user_anon_id alongside the MisreadSubmission row.
+    Pydantic from_attributes can't see across the FK, so we hand-pack."""
+    return {
+        "id": submission.id,
+        "created_at": submission.created_at,
+        "song_title": submission.song_title,
+        "song_artist": submission.song_artist,
+        "song_color": submission.song_color,
+        "song_position": submission.song_position,
+        "user_id": submission.user_id,
+        "user_handle": user.handle if user else None,
+        "user_anon_id": user.anon_id if user else None,
+        "first_name": submission.first_name,
+        "last_name": submission.last_name,
+        "email": submission.email,
+        "message": submission.message,
+        "device_id": submission.device_id,
+        "ip_address": submission.ip_address,
+        "status": submission.status,
+        "report_type": submission.report_type,
+        "proof_context": submission.proof_context,
+        "song_source": submission.song_source,
+        "song_id": submission.song_id,
+    }
 
 
 @router.get("/api/misread/check")
@@ -303,7 +372,17 @@ def list_misread(
                 detail=f"Invalid report_type. Must be one of: {', '.join(sorted(VALID_REPORT_TYPES))}",
             )
         q = q.filter(MisreadSubmission.report_type == report_type)
-    return q.order_by(MisreadSubmission.created_at.desc()).all()
+    rows = q.order_by(MisreadSubmission.created_at.desc()).all()
+
+    # Hydrate user_handle/user_anon_id alongside each row -- the admin
+    # queue surfaces the Tier 1 identity for account-linked submissions
+    # and falls back to first_name/email for legacy anonymous ones.
+    user_ids = {r.user_id for r in rows if r.user_id is not None}
+    users_by_id: dict[int, User] = {}
+    if user_ids:
+        for u in db.query(User).filter(User.id.in_(user_ids)).all():
+            users_by_id[u.id] = u
+    return [_serialize_for_out(r, users_by_id.get(r.user_id) if r.user_id else None) for r in rows]
 
 
 @admin_router.patch("/api/admin/misread/{submission_id}", response_model=MisreadSubmissionOut, dependencies=[Depends(verify_admin_key)])

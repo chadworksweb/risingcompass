@@ -63,7 +63,10 @@ function renderMisread(list) {
         ${s.report_type === 'satirical' ? '<span class="status-badge" style="background:#fce4dc;color:var(--red);">SATIRICAL</span>' : ''}
       </div>
       <div class="misread-meta">
-        ${esc(s.first_name)} ${esc(s.last_name)} &middot; ${esc(s.email)} &middot; ${new Date(s.created_at).toLocaleDateString()}
+        ${s.user_handle
+          ? `<strong style="color:var(--accent-strong);">@${esc(s.user_handle)}</strong> <span style="color:var(--text-hint);font-family:monospace;font-size:0.72rem;">(${esc(s.user_anon_id || '')})</span>`
+          : `<em style="color:var(--text-hint);">${esc(s.first_name || '')} ${esc(s.last_name || '')}</em> ${s.email ? `&middot; ${esc(s.email)}` : ''} <span style="background:#fff0d0;color:var(--tier-orange);font-size:0.65rem;padding:0.05rem 0.35rem;border-radius:3px;text-transform:uppercase;letter-spacing:0.04em;margin-left:0.3rem;font-weight:700;">legacy</span>`}
+        &middot; ${new Date(s.created_at).toLocaleDateString()}
         ${s.device_id ? `<br>Device: ${esc(s.device_id.slice(0, 8))}...` : ''}
         ${s.ip_address ? ` &middot; IP: ${esc(s.ip_address)}` : ''}
       </div>

@@ -69,6 +69,10 @@ _ADMIN_SECTIONS = {
     "claude-usage": "admin/claude_usage.html",
     "v1-test": "admin/v1_test.html",
     "lc-status": "admin/lc_status.html",
+    "lobby-mod": "admin/comments.html",
+    "alerts": "admin/alerts.html",
+    "users": "admin/users.html",
+    "motions": "admin/motions.html",
 }
 
 
@@ -123,6 +127,25 @@ def backfill_console(
     if admin is None:
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(request=request, name="backfill_console.html")
+
+
+@router.get("/dashboard/user/{anon_id}", response_class=HTMLResponse)
+def admin_user_detail(
+    anon_id: str,
+    request: Request,
+    admin=Depends(optional_admin_session),
+):
+    """Per-user admin detail page (Profile + Comments tabs).
+    /dashboard/users (plural) is the list; /dashboard/user/{anon_id}
+    (singular, anon_id) is the per-user view. anon_id is the stable
+    public-facing identifier; numeric PKs stay server-internal."""
+    if admin is None:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/user_detail.html",
+        context={"anon_id": anon_id},
+    )
 
 
 @router.post("/reading", response_model=DailyReadingOut, dependencies=[Depends(verify_admin_key)])

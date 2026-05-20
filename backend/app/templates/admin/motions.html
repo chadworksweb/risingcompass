@@ -1,0 +1,255 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'motions' %}
+{% block title %}Motions -- Admin{% endblock %}
+
+{% block content %}
+<style>
+  .mo-card { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.9rem 1rem; margin-bottom: 0.85rem; border-left: 3px solid var(--border); }
+  .mo-card.status-filed { border-left-color: var(--tier-orange); }
+  .mo-card.status-in_deliberation { border-left-color: var(--tier-blue); }
+  .mo-card.status-ratified { border-left-color: var(--tier-green); }
+  .mo-card.status-covered { border-left-color: var(--tier-green); opacity: 0.85; }
+  .mo-card.status-rejected { border-left-color: var(--text-hint); opacity: 0.75; }
+  .mo-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+  .mo-type { font-family: monospace; font-size: 0.75rem; padding: 0.1rem 0.45rem; background: var(--panel-strong); color: var(--text); border-radius: 3px; font-weight: 700; }
+  .mo-type.t-amend_tenet, .mo-type.t-remove_tenet { background: #fbe6d4; color: var(--tier-orange); }
+  .mo-type.t-new_tenet { background: #d9efde; color: var(--tier-green); }
+  .mo-type.t-amend_rule, .mo-type.t-remove_rule { background: #e2eaf5; color: var(--tier-blue); }
+  .mo-type.t-new_rule { background: #d9efde; color: var(--tier-green); }
+  .mo-type.t-process { background: #ece2f5; color: var(--tier-violet); }
+  .mo-status { font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .mo-status.s-filed { background: #fff0d0; color: var(--tier-orange); }
+  .mo-status.s-in_deliberation { background: #dfeaf8; color: var(--tier-blue); }
+  .mo-status.s-ratified { background: #dff3e8; color: var(--tier-green); }
+  .mo-status.s-covered { background: #e5e5ee; color: var(--text-dim); }
+  .mo-status.s-rejected { background: #e5e5ee; color: var(--text-dim); }
+  .mo-filer { font-family: monospace; font-size: 0.78rem; color: var(--text); font-weight: 600; }
+  .mo-verified-badge { font-size: 0.65rem; padding: 0.05rem 0.35rem; border-radius: 3px; background: var(--accent); color: #fff; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .mo-meta { font-size: 0.78rem; color: var(--text-dim); }
+  .mo-target { font-size: 0.85rem; color: var(--text); padding: 0.4rem 0.6rem; background: #fff; border: 1px solid var(--border-soft); border-radius: 4px; margin-bottom: 0.4rem; }
+  .mo-target .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-hint); margin-right: 0.5rem; font-weight: 600; }
+  .mo-target code { font-family: monospace; color: var(--accent-strong); background: var(--panel-strong); padding: 1px 6px; border-radius: 2px; font-size: 0.82rem; }
+  .mo-claim { font-weight: 700; color: var(--text); font-size: 0.95rem; margin: 0.35rem 0; line-height: 1.4; }
+  .mo-reasoning { font-size: 0.88rem; color: var(--text); line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; margin: 0.35rem 0 0.5rem; max-height: 9em; overflow: hidden; position: relative; }
+  .mo-reasoning.expanded { max-height: none; }
+  .mo-expand { background: none; border: none; color: var(--accent); font-size: 0.78rem; font-weight: 600; cursor: pointer; padding: 0.15rem 0; }
+  .mo-citations { margin: 0.4rem 0; font-size: 0.8rem; color: var(--text-dim); }
+  .mo-citations a { color: var(--accent); word-break: break-all; }
+  .mo-resolution { margin-top: 0.5rem; padding: 0.45rem 0.6rem; background: #fff; border-left: 2px solid var(--accent); font-size: 0.83rem; color: var(--text); border-radius: 0 4px 4px 0; }
+  .mo-resolution .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 700; margin-bottom: 0.15rem; }
+  .mo-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.55rem; }
+  .mo-actions button { padding: 0.3rem 0.8rem; font-size: 0.78rem; }
+</style>
+
+<div class="filter-bar" id="moFilters">
+  <button class="filter-btn active" data-status="open">Open</button>
+  <button class="filter-btn" data-status="filed">Filed</button>
+  <button class="filter-btn" data-status="in_deliberation">In deliberation</button>
+  <button class="filter-btn" data-status="ratified">Ratified</button>
+  <button class="filter-btn" data-status="rejected">Rejected</button>
+  <button class="filter-btn" data-status="covered">Covered</button>
+  <button class="filter-btn" data-status="all">All</button>
+</div>
+
+<div class="filter-bar" id="moTypeFilters">
+  <button class="filter-btn active" data-type="all">All types</button>
+  <button class="filter-btn" data-type="amend_tenet">Amend tenet</button>
+  <button class="filter-btn" data-type="new_tenet">New tenet</button>
+  <button class="filter-btn" data-type="remove_tenet">Remove tenet</button>
+  <button class="filter-btn" data-type="amend_rule">Amend rule</button>
+  <button class="filter-btn" data-type="new_rule">New rule</button>
+  <button class="filter-btn" data-type="remove_rule">Remove rule</button>
+  <button class="filter-btn" data-type="process">Process</button>
+</div>
+
+<h2 class="section-title">Queue</h2>
+<div id="moList"><p style="color:#666;">Loading...</p></div>
+<div class="status-msg" id="moStatus"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentStatus = 'open';
+let currentType = 'all';
+
+const TYPE_LABEL = {
+  amend_tenet: 'amend tenet',
+  new_tenet: 'new tenet',
+  remove_tenet: 'remove tenet',
+  amend_rule: 'amend rule',
+  new_rule: 'new rule',
+  remove_rule: 'remove rule',
+  process: 'process',
+};
+
+function onAdminReady() {
+  document.querySelectorAll('#moFilters .filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      currentStatus = b.dataset.status;
+      document.querySelectorAll('#moFilters .filter-btn').forEach((x) => x.classList.toggle('active', x === b));
+      loadQueue();
+    });
+  });
+  document.querySelectorAll('#moTypeFilters .filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      currentType = b.dataset.type;
+      document.querySelectorAll('#moTypeFilters .filter-btn').forEach((x) => x.classList.toggle('active', x === b));
+      loadQueue();
+    });
+  });
+  loadQueue();
+}
+
+async function loadQueue() {
+  const listEl = document.getElementById('moList');
+  listEl.innerHTML = '<p style="color:#666;">Loading...</p>';
+  const params = new URLSearchParams();
+  if (currentStatus !== 'all' && currentStatus !== 'open') params.set('status', currentStatus);
+  if (currentType !== 'all') params.set('motion_type', currentType);
+  try {
+    const resp = await adminFetch(`/api/admin/motions?${params.toString()}`);
+    if (!resp.ok) throw new Error(await resp.text());
+    let items = await resp.json();
+    if (currentStatus === 'open') {
+      items = items.filter((m) => m.status === 'filed' || m.status === 'in_deliberation');
+    }
+    renderQueue(items);
+  } catch (err) {
+    listEl.innerHTML = `<p style="color:var(--red);">${esc(err.message || 'Failed to load.')}</p>`;
+  }
+}
+
+function renderQueue(items) {
+  const el = document.getElementById('moList');
+  if (!items || !items.length) {
+    el.innerHTML = '<p style="color:#666;">No motions match this filter.</p>';
+    return;
+  }
+  el.innerHTML = items.map(renderItem).join('');
+}
+
+function renderItem(m) {
+  const filerLabel = m.filed_by_handle ? `@${esc(m.filed_by_handle)}` : esc(m.filed_by_anon_id || 'unknown');
+  const verifiedBadge = m.filed_by_verified ? `<span class="mo-verified-badge">verified</span>` : '';
+  const filed = m.filed_at ? new Date(m.filed_at).toLocaleString() : '';
+
+  let targetBlock = '';
+  if (m.target_kind && m.target_ref) {
+    targetBlock = `
+      <div class="mo-target">
+        <span class="label">Target</span>
+        <span>${esc(m.target_kind)}</span> &middot; <code>${esc(m.target_ref)}</code>
+      </div>`;
+  } else if (m.motion_type === 'new_tenet' || m.motion_type === 'new_rule') {
+    targetBlock = `
+      <div class="mo-target">
+        <span class="label">Target</span>
+        <em>Proposes a new ${m.motion_type === 'new_tenet' ? 'tenet' : 'rule'}</em>
+      </div>`;
+  } else if (m.motion_type === 'process') {
+    targetBlock = `
+      <div class="mo-target">
+        <span class="label">Scope</span>
+        <em>Methodology / morality / AI process</em>
+      </div>`;
+  }
+
+  const citationsBlock = (m.citations && m.citations.length)
+    ? `<div class="mo-citations">Citations:
+         ${m.citations.map((u) => `<div><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a></div>`).join('')}
+       </div>`
+    : '';
+
+  const resolutionBlock = m.resolution_summary
+    ? `<div class="mo-resolution">
+         <div class="label">Resolution &middot; ${m.resolved_at ? new Date(m.resolved_at).toLocaleString() : ''}</div>
+         <div>${esc(m.resolution_summary)}</div>
+       </div>`
+    : '';
+
+  const actions = [];
+  if (m.status === 'filed') {
+    actions.push(`<button onclick="actMoveDeliberation(${m.id})">Move to deliberation</button>`);
+    actions.push(`<button class="btn-danger" onclick="actReject(${m.id})">Reject</button>`);
+  } else if (m.status === 'in_deliberation') {
+    actions.push(`<button onclick="actRatify(${m.id})">Ratify</button>`);
+    actions.push(`<button onclick="actCovered(${m.id})">Already covered</button>`);
+    actions.push(`<button class="btn-danger" onclick="actReject(${m.id})">Reject</button>`);
+  }
+
+  const typeLabel = TYPE_LABEL[m.motion_type] || m.motion_type;
+
+  return `
+    <div class="mo-card status-${esc(m.status)}">
+      <div class="mo-head">
+        <span class="mo-type t-${esc(m.motion_type)}">${esc(typeLabel)}</span>
+        <span class="mo-status s-${esc(m.status)}">${esc(m.status.replace('_', ' '))}</span>
+        <span class="mo-filer">${filerLabel}</span>
+        ${verifiedBadge}
+        <span class="mo-meta">&middot; ${filed}</span>
+        <span class="mo-meta" style="color:var(--text-hint);">#${m.id}</span>
+      </div>
+      ${targetBlock}
+      <div class="mo-claim">${esc(m.claim)}</div>
+      <div class="mo-reasoning" id="reasoning-${m.id}">${esc(m.reasoning)}</div>
+      <button class="mo-expand" onclick="toggleReasoning(${m.id})">Expand reasoning</button>
+      ${citationsBlock}
+      ${resolutionBlock}
+      <div class="mo-actions">${actions.join('')}</div>
+    </div>
+  `;
+}
+
+function toggleReasoning(id) {
+  const el = document.getElementById(`reasoning-${id}`);
+  if (!el) return;
+  const expanded = el.classList.toggle('expanded');
+  const btn = el.nextElementSibling;
+  if (btn) btn.textContent = expanded ? 'Collapse' : 'Expand reasoning';
+}
+
+async function postMotion(id, action, payload) {
+  const statusEl = document.getElementById('moStatus');
+  try {
+    const opts = { method: 'POST', headers: adminHeaders(), credentials: 'include' };
+    if (payload !== undefined) opts.body = JSON.stringify(payload);
+    const resp = await fetch(`/api/admin/motions/${id}/${action}`, opts);
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.detail || resp.statusText);
+    showMsg(statusEl, `Done: ${action} on motion #${id}.`, 'success');
+    loadQueue();
+  } catch (err) {
+    showMsg(statusEl, err.message || String(err), 'error');
+  }
+}
+
+function promptSummary(label) {
+  const v = window.prompt(`${label}\n\nResolution summary (10+ chars, visible to the public):`);
+  if (v == null) return null;
+  const trimmed = v.trim();
+  if (trimmed.length < 10) {
+    alert('Resolution summary must be at least 10 characters.');
+    return null;
+  }
+  return trimmed;
+}
+
+function actMoveDeliberation(id) { postMotion(id, 'move-to-deliberation'); }
+function actRatify(id) {
+  const s = promptSummary('Ratify this motion?');
+  if (!s) return;
+  postMotion(id, 'ratify', { resolution_summary: s });
+}
+function actCovered(id) {
+  const s = promptSummary('Mark as covered by an existing tenet or rule?');
+  if (!s) return;
+  postMotion(id, 'covered', { resolution_summary: s });
+}
+function actReject(id) {
+  const s = promptSummary('Reject this motion?');
+  if (!s) return;
+  postMotion(id, 'reject', { resolution_summary: s });
+}
+</script>
+{% endblock %}

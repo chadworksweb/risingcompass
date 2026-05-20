@@ -43,7 +43,7 @@ def _slugify_rubric_change(note: str) -> str:
     slug = "-".join(words) or "rubric-change"
     return slug[:80]
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, and_
@@ -200,8 +200,12 @@ def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
 
 # --- Endpoints ---
 
-@router.post("/start", dependencies=[Depends(verify_admin_key)])
-def start_recalibration(data: StartRecalibrateIn, db: Session = Depends(get_db)):
+@router.post("/start")
+def start_recalibration(
+    data: StartRecalibrateIn,
+    db: Session = Depends(get_db),
+    admin = Depends(verify_admin_key),
+):
     """Unified entrypoint. One mechanism; pipeline + lens parameterize it.
 
     Runs the agent under the chosen lens and persists a pending proposal.
@@ -414,8 +418,14 @@ def get_proposal(proposal_id: int, db: Session = Depends(get_db)):
     return _proposal_to_out(p, db)
 
 
-@router.post("/{proposal_id}/accept", dependencies=[Depends(verify_admin_key)])
-def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_db)):
+@router.post("/{proposal_id}/accept")
+def accept_proposal(
+    proposal_id: int,
+    data: AcceptIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin = Depends(verify_admin_key),
+):
     """Apply the proposal: write the new charge to the song, append an
     immutable audit row, mark the proposal accepted, and close any related
     satirical flag.
@@ -598,8 +608,13 @@ def accept_proposal(proposal_id: int, data: AcceptIn, db: Session = Depends(get_
     }
 
 
-@router.post("/{proposal_id}/reject", dependencies=[Depends(verify_admin_key)])
-def reject_proposal(proposal_id: int, data: RejectIn, db: Session = Depends(get_db)):
+@router.post("/{proposal_id}/reject")
+def reject_proposal(
+    proposal_id: int,
+    data: RejectIn,
+    db: Session = Depends(get_db),
+    admin = Depends(verify_admin_key),
+):
     p = db.query(SongRecalibrationProposal).get(proposal_id)
     if not p:
         raise HTTPException(404, "Proposal not found")

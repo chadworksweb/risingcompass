@@ -1,0 +1,195 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'users' %}
+{% block title %}User detail -- Admin{% endblock %}
+
+{% block subtabs %}
+<nav class="admin-subtabs" aria-label="User detail tabs">
+  <a class="admin-subtab" href="/api/admin/dashboard/users">All users</a>
+  <a class="admin-subtab active" href="#" id="tab-profile">Profile</a>
+  <a class="admin-subtab" href="#" id="tab-comments">Comments</a>
+</nav>
+{% endblock %}
+
+{% block content %}
+<style>
+  .ud-card { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
+  .ud-handle { font-family: monospace; font-size: 1.2rem; font-weight: 700; color: var(--accent-strong); margin: 0; }
+  .ud-anon { font-family: monospace; font-size: 0.78rem; color: var(--text-hint); }
+  .ud-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem 1.25rem; margin-top: 0.8rem; }
+  .ud-meta-grid dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 700; margin-bottom: 0.1rem; }
+  .ud-meta-grid dd { margin: 0; font-size: 0.88rem; color: var(--text); }
+  .ud-tier-badge { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; padding: 0.15rem 0.6rem; border-radius: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .ud-tier-badge.id_verified { background: rgba(0, 143, 114, 0.12); color: var(--accent-strong); border: 1px solid var(--accent); }
+  .ud-tier-badge.handled { background: var(--panel-strong); color: var(--text-dim); border: 1px solid var(--border); }
+  .ud-tier-badge.pending { background: #fff0d0; color: var(--tier-orange); border: 1px solid var(--tier-orange); }
+  .ud-status-banned { color: var(--red); font-weight: 700; }
+  .ud-status-suspended { color: var(--tier-orange); font-weight: 700; }
+  .ud-verifications { font-family: monospace; font-size: 0.78rem; }
+  .ud-verifications th, .ud-verifications td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-soft); }
+  .ud-comments-filters { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+  .ud-comment-card { padding: 0.7rem 0.9rem; border: 1px solid var(--border-soft); border-radius: 5px; margin-bottom: 0.5rem; background: var(--panel); border-left: 3px solid var(--accent); }
+  .ud-comment-card.state-withdrawn { border-left-color: var(--text-dim); }
+  .ud-comment-card.state-hidden { border-left-color: var(--tier-orange); }
+  .ud-comment-card.state-deleted { border-left-color: var(--red); opacity: 0.85; }
+  .ud-comment-meta { display: flex; gap: 0.8rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.3rem; align-items: center; }
+  .ud-comment-state { font-size: 0.65rem; padding: 0.05rem 0.4rem; border-radius: 3px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .ud-state-live { background: rgba(0, 143, 114, 0.12); color: var(--accent-strong); }
+  .ud-state-withdrawn { background: var(--panel-strong); color: var(--text-dim); }
+  .ud-state-hidden { background: #fff0d0; color: var(--tier-orange); }
+  .ud-state-deleted { background: #fce4dc; color: var(--red); }
+  .ud-comment-body { font-size: 0.88rem; line-height: 1.5; color: var(--text); white-space: pre-wrap; word-wrap: break-word; padding: 0.25rem 0; }
+  .ud-comment-target { font-family: monospace; font-size: 0.72rem; color: var(--text-hint); }
+  .ud-comment-hidden-reason { font-size: 0.78rem; color: var(--tier-orange); margin-top: 0.3rem; padding: 0.3rem 0.5rem; background: rgba(255, 187, 51, 0.08); border-left: 2px solid var(--tier-orange); border-radius: 0 3px 3px 0; }
+</style>
+
+<div id="ud-panel-profile"></div>
+<div id="ud-panel-comments" style="display:none;">
+  <div class="ud-comments-filters" id="udCommentFilters">
+    <button class="filter-btn active" data-state="">All</button>
+    <button class="filter-btn" data-state="live">Live</button>
+    <button class="filter-btn" data-state="withdrawn">Withdrawn</button>
+    <button class="filter-btn" data-state="hidden">Hidden</button>
+    <button class="filter-btn" data-state="deleted">Deleted</button>
+  </div>
+  <div id="udCommentList"></div>
+</div>
+
+<div class="status-msg" id="udStatus"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const USER_IDENT = {{ anon_id | tojson }};
+let commentFilter = '';
+
+function onAdminReady() {
+  document.getElementById('tab-profile').addEventListener('click', (ev) => { ev.preventDefault(); showTab('profile'); });
+  document.getElementById('tab-comments').addEventListener('click', (ev) => { ev.preventDefault(); showTab('comments'); });
+  document.querySelectorAll('#udCommentFilters .filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      commentFilter = b.dataset.state || '';
+      document.querySelectorAll('#udCommentFilters .filter-btn').forEach((x) => x.classList.toggle('active', x === b));
+      loadComments();
+    });
+  });
+  loadProfile();
+  // Deep-link: /dashboard/user/{id}#comments lands on the Comments tab.
+  if (window.location.hash === '#comments') {
+    showTab('comments');
+  }
+}
+
+function showTab(name) {
+  ['profile', 'comments'].forEach((n) => {
+    document.getElementById('ud-panel-' + n).style.display = (n === name) ? '' : 'none';
+    document.getElementById('tab-' + n).classList.toggle('active', n === name);
+  });
+  if (name === 'comments' && !document.getElementById('udCommentList').dataset.loaded) {
+    loadComments();
+  }
+}
+
+async function loadProfile() {
+  const el = document.getElementById('ud-panel-profile');
+  el.innerHTML = '<p style="color:#666;">Loading...</p>';
+  try {
+    const resp = await adminFetch(`/api/admin/users/${encodeURIComponent(USER_IDENT)}`);
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderProfile(data);
+  } catch (err) {
+    el.innerHTML = `<p style="color:var(--red);">${esc(err.message || 'Failed.')}</p>`;
+  }
+}
+
+function renderProfile(data) {
+  const u = data.user;
+  const tierLabel = { id_verified: 'Verified person', handled: 'Tier 1', pending: 'Pending' }[u.tier] || u.tier;
+  let statusBlock;
+  if (u.status === 'banned') {
+    statusBlock = `<span class="ud-status-banned">Banned</span> &middot; <span style="color:var(--text-dim);">${esc(u.banned_reason || '')}</span>`;
+  } else if (u.status === 'suspended') {
+    statusBlock = `<span class="ud-status-suspended">Suspended</span> until ${u.suspended_until ? new Date(u.suspended_until).toLocaleString() : '?'}`;
+  } else {
+    statusBlock = `<span style="color:var(--accent-strong);">Active</span>`;
+  }
+
+  const verRows = data.verifications.length
+    ? data.verifications.map((v) => `
+        <tr>
+          <td>${esc(v.provider)}</td>
+          <td>${esc(v.status)}</td>
+          <td>${v.verified_at ? new Date(v.verified_at).toLocaleString() : '--'}</td>
+          <td>${new Date(v.created_at).toLocaleString()}</td>
+          <td style="color:var(--text-hint);">${esc(v.provider_reference.slice(0, 24) + '...')}</td>
+        </tr>
+      `).join('')
+    : `<tr><td colspan="5" style="color:var(--text-hint);">No verification attempts.</td></tr>`;
+
+  document.getElementById('ud-panel-profile').innerHTML = `
+    <div class="ud-card">
+      <p class="ud-handle">${u.handle ? '@' + esc(u.handle) : '(no handle)'}</p>
+      <p class="ud-anon">${esc(u.anon_id)}</p>
+      <dl class="ud-meta-grid">
+        <div><dt>Tier</dt><dd><span class="ud-tier-badge ${esc(u.tier)}">${esc(tierLabel)}</span></dd></div>
+        <div><dt>Status</dt><dd>${statusBlock}</dd></div>
+        <div><dt>Comments</dt><dd>${u.comment_count}</dd></div>
+        <div><dt>Misread submitted</dt><dd>${u.misread_count}</dd></div>
+        <div><dt>Joined</dt><dd>${new Date(u.created_at).toLocaleString()}</dd></div>
+      </dl>
+    </div>
+    <div class="ud-card">
+      <h2 class="section-title" style="margin-top:0;">Verification history</h2>
+      <table class="ud-verifications" style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr><th style="text-align:left;">Provider</th><th style="text-align:left;">Status</th><th style="text-align:left;">Verified</th><th style="text-align:left;">Created</th><th style="text-align:left;">Session ref</th></tr>
+        </thead>
+        <tbody>${verRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function loadComments() {
+  const el = document.getElementById('udCommentList');
+  el.innerHTML = '<p style="color:#666;">Loading...</p>';
+  try {
+    const params = new URLSearchParams({ limit: '200' });
+    if (commentFilter) params.set('state', commentFilter);
+    const resp = await adminFetch(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/comments?${params.toString()}`);
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderComments(data);
+    el.dataset.loaded = '1';
+  } catch (err) {
+    el.innerHTML = `<p style="color:var(--red);">${esc(err.message || 'Failed.')}</p>`;
+  }
+}
+
+function renderComments(data) {
+  const el = document.getElementById('udCommentList');
+  if (!data.items.length) {
+    el.innerHTML = `<p style="color:#666;">No comments match. (${data.total} total)</p>`;
+    return;
+  }
+  el.innerHTML = `<p style="color:var(--text-dim);font-size:0.78rem;margin-bottom:0.6rem;">${data.items.length} of ${data.total} shown</p>` +
+    data.items.map((c) => {
+      const target = c.target_source ? `${c.target_type}/${c.target_source}#${c.target_id}` : `${c.target_type}#${c.target_id}`;
+      const stateLabel = c.state.charAt(0).toUpperCase() + c.state.slice(1);
+      const hidden = c.hidden_reason ? `<div class="ud-comment-hidden-reason">Hidden reason: ${esc(c.hidden_reason)}</div>` : '';
+      return `
+        <div class="ud-comment-card state-${esc(c.state)}">
+          <div class="ud-comment-meta">
+            <span class="ud-comment-state ud-state-${esc(c.state)}">${esc(stateLabel)}</span>
+            <span class="ud-comment-target">${esc(target)}</span>
+            <span>${new Date(c.created_at).toLocaleString()}</span>
+            <span style="color:var(--text-hint);">#${c.id}</span>
+          </div>
+          <div class="ud-comment-body">${esc(c.content)}</div>
+          ${hidden}
+        </div>
+      `;
+    }).join('');
+}
+</script>
+{% endblock %}

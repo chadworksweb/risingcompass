@@ -1,0 +1,216 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'alerts' %}
+{% block title %}Alerts -- Admin{% endblock %}
+
+{% block content %}
+<style>
+  .alerts-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; margin-top: 1rem; }
+  @media (max-width: 900px) { .alerts-grid { grid-template-columns: 1fr; } }
+  .alerts-col { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px; padding: 1.1rem 1.2rem; }
+  .alerts-col-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem; }
+  .alerts-col h3 { margin: 0; font-size: 1rem; color: var(--text); font-weight: 700; }
+  .alerts-col-sub { margin: 0 0 1rem; font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; }
+  .alert-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.75rem 0; border-top: 1px solid var(--border-soft); }
+  .alert-row:first-of-type { border-top: none; }
+  .alert-label { font-size: 0.88rem; color: var(--text); font-weight: 600; }
+  .alert-desc { font-size: 0.76rem; color: var(--text-dim); margin-top: 0.15rem; line-height: 1.45; }
+  .alert-row.placeholder .alert-label,
+  .alert-row.placeholder .alert-desc { color: var(--text-hint); }
+  .alert-toggle { position: relative; flex-shrink: 0; }
+  .alert-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+  .alert-toggle-slot { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; }
+  .alert-toggle-track { width: 36px; height: 20px; background: var(--border); border-radius: 10px; position: relative; transition: background 0.15s; }
+  .alert-toggle-track::after { content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.15); transition: transform 0.15s; }
+  .alert-toggle input:checked + .alert-toggle-slot .alert-toggle-track { background: var(--accent); }
+  .alert-toggle input:checked + .alert-toggle-slot .alert-toggle-track::after { transform: translateX(16px); }
+  .alert-toggle input:disabled + .alert-toggle-slot { cursor: not-allowed; opacity: 0.55; }
+  .alert-toggle-status { font-size: 0.72rem; color: var(--text-dim); font-weight: 600; min-width: 28px; text-align: right; }
+  .badge-soon { display: inline-block; font-size: 0.62rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--panel-strong); color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.06em; margin-left: 0.4rem; font-weight: 700; }
+  .alerts-routing { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.82rem; color: var(--text); margin-bottom: 0.25rem; }
+  .alerts-routing strong { font-family: monospace; color: var(--text); }
+  .alerts-routing .label { color: var(--text-dim); margin-right: 0.4rem; }
+  .alerts-warning { background: #fff0d0; border: 1px solid var(--tier-orange); color: var(--tier-orange); padding: 0.6rem 0.9rem; border-radius: 4px; font-size: 0.82rem; margin-top: 0.75rem; display: none; }
+</style>
+
+<div class="alerts-routing">
+  <span class="label">Routing all alerts to:</span>
+  <strong id="alerts-routing-email">(loading...)</strong>
+  &nbsp;|&nbsp;
+  <span class="label">Subject prefixes:</span>
+  <strong>[RC-ACTIVITY]</strong> / <strong>[RC-MOD]</strong>
+</div>
+<div class="alerts-warning" id="alerts-resend-warning">
+  Resend API key is not configured -- toggles below have no delivery effect. Set <code>RESEND_API_KEY</code> in <code>backend/.env</code> to enable email.
+</div>
+
+<div class="alerts-grid">
+
+  <section class="alerts-col">
+    <div class="alerts-col-head">
+      <h3>Activity</h3>
+    </div>
+    <p class="alerts-col-sub">
+      General site heartbeat -- who is doing what. Higher-volume, lower-priority. Useful while traffic is low; consider muting once organic signups start.
+    </p>
+
+    <div class="alert-row" data-alert-key="comment_created" data-wired="1">
+      <div>
+        <div class="alert-label">Email on every new comment</div>
+        <div class="alert-desc">Fires for top-level comments and replies anywhere on the site.</div>
+      </div>
+      <label class="alert-toggle">
+        <input type="checkbox" data-toggle="comment_created">
+        <span class="alert-toggle-slot">
+          <span class="alert-toggle-track" aria-hidden="true"></span>
+          <span class="alert-toggle-status">--</span>
+        </span>
+      </label>
+    </div>
+
+    <div class="alert-row placeholder" data-alert-key="user_signup" data-wired="0">
+      <div>
+        <div class="alert-label">Email on new user signup<span class="badge-soon">soon</span></div>
+        <div class="alert-desc">Fires once per Tier 1 account creation.</div>
+      </div>
+      <label class="alert-toggle">
+        <input type="checkbox" disabled>
+        <span class="alert-toggle-slot">
+          <span class="alert-toggle-track" aria-hidden="true"></span>
+          <span class="alert-toggle-status">--</span>
+        </span>
+      </label>
+    </div>
+
+    <div class="alert-row placeholder" data-alert-key="misread_filed" data-wired="0">
+      <div>
+        <div class="alert-label">Email on misread report filed<span class="badge-soon">soon</span></div>
+        <div class="alert-desc">Will replace the legacy <code>MISREAD_NOTIFY_EMAIL</code> hook once unified here.</div>
+      </div>
+      <label class="alert-toggle">
+        <input type="checkbox" disabled>
+        <span class="alert-toggle-slot">
+          <span class="alert-toggle-track" aria-hidden="true"></span>
+          <span class="alert-toggle-status">--</span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <section class="alerts-col">
+    <div class="alerts-col-head">
+      <h3>Moderation</h3>
+    </div>
+    <p class="alerts-col-sub">
+      Events the admin needs to triage. Lower-volume, higher-signal. Subject prefix <strong>[RC-MOD]</strong> so you can filter separately in your inbox.
+    </p>
+
+    <div class="alert-row placeholder" data-alert-key="comment_reported" data-wired="0">
+      <div>
+        <div class="alert-label">Email on comment report filed<span class="badge-soon">soon</span></div>
+        <div class="alert-desc">A user flagged a comment. Lower than the auto-hide threshold but worth seeing early.</div>
+      </div>
+      <label class="alert-toggle">
+        <input type="checkbox" disabled>
+        <span class="alert-toggle-slot">
+          <span class="alert-toggle-track" aria-hidden="true"></span>
+          <span class="alert-toggle-status">--</span>
+        </span>
+      </label>
+    </div>
+
+    <div class="alert-row placeholder" data-alert-key="comment_auto_hidden" data-wired="0">
+      <div>
+        <div class="alert-label">Email on auto-hide (3-reporter threshold)<span class="badge-soon">soon</span></div>
+        <div class="alert-desc">Critical event -- something blew past the trust threshold and was hidden automatically.</div>
+      </div>
+      <label class="alert-toggle">
+        <input type="checkbox" disabled>
+        <span class="alert-toggle-slot">
+          <span class="alert-toggle-track" aria-hidden="true"></span>
+          <span class="alert-toggle-status">--</span>
+        </span>
+      </label>
+    </div>
+
+    <div class="alert-row placeholder" data-alert-key="account_banned" data-wired="0">
+      <div>
+        <div class="alert-label">Email on account banned<span class="badge-soon">soon</span></div>
+        <div class="alert-desc">Includes both admin-initiated bans and the eventual auto-ban escalation path.</div>
+      </div>
+      <label class="alert-toggle">
+        <input type="checkbox" disabled>
+        <span class="alert-toggle-slot">
+          <span class="alert-toggle-track" aria-hidden="true"></span>
+          <span class="alert-toggle-status">--</span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+</div>
+
+<div class="status-msg" id="alerts-status"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onAdminReady() {
+  loadPrefs();
+  document.querySelectorAll('input[data-toggle]').forEach((cb) => {
+    cb.addEventListener('change', (ev) => {
+      const key = ev.target.dataset.toggle;
+      const enabled = ev.target.checked;
+      togglePref(key, enabled, ev.target);
+    });
+  });
+}
+
+async function loadPrefs() {
+  try {
+    const resp = await adminFetch('/api/admin/alerts');
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    document.getElementById('alerts-routing-email').textContent = data.admin_alert_email || '(not configured)';
+    if (!data.resend_configured) {
+      document.getElementById('alerts-resend-warning').style.display = 'block';
+    }
+    const byKey = {};
+    for (const r of data.items) byKey[r.alert_key] = r;
+    document.querySelectorAll('.alert-row[data-wired="1"]').forEach((row) => {
+      const key = row.dataset.alertKey;
+      const pref = byKey[key];
+      const enabled = pref ? pref.enabled : false;
+      const cb = row.querySelector('input[type=checkbox]');
+      const status = row.querySelector('.alert-toggle-status');
+      cb.checked = enabled;
+      status.textContent = enabled ? 'On' : 'Off';
+    });
+  } catch (err) {
+    showMsg(document.getElementById('alerts-status'), err.message || 'Failed to load.', 'error');
+  }
+}
+
+async function togglePref(alertKey, enabled, cb) {
+  const statusEl = document.getElementById('alerts-status');
+  cb.disabled = true;
+  try {
+    const resp = await fetch(`/api/admin/alerts/${alertKey}`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ enabled, channel: 'email' }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.detail || resp.statusText);
+    const row = cb.closest('.alert-row');
+    row.querySelector('.alert-toggle-status').textContent = body.enabled ? 'On' : 'Off';
+    showMsg(statusEl, `${alertKey} -> ${body.enabled ? 'on' : 'off'}`, 'success');
+  } catch (err) {
+    // Revert the checkbox visually on failure.
+    cb.checked = !enabled;
+    showMsg(statusEl, err.message || 'Failed.', 'error');
+  } finally {
+    cb.disabled = false;
+  }
+}
+</script>
+{% endblock %}

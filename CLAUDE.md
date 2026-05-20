@@ -100,6 +100,73 @@ Prompts for username + password (12-char minimum). Re-running with the
 same username resets the password and clears the lockout. Pass
 `--revoke-sessions` to kill any active sessions for the user.
 
+## Public Participation (Phases 1-3.2 built)
+
+Three audience-facing surfaces live alongside the dashboard:
+
+**Lobby** (Phase 1) -- Reddit-style threaded comments on song / artist
+pages. Email-verified Tier 1 account required to post; anonymous read
+allowed. Auto-hide after 3 reports. Tables: `users`, `comments`,
+`comment_reports`, `moderation_events`, `admin_alert_prefs`.
+
+**Misread Reports** (Phase 2) -- per-song "the agent got this wrong"
+flag. Tier 1 gated. Admin can spawn a recalibration directly from the
+queue. Migration 057 added `user_id` FK on `misread_submissions`.
+
+**Motion Desk** (Phase 3.2) -- formal proposals about the framework.
+Three routed pages: `/motion-desk/` (landing), `/motion-desk/file-a-motion/`
+(Tier 2 gated form), `/motion-desk/motion-ledger/` (public list).
+Motions deliberate tenets / rules / modifiers / methodology -- never
+songs. Tables: `motions` (migration 060 + taxonomy correction in 061),
+`account_verifications` (migration 059).
+
+Motion types: `amend_tenet | new_tenet | remove_tenet | amend_rule |
+new_rule | remove_rule | process`. Target via polymorphic
+`target_kind` + `target_ref`. The `recalibration_challenge` type from
+the original plan was dropped before any real motions were filed --
+that conflated motions with misread reports.
+
+### Auth (Clerk-backed Tier 1, Stripe Identity Tier 2)
+
+**Tier 1:** Clerk email account + claimed handle. Provisioned lazily
+on first authenticated API call via `require_clerk_user` in
+`backend/app/auth.py`. Onboarding flow in `frontend/account/`.
+
+**Tier 2:** Real ID via Stripe Identity. Webhook at
+`/api/stripe-identity-webhook` flips `users.tier` to `id_verified`.
+Required for filing motions; Tier 1 is enough for Lobby + Misread.
+
+**Frontend auth singleton:** `frontend/js/auth.js` -- wraps Clerk JS,
+exposes `authedFetch`, `getMe`, `openSignIn`, `signOut`, `onChange`.
+Owns the header-link state sync via `_syncAuthState()`. Tracks
+sign-in / sign-out transitions; passes `justSignedIn` to onChange
+listeners.
+
+**returnTo flow:** Every page's Sign-in link writes
+`/account/?returnTo=<current path>` when signed-out. `account.js`
+stashes the param in sessionStorage so it survives the Stripe
+roundtrip, and navigates back manually on the `justSignedIn`
+transition (Clerk's `signInForceRedirectUrl` proved unreliable across
+dashboard configs).
+
+**Local env vars required:**
+- `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_JWKS_URL`
+- `STRIPE_SECRET_KEY` (sandbox), `STRIPE_IDENTITY_WEBHOOK_SECRET`
+- `ADMIN_ALERT_EMAIL`
+
+**Local dev:** Frontend served via `python scripts/dev_server.py
+--port 3005` (handles nginx-style `/songs/<slug>` rewrites). Backend
+on :8000. Stripe CLI listener: `stripe listen --forward-to
+http://localhost:8000/api/stripe-identity-webhook --events
+"identity.verification_session.*"`.
+
+### Deliberation venue aesthetic
+
+Motion Desk + amendments share a cream/brown palette (Cardo + Cormorant
+SC). Tenets stays dark on purpose -- "the constitution and the room
+where the constitution is argued over should not look the same."
+Tokens documented in `STYLE-GUIDE.md` "Deliberation Venue Palette".
+
 ## Artist admin endpoints
 
 Authed via the admin session cookie (above). Writes go through a direct
