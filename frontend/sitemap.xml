@@ -7,6 +7,11 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://risingcompass.net/account/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://risingcompass.net/amendments/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -50,6 +55,11 @@
     <loc>https://risingcompass.net/misread-submission.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/motion-desk/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://risingcompass.net/privacy.html</loc>
