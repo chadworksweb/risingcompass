@@ -100,7 +100,13 @@ def _motion_to_amendment(db: Session, motion: Motion) -> dict:
         "proposed_change": motion.reasoning,
         "novelty_argument": None,
         "soundness_argument": None,
-        "discussion_url": None,  # Chamber comes in Phase 4
+        # Chamber URL is set for any non-filed motion. Filed motions
+        # aren't open for deliberation yet; resolved motions keep the
+        # link so the public record stays reachable.
+        "discussion_url": (
+            f"/motion-desk/deliberation-chamber/{motion.id}/"
+            if motion.status != "filed" else None
+        ),
         "co_sponsors": 0,
         "deliberation_opens_at": None,
         "deliberation_closes_at": None,

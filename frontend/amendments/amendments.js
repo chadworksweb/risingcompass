@@ -227,14 +227,17 @@
       card.appendChild(sec);
     }
 
-    // Discussion link
+    // Discussion link -- points at the Deliberation Chamber for any
+    // non-filed motion. Same-origin link, no target=_blank: the
+    // Chamber is part of the site, not an offsite venue.
     if (am.discussion_url) {
+      const label = am.status === 'deliberating'
+        ? 'Open the Deliberation Chamber →'
+        : 'See the deliberation record →';
       card.appendChild(html('a', {
         class: 'am-card-cta',
         href: am.discussion_url,
-        target: '_blank',
-        rel: 'noopener',
-      }, 'View discussion →'));
+      }, label));
     }
 
     return card;

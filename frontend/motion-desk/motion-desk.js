@@ -368,6 +368,18 @@
          </div>`
       : '';
 
+    // Surface the Chamber link the moment a motion is moved into
+    // deliberation, and keep it after resolution so the deliberation
+    // record stays public. Filed motions don't get a link -- the
+    // Chamber isn't open until an admin moves them in.
+    const showChamberLink = m.status !== 'filed';
+    const chamberLinkLabel = m.status === 'in_deliberation'
+      ? 'Open the Deliberation Chamber'
+      : 'See the deliberation record';
+    const chamberLink = showChamberLink
+      ? `<a class="md-motion-chamber-link" href="/motion-desk/deliberation-chamber/${m.id}/">${chamberLinkLabel} &rarr;</a>`
+      : '';
+
     return `
       <article class="md-motion" style="--md-status-color: ${color};">
         <div class="md-motion-head">
@@ -383,6 +395,7 @@
         ${showExpand ? '<button class="md-motion-expand" type="button">Read full reasoning</button>' : ''}
         ${citationsBlock}
         ${resolutionBlock}
+        ${chamberLink}
       </article>
     `;
   }

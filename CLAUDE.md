@@ -126,6 +126,16 @@ new_rule | remove_rule | process`. Target via polymorphic
 the original plan was dropped before any real motions were filed --
 that conflated motions with misread reports.
 
+**Deliberation Chamber** (Phase 4, in progress) -- sub-room of Motion
+Desk that hosts the structured argument thread for any motion in
+`in_deliberation`. Route: `/motion-desk/deliberation-chamber/{id}/`.
+Posts are typed (`argument_for | argument_against | rebuttal | citation
+| clarification`), Tier 2 gated to write, public to read. 2-level depth:
+top-level posts + flat rebuttals. Table: `motion_arguments`
+(migration 062). Spec lives in
+`Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-PUBLIC-PARTICIPATION-BUILD-PLAN.md`
+under "Phase 4 -- Deliberation Chamber".
+
 ### Auth (Clerk-backed Tier 1, Stripe Identity Tier 2)
 
 **Tier 1:** Clerk email account + claimed handle. Provisioned lazily

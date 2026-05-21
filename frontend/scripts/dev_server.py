@@ -36,6 +36,8 @@ ROOT = Path(__file__).resolve().parent.parent  # the frontend/ directory
 REWRITES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^/songs/[^/]+/?$"), "/songs/song.html"),
     (re.compile(r"^/artists/[^/]+/?$"), "/artists/artist.html"),
+    (re.compile(r"^/motion-desk/deliberation-chamber/\d+/?$"),
+     "/motion-desk/deliberation-chamber/index.html"),
 ]
 
 

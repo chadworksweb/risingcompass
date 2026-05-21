@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deliberation Chamber -- The Rising Compass</title>
+  <meta name="description" content="The Deliberation Chamber. Structured arguments on a motion in deliberation: arguments for, arguments against, rebuttals, citations, and clarifications, on the public record.">
+  <link rel="canonical" href="https://risingcompass.net/motion-desk/deliberation-chamber/">
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Deliberation Chamber -- The Rising Compass">
+  <meta property="og:description" content="Structured deliberation on a motion in front of the framework.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Deliberation Chamber -- The Rising Compass">
+  <meta name="twitter:description" content="Structured deliberation on a motion in front of the framework.">
+  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Cormorant+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/motion-desk/motion-desk.css">
+  <link rel="stylesheet" href="/motion-desk/deliberation-chamber/deliberation-chamber.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
+  <script>
+    (function(){
+      function sync() {
+        try {
+          var link = document.getElementById('rc-account-link');
+          if (!link) return;
+          var authed = localStorage.getItem('rc_authed') === '1';
+          if (authed) {
+            link.textContent = 'Account';
+            link.setAttribute('data-state', 'in');
+            link.href = '/account/';
+          } else {
+            link.textContent = 'Sign in';
+            link.setAttribute('data-state', 'out');
+            var ret = window.location.pathname + window.location.search + window.location.hash;
+            if (ret && !ret.startsWith('/account/')) {
+              link.href = '/account/?returnTo=' + encodeURIComponent(ret);
+            } else {
+              link.href = '/account/';
+            }
+          }
+        } catch (_) {}
+      }
+      sync();
+      window.addEventListener('pageshow', sync);
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'rc_authed' || e.key === null) sync();
+      });
+    })();
+  </script>
+</header>
+<!-- /INCLUDE:header -->
+
+  <main id="main" class="dc-main">
+
+    <section class="dc-eyebrow-bar">
+      <p class="dc-eyebrow">
+        <a href="/motion-desk/">Motion Desk</a> &middot;
+        <a href="/motion-desk/motion-ledger/">Ledger</a>
+      </p>
+    </section>
+
+    <section class="dc-motion-header" id="motionHeader" aria-live="polite">
+      <p class="dc-loading">Loading the motion...</p>
+    </section>
+
+    <section class="dc-resolution" id="resolutionBanner" hidden></section>
+
+    <section class="dc-thread-section">
+      <h2 class="dc-thread-title">The Chamber</h2>
+      <div class="dc-thread" id="thread">
+        <p class="dc-empty">Loading the thread...</p>
+      </div>
+    </section>
+
+    <section class="dc-gate" id="gate" aria-live="polite" hidden></section>
+
+    <section class="dc-post-form-wrap" id="postFormWrap" hidden>
+      <h2 class="dc-section-label">Post to the Chamber</h2>
+
+      <form class="dc-form" id="postForm">
+        <p class="dc-form-help">
+          Posts here become part of the public record of how this motion
+          was deliberated. Pick the kind of post that matches what
+          you're contributing -- a position, a rebuttal of another post,
+          a citation, or a clarifying question.
+        </p>
+
+        <div class="dc-rebut-target" id="rebutTarget" hidden>
+          <span class="dc-rebut-label">Rebutting</span>
+          <span class="dc-rebut-summary" id="rebutSummary"></span>
+          <button type="button" class="dc-rebut-clear" id="rebutClear">Clear</button>
+        </div>
+
+        <div class="dc-field">
+          <label for="postType">Post kind</label>
+          <select id="postType">
+            <option value="argument_for">Argument for</option>
+            <option value="argument_against">Argument against</option>
+            <option value="citation">Citation</option>
+            <option value="clarification">Clarification or question</option>
+            <option value="rebuttal" disabled>Rebuttal (use Rebut button on a post)</option>
+          </select>
+        </div>
+
+        <div class="dc-field">
+          <label for="summary">Summary
+            <span class="dc-counter" id="summaryCount">0 / 280</span>
+          </label>
+          <input type="text" id="summary" maxlength="280" placeholder="One sentence. The point of this post.">
+        </div>
+
+        <div class="dc-field">
+          <label for="body">Body
+            <span class="dc-counter" id="bodyCount">0 / 5000 (50 min)</span>
+          </label>
+          <textarea id="body" rows="7" maxlength="5000"
+            placeholder="Make the case. Cite specific tenets / rules / songs as evidence. Keep it tight."></textarea>
+        </div>
+
+        <div class="dc-field">
+          <label for="citations">Citations <span class="dc-optional">(optional, one URL per line)</span></label>
+          <textarea id="citations" rows="3" placeholder="https://..."></textarea>
+        </div>
+
+        <div class="dc-form-actions">
+          <button type="submit" class="dc-submit">Post</button>
+          <p class="dc-form-status" id="postStatus" aria-live="polite"></p>
+        </div>
+      </form>
+    </section>
+
+    <footer class="dc-footer">
+      <p class="footer-note">
+        See also: <a href="/motion-desk/motion-ledger/">the motion ledger</a> &middot; <a href="/tenets/">the tenets</a> &middot; <a href="/amendments/">the amendment record</a>
+      </p>
+    </footer>
+
+  </main>
+
+  <script src="/js/auth.js" defer></script>
+  <script src="/motion-desk/deliberation-chamber/deliberation-chamber.js" defer></script>
+  <!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
+</body>
+</html>

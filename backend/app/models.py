@@ -1278,6 +1278,33 @@ class Motion(Base):
     filed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class MotionArgument(Base):
+    """Public Participation Phase 4 -- Deliberation Chamber post.
+
+    One row per structured argument on a motion in_deliberation. Five
+    post types: argument_for, argument_against, rebuttal, citation,
+    clarification. Rebuttals reference a parent post via parent_id;
+    every other type has parent_id NULL. Shape rules and lifecycle
+    checks (motion.status must be in_deliberation to POST) live in
+    app/services/chamber.py, not here.
+
+    Tier 2 (id_verified) is required to write. Anonymous + Tier 1 read.
+    Threads remain public after the motion resolves; the room becomes
+    read-only at that point.
+    """
+    __tablename__ = "motion_arguments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    motion_id = Column(Integer, ForeignKey("motions.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    post_type = Column(Text, nullable=False)
+    parent_id = Column(Integer, ForeignKey("motion_arguments.id"))
+    summary = Column(Text, nullable=False)  # 1-280 chars
+    body = Column(Text, nullable=False)  # 50-5000 chars
+    citations = Column(Text)  # JSON array of URL strings
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class User(Base):
     """Public Participation Tier 1 user (Clerk-backed email + phone account).
 

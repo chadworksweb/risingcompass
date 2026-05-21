@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
 from app.models import AgentDraft, AgentDraftSong, DailyReading
-from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin
+from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +291,11 @@ app.include_router(users_admin.router)
 # the other admin routers.
 app.include_router(motions.router)
 app.include_router(motions_admin.router)
+
+# Public Participation Deliberation Chamber (Phase 4). Posting requires
+# Tier 2; reads are public. Mounted under each motion via the prefix
+# /api/motions/{id}/arguments.
+app.include_router(chamber.router)
 
 # Stripe Identity webhook (Phase 3.1). Distinct from the donation webhook
 # (/api/stripe-webhook) -- different signing secret so a leak on one

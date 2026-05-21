@@ -348,6 +348,10 @@ body {
   gap: 6px;
 }
 
+.md-field[hidden] {
+  display: none;
+}
+
 .md-field label {
   font-family: var(--md-font-chrome);
   font-size: 1.17rem;
@@ -749,6 +753,20 @@ body {
   color: var(--md-ink);
   margin: 0;
 }
+
+.md-motion-chamber-link {
+  display: inline-block;
+  margin-top: 12px;
+  font-family: var(--md-font-chrome);
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--md-gold);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.md-motion-chamber-link:hover { border-bottom-color: var(--md-gold); }
 
 .md-empty {
   font-family: 'Cardo', serif;
