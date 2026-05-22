@@ -625,15 +625,29 @@ def run_compass_agent(
             if cs_id is not None:
                 _run_post_calibration_enrichment(cs_id, enrich_lyrics)
 
-    # Re-fetch with eagerly-loaded songs, send email, detach, return
+    # Re-fetch with eagerly-loaded songs, send email, detach, return.
+    # Write went to the Turso primary; this session reads from the
+    # embedded replica which can lag a few seconds. Retry with backoff
+    # rather than 500-ing the whole cron over a sub-second sync window.
+    import time
     fetch_db = SessionLocal()
     try:
-        draft = (
-            fetch_db.query(AgentDraft)
-            .options(joinedload(AgentDraft.songs))
-            .filter(AgentDraft.id == draft_id)
-            .one()
-        )
+        draft = None
+        for attempt in range(10):
+            fetch_db.expire_all()
+            draft = (
+                fetch_db.query(AgentDraft)
+                .options(joinedload(AgentDraft.songs))
+                .filter(AgentDraft.id == draft_id)
+                .one_or_none()
+            )
+            if draft is not None and len(draft.songs) == len(calibrated_songs):
+                break
+            time.sleep(0.5 * (attempt + 1))
+        if draft is None:
+            raise RuntimeError(
+                f"replica failed to sync draft id={draft_id} after retries"
+            )
         if not draft_only:
             email_sent = send_draft_email(draft, draft.songs, settings, db=fetch_db)
             if not email_sent:
