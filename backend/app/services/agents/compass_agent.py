@@ -3,7 +3,7 @@
 import json
 import logging
 import re
-from datetime import date
+from datetime import date, datetime
 
 from anthropic import Anthropic
 from sqlalchemy import func
@@ -20,6 +20,113 @@ from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated, enforce_contamination_rule
 
 logger = logging.getLogger(__name__)
+
+
+def _open_primary_conn():
+    """Direct libsql connection to the Turso primary. Bypasses the
+    embedded-replica Hrana stream so the draft insert path does not
+    die mid-flight. Caller owns the lifecycle."""
+    import libsql
+    url = settings.database_url
+    token = settings.turso_auth_token
+    if url.startswith("libsql://") or url.startswith("https://"):
+        return libsql.connect(database=url, auth_token=token)
+    return libsql.connect(database=url)
+
+
+def _generate_draft_label_via_conn(conn, reading_date: date, draft_type: str) -> str:
+    """Same logic as _generate_draft_label but uses a raw libsql connection."""
+    prefix = f"{draft_type}_{reading_date.isoformat()}"
+    row = conn.execute(
+        "SELECT COUNT(*) FROM agent_drafts WHERE label LIKE ?",
+        (f"{prefix}%",),
+    ).fetchone()
+    existing_count = row[0] if row else 0
+    if existing_count == 0:
+        return f"{prefix}_draft"
+    modifier = chr(ord("a") + existing_count)
+    return f"{prefix}{modifier}_draft"
+
+
+def _write_draft_and_songs(
+    *,
+    reading_date: date,
+    draft_type: str,
+    degree: float,
+    charge: str,
+    contam: int,
+    editorial: str | None,
+    agent_notes: str | None,
+    warnings: list,
+    calibrated_songs: list,
+) -> int:
+    """Insert the AgentDraft + AgentDraftSong rows over a direct libsql
+    primary connection, then commit. Returns the new draft id.
+
+    The SQLAlchemy session was tripping Hrana `stream not found` 404s on
+    the insertmany step (observed 2026-05-22 cron). The merge/rename
+    admin paths solved the same class of bug by going direct — same
+    pattern here."""
+    conn = _open_primary_conn()
+    try:
+        label = _generate_draft_label_via_conn(conn, reading_date, draft_type)
+        created_at = datetime.utcnow().isoformat()
+        agent_warnings_json = json.dumps(warnings) if warnings else None
+
+        cur = conn.execute(
+            """INSERT INTO agent_drafts (
+                label, draft_type, created_at, status, date,
+                compass_degree, charge_level, contamination_count,
+                editorial_summary, agent_model, agent_notes, agent_warnings
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                label, draft_type, created_at, "pending", reading_date.isoformat(),
+                degree, charge, contam,
+                editorial, AGENT_MODEL, agent_notes, agent_warnings_json,
+            ),
+        )
+        # libsql cursor exposes lastrowid; fall back to SELECT if needed.
+        draft_id = getattr(cur, "lastrowid", None)
+        if draft_id is None:
+            row = conn.execute(
+                "SELECT id FROM agent_drafts WHERE label = ?", (label,)
+            ).fetchone()
+            draft_id = row[0]
+
+        for s in calibrated_songs:
+            conn.execute(
+                """INSERT INTO agent_draft_songs (
+                    draft_id, compass_song_id, title, artist, position,
+                    rubric_color, charge_value, contaminated, contamination_note,
+                    dogma_referenced, dogma_note, charge_summary, chart_source,
+                    confidence, lyrics_available
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    draft_id,
+                    s.get("compass_song_id"),
+                    s["title"],
+                    s["artist"],
+                    s["position"],
+                    s["rubric_color"],
+                    s.get("charge_value"),
+                    1 if s["contaminated"] else 0,
+                    s["contamination_note"],
+                    1 if s.get("dogma_referenced", False) else 0,
+                    s.get("dogma_note"),
+                    s["charge_summary"],
+                    s["chart_source"],
+                    s["confidence"],
+                    1 if s["lyrics_available"] else 0,
+                ),
+            )
+
+        conn.commit()
+        return draft_id
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "compass_song") -> str:
@@ -493,49 +600,21 @@ def run_compass_agent(
     editorial = _generate_editorial(calibrated_songs)
     agent_notes = "; ".join(agent_notes_parts) if agent_notes_parts else None
 
-    # Persist draft + draft_songs — short session
-    write_db = SessionLocal()
-    try:
-        label = _generate_draft_label(write_db, reading_date, draft_type=draft_type)
-        draft = AgentDraft(
-            label=label,
-            draft_type=draft_type,
-            date=reading_date,
-            status="pending",
-            compass_degree=degree,
-            charge_level=charge,
-            contamination_count=contam,
-            editorial_summary=editorial,
-            agent_model=AGENT_MODEL,
-            agent_notes=agent_notes,
-            agent_warnings=json.dumps(warnings) if warnings else None,
-        )
-        write_db.add(draft)
-        write_db.flush()
-        draft_id = draft.id
-
-        for s in calibrated_songs:
-            draft_song = AgentDraftSong(
-                draft_id=draft_id,
-                compass_song_id=s.get("compass_song_id"),
-                title=s["title"],
-                artist=s["artist"],
-                position=s["position"],
-                rubric_color=s["rubric_color"],
-                charge_value=s.get("charge_value"),
-                contaminated=s["contaminated"],
-                contamination_note=s["contamination_note"],
-                dogma_referenced=bool(s.get("dogma_referenced", False)),
-                dogma_note=s.get("dogma_note"),
-                charge_summary=s["charge_summary"],
-                chart_source=s["chart_source"],
-                confidence=s["confidence"],
-                lyrics_available=s["lyrics_available"],
-            )
-            write_db.add(draft_song)
-        write_db.commit()
-    finally:
-        write_db.close()
+    # Persist draft + draft_songs via a direct libsql primary connection.
+    # The SQLAlchemy session sits on the embedded-replica Hrana stream and
+    # has been timing out on this insert path under load (observed
+    # 2026-05-22). Pattern matches _open_primary_conn in artists_admin.py.
+    draft_id = _write_draft_and_songs(
+        reading_date=reading_date,
+        draft_type=draft_type,
+        degree=degree,
+        charge=charge,
+        contam=contam,
+        editorial=editorial,
+        agent_notes=agent_notes,
+        warnings=warnings,
+        calibrated_songs=calibrated_songs,
+    )
 
     # Run ether tagger + societal-effects enrichment now that the
     # compass_songs rows are committed. Each helper owns its own session.
