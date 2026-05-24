@@ -370,6 +370,12 @@
   font-family: var(--rc-font-mono);
 }
 
+.account-activity-currently {
+  color: var(--rc-accent);
+  text-decoration: none;
+}
+.account-activity-currently:hover { text-decoration: underline; }
+
 .account-activity-date {
   flex-shrink: 0;
   font-size: 0.72rem;

@@ -136,12 +136,16 @@
         : `<span class="account-activity-song">${esc(title)}</span>`;
       const artist = it.song_artist ? `<span class="account-activity-artist">${esc(it.song_artist)}</span>` : '';
       const dir = String(it.direction);
+      // "currently" links to the song's Audience Vibe section.
+      const currently = it.song_slug
+        ? `<a class="account-activity-currently" href="/songs/${encodeURIComponent(it.song_slug)}#section-vibe">currently</a>`
+        : 'currently';
       return `
         <li class="account-activity-item">
           <span class="account-activity-dir account-activity-dir--${dir === '-1' ? 'lower' : (dir === '1' ? 'higher' : 'agree')}" aria-hidden="true">${DIR_GLYPH[dir] || '='}</span>
           <span class="account-activity-meta">
             <span class="account-activity-songline">${titleHtml}${artist}</span>
-            <span class="account-activity-detail">You ${DIR_WORD[dir] || 'agreed'} in ${it.push_year} &middot; audience now ${fmtScore(it.current_value)}</span>
+            <span class="account-activity-detail">You ${DIR_WORD[dir] || 'agreed'} in ${it.push_year} &middot; audience ${currently} ${fmtScore(it.current_value)}</span>
           </span>
           <span class="account-activity-date">${fmtDate(it.pushed_at)}</span>
         </li>`;
