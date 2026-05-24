@@ -10,7 +10,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.config import settings
-from app.database import SessionLocal
+from app.database import SessionLocal, PrimarySessionLocal
 from app.schemas import (
     LyricsCalibrateIn, LyricsCalibrateOut,
     SongSearchIn, SongSearchOut, SearchCalibrateIn,
@@ -440,9 +440,12 @@ async def calibrate_lyrics_endpoint(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Phase 3: fresh write session. pool_pre_ping reconnects any stale
-        # Hrana stream the pool was holding while Phase 2 ran.
-        write_db = SessionLocal()
+        # Phase 3: direct-to-primary write session. The default pool's primary
+        # write stream times out during the Phase 2 Opus call, and pool_pre_ping
+        # cannot detect it (SELECT 1 hits the local read replica), so commit()
+        # 404s with "stream not found". PrimarySessionLocal opens a fresh
+        # primary connection with no idle gap before these writes.
+        write_db = PrimarySessionLocal()
         try:
             submitted, _created = get_or_create_song(
                 write_db, SubmittedSong,

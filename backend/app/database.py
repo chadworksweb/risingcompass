@@ -4,7 +4,7 @@ import os
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, NullPool
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class _LibsqlConnProxy:
         return getattr(self._conn, name)
 
 
-def _build_engine():
+def _build_engine(force_primary: bool = False):
     url = settings.database_url
     if url.startswith("libsql://") or url.startswith("https://"):
         import libsql
@@ -85,6 +85,27 @@ def _build_engine():
 
         replica_path = settings.turso_replica_path
         sync_interval = settings.turso_sync_interval
+
+        if force_primary:
+            # Direct-to-primary, fresh connection per session (NullPool), no
+            # embedded replica. For multi-statement WRITE transactions that
+            # straddle a 20-30s Opus call: the embedded replica's primary write
+            # stream times out during that idle gap, and pool_pre_ping cannot
+            # detect it because SELECT 1 hits the local READ replica, not the
+            # write stream — so commit() 404s with "stream not found". A NullPool
+            # primary connection is opened immediately before the writes and
+            # closed after, so no stream is ever idle long enough to expire.
+            # Interim until the Postgres migration removes the Hrana model.
+            def creator():
+                return _LibsqlConnProxy(
+                    libsql.connect(database=url, auth_token=token)
+                )
+
+            return create_engine(
+                "sqlite://",
+                creator=creator,
+                poolclass=NullPool,
+            )
 
         if replica_path:
             def creator():
@@ -118,14 +139,12 @@ def _build_engine():
     return create_engine(url, connect_args={"check_same_thread": False})
 
 
+# Default engine: embedded-replica pool in prod (reads from local replica),
+# direct-to-primary locally. Used for all reads and short single-statement
+# writes. Multi-statement write transactions that span an Opus call must use
+# `primary_engine` / `PrimarySessionLocal` instead (see _build_engine docstring).
 engine = _build_engine()
-
-
-@event.listens_for(engine, "connect")
-def _set_foreign_keys(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+primary_engine = _build_engine(force_primary=True)
 
 
 # libsql raises plain ValueError("Hrana: ... stream not found ...") when the
@@ -140,7 +159,12 @@ _HRANA_DISCONNECT_MARKERS = (
 )
 
 
-@event.listens_for(engine, "handle_error", retval=False)
+def _set_foreign_keys(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 def _flag_hrana_disconnect(ctx):
     err = ctx.original_exception
     if isinstance(err, ValueError):
@@ -149,9 +173,20 @@ def _flag_hrana_disconnect(ctx):
             ctx.is_disconnect = True
 
 
+for _eng in (engine, primary_engine):
+    event.listen(_eng, "connect", _set_foreign_keys)
+    event.listen(_eng, "handle_error", _flag_hrana_disconnect, retval=False)
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+# Sessions for direct-to-primary write transactions. Each session opens a fresh
+# primary libsql connection (NullPool) so the write stream is never idle long
+# enough to expire across an Opus call. Use for any handler that writes several
+# statements in one transaction after a long-running AI call.
+PrimarySessionLocal = sessionmaker(
+    bind=primary_engine, autoflush=False, autocommit=False
+)
 
 
 class Base(DeclarativeBase):
