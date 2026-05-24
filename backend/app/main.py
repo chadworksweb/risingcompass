@@ -185,6 +185,7 @@ app.include_router(analyzer.router, dependencies=[Depends(verify_api_or_service_
 app.include_router(badge.router, dependencies=_api_key_dep)
 app.include_router(artists.router, dependencies=_api_key_dep)
 app.include_router(songs.router, dependencies=_api_key_dep)
+app.include_router(vibe.user_router)  # Clerk-authed, no X-Api-Key; before the gated router
 app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(tenets.router, dependencies=_api_key_dep)
 app.include_router(amendments.router, dependencies=_api_key_dep)

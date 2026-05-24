@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["audience-vibe"])
 
+# User-authed endpoints (Clerk token only, NO X-Api-Key). The main router is
+# gated on X-Api-Key, but authedFetch from the account page sends only the
+# Clerk bearer — so these live on a separate router included without that dep.
+user_router = APIRouter(tags=["audience-vibe"])
+
 VALID_SOURCES = {"compass", "library", "submitted"}
 VALID_CASE_STATUSES = {"open", "acknowledged", "recalibrated", "dismissed"}
 
@@ -39,9 +44,10 @@ class CaseStatusUpdate(BaseModel):
     admin_notes: Optional[str] = Field(None, max_length=4000)
 
 
-# --- Public ---
+# --- User-authed (no X-Api-Key; on user_router, included before the gated
+#     router so "me/activity" isn't captured by /{song_source}/{song_id}) ---
 
-@router.get("/api/vibe/me/activity")
+@user_router.get("/api/vibe/me/activity")
 def my_vibe_activity(
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -49,13 +55,13 @@ def my_vibe_activity(
 ):
     """The signed-in user's own vibe voting history. Tier 1 (any signed-in
     account) is enough — this is personal activity, not a privileged view.
-
-    Declared before the /{song_source}/{song_id} route so "me"/"activity"
-    doesn't get captured by the polymorphic path (song_id is an int there).
+    Clerk token only — the account page's authedFetch sends no X-Api-Key.
     """
     limit = max(1, min(limit, 500))
     return get_user_activity(db, user.id, limit)
 
+
+# --- Public ---
 
 @router.get("/api/vibe/{song_source}/{song_id}")
 def vibe_state(
