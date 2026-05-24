@@ -353,34 +353,34 @@ def list_backups(limit: int = 30):
 
 @router.get("/db-export", dependencies=[Depends(verify_admin_key)])
 def export_database(background_tasks: BackgroundTasks):
-    """Download a fresh snapshot of the Turso database as a SQLite file.
+    """Download a fresh snapshot of the database as a gzipped pg_dump (.sql.gz).
 
-    Opens a throwaway libsql embedded replica, syncs from the primary, and
-    streams the resulting .db file back. Not a substitute for the daily
-    backup (no verification, no S3 upload) — this is the admin ad-hoc
-    export for a one-off local working copy.
+    Runs pg_dump and streams the resulting plain-SQL dump back. Not a
+    substitute for the daily backup (no S3 upload) -- this is the admin ad-hoc
+    export for a one-off local working copy. Restore with:
+        gunzip -c rising_compass.sql.gz | psql <dsn>
 
     Authed via the admin session cookie (set by /api/rc-admin-{token}/login).
     Use the dashboard "Export DB" button or run from the browser while signed in.
     """
-    from app.services.backup import _dump_turso_to_file
+    from app.services.backup import dump_database_to_gz
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".sql.gz")
     tmp.close()
     tmp_path = Path(tmp.name)
 
     try:
-        _dump_turso_to_file(tmp_path)
+        dump_database_to_gz(tmp_path)
     except Exception as exc:
         tmp_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Turso dump failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"pg_dump failed: {exc}") from exc
 
     background_tasks.add_task(os.unlink, tmp.name)
 
     return FileResponse(
         tmp.name,
-        media_type="application/octet-stream",
-        filename="rising_compass.db",
+        media_type="application/gzip",
+        filename="rising_compass.sql.gz",
     )
 
 

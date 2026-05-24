@@ -21,7 +21,7 @@ def _ensure_schema_version(conn):
     conn.execute(text(
         "CREATE TABLE IF NOT EXISTS schema_version ("
         "  version INTEGER PRIMARY KEY,"
-        "  applied_at TEXT NOT NULL DEFAULT (datetime('now'))"
+        "  applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
         ")"
     ))
 

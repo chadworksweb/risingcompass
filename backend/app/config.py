@@ -29,13 +29,15 @@ class Settings(BaseSettings):
     # Anything other than this token returns 404, so port scanners hitting
     # /api/admin/login or similar don't find a form to submit.
     admin_login_url_token: str = ""
+    # DigitalOcean Managed Postgres DSN, reached via the PgBouncer pool.
+    # Form: postgresql+psycopg://USER:PASS@HOST:25061/rc-pool?sslmode=require
+    # Local dev tunnels port 25061 through the droplet, so HOST is 127.0.0.1.
     database_url: str = "sqlite:///./data/rising_compass.db"
-    turso_auth_token: str = ""  # required when database_url is libsql://...
-    # Embedded replica: when set, reads go to a local SQLite file synced
-    # from the Turso primary every turso_sync_interval seconds. Writes still
-    # round-trip to the primary. Unset = connect directly to Turso.
-    turso_replica_path: str = ""
-    turso_sync_interval: int = 30
+    # Direct (session-mode) DSN used ONLY by pg_dump in services/backup.py.
+    # Must point at the direct connection (port 25060 / database defaultdb),
+    # NOT the PgBouncer pool -- transaction pooling breaks pg_dump. Falls back
+    # to database_url if unset.
+    backup_database_url: str = ""
     cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","https://risingcompass.net","https://api.risingcompass.net"]'
 
     # Anthropic API

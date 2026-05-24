@@ -27,25 +27,16 @@ from app.models import ApiClient, ApiClientKey
 
 
 # --- last_used_at tracking -------------------------------------------------
-# Every /api/* request passes through verify_api_key → resolve_key. Writing
-# last_used_at on the request thread via the SQLAlchemy session (which talks
-# to the embedded Turso replica) was wedging read queries: the replica's
-# client-side WAL serializes writes against reads, so every ~60s a user's
-# search request would stall ~1s waiting for the Turso primary to ack.
-#
-# Fix: resolve_key just stamps an in-memory pending dict. A background thread
-# flushes the dict to the Turso primary directly (bypassing the replica
-# session entirely) every _FLUSH_INTERVAL_SECS. No user request waits on a
-# write.
+# Every /api/* request passes through verify_api_key -> resolve_key. We stamp
+# last_used_at inline, but throttled in-memory to at most one write per key per
+# _LAST_USED_THROTTLE_SECS so a busy key doesn't generate a DB write on every
+# request. On Postgres an inline UPDATE no longer wedges reads (the old Turso
+# embedded-replica WAL contention that forced a background flusher is gone);
+# last_used_at is a telemetry hint, so a missed stamp is harmless.
 
-_pending_last_used: dict[int, datetime] = {}
-_pending_last_used_lock = threading.Lock()
-
-_FLUSH_INTERVAL_SECS = 60
-
-_flusher_thread: threading.Thread | None = None
-_flusher_thread_lock = threading.Lock()
-_flusher_conn = None  # libsql.Connection | None — lazy-init inside thread
+_LAST_USED_THROTTLE_SECS = 60
+_last_used_written: dict[int, float] = {}  # key_id -> monotonic of last write
+_last_used_lock = threading.Lock()
 
 
 @dataclass
@@ -101,90 +92,33 @@ def resolve_key(db: Session, raw_key: str) -> ResolvedClient | None:
         status=client.status, plan_tier=client.plan_tier or "trial",
     )
 
-    # Stamp last_used in-memory; a background thread flushes to Turso.
-    # No DB write on the request path.
-    now = datetime.utcnow()
-    with _pending_last_used_lock:
-        _pending_last_used[key.id] = now
-    ensure_last_used_flusher()
+    # Stamp last_used inline, throttled in-memory. Telemetry only.
+    _stamp_last_used(key.id)
 
     return snapshot
 
 
-# --- last_used_at flusher --------------------------------------------------
+# --- last_used_at stamping -------------------------------------------------
 
-def _drain_pending_last_used() -> dict[int, datetime]:
-    with _pending_last_used_lock:
-        snapshot = dict(_pending_last_used)
-        _pending_last_used.clear()
-        return snapshot
-
-
-def _open_flusher_conn():
-    """Direct libsql connection to Turso primary. Bypasses the embedded
-    replica so flushes don't contend with replica WAL reads."""
-    import libsql
-    url = settings.database_url
-    token = settings.turso_auth_token
-    if url.startswith("libsql://") or url.startswith("https://"):
-        return libsql.connect(database=url, auth_token=token)
-    return libsql.connect(database=url)
-
-
-def flush_last_used_once() -> int:
-    """Flush any pending last_used_at timestamps. Returns the number written.
-
-    One batch = one commit. If the connection errors, the flusher loop resets
-    it on the next tick; dropped updates are not fatal (last_used_at is a
-    telemetry hint, not a correctness signal).
-    """
-    global _flusher_conn
-    pending = _drain_pending_last_used()
-    if not pending:
-        return 0
-    if _flusher_conn is None:
-        _flusher_conn = _open_flusher_conn()
+def _stamp_last_used(key_id: int) -> None:
+    """Update api_client_keys.last_used_at for this key, at most once per
+    _LAST_USED_THROTTLE_SECS. Swallows errors (telemetry hint, not critical)."""
+    mono = _time.monotonic()
+    with _last_used_lock:
+        if mono - _last_used_written.get(key_id, 0.0) < _LAST_USED_THROTTLE_SECS:
+            return
+        _last_used_written[key_id] = mono
     try:
-        for key_id, ts in pending.items():
-            _flusher_conn.execute(
-                "UPDATE api_client_keys SET last_used_at = ? WHERE id = ?",
-                (ts.isoformat(sep=" "), key_id),
+        db = SessionLocal()
+        try:
+            db.query(ApiClientKey).filter(ApiClientKey.id == key_id).update(
+                {ApiClientKey.last_used_at: datetime.utcnow()}
             )
-        _flusher_conn.commit()
-        return len(pending)
+            db.commit()
+        finally:
+            db.close()
     except Exception:
-        # Reset the connection so next flush reconnects. Dropped pending
-        # entries are lost (intentional — no retry storms on primary outages).
-        try:
-            _flusher_conn.close()
-        except Exception:
-            pass
-        _flusher_conn = None
-        raise
-
-
-def _flusher_loop():
-    while True:
-        _time.sleep(_FLUSH_INTERVAL_SECS)
-        try:
-            count = flush_last_used_once()
-            if count:
-                logger.debug("flushed %d last_used_at updates", count)
-        except Exception:
-            logger.exception("last_used_at flush failed")
-
-
-def ensure_last_used_flusher() -> None:
-    """Start the background flusher thread once. Idempotent, thread-safe."""
-    global _flusher_thread
-    if _flusher_thread is not None and _flusher_thread.is_alive():
-        return
-    with _flusher_thread_lock:
-        if _flusher_thread is None or not _flusher_thread.is_alive():
-            _flusher_thread = threading.Thread(
-                target=_flusher_loop, daemon=True, name="last-used-flusher"
-            )
-            _flusher_thread.start()
+        logger.exception("last_used_at update failed for key %s", key_id)
 
 
 def _ensure_client(db: Session, *, slug: str, name: str, behavior: str,

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from contextlib import asynccontextmanager
@@ -6,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -15,7 +15,7 @@ from app.auth import verify_api_key, verify_api_or_service_key
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.migrate import run_migrations
-from app.models import AgentDraft, AgentDraftSong, DailyReading
+from app.models import AgentDraft, AgentDraftSong, DailyReading, ApiCallLog
 from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber
 
 logger = logging.getLogger(__name__)
@@ -64,46 +64,22 @@ bootstrap_system_clients()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan — DB warmup + keepalive, Lyrical Charger session cleanup.
+    """App lifespan — startup cleanup only.
 
-    Backups are triggered externally by cron on le-projects-01 (04:45 UTC
-    via /root/risingcompass-backups/backup.sh → POST /api/admin/backup).
-    No in-app scheduler to avoid double-running or unpredictable timing.
+    On Postgres there is no embedded replica to warm and no Hrana stream to
+    keep alive, so the old warmup() + keepalive watchdog are gone. last_used_at
+    and lc_events now write inline (throttled), so their background threads are
+    gone too. Backups are triggered externally by cron on le-projects-01.
     """
-    from app.database import warmup, keepalive_loop
-
-    # Warm the pool before the first user request so Turso embedded-replica
-    # sync happens during startup, not during a visitor's page load.
-    warmup()
-
     _cleanup_orphan_drafts()
-    keepalive_task = asyncio.create_task(keepalive_loop(interval_seconds=45))
-
-    # Start the api-key last_used_at flusher. Writes go to Turso primary on
-    # a background thread so no user request blocks on them.
-    from app.services.api_clients import (
-        ensure_last_used_flusher, flush_last_used_once,
-    )
-    ensure_last_used_flusher()
-
-    # Start the lc_events writer thread for the same reason — every LC page
-    # view / search / submission enqueues instead of blocking on a write.
-    from app.services.lc_events import _ensure_writer as _ensure_lc_events_writer
-    _ensure_lc_events_writer()
 
     # Backfill Console: any job left in `running` from a prior process
     # gets demoted to `paused` so the admin has to explicitly resume.
     from app.services.backfill.orchestrator import reset_running_jobs_on_startup
     reset_running_jobs_on_startup()
 
-    logger.info("DB keepalive scheduler started")
+    logger.info("startup complete")
     yield
-    keepalive_task.cancel()
-    # Final flush on shutdown so recently-seen keys don't lose their stamps.
-    try:
-        flush_last_used_once()
-    except Exception:
-        logger.exception("final last_used_at flush failed")
 
 
 app = FastAPI(title="The Rising Compass", version="1.0.0", lifespan=lifespan)
@@ -117,92 +93,38 @@ app.add_middleware(
 )
 
 
-# Dedicated direct-Turso connection for the log writer thread. Bypasses the
-# embedded replica on purpose: the replica's client-side WAL serializes writes
-# against reads, so logging via the replica wedges every read query for the
-# duration of the commit. Direct writes to the primary are ~100ms and don't
-# touch the replica file at all.
-_log_writer_conn = None
-
-
-def _get_log_writer_conn():
-    global _log_writer_conn
-    if _log_writer_conn is not None:
-        return _log_writer_conn
-    import libsql
-    url = settings.database_url
-    token = settings.turso_auth_token
-    if url.startswith("libsql://") or url.startswith("https://"):
-        _log_writer_conn = libsql.connect(database=url, auth_token=token)
-    else:
-        _log_writer_conn = libsql.connect(database=url)
-    return _log_writer_conn
-
-
 def _write_api_call_log(client_id, method, path, status, ip, user_agent, duration_ms, context_json):
-    """Persist one api_call_log row via a dedicated direct-Turso connection."""
-    conn = _get_log_writer_conn()
+    """Persist one api_call_log row via a short-lived ORM session. Swallows
+    errors — request logging must never break the response. Run off the event
+    loop via run_in_threadpool so the synchronous commit doesn't block it."""
     try:
-        conn.execute(
-            "INSERT INTO api_call_log (client_id, method, path, status, ip, user_agent, duration_ms, context_json, ts) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-            (client_id, method, path[:250], status, ip, user_agent, duration_ms, context_json),
-        )
-        conn.commit()
+        db = SessionLocal()
+        try:
+            db.add(ApiCallLog(
+                client_id=client_id,
+                method=method,
+                path=path[:250],
+                status=status,
+                ip=ip,
+                user_agent=user_agent,
+                duration_ms=duration_ms,
+                context_json=context_json,
+            ))
+            db.commit()
+        finally:
+            db.close()
     except Exception:
-        # On any error, drop the connection so the next call reconnects.
-        global _log_writer_conn
-        try:
-            conn.close()
-        except Exception:
-            pass
-        _log_writer_conn = None
-        raise
-
-
-# Background log writer — one queue, one thread. The middleware enqueues and
-# returns; the thread drains the queue serially. Necessary because embedded-
-# replica writes take ~1s and Starlette BaseHTTPMiddleware awaits both asyncio
-# tasks and Response.background before sending the response.
-import queue as _queue_mod
-import threading as _thr_mod
-_LOG_QUEUE: _queue_mod.Queue = _queue_mod.Queue(maxsize=10000)
-_log_writer_thread: _thr_mod.Thread | None = None
-_log_writer_lock = _thr_mod.Lock()
-
-
-def _log_writer_loop():
-    while True:
-        item = _LOG_QUEUE.get()
-        if item is None:
-            break
-        try:
-            _write_api_call_log(*item)
-        except Exception:
-            logger.exception("api_call_log write failed in background thread")
-
-
-def _ensure_log_writer():
-    global _log_writer_thread
-    if _log_writer_thread is not None and _log_writer_thread.is_alive():
-        return
-    with _log_writer_lock:
-        if _log_writer_thread is None or not _log_writer_thread.is_alive():
-            _log_writer_thread = _thr_mod.Thread(
-                target=_log_writer_loop, daemon=True, name="api-call-log-writer"
-            )
-            _log_writer_thread.start()
+        logger.exception("api_call_log write failed for %s %s", method, path)
 
 
 @app.middleware("http")
 async def log_api_call(request: Request, call_next):
     """Log every /api/* call (excluding /api/admin/* and /api/health) to api_call_log.
 
-    The DB write is handed off to a dedicated background thread via an in-
-    memory queue. Neither asyncio.create_task nor Starlette's BackgroundTask
-    reliably detach from BaseHTTPMiddleware — both were awaited before the
-    response left the server. A raw OS thread draining a queue is the only
-    approach that actually fire-and-forgets under Starlette.
+    The row is written by an ordinary ORM session, offloaded to a threadpool so
+    the synchronous commit doesn't block the event loop. On Postgres the write
+    is fast and never wedges reads, so the old direct-Turso connection + queue +
+    background thread are gone.
     """
     import time as _time
     path = request.url.path
@@ -238,13 +160,10 @@ async def log_api_call(request: Request, call_next):
                 ctx[k] = v[:200] if isinstance(v, str) else v
         context_json = _json.dumps(ctx, default=str) if ctx else None
 
-        _ensure_log_writer()
-        try:
-            _LOG_QUEUE.put_nowait(
-                (client_id, request.method, path, status, ip, ua, duration_ms, context_json)
-            )
-        except _queue_mod.Full:
-            logger.warning("api_call_log queue full — dropping log for %s %s", request.method, path)
+        await run_in_threadpool(
+            _write_api_call_log,
+            client_id, request.method, path, status, ip, ua, duration_ms, context_json,
+        )
     except Exception:
         logger.exception("api_call_log scheduling failed for %s %s", request.method, path)
 

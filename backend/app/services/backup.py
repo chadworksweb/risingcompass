@@ -1,13 +1,21 @@
-"""Turso → DigitalOcean Spaces daily backup.
+"""Postgres -> DigitalOcean Spaces daily backup.
+
+DO Managed Postgres already provides daily backups + 7-day point-in-time
+recovery; this pipeline is the belt-and-suspenders off-platform copy with a
+longer (BACKUP_RETENTION_DAYS, default 30) retention window.
 
 Pipeline:
-  1. Open a fresh libsql embedded replica, sync from Turso → produces a
-     complete local SQLite file of the current database state.
-  2. gzip the file → /app/data/backups/rising_compass_{YYYY-MM-DD_HHMM}.db.gz
+  1. pg_dump the database (plain SQL) and gzip ->
+     /app/data/backups/rising_compass_{YYYY-MM-DD_HHMM}.sql.gz
      (host: /root/risingcompass-backups, scanned by LEIT dashboard).
-  3. Upload to s3://{bucket}/{prefix}/rising_compass_{YYYY-MM-DD_HHMM}.db.gz.
-  4. Verify: download the object back, open it, count compass_songs.
+  2. Verify the local dump (gzip CRC + dump-structure sentinels).
+  3. Upload to s3://{bucket}/{prefix}/rising_compass_{YYYY-MM-DD_HHMM}.sql.gz.
+  4. Verify: download the object back and re-check it.
   5. Prune S3 + local copies older than BACKUP_RETENTION_DAYS.
+
+pg_dump connects via BACKUP_DATABASE_URL, which MUST point at the DIRECT
+(session-mode) connection -- port 25060 / database defaultdb -- not the
+PgBouncer pool (25061 / rc-pool). Transaction pooling breaks pg_dump.
 
 Triggered by cron on le-projects-01 at 04:45 UTC via
 /root/risingcompass-backups/backup.sh (curl POST /api/admin/backup).
@@ -19,7 +27,7 @@ from __future__ import annotations
 import gzip
 import logging
 import shutil
-import sqlite3
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -63,43 +71,61 @@ def _spaces_client():
     )
 
 
-def _dump_turso_to_file(dest: Path) -> None:
-    """Sync Turso → a fresh local SQLite file at `dest`.
+def _backup_dsn() -> str:
+    """The libpq DSN pg_dump must use. Prefers BACKUP_DATABASE_URL (the direct
+    session-mode connection); falls back to DATABASE_URL. Strips the SQLAlchemy
+    '+psycopg' driver suffix that libpq/pg_dump don't understand."""
+    dsn = (settings.backup_database_url or settings.database_url or "").strip()
+    return (
+        dsn.replace("postgresql+psycopg://", "postgresql://", 1)
+           .replace("postgres+psycopg://", "postgresql://", 1)
+    )
 
-    Uses libsql's embedded-replica mode: opening a connection with
-    sync_url + auth_token pulls the full primary state into `dest`.
+
+def dump_database_to_gz(dest: Path) -> None:
+    """pg_dump the database (plain SQL) straight into a gzip file at `dest`.
+
+    --no-owner / --no-privileges so the dump restores cleanly into any role.
+    Streams pg_dump stdout through gzip so a large dump isn't held in memory.
     """
-    import libsql
+    dsn = _backup_dsn()
+    if not (dsn.startswith("postgresql://") or dsn.startswith("postgres://")):
+        raise RuntimeError(f"backup requires a postgres DSN, got {dsn!r}")
 
-    url = settings.database_url
-    token = settings.turso_auth_token
-    if not (url.startswith("libsql://") or url.startswith("https://")):
-        raise RuntimeError(f"backup requires a libsql:// DATABASE_URL, got {url!r}")
-    if not token:
-        raise RuntimeError("TURSO_AUTH_TOKEN is unset")
+    cmd = ["pg_dump", "--no-owner", "--no-privileges", "--format=plain", dsn]
+    with gzip.open(dest, "wb", compresslevel=6) as gz:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        assert proc.stdout is not None
+        shutil.copyfileobj(proc.stdout, gz)
+        proc.stdout.close()
+        rc = proc.wait()
+        err = (proc.stderr.read().decode("utf-8", "replace") if proc.stderr else "")[:500]
+    if rc != 0:
+        if dest.exists():
+            dest.unlink()
+        raise RuntimeError(f"pg_dump failed (rc={rc}): {err}")
 
-    if dest.exists():
-        dest.unlink()
 
-    conn = libsql.connect(database=str(dest), sync_url=url, auth_token=token)
+def _verify_dump(gz_path: Path) -> bool:
+    """Decompress the dump fully (validates gzip CRC) and confirm it has the
+    expected pg_dump structure. Counting rows would mean restoring into a
+    scratch DB; the header + a CREATE TABLE + clean decompress are enough to
+    catch a truncated or corrupt upload."""
     try:
-        conn.sync()
-    finally:
-        conn.close()
-
-
-def _verify_sqlite(path: Path) -> bool:
-    conn = None
-    try:
-        conn = sqlite3.connect(str(path))
-        row = conn.execute("SELECT count(*) FROM compass_songs").fetchone()
-        return bool(row and row[0] >= 0)
+        seen_header = False
+        seen_table = False
+        total = 0
+        with gzip.open(gz_path, "rt", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                total += len(line)
+                if "PostgreSQL database dump" in line:
+                    seen_header = True
+                elif line.startswith("CREATE TABLE"):
+                    seen_table = True
+        return seen_header and seen_table and total > 0
     except Exception:
-        logger.exception("Backup verification failed for %s", path)
+        logger.exception("Backup verification failed for %s", gz_path)
         return False
-    finally:
-        if conn is not None:
-            conn.close()
 
 
 def _prune_old_objects(s3, bucket: str, prefix: str, retention_days: int) -> int:
@@ -126,7 +152,7 @@ def _prune_local_copies(retention_days: int) -> int:
         return 0
     cutoff = datetime.now(timezone.utc).timestamp() - retention_days * 86400
     removed = 0
-    for path in LOCAL_BACKUP_DIR.glob(f"{BACKUP_FILENAME_PREFIX}_*.db.gz"):
+    for path in LOCAL_BACKUP_DIR.glob(f"{BACKUP_FILENAME_PREFIX}_*.sql.gz"):
         try:
             if path.stat().st_mtime < cutoff:
                 path.unlink()
@@ -148,27 +174,23 @@ def run_backup() -> BackupResult | None:
         return None
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
-    filename = f"{BACKUP_FILENAME_PREFIX}_{stamp}.db.gz"
+    filename = f"{BACKUP_FILENAME_PREFIX}_{stamp}.sql.gz"
     key = f"{settings.do_spaces_prefix.strip('/')}/{filename}"
     bucket = settings.do_spaces_bucket
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         tmp_dir = Path(tmp)
-        db_file = tmp_dir / f"rc-{stamp}.db"
         gz_file = tmp_dir / filename
 
         try:
-            _dump_turso_to_file(db_file)
+            dump_database_to_gz(gz_file)
         except Exception:
-            logger.exception("Turso dump failed")
+            logger.exception("pg_dump failed")
             return None
 
-        if not _verify_sqlite(db_file):
-            logger.error("Pre-upload verify failed on %s", db_file)
+        if not _verify_dump(gz_file):
+            logger.error("Pre-upload verify failed on %s", gz_file)
             return None
-
-        with open(db_file, "rb") as src, gzip.open(gz_file, "wb", compresslevel=6) as dst:
-            shutil.copyfileobj(src, dst)
 
         s3 = _spaces_client()
         try:
@@ -183,13 +205,10 @@ def run_backup() -> BackupResult | None:
             return None
 
         # Round-trip verification
-        verify_file = tmp_dir / "verify.db"
         try:
-            gz_dl = tmp_dir / "verify.db.gz"
+            gz_dl = tmp_dir / "verify.sql.gz"
             s3.download_file(bucket, key, str(gz_dl))
-            with gzip.open(gz_dl, "rb") as src, open(verify_file, "wb") as dst:
-                shutil.copyfileobj(src, dst)
-            verified = _verify_sqlite(verify_file)
+            verified = _verify_dump(gz_dl)
         except Exception:
             logger.exception("Post-upload verify failed for s3://%s/%s", bucket, key)
             verified = False

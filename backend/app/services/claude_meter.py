@@ -11,23 +11,23 @@ propagate, the response is returned untouched. Failed calls are still logged
 (ok=0, error=...) so prompt-explosion bugs and Anthropic outages show up in
 the admin tab as cost-zero rows.
 
-DB writes go through a background queue + dedicated direct-Turso connection,
-mirroring app.main._write_api_call_log: the embedded replica's WAL serializes
-writes against reads, so writing on the request thread would wedge user
-queries. The writer drops on overflow; usage logs are telemetry, not a
-correctness signal.
+The usage row is written inline via a short-lived ORM session. The old
+background queue + direct-Turso connection existed only to dodge the embedded
+replica's WAL contention; Postgres has none, and each metered call already
+took seconds against the Anthropic API, so a fast local INSERT after it is
+negligible. Write errors are swallowed — usage logs are telemetry, not a
+correctness signal. See RISING-COMPASS-POSTGRES-MIGRATION.md.
 """
 
 import json
 import logging
-import queue
-import threading
 import time as _time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from app.config import settings
+from app.database import SessionLocal
+from app.models import ClaudeApiUsage
 
 logger = logging.getLogger(__name__)
 
@@ -86,94 +86,20 @@ def _compute_costs(
     return input_cost, output_cost, cache_creation_cost, cache_read_cost, total, source
 
 
-# --- Background writer -----------------------------------------------------
-# Same pattern as app.main._write_api_call_log: dedicated direct-Turso
-# connection, single writer thread, in-memory queue with drop-on-full.
+# --- Writer ----------------------------------------------------------------
 
-_writer_conn = None
-_writer_conn_lock = threading.Lock()
-
-
-def _get_writer_conn():
-    global _writer_conn
-    if _writer_conn is not None:
-        return _writer_conn
-    import libsql
-    url = settings.database_url
-    token = settings.turso_auth_token
-    if url.startswith("libsql://") or url.startswith("https://"):
-        _writer_conn = libsql.connect(database=url, auth_token=token)
-    else:
-        _writer_conn = libsql.connect(database=url)
-    return _writer_conn
-
-
-def _write_row(row: dict) -> None:
-    global _writer_conn
-    conn = _get_writer_conn()
+def _write_usage(row: dict) -> None:
+    """Insert one claude_api_usage row via a short-lived ORM session. Swallows
+    errors — usage logging must never mask the metered call's outcome."""
     try:
-        conn.execute(
-            "INSERT INTO claude_api_usage ("
-            "ts, call_site, model, "
-            "input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, "
-            "input_cost_usd, output_cost_usd, cache_creation_cost_usd, cache_read_cost_usd, total_cost_usd, "
-            "duration_ms, stop_reason, ok, error, pricing_source, context_json"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                row["ts"], row["call_site"], row["model"],
-                row["input_tokens"], row["output_tokens"],
-                row["cache_creation_tokens"], row["cache_read_tokens"],
-                row["input_cost_usd"], row["output_cost_usd"],
-                row["cache_creation_cost_usd"], row["cache_read_cost_usd"],
-                row["total_cost_usd"],
-                row["duration_ms"], row["stop_reason"], row["ok"],
-                row["error"], row["pricing_source"], row["context_json"],
-            ),
-        )
-        conn.commit()
+        db = SessionLocal()
+        try:
+            db.add(ClaudeApiUsage(**row))
+            db.commit()
+        finally:
+            db.close()
     except Exception:
-        try:
-            conn.close()
-        except Exception:
-            pass
-        _writer_conn = None
-        raise
-
-
-_USAGE_QUEUE: queue.Queue = queue.Queue(maxsize=10000)
-_writer_thread: threading.Thread | None = None
-_writer_thread_lock = threading.Lock()
-
-
-def _writer_loop():
-    while True:
-        item = _USAGE_QUEUE.get()
-        if item is None:
-            break
-        try:
-            _write_row(item)
-        except Exception:
-            logger.exception("claude_api_usage write failed in background thread")
-
-
-def _ensure_writer_thread():
-    global _writer_thread
-    if _writer_thread is not None and _writer_thread.is_alive():
-        return
-    with _writer_thread_lock:
-        if _writer_thread is None or not _writer_thread.is_alive():
-            _writer_thread = threading.Thread(
-                target=_writer_loop, daemon=True, name="claude-usage-writer"
-            )
-            _writer_thread.start()
-
-
-def _enqueue(row: dict) -> None:
-    _ensure_writer_thread()
-    try:
-        _USAGE_QUEUE.put_nowait(row)
-    except queue.Full:
-        logger.warning("claude_api_usage queue full — dropping row for %s", row.get("call_site"))
+        logger.exception("claude_api_usage write failed for %s", row.get("call_site"))
 
 
 # --- Token extraction + row build -----------------------------------------
@@ -216,7 +142,7 @@ def _build_row(
         except Exception:
             ctx_json = None
     return {
-        "ts": datetime.utcnow().isoformat(sep=" ", timespec="seconds"),
+        "ts": datetime.utcnow(),
         "call_site": call_site[:64],
         "model": (model or "unknown")[:64],
         "input_tokens": input_tokens,
@@ -251,7 +177,7 @@ def tracked_create(client, *, call_site: str, context: dict | None = None, **kwa
         response = client.messages.create(**kwargs)
     except Exception as exc:
         duration_ms = int((_time.time() - start) * 1000)
-        _enqueue(_build_row(
+        _write_usage(_build_row(
             call_site=call_site, model=model, context=context,
             duration_ms=duration_ms,
             input_tokens=0, output_tokens=0, cache_creation=0, cache_read=0,
@@ -278,7 +204,7 @@ async def tracked_create_async(client, *, call_site: str, context: dict | None =
         response = await client.messages.create(**kwargs)
     except Exception as exc:
         duration_ms = int((_time.time() - start) * 1000)
-        _enqueue(_build_row(
+        _write_usage(_build_row(
             call_site=call_site, model=model, context=context,
             duration_ms=duration_ms,
             input_tokens=0, output_tokens=0, cache_creation=0, cache_read=0,
