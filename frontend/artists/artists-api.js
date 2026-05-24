@@ -57,8 +57,12 @@ const ArtistsAPI = (() => {
       // If the voter is signed in, attach the Clerk token so the push is
       // attributed to their account (for the activity view). Anonymous votes
       // simply omit it — the backend treats user_id as optional.
+      // Auth must be initialized first: the song page loads auth.js but never
+      // calls Auth.init(), so getToken() would otherwise throw and every vote
+      // would record anonymously.
       try {
         if (window.Auth && typeof Auth.getToken === 'function') {
+          if (typeof Auth.init === 'function') { await Auth.init(); }
           const token = await Auth.getToken();
           if (token) headers['Authorization'] = `Bearer ${token}`;
         }

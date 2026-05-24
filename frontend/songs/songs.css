@@ -789,6 +789,44 @@
   font-style: italic;
 }
 
+/* How-it's-calculated toggle, tucked under the one-vote line. */
+.audience-vibe-how {
+  max-width: 560px;
+  margin: 0.5rem auto 0;
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+}
+.audience-vibe-how > summary {
+  cursor: pointer;
+  text-align: center;
+  list-style: none;
+  color: var(--rc-text-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0;
+  user-select: none;
+}
+.audience-vibe-how > summary::-webkit-details-marker { display: none; }
+.audience-vibe-how > summary::before { content: "\25B8  "; opacity: 0.7; }
+.audience-vibe-how[open] > summary::before { content: "\25BE  "; }
+.audience-vibe-how > summary:hover { color: var(--rc-text-bright); }
+.audience-vibe-how-body {
+  margin-top: 0.4rem;
+  padding: 0.8rem 1rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  line-height: 1.55;
+}
+.audience-vibe-how-body p { margin: 0 0 0.6rem; }
+.audience-vibe-how-body p:last-child { margin-bottom: 0; }
+.audience-vibe-how-body ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.1rem;
+}
+.audience-vibe-how-body li { margin-bottom: 0.35rem; }
+.audience-vibe-how-body strong { color: var(--rc-text-bright); font-weight: 600; }
+
 /* --- Flag Activity --- */
 .flag-counts {
   display: flex;

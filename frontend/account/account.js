@@ -116,7 +116,10 @@
       data = await resp.json();
     } catch (err) {
       console.error('vibe activity load failed', err);
-      el.vibeActivityState.textContent = 'Could not load your activity right now.';
+      const code = ((err && err.message) || '').match(/\d{3}/);
+      el.vibeActivityState.textContent = code && code[0] === '401'
+        ? 'Sign in to see your voting activity.'
+        : 'Could not load your activity right now.';
       return;
     }
     const items = (data && data.items) || [];
