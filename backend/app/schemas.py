@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, computed_field
 import datetime
@@ -434,6 +434,15 @@ class TerminalCalibrationIn(BaseModel):
     confidence: float = 1.0
     effects_prose: Optional[str] = None
     societal_effects_prose: Optional[str] = None
+    # Ether Art Chart fields, also Claude-Code-supplied so the server skips the
+    # ether_tagger Anthropic call. deadpan_line is a flat literal naming of the
+    # song; topics are 0-3 slugs from the closed 24-topic taxonomy
+    # (services/ether_taxonomy.ETHER_TAXONOMY), dominant-first; topic_audit is
+    # the escape-hatch payload when no taxonomy slug honestly fits (topics must
+    # then be empty). Exactly one of (topics non-empty, topic_audit non-null).
+    deadpan_line: Optional[str] = None
+    topics: Optional[List[str]] = None
+    topic_audit: Optional[dict] = None
 
 
 class SupplyLyricsIn(BaseModel):

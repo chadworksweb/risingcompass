@@ -195,6 +195,21 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     supplied_effects_prose = result.get("effects_prose")
     supplied_societal_prose = result.get("societal_effects_prose")
 
+    # Terminal-mode callers may also supply the Ether Art Chart fields
+    # (deadpan_line + topics + topic_audit) that the ether_tagger would
+    # otherwise produce via Anthropic. Writing them here lets the supply-lyrics
+    # path skip the tagger. topics/topic_audit are stored as JSON strings to
+    # match the columns the tagger writes. See feedback_rc_no_api_in_terminal.
+    supplied_deadpan = result.get("deadpan_line")
+    supplied_topics = result.get("topics")
+    supplied_topic_audit = result.get("topic_audit")
+    supplied_topics_json = (
+        json.dumps(supplied_topics) if supplied_topics is not None else None
+    )
+    supplied_topic_audit_json = (
+        json.dumps(supplied_topic_audit) if supplied_topic_audit else None
+    )
+
     if existing:
         existing.rubric_color = result["rubric_color"]
         existing.charge_value = result.get("charge_value")
@@ -208,6 +223,12 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             existing.effects_prose = supplied_effects_prose
         if supplied_societal_prose is not None:
             existing.societal_effects_prose = supplied_societal_prose
+        if supplied_deadpan is not None:
+            existing.deadpan_line = supplied_deadpan
+        if supplied_topics is not None:
+            existing.topics = supplied_topics_json
+        if supplied_topic_audit is not None:
+            existing.topic_audit = supplied_topic_audit_json
         db.flush()
         # Commit the compass_song update before the linker. If the linker's
         # multi-statement work loses the Hrana stream mid-flight, the
@@ -250,6 +271,9 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             chart_source=chart_source,
             effects_prose=supplied_effects_prose,
             societal_effects_prose=supplied_societal_prose,
+            deadpan_line=supplied_deadpan,
+            topics=supplied_topics_json,
+            topic_audit=supplied_topic_audit_json,
         )
         db.add(song)
         db.flush()
