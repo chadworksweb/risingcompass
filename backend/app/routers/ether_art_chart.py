@@ -191,7 +191,7 @@ def list_years(db: Session = Depends(get_db)):
         text(
             """
             SELECT DISTINCT y FROM (
-              SELECT CAST(strftime('%Y', dr.date) AS INTEGER) AS y
+              SELECT CAST(to_char(dr.date, 'YYYY') AS INTEGER) AS y
               FROM daily_readings dr WHERE dr.date IS NOT NULL
               UNION
               SELECT year AS y FROM compass_songs WHERE year IS NOT NULL
@@ -232,7 +232,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
 
     # Detect data path — does this year have any daily_readings rows?
     has_daily = db.execute(
-        text("SELECT 1 FROM daily_readings WHERE strftime('%Y', date) = :year LIMIT 1"),
+        text("SELECT 1 FROM daily_readings WHERE to_char(date, 'YYYY') = :year LIMIT 1"),
         {"year": year_str},
     ).scalar()
 
@@ -247,7 +247,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                     SUM(21 - rs.position) AS weight_sum
                   FROM reading_songs rs
                   JOIN daily_readings dr ON dr.id = rs.reading_id
-                  WHERE strftime('%Y', dr.date) = :year
+                  WHERE to_char(dr.date, 'YYYY') = :year
                     AND rs.position BETWEEN 1 AND 20
                     AND rs.compass_song_id IS NOT NULL
                   GROUP BY rs.compass_song_id
@@ -322,11 +322,11 @@ def get_year(year: int, db: Session = Depends(get_db)):
                   FROM compass_songs cs
                   JOIN reading_songs rs ON rs.compass_song_id = cs.id
                   JOIN daily_readings dr ON dr.id = rs.reading_id
-                  WHERE strftime('%Y', dr.date) = :year
+                  WHERE to_char(dr.date, 'YYYY') = :year
                     AND cs.topics IS NOT NULL
                 )
                 SELECT je.value AS topic, COUNT(*) AS cnt
-                FROM year_compass_songs ycs, json_each(ycs.topics) je
+                FROM year_compass_songs ycs, json_array_elements_text(ycs.topics::json) AS je(value)
                 GROUP BY je.value
                 ORDER BY cnt DESC
                 """
@@ -342,7 +342,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                   WHERE year = :year_int AND topics IS NOT NULL
                 )
                 SELECT je.value AS topic, COUNT(*) AS cnt
-                FROM year_compass_songs ycs, json_each(ycs.topics) je
+                FROM year_compass_songs ycs, json_array_elements_text(ycs.topics::json) AS je(value)
                 GROUP BY je.value
                 ORDER BY cnt DESC
                 """
@@ -365,7 +365,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                     SUM(21 - rs.position) AS weight_sum
                   FROM reading_songs rs
                   JOIN daily_readings dr ON dr.id = rs.reading_id
-                  WHERE strftime('%Y', dr.date) = :year
+                  WHERE to_char(dr.date, 'YYYY') = :year
                     AND rs.position BETWEEN 1 AND 20
                     AND rs.compass_song_id IS NOT NULL
                   GROUP BY rs.compass_song_id
@@ -376,7 +376,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                   s.weight_sum
                 FROM song_year_appearances s
                 JOIN compass_songs cs ON cs.id = s.compass_song_id,
-                     json_each(cs.topics) je
+                     json_array_elements_text(cs.topics::json) AS je(value)
                 WHERE cs.deadpan_line IS NOT NULL
                   AND cs.topics IS NOT NULL
                 ORDER BY je.value, s.weight_sum DESC
@@ -392,7 +392,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                   je.value AS topic,
                   cs.title, cs.artist, cs.deadpan_line,
                   cs.chart_position AS weight_sum
-                FROM compass_songs cs, json_each(cs.topics) je
+                FROM compass_songs cs, json_array_elements_text(cs.topics::json) AS je(value)
                 WHERE cs.year = :year_int
                   AND cs.deadpan_line IS NOT NULL
                   AND cs.topics IS NOT NULL
@@ -438,7 +438,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                 FROM compass_songs cs
                 JOIN reading_songs rs ON rs.compass_song_id = cs.id
                 JOIN daily_readings dr ON dr.id = rs.reading_id
-                WHERE strftime('%Y', dr.date) = :year
+                WHERE to_char(dr.date, 'YYYY') = :year
                   AND cs.topic_audit IS NOT NULL
                 """
             ),
@@ -464,7 +464,7 @@ def get_year(year: int, db: Session = Depends(get_db)):
                 FROM compass_songs cs
                 JOIN reading_songs rs ON rs.compass_song_id = cs.id
                 JOIN daily_readings dr ON dr.id = rs.reading_id
-                WHERE strftime('%Y', dr.date) = :year
+                WHERE to_char(dr.date, 'YYYY') = :year
                 """
             ),
             {"year": year_str},

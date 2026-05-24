@@ -30,6 +30,13 @@ class CompassSong(Base):
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
     created_at = Column(DateTime, default=datetime.utcnow)
+    chart_position_letter = Column(Text)  # migration 052: tie-break suffix within a chart year
+    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
+    activations = Column(Text)  # JSON: rubric activations
+    calibration_failed = Column(Boolean, default=False)
+    message_analysis = Column(Text)
+    expression_analysis = Column(Text)
+    intention_analysis = Column(Text)
 
 
 class DailyReading(Base):
@@ -168,6 +175,12 @@ class LibrarySong(Base):
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
+    activations = Column(Text)
+    calibration_failed = Column(Boolean, default=False)
+    message_analysis = Column(Text)
+    expression_analysis = Column(Text)
+    intention_analysis = Column(Text)
 
     album = relationship("AlbumDeepDive", back_populates="library_songs")
 
@@ -217,6 +230,12 @@ class AgentDraftSong(Base):
     chart_source = Column(Text, default="spotify")
     confidence = Column(Float)
     lyrics_available = Column(Boolean, default=False)
+    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
+    activations = Column(Text)
+    calibration_failed = Column(Boolean, default=False)
+    message_analysis = Column(Text)
+    expression_analysis = Column(Text)
+    intention_analysis = Column(Text)
 
     draft = relationship("AgentDraft", back_populates="songs")
     compass_song = relationship("CompassSong")
@@ -246,6 +265,9 @@ class SubmittedSong(Base):
     effects_prose = Column(Text)  # 3-paragraph per-song description
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
     submitted_at = Column(DateTime, default=datetime.utcnow)
+    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
+    activations = Column(Text)
+    calibration_failed = Column(Boolean, default=False)
 
 
 class V1Test(Base):
@@ -574,6 +596,9 @@ class SongRecalibrationProposal(Base):
     rubric_change_note = Column(Text)  # pipeline=rubric_update only: 1-2 sentence description of the rule
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime)
+    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
+    activations = Column(Text)
+    calibration_failed = Column(Boolean, default=False)
 
 
 class SongRecalibration(Base):
@@ -784,6 +809,10 @@ class CalibrationRun(Base):
     superseded = Column(Boolean, default=False, nullable=False)  # true if a later rubric_update invalidated this run
     superseded_reason = Column(String(100))  # e.g. rubric_change_slug that invalidated this
     superseded_at = Column(DateTime)
+    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
+    activations = Column(Text)
+    calibration_failed = Column(Boolean, default=False)
+    reasoning = Column(Text)
 
 
 class SongReset(Base):

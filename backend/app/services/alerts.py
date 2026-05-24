@@ -67,10 +67,10 @@ def set_pref(alert_key: str, enabled: bool, channel: str = "email") -> None:
     try:
         db.execute(text(
             "INSERT INTO admin_alert_prefs (alert_key, channel, enabled, updated_at) "
-            "VALUES (:k, :c, :e, datetime('now')) "
+            "VALUES (:k, :c, :e, now()) "
             "ON CONFLICT (alert_key, channel) DO UPDATE SET "
-            "  enabled = excluded.enabled, updated_at = datetime('now')"
-        ), {"k": alert_key, "c": channel, "e": 1 if enabled else 0})
+            "  enabled = excluded.enabled, updated_at = now()"
+        ), {"k": alert_key, "c": channel, "e": enabled})
         db.commit()
     finally:
         db.close()
