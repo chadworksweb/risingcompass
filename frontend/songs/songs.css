@@ -197,6 +197,18 @@
 /* Full-bleed cards span their whole row regardless of siblings. */
 .song-row > .song-section--full { flex-basis: 100%; }
 
+/* Comments sit at 3/4 width, centred in the dashboard column. Higher
+   specificity + max-width:none to beat the 760px cap in comments.css
+   (which is linked after songs.css). */
+.song-main > #song-comments {
+  width: 75%;
+  max-width: none;
+  align-self: center;
+}
+@media (max-width: 768px) {
+  .song-main > #song-comments { width: 100%; }
+}
+
 .song-section h2 {
   font-size: 1.15rem;
   font-weight: 700;
