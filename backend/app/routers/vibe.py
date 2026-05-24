@@ -13,11 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.auth import optional_clerk_user, require_clerk_user
 from app.database import get_db
-from app.models import AudienceVibeReviewCase
+from app.models import AudienceVibeReviewCase, User
 from app.routers.admin import verify_admin_key
 from app.services.audience_vibe import (
-    apply_push, get_state, VibeError, _resolve_song,
+    apply_push, get_state, get_user_activity, VibeError, _resolve_song,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ VALID_CASE_STATUSES = {"open", "acknowledged", "recalibrated", "dismissed"}
 
 
 class PushIn(BaseModel):
-    direction: int = Field(..., description="+1 or -1")
+    direction: int = Field(..., description="+1 (push higher), 0 (agree), -1 (push lower)")
     device_id: str = Field(..., min_length=4, max_length=200)
 
 
@@ -39,6 +40,22 @@ class CaseStatusUpdate(BaseModel):
 
 
 # --- Public ---
+
+@router.get("/api/vibe/me/activity")
+def my_vibe_activity(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_clerk_user),
+):
+    """The signed-in user's own vibe voting history. Tier 1 (any signed-in
+    account) is enough — this is personal activity, not a privileged view.
+
+    Declared before the /{song_source}/{song_id} route so "me"/"activity"
+    doesn't get captured by the polymorphic path (song_id is an int there).
+    """
+    limit = max(1, min(limit, 500))
+    return get_user_activity(db, user.id, limit)
+
 
 @router.get("/api/vibe/{song_source}/{song_id}")
 def vibe_state(
@@ -61,16 +78,23 @@ def vibe_state(
 def vibe_push(
     song_source: str, song_id: int, data: PushIn,
     request: Request, db: Session = Depends(get_db),
+    user: Optional[User] = Depends(optional_clerk_user),
 ):
     """Apply one push to the vibe needle. Enforces eligibility (one push per
     device per song per calendar year). Opens an admin review case if the
     gap with the compass charge crosses threshold.
+
+    Anonymous votes work exactly as before; if the voter is signed in we stamp
+    their user_id on the push so they can review it later under their account.
     """
     if song_source not in VALID_SOURCES:
         raise HTTPException(400, f"Invalid song_source. Must be one of: {', '.join(sorted(VALID_SOURCES))}")
     ip = request.client.host if request.client else None
     try:
-        return apply_push(db, song_source, song_id, data.direction, data.device_id, ip)
+        return apply_push(
+            db, song_source, song_id, data.direction, data.device_id, ip,
+            user_id=user.id if user else None,
+        )
     except VibeError as e:
         # Eligibility violations are 409 (conflict / already-pushed); other
         # validation goes 400. Simpler: surface all VibeErrors as 409 since

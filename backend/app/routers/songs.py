@@ -259,6 +259,14 @@ def song_calibration_runs(slug: str, limit: int = 50):
             }
             for r in rows
         ]
+        # Every calibrated song shows at least its initial calibration, even if
+        # it predates run-logging (seeded / imported songs have no CalibrationRun
+        # rows). Synthesize that first entry from the song's own reading.
+        if not runs:
+            seed = _synthesize_initial_run(source, song_id, db)
+            if seed:
+                runs = [seed]
+
         consensus = compute_consensus(db, source, song_id)
         if consensus:
             consensus["tier_label"] = COLOR_LABELS.get(consensus["rubric_color"], "")
@@ -412,6 +420,43 @@ def song_search(q: str = "", limit: int = 20):
         db.close()
 
 
+def _synthesize_initial_run(source: str, song_id: int, db) -> dict | None:
+    """Build a virtual 'initial calibration' run from the song's own reading.
+
+    For songs with no logged CalibrationRun rows (seeded / imported before run
+    logging existed), so the Calibration Runs panel always shows at least the
+    reading that put the song on the compass. Returns None for uncalibrated
+    songs (charge_value IS NULL) — there's nothing to show.
+    """
+    model_map = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong, "stream": StreamSong}
+    model = model_map.get(source)
+    if not model:
+        return None
+    row = db.query(model).get(song_id)
+    if not row or row.charge_value is None:
+        return None
+    # No run_at: these rows have no calibration timestamp. created_at is the
+    # song's backfilled release/import date (e.g. 1985-01-01), NOT when the
+    # compass read it — so showing it would be a lie. Better undated than wrong.
+    return {
+        "id": None,
+        "run_at": None,
+        "rubric_color": row.rubric_color,
+        "charge_value": row.charge_value,
+        "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
+        "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
+        "charge_summary": getattr(row, "charge_summary", None),
+        "contaminated": bool(getattr(row, "contaminated", False)),
+        "confidence": None,
+        "triggered_by": "seed",
+        "agent_model": None,
+        "superseded": False,
+        "superseded_reason": None,
+        "superseded_at": None,
+        "synthesized": True,
+    }
+
+
 def _resolve_song(source: str, song_id: int, db) -> dict | None:
     """Resolve a polymorphic song reference to a full display dict."""
     model_map = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong, "stream": StreamSong}
@@ -461,6 +506,17 @@ def _enrich_with_release_context(song: dict, source: str, song_id: int, db):
             artist = db.query(Artist).get(release.artist_id)
             if artist:
                 song["artist_slug"] = artist.slug
+
+    # Fallback: songs with no release link (daily/submitted) still have an
+    # artist name — resolve it to the artist-page slug the same way the search
+    # endpoint does, so the song page can link the artist.
+    if not song.get("artist_slug") and song.get("artist"):
+        from app.services.artist_utils import normalize_artist_name, resolve_artist_slugs
+        slug_map = resolve_artist_slugs([song["artist"]], db)
+        primary = normalize_artist_name(song["artist"]).lower()
+        resolved = slug_map.get(primary)
+        if resolved:
+            song["artist_slug"] = resolved
 
 
 def _find_by_generated_slug(slug: str, db) -> dict | None:

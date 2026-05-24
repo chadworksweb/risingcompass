@@ -17,6 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/compass.css">
   <link rel="stylesheet" href="/artists/artists.css">
   <link rel="stylesheet" href="/songs/songs.css">
   <link rel="stylesheet" href="/css/comments.css">
@@ -378,22 +379,39 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="main">
+  <main id="main" class="song-main">
 
-    <!-- Section 1: Hero — tier badge, title, artist -->
-    <section class="song-section song-section--hero" aria-label="Song classification">
-      <div class="song-hero">
-        <div id="song-tier-badge" class="song-tier-badge"></div>
-        <h1 id="song-title" class="song-page-title">Loading...</h1>
-        <p id="song-artist" class="song-page-artist"></p>
-        <p id="recal-stamp" class="recal-stamp" hidden>
-          <button type="button" id="recal-stamp-btn" class="recal-stamp-btn"></button>
-        </p>
-      </div>
-    </section>
+    <!-- ROW: identity (compass gauge, 2/5) + summary & classification (3/5) -->
+    <div class="song-row song-row--hero">
+      <!-- Section 1: Hero — compass gauge, tier badge, title, artist -->
+      <section class="song-section song-section--hero" aria-label="Song classification">
+        <!-- Contamination hazard — mirrors the homepage compass panel badge.
+             Shown only when the song is contaminated; note is the tooltip. -->
+        <div id="song-contam-badge" class="song-contam-badge" hidden tabindex="0" aria-label="Contaminated">
+          <span class="contam-icon" aria-hidden="true">&#x2622;</span>
+          <span class="song-contam-badge-label">Contaminated</span>
+          <div class="contam-tooltip" id="song-contam-tooltip"></div>
+        </div>
+        <div class="song-hero">
+          <div id="song-compass-container" class="song-compass-container" hidden></div>
+          <div id="song-tier-badge" class="song-tier-badge"></div>
+          <h1 id="song-title" class="song-page-title">Loading...</h1>
+          <p id="song-artist" class="song-page-artist"></p>
+          <p id="recal-stamp" class="recal-stamp" hidden>
+            <button type="button" id="recal-stamp-btn" class="recal-stamp-btn"></button>
+          </p>
+        </div>
+      </section>
+
+      <!-- Song-specific summary (charge_summary) — the headline read. -->
+      <section class="song-section song-section--summary" id="section-summary">
+        <h2>Summary</h2>
+        <p id="summary-text" class="summary-text-big is-loading">Loading summary…</p>
+      </section>
+    </div>
 
     <!-- Artist Verified block (only renders when a published block exists) -->
-    <section class="song-section song-section--verified" id="section-artist-verified" hidden aria-label="Artist Verified">
+    <section class="song-section song-section--verified song-section--full" id="section-artist-verified" hidden aria-label="Artist Verified">
       <div class="av-badge-row">
         <span class="av-verified-badge">
           <svg class="av-verified-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3 6.8-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -408,60 +426,51 @@
       <div class="av-block-content" id="av-block-content"></div>
     </section>
 
-    <!-- Calibration Log — unified per-song history (recalibrations + pre-publish corrections) -->
-    <section class="song-section" id="section-history" hidden>
-      <h2>Calibration Log</h2>
-      <p class="direct-answer">Every time this song's reading changed — from a pre-publish correction to a public recalibration — is shown below. The compass changes its mind in public, including what was happening when it changed.</p>
-      <ol class="recal-list" id="recal-list"></ol>
-    </section>
+    <!-- ROW: effects at two scales — the listener (1/2) + the society (1/2) -->
+    <div class="song-row">
+      <!-- Lyrical Effects (tier-generic for now; per-song rewrite on the roadmap) -->
+      <section class="song-section" id="section-effects">
+        <h2>What Might This Song Do to the Listener?</h2>
+        <div id="effects-prose" class="prose is-loading"><p>Loading…</p></div>
+      </section>
 
-    <!-- Section 2: Song-specific summary (charge_summary) -->
-    <section class="song-section" id="section-summary">
-      <h2>Summary</h2>
-      <p id="summary-text" class="direct-answer is-loading">Loading summary…</p>
-    </section>
+      <!-- Societal Effects — what running this program at scale would do.
+           Always shown alongside the listener read; a placeholder stands in
+           when no song-specific society-scale prose has been generated yet. -->
+      <section class="song-section" id="section-societal-effects">
+        <h2>What Might This Song Do to a Society?</h2>
+        <div id="societal-effects-prose" class="prose is-loading"><p>Loading…</p></div>
+      </section>
+    </div>
 
-    <!-- Section 3: Lyrical Effects (tier-generic for now; per-song rewrite on the roadmap) -->
-    <section class="song-section" id="section-effects">
-      <h2>What Might This Song Do to the Listener?</h2>
-      <div id="effects-prose" class="prose is-loading"><p>Loading…</p></div>
-    </section>
-
-    <!-- Section 3b: Societal Effects — what running this program at scale would do.
-         Hidden when societal_effects_prose is NULL; no tier-generic fallback by design. -->
-    <section class="song-section" id="section-societal-effects" hidden>
-      <h2>What Might This Song Do to a Society?</h2>
-      <div id="societal-effects-prose" class="prose"></div>
-    </section>
-
-    <!-- Section 3: Contamination -->
-    <section class="song-section" id="section-contamination" hidden>
-      <h2 id="contam-heading">Contamination Status</h2>
-      <p id="contam-answer" class="direct-answer"></p>
-    </section>
-
-    <!-- Section 3b: Dogma Reference (metadata tag, parallel to contamination) -->
-    <section class="song-section" id="section-dogma" hidden>
-      <h2>Dogma Reference</h2>
-      <p id="dogma-answer" class="direct-answer"></p>
-      <p class="dogma-footnote">Dogma Reference is a metadata tag, not a score modifier. It flags when a song invokes a specific doctrinal framework (Christian, Islamic, Karmic/Dharmic, Institutional) to do its rhetorical work. Naming the sacred does not fire the tag — doing the doctrine does.</p>
-    </section>
-
-    <!-- Section 4: Classification Details -->
-    <section class="song-section" id="section-details">
-      <h2>Classification Details</h2>
-      <table class="details-table is-loading" id="details-table">
-        <tr><td class="detail-key">Tier</td><td class="detail-value">Loading…</td></tr>
-        <tr><td class="detail-key">Charge</td><td class="detail-value">…</td></tr>
-        <tr><td class="detail-key">Classified By</td><td class="detail-value">The Rising Compass</td></tr>
-        <tr><td class="detail-key">Method</td><td class="detail-value">58-tenet rubric v1</td></tr>
-      </table>
-    </section>
+    <!-- ROW: metadata flags — dogma reference (contamination now lives as a
+         hazard badge on the compass, mirroring the homepage panel) -->
+    <div class="song-row">
+      <!-- Dogma Reference (metadata tag) -->
+      <section class="song-section" id="section-dogma" hidden>
+        <h2>Dogma Reference</h2>
+        <p id="dogma-answer" class="direct-answer"></p>
+        <p class="dogma-footnote">Dogma Reference is a metadata tag, not a score modifier. It flags when a song invokes a specific doctrinal framework (Christian, Islamic, Karmic/Dharmic, Institutional) to do its rhetorical work. Naming the sacred does not fire the tag — doing the doctrine does.</p>
+      </section>
+    </div>
 
     <!-- Section: Audience Vibe — democratic needle alongside the diagnostic compass -->
-    <section class="song-section" id="section-vibe">
+    <section class="song-section song-section--full" id="section-vibe">
       <h2>Audience Vibe</h2>
-      <p class="direct-answer" id="audience-vibe-intro">The compass reads the lyrics. The Audience Vibe reads the people. Two needles, one song. The gap between them is the data.</p>
+      <p class="direct-answer" id="audience-vibe-intro">The compass reads the lyrics. The Audience Vibe reads the people. Two needles, one song — the gap between them is the data.</p>
+      <p class="audience-vibe-experimental">Audience Vibe is experimental. Something off? <a href="/misread-submission.html" class="accent-link">Let us know &rarr;</a></p>
+
+      <!-- Amphitheater motif: a loose seating arc standing in for the crowd.
+           Accent + symbolism, drawn procedurally by songs.js. -->
+      <div class="audience-amphitheater-stage" aria-hidden="true">
+        <svg id="audience-amphitheater" class="audience-amphitheater" preserveAspectRatio="xMidYMax meet"></svg>
+      </div>
+
+      <!-- The crowd's verdict, stated plainly. -->
+      <div class="audience-verdict" id="audience-verdict">
+        <p class="audience-verdict-kicker">The audience thinks this song should be</p>
+        <p class="audience-verdict-score" id="audience-vibe-headline-score">&mdash;</p>
+      </div>
 
       <div class="audience-vibe-needle-wrap">
         <div class="audience-vibe-spectrum-frame is-loading" id="audience-vibe-spectrum-frame">
@@ -489,76 +498,102 @@
         </div>
 
         <div class="audience-vibe-split" id="audience-vibe-split">
-          <span class="audience-vibe-up-count" id="audience-vibe-up-count">0</span>
-          <span class="audience-vibe-arrow">&larr;</span>
-          <span class="audience-vibe-arrow">&rarr;</span>
-          <span class="audience-vibe-down-count" id="audience-vibe-down-count">0</span>
+          <span class="audience-vibe-split-stat"><span class="audience-vibe-up-count" id="audience-vibe-up-count">0</span><span class="audience-vibe-split-label">higher</span></span>
+          <span class="audience-vibe-split-stat"><span class="audience-vibe-agree-count" id="audience-vibe-agree-count">0</span><span class="audience-vibe-split-label">agree</span></span>
+          <span class="audience-vibe-split-stat"><span class="audience-vibe-down-count" id="audience-vibe-down-count">0</span><span class="audience-vibe-split-label">lower</span></span>
         </div>
         <p class="audience-vibe-year-note" id="audience-vibe-year-note"></p>
       </div>
 
+      <p class="audience-vibe-prompt" id="audience-vibe-prompt">Do you think it should stay where it is, or be pushed further in one direction?</p>
+
       <div class="audience-vibe-actions" id="audience-vibe-actions">
-        <button type="button" class="audience-vibe-push-btn" id="audience-vibe-push-up" data-direction="1">
-          <span class="audience-vibe-push-arrow">&larr;</span>
-          <span class="audience-vibe-push-label">Push up</span>
+        <button type="button" class="audience-vibe-push-btn audience-vibe-push-btn--higher" id="audience-vibe-push-up" data-direction="1">
+          <span class="audience-vibe-push-arrow">&uarr;</span>
+          <span class="audience-vibe-push-label">Push higher</span>
         </button>
-        <button type="button" class="audience-vibe-push-btn" id="audience-vibe-push-down" data-direction="-1">
-          <span class="audience-vibe-push-label">Push down</span>
-          <span class="audience-vibe-push-arrow">&rarr;</span>
+        <button type="button" class="audience-vibe-push-btn audience-vibe-push-btn--agree" id="audience-vibe-push-agree" data-direction="0">
+          <span class="audience-vibe-push-label">Agree with current</span>
+        </button>
+        <button type="button" class="audience-vibe-push-btn audience-vibe-push-btn--lower" id="audience-vibe-push-down" data-direction="-1">
+          <span class="audience-vibe-push-arrow">&darr;</span>
+          <span class="audience-vibe-push-label">Push lower</span>
         </button>
       </div>
       <p class="audience-vibe-status" id="audience-vibe-status" hidden></p>
-      <p class="audience-vibe-meta">One push per person per song per year.</p>
+      <p class="audience-vibe-meta">One vote per person per song per year. No single vote can move the needle far &mdash; it takes a crowd.</p>
     </section>
 
-    <!-- Section: Calibration Runs — corpus of every agent pass on this song -->
-    <section class="song-section" id="section-runs">
-      <h2>Calibration History</h2>
-      <p class="direct-answer is-loading" id="runs-intro">Loading calibration history…</p>
-      <div class="runs-consensus" id="runs-consensus"></div>
-      <ol class="runs-list" id="runs-list"></ol>
+    <!-- Section: Calibration Log — unified per-song history (recalibrations + pre-publish corrections) -->
+    <section class="song-section song-section--full" id="section-history" hidden>
+      <h2>Calibration Log</h2>
+      <p class="direct-answer">Every time this song's reading changed — from a pre-publish correction to a public recalibration — is shown below. The compass changes its mind in public, including what was happening when it changed.</p>
+      <ol class="recal-list" id="recal-list"></ol>
     </section>
 
-    <!-- Section: Flag Activity (mirror of public submissions on this song) -->
-    <section class="song-section" id="section-flags">
-      <h2>Flag Activity</h2>
-      <p class="direct-answer is-loading" id="flags-intro">Loading flag activity…</p>
-      <div class="flag-counts" id="flag-counts"></div>
-      <p class="flag-cta">
-        <a id="flag-link" href="/misread-submission.html" class="accent-link">Disagree with this calibration? File a report &rarr;</a>
-      </p>
-    </section>
+    <!-- ROW: calibration runs + flag activity -->
+    <div class="song-row">
+      <!-- Calibration Runs — corpus of every agent pass on this song -->
+      <section class="song-section" id="section-runs">
+        <h2>Calibration Runs</h2>
+        <p class="direct-answer is-loading" id="runs-intro">Loading calibration runs…</p>
+        <div class="runs-consensus" id="runs-consensus"></div>
+        <ol class="runs-list" id="runs-list"></ol>
+      </section>
 
-    <!-- Section: Artist Claim CTA — inbound 'are you the artist?' lead capture -->
-    <section class="song-section" id="section-artist-claim">
-      <h2>Are You the Artist?</h2>
-      <p class="direct-answer">If this is your song, we'd like to talk. Verification happens face-to-face (or by video with anti-deepfake protocol) — no AI shortcuts. Once you're verified, you can publish a note about this song that lives on this page.</p>
-      <p class="flag-cta">
-        <a id="artist-claim-link" href="/artist-claim.html" class="accent-link">Tell us about this song &rarr;</a>
-      </p>
-    </section>
+      <!-- Flag Activity (mirror of public submissions on this song) -->
+      <section class="song-section" id="section-flags">
+        <h2>Flag Activity</h2>
+        <p class="direct-answer is-loading" id="flags-intro">Loading flag activity…</p>
+        <div class="flag-counts" id="flag-counts"></div>
+        <p class="flag-cta">
+          <a id="flag-link" href="/misread-submission.html" class="accent-link">Disagree with this calibration? File a report &rarr;</a>
+        </p>
+      </section>
+    </div>
 
-    <!-- Section 5: About -->
-    <section class="song-section" id="section-about">
+    <!-- ROW: artist claim + how classified -->
+    <div class="song-row">
+      <!-- Artist Claim CTA — inbound 'are you the artist?' lead capture -->
+      <section class="song-section" id="section-artist-claim">
+        <h2>Are You the Artist?</h2>
+        <p class="direct-answer">If this is your song, we'd like to talk. Verification happens face-to-face (or by video with anti-deepfake protocol) — no AI shortcuts. Once you're verified, you can publish a note about this song that lives on this page.</p>
+        <p class="flag-cta">
+          <a id="artist-claim-link" href="/artist-claim.html" class="accent-link">Tell us about this song &rarr;</a>
+        </p>
+      </section>
+
+      <!-- About / How classified -->
+      <section class="song-section" id="section-about">
       <h2>How Is This Song Classified?</h2>
       <p class="direct-answer">The Rising Compass classifies songs based exclusively on lyric content using a 58-tenet rubric. No genre, no popularity, no artist reputation. Just the words and what they transmit.</p>
-      <ul class="key-points">
-        <li>Classification is performed by AI (Claude) calibrated against the 58-tenet rubric</li>
-        <li>Five tiers: Ascended, Elevated, Decent, Degraded, Corrupted</li>
-        <li>Charge ranges from +100 (highest consciousness) to -100 (lowest)</li>
-        <li>Contamination flags higher-tier songs undermined by lower-tier content</li>
-      </ul>
       <p><a href="/#methodology" class="accent-link">Read the full methodology</a></p>
-    </section>
+      </section>
+    </div>
 
     <!-- Lobby comments -- mounted by songs.js after the song resolves. -->
-    <section id="song-comments" class="song-section" hidden></section>
+    <section id="song-comments" class="song-section song-section--full" hidden></section>
 
-    <!-- Not found state -->
-    <div id="not-found" class="zero-state" hidden>
-      <h2>Song not found</h2>
-      <p>This song hasn't been classified yet.</p>
-      <a href="/lyrical-charger/" class="cta-button">Submit lyrics via Lyrical Charger</a>
+    <!-- Terminal state: song not found, or a load failure. Copy + actions are
+         set by songs.js depending on which one it is. -->
+    <div id="not-found" class="song-notfound" hidden>
+      <svg class="song-notfound-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="6" fill="#12121e"/>
+        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#3a3a55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3a3a55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#3a3a55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#3a3a55" stroke-width="6" stroke-linecap="butt"/>
+        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#3a3a55" stroke-width="6" stroke-linecap="butt"/>
+        <polygon points="16,21 14.2,11 17.8,11" fill="#646490"/>
+        <circle cx="16" cy="20" r="3" fill="#646490"/>
+      </svg>
+      <h1 id="not-found-title">Song not found</h1>
+      <p id="not-found-msg"></p>
+      <div class="song-notfound-actions">
+        <a href="/search/" class="cta-button">Search the catalog</a>
+        <a id="not-found-charger" href="/lyrical-charger/" class="accent-link">Submit lyrics via Lyrical Charger &rarr;</a>
+      </div>
+      <p class="song-notfound-home"><a href="/" class="accent-link">&larr; Back to The Rising Compass</a></p>
     </div>
 
     <!-- JSON-LD -->
@@ -569,6 +604,7 @@
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <script src="../artists/artists-api.js"></script>
+  <script src="/js/compass.js"></script>
   <script src="/js/charge.js"></script>
   <script src="/js/auth.js" defer></script>
   <script src="/js/comments.js" defer></script>

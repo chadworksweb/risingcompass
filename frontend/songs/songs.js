@@ -32,6 +32,30 @@
     if (el) el.textContent = msg;
   }
 
+  // Terminal state — clear the dashboard and show a single clean panel. kind:
+  // 'notfound' (no such song / no slug) or 'error' (backend/network failure).
+  function showZeroState(kind) {
+    document.querySelectorAll('.song-main > .song-section, .song-main > .song-row')
+      .forEach(el => { el.hidden = true; });
+    const nf = document.getElementById('not-found');
+    const title = document.getElementById('not-found-title');
+    const msg = document.getElementById('not-found-msg');
+    const charger = document.getElementById('not-found-charger');
+    if (!nf) return;
+    if (kind === 'error') {
+      title.textContent = 'Couldn’t load this song';
+      msg.textContent = 'Something went wrong reaching the compass. This is usually temporary — refresh in a moment.';
+      if (charger) charger.hidden = true;
+    } else {
+      title.textContent = 'Song not found';
+      msg.textContent = 'We haven’t classified this song yet, or the link is off. Search the catalog, or send us the lyrics and the compass will read them.';
+      if (charger) charger.hidden = false;
+    }
+    nf.hidden = false;
+    document.title = `${title.textContent} — The Rising Compass`;
+    announce(title.textContent);
+  }
+
   async function init() {
     // Clean URL: /songs/<slug>. Fall back to ?slug=<slug> for legacy links.
     const params = new URLSearchParams(window.location.search);
@@ -40,7 +64,7 @@
       const m = window.location.pathname.match(/^\/songs\/([^/]+)\/?$/);
       if (m && m[1] !== 'song.html') slug = decodeURIComponent(m[1]);
     }
-    if (!slug) return;
+    if (!slug) { showZeroState('notfound'); return; }
 
     try {
       const song = await ArtistsAPI.getSong(slug);
@@ -90,8 +114,10 @@
       }
     } catch (err) {
       console.error('Failed to load song:', err);
-      document.getElementById('song-title').textContent = '';
-      document.getElementById('not-found').hidden = false;
+      // getSong throws Error('API error: 404') for a genuine miss; anything
+      // else (network, 5xx, timeout) is a load failure, not a missing song.
+      const isMiss = /\b404\b/.test((err && err.message) || '');
+      showZeroState(isMiss ? 'notfound' : 'error');
     }
   }
 
@@ -373,25 +399,35 @@
     updateGapBand();
   }
 
+  function setVoteButtonsDisabled(disabled) {
+    ['audience-vibe-push-up', 'audience-vibe-push-agree', 'audience-vibe-push-down']
+      .forEach(id => { const b = document.getElementById(id); if (b) b.disabled = disabled; });
+  }
+
   function applyVibeState(state) {
     placeAudienceMarker(state.value);
-    document.getElementById('audience-vibe-down-count').textContent = state.year_split.down;
-    document.getElementById('audience-vibe-up-count').textContent = state.year_split.up;
-    document.getElementById('audience-vibe-year-note').textContent = `Pushes in ${state.current_year}`;
+    // The headline verdict — the score the audience thinks the song should be.
+    const headline = document.getElementById('audience-vibe-headline-score');
+    if (headline) {
+      headline.textContent = (state.value > 0 ? '+' : '') + state.value;
+      headline.style.color = COLOR_HEX[vibeValueToColor(state.value)] || '';
+    }
+    const split = state.year_split || {};
+    document.getElementById('audience-vibe-up-count').textContent = split.up || 0;
+    const agreeEl = document.getElementById('audience-vibe-agree-count');
+    if (agreeEl) agreeEl.textContent = split.agree || 0;
+    document.getElementById('audience-vibe-down-count').textContent = split.down || 0;
+    document.getElementById('audience-vibe-year-note').textContent = `Votes in ${state.current_year}`;
 
-    const upBtn = document.getElementById('audience-vibe-push-up');
-    const downBtn = document.getElementById('audience-vibe-push-down');
     const status = document.getElementById('audience-vibe-status');
 
     if (state.eligible_to_push) {
-      upBtn.disabled = false;
-      downBtn.disabled = false;
+      setVoteButtonsDisabled(false);
       status.hidden = true;
     } else {
-      upBtn.disabled = true;
-      downBtn.disabled = true;
+      setVoteButtonsDisabled(true);
       status.className = 'audience-vibe-status';
-      status.textContent = `You've already pushed this song in ${state.current_year}. Eligibility refreshes January 1.`;
+      status.textContent = `You've already voted on this song in ${state.current_year}. Eligibility refreshes January 1.`;
       status.hidden = false;
     }
   }
@@ -433,26 +469,29 @@
         grad.appendChild(tick);
       }
     }
+    renderAmphitheater(document.getElementById('audience-amphitheater'), song.rubric_color);
     setCompassReference(song.charge_value, song.rubric_color);
     applyVibeState(state);
 
     const handler = async (e) => {
       const direction = parseInt(e.currentTarget.dataset.direction, 10);
       const status = document.getElementById('audience-vibe-status');
-      document.getElementById('audience-vibe-push-up').disabled = true;
-      document.getElementById('audience-vibe-push-down').disabled = true;
+      setVoteButtonsDisabled(true);
       status.className = 'audience-vibe-status audience-vibe-status--pending';
-      status.innerHTML = '<span class="audience-vibe-status-spinner" aria-hidden="true"></span>Pushing\u2026';
+      status.innerHTML = '<span class="audience-vibe-status-spinner" aria-hidden="true"></span>Recording your vote\u2026';
       status.hidden = false;
       try {
         const updated = await ArtistsAPI.pushVibe(song.song_source, song.song_id, direction, deviceId);
         applyVibeState(updated);
         status.className = 'audience-vibe-status success';
-        status.textContent = `Push recorded. Audience now reads the song at ${updated.value > 0 ? '+' : ''}${updated.value}.`;
+        const score = `${updated.value > 0 ? '+' : ''}${updated.value}`;
+        status.textContent = direction === 0
+          ? `Vote recorded. The audience reads the song at ${score}.`
+          : `Vote recorded. The audience now reads the song at ${score}.`;
         status.hidden = false;
       } catch (err) {
         status.className = 'audience-vibe-status error';
-        status.textContent = err.message || 'Push failed.';
+        status.textContent = err.message || 'Vote failed.';
         status.hidden = false;
         // Re-fetch in case server already counted us.
         try {
@@ -461,8 +500,54 @@
         } catch {}
       }
     };
-    document.getElementById('audience-vibe-push-up').addEventListener('click', handler);
-    document.getElementById('audience-vibe-push-down').addEventListener('click', handler);
+    ['audience-vibe-push-up', 'audience-vibe-push-agree', 'audience-vibe-push-down']
+      .forEach(id => { const b = document.getElementById(id); if (b) b.addEventListener('click', handler); });
+  }
+
+  // Amphitheater motif \u2014 curved tiers of seat dots standing in for the crowd.
+  // Loose accent + symbolism (not a data viz): the same procedural-SVG approach
+  // the tenets organ uses, bent into amphitheater seating. Seats tint along the
+  // charge spectrum so the arc echoes the bar beneath it; the song's own tier
+  // colour gets a brighter highlight band near the centre.
+  function renderAmphitheater(svg, rubricColor) {
+    if (!svg) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const W = 600, H = 150;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const cx = W / 2;
+    const cy = H + 46;            // arc centre sits below the frame -> shallow curve
+    const TIERS = 5;
+    const baseR = 92;
+    const tierGap = 13;
+    const SPECTRUM = ['#aa54ff', '#3388ff', '#33cc55', '#ffbb33', '#ff3333'];
+    const highlight = COLOR_HEX[rubricColor] || 'var(--rc-accent)';
+    // Spread seats across a ~150deg fan, denser rows further back.
+    const startA = Math.PI * (1 - 5 / 6);   // 30deg
+    const endA = Math.PI * (5 / 6);         // 150deg
+    for (let t = 0; t < TIERS; t++) {
+      const r = baseR + t * tierGap;
+      const seats = 22 + t * 4;
+      const group = document.createElementNS(SVG_NS, 'g');
+      group.setAttribute('opacity', String(0.22 + t * 0.07));
+      for (let s = 0; s < seats; s++) {
+        const a = startA + (endA - startA) * (s / (seats - 1));
+        const x = cx + r * Math.cos(a);
+        const y = cy - r * Math.sin(a);
+        const dot = document.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('cx', x.toFixed(1));
+        dot.setAttribute('cy', y.toFixed(1));
+        dot.setAttribute('r', '2.4');
+        // Colour by horizontal position to mirror the charge spectrum band.
+        const frac = (x / W);
+        const idx = Math.max(0, Math.min(SPECTRUM.length - 1, Math.round(frac * (SPECTRUM.length - 1))));
+        // Centre-front seats glow in the song's tier colour.
+        const central = Math.abs(frac - 0.5) < 0.16 && t >= TIERS - 2;
+        dot.setAttribute('fill', central ? highlight : SPECTRUM[idx]);
+        group.appendChild(dot);
+      }
+      svg.appendChild(group);
+    }
   }
 
   function renderCalibrationRuns(runs, consensus) {
@@ -473,7 +558,7 @@
     if (!section || !intro || !consensusEl || !list) return;
     intro.classList.remove('is-loading');
     if (!runs.length) {
-      intro.textContent = 'No calibration history yet.';
+      intro.textContent = 'No calibration runs yet.';
       return;
     }
     section.hidden = false;
@@ -735,10 +820,9 @@
     setH2('section-summary', `Summary of ${tagline}`);
     setH2('section-effects', `What Might Listening to ${tagline} Do to the Listener?`);
     setH2('section-societal-effects', `What Might Listening to ${tagline} Do to a Society?`);
-    setH2('section-details', `Classification Details for ${tagline}`);
     setH2('section-history', `Calibration Log for ${tagline}`);
     setH2('section-vibe', `Audience Vibe on ${tagline}`);
-    setH2('section-runs', `Calibration History for ${tagline}`);
+    setH2('section-runs', `Calibration Runs for ${tagline}`);
     setH2('section-flags', `Flag Activity on ${tagline}`);
     setH2('section-about', `How Is ${tagline} Classified?`);
     setH2('section-artist-claim', `Are You the Artist of ${tagline}?`);
@@ -752,15 +836,31 @@
       artistEl.textContent = song.artist || '';
     }
 
-    // Tier badge
+    // Tier badge + compass gauge. Calibrated songs get the gauge (which already
+    // shows the score + tier), so the text badge is suppressed; uncalibrated
+    // songs keep the simple "Uncalibrated" pill and no gauge.
     const badge = document.getElementById('song-tier-badge');
+    const compassWrap = document.getElementById('song-compass-container');
     if (isUncalibrated) {
       badge.innerHTML = `<span class="badge-tier badge-tier--uncalibrated">Uncalibrated</span>`;
+      if (compassWrap) compassWrap.hidden = true;
     } else {
-      badge.innerHTML = `
-        <span class="badge-charge" style="color:${color}">${chargeDisplay}</span>
-        <span class="badge-tier" style="background:${color}20;color:${color}">${escapeHtml(tierLabel)}</span>
-      `;
+      badge.innerHTML = '';
+      badge.hidden = true;
+      if (compassWrap && typeof Compass !== 'undefined') {
+        compassWrap.hidden = false;
+        Compass.render('song-compass-container');
+        // score -> degree: score = (90 - degree)*100/90  =>  degree = 90 - score*0.9
+        const degree = 90 - (Number(song.charge_value) || 0) * 0.9;
+        Compass.setDegree(degree, song.rubric_color || vibeValueToColor(song.charge_value));
+      } else {
+        // Fallback if the gauge script is unavailable.
+        badge.hidden = false;
+        badge.innerHTML = `
+          <span class="badge-charge" style="color:${color}">${chargeDisplay}</span>
+          <span class="badge-tier" style="background:${color}20;color:${color}">${escapeHtml(tierLabel)}</span>
+        `;
+      }
     }
 
     // Section 2: Song-specific summary
@@ -789,36 +889,46 @@
       effectsEl.innerHTML = proseHtml;
     }
 
-    // Section 3b: Societal Effects — only render when prose exists. No
-    // tier-generic fallback; a generic per-tier read would defeat the point
-    // of a song-specific society-scale diagnosis.
+    // Section 3b: Societal Effects — always shown alongside the listener read
+    // for calibrated songs. A placeholder stands in when no song-specific
+    // society-scale prose exists yet (no tier-generic fallback by design — a
+    // generic per-tier read would defeat the point of a society diagnosis).
     const societalSection = document.getElementById('section-societal-effects');
-    if (!isUncalibrated && song.societal_effects_prose) {
-      const socHtml = song.societal_effects_prose
-        .split(/\n{2,}/)
-        .map(p => p.trim())
-        .filter(Boolean)
-        .map(p => `<p>${escapeHtml(p)}</p>`)
-        .join('');
-      document.getElementById('societal-effects-prose').innerHTML = socHtml;
-      societalSection.hidden = false;
-    } else {
-      societalSection.hidden = true;
+    const societalEl = document.getElementById('societal-effects-prose');
+    societalSection.hidden = isUncalibrated;
+    if (!isUncalibrated) {
+      societalEl.classList.remove('is-loading');
+      if (song.societal_effects_prose) {
+        societalEl.classList.remove('prose--placeholder');
+        societalEl.innerHTML = song.societal_effects_prose
+          .split(/\n{2,}/)
+          .map(p => p.trim())
+          .filter(Boolean)
+          .map(p => `<p>${escapeHtml(p)}</p>`)
+          .join('');
+      } else {
+        societalEl.classList.add('prose--placeholder');
+        societalEl.innerHTML = `<p>A society-scale reading for ${escapeHtml(tagline)} hasn't been generated yet. When it is, it will appear here — what running this song's program across a whole culture would tend to do.</p>`;
+      }
     }
 
-    // Section 3: Contamination
-    const contamSection = document.getElementById('section-contamination');
-    contamSection.hidden = isUncalibrated;
-    if (isUncalibrated) {
-      // Skip contamination rendering for uncalibrated songs
-    } else if (song.contaminated) {
-      document.getElementById('contam-heading').textContent = `Contamination Warning for ${tagline}`;
-      document.getElementById('contam-answer').textContent =
-        song.contamination_note || `${tagline} contains contaminated content that undermines its higher-tier substance.`;
-      contamSection.style.borderLeftColor = 'var(--rc-orange)';
-    } else {
-      document.getElementById('contam-heading').textContent = `Contamination Status of ${tagline}`;
-      document.getElementById('contam-answer').textContent = `No contamination detected in ${tagline}. The lyrical content is consistent with its classification tier.`;
+    // Contamination — now a hazard badge on the compass (hero), mirroring the
+    // homepage panel. Shown only for calibrated, contaminated songs; the
+    // contamination note becomes the tooltip.
+    const contamBadge = document.getElementById('song-contam-badge');
+    if (contamBadge) {
+      if (!isUncalibrated && song.contaminated) {
+        const tip = document.getElementById('song-contam-tooltip');
+        if (tip) {
+          tip.innerHTML = `<strong>Contaminated.</strong> ${escapeHtml(
+            song.contamination_note ||
+            `${tagline} carries content that undercuts its higher-tier substance.`
+          )}`;
+        }
+        contamBadge.hidden = false;
+      } else {
+        contamBadge.hidden = true;
+      }
     }
 
     // Section 3b: Dogma Reference — only surfaces when the tag fired.
@@ -832,30 +942,8 @@
       dogmaSection.hidden = true;
     }
 
-    // Section 4: Details table
-    const detailsSection = document.getElementById('section-details');
-    detailsSection.hidden = false;
-    const table = document.getElementById('details-table');
-    table.classList.remove('is-loading');
-    const rows = isUncalibrated
-      ? [
-          ['Tier', '<span style="color:#888">Uncalibrated</span>'],
-          ['Charge', '<span style="color:#888">—</span>'],
-          ['Classified By', 'The Rising Compass'],
-          ['Method', '58-tenet rubric v1'],
-        ]
-      : [
-          ['Tier', `<span style="color:${color}">${escapeHtml(tierLabel)}</span>`],
-          ['Charge', `<span style="color:${color}">${chargeDisplay}</span>`],
-          ['Classified By', 'The Rising Compass'],
-          ['Method', '58-tenet rubric v1'],
-        ];
-    if (song.release_title) {
-      rows.push(['Release', escapeHtml(song.release_title)]);
-    }
-    table.innerHTML = rows.map(([k, v]) =>
-      `<tr><td class="detail-key">${k}</td><td class="detail-value">${v}</td></tr>`
-    ).join('');
+    // (Classification Details section removed — the compass gauge in the hero
+    // now carries tier + charge.)
 
     // Section 5: About
     document.getElementById('section-about').hidden = false;

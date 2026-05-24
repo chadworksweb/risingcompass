@@ -78,7 +78,72 @@
     verifyBtn: document.getElementById('verify-btn'),
     verifyError: document.getElementById('verify-error'),
     verifiedBadge: document.getElementById('acct-verified-badge'),
+    vibeActivityState: document.getElementById('vibe-activity-state'),
+    vibeActivityList: document.getElementById('vibe-activity-list'),
   };
+
+  const DIR_GLYPH = { 1: '↑', 0: '=', '-1': '↓' };
+  const DIR_WORD = { 1: 'pushed higher', 0: 'agreed', '-1': 'pushed lower' };
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function fmtScore(v) {
+    if (v == null) return '--';
+    return (v > 0 ? '+' : '') + v;
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  async function loadVibeActivity() {
+    if (!el.vibeActivityState || !el.vibeActivityList) return;
+    el.vibeActivityState.hidden = false;
+    el.vibeActivityState.textContent = 'Loading your activity...';
+    el.vibeActivityList.hidden = true;
+    el.vibeActivityList.innerHTML = '';
+    let data;
+    try {
+      const resp = await Auth.authedFetch('/api/vibe/me/activity');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      data = await resp.json();
+    } catch (err) {
+      console.error('vibe activity load failed', err);
+      el.vibeActivityState.textContent = 'Could not load your activity right now.';
+      return;
+    }
+    const items = (data && data.items) || [];
+    if (!items.length) {
+      el.vibeActivityState.textContent = "You haven't voted on any songs yet. Open a song and weigh in on its Audience Vibe.";
+      return;
+    }
+    el.vibeActivityState.hidden = true;
+    el.vibeActivityList.hidden = false;
+    el.vibeActivityList.innerHTML = items.map((it) => {
+      const title = it.song_title || 'Unknown song';
+      const titleHtml = it.song_slug
+        ? `<a class="account-activity-song" href="/songs/${encodeURIComponent(it.song_slug)}">${esc(title)}</a>`
+        : `<span class="account-activity-song">${esc(title)}</span>`;
+      const artist = it.song_artist ? `<span class="account-activity-artist">${esc(it.song_artist)}</span>` : '';
+      const dir = String(it.direction);
+      return `
+        <li class="account-activity-item">
+          <span class="account-activity-dir account-activity-dir--${dir === '-1' ? 'lower' : (dir === '1' ? 'higher' : 'agree')}" aria-hidden="true">${DIR_GLYPH[dir] || '='}</span>
+          <span class="account-activity-meta">
+            <span class="account-activity-songline">${titleHtml}${artist}</span>
+            <span class="account-activity-detail">You ${DIR_WORD[dir] || 'agreed'} in ${it.push_year} &middot; audience now ${fmtScore(it.current_value)}</span>
+          </span>
+          <span class="account-activity-date">${fmtDate(it.pushed_at)}</span>
+        </li>`;
+    }).join('');
+  }
 
   function show(name) {
     el.loading.hidden = name !== 'loading';
@@ -144,6 +209,8 @@
     el.verifyPanel.hidden = isVerified;
     el.verifiedBadge.hidden = !isVerified;
     show('profile');
+    // Personal vibe voting history — fire-and-forget, never blocks the profile.
+    loadVibeActivity().catch((err) => console.error(err));
   }
 
   async function render() {

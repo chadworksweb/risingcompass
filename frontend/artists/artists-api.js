@@ -54,6 +54,15 @@ const ArtistsAPI = (() => {
     pushVibe: async (source, songId, direction, deviceId) => {
       const headers = { 'Content-Type': 'application/json' };
       if (API_KEY) headers['X-Api-Key'] = API_KEY;
+      // If the voter is signed in, attach the Clerk token so the push is
+      // attributed to their account (for the activity view). Anonymous votes
+      // simply omit it — the backend treats user_id as optional.
+      try {
+        if (window.Auth && typeof Auth.getToken === 'function') {
+          const token = await Auth.getToken();
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (_) { /* anonymous fallback */ }
       const resp = await fetch(`${BASE}/api/vibe/${source}/${songId}/push`, {
         method: 'POST',
         headers,

@@ -29,6 +29,18 @@ logger = logging.getLogger(__name__)
 VIBE_MIN = -100
 VIBE_MAX = 100
 
+# Bounded consensus model. The needle is recomputed from the vote tallies on
+# every push (it is NOT incremented), so it can never run away:
+#
+#     offset = round( W * (up - down) / (up + agree + down + k) )
+#     value  = clamp(compass + offset, VIBE_MIN, VIBE_MAX)
+#
+# W caps the furthest the audience can ever pull the song from the compass
+# score; agree votes only grow the denominator, anchoring toward compass; k
+# is inertia, keeping small samples near compass until a real crowd forms.
+VIBE_WINDOW = 15   # W — max swing from compass in either direction
+VIBE_INERTIA = 8   # k — votes' worth of pull-toward-compass before it commits
+
 SONG_MODELS = {
     "compass": CompassSong,
     "library": LibrarySong,
@@ -60,6 +72,22 @@ def _initial_needle_value(db: Session, source: str, song_id: int) -> int:
     return int(getattr(song, "charge_value", None) or 0)
 
 
+def _consensus_value(compass: Optional[int], up: int, agree: int, down: int) -> int:
+    """Bounded, inertia-damped consensus position for the audience needle.
+
+    offset = round( W * (up - down) / (up + agree + down + k) ), clamped so the
+    audience can never pull the song more than W points off the compass score.
+    Agree votes anchor toward compass (denominator only). With a compass score
+    of None (uncalibrated song) the needle floats around 0.
+    """
+    anchor = int(compass or 0)
+    total = up + agree + down
+    if total <= 0:
+        return max(VIBE_MIN, min(VIBE_MAX, anchor))
+    offset = round(VIBE_WINDOW * (up - down) / (total + VIBE_INERTIA))
+    return max(VIBE_MIN, min(VIBE_MAX, anchor + offset))
+
+
 def _get_or_create_needle(db: Session, source: str, song_id: int) -> AudienceVibeNeedle:
     needle = (
         db.query(AudienceVibeNeedle)
@@ -72,7 +100,7 @@ def _get_or_create_needle(db: Session, source: str, song_id: int) -> AudienceVib
     needle = AudienceVibeNeedle(
         song_source=source, song_id=song_id,
         current_value=_initial_needle_value(db, source, song_id),
-        pushes_up_total=0, pushes_down_total=0,
+        pushes_up_total=0, pushes_down_total=0, pushes_agree_total=0,
     )
     db.add(needle)
     db.flush()
@@ -106,10 +134,10 @@ def _year_directional_split(db: Session, source: str, song_id: int, year: int) -
         .group_by(AudienceVibePush.direction)
         .all()
     )
-    counts = {1: 0, -1: 0}
+    counts = {1: 0, 0: 0, -1: 0}
     for direction, n in rows:
         counts[int(direction)] = int(n)
-    return {"up": counts[1], "down": counts[-1]}
+    return {"up": counts[1], "agree": counts[0], "down": counts[-1]}
 
 
 def _maybe_open_review_case(
@@ -171,7 +199,8 @@ def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) 
             "value": _initial_needle_value(db, source, song_id),
             "pushes_up_total": 0,
             "pushes_down_total": 0,
-            "year_split": {"up": 0, "down": 0},
+            "pushes_agree_total": 0,
+            "year_split": {"up": 0, "agree": 0, "down": 0},
             "eligible_to_push": eligible,
             "current_year": year,
         }
@@ -181,6 +210,7 @@ def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) 
         "value": needle.current_value,
         "pushes_up_total": needle.pushes_up_total,
         "pushes_down_total": needle.pushes_down_total,
+        "pushes_agree_total": getattr(needle, "pushes_agree_total", 0) or 0,
         "year_split": _year_directional_split(db, source, song_id, year),
         "eligible_to_push": eligible,
         "current_year": year,
@@ -195,16 +225,23 @@ def apply_push(
     direction: int,
     device_id: Optional[str],
     ip_address: Optional[str],
+    user_id: Optional[int] = None,
 ) -> dict:
     """Apply one push. Enforces eligibility, updates the needle, opens a review
     case if the gap crosses threshold. Returns the updated state.
+
+    Eligibility stays device-scoped so anonymous voting works exactly as
+    before; user_id is stamped on the push when the voter happens to be signed
+    in, purely so they can review their own activity later. It is never
+    required and never gates the vote.
     """
-    if direction not in (1, -1):
-        raise VibeError("direction must be +1 or -1")
+    if direction not in (1, 0, -1):
+        raise VibeError("direction must be +1 (higher), 0 (agree), or -1 (lower)")
     if not device_id:
         raise VibeError("device_id is required to push the vibe")
 
-    _resolve_song(db, source, song_id)  # validate target
+    song = _resolve_song(db, source, song_id)  # validate target
+    compass_charge = getattr(song, "charge_value", None)
     year = datetime.utcnow().year
 
     if not _check_eligibility(db, source, song_id, device_id, year):
@@ -215,15 +252,26 @@ def apply_push(
     push = AudienceVibePush(
         song_source=source, song_id=song_id, direction=direction,
         device_id=device_id, ip_address=ip_address, push_year=year,
+        user_id=user_id,
     )
     db.add(push)
 
-    new_value = max(VIBE_MIN, min(VIBE_MAX, needle.current_value + direction))
-    needle.current_value = new_value
     if direction == 1:
         needle.pushes_up_total += 1
-    else:
+    elif direction == -1:
         needle.pushes_down_total += 1
+    else:
+        needle.pushes_agree_total = (needle.pushes_agree_total or 0) + 1
+
+    # Recompute the needle from the full tallies — never increment. This is
+    # what makes overshoot structurally impossible (see _consensus_value).
+    new_value = _consensus_value(
+        compass_charge,
+        needle.pushes_up_total,
+        needle.pushes_agree_total or 0,
+        needle.pushes_down_total,
+    )
+    needle.current_value = new_value
     needle.last_push_at = datetime.utcnow()
     needle.updated_at = needle.last_push_at
 
@@ -244,8 +292,66 @@ def apply_push(
         "value": needle.current_value,
         "pushes_up_total": needle.pushes_up_total,
         "pushes_down_total": needle.pushes_down_total,
+        "pushes_agree_total": needle.pushes_agree_total or 0,
         "year_split": _year_directional_split(db, source, song_id, year),
         "eligible_to_push": False,  # they just pushed
         "current_year": year,
         "review_case_opened": bool(case and case.id is not None),
     }
+
+
+_DIRECTION_LABEL = {1: "higher", 0: "agree", -1: "lower"}
+
+
+def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
+    """Every vibe vote this signed-in user has cast, newest first, joined to
+    the song it landed on and where that song's needle sits now.
+
+    Only votes made while signed in carry a user_id, so anonymous votes the
+    same person cast on another device won't appear here — by design.
+    """
+    pushes = (
+        db.query(AudienceVibePush)
+        .filter(AudienceVibePush.user_id == user_id)
+        .order_by(AudienceVibePush.pushed_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    # Cache needles per (source, id) so repeat votes on one song hit the DB once.
+    needle_cache: dict = {}
+
+    def _needle_value(source: str, song_id: int):
+        key = (source, song_id)
+        if key not in needle_cache:
+            needle = (
+                db.query(AudienceVibeNeedle)
+                .filter(AudienceVibeNeedle.song_source == source)
+                .filter(AudienceVibeNeedle.song_id == song_id)
+                .first()
+            )
+            needle_cache[key] = needle.current_value if needle else None
+        return needle_cache[key]
+
+    items = []
+    for p in pushes:
+        entry = {
+            "song_source": p.song_source,
+            "song_id": p.song_id,
+            "direction": p.direction,
+            "direction_label": _DIRECTION_LABEL.get(p.direction, "agree"),
+            "push_year": p.push_year,
+            "pushed_at": p.pushed_at.isoformat() if p.pushed_at else None,
+            "current_value": _needle_value(p.song_source, p.song_id),
+        }
+        try:
+            song = _resolve_song(db, p.song_source, p.song_id)
+            entry["song_title"] = song.title
+            entry["song_artist"] = getattr(song, "artist", None)
+            entry["song_slug"] = getattr(song, "slug", None)
+            entry["compass_charge"] = getattr(song, "charge_value", None)
+        except VibeError:
+            entry["song_title"] = None
+        items.append(entry)
+
+    return {"count": len(items), "items": items}

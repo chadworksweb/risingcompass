@@ -693,6 +693,7 @@ class AudienceVibeNeedle(Base):
     current_value = Column(Integer, nullable=False, default=0)  # -100..+100
     pushes_up_total = Column(Integer, nullable=False, default=0)
     pushes_down_total = Column(Integer, nullable=False, default=0)
+    pushes_agree_total = Column(Integer, nullable=False, default=0)
     last_push_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -716,7 +717,7 @@ class AudienceVibePush(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
-    direction = Column(Integer, nullable=False)  # +1 or -1
+    direction = Column(Integer, nullable=False)  # +1 (higher), 0 (agree), -1 (lower)
     user_id = Column(Integer)  # nullable — placeholder for future auth
     device_id = Column(Text)
     ip_address = Column(Text)

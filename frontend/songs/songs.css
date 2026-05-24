@@ -1,15 +1,134 @@
 /* === Song Effects Label Page === */
 
+/* --- Dashboard layout (mirrors the artist page card grid) ---------------
+   Wide centred container; content sits in flex rows so a hidden card simply
+   yields its space to its row-mate (flex:1 grows the survivor to full width
+   instead of leaving a gap). */
+.song-main {
+  max-width: var(--rc-max-width, 1200px);
+  margin: var(--rc-gap-panel, 1.5rem) auto;
+  padding: 0 var(--rc-card-padding, 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rc-gap-panel, 1.5rem);
+}
+
+.song-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rc-gap-panel, 1.5rem);
+  align-items: stretch;
+}
+
+.song-row > .song-section {
+  flex: 1 1 320px;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Hero row: compass gauge (1/2) beside the summary (1/2). */
+.song-row--hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.song-row--hero > .song-section { min-width: 0; }
+
+/* Summary card — the headline read sits big and centred next to the gauge. */
+.song-section--summary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.summary-text-big {
+  font-size: 1.6rem;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--rc-text-bright);
+  margin: 0;
+}
+
+/* Collapse a row whose every child is hidden so it adds no extra gap. */
+.song-row:not(:has(> *:not([hidden]))) { display: none; }
+
+/* display:flex above overrides the UA [hidden] rule, so hiding a whole row
+   via the hidden attribute needs an explicit guard. */
+.song-row[hidden] { display: none; }
+
 /* --- Hero --- */
 .song-section--hero {
   text-align: center;
-  padding: 2.5rem 1.5rem 1.5rem;
+  padding: 2.5rem 1.5rem 2rem;
+  position: relative;
 }
+
+/* Contamination hazard badge — same language as the homepage compass panel
+   badge (radioactive glyph, flipped, in a red pill), pinned to the corner. */
+.song-contam-badge {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+  background: var(--rc-contam-bg);
+  border: 1px solid var(--rc-contam-border);
+  cursor: help;
+  z-index: 2;
+}
+.song-contam-badge[hidden] { display: none; }
+.song-contam-badge .contam-icon {
+  color: var(--rc-red);
+  font-size: 0.9rem;
+  line-height: 1;
+  transform: scaleY(-1);
+}
+.song-contam-badge-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-red);
+}
+.song-contam-badge .contam-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.4rem;
+  width: 230px;
+  padding: 0.55rem 0.65rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--rc-text);
+  text-align: left;
+  z-index: 10;
+}
+.song-contam-badge:hover .contam-tooltip,
+.song-contam-badge:focus .contam-tooltip,
+.song-contam-badge:focus-within .contam-tooltip { display: block; }
 
 .song-hero {
   max-width: 640px;
   margin: 0 auto;
 }
+
+.song-compass-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto 0.25rem;
+}
+.song-compass-container[hidden] { display: none; }
 
 .song-tier-badge {
   display: flex;
@@ -18,6 +137,7 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
+.song-tier-badge[hidden] { display: none; }
 
 .badge-charge {
   font-family: var(--rc-font-mono);
@@ -59,19 +179,32 @@
 }
 .accent-link:hover { text-decoration: underline; }
 
-/* --- Sections --- */
+/* --- Sections (cards) ---
+   Each section is now a distinct raised card on the dark page so the
+   separation between sections is unmistakable. */
 .song-section {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--rc-border);
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border-ui, #646490);
+  border-radius: var(--rc-radius-lg);
+  padding: var(--rc-card-padding, 1.5rem);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.22);
 }
 
+/* Border-ui (#646490) is a touch loud for a calm reading surface; soften it
+   to a mid value that still clearly out-reads the old #2a2a3e hairline. */
+.song-section { border-color: #3a3a55; }
+
+/* Full-bleed cards span their whole row regardless of siblings. */
+.song-row > .song-section--full { flex-basis: 100%; }
+
 .song-section h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1.15rem;
+  font-weight: 700;
   color: var(--rc-text-bright);
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--rc-border);
+  letter-spacing: 0.01em;
 }
 
 .direct-answer {
@@ -88,6 +221,12 @@
 }
 
 .prose p { margin: 0 0 0.75rem; }
+
+/* Placeholder prose — a not-yet-generated section reads as a quiet stub. */
+.prose--placeholder {
+  font-style: italic;
+  opacity: 0.7;
+}
 
 .key-points {
   margin: 0.75rem 0;
@@ -429,23 +568,100 @@
 
 .audience-vibe-split {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
+  align-items: flex-start;
+  gap: 1.4rem;
   font-family: var(--rc-font-mono);
-  font-size: 0.92rem;
-  color: var(--rc-text);
 }
 
-.audience-vibe-split .audience-vibe-arrow {
+.audience-vibe-split-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.audience-vibe-split-label {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--rc-text-dim);
-  font-size: 0.85rem;
 }
 
-.audience-vibe-down-count, .audience-vibe-up-count {
+.audience-vibe-down-count,
+.audience-vibe-up-count,
+.audience-vibe-agree-count {
   font-weight: 700;
+  font-size: 1.05rem;
   color: var(--rc-text-bright);
   min-width: 2ch;
   text-align: center;
+}
+
+/* Experimental disclaimer — clear but small, sits under the intro. */
+.audience-vibe-experimental {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.2rem 0 0.6rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: 999px;
+}
+.audience-vibe-experimental::before {
+  content: "BETA";
+  font-family: var(--rc-font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--rc-accent);
+}
+
+/* --- Amphitheater motif --- */
+.audience-amphitheater-stage {
+  width: 100%;
+  max-width: 560px;
+  margin: 0.25rem auto 0.5rem;
+  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+}
+
+.audience-amphitheater {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* --- Verdict headline: the score the audience thinks the song should be --- */
+.audience-verdict {
+  text-align: center;
+  margin: 0.25rem 0 1rem;
+}
+
+.audience-verdict-kicker {
+  margin: 0;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--rc-text-dim);
+}
+
+.audience-verdict-score {
+  margin: 0.1rem 0 0;
+  font-family: var(--rc-font-mono);
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--rc-text-bright);
+}
+
+.audience-vibe-prompt {
+  text-align: center;
+  font-size: 0.92rem;
+  color: var(--rc-text);
+  margin: 0.4rem 0 0.9rem;
 }
 
 .audience-vibe-year-note {
@@ -497,6 +713,27 @@
   font-weight: 700;
 }
 
+/* Three-button voting. "Agree with current" is given visual primacy so the
+   restful choice reads as the default, not the directional pushes. */
+.audience-vibe-push-btn--agree {
+  border-color: var(--rc-accent);
+  color: var(--rc-accent);
+  order: 0;
+}
+.audience-vibe-push-btn--agree:hover:not(:disabled) {
+  background: var(--rc-accent-subtle);
+}
+.audience-vibe-push-btn--higher { order: -1; }
+.audience-vibe-push-btn--lower { order: 1; }
+.audience-vibe-push-btn--higher:hover:not(:disabled) {
+  border-color: var(--rc-blue);
+  color: var(--rc-blue);
+}
+.audience-vibe-push-btn--lower:hover:not(:disabled) {
+  border-color: var(--rc-orange);
+  color: var(--rc-orange);
+}
+
 .audience-vibe-status {
   text-align: center;
   font-size: 0.82rem;
@@ -517,10 +754,13 @@
   border: 1px solid rgba(0, 212, 170, 0.3);
 }
 
-#section-about h2 { font-size: 0.88rem; }
-#section-about .direct-answer { font-size: 0.8rem; }
+#section-about h2,
+#section-artist-claim h2 { font-size: 0.88rem; }
+#section-about .direct-answer,
+#section-artist-claim .direct-answer { font-size: 0.8rem; }
 #section-about .key-points { font-size: 0.704rem; }
-#section-about p { font-size: 0.8rem; }
+#section-about p,
+#section-artist-claim p { font-size: 0.8rem; }
 
 .audience-vibe-status--pending {
   display: flex;
@@ -592,8 +832,56 @@
   margin: 0.5rem 0 0;
 }
 
+/* --- Terminal state: not found / load failure --- */
+.song-notfound {
+  text-align: center;
+  max-width: 520px;
+  margin: 3rem auto;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.song-notfound[hidden] { display: none; }
+
+.song-notfound-mark {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 0.6rem;
+  opacity: 0.9;
+}
+
+.song-notfound h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  margin: 0;
+}
+
+.song-notfound p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--rc-text-dim);
+  margin: 0;
+}
+
+.song-notfound-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1.4rem;
+}
+
+.song-notfound-home {
+  margin-top: 1.6rem !important;
+  font-size: 0.85rem;
+}
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
+  .song-row--hero { grid-template-columns: 1fr; }
   .song-section--hero { padding: 1.5rem 1rem 1rem; }
   .badge-charge { font-size: 2rem; }
   .song-page-title { font-size: 1.4rem; }
