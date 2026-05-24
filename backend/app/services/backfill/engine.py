@@ -135,8 +135,8 @@ async def _step(job_id: int) -> str:
             # because needs_lyrics is filtered out by the order/state.
             return "idle"
 
-        # Snapshot row context outside the session so we don't hold the
-        # libsql stream during the Opus call.
+        # Snapshot row context and close the session so we don't hold a
+        # pooled connection idle during the Opus call.
         ctx = _RowCtx(
             row_id=row.id,
             job_id=job.id,

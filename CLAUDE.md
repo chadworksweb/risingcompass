@@ -29,24 +29,42 @@ Script auto-detects what changed (backend vs frontend):
 
 ## Database
 
-Single hosted Turso (libSQL) DB. Local + prod connect to the same instance — no
-sync, no `db-pull`/`db-push`. Set `DATABASE_URL=libsql://...` and
-`TURSO_AUTH_TOKEN=...` in both local `backend/.env` and prod `/root/rising-compass/.env`.
+DigitalOcean Managed Postgres (NYC3), reached through DO's PgBouncer pool
+(transaction mode). Migrated off Turso/libSQL 2026-05-24; the full pre-migration
+implementation is tagged `pre-postgres-turso` in git, and the migration plan +
+porting/loading scripts (`backend/scripts/pg_baseline.py`, `pg_load.py`) document
+the move. Set `DATABASE_URL` in both local `backend/.env` and prod
+`/root/rising-compass/.env`.
 
-- DB URL: `libsql://rising-compass-crystopaforge.aws-us-east-1.turso.io`
-- Backups: Turso point-in-time restore (managed); local `backend/data/*.local-backup-*.db`
-  files are pre-Turso archives, kept for safety.
-- Migration tool (one-shot): `backend/scripts/sqlite_to_turso.py <sqlite_path> <url> <token>`
-- Smoke test: `backend/scripts/test_turso_write.py` (writes + drops a test table)
+- `DATABASE_URL` form: `postgresql+psycopg://USER:PASS@HOST:25061/rc-pool?sslmode=require`
+  (port 25061 = the PgBouncer pool).
+- **Local dev** can't reach the DB directly (trusted-sources firewall is the
+  droplet only), so it tunnels through the droplet:
+  `ssh -L 25061:<db-host>:25061 deploy@138.197.111.66` and points `DATABASE_URL`
+  at `127.0.0.1:25061`.
+- `BACKUP_DATABASE_URL` — separate **direct** DSN (port 25060 / db `defaultdb`)
+  used only by `pg_dump` in `app/services/backup.py`. PgBouncer transaction
+  pooling breaks `pg_dump`, so it must NOT use the pool.
+- Schema: `Base.metadata.create_all()` handles fresh installs; numbered
+  `migrations/NNN_*.py` are SQLite-dialect history and are NOT replayed on PG
+  (a fresh baseline was stamped to v062). New migrations (063+) must be
+  PG-compatible.
+- Backups: DO managed daily backups + 7-day PITR, PLUS the custom 30-day S3
+  copy (`pg_dump` -> DO Spaces) via the cron at `POST /api/admin/backup`.
 
-## Writes to Turso primary
+## Multi-statement write transactions
 
-Long-running transactions die on the embedded-replica session (Hrana stream
-timeout). Any write path that runs several statements in one transaction
-must open a direct libsql connection to the primary and own the whole
-transaction itself. See `_write_api_call_log` in `app/main.py`,
-`_open_primary_conn` in `app/routers/artists_admin.py`, and the flusher in
-`app/services/api_clients.py` for the pattern.
+Plain ORM everywhere — Postgres MVCC means writes don't wedge reads and a
+transaction can span a long Opus call without a connection dying, so the old
+direct-libsql/background-thread scaffolding is gone. Two patterns remain:
+- High-frequency telemetry (`api_call_log`, `lc_events`, `last_used_at`,
+  `claude_meter`) writes via short-lived `SessionLocal()` sessions; the
+  `api_call_log` write is offloaded with `run_in_threadpool` so the middleware
+  doesn't block the event loop.
+- The Lyrical Charger calibrate endpoints keep a read -> AI -> write phase
+  split (close the read session before the Opus call, open a fresh write
+  session after) to avoid holding a pooled connection idle, not for any Hrana
+  reason. See `app/routers/analyzer.py`.
 
 ## Admin auth
 
@@ -179,9 +197,9 @@ Tokens documented in `STYLE-GUIDE.md` "Deliberation Venue Palette".
 
 ## Artist admin endpoints
 
-Authed via the admin session cookie (above). Writes go through a direct
-libsql connection to the Turso primary (replica streams time out on
-multi-statement transactions).
+Authed via the admin session cookie (above). Merge/rename run as one atomic
+transaction over a single SQLAlchemy Core connection (`engine.connect()` +
+`text()`), keeping the intricate dedupe SQL verbatim.
 
 - `POST /api/admin/artists/{slug}/merge-into` — body `{target_slug, notes?}`.
   Atomically rewrites FKs + denormalised `artist` strings, handles

@@ -22,32 +22,6 @@ from app.services.contamination import count_contaminated, enforce_contamination
 logger = logging.getLogger(__name__)
 
 
-def _open_primary_conn():
-    """Direct libsql connection to the Turso primary. Bypasses the
-    embedded-replica Hrana stream so the draft insert path does not
-    die mid-flight. Caller owns the lifecycle."""
-    import libsql
-    url = settings.database_url
-    token = settings.turso_auth_token
-    if url.startswith("libsql://") or url.startswith("https://"):
-        return libsql.connect(database=url, auth_token=token)
-    return libsql.connect(database=url)
-
-
-def _generate_draft_label_via_conn(conn, reading_date: date, draft_type: str) -> str:
-    """Same logic as _generate_draft_label but uses a raw libsql connection."""
-    prefix = f"{draft_type}_{reading_date.isoformat()}"
-    row = conn.execute(
-        "SELECT COUNT(*) FROM agent_drafts WHERE label LIKE ?",
-        (f"{prefix}%",),
-    ).fetchone()
-    existing_count = row[0] if row else 0
-    if existing_count == 0:
-        return f"{prefix}_draft"
-    modifier = chr(ord("a") + existing_count)
-    return f"{prefix}{modifier}_draft"
-
-
 def _write_draft_and_songs(
     *,
     reading_date: date,
@@ -60,73 +34,56 @@ def _write_draft_and_songs(
     warnings: list,
     calibrated_songs: list,
 ) -> int:
-    """Insert the AgentDraft + AgentDraftSong rows over a direct libsql
-    primary connection, then commit. Returns the new draft id.
+    """Insert the AgentDraft + AgentDraftSong rows via the ORM and commit.
+    Returns the new draft id.
 
-    The SQLAlchemy session was tripping Hrana `stream not found` 404s on
-    the insertmany step (observed 2026-05-22 cron). The merge/rename
-    admin paths solved the same class of bug by going direct — same
-    pattern here."""
-    conn = _open_primary_conn()
+    Plain ORM on Postgres: no replica stream to lose mid-transaction, and the
+    Date / Boolean columns are populated with native types (the old raw-SQL
+    path stored isoformat strings and 1/0 ints, which Postgres would reject)."""
+    from app.database import SessionLocal
+
+    db = SessionLocal()
     try:
-        label = _generate_draft_label_via_conn(conn, reading_date, draft_type)
-        created_at = datetime.utcnow().isoformat()
-        agent_warnings_json = json.dumps(warnings) if warnings else None
-
-        cur = conn.execute(
-            """INSERT INTO agent_drafts (
-                label, draft_type, created_at, status, date,
-                compass_degree, charge_level, contamination_count,
-                editorial_summary, agent_model, agent_notes, agent_warnings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                label, draft_type, created_at, "pending", reading_date.isoformat(),
-                degree, charge, contam,
-                editorial, AGENT_MODEL, agent_notes, agent_warnings_json,
-            ),
+        label = _generate_draft_label(db, reading_date, draft_type)
+        draft = AgentDraft(
+            label=label,
+            draft_type=draft_type,
+            status="pending",
+            date=reading_date,
+            compass_degree=degree,
+            charge_level=charge,
+            contamination_count=contam,
+            editorial_summary=editorial,
+            agent_model=AGENT_MODEL,
+            agent_notes=agent_notes,
+            agent_warnings=json.dumps(warnings) if warnings else None,
         )
-        # libsql cursor exposes lastrowid; fall back to SELECT if needed.
-        draft_id = getattr(cur, "lastrowid", None)
-        if draft_id is None:
-            row = conn.execute(
-                "SELECT id FROM agent_drafts WHERE label = ?", (label,)
-            ).fetchone()
-            draft_id = row[0]
+        db.add(draft)
+        db.flush()  # populate draft.id
 
         for s in calibrated_songs:
-            conn.execute(
-                """INSERT INTO agent_draft_songs (
-                    draft_id, compass_song_id, title, artist, position,
-                    rubric_color, charge_value, contaminated, contamination_note,
-                    dogma_referenced, dogma_note, charge_summary, chart_source,
-                    confidence, lyrics_available
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    draft_id,
-                    s.get("compass_song_id"),
-                    s["title"],
-                    s["artist"],
-                    s["position"],
-                    s["rubric_color"],
-                    s.get("charge_value"),
-                    1 if s["contaminated"] else 0,
-                    s["contamination_note"],
-                    1 if s.get("dogma_referenced", False) else 0,
-                    s.get("dogma_note"),
-                    s["charge_summary"],
-                    s["chart_source"],
-                    s["confidence"],
-                    1 if s["lyrics_available"] else 0,
-                ),
-            )
+            db.add(AgentDraftSong(
+                draft_id=draft.id,
+                compass_song_id=s.get("compass_song_id"),
+                title=s["title"],
+                artist=s["artist"],
+                position=s["position"],
+                rubric_color=s["rubric_color"],
+                charge_value=s.get("charge_value"),
+                contaminated=bool(s["contaminated"]),
+                contamination_note=s["contamination_note"],
+                dogma_referenced=bool(s.get("dogma_referenced", False)),
+                dogma_note=s.get("dogma_note"),
+                charge_summary=s["charge_summary"],
+                chart_source=s["chart_source"],
+                confidence=s["confidence"],
+                lyrics_available=bool(s["lyrics_available"]),
+            ))
 
-        conn.commit()
-        return draft_id
+        db.commit()
+        return draft.id
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        db.close()
 
 
 def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "compass_song") -> str:
@@ -624,10 +581,7 @@ def run_compass_agent(
     editorial = _generate_editorial(calibrated_songs)
     agent_notes = "; ".join(agent_notes_parts) if agent_notes_parts else None
 
-    # Persist draft + draft_songs via a direct libsql primary connection.
-    # The SQLAlchemy session sits on the embedded-replica Hrana stream and
-    # has been timing out on this insert path under load (observed
-    # 2026-05-22). Pattern matches _open_primary_conn in artists_admin.py.
+    # Persist draft + draft_songs via the ORM.
     draft_id = _write_draft_and_songs(
         reading_date=reading_date,
         draft_type=draft_type,
@@ -649,29 +603,19 @@ def run_compass_agent(
             if cs_id is not None:
                 _run_post_calibration_enrichment(cs_id, enrich_lyrics)
 
-    # Re-fetch with eagerly-loaded songs, send email, detach, return.
-    # Write went to the Turso primary; this session reads from the
-    # embedded replica which can lag a few seconds. Retry with backoff
-    # rather than 500-ing the whole cron over a sub-second sync window.
-    import time
+    # Re-fetch with eagerly-loaded songs, send email, detach, return. The
+    # write committed above is immediately visible (single Postgres DB, no
+    # replica lag), so a plain fetch suffices.
     fetch_db = SessionLocal()
     try:
-        draft = None
-        for attempt in range(10):
-            fetch_db.expire_all()
-            draft = (
-                fetch_db.query(AgentDraft)
-                .options(joinedload(AgentDraft.songs))
-                .filter(AgentDraft.id == draft_id)
-                .one_or_none()
-            )
-            if draft is not None and len(draft.songs) == len(calibrated_songs):
-                break
-            time.sleep(0.5 * (attempt + 1))
+        draft = (
+            fetch_db.query(AgentDraft)
+            .options(joinedload(AgentDraft.songs))
+            .filter(AgentDraft.id == draft_id)
+            .one_or_none()
+        )
         if draft is None:
-            raise RuntimeError(
-                f"replica failed to sync draft id={draft_id} after retries"
-            )
+            raise RuntimeError(f"draft id={draft_id} not found after write")
         if not draft_only:
             email_sent = send_draft_email(draft, draft.songs, settings, db=fetch_db)
             if not email_sent:

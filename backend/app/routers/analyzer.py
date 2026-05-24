@@ -10,7 +10,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.config import settings
-from app.database import SessionLocal, PrimarySessionLocal
+from app.database import SessionLocal
 from app.schemas import (
     LyricsCalibrateIn, LyricsCalibrateOut,
     SongSearchIn, SongSearchOut, SearchCalibrateIn,
@@ -362,9 +362,8 @@ async def calibrate_lyrics_endpoint(
 
     try:
         # Phase 1: read-only session. Gather everything needed before the
-        # Opus calls so the SQLAlchemy connection is not held idle through
-        # them. Holding a Hrana stream across a 20-30s Opus call kills it
-        # (404 "stream not found" on the next commit).
+        # Opus calls, then close it, so no pooled connection sits idle in a
+        # transaction through the 20-30s Opus call.
         read_db = SessionLocal()
         try:
             pre_canonical = find_canonical_song(title, artist, read_db)
@@ -397,8 +396,8 @@ async def calibrate_lyrics_endpoint(
                         )
 
             # Cache lookup before closing the session. calibrate_song_async
-            # would do this internally, but holding the session through its
-            # Opus call is exactly the Hrana-timeout case we are avoiding.
+            # would do this internally, but we close the session before its
+            # Opus call to avoid holding a pooled connection idle.
             cached_calibration = lookup_calibrated(title, artist, read_db)
         finally:
             read_db.close()
@@ -440,12 +439,10 @@ async def calibrate_lyrics_endpoint(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Phase 3: direct-to-primary write session. The default pool's primary
-        # write stream times out during the Phase 2 Opus call, and pool_pre_ping
-        # cannot detect it (SELECT 1 hits the local read replica), so commit()
-        # 404s with "stream not found". PrimarySessionLocal opens a fresh
-        # primary connection with no idle gap before these writes.
-        write_db = PrimarySessionLocal()
+        # Phase 3: open a fresh write session now (after the Opus call) and
+        # own the whole write transaction here. Kept separate from Phase 1 so
+        # no connection is held idle through Phase 2.
+        write_db = SessionLocal()
         try:
             submitted, _created = get_or_create_song(
                 write_db, SubmittedSong,
@@ -662,10 +659,9 @@ async def calibrate_search(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Phase 3: direct-to-primary write session (see calibrate-lyrics). The
-        # default pool's primary write stream times out across the Phase 2 Opus
-        # call; PrimarySessionLocal opens a fresh primary connection instead.
-        write_db = PrimarySessionLocal()
+        # Phase 3: fresh write session opened after the Opus call (see
+        # calibrate-lyrics) so no connection is held idle through Phase 2.
+        write_db = SessionLocal()
         try:
             submitted, _created = get_or_create_song(
                 write_db, SubmittedSong,
