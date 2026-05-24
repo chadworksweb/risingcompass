@@ -110,13 +110,12 @@ def _store_calibration(title: str, artist: str, chart_position: int,
 
     Returns the compass_songs.id for the stored/updated row, or None if skipped.
 
-    Hrana stream safety: this function does only fast DB work — compass_songs
+    Connection hygiene: this function does only fast DB work — compass_songs
     upsert + corpus record_and_reconcile (also DB-only). The ether tagger and
-    societal-effects prose calls (multi-second Anthropic round-trips that
-    used to outlast the libSQL Hrana stream TTL when held inside the same
-    session) are split out into `_run_post_calibration_enrichment`. Callers
-    must invoke that helper after committing the compass_songs row, so the
-    long calls happen with no DB session held.
+    societal-effects prose calls (multi-second Anthropic round-trips) are
+    split out into `_run_post_calibration_enrichment`. Callers must invoke
+    that helper after committing the compass_songs row, so the long calls
+    happen with no DB session held.
 
     The `lyrics` kwarg is preserved for signature compatibility but is no
     longer used here. Pass it to `_run_post_calibration_enrichment` instead.
@@ -188,10 +187,10 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             existing.topic_audit = supplied_topic_audit_json
         db.flush()
         # Commit the compass_song update before the linker. If the linker's
-        # multi-statement work loses the Hrana stream mid-flight, the
-        # calibration data is already persisted and the caller's session can
-        # be reset without losing work. db.rollback() in the except clears
-        # the invalid transaction so the caller can continue.
+        # multi-statement work fails, the calibration data is already
+        # persisted and the caller's session can be reset without losing
+        # work. db.rollback() in the except clears the invalid transaction so
+        # the caller can continue.
         db.commit()
         try:
             from app.services.artist_linker import link_song_artists, parse_artist_string
@@ -235,10 +234,10 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         db.add(song)
         db.flush()
         # Commit the compass_song insert before the risky post-work. If
-        # record_and_reconcile or link_song_artists lose the Hrana stream
-        # mid-flight, the calibration row is already persisted and the
-        # caller's session is reset via db.rollback() in the except so it
-        # can keep working (mutating draft_song, etc.) afterwards.
+        # record_and_reconcile or link_song_artists fail, the calibration row
+        # is already persisted and the caller's session is reset via
+        # db.rollback() in the except so it can keep working (mutating
+        # draft_song, etc.) afterwards.
         db.commit()
         song_id = song.id
 
@@ -305,10 +304,9 @@ def _run_post_calibration_enrichment(cs_id: int, lyrics: str | None) -> None:
         2. Make the Anthropic call (no DB held).
         3. Open a fresh write session, persist the result, commit, close.
 
-    This is what splits the multi-second API window from the libSQL Hrana
-    stream so the stream TTL never elapses mid-transaction. Both steps fail
-    soft — on error the corresponding columns stay NULL and the deferred
-    backfill pass picks them up.
+    This keeps no DB session open across the multi-second API window. Both
+    steps fail soft — on error the corresponding columns stay NULL and the
+    deferred backfill pass picks them up.
 
     Idempotent: skips work for any compass_song that already has the field
     populated. Safe to call multiple times for the same cs_id.
@@ -453,9 +451,9 @@ def run_compass_agent(
     Session lifecycle: this function manages its own short-lived DB sessions
     per op. The `db` argument is kept for backwards compatibility but is not
     used internally — holding one session across the per-song Anthropic loop
-    is what let Hrana streams die mid-cron (incident 2026-05-17/18). Pattern
-    mirrors `_run_post_calibration_enrichment`: open, do work, close, do
-    Anthropic call with no session held, open fresh session for next write.
+    would pin a pooled connection idle for the whole cron. Pattern mirrors
+    `_run_post_calibration_enrichment`: open, do work, close, do the
+    Anthropic call with no session held, open a fresh session for next write.
     Returned `AgentDraft` is detached with `songs` eagerly loaded so
     `DraftOut` (from_attributes=True) serializes without a live session.
 

@@ -157,10 +157,9 @@ async def resolve_artist_releases(artist_id: int) -> dict:
     """Resolve release metadata for an artist via MB (primary) or Spotify (fallback).
 
     Fetches MB/Spotify data into memory *without* holding a DB session, then
-    opens a fresh session for writes. The Turso libSQL stream can close
-    server-side during long idle windows (MB is rate-limited to 1 req/sec, so
-    a Beatles-sized catalog is minutes of calls); separating phases prevents
-    `stream not found` errors.
+    opens a fresh session for writes. MB is rate-limited to 1 req/sec, so a
+    Beatles-sized catalog is minutes of calls; separating the phases avoids
+    holding a pooled connection idle across that window.
 
     Returns stats dict: {source, releases_created, songs_linked}.
     """

@@ -10,13 +10,12 @@ const API = (() => {
     ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
     : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
 
-  // Turso cold connections + occasional 502/504 from nginx during container
-  // restarts cause transient failures. Retry twice with short backoff before
-  // giving up on GETs — 4xx won't be retried since those won't improve.
-  // 20s timeout is generous for local dev where the FastAPI process talks to
-  // remote Turso over WAN; production hits the same DB from a much closer
-  // region and is typically <1s, well inside the budget.
-  async function get(path, { attempts = 3, timeoutMs = 20000 } = {}) {
+  // nginx returns a brief 502/504 while the backend container restarts on
+  // deploy; retry with short backoff so a page load mid-deploy recovers.
+  // 4xx is not retried (won't improve). 8s timeout is ample now that the
+  // backend talks to Postgres over the VPC (<1s typical) -- the old 20s
+  // budget was sized for the WAN round-trip to Turso, which is gone.
+  async function get(path, { attempts = 3, timeoutMs = 8000 } = {}) {
     const headers = {};
     if (API_KEY) headers['X-Api-Key'] = API_KEY;
     let lastErr;

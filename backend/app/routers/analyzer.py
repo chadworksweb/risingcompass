@@ -636,7 +636,7 @@ async def calibrate_search(
 
     try:
         # Phase 1: read-only session for the cache lookup, closed before the
-        # Opus call so no Hrana stream is held idle through it.
+        # Opus call so no pooled connection is held idle through it.
         read_db = SessionLocal()
         try:
             cached_calibration = lookup_calibrated(title, artist, read_db)

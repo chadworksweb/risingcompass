@@ -320,22 +320,9 @@ def calibrate_live(db: Session = Depends(get_db)):
 def cron_calibrate_live(db: Session = Depends(get_db)):
     """Service endpoint called by the daily cron at 08:00 UTC with X-Reading-Cron-Key.
 
-    Same logic as /calibrate-live but service-token authed. Wrapped with a
-    one-shot retry on Hrana disconnect: if a stream dies somewhere in the
-    pipeline despite the short-session refactor, the second attempt picks
-    up via the chart-pin path (existing draft's songs become the input
-    list) and finishes without re-fetching Spotify.
+    Same logic as /calibrate-live but service-token authed.
     """
-    try:
-        return _calibrate_live_impl()
-    except Exception as exc:
-        msg = str(exc)
-        if "stream not found" in msg or "Hrana:" in msg:
-            logger.warning(
-                "Hrana stream died during cron — retrying once: %s", msg
-            )
-            return _calibrate_live_impl()
-        raise
+    return _calibrate_live_impl()
 
 
 @router.get("/drafts", response_model=PaginatedDrafts, dependencies=[Depends(verify_admin_key)])
@@ -603,17 +590,15 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
 async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
     """Supply lyrics for an uncalibrated song in a draft, triggering calibration.
 
-    Hrana stream timeout safety: the Turso embedded-replica session can't
-    survive the multi-second calibrator + ether_tagger Anthropic calls. So
-    we hold no DB session across the calibrator call. Read phase snapshots
-    what we need then closes the FastAPI-injected session; calibration runs
-    against no DB; writes happen in a fresh session whose Hrana stream is
-    fresh and only has to cover the small ether_tagger window inside
-    _store_calibration. Editorial regen, if needed, opens its own session.
+    Connection hygiene: we hold no DB session across the multi-second
+    calibrator + ether_tagger Anthropic calls. Read phase snapshots what we
+    need then closes the FastAPI-injected session; calibration runs against
+    no DB; writes happen in a fresh session. Editorial regen, if needed,
+    opens its own session.
     """
     from app.database import SessionLocal
 
-    # === READ + SNAPSHOT — release Hrana stream before the long API call ===
+    # === READ + SNAPSHOT — close the session before the long API call ===
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft is not pending")
@@ -647,7 +632,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
             lyrics=data.lyrics, db=None, skip_cache=True,
         )
 
-    # === WRITE PHASE — fresh session, fresh Hrana stream ===
+    # === WRITE PHASE — fresh session ===
     editorial_input = None
     write_db = SessionLocal()
     try:

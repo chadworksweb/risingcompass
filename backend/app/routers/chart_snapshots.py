@@ -184,10 +184,9 @@ async def refresh_snapshot(key: str):
     since the cron first ran.
 
     Async so the blocking Playwright fetcher can run via run_in_executor.
-    No dep-injected DB session: the fetch takes 15-30s and the embedded
-    replica's Hrana stream times out by the time we'd write — fresh
-    SessionLocal opened after the fetch, same pattern as artists_admin's
-    long-running transactions.
+    No dep-injected DB session: the fetch takes 15-30s, so we don't hold a
+    pooled connection idle across it — a fresh SessionLocal is opened after
+    the fetch for the write.
     """
     entry = CHART_REGISTRY.get(key)
     if not entry:

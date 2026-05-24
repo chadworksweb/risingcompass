@@ -164,7 +164,7 @@ def _prune_local_copies(retention_days: int) -> int:
 
 
 def run_backup() -> BackupResult | None:
-    """Dump Turso, upload to DO Spaces, verify, prune. Returns None on failure."""
+    """pg_dump the database, upload to DO Spaces, verify, prune. Returns None on failure."""
     if not (
         settings.do_spaces_key
         and settings.do_spaces_secret
