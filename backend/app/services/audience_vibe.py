@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import (
     AudienceVibeNeedle, AudienceVibePush, AudienceVibeReviewCase,
-    CompassSong, LibrarySong, SubmittedSong,
+    CompassSong, LibrarySong, SubmittedSong, SongSlug,
 )
 
 logger = logging.getLogger(__name__)
@@ -318,8 +318,9 @@ def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
         .all()
     )
 
-    # Cache needles per (source, id) so repeat votes on one song hit the DB once.
+    # Cache needles + slugs per (source, id) so repeat votes hit the DB once.
     needle_cache: dict = {}
+    slug_cache: dict = {}
 
     def _needle_value(source: str, song_id: int):
         key = (source, song_id)
@@ -333,6 +334,19 @@ def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
             needle_cache[key] = needle.current_value if needle else None
         return needle_cache[key]
 
+    def _slug(source: str, song_id: int):
+        # Slugs live in the song_slugs table, not on the song row.
+        key = (source, song_id)
+        if key not in slug_cache:
+            row = (
+                db.query(SongSlug)
+                .filter(SongSlug.song_source == source)
+                .filter(SongSlug.song_id == song_id)
+                .first()
+            )
+            slug_cache[key] = row.slug if row else None
+        return slug_cache[key]
+
     items = []
     for p in pushes:
         entry = {
@@ -343,12 +357,12 @@ def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
             "push_year": p.push_year,
             "pushed_at": p.pushed_at.isoformat() if p.pushed_at else None,
             "current_value": _needle_value(p.song_source, p.song_id),
+            "song_slug": _slug(p.song_source, p.song_id),
         }
         try:
             song = _resolve_song(db, p.song_source, p.song_id)
             entry["song_title"] = song.title
             entry["song_artist"] = getattr(song, "artist", None)
-            entry["song_slug"] = getattr(song, "slug", None)
             entry["compass_charge"] = getattr(song, "charge_value", None)
         except VibeError:
             entry["song_title"] = None
