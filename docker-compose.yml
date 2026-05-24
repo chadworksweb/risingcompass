@@ -21,9 +21,7 @@ services:
       - RC_LYRICS_SUPPLY_KEY=${RC_LYRICS_SUPPLY_KEY}
       - ADMIN_LOGIN_URL_TOKEN=${ADMIN_LOGIN_URL_TOKEN}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/rising_compass.db}
-      - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
-      - TURSO_REPLICA_PATH=${TURSO_REPLICA_PATH:-}
-      - TURSO_SYNC_INTERVAL=${TURSO_SYNC_INTERVAL:-30}
+      - BACKUP_DATABASE_URL=${BACKUP_DATABASE_URL}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - AGENT_MODEL=${AGENT_MODEL:-claude-opus-4-6}
