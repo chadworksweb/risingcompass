@@ -2,11 +2,35 @@
    Public Participation. Uses the global :root tokens from main.css. */
 
 .account-main {
-  max-width: 480px;
+  max-width: 880px;
   margin: 0 auto;
   padding: 2.5rem 1.25rem 4rem;
   font-family: var(--rc-font);
   color: var(--rc-text);
+}
+
+/* Single-card states (loading / sign-in / handle picker) stay narrow + centred;
+   only the signed-in profile uses the full two-column width. */
+#acct-loading,
+#acct-signed-out,
+#acct-onboarding {
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Profile = two columns: identity (left) + Audience Vibe activity (right). */
+.account-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+.account-profile-grid[hidden] { display: none; }
+.account-profile-grid > .account-col { margin-bottom: 0; }
+
+@media (max-width: 720px) {
+  .account-profile-grid { grid-template-columns: 1fr; }
 }
 
 .account-card {
@@ -254,9 +278,7 @@
 
 /* --- Audience Vibe activity (signed-in voting history) --- */
 .account-activity {
-  margin-top: 1.75rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--rc-border);
+  margin-top: 0;
 }
 
 .account-activity-title {

@@ -133,45 +133,51 @@
       </p>
     </section>
 
-    <section class="account-card" id="acct-profile" hidden>
-      <h1 class="account-title">Your account</h1>
-      <div class="account-profile">
-        <img id="profile-avatar" class="account-avatar" alt="" hidden>
-        <div class="account-profile-text">
-          <p class="account-handle" id="profile-handle"></p>
-          <p class="account-tier" id="profile-tier"></p>
+    <div class="account-profile-grid" id="acct-profile" hidden>
+      <!-- Left column: identity + verification + sign out -->
+      <section class="account-card account-col">
+        <h1 class="account-title">Your account</h1>
+        <div class="account-profile">
+          <img id="profile-avatar" class="account-avatar" alt="" hidden>
+          <div class="account-profile-text">
+            <p class="account-handle" id="profile-handle"></p>
+            <p class="account-tier" id="profile-tier"></p>
+          </div>
         </div>
-      </div>
 
-      <div class="account-verify" id="acct-verify" hidden>
-        <h2 class="account-verify-title">Verify your identity</h2>
-        <p class="account-verify-sub">
-          Tier 1 lets you comment in the Lobby and flag misreads. Filing formal motions in the
-          Motion Desk and arguing in the Chamber requires a verified real-name account. Verification
-          uses Stripe Identity -- you'll be asked for a government ID and a live selfie; takes about
-          two minutes. Your legal name is recorded but only displayed in the Chamber.
-        </p>
-        <p class="account-error" id="verify-error" hidden></p>
-        <button type="button" class="account-btn" id="verify-btn">Verify with Stripe Identity</button>
-      </div>
+        <div class="account-verify" id="acct-verify" hidden>
+          <h2 class="account-verify-title">Verify your identity</h2>
+          <p class="account-verify-sub">
+            Tier 1 lets you comment in the Lobby and flag misreads. Filing formal motions in the
+            Motion Desk and arguing in the Chamber requires a verified real-name account. Verification
+            uses Stripe Identity -- you'll be asked for a government ID and a live selfie; takes about
+            two minutes. Your legal name is recorded but only displayed in the Chamber.
+          </p>
+          <p class="account-error" id="verify-error" hidden></p>
+          <button type="button" class="account-btn" id="verify-btn">Verify with Stripe Identity</button>
+        </div>
 
-      <div class="account-verified-badge" id="acct-verified-badge" hidden>
-        <span class="account-verified-dot" aria-hidden="true"></span>
-        <span>Verified person -- Tier 2</span>
-      </div>
+        <div class="account-verified-badge" id="acct-verified-badge" hidden>
+          <span class="account-verified-dot" aria-hidden="true"></span>
+          <span>Verified person -- Tier 2</span>
+        </div>
 
-      <section class="account-activity" id="acct-vibe-activity">
-        <h2 class="account-activity-title">Your Audience Vibe activity</h2>
-        <p class="account-activity-sub">
-          The songs you've voted on. Votes you cast while signed in show up here;
-          anonymous votes don't. One vote per song per year.
-        </p>
-        <p class="account-activity-state" id="vibe-activity-state">Loading your activity...</p>
-        <ul class="account-activity-list" id="vibe-activity-list" hidden></ul>
+        <button type="button" class="account-btn account-btn-secondary" id="signout-btn">Sign out</button>
       </section>
 
-      <button type="button" class="account-btn account-btn-secondary" id="signout-btn">Sign out</button>
-    </section>
+      <!-- Right column: Audience Vibe activity -->
+      <section class="account-card account-col">
+        <section class="account-activity" id="acct-vibe-activity">
+          <h2 class="account-activity-title">Your Audience Vibe activity</h2>
+          <p class="account-activity-sub">
+            The songs you've voted on. Votes you cast while signed in show up here;
+            anonymous votes don't. One vote per song per year.
+          </p>
+          <p class="account-activity-state" id="vibe-activity-state">Loading your activity...</p>
+          <ul class="account-activity-list" id="vibe-activity-list" hidden></ul>
+        </section>
+      </section>
+    </div>
 
     <p class="account-fatal" id="acct-fatal" hidden></p>
 
