@@ -1204,8 +1204,18 @@ class Comment(Base):
     target_type = Column(Text, nullable=False)
     target_source = Column(Text)
     target_id = Column(Integer, nullable=False)
-    parent_id = Column(Integer, ForeignKey("comments.id"))
-    thread_root_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
+    # Self-referential FKs are DEFERRABLE INITIALLY DEFERRED: a top-level
+    # comment sets thread_root_id to its own (not-yet-assigned) id, so the
+    # check must happen at commit, not at the INSERT flush. (On SQLite this
+    # worked only because FK enforcement was off; PG enforces immediately.)
+    parent_id = Column(
+        Integer, ForeignKey("comments.id", deferrable=True, initially="DEFERRED")
+    )
+    thread_root_id = Column(
+        Integer,
+        ForeignKey("comments.id", deferrable=True, initially="DEFERRED"),
+        nullable=False,
+    )
     content = Column(Text, nullable=False)
     content_length = Column(Integer, nullable=False)
     edited_at = Column(DateTime)
@@ -1297,6 +1307,24 @@ class ModerationEvent(Base):
     target_comment_id = Column(Integer)
     reason = Column(Text)
     details = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CommentNotification(Base):
+    """A reply-to-you or @mention notification for a Lobby comment.
+
+    type: 'reply' (someone replied to the user's comment) | 'mention'
+    (someone @mentioned the user's handle). comment_id points at the
+    triggering comment; actor_id is its author. read_at NULL = unread.
+    """
+    __tablename__ = "comment_notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    type = Column(Text, nullable=False)
+    comment_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    read_at = Column(DateTime)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -1394,6 +1422,11 @@ class User(Base):
     tier = Column(Text, nullable=False, default="pending")
     anon_id = Column(Text, nullable=False, unique=True)
     status = Column(Text, nullable=False, default="active")
+    # Verified legal name (Stripe Identity) + the consent timestamp for
+    # public display in the Deliberation Chamber. Shown only when BOTH are
+    # set -- a name captured without consent is never surfaced.
+    legal_name = Column(Text)
+    legal_name_public_consent_at = Column(DateTime)
     banned_at = Column(DateTime)
     banned_reason = Column(Text)
     suspended_until = Column(DateTime)

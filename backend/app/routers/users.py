@@ -23,6 +23,7 @@ from app.auth import require_clerk_user
 from app.config import settings
 from app.database import get_db
 from app.models import AccountVerification, User, UserCalibration
+from app.services import notifications as notifications_svc
 from app.services import stripe_identity as stripe_identity_svc
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ class UserOut(BaseModel):
     tier: str
     status: str
     onboarding_complete: bool
+    # The verified legal name shown publicly in the Chamber, surfaced back to
+    # the user so they can see what's on file. Null unless captured + consented.
+    legal_name: Optional[str] = None
 
 
 class UserSetupIn(BaseModel):
@@ -75,6 +79,11 @@ def _serialize(user: User) -> UserOut:
         tier=user.tier,
         status=user.status,
         onboarding_complete=user.handle is not None,
+        legal_name=(
+            user.legal_name
+            if user.legal_name and user.legal_name_public_consent_at
+            else None
+        ),
     )
 
 
@@ -187,8 +196,20 @@ class VerifyIdentityStartOut(BaseModel):
     status: str    # 'requires_input' at this point
 
 
+class VerifyIdentityStartIn(BaseModel):
+    # Explicit consent to public display of the verified legal name in the
+    # Deliberation Chamber. Required true -- the Chamber is the room where
+    # accountability is the point, and we do not capture/show a name without
+    # the user knowingly agreeing at this step.
+    display_name_consent: bool = Field(
+        ...,
+        description="Must be true: consent to show verified legal name on Chamber posts.",
+    )
+
+
 @router.post("/me/verify-identity", response_model=VerifyIdentityStartOut)
 def start_identity_verification(
+    body: VerifyIdentityStartIn,
     user: User = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
@@ -208,6 +229,11 @@ def start_identity_verification(
         raise HTTPException(status_code=409, detail="Already verified.")
     if user.status == "banned":
         raise HTTPException(status_code=403, detail="Account banned")
+    if not body.display_name_consent:
+        raise HTTPException(
+            status_code=400,
+            detail="Consent to public legal-name display is required to verify.",
+        )
 
     return_url = (
         settings.stripe_identity_return_url
@@ -234,6 +260,10 @@ def start_identity_verification(
         status="requires_input",
     )
     db.add(av)
+    # Record the public-display consent now, at the moment of opt-in. The
+    # name itself is filled in later by the verified webhook; display is
+    # gated on this timestamp being present.
+    user.legal_name_public_consent_at = datetime.utcnow()
     db.commit()
 
     logger.info("Started Stripe Identity session %s for user %s", session.id, user.id)
@@ -242,3 +272,28 @@ def start_identity_verification(
         url=session.url,
         status=session.status or "requires_input",
     )
+
+
+# ---------- comment notifications (Phase 1.5) ----------
+
+@router.get("/me/notifications")
+def list_notifications(
+    user: User = Depends(require_clerk_user),
+    db: Session = Depends(get_db),
+):
+    """Recent reply + @mention notifications for this user, newest first,
+    plus the current unread count. Backs the account-page panel."""
+    return {
+        "items": notifications_svc.list_for_user(db, user),
+        "unread_count": notifications_svc.unread_count(db, user),
+    }
+
+
+@router.post("/me/notifications/mark-read")
+def mark_notifications_read(
+    user: User = Depends(require_clerk_user),
+    db: Session = Depends(get_db),
+):
+    """Mark all of this user's unread notifications read."""
+    marked = notifications_svc.mark_all_read(db, user)
+    return {"marked": marked}

@@ -223,4 +223,10 @@ def argument_to_dict(db: Session, arg: MotionArgument) -> dict:
         out["author_handle"] = author.handle
         out["author_anon_id"] = author.anon_id
         out["author_verified"] = author.tier == "id_verified"
+        # Real-name display is the Chamber's accountability rule, but only
+        # when the author both has a captured legal name AND explicitly
+        # consented to public display at verification time. Otherwise the
+        # post stays on handle + verified badge.
+        if author.legal_name and author.legal_name_public_consent_at:
+            out["author_legal_name"] = author.legal_name
     return out

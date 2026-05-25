@@ -98,6 +98,7 @@
     motionId: getMotionIdFromPath(),
     motion: null,
     args: [],
+    argsError: null,
     rebutParentId: null,
     rebutParentSummary: null,
   };
@@ -223,9 +224,15 @@
     const isRebut = a.post_type === 'rebuttal';
     const verified = a.author_verified
       ? '<span class="dc-post-verified">verified</span>' : '';
-    const author = a.author_handle
+    const handleText = a.author_handle
       ? `@${esc(a.author_handle)}`
       : esc(a.author_anon_id || 'unknown');
+    // The Chamber shows the verified legal name when the author consented
+    // to public display; the handle drops to a secondary line. Otherwise
+    // the handle is the author identity (same as Lobby/Misread).
+    const author = a.author_legal_name
+      ? `${esc(a.author_legal_name)}<span class="dc-post-handle">${handleText}</span>`
+      : handleText;
     const citations = (a.citations && a.citations.length)
       ? `<div class="dc-post-citations">
            <span class="label">Citations</span>
@@ -265,6 +272,18 @@
     const ordered = orderThread(args);
     thread.innerHTML = ordered.map((a) => renderPost(a, canRebut)).join('');
     if (canRebut) bindRebutButtons();
+  }
+
+  // Renders the thread, or a thread-scoped error if the arguments fetch
+  // failed (the motion still loaded). Keeps an args error from being
+  // silently replaced by an empty "be the first to post" state when auth
+  // resolves and re-renders.
+  function paintThread(canRebut) {
+    if (state.argsError) {
+      $('thread').innerHTML = `<p class="dc-empty">${esc(state.argsError)}</p>`;
+      return;
+    }
+    renderThread(state.args, canRebut);
   }
 
   function bindRebutButtons() {
@@ -478,42 +497,57 @@
       $('thread').innerHTML = '';
       return;
     }
+    // The motion fetch is authoritative: a bad id 404s here and that is
+    // the error worth showing ("Motion not found"). Loading arguments in
+    // the same Promise.all let the thread's generic "Failed to load thread
+    // (404)" win the rejection race instead. Load the motion first; only
+    // then fetch the thread, and let a thread-only failure degrade
+    // gracefully without blanking the whole page.
+    let m;
     try {
-      const [m, args] = await Promise.all([loadMotion(), loadArguments()]);
-      state.motion = m;
-      state.args = args;
-      renderMotionHeader(m);
-      renderResolutionBanner(m);
-
-      // First render of the thread before auth resolves -- show it
-      // read-only (no rebut buttons). Re-render with rebut buttons once
-      // we know the user can post.
-      renderThread(args, false);
-
-      try {
-        await window.Auth.init();
-        const me = await window.Auth.getMe();
-        const canPost = applyAuthAndStatus(me);
-        if (canPost) {
-          renderThread(args, true);
-          bindForm();
-        }
-        window.Auth.onChange(async () => {
-          const m2 = await window.Auth.getMe({ force: true });
-          const canPost2 = applyAuthAndStatus(m2);
-          renderThread(state.args, canPost2);
-          if (canPost2 && !$('postForm').dataset.bound) {
-            bindForm();
-            $('postForm').dataset.bound = '1';
-          }
-        });
-      } catch (err) {
-        console.error('Chamber auth init failed', err);
-        showGate('<h2 class="dc-gate-title">Sign-in is offline right now.</h2><p class="dc-gate-body">You can still read the thread.</p>');
-      }
+      m = await loadMotion();
     } catch (err) {
       $('motionHeader').innerHTML = `<p class="dc-empty">${esc(err.message)}</p>`;
       $('thread').innerHTML = '';
+      return;
+    }
+    state.motion = m;
+    renderMotionHeader(m);
+    renderResolutionBanner(m);
+
+    try {
+      state.args = await loadArguments();
+      state.argsError = null;
+    } catch (err) {
+      state.args = [];
+      state.argsError = err.message || 'Failed to load the thread.';
+    }
+
+    // First render of the thread before auth resolves -- show it
+    // read-only (no rebut buttons). Re-render with rebut buttons once
+    // we know the user can post.
+    paintThread(false);
+
+    try {
+      await window.Auth.init();
+      const me = await window.Auth.getMe();
+      const canPost = applyAuthAndStatus(me);
+      if (canPost) {
+        paintThread(true);
+        bindForm();
+      }
+      window.Auth.onChange(async () => {
+        const m2 = await window.Auth.getMe({ force: true });
+        const canPost2 = applyAuthAndStatus(m2);
+        paintThread(canPost2);
+        if (canPost2 && !$('postForm').dataset.bound) {
+          bindForm();
+          $('postForm').dataset.bound = '1';
+        }
+      });
+    } catch (err) {
+      console.error('Chamber auth init failed', err);
+      showGate('<h2 class="dc-gate-title">Sign-in is offline right now.</h2><p class="dc-gate-body">You can still read the thread.</p>');
     }
   }
 

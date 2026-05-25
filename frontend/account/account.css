@@ -29,6 +29,14 @@
 .account-profile-grid[hidden] { display: none; }
 .account-profile-grid > .account-col { margin-bottom: 0; }
 
+/* Right column stacks its own separate cards (notifications, activity). */
+.account-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.account-stack > .account-card { margin-bottom: 0; }
+
 @media (max-width: 720px) {
   .account-profile-grid { grid-template-columns: 1fr; }
 }
@@ -118,6 +126,28 @@
   margin: 0.5rem 0 0;
   font-size: 0.82rem;
   color: var(--rc-red);
+}
+
+.account-consent {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--rc-text-dim);
+  cursor: pointer;
+}
+.account-consent input {
+  margin-top: 0.2rem;
+  flex: none;
+  cursor: pointer;
+}
+.account-consent strong { color: var(--rc-text); }
+
+.account-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .account-btn {
@@ -251,6 +281,11 @@
   border-radius: 50%;
   background: var(--rc-accent);
   box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.18);
+}
+.account-verified-name {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
 }
 
 .account-fatal {
@@ -414,4 +449,62 @@
   font-size: 0.72rem;
   color: var(--rc-text-dim);
   font-family: var(--rc-font-mono);
+}
+
+/* Notifications panel */
+.account-activity-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.account-notif-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  min-width: 1.3em;
+  padding: 0 0.4em;
+  border-radius: 99px;
+  background: var(--rc-accent);
+  color: #0b0b0c;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+}
+.account-notif-markread {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--rc-accent);
+  font-family: var(--rc-font);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.account-notif-markread:hover { text-decoration: underline; }
+.account-notif-markread:disabled { opacity: 0.5; cursor: default; }
+
+.account-notif-item { position: relative; }
+.account-notif-item--unread .account-notif-headline { font-weight: 600; }
+.account-notif-item--unread::before {
+  content: "";
+  position: absolute;
+  left: -0.75rem;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rc-accent);
+}
+.account-notif-headline {
+  color: var(--rc-text);
+  text-decoration: none;
+}
+a.account-notif-headline:hover { text-decoration: underline; }
+.account-notif-snippet {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  font-style: italic;
 }

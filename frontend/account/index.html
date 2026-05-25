@@ -151,22 +151,50 @@
             Tier 1 lets you comment in the Lobby and flag misreads. Filing formal motions in the
             Motion Desk and arguing in the Chamber requires a verified real-name account. Verification
             uses Stripe Identity -- you'll be asked for a government ID and a live selfie; takes about
-            two minutes. Your legal name is recorded but only displayed in the Chamber.
+            two minutes.
           </p>
+          <label class="account-consent" for="verify-consent">
+            <input type="checkbox" id="verify-consent">
+            <span>
+              I understand that my <strong>verified legal name will be shown publicly</strong>
+              on any argument I post in the Deliberation Chamber. The Lobby and Misread reports
+              stay on my handle.
+            </span>
+          </label>
           <p class="account-error" id="verify-error" hidden></p>
-          <button type="button" class="account-btn" id="verify-btn">Verify with Stripe Identity</button>
+          <button type="button" class="account-btn" id="verify-btn" disabled>Verify with Stripe Identity</button>
         </div>
 
         <div class="account-verified-badge" id="acct-verified-badge" hidden>
           <span class="account-verified-dot" aria-hidden="true"></span>
           <span>Verified person -- Tier 2</span>
         </div>
+        <p class="account-verified-name" id="verified-name" hidden></p>
 
         <button type="button" class="account-btn account-btn-secondary" id="signout-btn">Sign out</button>
       </section>
 
-      <!-- Right column: activity -->
-      <section class="account-card account-col">
+      <!-- Right column: its own stack of cards -->
+      <div class="account-col account-stack">
+
+      <!-- Notifications: its own panel -->
+      <section class="account-card" id="acct-notifications">
+        <div class="account-activity-head">
+          <h2 class="account-activity-title">
+            Notifications
+            <span class="account-notif-badge" id="notif-unread-badge" hidden></span>
+          </h2>
+          <button type="button" class="account-notif-markread" id="notif-markread" hidden>Mark all read</button>
+        </div>
+        <p class="account-activity-sub">
+          When someone replies to your Lobby comment or @mentions your handle.
+        </p>
+        <p class="account-activity-state" id="notif-state">Loading your notifications...</p>
+        <ul class="account-activity-list" id="notif-list" hidden></ul>
+      </section>
+
+      <!-- Activity: vibe + calibrations -->
+      <section class="account-card">
         <section class="account-activity" id="acct-vibe-activity">
           <h2 class="account-activity-title">Your Audience Vibe activity</h2>
           <p class="account-activity-sub">
@@ -187,6 +215,8 @@
           <ul class="account-activity-list" id="calibrations-list" hidden></ul>
         </section>
       </section>
+
+      </div><!-- /.account-stack -->
     </div>
 
     <p class="account-fatal" id="acct-fatal" hidden></p>

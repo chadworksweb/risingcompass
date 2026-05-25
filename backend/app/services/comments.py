@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Comment, CommentReport, ModerationEvent, User
 from app.services import alerts as alerts_svc
+from app.services import notifications as notifications_svc
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,8 @@ def create_top_level(
     db.commit()
     db.refresh(comment)
     _fire_comment_created_alert(comment, user)
+    # Top-level comments can still @mention users (no parent -> no reply notif).
+    notifications_svc.create_for_comment(db, comment, user, parent=None)
     return comment
 
 
@@ -208,6 +211,7 @@ def create_reply(db: Session, user: User, parent_id: int, raw_content: str) -> C
     db.commit()
     db.refresh(reply)
     _fire_comment_created_alert(reply, user)
+    notifications_svc.create_for_comment(db, reply, user, parent=parent)
     return reply
 
 

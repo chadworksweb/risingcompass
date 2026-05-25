@@ -76,12 +76,18 @@
     onboardingSignout: document.getElementById('onboarding-signout'),
     verifyPanel: document.getElementById('acct-verify'),
     verifyBtn: document.getElementById('verify-btn'),
+    verifyConsent: document.getElementById('verify-consent'),
     verifyError: document.getElementById('verify-error'),
     verifiedBadge: document.getElementById('acct-verified-badge'),
+    verifiedName: document.getElementById('verified-name'),
     vibeActivityState: document.getElementById('vibe-activity-state'),
     vibeActivityList: document.getElementById('vibe-activity-list'),
     calibrationsState: document.getElementById('calibrations-state'),
     calibrationsList: document.getElementById('calibrations-list'),
+    notifState: document.getElementById('notif-state'),
+    notifList: document.getElementById('notif-list'),
+    notifBadge: document.getElementById('notif-unread-badge'),
+    notifMarkRead: document.getElementById('notif-markread'),
   };
 
   const TIER_LABELS = {
@@ -209,6 +215,65 @@
     }).join('');
   }
 
+  function notifText(it) {
+    const who = it.actor_handle ? `@${esc(it.actor_handle)}` : 'Someone';
+    const verb = it.type === 'mention' ? 'mentioned you in a comment' : 'replied to your comment';
+    return `${who} ${verb}`;
+  }
+
+  async function loadNotifications() {
+    if (!el.notifState || !el.notifList) return;
+    el.notifState.hidden = false;
+    el.notifState.textContent = 'Loading your notifications...';
+    el.notifList.hidden = true;
+    el.notifList.innerHTML = '';
+    if (el.notifBadge) el.notifBadge.hidden = true;
+    if (el.notifMarkRead) el.notifMarkRead.hidden = true;
+    let data;
+    try {
+      const resp = await Auth.authedFetch('/api/users/me/notifications');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      data = await resp.json();
+    } catch (err) {
+      console.error('notifications load failed', err);
+      const code = ((err && err.message) || '').match(/\d{3}/);
+      el.notifState.textContent = code && code[0] === '401'
+        ? 'Sign in to see your notifications.'
+        : 'Could not load your notifications right now.';
+      return;
+    }
+    const items = (data && data.items) || [];
+    const unread = (data && data.unread_count) || 0;
+    if (el.notifBadge && unread > 0) {
+      el.notifBadge.textContent = String(unread);
+      el.notifBadge.hidden = false;
+    }
+    if (el.notifMarkRead) el.notifMarkRead.hidden = unread === 0;
+    if (!items.length) {
+      el.notifState.textContent = 'No notifications yet. Replies and @mentions in the Lobby show up here.';
+      return;
+    }
+    el.notifState.hidden = true;
+    el.notifList.hidden = false;
+    el.notifList.innerHTML = items.map((it) => {
+      const cls = it.read ? 'account-notif-item' : 'account-notif-item account-notif-item--unread';
+      const headline = notifText(it);
+      const headlineHtml = it.link
+        ? `<a class="account-notif-headline" href="${esc(it.link)}">${headline}</a>`
+        : `<span class="account-notif-headline">${headline}</span>`;
+      const snippet = it.snippet
+        ? `<span class="account-notif-snippet">${esc(it.snippet)}</span>` : '';
+      return `
+        <li class="${cls}">
+          <span class="account-activity-meta">
+            ${headlineHtml}
+            ${snippet}
+          </span>
+          <span class="account-activity-date">${fmtDate(it.created_at)}</span>
+        </li>`;
+    }).join('');
+  }
+
   function show(name) {
     el.loading.hidden = name !== 'loading';
     el.signedOut.hidden = name !== 'signed-out';
@@ -272,11 +337,22 @@
     const isVerified = me.tier === 'id_verified';
     el.verifyPanel.hidden = isVerified;
     el.verifiedBadge.hidden = !isVerified;
+    // Show the user the legal name on file (publicly shown in the Chamber).
+    if (el.verifiedName) {
+      if (isVerified && me.legal_name) {
+        el.verifiedName.textContent = `Shown in the Chamber as: ${me.legal_name}`;
+        el.verifiedName.hidden = false;
+      } else {
+        el.verifiedName.hidden = true;
+      }
+    }
     show('profile');
     // Personal vibe voting history — fire-and-forget, never blocks the profile.
     loadVibeActivity().catch((err) => console.error(err));
     // Songs calibrated through Lyrical Charger — same fire-and-forget pattern.
     loadCalibrations().catch((err) => console.error(err));
+    // Reply / @mention notifications — same fire-and-forget pattern.
+    loadNotifications().catch((err) => console.error(err));
   }
 
   async function render() {
@@ -355,7 +431,21 @@
     try { await Auth.signOut(); } catch (err) { console.error(err); }
   });
 
+  // The verify button stays disabled until the user ticks the public
+  // legal-name consent box -- the backend also enforces this, but gating
+  // the button makes the requirement obvious.
+  if (el.verifyConsent) {
+    el.verifyConsent.addEventListener('change', () => {
+      el.verifyBtn.disabled = !el.verifyConsent.checked;
+    });
+  }
+
   el.verifyBtn.addEventListener('click', async () => {
+    if (el.verifyConsent && !el.verifyConsent.checked) {
+      el.verifyError.textContent = 'Please confirm the legal-name consent first.';
+      el.verifyError.hidden = false;
+      return;
+    }
     el.verifyError.hidden = true;
     el.verifyBtn.disabled = true;
     el.verifyBtn.textContent = 'Starting...';
@@ -363,6 +453,7 @@
       const resp = await Auth.authedFetch('/api/users/me/verify-identity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name_consent: true }),
       });
       const body = await resp.json().catch(() => ({}));
       if (!resp.ok) {
@@ -378,6 +469,21 @@
       el.verifyBtn.textContent = 'Verify with Stripe Identity';
     }
   });
+
+  if (el.notifMarkRead) {
+    el.notifMarkRead.addEventListener('click', async () => {
+      el.notifMarkRead.disabled = true;
+      try {
+        const resp = await Auth.authedFetch('/api/users/me/notifications/mark-read', { method: 'POST' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        await loadNotifications();
+      } catch (err) {
+        console.error('mark-read failed', err);
+      } finally {
+        el.notifMarkRead.disabled = false;
+      }
+    });
+  }
 
   el.signoutBtn.addEventListener('click', async () => {
     el.signoutBtn.disabled = true;

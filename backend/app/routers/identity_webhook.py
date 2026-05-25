@@ -107,6 +107,20 @@ async def stripe_identity_webhook(
                 user.tier = "id_verified"
                 logger.info("User %s elevated to id_verified via Stripe Identity %s",
                             user.id, session_id)
+            # Capture the verified legal name for Chamber display. Public
+            # display is gated separately on legal_name_public_consent_at
+            # (recorded at the verify-identity step), so storing the name
+            # here is safe even if the user never consents. Best-effort:
+            # a Stripe retrieval failure must not block tier elevation.
+            if user is not None and not user.legal_name:
+                try:
+                    name = stripe_identity_svc.retrieve_verified_name(session_id)
+                    if name is not None:
+                        first, last = name
+                        user.legal_name = " ".join(p for p in (first, last) if p)
+                except Exception:
+                    logger.exception(
+                        "Could not retrieve verified name for session %s", session_id)
         elif event_type == "identity.verification_session.processing":
             av.status = "processing"
         elif event_type == "identity.verification_session.canceled":

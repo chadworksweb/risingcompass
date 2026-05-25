@@ -57,6 +57,31 @@ def create_verification_session(
     )
 
 
+def retrieve_verified_name(session_id: str) -> "tuple[str, str] | None":
+    """Pull the verified legal name from a completed VerificationSession.
+
+    Stripe exposes the matched document name on `verified_outputs`
+    (first_name / last_name) once the session is `verified`. Returns a
+    (first, last) tuple, or None if either the outputs are unavailable or
+    no name was captured. Best-effort: the caller treats None as "no name
+    to store" and falls back to handle display."""
+    if not settings.stripe_secret_key:
+        raise RuntimeError("STRIPE_SECRET_KEY is not configured")
+    # verified_outputs holds the matched PII and is redacted unless
+    # explicitly expanded on retrieve -- without this it comes back None.
+    vs = _client().identity.verification_sessions.retrieve(
+        session_id, params={"expand": ["verified_outputs"]}
+    )
+    outputs = getattr(vs, "verified_outputs", None)
+    if not outputs:
+        return None
+    first = (getattr(outputs, "first_name", None) or "").strip()
+    last = (getattr(outputs, "last_name", None) or "").strip()
+    if not first and not last:
+        return None
+    return first, last
+
+
 def construct_event(payload: bytes, signature: str) -> stripe.Event:
     """Verify the Stripe Identity webhook signature. Distinct signing
     secret from the donation webhook so a leak is scoped."""

@@ -242,6 +242,12 @@
   color: var(--md-ink);
   font-weight: 600;
 }
+/* Secondary handle shown after a verified legal name. */
+.dc-post-handle {
+  margin-left: 0.5ch;
+  font-weight: 400;
+  color: var(--md-ink-dim);
+}
 .dc-post-verified {
   display: inline-block;
   padding: 1px 8px;
