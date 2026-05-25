@@ -933,6 +933,38 @@ main {
   font-style: italic;
 }
 
+/* Effects + societal prose */
+.result-prose {
+  max-width: 560px;
+  margin: 0 auto 1.6rem;
+  padding: 1.1rem 1.3rem;
+  background: rgba(0, 212, 170, 0.04);
+  border: 1px solid var(--rc-border);
+  border-left: 3px solid var(--rc-accent);
+  border-radius: var(--rc-radius);
+  text-align: left;
+}
+
+.result-prose.hidden { display: none; }
+
+.result-prose-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+  margin: 0 0 0.7rem;
+  font-weight: 700;
+}
+
+.result-prose-body p {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--rc-text);
+  margin: 0 0 0.8rem;
+}
+
+.result-prose-body p:last-child { margin-bottom: 0; }
+
 /* Consensus */
 .result-consensus {
   max-width: 520px;

@@ -616,6 +616,12 @@ class LyricsCalibrateOut(BaseModel):
     # URL slug for the song's detail page, e.g. /songs/{song_slug}.
     # Set on "scored". None on rejection/error statuses.
     song_slug: Optional[str] = None
+    # Per-song prose, generated inline on every reading (lyrics-grounded).
+    # effects_prose -- what the words may do to a listener.
+    # societal_effects_prose -- what running this program at scale does to a society.
+    # Either may be null if generation failed soft.
+    effects_prose: Optional[str] = None
+    societal_effects_prose: Optional[str] = None
 
 
 class SongSearchIn(BaseModel):

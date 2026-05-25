@@ -281,6 +281,13 @@
   margin-top: 0;
 }
 
+/* Second activity block stacked in the same card gets a divider. */
+#acct-calibrations {
+  margin-top: 1.6rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--rc-border);
+}
+
 .account-activity-title {
   font-size: 1rem;
   font-weight: 600;
@@ -293,6 +300,18 @@
   line-height: 1.5;
   color: var(--rc-text-dim);
   margin: 0 0 1rem;
+}
+
+.account-activity-sub a {
+  color: var(--rc-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.account-activity-sub a:hover,
+.account-activity-sub a:focus-visible {
+  color: var(--rc-text-bright);
+  text-decoration: none;
+  outline: none;
 }
 
 .account-activity-state {
@@ -336,6 +355,20 @@
 .account-activity-dir--higher { color: var(--rc-blue); border: 1px solid var(--rc-blue); }
 .account-activity-dir--lower { color: var(--rc-orange); border: 1px solid var(--rc-orange); }
 .account-activity-dir--agree { color: var(--rc-accent); border: 1px solid var(--rc-accent); }
+
+/* Calibration tier dot (Songs you've calibrated) */
+.account-cal-dot {
+  flex-shrink: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--rc-text-dim);
+}
+.account-cal-dot--violet { background: var(--rc-violet); }
+.account-cal-dot--blue { background: var(--rc-blue); }
+.account-cal-dot--green { background: var(--rc-green); }
+.account-cal-dot--orange { background: var(--rc-orange); }
+.account-cal-dot--red { background: var(--rc-red); }
 
 .account-activity-meta {
   flex: 1;

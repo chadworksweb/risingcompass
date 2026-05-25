@@ -80,6 +80,13 @@
     verifiedBadge: document.getElementById('acct-verified-badge'),
     vibeActivityState: document.getElementById('vibe-activity-state'),
     vibeActivityList: document.getElementById('vibe-activity-list'),
+    calibrationsState: document.getElementById('calibrations-state'),
+    calibrationsList: document.getElementById('calibrations-list'),
+  };
+
+  const TIER_LABELS = {
+    violet: 'Ascended', blue: 'Elevated', green: 'Decent',
+    orange: 'Degraded', red: 'Corrupted',
   };
 
   const DIR_GLYPH = { 1: '↑', 0: '=', '-1': '↓' };
@@ -152,6 +159,56 @@
     }).join('');
   }
 
+  async function loadCalibrations() {
+    if (!el.calibrationsState || !el.calibrationsList) return;
+    el.calibrationsState.hidden = false;
+    el.calibrationsState.textContent = 'Loading your calibrations...';
+    el.calibrationsList.hidden = true;
+    el.calibrationsList.innerHTML = '';
+    let data;
+    try {
+      const resp = await Auth.authedFetch('/api/users/me/calibrations');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      data = await resp.json();
+    } catch (err) {
+      console.error('calibrations load failed', err);
+      const code = ((err && err.message) || '').match(/\d{3}/);
+      el.calibrationsState.textContent = code && code[0] === '401'
+        ? 'Sign in to see the songs you\'ve calibrated.'
+        : 'Could not load your calibrations right now.';
+      return;
+    }
+    const items = (data && data.items) || [];
+    if (!items.length) {
+      el.calibrationsState.textContent = "You haven't calibrated any songs yet. Run some lyrics through Lyrical Charger while signed in and they'll show up here.";
+      return;
+    }
+    el.calibrationsState.hidden = true;
+    el.calibrationsList.hidden = false;
+    el.calibrationsList.innerHTML = items.map((it) => {
+      const title = it.title || 'Untitled';
+      const titleHtml = it.song_slug
+        ? `<a class="account-activity-song" href="/songs/${encodeURIComponent(it.song_slug)}">${esc(title)}</a>`
+        : `<span class="account-activity-song">${esc(title)}</span>`;
+      const artist = it.artist ? `<span class="account-activity-artist">${esc(it.artist)}</span>` : '';
+      const color = it.rubric_color || '';
+      const tierLabel = TIER_LABELS[color] || '';
+      const charge = fmtScore(it.charge_value);
+      const dot = color
+        ? `<span class="account-cal-dot account-cal-dot--${esc(color)}" aria-hidden="true"></span>`
+        : '';
+      return `
+        <li class="account-activity-item">
+          ${dot}
+          <span class="account-activity-meta">
+            <span class="account-activity-songline">${titleHtml}${artist}</span>
+            <span class="account-activity-detail">${esc(tierLabel)} &middot; ${charge}</span>
+          </span>
+          <span class="account-activity-date">${fmtDate(it.calibrated_at)}</span>
+        </li>`;
+    }).join('');
+  }
+
   function show(name) {
     el.loading.hidden = name !== 'loading';
     el.signedOut.hidden = name !== 'signed-out';
@@ -218,6 +275,8 @@
     show('profile');
     // Personal vibe voting history — fire-and-forget, never blocks the profile.
     loadVibeActivity().catch((err) => console.error(err));
+    // Songs calibrated through Lyrical Charger — same fire-and-forget pattern.
+    loadCalibrations().catch((err) => console.error(err));
   }
 
   async function render() {

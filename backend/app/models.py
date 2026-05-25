@@ -270,6 +270,44 @@ class SubmittedSong(Base):
     calibration_failed = Column(Boolean, default=False)
 
 
+class UserCalibration(Base):
+    """A song a signed-in user ran through Lyrical Charger.
+
+    One row per (user, canonical song). Re-running the same song updates the
+    snapshot + calibrated_at instead of stacking duplicates -- the account
+    page shows distinct songs, not a raw event log. Anonymous LC runs never
+    land here (no user_id to attribute).
+
+    user_id is a plain Integer with no FK -- mirrors AudienceVibePush. The
+    row is written from a SessionLocal() write session distinct from the
+    Clerk get_db session that lazily provisions the user, so a hard FK would
+    risk a cross-transaction visibility race. The account read filters by
+    user_id, which is enough.
+
+    song_source / song_id point at the canonical row the submission reconciled
+    against (compass / library / submitted), matching the slug link. The
+    snapshot fields (rubric_color, charge_value, charge_summary) are denormalized
+    so the account list renders without joining four song tables.
+    """
+    __tablename__ = "user_calibrations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "song_source", "song_id", name="uq_user_calibration_song"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    song_source = Column(String(20), nullable=False)  # compass | library | submitted
+    song_id = Column(Integer, nullable=False)
+    song_slug = Column(Text)  # denormalized for the account-page link
+    title = Column(Text)
+    artist = Column(Text)
+    rubric_color = Column(Text)
+    charge_value = Column(Integer)
+    charge_summary = Column(Text)
+    calibrated_at = Column(DateTime, default=datetime.utcnow)  # last run time
+    created_at = Column(DateTime, default=datetime.utcnow)     # first run time
+
+
 class V1Test(Base):
     """Isolated write target for v1-frozen control calibrations.
 

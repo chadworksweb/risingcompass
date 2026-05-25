@@ -186,7 +186,7 @@ def tracked_create(client, *, call_site: str, context: dict | None = None, **kwa
         raise
     duration_ms = int((_time.time() - start) * 1000)
     in_t, out_t, cc_t, cr_t, stop = _extract_usage(response)
-    _enqueue(_build_row(
+    _write_usage(_build_row(
         call_site=call_site, model=model, context=context,
         duration_ms=duration_ms,
         input_tokens=in_t, output_tokens=out_t,
@@ -213,7 +213,7 @@ async def tracked_create_async(client, *, call_site: str, context: dict | None =
         raise
     duration_ms = int((_time.time() - start) * 1000)
     in_t, out_t, cc_t, cr_t, stop = _extract_usage(response)
-    _enqueue(_build_row(
+    _write_usage(_build_row(
         call_site=call_site, model=model, context=context,
         duration_ms=duration_ms,
         input_tokens=in_t, output_tokens=out_t,

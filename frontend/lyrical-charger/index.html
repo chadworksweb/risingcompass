@@ -270,6 +270,18 @@
       <!-- Charge summary -->
       <div class="result-summary" id="result-summary"></div>
 
+      <!-- What it may do to a listener -->
+      <div class="result-prose hidden" id="result-effects">
+        <h3 class="result-prose-title">What might this do to you?</h3>
+        <div class="result-prose-body" id="result-effects-body"></div>
+      </div>
+
+      <!-- What it may do to a society -->
+      <div class="result-prose hidden" id="result-societal">
+        <h3 class="result-prose-title">What might this do to a society?</h3>
+        <div class="result-prose-body" id="result-societal-body"></div>
+      </div>
+
       <!-- Consensus — rendered only when this song has been run before -->
       <div class="result-consensus hidden" id="result-consensus"></div>
 
@@ -311,6 +323,7 @@
     </div><!-- .crt-bezel -->
   </div><!-- .crt-monitor -->
 
-  <script src="charger.js"></script>
+  <script src="/js/auth.js" defer></script>
+  <script src="charger.js" defer></script>
 </body>
 </html>

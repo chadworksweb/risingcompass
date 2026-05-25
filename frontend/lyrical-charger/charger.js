@@ -66,6 +66,10 @@ const procDetail = $('#proc-detail');
 const resultIdentity = $('#result-identity');
 const resultCalibration = $('#result-calibration');
 const resultSummary = $('#result-summary');
+const resultEffects = $('#result-effects');
+const resultEffectsBody = $('#result-effects-body');
+const resultSocietal = $('#result-societal');
+const resultSocietalBody = $('#result-societal-body');
 const resultConsensus = $('#result-consensus');
 const resultContamination = $('#result-contamination');
 const resultMisread = $('#result-misread');
@@ -75,6 +79,25 @@ const btnAgain = $('#btn-again');
 let activeTab = 'paste';
 let selectedTrack = null;  // { track_id, title, artist }
 let turnstileWidgetId = null;
+
+// --- Auth (optional) ---
+// When a user is signed in (Clerk via /js/auth.js), we attach their bearer
+// token to calibrate calls so the reading is saved to their account under
+// "Songs you've calibrated." Anonymous readings still work -- the token is
+// simply absent. Auth.init() is fired early but never blocks the page.
+if (window.Auth) { window.Auth.init().catch(() => {}); }
+
+async function calibrateHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (API_KEY) headers['X-Api-Key'] = API_KEY;
+  try {
+    if (window.Auth && window.Auth.isSignedIn()) {
+      const token = await window.Auth.getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch { /* token fetch is best-effort; fall back to anonymous */ }
+  return headers;
+}
 
 // --- Bot protection helpers ---
 function getHpValue() {
@@ -677,8 +700,7 @@ async function submitLyrics() {
   startProgress();
 
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    const headers = await calibrateHeaders();
 
     const resp = await fetch(`${API_BASE}/calibrate-lyrics`, {
       method: 'POST',
@@ -857,8 +879,7 @@ async function submitSearch() {
   startProgress();
 
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    const headers = await calibrateHeaders();
 
     const resp = await fetch(`${API_BASE}/calibrate-search`, {
       method: 'POST',
@@ -970,6 +991,11 @@ function renderResults(data) {
     resultSummary.style.display = 'none';
   }
 
+  // Per-listener + per-society prose. Each is a blank-line-separated set of
+  // paragraphs; split and wrap each in <p>.
+  renderProse(resultEffects, resultEffectsBody, data.effects_prose);
+  renderProse(resultSocietal, resultSocietalBody, data.societal_effects_prose);
+
   // Consensus across prior runs
   if (data.consensus && data.consensus.run_count >= 2) {
     const c = data.consensus;
@@ -1050,6 +1076,21 @@ function esc(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// Render blank-line-separated prose into <p> blocks, or hide the section
+// when the backend returned nothing (generation failed soft).
+function renderProse(section, body, prose) {
+  if (!section || !body) return;
+  const text = (prose || '').trim();
+  if (!text) {
+    section.classList.add('hidden');
+    body.innerHTML = '';
+    return;
+  }
+  const paras = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  body.innerHTML = paras.map((p) => `<p>${esc(p)}</p>`).join('');
+  section.classList.remove('hidden');
 }
 
 function getChargeClass(charge) {

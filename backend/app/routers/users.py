@@ -16,12 +16,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth import require_clerk_user
 from app.config import settings
 from app.database import get_db
-from app.models import AccountVerification, User
+from app.models import AccountVerification, User, UserCalibration
 from app.services import stripe_identity as stripe_identity_svc
 
 logger = logging.getLogger(__name__)
@@ -103,11 +104,13 @@ def setup_me(
         )
 
     candidate = payload.handle
+    # Case-insensitive uniqueness via lower() -- portable across Postgres
+    # (the SQLite "NOCASE" collation used pre-migration does not exist on PG).
     existing = (
         db.query(User)
         .filter(User.handle.is_not(None))
         .filter(User.id != user.id)
-        .filter(User.handle.collate("NOCASE") == candidate)
+        .filter(func.lower(User.handle) == candidate.lower())
         .first()
     )
     if existing:
@@ -122,6 +125,60 @@ def setup_me(
 
     logger.info("User %s completed onboarding with handle=%s", user.id, candidate)
     return _serialize(user)
+
+
+class CalibrationItemOut(BaseModel):
+    song_source: str
+    song_id: int
+    song_slug: Optional[str]
+    title: Optional[str]
+    artist: Optional[str]
+    rubric_color: Optional[str]
+    charge_value: Optional[int]
+    charge_summary: Optional[str]
+    calibrated_at: Optional[str]
+
+    model_config = {"from_attributes": True}
+
+
+class CalibrationsOut(BaseModel):
+    items: list[CalibrationItemOut]
+
+
+@router.get("/me/calibrations", response_model=CalibrationsOut)
+def get_my_calibrations(
+    limit: int = 100,
+    user: User = Depends(require_clerk_user),
+    db: Session = Depends(get_db),
+):
+    """The songs this user has run through Lyrical Charger while signed in.
+
+    One entry per distinct song, most recently calibrated first. Anonymous
+    runs aren't attributed, so they never appear here. Clerk token only --
+    the account page's authedFetch sends no X-Api-Key."""
+    limit = max(1, min(limit, 500))
+    rows = (
+        db.query(UserCalibration)
+        .filter(UserCalibration.user_id == user.id)
+        .order_by(UserCalibration.calibrated_at.desc())
+        .limit(limit)
+        .all()
+    )
+    items = [
+        CalibrationItemOut(
+            song_source=r.song_source,
+            song_id=r.song_id,
+            song_slug=r.song_slug,
+            title=r.title,
+            artist=r.artist,
+            rubric_color=r.rubric_color,
+            charge_value=r.charge_value,
+            charge_summary=r.charge_summary,
+            calibrated_at=r.calibrated_at.isoformat() if r.calibrated_at else None,
+        )
+        for r in rows
+    ]
+    return CalibrationsOut(items=items)
 
 
 class VerifyIdentityStartOut(BaseModel):
