@@ -20,11 +20,13 @@
 </head>
 <body>
 
-  <div class="crt-monitor">
-    <div class="crt-bezel">
-      <div class="crt-screen">
-        <div class="crt-scanlines"></div>
-        <div class="crt-content">
+  <!-- CRT monitor bezel — a fixed frame around the whole viewport, visual only -->
+  <div class="crt-frame" aria-hidden="true">
+    <div class="crt-controls">
+      <div class="crt-power-light"></div>
+      <span class="crt-brand">LYRICAL CHARGER</span>
+    </div>
+  </div>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -313,15 +315,6 @@
   <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
 </footer>
 <!-- /INCLUDE:footer -->
-
-        </div><!-- .crt-content -->
-      </div><!-- .crt-screen -->
-      <div class="crt-controls">
-        <div class="crt-power-light"></div>
-        <span class="crt-brand">LYRICAL CHARGER</span>
-      </div>
-    </div><!-- .crt-bezel -->
-  </div><!-- .crt-monitor -->
 
   <script src="/js/auth.js" defer></script>
   <script src="charger.js" defer></script>

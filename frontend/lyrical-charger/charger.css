@@ -57,34 +57,42 @@ body {
 }
 
 /* ============================================================
-   CRT MONITOR DEVICE FRAME
+   CRT MONITOR BEZEL — fixed frame around the whole viewport,
+   using the original bezel visuals. The body is padded by the
+   same ring thickness so content starts inside the frame rather
+   than being overlapped by it. Visual only.
    ============================================================ */
-
-.crt-monitor {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 2rem;
+body {
+  padding: 20px 20px 50px;
 }
 
-.crt-bezel {
-  background: linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 50%, #0f0f0f 100%);
+.crt-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  padding: 20px 20px 50px;   /* ring thickness, matches body padding */
   border-radius: 20px;
-  padding: 20px 20px 40px 20px;
+  background: linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 50%, #0f0f0f 100%);
   box-shadow:
-    0 10px 40px rgba(0, 0, 0, 0.8),
-    0 0 0 2px #333,
+    inset 0 0 0 2px #333,
     inset 0 2px 0 rgba(255, 255, 255, 0.1),
     inset 0 -2px 0 rgba(0, 0, 0, 0.3);
-  position: relative;
-  max-width: 700px;
-  width: 100%;
+  /* Punch out the center so only the bezel ring is painted; the
+     page content shows through the transparent middle. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+          mask-composite: exclude;
 }
 
 /* Bezel vent grilles */
-.crt-bezel::before,
-.crt-bezel::after {
+.crt-frame::before,
+.crt-frame::after {
   content: '';
   position: absolute;
   top: 50%;
@@ -100,89 +108,21 @@ body {
   );
   border-radius: 2px;
 }
+.crt-frame::before { left: 6px; }
+.crt-frame::after { right: 6px; }
 
-.crt-bezel::before { left: 6px; }
-.crt-bezel::after { right: 6px; }
-
-.crt-screen {
-  position: relative;
-  background: #000;
-  overflow: hidden;
-  border-radius: 4px;
-  box-shadow:
-    0 0 10px rgba(0, 212, 170, 0.15),
-    0 0 20px rgba(0, 212, 170, 0.08),
-    0 0 40px rgba(0, 212, 170, 0.04),
-    inset 0 0 80px rgba(0, 0, 0, 0.5);
-}
-
-/* Scanline overlay on screen */
-.crt-scanlines {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 100;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(0, 0, 0, 0.03) 0px,
-      rgba(0, 0, 0, 0.03) 1px,
-      transparent 1px,
-      transparent 2px
-    );
-  opacity: 0.6;
-}
-
-/* CRT curvature vignette on screen */
-.crt-screen::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.5) 100%);
-  pointer-events: none;
-  z-index: 99;
-}
-
-/* Phosphor edge glow */
-.crt-screen::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  box-shadow:
-    inset 0 0 60px rgba(0, 212, 170, 0.04),
-    inset 0 0 3px rgba(0, 212, 170, 0.08);
-  pointer-events: none;
-  z-index: 101;
-}
-
-/* Content area inside screen */
-.crt-content {
-  position: relative;
-  z-index: 1;
-  max-height: 80vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 212, 170, 0.2) transparent;
-}
-
-.crt-content::-webkit-scrollbar { width: 4px; }
-.crt-content::-webkit-scrollbar-track { background: transparent; }
-.crt-content::-webkit-scrollbar-thumb { background: rgba(0, 212, 170, 0.2); border-radius: 2px; }
-
-/* Bottom controls bar */
+/* Chin controls — fill the bottom bezel and center within it */
 .crt-controls {
   position: absolute;
-  bottom: 10px;
+  bottom: 0;
   left: 0;
   right: 0;
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 15px;
-  padding: 0 20px;
 }
-
 .crt-power-light {
   width: 8px;
   height: 8px;
@@ -190,7 +130,6 @@ body {
   background: var(--rc-accent);
   box-shadow: 0 0 6px var(--rc-accent), 0 0 12px var(--rc-accent-glow);
 }
-
 .crt-brand {
   font-family: var(--rc-font-mono);
   font-size: 10px;
@@ -198,24 +137,6 @@ body {
   letter-spacing: 0.2em;
   color: #555;
   text-transform: uppercase;
-}
-
-/* Slow sweep bar inside the screen */
-.crt-content::after {
-  content: '';
-  position: fixed;
-  left: 0;
-  right: 0;
-  height: 150px;
-  background: linear-gradient(to bottom, transparent, rgba(0, 212, 170, 0.012), transparent);
-  animation: crt-sweep 8s linear infinite;
-  pointer-events: none;
-  z-index: 50;
-}
-
-@keyframes crt-sweep {
-  0% { top: -150px; }
-  100% { top: 100%; }
 }
 
 /* ---- Focus states ---- */
@@ -234,35 +155,6 @@ main {
   max-width: 600px;
   margin: 0 auto;
   padding: 0 1.5rem;
-}
-
-/* Mobile: tighter bezel */
-@media (max-width: 520px) {
-  .crt-monitor {
-    padding: 0.5rem;
-  }
-
-  .crt-bezel {
-    border-radius: 12px;
-    padding: 12px 12px 32px 12px;
-  }
-
-  .crt-bezel::before,
-  .crt-bezel::after {
-    display: none;
-  }
-
-  .crt-controls {
-    bottom: 8px;
-  }
-
-  .crt-brand {
-    font-size: 8px;
-  }
-
-  .crt-content {
-    max-height: 85vh;
-  }
 }
 
 .screen {
@@ -1175,15 +1067,6 @@ main {
   justify-content: center;
 }
 
-/* ---- Scrollbar (page level) ---- */
-body {
-  scrollbar-width: none;
-  overflow: hidden;
-}
-
-body::-webkit-scrollbar {
-  display: none;
-}
 
 /* ---- Responsive ---- */
 @media (min-width: 640px) {
