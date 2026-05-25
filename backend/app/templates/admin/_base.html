@@ -354,10 +354,25 @@
 <div class="admin-panel visible" id="adminPanel">
 <div class="admin-shell">
 
-  <aside class="admin-sidebar" id="adminSidebar">
-    <div class="admin-sidebar-brand">Rising Compass</div>
-    {% set active = active_section|default('') %}
+  {% set active = active_section|default('') %}
+  {# Which front door is this admin section on? API Admin (api.risingcompass.net)
+     hosts only the API Monitor; everything else is Site Admin (root). The nav
+     manifest below is split accordingly -- same chrome, two sidebars. On prod
+     each host only serves its own section (host-gated in admin.py), so the
+     sidebar set always matches the host; locally both are reachable for
+     testing and the sidebar tracks whichever section you are viewing. #}
+  {% set api_admin_sections = ['api-monitor'] %}
+  {% set admin_section = 'api' if active in api_admin_sections else 'site' %}
 
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-brand">Rising Compass{% if admin_section == 'api' %} &middot; API{% endif %}</div>
+
+    {% if admin_section == 'api' %}
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">API</div>
+      <a class="admin-nav-item {% if active == 'api-monitor' %}active{% endif %}" href="/api/admin/dashboard/api-monitor">API Monitor</a>
+    </div>
+    {% else %}
     <div class="admin-nav-group">
       <div class="admin-nav-group-label">Readings</div>
       <a class="admin-nav-item {% if active == 'daily-songs' %}active{% endif %}" href="/api/admin/dashboard/daily-songs">Daily Songs</a>
@@ -392,9 +407,9 @@
       <div class="admin-nav-group-label">System</div>
       <a class="admin-nav-item {% if active == 'alerts' %}active{% endif %}" href="/api/admin/dashboard/alerts">Alerts</a>
       <a class="admin-nav-item {% if active == 'db' %}active{% endif %}" href="/api/admin/dashboard/db">DB</a>
-      <a class="admin-nav-item {% if active == 'api-monitor' %}active{% endif %}" href="/api/admin/dashboard/api-monitor">API Monitor</a>
       <a class="admin-nav-item {% if active == 'claude-usage' %}active{% endif %}" href="/api/admin/dashboard/claude-usage">Claude Usage</a>
     </div>
+    {% endif %}
   </aside>
 
   <main class="admin-main">

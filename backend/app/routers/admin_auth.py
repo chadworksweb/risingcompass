@@ -149,6 +149,7 @@ def login_submit(
         secure=_is_https(request),
         samesite="strict",
         path="/api/admin",
+        domain=settings.admin_cookie_domain or None,
     )
     auth_svc.record_attempt(
         db, username=user.username, ip=ip, user_agent=ua,
@@ -171,7 +172,11 @@ def logout(
         result = auth_svc.lookup_session(db, rc_admin_session)
         if result:
             auth_svc.revoke_session(db, result[0])
-    response.delete_cookie(key=auth_svc.SESSION_COOKIE_NAME, path="/api/admin")
+    response.delete_cookie(
+        key=auth_svc.SESSION_COOKIE_NAME,
+        path="/api/admin",
+        domain=settings.admin_cookie_domain or None,
+    )
     return {"status": "ok"}
 
 

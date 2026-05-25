@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # Anything other than this token returns 404, so port scanners hitting
     # /api/admin/login or similar don't find a form to submit.
     admin_login_url_token: str = ""
+    # Domain scope for the rc_admin_session cookie. In prod set to
+    # "risingcompass.net" so the one cookie is valid on both the root host
+    # and api.risingcompass.net (same-site subdomains), giving one shared
+    # admin login across the Site Admin (root) and API Admin (api.) sections.
+    # Leave unset locally so the cookie stays host-only on localhost.
+    admin_cookie_domain: str = ""
     # DigitalOcean Managed Postgres DSN, reached via the PgBouncer pool.
     # Form: postgresql+psycopg://USER:PASS@HOST:25061/rc-pool?sslmode=require
     # Local dev tunnels port 25061 through the droplet, so HOST is 127.0.0.1.

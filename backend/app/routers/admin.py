@@ -34,6 +34,35 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 verify_admin_key = require_admin_session
 
 
+# --- Host-based admin section gating -------------------------------------
+# One backend answers on two front doors: risingcompass.net (root) serves the
+# Site Admin section, api.risingcompass.net serves the API Admin section (only
+# API Monitor). The obscured admin pages 404 on the wrong host so neither
+# section's surface is discoverable from the other's domain. Localhost counts
+# as "dev" and is gated for neither, so both sections stay testable on one
+# local origin. The shared rc_admin_session cookie (Domain=risingcompass.net)
+# authenticates on both hosts.
+API_ADMIN_SECTIONS = {"api-monitor"}
+
+
+def _admin_host_kind(request: Request) -> str:
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    if host in ("localhost", "127.0.0.1", "0.0.0.0", ""):
+        return "dev"
+    return "api" if host.startswith("api.") else "site"
+
+
+def _gate_admin_section(request: Request, section: str) -> None:
+    """404 a site-admin section on the api host, and an api-admin section on
+    the root host. No-op on localhost (dev)."""
+    kind = _admin_host_kind(request)
+    if kind == "dev":
+        return
+    is_api = section in API_ADMIN_SECTIONS
+    if (kind == "api") != is_api:
+        raise HTTPException(status_code=404)
+
+
 def _find_compass_song(title: str, artist: str, db: Session) -> CompassSong | None:
     """Case-insensitive lookup of the most recent CompassSong by title + artist."""
     return (
@@ -45,16 +74,18 @@ def _find_compass_song(title: str, artist: str, db: Session) -> CompassSong | No
 
 
 @router.get("/dashboard")
-def admin_dashboard_root(admin=Depends(optional_admin_session)):
+def admin_dashboard_root(request: Request, admin=Depends(optional_admin_session)):
     """Redirect to the default landing section, or 404 when unauthed.
 
     Unauthed callers get a flat 404 — no redirect, no Location header
     pointing at the obscured login URL — so port scanners hitting
-    /api/admin/* learn nothing about admin existence.
+    /api/admin/* learn nothing about admin existence. The landing section
+    depends on the host: API Monitor on the api host, the DB explorer on root.
     """
     if admin is None:
         raise HTTPException(status_code=404)
-    return RedirectResponse(url="/api/admin/dashboard/db", status_code=307)
+    landing = "api-monitor" if _admin_host_kind(request) == "api" else "db"
+    return RedirectResponse(url=f"/api/admin/dashboard/{landing}", status_code=307)
 
 
 _ADMIN_SECTIONS = {
@@ -88,6 +119,7 @@ def admin_dashboard_section(
     template_name = _ADMIN_SECTIONS.get(section)
     if not template_name:
         raise HTTPException(status_code=404, detail="Unknown admin section")
+    _gate_admin_section(request, section)
     return templates.TemplateResponse(request=request, name=template_name)
 
 
@@ -99,6 +131,7 @@ def recalibrate_dashboard(
     """Serve the recalibrate suite admin UI. Returns 404 to unauthed callers."""
     if admin is None:
         raise HTTPException(status_code=404)
+    _gate_admin_section(request, "recalibrate")
     return templates.TemplateResponse(request=request, name="recalibrate.html")
 
 
@@ -110,6 +143,7 @@ def ether_audits_dashboard(
     """Serve the Ether Audits triage UI. Returns 404 to unauthed callers."""
     if admin is None:
         raise HTTPException(status_code=404)
+    _gate_admin_section(request, "ether-audits")
     from app.services.ether_taxonomy import VALID_SLUGS
     return templates.TemplateResponse(
         request=request,
@@ -126,6 +160,7 @@ def backfill_console(
     """Serve the Backfill Console UI. Returns 404 to unauthed callers."""
     if admin is None:
         raise HTTPException(status_code=404)
+    _gate_admin_section(request, "backfill")
     return templates.TemplateResponse(request=request, name="backfill_console.html")
 
 
@@ -141,6 +176,7 @@ def admin_user_detail(
     public-facing identifier; numeric PKs stay server-internal."""
     if admin is None:
         raise HTTPException(status_code=404)
+    _gate_admin_section(request, "users")
     return templates.TemplateResponse(
         request=request,
         name="admin/user_detail.html",

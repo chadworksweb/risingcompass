@@ -20,6 +20,9 @@ services:
       - RC_READING_CRON_KEY=${RC_READING_CRON_KEY}
       - RC_LYRICS_SUPPLY_KEY=${RC_LYRICS_SUPPLY_KEY}
       - ADMIN_LOGIN_URL_TOKEN=${ADMIN_LOGIN_URL_TOKEN}
+      # Cookie Domain for the admin session so one login covers both the root
+      # (Site Admin) and api. (API Admin) hosts -- same-site subdomains.
+      - ADMIN_COOKIE_DOMAIN=${ADMIN_COOKIE_DOMAIN:-risingcompass.net}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/rising_compass.db}
       - BACKUP_DATABASE_URL=${BACKUP_DATABASE_URL}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
@@ -30,7 +33,10 @@ services:
       - EMAIL_FROM=${EMAIL_FROM:-Rising Compass <compass@risingcompass.net>}
       - APPROVAL_EMAIL=${APPROVAL_EMAIL}
       - MISREAD_NOTIFY_EMAIL=${MISREAD_NOTIFY_EMAIL}
-      - SITE_URL=${SITE_URL:-https://api.risingcompass.net}
+      # Root host: admin links in emails (ether-audits, lobby-mod, draft
+      # approval) must point at risingcompass.net, where the Site Admin lives
+      # post single-origin migration -- those pages 404 on the api host.
+      - SITE_URL=${SITE_URL:-https://risingcompass.net}
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
       - TURNSTILE_SECRET=${TURNSTILE_SECRET}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
