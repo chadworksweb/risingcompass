@@ -28,9 +28,13 @@
   .cu-section-title .legend .chip { display: inline-flex; align-items: center; gap: 0.3rem; }
   .cu-section-title .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
-  /* Daily stacked chart */
-  .cu-daily { display: flex; align-items: flex-end; gap: 6px; min-height: 220px; padding: 1.8rem 0.8rem 0.6rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; overflow-x: auto; }
-  .cu-daily-col { display: flex; flex-direction: column; align-items: center; min-width: 38px; }
+  /* Daily stacked chart. Fixed-height plot so the percentage bar heights
+     resolve against a real box (the column stretches to the chart height and
+     the plot band is flex:1 — without that the % collapses to min-height and
+     every bar renders as a flat sliver). */
+  .cu-daily { display: flex; align-items: stretch; gap: 6px; height: 240px; padding: 1.8rem 0.8rem 0.6rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; overflow-x: auto; }
+  .cu-daily-col { display: flex; flex-direction: column; align-items: center; min-width: 38px; height: 100%; }
+  .cu-daily-plot { flex: 1 1 auto; width: 100%; min-height: 0; display: flex; align-items: flex-end; justify-content: center; }
   .cu-daily-stack { width: 26px; display: flex; flex-direction: column-reverse; position: relative; min-height: 2px; }
   .cu-daily-seg { width: 100%; min-height: 1px; }
   .cu-daily-seg:last-child { border-top-left-radius: 2px; border-top-right-radius: 2px; }
@@ -276,10 +280,17 @@ function cuRenderDaily(daily, dailyBySite, bySite) {
       })
       .join('');
     const dayTip = `${day} · ${cuFmtUsd(cell.total)} · ${cell.calls} calls`;
+    // Non-zero days get a visible minimum (4%) so a small-but-real spend day
+    // still reads as a bar; zero days collapse to a 2px baseline sliver.
+    const stackStyle = cell.total > 0
+      ? `height:${Math.max(4, stackHeightPct)}%;`
+      : 'height:2px;';
     return `<div class="cu-daily-col">
-      <div class="cu-daily-stack" style="height:${Math.max(2, stackHeightPct)}%;" title="${escHtml(dayTip)}">
-        <div class="cu-daily-cost">${cuFmtUsd(cell.total)}</div>
-        ${segs || `<div class="cu-daily-seg" style="height:100%;background:var(--panel-strong);"></div>`}
+      <div class="cu-daily-plot">
+        <div class="cu-daily-stack" style="${stackStyle}" title="${escHtml(dayTip)}">
+          <div class="cu-daily-cost">${cuFmtUsd(cell.total)}</div>
+          ${segs || `<div class="cu-daily-seg" style="height:100%;background:var(--panel-strong);"></div>`}
+        </div>
       </div>
       <div class="cu-daily-label">${escHtml(day.slice(5))}</div>
     </div>`;

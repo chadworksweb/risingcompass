@@ -44,18 +44,6 @@ class ReadingSongOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ReadingSongIn(BaseModel):
-    title: str = Field(..., max_length=300)
-    artist: str = Field(..., max_length=300)
-    position: int
-    rubric_color: str = Field(..., max_length=20)
-    charge_value: Optional[int] = None
-    contaminated: bool = False
-    contamination_note: Optional[str] = Field(None, max_length=1000)
-    charge_summary: Optional[str] = Field(None, max_length=2000)
-    chart_source: str = Field("spotify", max_length=50)
-
-
 # --- Daily Readings ---
 class DailyReadingOut(BaseModel):
     id: int
@@ -90,17 +78,6 @@ class DailyReadingSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ReadingCreate(BaseModel):
-    date: datetime.date
-    editorial_summary: Optional[str] = None
-    songs: list[ReadingSongIn]
-
-
-class ReadingUpdate(BaseModel):
-    editorial_summary: Optional[str] = None
-    songs: Optional[list[ReadingSongIn]] = None
-
-
 # --- Weekly Album Readings ---
 class WeeklyAlbumEntryOut(BaseModel):
     id: int
@@ -115,17 +92,6 @@ class WeeklyAlbumEntryOut(BaseModel):
     artist_slug: Optional[str] = None
 
     model_config = {"from_attributes": True}
-
-
-class WeeklyAlbumEntryIn(BaseModel):
-    title: str
-    artist: str
-    position: int
-    rubric_color: str
-    contaminated: bool = False
-    contamination_note: Optional[str] = None
-    charge_summary: Optional[str] = None
-    chart_source: str = "billboard_200"
 
 
 class WeeklyAlbumReadingOut(BaseModel):
@@ -150,16 +116,6 @@ class WeeklyAlbumReadingSummary(BaseModel):
 
     model_config = {"from_attributes": True}
 
-
-class WeeklyAlbumReadingCreate(BaseModel):
-    week_date: datetime.date
-    editorial_summary: Optional[str] = None
-    albums: list[WeeklyAlbumEntryIn]
-
-
-class WeeklyAlbumReadingUpdate(BaseModel):
-    editorial_summary: Optional[str] = None
-    albums: Optional[list[WeeklyAlbumEntryIn]] = None
 
 
 # --- Compass Current ---

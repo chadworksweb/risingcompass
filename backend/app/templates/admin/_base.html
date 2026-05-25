@@ -28,7 +28,7 @@
   h1 { color: var(--accent); margin-bottom: 1rem; font-size: 1.5rem; }
 
   /* ---- Sidebar shell ---- */
-  :root { --sidebar-w: 220px; }
+  :root { --sidebar-w: 220px; --sidebar-rail: 48px; }
   .admin-shell { display: flex; min-height: 100vh; }
   .admin-sidebar {
     width: var(--sidebar-w);
@@ -81,6 +81,9 @@
     border-left-color: var(--accent);
     font-weight: 600;
   }
+  /* Cross-host jump to the other admin section (root <-> api.) */
+  .admin-nav-cross { color: var(--text-hint); font-size: 0.82rem; }
+  .admin-nav-cross:hover { color: var(--accent); }
   .admin-main {
     flex: 1;
     min-width: 0;
@@ -137,13 +140,19 @@
   .sidebar-toggle:hover { background: var(--panel-strong); color: var(--text); }
   .sidebar-toggle svg { display: block; }
 
-  /* Collapsed state */
+  /* Collapsed state — shrink to a thin full-height rail (not off-screen) so
+     it stays visible that the menu is there, just folded. The toggle sits in
+     the rail. Width animates via the .admin-sidebar transition. */
   body.sidebar-collapsed .admin-sidebar {
-    transform: translateX(calc(-1 * var(--sidebar-w)));
-    width: 0;
-    border-right: none;
+    width: var(--sidebar-rail);
+    overflow: hidden;
   }
-  body.sidebar-collapsed .admin-main { padding-left: 3.2rem; }
+  body.sidebar-collapsed .admin-sidebar-brand,
+  body.sidebar-collapsed .admin-nav-group {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
 
   @media (max-width: 800px) {
     .admin-sidebar {
@@ -151,9 +160,14 @@
       z-index: 1000;
       box-shadow: 4px 0 12px rgba(0,0,0,0.08);
     }
-    .admin-main { padding: 1rem; padding-top: 3rem; }
-    /* On mobile, default to collapsed; user reveals on demand. */
-    body:not(.sidebar-open) .admin-sidebar { transform: translateX(calc(-1 * var(--sidebar-w))); }
+    /* Leave room for the rail; the open drawer overlays content on top. */
+    .admin-main { padding: 1rem; padding-top: 3rem; padding-left: calc(var(--sidebar-rail) + 0.8rem); }
+    /* Closed = the same full-height rail as desktop-collapsed (not off-screen);
+       the user taps it to reveal the full drawer. */
+    body:not(.sidebar-open) .admin-sidebar { width: var(--sidebar-rail); overflow: hidden; }
+    body:not(.sidebar-open) .admin-sidebar-brand,
+    body:not(.sidebar-open) .admin-nav-group { opacity: 0; pointer-events: none; }
+    body.sidebar-open .admin-sidebar { width: var(--sidebar-w); }
   }
 
   .form-group { margin-bottom: 1rem; }
@@ -363,6 +377,14 @@
      testing and the sidebar tracks whichever section you are viewing. #}
   {% set api_admin_sections = ['api-monitor'] %}
   {% set admin_section = 'api' if active in api_admin_sections else 'site' %}
+  {# Cross-host quick links between the two admin sections. On localhost both
+     sections live on one origin (relative); on prod they are on different
+     hosts (root <-> api.), so link absolutely. #}
+  {% set _host = request.url.hostname if request else '' %}
+  {% set _apex = _host[4:] if _host.startswith('api.') else _host %}
+  {% set _is_dev = _host in ['localhost', '127.0.0.1', ''] %}
+  {% set api_admin_url = '/api/admin/dashboard/api-monitor' if _is_dev else 'https://api.' ~ _apex ~ '/api/admin/dashboard/api-monitor' %}
+  {% set site_admin_url = '/api/admin/dashboard/db' if _is_dev else 'https://' ~ _apex ~ '/api/admin/dashboard/db' %}
 
   <aside class="admin-sidebar" id="adminSidebar">
     <div class="admin-sidebar-brand">Rising Compass{% if admin_section == 'api' %} &middot; API{% endif %}</div>
@@ -372,13 +394,12 @@
       <div class="admin-nav-group-label">API</div>
       <a class="admin-nav-item {% if active == 'api-monitor' %}active{% endif %}" href="/api/admin/dashboard/api-monitor">API Monitor</a>
     </div>
-    {% else %}
-    <div class="admin-nav-group">
-      <div class="admin-nav-group-label">Readings</div>
-      <a class="admin-nav-item {% if active == 'daily-songs' %}active{% endif %}" href="/api/admin/dashboard/daily-songs">Daily Songs</a>
-      <a class="admin-nav-item {% if active == 'weekly-albums' %}active{% endif %}" href="/api/admin/dashboard/weekly-albums">Weekly Albums</a>
-    </div>
 
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Site</div>
+      <a class="admin-nav-item admin-nav-cross" href="{{ site_admin_url }}">Site Admin &#8599;</a>
+    </div>
+    {% else %}
     <div class="admin-nav-group">
       <div class="admin-nav-group-label">Calibration</div>
       <a class="admin-nav-item {% if active == 'recalibrate' %}active{% endif %}" href="/api/admin/recalibrate">Recalibrate</a>
@@ -409,6 +430,11 @@
       <a class="admin-nav-item {% if active == 'db' %}active{% endif %}" href="/api/admin/dashboard/db">DB</a>
       <a class="admin-nav-item {% if active == 'claude-usage' %}active{% endif %}" href="/api/admin/dashboard/claude-usage">Claude Usage</a>
     </div>
+
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">API Admin</div>
+      <a class="admin-nav-item admin-nav-cross" href="{{ api_admin_url }}">API Monitor &#8599;</a>
+    </div>
     {% endif %}
   </aside>
 
@@ -419,8 +445,6 @@
        the active_section key is missing. #}
     {% set section_titles = {
       'db': 'Database',
-      'daily-songs': 'Daily Songs',
-      'weekly-albums': 'Weekly Albums',
       'misread': 'Misread Reports',
       'lobby-mod': 'Moderation',
       'artist-verified': 'Artist Verified',
