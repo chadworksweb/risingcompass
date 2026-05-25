@@ -2,8 +2,14 @@
 
 ## Structure
 
-- `backend/` — Python FastAPI app (api.risingcompass.net)
-- `frontend/` — static HTML/JS (risingcompass.net)
+- `backend/` — Python FastAPI app. One container, two front doors (single-origin
+  migration 2026-05-25): `risingcompass.net` (root) serves the public site,
+  first-party `/api/*`, and the Site Admin section; `api.risingcompass.net`
+  serves the machine API for external clients (key auth) and the API Admin
+  section (API Monitor only). Same backend, host-gated per section.
+- `frontend/` — static HTML/JS (risingcompass.net). Calls the API with a
+  RELATIVE base (`''`), i.e. same-origin `/api/*`. nginx on root proxies
+  `/api/` and `/rc-admin-` to the backend.
 
 ## Deploy
 
@@ -24,7 +30,11 @@ Script auto-detects what changed (backend vs frontend):
 ## Local Dev
 
 - Backend: `cd backend && .venv\Scripts\uvicorn app.main:app --port 8000`
-- Frontend: `cd frontend && python -m http.server 3005`
+- Frontend: `cd frontend && python scripts/dev_server.py --port 3005`
+  (NOT `python -m http.server` — the frontend uses a relative API base, so it
+  needs dev_server.py's reverse proxy that forwards `/api/*` and `/rc-admin-*`
+  to the backend on :8000, mirroring prod's single origin. Plain http.server
+  404s every API call.)
 - Backend does NOT auto-reload — kill and restart uvicorn after code changes
 
 ## Database
@@ -72,11 +82,23 @@ Multi-user admin login (added 2026-04-25). The single shared `RC_ADMIN_KEY`
 header is gone — every admin endpoint authenticates via the
 `rc_admin_session` HttpOnly cookie minted by the obscured login URL.
 
-**Login URL:** `https://api.risingcompass.net/rc-admin-{ADMIN_LOGIN_URL_TOKEN}`
+**Login URL:** `https://risingcompass.net/rc-admin-{ADMIN_LOGIN_URL_TOKEN}`
 (GET serves the form, POST authenticates; any other token returns 404).
-Successful login redirects to `/api/admin/dashboard`. Unauthed
-`/api/admin/*` GETs return 404; mutating endpoints return 401. Bookmark
-the login URL — it isn't linked from anywhere.
+Moved to the ROOT host in the single-origin migration (2026-05-25); the api
+host now 404s `/rc-admin-*` at nginx. Successful login redirects to
+`/api/admin/dashboard`. Unauthed `/api/admin/*` GETs return 404; mutating
+endpoints return 401. Bookmark the login URL — it isn't linked from anywhere.
+
+**Two-host admin split (2026-05-25):** the session cookie is set with
+`Domain=risingcompass.net` (env `ADMIN_COOKIE_DOMAIN`, defaulted in
+docker-compose), so one login covers both hosts (root + api. are same-site
+subdomains). Site Admin pages (everything but API Monitor) live on root and
+404 on the api host; API Monitor lives on the api host and 404s on root
+(host-gating in `routers/admin.py:_gate_admin_section`). `/api/admin/dashboard`
+lands on `db` on root, `api-monitor` on api. Localhost is ungated (both
+sections reachable for local testing). `SITE_URL=https://risingcompass.net`
+so admin links in emails (ether-audits, lobby-mod, draft approval) resolve to
+the Site Admin host.
 
 **Required env (both local and prod):**
 - `ADMIN_LOGIN_URL_TOKEN=<6+ char string>` — the prefix in the login URL
@@ -183,10 +205,12 @@ dashboard configs).
 - `ADMIN_ALERT_EMAIL`
 
 **Local dev:** Frontend served via `python scripts/dev_server.py
---port 3005` (handles nginx-style `/songs/<slug>` rewrites). Backend
-on :8000. Stripe CLI listener: `stripe listen --forward-to
-http://localhost:8000/api/stripe-identity-webhook --events
-"identity.verification_session.*"`.
+--port 3005` (handles nginx-style `/songs/<slug>` rewrites AND reverse-proxies
+`/api/*` + `/rc-admin-*` to :8000, so the relative API base + admin login work
+locally like prod). Backend on :8000. Stripe CLI listener: `stripe listen
+--forward-to http://localhost:8000/api/stripe-identity-webhook` (do NOT pass
+`--events "identity.verification_session.*"` — that filter is invalid and
+forwards nothing; omit it or use a valid comma-separated event list).
 
 ### Deliberation venue aesthetic
 
