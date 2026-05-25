@@ -487,6 +487,116 @@
     return true;
   }
 
+  // ---------- admin lifecycle (resolve the motion in place) ----------
+  // Shown only when an rc_admin_session cookie authenticates -- same-origin
+  // since the single-origin migration, so the cookie reaches the Chamber.
+  // Lets the admin advance/resolve a motion straight from the Chamber instead
+  // of the dashboard queue. Independent of the Clerk (Tier 2) posting gate.
+
+  async function isAdmin() {
+    try {
+      const r = await fetch(`${API_HOST}/api/admin/auth/me`, {
+        credentials: 'include', cache: 'no-store',
+      });
+      return r.ok;
+    } catch (_) { return false; }
+  }
+
+  function setAdminStatus(msg, type) {
+    const el = $('adminStatus');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = `dc-admin-status${type ? ' ' + type : ''}`;
+  }
+
+  const LIFECYCLE_VERB = {
+    'move-to-deliberation': 'move to deliberation',
+    ratify: 'ratify',
+    covered: 'mark covered',
+    reject: 'reject',
+  };
+
+  function renderAdminPanel() {
+    const panel = $('adminPanel');
+    const m = state.motion;
+    if (!panel || !m) return;
+    if (m.status === 'filed') {
+      panel.hidden = false;
+      panel.innerHTML = `
+        <p class="dc-admin-label">Admin &middot; lifecycle</p>
+        <p class="dc-admin-note">Filed queue. Open the Chamber by moving it into deliberation, or reject it now with a public summary.</p>
+        <div class="dc-admin-actions">
+          <button class="dc-admin-btn move" data-action="move-to-deliberation" type="button">Move to deliberation</button>
+        </div>
+        <textarea class="dc-admin-resolution" id="adminResolution" rows="3" maxlength="4000" placeholder="Resolution summary (10+ chars) -- required to reject."></textarea>
+        <div class="dc-admin-actions">
+          <button class="dc-admin-btn danger" data-action="reject" type="button">Reject</button>
+        </div>
+        <p class="dc-admin-status" id="adminStatus" aria-live="polite"></p>`;
+    } else if (m.status === 'in_deliberation') {
+      panel.hidden = false;
+      panel.innerHTML = `
+        <p class="dc-admin-label">Admin &middot; resolve this motion</p>
+        <p class="dc-admin-note">Closing the Chamber. The summary is published as the public resolution on the record.</p>
+        <textarea class="dc-admin-resolution" id="adminResolution" rows="3" maxlength="4000" placeholder="Resolution summary (10+ chars) -- shown publicly as the outcome."></textarea>
+        <div class="dc-admin-actions">
+          <button class="dc-admin-btn ratify" data-action="ratify" type="button">Ratify</button>
+          <button class="dc-admin-btn covered" data-action="covered" type="button">Covered</button>
+          <button class="dc-admin-btn danger" data-action="reject" type="button">Reject</button>
+        </div>
+        <p class="dc-admin-status" id="adminStatus" aria-live="polite"></p>`;
+    } else {
+      // Already resolved -- the resolution banner above shows the outcome.
+      panel.hidden = true;
+      return;
+    }
+    panel.querySelectorAll('.dc-admin-btn').forEach((b) => {
+      b.addEventListener('click', () => runLifecycle(b.dataset.action));
+    });
+  }
+
+  async function runLifecycle(action) {
+    const needsSummary = action !== 'move-to-deliberation';
+    let summary = '';
+    if (needsSummary) {
+      summary = ($('adminResolution').value || '').trim();
+      if (summary.length < 10) {
+        setAdminStatus('Resolution summary must be at least 10 characters.', 'error');
+        return;
+      }
+    }
+    if (!window.confirm(`Confirm: ${LIFECYCLE_VERB[action]} motion #${state.motionId}? This is on the public record.`)) return;
+
+    const buttons = $('adminPanel').querySelectorAll('.dc-admin-btn');
+    buttons.forEach((b) => { b.disabled = true; });
+    setAdminStatus('Working...');
+    try {
+      const resp = await fetch(`${API_HOST}/api/admin/motions/${state.motionId}/${action}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: needsSummary ? JSON.stringify({ resolution_summary: summary }) : null,
+      });
+      const out = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        if (resp.status === 401) throw new Error('Admin session expired -- sign in again at the admin login URL.');
+        throw new Error(pickErrorMessage(out, `Action failed (${resp.status})`));
+      }
+      // Status changed: re-pull the motion and re-render header, banner,
+      // admin panel, and the public posting gate.
+      state.motion = await loadMotion();
+      renderMotionHeader(state.motion);
+      renderResolutionBanner(state.motion);
+      renderAdminPanel();
+      let me = null;
+      try { me = await window.Auth.getMe({ force: true }); } catch (_) {}
+      applyAuthAndStatus(me);
+    } catch (err) {
+      setAdminStatus(err.message || String(err), 'error');
+      buttons.forEach((b) => { b.disabled = false; });
+    }
+  }
+
   // ---------- boot ----------
 
   async function boot() {
@@ -512,6 +622,10 @@
     state.motion = m;
     renderMotionHeader(m);
     renderResolutionBanner(m);
+
+    // Admin lifecycle controls, gated by the admin session cookie. Runs
+    // independently of (and in parallel with) the Clerk posting gate below.
+    isAdmin().then((ok) => { if (ok) renderAdminPanel(); }).catch(() => {});
 
     try {
       state.args = await loadArguments();

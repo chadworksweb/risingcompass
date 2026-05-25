@@ -518,3 +518,83 @@
   border-bottom: 1px solid var(--md-rule-soft);
 }
 .dc-footer a:hover { border-bottom-color: var(--md-gold); }
+
+/* ---------- admin lifecycle panel (cookie-gated) ---------- */
+
+.dc-admin-panel {
+  background: var(--md-bg-soft);
+  border: 1px solid var(--md-gold);
+  border-left: 4px solid var(--md-gold);
+  border-radius: 6px;
+  padding: 18px 22px;
+  margin-bottom: 28px;
+}
+.dc-admin-panel[hidden] { display: none; }
+.dc-admin-label {
+  font-family: var(--md-font-chrome);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--md-gold);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.dc-admin-note {
+  font-size: 0.92rem;
+  color: var(--md-ink-dim);
+  margin: 0 0 12px;
+}
+.dc-admin-resolution {
+  width: 100%;
+  font-family: 'Cardo', Georgia, serif;
+  font-size: 1rem;
+  background: var(--md-bg-input);
+  border: 1px solid var(--md-rule);
+  border-radius: 3px;
+  padding: 10px 12px;
+  color: var(--md-ink);
+  resize: vertical;
+  min-height: 70px;
+  margin-bottom: 12px;
+}
+.dc-admin-resolution:focus {
+  outline: none;
+  border-color: var(--md-gold);
+  box-shadow: 0 0 0 2px rgba(160, 122, 42, 0.18);
+}
+.dc-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.dc-admin-btn {
+  font-family: var(--md-font-chrome);
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: none;
+  border: 1px solid var(--md-rule);
+  border-radius: 3px;
+  color: var(--md-ink-bright);
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dc-admin-btn:hover:not(:disabled) { background: var(--md-ink-bright); color: var(--md-bg); }
+.dc-admin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dc-admin-btn.ratify { border-color: var(--md-status-ratified); color: var(--md-status-ratified); }
+.dc-admin-btn.ratify:hover:not(:disabled) { background: var(--md-status-ratified); color: var(--md-bg); }
+.dc-admin-btn.covered { border-color: var(--md-status-covered); color: var(--md-status-covered); }
+.dc-admin-btn.covered:hover:not(:disabled) { background: var(--md-status-covered); color: var(--md-bg); }
+.dc-admin-btn.danger { border-color: var(--md-status-rejected); color: var(--md-status-rejected); }
+.dc-admin-btn.danger:hover:not(:disabled) { background: var(--md-status-rejected); color: var(--md-bg); }
+.dc-admin-status {
+  font-family: var(--md-font-chrome);
+  font-size: 0.85rem;
+  margin: 4px 0 0;
+  color: var(--md-ink-dim);
+}
+.dc-admin-status.error { color: var(--md-status-rejected); }
+.dc-admin-status.success { color: var(--md-status-ratified); }
