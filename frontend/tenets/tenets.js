@@ -7,9 +7,7 @@
 
   // ─── API config ─────────────────────────────────────────────────
   const IS_LOCAL = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  const API_HOST = IS_LOCAL
-    ? `http://${window.location.hostname}:8000`
-    : 'https://api.risingcompass.net';
+  const API_HOST = '';  // same-origin relative; dev_server proxies /api -> :8000 locally
   const API_KEY = IS_LOCAL
     ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
     : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';

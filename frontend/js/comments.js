@@ -25,9 +25,7 @@
 
 const Comments = (() => {
   const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  const API_BASE = isLocal
-    ? `http://${window.location.hostname}:8000`
-    : 'https://api.risingcompass.net';
+  const API_BASE = '';  // same-origin relative; dev_server proxies /api -> :8000 locally
 
   const SORT_OPTIONS = [
     { value: 'new', label: 'New' },

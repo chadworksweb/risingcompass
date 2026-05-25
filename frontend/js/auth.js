@@ -24,9 +24,7 @@ const Auth = (() => {
 
   const PK = isLocal ? PK_TEST : (PK_LIVE || PK_TEST);
 
-  const API_BASE = isLocal
-    ? `http://${window.location.hostname}:8000`
-    : 'https://api.risingcompass.net';
+  const API_BASE = '';  // same-origin relative; dev_server proxies /api -> :8000 locally
 
   let clerk = null;
   let loadPromise = null;

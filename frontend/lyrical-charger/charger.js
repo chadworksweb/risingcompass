@@ -4,9 +4,7 @@
 
 // --- Config ---
 const IS_LOCAL = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const API_HOST = IS_LOCAL
-  ? `http://${window.location.hostname}:8000`
-  : 'https://api.risingcompass.net';
+const API_HOST = '';  // same-origin relative; dev_server proxies /api -> :8000 locally
 const API_BASE = `${API_HOST}/api/analyzer`;
 const API_KEY = IS_LOCAL
   ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'

@@ -2,9 +2,7 @@
 
 const API = (() => {
   const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  const BASE = isLocal
-    ? `http://${window.location.hostname}:8000`
-    : 'https://api.risingcompass.net';
+  const BASE = '';  // same-origin relative; dev_server proxies /api -> :8000 locally
 
   const API_KEY = isLocal
     ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'

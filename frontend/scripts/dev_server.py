@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
-"""Local dev server with the same clean-URL rewrites nginx does on prod.
+"""Local dev server: clean-URL rewrites + an API reverse proxy.
 
 Plain `python -m http.server 3005` serves the static frontend fine, but
 404s on `/songs/<slug>`, `/artists/<slug>`, etc -- prod nginx silently
-rewrites those to the canonical HTML file. This wrapper mirrors that
-behavior so links you copy out of prod work locally too.
+rewrites those to the canonical HTML file. It also can't reach the backend.
+
+This wrapper mirrors prod's single-origin shape:
+  * clean-URL rewrites (/songs/<slug> -> /songs/song.html, etc), and
+  * a reverse proxy: any request to /api/... or /rc-admin-... is forwarded
+    to the backend at http://127.0.0.1:8000.
+
+Because the frontend now uses a RELATIVE API base ('' -> same origin), the
+backend MUST be reached through this proxy -- `python -m http.server` will
+404 every /api/ call. Always launch the frontend with this script.
 
 Usage:
   cd frontend
   python scripts/dev_server.py            # default port 3005
   python scripts/dev_server.py --port 4005
+  python scripts/dev_server.py --backend http://127.0.0.1:9000
 
 Rewrite rules (path -> served file, only when the path does not match a
 real file or directory):
@@ -23,12 +32,24 @@ import argparse
 import os
 import re
 import sys
-from http import HTTPStatus
+import urllib.error
+import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent  # the frontend/ directory
+
+# Backend origin the proxy forwards to. Overridable with --backend.
+BACKEND = "http://127.0.0.1:8000"
+
+# Path prefixes proxied to the backend. Mirrors the nginx root-block
+# `location /api/` and `location ~ ^/rc-admin-` rules on prod.
+PROXY_PREFIXES = ("/api/", "/rc-admin-")
+
+# Request/response headers that must not be copied verbatim through a proxy.
+_HOP_BY_HOP_REQ = {"host", "content-length", "connection", "accept-encoding", "keep-alive"}
+_HOP_BY_HOP_RESP = {"transfer-encoding", "connection", "content-encoding", "content-length", "keep-alive"}
 
 
 # (regex, served-file) pairs. First match wins. Slugs are any
@@ -41,6 +62,18 @@ REWRITES: list[tuple[re.Pattern, str]] = [
 ]
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Stop urllib from following 3xx server-side -- the browser must see the
+    redirect (e.g. /api/admin/dashboard -> /dashboard/db) so the address bar
+    and same-origin cookie semantics match prod."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_opener = urllib.request.build_opener(_NoRedirect)
+
+
 def _resolve_against_disk(path: str) -> Path:
     """Map a URL path to a candidate filesystem path. Used to decide whether
     a request should hit a real file or fall through to a rewrite."""
@@ -49,17 +82,87 @@ def _resolve_against_disk(path: str) -> Path:
     return (ROOT / rel).resolve()
 
 
+def _should_proxy(path: str) -> bool:
+    return any(path.startswith(p) for p in PROXY_PREFIXES)
+
+
 class RewritingHandler(SimpleHTTPRequestHandler):
     # Serve from the frontend/ directory regardless of where the script
     # was launched from.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    # --- Static (GET/HEAD) ------------------------------------------------
     def do_GET(self):  # noqa: N802 -- http.server contract
+        if _should_proxy(urlsplit(self.path).path):
+            return self._proxy()
         rewritten = self._maybe_rewrite()
         if rewritten is not None:
             self.path = rewritten
         return super().do_GET()
+
+    def do_HEAD(self):  # noqa: N802
+        if _should_proxy(urlsplit(self.path).path):
+            return self._proxy()
+        rewritten = self._maybe_rewrite()
+        if rewritten is not None:
+            self.path = rewritten
+        return super().do_HEAD()
+
+    # --- Proxied verbs ----------------------------------------------------
+    def do_POST(self):  # noqa: N802
+        return self._proxy_or_405()
+
+    def do_PUT(self):  # noqa: N802
+        return self._proxy_or_405()
+
+    def do_PATCH(self):  # noqa: N802
+        return self._proxy_or_405()
+
+    def do_DELETE(self):  # noqa: N802
+        return self._proxy_or_405()
+
+    def _proxy_or_405(self):
+        if _should_proxy(urlsplit(self.path).path):
+            return self._proxy()
+        self.send_error(405, "Method Not Allowed")
+
+    def _proxy(self):
+        """Forward the current request to the backend and relay the response,
+        preserving status, Set-Cookie, and body. Redirects are passed through
+        (not followed) so the browser handles them."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self.rfile.read(length) if length else None
+
+        fwd_headers = {
+            k: v for k, v in self.headers.items()
+            if k.lower() not in _HOP_BY_HOP_REQ
+        }
+        target = BACKEND + self.path
+        req = urllib.request.Request(
+            target, data=body, method=self.command, headers=fwd_headers,
+        )
+
+        try:
+            resp = _opener.open(req, timeout=1800)
+            status, resp_headers, resp_body = resp.status, resp.getheaders(), resp.read()
+            resp.close()
+        except urllib.error.HTTPError as e:
+            # Non-2xx (incl. 3xx with redirects disabled, 4xx, 5xx). Relay it.
+            status, resp_headers, resp_body = e.code, list(e.headers.items()), e.read()
+        except Exception as e:  # noqa: BLE001 -- surface as 502 to the browser
+            self.send_error(502, f"proxy error: {e}")
+            return
+
+        self.send_response(status)
+        for k, v in resp_headers:
+            if k.lower() in _HOP_BY_HOP_RESP:
+                continue
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(resp_body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(resp_body)
 
     def _maybe_rewrite(self) -> str | None:
         url = urlsplit(self.path)
@@ -83,15 +186,21 @@ class RewritingHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> int:
+    global BACKEND
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=3005)
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--backend", default=BACKEND,
+                    help="backend origin proxied for /api and /rc-admin- (default %(default)s)")
     args = ap.parse_args()
+
+    BACKEND = args.backend.rstrip("/")
 
     os.chdir(ROOT)
     server = ThreadingHTTPServer((args.host, args.port), RewritingHandler)
     print(f"dev server: http://{args.host}:{args.port}/  (root: {ROOT})")
-    print("Rewrites: /songs/<slug> -> /songs/song.html, /artists/<slug> -> /artists/artist.html")
+    print(f"proxy: /api/* and /rc-admin-* -> {BACKEND}")
+    print("rewrites: /songs/<slug>, /artists/<slug>, /motion-desk/deliberation-chamber/<id>")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
