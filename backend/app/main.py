@@ -61,6 +61,12 @@ run_migrations(engine)
 from app.services.api_clients import bootstrap_system_clients
 bootstrap_system_clients()
 
+# Seed the prompt-cache advisor alert on-by-default (one-time infra nudge, not a
+# high-volume heartbeat). Stays toggleable in the Alerts UI; never overrides a
+# later admin choice. See app/services/cache_advisor.py.
+from app.services.alerts import ensure_pref_default
+ensure_pref_default("prompt_cache_warranted", enabled=True)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -160,6 +160,32 @@ def usage_summary(days: int = Query(30, ge=1, le=365), db: Session = Depends(get
     }
 
 
+@router.get("/cache-advisor", dependencies=[Depends(verify_admin_key)])
+def cache_advisor_status(db: Session = Depends(get_db)):
+    """Live state of the prompt-cache advisor: would caching pay off right now,
+    and has the one-time nudge already been sent. See app/services/cache_advisor.py."""
+    from app.services import cache_advisor
+    return cache_advisor.status(db)
+
+
+@router.post("/cache-advisor/reset", dependencies=[Depends(verify_admin_key)])
+def cache_advisor_reset(db: Session = Depends(get_db)):
+    """Re-arm the nudge: clear the 'already notified' flag so it can fire again."""
+    from app.services import cache_advisor
+    cleared = cache_advisor.reset_notification(db)
+    return {"reset": cleared}
+
+
+@router.post("/cache-advisor/run", dependencies=[Depends(verify_admin_key)])
+def cache_advisor_run(db: Session = Depends(get_db)):
+    """Run the check on demand (instead of waiting for the daily cron). Sends
+    the email if thresholds are met and it hasn't already fired. Returns the
+    resulting status so the UI can refresh."""
+    from app.services import cache_advisor
+    cache_advisor.evaluate_and_notify()
+    return cache_advisor.status(db)
+
+
 @router.get("/calls", dependencies=[Depends(verify_admin_key)])
 def list_calls(
     limit: int = Query(50, ge=1, le=500),

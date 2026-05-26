@@ -78,6 +78,24 @@ def set_pref(alert_key: str, enabled: bool, channel: str = "email") -> None:
         _cache.pop((alert_key, channel), None)
 
 
+def ensure_pref_default(alert_key: str, enabled: bool, channel: str = "email") -> None:
+    """Insert a default pref row only if one doesn't already exist. Never
+    overrides an admin who later toggled it. Used at startup to ship a specific
+    alert on-by-default while keeping it visible/toggleable in the Alerts UI."""
+    db = SessionLocal()
+    try:
+        db.execute(text(
+            "INSERT INTO admin_alert_prefs (alert_key, channel, enabled, updated_at) "
+            "VALUES (:k, :c, :e, now()) "
+            "ON CONFLICT (alert_key, channel) DO NOTHING"
+        ), {"k": alert_key, "c": channel, "e": enabled})
+        db.commit()
+    finally:
+        db.close()
+    with _cache_lock:
+        _cache.pop((alert_key, channel), None)
+
+
 def list_prefs() -> list[dict]:
     """All pref rows for the admin UI. Used by GET /api/admin/alerts."""
     db = SessionLocal()
@@ -175,5 +193,50 @@ def emit_comment_created(*, handle: str, target_type: str, target_source: Option
         category="activity",
         alert_key="comment_created",
         subject=f"New comment by @{handle}",
+        html_body=html,
+    )
+
+
+def emit_prompt_cache_warranted(*, stats: dict, window_days: int) -> None:
+    """One-time nudge: calibrator API traffic is now dense enough that turning
+    on prompt caching would save money. See app/services/cache_advisor.py for
+    the detection logic. Fires once (deduped by a system_flags row), so it's
+    a 'go flip this switch' message, not a recurring heartbeat."""
+    site = settings.site_url.rstrip("/")
+    hit_pct = f"{stats['hit_rate'] * 100:.0f}%"
+    monthly = f"${stats['monthly_savings_usd']:.0f}"
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 12px;font-size:14px;color:#333;">
+        Lyrical Charger calibrator traffic has crossed the density where
+        <strong>prompt caching is now worth turning on</strong>.
+      </p>
+      <table style="border-collapse:collapse;font-size:14px;color:#333;margin:0 0 16px;">
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Window</td><td><strong>last {window_days} days</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Calibrator calls</td><td><strong>{stats['total']}</strong> ({stats['warm']} would hit cache, {stats['cold']} cold)</td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Projected cache hit rate</td><td><strong>{hit_pct}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Projected savings</td><td><strong>~{monthly}/mo</strong> (system-prefix input only)</td></tr>
+      </table>
+      <p style="margin:0 0 8px;font-size:13px;color:#555;">
+        To turn it on, add a cache breakpoint to the calibrator system prompt in
+        <code>app/services/agents/calibrator.py</code> (the <code>tracked_create_async</code> call):
+      </p>
+      <pre style="margin:0 0 16px;padding:10px 14px;background:#f7f7f9;border-left:3px solid #008f72;border-radius:0 4px 4px 0;font-size:13px;color:#333;white-space:pre-wrap;">system=[{{"type": "text", "text": system_prompt,
+         "cache_control": {{"type": "ephemeral"}}}}],</pre>
+      <p style="margin:0 0 12px;font-size:13px;color:#555;">
+        This is invisible to output -- the model reads the identical prompt and
+        returns the identical reading; only the billing/latency changes. The
+        Claude usage tab will show the real hit rate climbing once it's live.
+      </p>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard" style="color:#008f72;">Admin dashboard</a>
+        &middot; this nudge fires once and won't repeat.
+      </p>
+    </div>
+    """
+    send_alert(
+        category="activity",
+        alert_key="prompt_cache_warranted",
+        subject="Prompt caching is now worth turning on",
         html_body=html,
     )

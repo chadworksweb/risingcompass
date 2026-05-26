@@ -87,6 +87,30 @@
   .cu-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
   .cu-page-info { color: var(--text-dim); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; }
   .cu-empty { color: var(--text-dim); font-size: 0.85rem; padding: 1rem; text-align: center; }
+
+  /* Prompt cache advisor panel */
+  .ca-panel { border: 1px solid var(--border-soft); border-radius: 8px; background: #ffffff; padding: 1.1rem 1.3rem; margin-bottom: 1.5rem; }
+  .ca-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+  .ca-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0; }
+  .ca-badge { font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 0.12rem 0.5rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ca-badge.off { background: var(--panel-strong); color: var(--text-dim); }
+  .ca-badge.ready { background: #fff3e0; color: #b45309; }
+  .ca-badge.sent { background: #dff3e8; color: var(--tier-green); }
+  .ca-verdict { font-size: 0.92rem; color: var(--text); margin: 0.7rem 0 0.9rem; line-height: 1.45; }
+  .ca-verdict strong { color: var(--accent-strong); }
+  .ca-metrics { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.6rem 0.9rem; background: var(--panel); margin-bottom: 0.9rem; }
+  .ca-metric { padding: 0 1.1rem; border-right: 1px solid var(--border-soft); }
+  .ca-metric:last-child { border-right: none; }
+  .ca-metric:first-child { padding-left: 0; }
+  .ca-metric .label { color: var(--text-dim); font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ca-metric .val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.05rem; margin-top: 0.15rem; }
+  .ca-metric .val.good { color: var(--tier-green); }
+  .ca-metric .val.bad { color: var(--red); }
+  .ca-metric .sub { color: var(--text-hint); font-size: 0.66rem; font-family: 'JetBrains Mono', monospace; margin-top: 0.1rem; }
+  .ca-actions { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .ca-actions button { padding: 0.35rem 0.8rem; font-size: 0.78rem; }
+  .ca-note { color: var(--text-dim); font-size: 0.76rem; margin: 0.6rem 0 0; }
+  .ca-msg { font-size: 0.76rem; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); }
 </style>
 {% endblock %}
 
@@ -121,6 +145,26 @@
     <a class="cu-hero-balance-link" href="https://console.anthropic.com/settings/billing" target="_blank" rel="noopener">Console &#8599;</a>
     <div class="cu-hero-sub">No balance API &mdash; check Console</div>
   </div>
+</div>
+
+<div id="caPanel" class="ca-panel" style="display:none;">
+  <div class="ca-head">
+    <h3 class="ca-title">Prompt cache advisor</h3>
+    <span id="caBadge" class="ca-badge off">caching off</span>
+  </div>
+  <p class="ca-verdict" id="caVerdict">Loading…</p>
+  <div class="ca-metrics" id="caMetrics"></div>
+  <div class="ca-actions">
+    <button id="caRun" onclick="caRun()">Run check now</button>
+    <button id="caReset" onclick="caReset()">Re-arm nudge</button>
+    <span class="ca-msg" id="caMsg"></span>
+  </div>
+  <p class="ca-note">
+    Caching is off by design. It only saves money once calibrator calls cluster
+    within the <span id="caTtl">5-min</span> cache TTL; below that, a cold cache write costs more
+    than no cache. This watches real traffic and emails admin once, when turning
+    it on becomes a clear win.
+  </p>
 </div>
 
 <h3 class="cu-section-title">Daily spend <span class="legend" id="cuLegend"></span></h3>
@@ -210,6 +254,108 @@ function cuWindowLabel(days) {
 
 function onAdminReady() {
   cuLoad();
+  caLoad();
+}
+
+// --- Prompt cache advisor ---------------------------------------------------
+async function caLoad() {
+  try {
+    const resp = await adminFetch('/api/admin/claude-usage/cache-advisor');
+    if (!resp.ok) return;
+    caRender(await resp.json());
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function caRender(s) {
+  const panel = document.getElementById('caPanel');
+  panel.style.display = '';
+  const st = s.stats || {};
+  const th = s.thresholds || {};
+  const hitPct = (st.hit_rate * 100);
+  const thPct = (th.hit_rate * 100);
+  const monthly = st.monthly_savings_usd || 0;
+  document.getElementById('caTtl').textContent = Math.round((s.ttl_seconds || 300) / 60) + '-min';
+
+  // Badge + verdict
+  const badge = document.getElementById('caBadge');
+  const verdict = document.getElementById('caVerdict');
+  if (s.would_fire && s.notified) {
+    badge.className = 'ca-badge sent';
+    badge.textContent = 'worth it · notified';
+    const when = s.notified_at ? new Date(s.notified_at).toLocaleString() : 'recently';
+    verdict.innerHTML = `Caching is <strong>worth turning on</strong>. Admin was notified ${escHtml(when)}. ` +
+      `Re-arm below if you want the nudge to fire again.`;
+  } else if (s.would_fire) {
+    badge.className = 'ca-badge ready';
+    badge.textContent = 'threshold met';
+    verdict.innerHTML = `Thresholds are <strong>met</strong> — the nudge fires on the next daily check, ` +
+      `or run it now.`;
+  } else {
+    badge.className = 'ca-badge off';
+    badge.textContent = 'caching off';
+    if (monthly < 0) {
+      verdict.innerHTML = `Not worthwhile yet — at a <strong>${hitPct.toFixed(0)}%</strong> projected hit rate ` +
+        `caching would <strong>lose ~${cuFmtUsd(Math.abs(monthly))}/mo</strong> (traffic too sparse: cold writes cost more than no cache).`;
+    } else {
+      verdict.innerHTML = `Not a clear win yet — projected <strong>~${cuFmtUsd(monthly)}/mo</strong> at a ` +
+        `${hitPct.toFixed(0)}% hit rate. Fires at ${thPct.toFixed(0)}%+ hit rate, ${cuFmtNum(th.min_calls)}+ calls, and ${cuFmtUsd(th.min_monthly_savings_usd)}+/mo.`;
+    }
+  }
+
+  // Metrics
+  const hitClass = st.hit_rate >= th.hit_rate ? 'good' : '';
+  const saveClass = monthly > 0 ? 'good' : (monthly < 0 ? 'bad' : '');
+  document.getElementById('caMetrics').innerHTML = `
+    <div class="ca-metric">
+      <div class="label">Calibrator calls / ${s.window_days}d</div>
+      <div class="val">${cuFmtNum(st.total)}</div>
+      <div class="sub">need ${cuFmtNum(th.min_calls)}+</div>
+    </div>
+    <div class="ca-metric">
+      <div class="label">Projected hit rate</div>
+      <div class="val ${hitClass}">${hitPct.toFixed(0)}%</div>
+      <div class="sub">${cuFmtNum(st.warm)} warm / ${cuFmtNum(st.cold)} cold · need ${thPct.toFixed(0)}%+</div>
+    </div>
+    <div class="ca-metric">
+      <div class="label">Projected savings</div>
+      <div class="val ${saveClass}">${cuFmtUsd(monthly)}/mo</div>
+      <div class="sub">system-prefix input only</div>
+    </div>
+    <div class="ca-metric">
+      <div class="label">Cacheable prefix</div>
+      <div class="val">${cuFmtTokens(s.cacheable_prefix_tokens)}</div>
+      <div class="sub">calibrator system prompt</div>
+    </div>
+  `;
+
+  // Re-arm only meaningful once a nudge was sent
+  document.getElementById('caReset').disabled = !s.notified;
+}
+
+async function caRun() {
+  const btn = document.getElementById('caRun');
+  const msg = document.getElementById('caMsg');
+  btn.disabled = true; msg.textContent = 'Running…';
+  try {
+    const resp = await adminFetch('/api/admin/claude-usage/cache-advisor/run', { method: 'POST' });
+    if (resp.ok) { caRender(await resp.json()); msg.textContent = 'Checked.'; }
+    else msg.textContent = 'Check failed.';
+  } catch (e) { console.error(e); msg.textContent = 'Check failed.'; }
+  finally { btn.disabled = false; setTimeout(() => { msg.textContent = ''; }, 4000); }
+}
+
+async function caReset() {
+  const msg = document.getElementById('caMsg');
+  if (!confirm('Re-arm the prompt-cache nudge? It will be able to email again on the next check.')) return;
+  msg.textContent = 'Re-arming…';
+  try {
+    const resp = await adminFetch('/api/admin/claude-usage/cache-advisor/reset', { method: 'POST' });
+    if (resp.ok) { await caLoad(); msg.textContent = 'Re-armed.'; }
+    else msg.textContent = 'Reset failed.';
+  } catch (e) { console.error(e); msg.textContent = 'Reset failed.'; }
+  finally { setTimeout(() => { msg.textContent = ''; }, 4000); }
 }
 
 async function cuLoad() {

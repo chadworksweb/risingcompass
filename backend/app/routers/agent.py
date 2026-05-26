@@ -322,7 +322,13 @@ def cron_calibrate_live(db: Session = Depends(get_db)):
 
     Same logic as /calibrate-live but service-token authed.
     """
-    return _calibrate_live_impl()
+    draft = _calibrate_live_impl()
+    # Daily piggyback: check whether calibrator traffic now warrants prompt
+    # caching and nudge admin once if so. Fully self-contained + error-swallowing
+    # so it can never affect the reading.
+    from app.services.cache_advisor import evaluate_and_notify
+    evaluate_and_notify()
+    return draft
 
 
 @router.get("/drafts", response_model=PaginatedDrafts, dependencies=[Depends(verify_admin_key)])
