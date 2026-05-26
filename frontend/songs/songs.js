@@ -380,6 +380,15 @@
       updateGapBand();
       return;
     }
+    // Tint the hero (compass) panel border with the exact spectrum color for
+    // this song's integer charge -- not the flat tier color.
+    const hero = document.querySelector('.song-section--hero');
+    if (hero && typeof Charge !== 'undefined') {
+      // Set the same CSS vars the SSR HTML bakes in -- idempotent, so no
+      // recolor "pop" when JS runs after the fetch.
+      hero.style.setProperty('--charge-color', Charge.spectrumHex(chargeValue));
+      hero.style.setProperty('--charge-glow', Charge.spectrumRgba(chargeValue, 0.45));
+    }
     if (typeof Charge !== 'undefined') {
       // degree=90 → 50% (centre). Colour comes from the song's rubric tier.
       Charge.setLevel(rubricColor || vibeValueToColor(chargeValue), 0, 0, 90);
@@ -785,21 +794,25 @@
       ? `"${song.title}" by ${song.artist}`
       : `"${song.title}"`;
 
-    // Page meta
-    const pageTitle = `What Might Listening to ${tagline} Do to the Listener? — The Rising Compass`;
+    // Page meta — GEO framing: the page answers "what is X about?".
+    const pageTitle = `What is ${tagline} about? — The Rising Compass`;
     document.title = pageTitle;
     const pageTitleEl = document.getElementById('page-title');
     if (pageTitleEl) pageTitleEl.textContent = pageTitle;
 
+    const meaningLead = `This page answers what ${tagline} is about — the meaning behind the lyrics`;
     const summaryLine = isUncalibrated
-      ? `${tagline} is currently uncalibrated by The Rising Compass. Previous calibrations and reasoning shown below.`
+      ? `${meaningLead}. Currently uncalibrated by The Rising Compass; previous reasoning shown below.`
       : song.charge_summary
-        ? `${tagline}: ${song.charge_summary}`
-        : `${tagline}: classified ${tierLabel} (${chargeDisplay}) by The Rising Compass — a lyrical effects label scored on a 58-tenet rubric.`;
+        ? `${meaningLead}: ${song.charge_summary}`
+        : `${meaningLead}, classified ${tierLabel} (${chargeDisplay}) by The Rising Compass on a 58-tenet rubric.`;
     document.getElementById('meta-description').content = summaryLine;
-    document.getElementById('og-title').content =
-      `${tagline} — Lyrical Effects Label · The Rising Compass`;
+    document.getElementById('og-title').content = pageTitle;
     document.getElementById('og-description').content = summaryLine;
+
+    // GEO H1 — the natural-language question, above the summary.
+    const questionEl = document.getElementById('song-question');
+    if (questionEl) questionEl.textContent = `What is ${tagline} about?`;
 
     // Canonical + og:url — use the slug-based URL so social shares and
     // crawlers don't dedupe to /songs/song.html.

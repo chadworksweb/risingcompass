@@ -86,6 +86,21 @@ def _should_proxy(path: str) -> bool:
     return any(path.startswith(p) for p in PROXY_PREFIXES)
 
 
+# Detail pages are server-rendered by the backend (per-entity meta + JSON-LD),
+# so proxy the dotless slug paths there instead of rewriting to the static
+# file. The [^/.]+ excludes real assets (song.html, songs.js, songs.css),
+# which keep being served statically. Mirrors the prod nginx
+# `location ~ ^/(songs|artists)/[^/.]+$` rule.
+SSR_PROXY_PATTERNS = [
+    re.compile(r"^/songs/[^/.]+/?$"),
+    re.compile(r"^/artists/[^/.]+/?$"),
+]
+
+
+def _should_ssr_proxy(path: str) -> bool:
+    return any(p.match(path) for p in SSR_PROXY_PATTERNS)
+
+
 class RewritingHandler(SimpleHTTPRequestHandler):
     # Serve from the frontend/ directory regardless of where the script
     # was launched from.
@@ -94,7 +109,8 @@ class RewritingHandler(SimpleHTTPRequestHandler):
 
     # --- Static (GET/HEAD) ------------------------------------------------
     def do_GET(self):  # noqa: N802 -- http.server contract
-        if _should_proxy(urlsplit(self.path).path):
+        path = urlsplit(self.path).path
+        if _should_proxy(path) or _should_ssr_proxy(path):
             return self._proxy()
         rewritten = self._maybe_rewrite()
         if rewritten is not None:
@@ -102,7 +118,8 @@ class RewritingHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_HEAD(self):  # noqa: N802
-        if _should_proxy(urlsplit(self.path).path):
+        path = urlsplit(self.path).path
+        if _should_proxy(path) or _should_ssr_proxy(path):
             return self._proxy()
         rewritten = self._maybe_rewrite()
         if rewritten is not None:

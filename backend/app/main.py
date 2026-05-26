@@ -191,6 +191,11 @@ app.include_router(analyzer.router, dependencies=[Depends(verify_api_or_service_
 app.include_router(badge.router, dependencies=_api_key_dep)
 app.include_router(artists.router, dependencies=_api_key_dep)
 app.include_router(songs.router, dependencies=_api_key_dep)
+# Public page SSR (/songs/<slug>, /artists/<slug>) -- bakes per-entity meta +
+# JSON-LD into the head for crawlers. Browser/crawler page loads, so NO
+# X-Api-Key dependency. nginx routes the dotless slug paths here.
+from app.routers import page_ssr
+app.include_router(page_ssr.router)
 app.include_router(vibe.user_router)  # Clerk-authed, no X-Api-Key; before the gated router
 app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(tenets.router, dependencies=_api_key_dep)

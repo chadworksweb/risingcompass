@@ -60,6 +60,7 @@ const procBarFill = $('#proc-bar-fill');
 const procPct = $('#proc-pct');
 const procStage = $('#proc-stage');
 const procDetail = $('#proc-detail');
+const procSubsteps = $('#proc-substeps');
 
 const resultIdentity = $('#result-identity');
 const resultCalibration = $('#result-calibration');
@@ -588,13 +589,40 @@ const STAGES = [
   { pct: 18, label: 'Reading lyrics',              detail: 'Parsing line by line...' },
   { pct: 30, label: 'Loading rubric',              detail: '58 tenets across 5 tiers...' },
   { pct: 50, label: 'Calibrating',                 detail: 'Building case from zero...' },
-  { pct: 70, label: 'Evaluating contamination',    detail: 'Checking for hidden messages...' },
-  { pct: 82, label: 'Calculating charge',          detail: 'Mapping position within tier...' },
-  { pct: 90, label: 'Generating summary',          detail: 'Writing charge summary...' },
+  { pct: 68, label: 'Evaluating contamination',    detail: 'Checking for hidden messages...' },
+  { pct: 80, label: 'Calculating charge',          detail: 'Mapping position within tier...' },
+];
+
+// Tail phase. After the rubric pass the backend makes two more Opus calls
+// (per-listener prose, then per-society prose) and then saves -- this is the
+// slow stretch that used to leave the bar frozen at 90%. Each sub-step creeps
+// the bar and lights up its row in #proc-substeps so the wait reads as motion.
+// The bar holds at the last sub-step until the response lands (completeProgress
+// jumps it to 100); if a call runs long, the user sees a live "what it's doing"
+// row rather than a stuck percentage.
+const SUBSTAGES = [
+  { pct: 87, step: 0, label: 'Writing your reading' },
+  { pct: 93, step: 1, label: 'Writing the societal reading' },
+  { pct: 97, step: 2, label: 'Finalizing' },
 ];
 
 let progressTimer = null;
 let currentStage = 0;
+
+function resetSubsteps() {
+  if (!procSubsteps) return;
+  procSubsteps.classList.add('hidden');
+  procSubsteps.querySelectorAll('li').forEach((li) => li.classList.remove('is-active', 'is-done'));
+}
+
+function setSubstepActive(step) {
+  if (!procSubsteps) return;
+  procSubsteps.classList.remove('hidden');
+  procSubsteps.querySelectorAll('li').forEach((li, idx) => {
+    li.classList.toggle('is-done', idx < step);
+    li.classList.toggle('is-active', idx === step);
+  });
+}
 
 function resetProgress() {
   currentStage = 0;
@@ -602,6 +630,7 @@ function resetProgress() {
   procPct.textContent = '0%';
   procStage.textContent = 'Preparing...';
   procDetail.textContent = '';
+  resetSubsteps();
 }
 
 function setProgress(pct, label, detail) {
@@ -615,25 +644,37 @@ function startProgress() {
   resetProgress();
   currentStage = 0;
 
-  // Advance through stages on a schedule
-  // Early stages go fast, calibration stage lingers
-  function advanceStage() {
-    if (currentStage >= STAGES.length) return;
-
+  // Main stages: early ones go fast, calibration lingers.
+  function advanceMain() {
+    if (currentStage >= STAGES.length) { advanceSub(0); return; }
     const stage = STAGES[currentStage];
     setProgress(stage.pct, stage.label, stage.detail);
     currentStage++;
-
-    // Delay increases as we get deeper — calibration is the long wait
-    const delay = currentStage <= 2 ? 600 : currentStage <= 4 ? 2500 : 3000;
-    progressTimer = setTimeout(advanceStage, delay);
+    const delay = currentStage <= 2 ? 600 : 2500;
+    progressTimer = setTimeout(advanceMain, delay);
   }
 
-  advanceStage();
+  // Tail sub-steps for the prose generation. Hold on the last one; the real
+  // response (completeProgress) is what finishes the bar.
+  function advanceSub(i) {
+    if (i >= SUBSTAGES.length) return;
+    const sub = SUBSTAGES[i];
+    setProgress(sub.pct, 'Generating your reading', '');
+    setSubstepActive(sub.step);
+    progressTimer = setTimeout(() => advanceSub(i + 1), 5000);
+  }
+
+  advanceMain();
 }
 
 function completeProgress() {
   if (progressTimer) clearTimeout(progressTimer);
+  if (procSubsteps) {
+    procSubsteps.querySelectorAll('li').forEach((li) => {
+      li.classList.remove('is-active');
+      li.classList.add('is-done');
+    });
+  }
   setProgress(100, 'Complete', 'Calibration ready.');
 }
 
@@ -989,10 +1030,17 @@ function renderResults(data) {
     resultSummary.style.display = 'none';
   }
 
-  // Per-listener + per-society prose. Each is a blank-line-separated set of
-  // paragraphs; split and wrap each in <p>.
-  renderProse(resultEffects, resultEffectsBody, data.effects_prose);
-  renderProse(resultSocietal, resultSocietalBody, data.societal_effects_prose);
+  // Per-listener + per-society prose. On LC we tease an excerpt only -- the
+  // full reading lives on the song detail page (CTA below). If there's no
+  // song_slug to route to, fall back to the full prose so the user isn't
+  // left with a truncated teaser and nowhere to read the rest.
+  if (data.song_slug) {
+    renderProseExcerpt(resultEffects, resultEffectsBody, data.effects_prose);
+    renderProseExcerpt(resultSocietal, resultSocietalBody, data.societal_effects_prose);
+  } else {
+    renderProse(resultEffects, resultEffectsBody, data.effects_prose);
+    renderProse(resultSocietal, resultSocietalBody, data.societal_effects_prose);
+  }
 
   // Consensus across prior runs
   if (data.consensus && data.consensus.run_count >= 2) {
@@ -1039,7 +1087,7 @@ function renderResults(data) {
   misreadParams.set('color', data.tier || '');
   if (data.charge_summary) misreadParams.set('cs', data.charge_summary);
   const detailsLink = data.song_slug
-    ? `<a href="/songs/${encodeURIComponent(data.song_slug)}" class="details-link">View complete song details</a>`
+    ? `<a href="/songs/${encodeURIComponent(data.song_slug)}" class="details-cta">Read the full reading -&gt;</a>`
     : '';
   resultMisread.innerHTML = `
     ${detailsLink}
@@ -1088,6 +1136,34 @@ function renderProse(section, body, prose) {
   }
   const paras = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   body.innerHTML = paras.map((p) => `<p>${esc(p)}</p>`).join('');
+  section.classList.remove('hidden');
+}
+
+// LC teases the prose: first paragraph capped at a word boundary, marked as
+// an excerpt. The full multi-paragraph reading lives on the song detail page.
+const PROSE_EXCERPT_CHARS = 220;
+
+function proseExcerpt(prose) {
+  const text = (prose || '').trim();
+  if (!text) return null;
+  const firstPara = text.split(/\n\s*\n/)[0].trim();
+  const truncated = firstPara.length > PROSE_EXCERPT_CHARS;
+  if (!truncated) return { text: firstPara, truncated: false };
+  const slice = firstPara.slice(0, PROSE_EXCERPT_CHARS);
+  const cut = slice.slice(0, slice.lastIndexOf(' ')).replace(/[\s,;:.!?-]+$/, '');
+  return { text: `${cut}...`, truncated: true };
+}
+
+function renderProseExcerpt(section, body, prose) {
+  if (!section || !body) return;
+  const ex = proseExcerpt(prose);
+  if (!ex) {
+    section.classList.add('hidden');
+    body.innerHTML = '';
+    return;
+  }
+  const tag = ex.truncated ? '<span class="prose-excerpt-tag">Excerpt</span>' : '';
+  body.innerHTML = `<p>${esc(ex.text)}${tag}</p>`;
   section.classList.remove('hidden');
 }
 

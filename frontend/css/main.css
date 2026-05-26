@@ -541,6 +541,10 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Inner glow tinted to the reading's exact spectrum color (set by
+     Charge.setLevel via --charge-glow); transparent until a reading loads. */
+  box-shadow: inset 0 0 22px -4px var(--charge-glow, transparent);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 #compass-container {

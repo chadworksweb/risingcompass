@@ -41,6 +41,13 @@
   flex-direction: column;
   justify-content: center;
 }
+.song-question {
+  font-size: 1.6rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  margin: 0 0 0.6rem;
+}
 .summary-text-big {
   font-size: 1.6rem;
   line-height: 1.4;
@@ -194,6 +201,17 @@
    to a mid value that still clearly out-reads the old #2a2a3e hairline. */
 .song-section { border-color: #3a3a55; }
 
+/* Hero (compass) panel inner glow, tinted to the song's exact spectrum color
+   via --charge-glow (set in setCompassReference). Higher specificity than the
+   .song-section base box-shadow above so it wins despite being equal-class
+   (the base is later in source order). Border itself is set inline by JS. */
+.song-section.song-section--hero {
+  border-color: var(--charge-color, #3a3a55);
+  box-shadow: inset 0 0 22px -4px var(--charge-glow, transparent),
+              0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
 /* Full-bleed cards span their whole row regardless of siblings. */
 .song-row > .song-section--full { flex-basis: 100%; }
 
@@ -209,7 +227,7 @@
   .song-main > #song-comments { width: 100%; }
 }
 
-.song-section h2 {
+.song-section h2:not(.song-page-title) {
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--rc-text-bright);

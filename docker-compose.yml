@@ -12,6 +12,10 @@ services:
     volumes:
       - db-data:/app/data
       - /root/risingcompass-backups:/app/data/backups
+      # Read-only frontend templates for server-side meta rendering of
+      # /songs/<slug> + /artists/<slug> (app/routers/page_ssr.py). Same source
+      # the nginx static mount uses, so it updates with the frontend git pull.
+      - ./frontend:/app/frontend:ro
     environment:
       - RC_ADMIN_KEY=${RC_ADMIN_KEY:-change-me}
       - RC_API_KEY=${RC_API_KEY:-change-me}
@@ -59,6 +63,8 @@ services:
       # scripts/server_only/ may legitimately call the Anthropic API from
       # inside the container.
       - RC_SERVER_TOOLS=1
+      # Where page_ssr.py reads the static templates (matches the ro mount).
+      - FRONTEND_DIR=/app/frontend
     restart: unless-stopped
 
   nginx:

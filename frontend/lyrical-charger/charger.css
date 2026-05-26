@@ -751,6 +751,59 @@ main {
   min-height: 1.2em;
 }
 
+/* Tail-phase sub-step list (prose generation) */
+.proc-substeps {
+  list-style: none;
+  margin: 1.5rem auto 0;
+  padding: 0;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  text-align: left;
+}
+
+.proc-substeps.hidden { display: none; }
+
+.proc-substeps li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  opacity: 0.45;
+  transition: opacity var(--rc-ease), color var(--rc-ease);
+}
+
+.proc-substeps li.is-active,
+.proc-substeps li.is-done { opacity: 1; }
+.proc-substeps li.is-active { color: var(--rc-text-bright); }
+
+.substep-marker {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--rc-text-dim);
+  flex-shrink: 0;
+}
+
+.proc-substeps li.is-active .substep-marker {
+  border-color: var(--rc-accent);
+  background: var(--rc-accent);
+  box-shadow: 0 0 8px var(--rc-accent-glow);
+  animation: substep-pulse 1.1s ease-in-out infinite;
+}
+
+.proc-substeps li.is-done .substep-marker {
+  border-color: var(--rc-accent);
+  background: var(--rc-accent);
+}
+
+@keyframes substep-pulse {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(0.55); opacity: 0.5; }
+}
+
 /* ---- Screen 3: Results ---- */
 .result-identity {
   text-align: center;
@@ -974,8 +1027,7 @@ main {
   gap: 0.5rem;
 }
 
-.misread-link,
-.details-link {
+.misread-link {
   font-size: 0.72rem;
   color: var(--rc-text-dim);
   text-decoration: underline;
@@ -983,9 +1035,41 @@ main {
   transition: color var(--rc-ease);
 }
 
-.misread-link:hover,
-.details-link:hover {
+.misread-link:hover {
   color: var(--rc-accent);
+}
+
+/* Prominent CTA to the song detail page (where the full reading lives) */
+.details-cta {
+  display: inline-block;
+  font-family: var(--rc-font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--rc-accent);
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius);
+  padding: 0.55rem 1.1rem;
+  text-decoration: none;
+  transition: background var(--rc-ease), color var(--rc-ease);
+}
+
+.details-cta:hover {
+  background: rgba(0, 212, 170, 0.12);
+}
+
+/* "Excerpt" marker appended to a truncated prose teaser */
+.prose-excerpt-tag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  border: 1px solid var(--rc-border);
+  border-radius: 10px;
+  padding: 0.05rem 0.4rem;
+  vertical-align: middle;
 }
 
 /* CTA */

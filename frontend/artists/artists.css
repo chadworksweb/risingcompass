@@ -60,6 +60,12 @@ body {
   margin: 0;
 }
 
+.artist-page-question {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  margin: 0;
+}
 .artist-page-title {
   font-size: 1.5rem;
   font-weight: 700;

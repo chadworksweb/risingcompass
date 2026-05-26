@@ -265,6 +265,14 @@
         </div>
         <h2 class="processing-stage" id="proc-stage">Preparing...</h2>
         <p class="processing-sub" id="proc-detail"></p>
+
+        <!-- Tail-phase sub-steps: the prose generation (two extra Opus calls)
+             that runs after calibration. Hidden until the tail phase begins. -->
+        <ul class="proc-substeps hidden" id="proc-substeps" aria-hidden="true">
+          <li data-step="0"><span class="substep-marker"></span><span class="substep-label">Writing your listener reading</span></li>
+          <li data-step="1"><span class="substep-marker"></span><span class="substep-label">Writing the societal reading</span></li>
+          <li data-step="2"><span class="substep-marker"></span><span class="substep-label">Finalizing the calibration</span></li>
+        </ul>
       </div>
     </section>
 

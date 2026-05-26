@@ -422,18 +422,20 @@
 
   function renderHeader(data) {
     document.getElementById('artist-name').textContent = data.name;
+    // GEO framing: the page answers "what are {artist}'s songs about?".
+    const question = `What are ${data.name}'s songs about?`;
+    const questionEl = document.getElementById('artist-question');
+    if (questionEl) questionEl.textContent = question;
     document.getElementById('page-title').textContent =
-      `${data.name} Lyrical Charge Trajectory — The Rising Compass`;
+      `${question} — The Rising Compass`;
     const stats = data.stats || {};
     const chargeLabel = stats.catalog_charge != null
       ? `${chargeDisplay(stats.catalog_charge)} (${stats.catalog_tier_label || 'Unclassified'})`
       : 'N/A';
-    document.getElementById('meta-description').content =
-      `Lyrical charge trajectory for ${data.name}. ${stats.total_calibrated_songs} songs classified. Catalog charge ${chargeLabel}.`;
-    document.getElementById('og-title').content =
-      `${data.name} — Lyrical Charge Trajectory`;
-    document.getElementById('og-description').content =
-      `${data.name} catalog charge: ${chargeLabel}.`;
+    const desc = `This page answers what ${data.name}'s songs are about — the meaning behind their lyrics, classified by The Rising Compass. ${stats.total_calibrated_songs} songs classified; catalog charge ${chargeLabel}.`;
+    document.getElementById('meta-description').content = desc;
+    document.getElementById('og-title').content = `${question} — The Rising Compass`;
+    document.getElementById('og-description').content = desc;
     announce(`Loaded trajectory for ${data.name}`);
   }
 
