@@ -66,6 +66,11 @@ bootstrap_system_clients()
 # later admin choice. See app/services/cache_advisor.py.
 from app.services.alerts import ensure_pref_default
 ensure_pref_default("prompt_cache_warranted", enabled=True)
+# Album Charger: alert the admin by email whenever someone charges an album.
+# On by default (the admin asked for it); toggleable in the Alerts UI.
+ensure_pref_default("album_charged", enabled=True)
+# General inquiry / contact form: alert the admin on each submission.
+ensure_pref_default("general_inquiry", enabled=True)
 
 
 @asynccontextmanager
@@ -184,10 +189,14 @@ app.include_router(weekly_albums.router, dependencies=_api_key_dep)
 app.include_router(misread.router, dependencies=_api_key_dep)
 # misread admin endpoints are mounted separately below with the other admin routers
 app.include_router(artist_verification.router, dependencies=_api_key_dep)
+from app.routers import inquiries
+app.include_router(inquiries.router, dependencies=_api_key_dep)
 # Analyzer accepts either public RC_API_KEY (Lyrical Charger) or RC_SERVICE_KEY
 # (first-party callers like chadlewine.com). Endpoints that distinguish
 # behavior re-declare the dependency to capture the tier.
 app.include_router(analyzer.router, dependencies=[Depends(verify_api_or_service_key)])
+from app.routers import album_charger
+app.include_router(album_charger.router, dependencies=[Depends(verify_api_or_service_key)])
 app.include_router(badge.router, dependencies=_api_key_dep)
 app.include_router(artists.router, dependencies=_api_key_dep)
 app.include_router(songs.router, dependencies=_api_key_dep)
@@ -244,6 +253,7 @@ app.include_router(admin_auth.router)
 app.include_router(admin.router)
 app.include_router(misread.admin_router)
 app.include_router(artist_verification.admin_router)
+app.include_router(inquiries.admin_router)
 app.include_router(agent.router)
 app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)

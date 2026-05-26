@@ -26,6 +26,15 @@
   <div id="lcaTopRefs" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;line-height:1.7;color:#555;"></div>
 </div>
 
+<h2 class="section-title">Album Charger</h2>
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="lcaAlbToday">—</div><div class="label">Albums charged today</div></div>
+  <div class="stat-card"><div class="val" id="lcaAlbWeek">—</div><div class="label">Albums charged 7d</div></div>
+  <div class="stat-card"><div class="val" id="lcaAlbTotal">—</div><div class="label">Albums all-time</div></div>
+</div>
+<h3 style="font-size:0.85rem;color:#555;margin:0.25rem 0 0.5rem;text-transform:uppercase;letter-spacing:0.08em;">Recent albums charged</h3>
+<div id="lcaAlbumsRecent" style="margin-bottom:1.5rem;"></div>
+
 <h2 class="section-title">Event Log</h2>
 <div class="filter-bar">
   <button class="filter-btn active" onclick="lcaFilter('')">All</button>
@@ -37,6 +46,10 @@
   <button class="filter-btn" onclick="lcaFilter('submission_turnstile_failed')">Turnstile</button>
   <button class="filter-btn" onclick="lcaFilter('search_query')">Search</button>
   <button class="filter-btn" onclick="lcaFilter('session_create')">Session</button>
+  <button class="filter-btn" onclick="lcaFilter('album_success')">Album charged</button>
+  <button class="filter-btn" onclick="lcaFilter('album_search_query')">Album search</button>
+  <button class="filter-btn" onclick="lcaFilter('album_no_tracks')">Album no-tracks</button>
+  <button class="filter-btn" onclick="lcaFilter('album_other_error')">Album error</button>
 </div>
 <div style="display:flex;gap:0.5rem;margin-bottom:0.8rem;align-items:center;">
   <input type="text" id="lcaIpFilter" placeholder="Filter by IP" style="max-width:220px;font-size:0.8rem;" onkeydown="if(event.key==='Enter')loadLcEvents()">
@@ -55,7 +68,46 @@ const LCA_LIMIT = 50;
 
 function onAdminReady() {
   loadLcStats();
+  loadAlbumActivity();
   loadLcEvents();
+}
+
+async function loadAlbumActivity() {
+  try {
+    const resp = await fetch('/api/admin/lc-events/albums?limit=20', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const d = await resp.json();
+    document.getElementById('lcaAlbToday').textContent = d.today;
+    document.getElementById('lcaAlbWeek').textContent = d.week;
+    document.getElementById('lcaAlbTotal').textContent = d.total;
+    const el = document.getElementById('lcaAlbumsRecent');
+    if (!d.recent || !d.recent.length) {
+      el.innerHTML = '<p style="color:#666;">No albums charged yet.</p>';
+      return;
+    }
+    const typeLabels = { album: 'Album', ep: 'EP', single: 'Single' };
+    el.innerHTML = d.recent.map(a => {
+      const when = a.submitted_at ? a.submitted_at.replace('T', ' ').slice(0, 19) : '—';
+      const charge = a.charge_value != null ? (a.charge_value >= 0 ? '+' : '') + a.charge_value : '—';
+      const tier = a.tier_label || '';
+      const typeLabel = typeLabels[a.release_type] || 'Album';
+      const artistLink = a.artist_slug
+        ? `<a href="/artists/${encodeURIComponent(a.artist_slug)}" style="color:var(--accent);">${escHtml(a.artist)}</a>`
+        : escHtml(a.artist);
+      const dated = a.release_date ? ` &nbsp;|&nbsp; released ${escHtml(a.release_date)}`
+        : (a.release_year ? ` &nbsp;|&nbsp; ${a.release_year}` : '');
+      const contam = a.contamination_count ? ` &nbsp;|&nbsp; ${a.contamination_count} contaminated` : '';
+      return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.8rem;margin-bottom:0.4rem;font-size:0.82rem;">
+        <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+          <div><strong>${escHtml(a.title)}</strong> <span style="color:#666;">by ${artistLink}</span></div>
+          <div style="color:#555;font-size:0.78rem;">${when}</div>
+        </div>
+        <div style="color:#555;font-size:0.78rem;margin-top:0.2rem;">
+          ${typeLabel} &nbsp;|&nbsp; <strong>${charge}</strong> ${escHtml(tier)} &nbsp;|&nbsp; ${a.calibrated_count}/${a.track_count} tracks${contam}${dated}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) { console.error(e); }
 }
 
 function lcaFilter(t) {

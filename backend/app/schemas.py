@@ -612,6 +612,144 @@ class SearchCalibrateIn(BaseModel):
     source: str | None = None
 
 
+# --- Album Charger: full-album calibration ---
+class AlbumTrackIn(BaseModel):
+    """One track in an album-calibration request.
+
+    Supply EITHER lyrics (Build Manually path) OR track_id (Search Album path,
+    Musixmatch-gated). track_number is the album running order; when omitted the
+    list position is used.
+    """
+    title: str = Field(..., min_length=1, max_length=200)
+    lyrics: Optional[str] = Field(None, max_length=20000)
+    track_id: Optional[int] = None
+    track_number: Optional[int] = None
+    # Track-level featured artists (guests on this one track), layered on top of
+    # the album-level artists for this track's credit. Names only; role is
+    # always "featured".
+    featured: Optional[list[str]] = Field(None, max_length=20)
+
+
+class AlbumCalibrateIn(BaseModel):
+    album_title: str = Field(..., min_length=1, max_length=300)
+    artist: str = Field(..., min_length=1, max_length=200)
+    # Optional structured credit list. Overrides parsing of `artist` for the
+    # artist linkage; `artist` stays the canonical display string.
+    artists: Optional[list[ArtistEntry]] = None
+    release_type: str = Field("album", pattern="^(album|ep|single)$")
+    release_year: Optional[int] = Field(None, ge=1900, le=2100)
+    release_date: Optional[datetime.date] = None
+    tracks: list[AlbumTrackIn] = Field(..., min_length=1, max_length=15)
+    # Bot protection — invisible field that legitimate users never fill in.
+    hp_website: str = ""
+    # Cloudflare Turnstile token; ignored unless TURNSTILE_SECRET is configured.
+    turnstile_token: str = ""
+    # First-party callers (RC_SERVICE_KEY) may tag the submission's origin.
+    source: str | None = None
+
+
+class AlbumTrackResult(BaseModel):
+    """Per-track outcome in an album calibration."""
+    track_number: Optional[int] = None
+    title: str
+    artist: Optional[str] = None
+    # "scored"        — calibrated cleanly (cache hit or fresh)
+    # "skipped"       — couldn't calibrate this track (no lyrics, validation,
+    #                   identity mismatch, or generation error); excluded from
+    #                   the album mean
+    status: str = "scored"
+    tier: Optional[str] = None
+    tier_label: Optional[str] = None
+    charge: Optional[int] = None
+    contaminated: bool = False
+    song_slug: Optional[str] = None
+    skip_reason: Optional[str] = None
+
+
+class AlbumCalibrateOut(BaseModel):
+    # "scored"      — at least one track calibrated; album aggregate produced
+    # "no_tracks"   — every track was skipped; no album reading
+    # "error"       — unexpected failure
+    status: str
+    album_title: Optional[str] = None
+    artist: Optional[str] = None
+    artist_slug: Optional[str] = None
+    release_id: Optional[int] = None
+    release_type: Optional[str] = None
+    # Album-level aggregate (mean of scored track charges).
+    tier: Optional[str] = None
+    tier_label: Optional[str] = None
+    charge: Optional[int] = None
+    track_count: int = 0          # total tracks submitted
+    calibrated_count: int = 0     # tracks that scored
+    contamination_count: int = 0  # scored tracks flagged contaminated
+    # Album-level synthesized reading (one Opus call). Any may be null on
+    # soft failure; the frontend falls back gracefully.
+    charge_summary: Optional[str] = None
+    arc_prose: Optional[str] = None
+    societal_prose: Optional[str] = None
+    tracks: list[AlbumTrackResult] = []
+    # Set on rejection — short user-facing reason.
+    block_reason: Optional[str] = None
+
+
+class AlbumChargeJobOut(BaseModel):
+    """Returned by the submit endpoint -- the job to poll."""
+    job_token: str
+    status: str          # queued
+    total_tracks: int
+
+
+class AlbumChargeStatusOut(BaseModel):
+    """Returned by the poll endpoint."""
+    status: str          # queued | running | done | error
+    phase: Optional[str] = None
+    total_tracks: int = 0
+    calibrated_tracks: int = 0
+    # Present only when status == "done": the full album result (its own
+    # `status` is "scored" or "no_tracks").
+    result: Optional[AlbumCalibrateOut] = None
+    # Present only when status == "error".
+    error: Optional[str] = None
+
+
+class AlbumSearchIn(BaseModel):
+    query: str = Field(..., min_length=1, max_length=200)
+    artist: str = Field("", max_length=200)
+
+
+class AlbumSearchResult(BaseModel):
+    album_id: int
+    title: str
+    artist: str
+    release_year: Optional[int] = None
+    release_date: Optional[str] = None  # yyyy-mm-dd when the lookup has a full date
+    track_count: Optional[int] = None
+
+
+class AlbumSearchOut(BaseModel):
+    results: list[AlbumSearchResult] = []
+    message: str = ""
+
+
+class AlbumTracklistIn(BaseModel):
+    album_id: int
+
+
+class AlbumTracklistTrack(BaseModel):
+    track_id: int
+    title: str
+    track_number: Optional[int] = None
+    has_lyrics: bool = True
+
+
+class AlbumTracklistOut(BaseModel):
+    album_title: str = ""
+    artist: str = ""
+    tracks: list[AlbumTracklistTrack] = []
+    message: str = ""
+
+
 # --- Submitted Songs Admin ---
 
 class SubmittedSongOut(BaseModel):
@@ -956,6 +1094,47 @@ class LCSubscriberOut(BaseModel):
     email: str
     created_at: datetime.datetime
     notified_at: Optional[datetime.datetime] = None
+
+
+class GeneralInquiryCreate(BaseModel):
+    """Public inquiry submission. Bot-protected at the endpoint."""
+    name: Optional[str] = Field(None, max_length=200)
+    email: Optional[str] = Field(None, max_length=254)
+    topic: str = Field("general", max_length=40)
+    subject: Optional[str] = Field(None, max_length=300)
+    message: str = Field(..., min_length=1, max_length=5000)
+    source: Optional[str] = Field(None, max_length=40)
+    page_url: Optional[str] = Field(None, max_length=500)
+    # Bot protection -- invisible field humans never fill in.
+    hp_website: str = ""
+    # Cloudflare Turnstile token; ignored unless TURNSTILE_SECRET is set.
+    turnstile_token: str = ""
+
+
+class GeneralInquiryOut(BaseModel):
+    id: int
+    created_at: datetime.datetime
+    name: Optional[str] = None
+    email: Optional[str] = None
+    topic: Optional[str] = None
+    subject: Optional[str] = None
+    message: str
+    source: Optional[str] = None
+    page_url: Optional[str] = None
+    ip_address: Optional[str] = None
+    status: str
+    handled_at: Optional[datetime.datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class GeneralInquiryStatusUpdate(BaseModel):
+    status: str  # new | read | closed
+
+
+class GeneralInquirySubmitOut(BaseModel):
+    status: str  # "received"
+    message: str
 
 
 class LCStatusOut(BaseModel):

@@ -468,6 +468,14 @@ class Release(Base):
     contamination_count = Column(Integer, default=0)
     musicbrainz_id = Column(Text)
     spotify_id = Column(Text)
+    # Album Charger: album-level synthesized reading (migration 069). NULL on
+    # MusicBrainz/Spotify-derived releases that were never run through the
+    # Album Charger.
+    charge_summary = Column(Text)  # one-paragraph album-level summary
+    arc_prose = Column(Text)  # how the album moves across its tracks
+    societal_prose = Column(Text)  # what running this album at scale does to a society
+    source = Column(String(30))  # 'album_charger' for user-charged albums; else NULL
+    submitted_at = Column(DateTime)  # when charged via the Album Charger
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1440,3 +1448,54 @@ class User(Base):
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+class GeneralInquiry(Base):
+    """General-purpose public inquiry / contact form.
+
+    Reusable across surfaces -- the first caller is the Album Charger's
+    "need more than 15 tracks?" link, but the form is generic. `topic`
+    classifies the inquiry, `source` records where it was opened from
+    (e.g. 'album_charger'). Bot-protected (honeypot + Turnstile) at the
+    endpoint; lyrics/PII beyond name+email are not collected.
+    """
+    __tablename__ = "general_inquiries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(Text)
+    email = Column(Text)
+    topic = Column(String(40))         # general | album_charger | bug | partnership | data | other
+    subject = Column(Text)
+    message = Column(Text, nullable=False)
+    source = Column(String(40))        # surface the inquiry came from
+    page_url = Column(Text)            # referring page path, if supplied
+    ip_address = Column(String(45))
+    status = Column(String(20), default="new")  # new | read | closed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    handled_at = Column(DateTime)
+
+
+class AlbumChargeJob(Base):
+    """Async job for an Album Charger run.
+
+    Album charging is minutes of sequential Opus work, too long to hold an HTTP
+    connection open for. The submit endpoint creates one of these (status
+    'queued'), kicks off a background task, and returns the token immediately;
+    the frontend polls the status endpoint. The worker updates progress
+    (phase + calibrated_tracks) and writes the final AlbumCalibrateOut payload
+    into result_json. The work (and the Release write) completes server-side
+    even if the client disconnects.
+    """
+    __tablename__ = "album_charge_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_token = Column(String(64), nullable=False, unique=True)
+    status = Column(String(20), nullable=False, default="queued")  # queued|running|done|error
+    phase = Column(String(30))           # validating|calibrating|synthesizing|writing|done
+    total_tracks = Column(Integer, default=0)      # tracks being calibrated (progress denominator)
+    calibrated_tracks = Column(Integer, default=0)
+    result_json = Column(Text)           # final AlbumCalibrateOut payload (JSON)
+    error_message = Column(Text)
+    ip_address = Column(String(45))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -197,6 +197,77 @@ def emit_comment_created(*, handle: str, target_type: str, target_source: Option
     )
 
 
+def emit_album_charged(*, album_title: str, artist: str, artist_slug: Optional[str],
+                       release_type: str, charge: Optional[int], tier_label: Optional[str],
+                       track_count: int, calibrated_count: int,
+                       contamination_count: int) -> None:
+    """Activity heartbeat -- someone just charged a full album through the
+    Album Charger. Links to the artist page so the admin can see it land."""
+    site = settings.site_url.rstrip("/")
+    type_label = {"album": "Album", "ep": "EP", "single": "Single"}.get(release_type, "Album")
+    charge_str = f"{charge:+d}" if charge is not None else "n/a"
+    tier = tier_label or "n/a"
+    artist_link = (
+        f'<a href="{site}/artists/{escape(artist_slug)}" style="color:#008f72;">{escape(artist)}</a>'
+        if artist_slug else escape(artist)
+    )
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 12px;font-size:14px;color:#333;">
+        New album charged: <strong>{escape(album_title)}</strong> by {artist_link}
+      </p>
+      <table style="border-collapse:collapse;font-size:14px;color:#333;margin:0 0 16px;">
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Format</td><td><strong>{type_label}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Album charge</td><td><strong>{charge_str}</strong> ({escape(tier)})</td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Tracks charged</td><td><strong>{calibrated_count}</strong> of {track_count}</td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Contaminated</td><td><strong>{contamination_count}</strong></td></tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard/lc-activity" style="color:#008f72;">LC Activity</a>
+        {(' &middot; ' + artist_link) if artist_slug else ''}
+      </p>
+    </div>
+    """
+    send_alert(
+        category="activity",
+        alert_key="album_charged",
+        subject=f"Album charged: {album_title} by {artist}",
+        html_body=html,
+    )
+
+
+def emit_general_inquiry(*, inquiry_id: int, name: Optional[str], email: Optional[str],
+                         topic: str, subject: Optional[str], message: str,
+                         source: Optional[str]) -> None:
+    """Moderation alert -- a general inquiry / contact form was submitted."""
+    site = settings.site_url.rstrip("/")
+    snippet = message if len(message) <= 600 else message[:600] + "..."
+    who = escape(name) if name else "(no name)"
+    contact = f" &lt;{escape(email)}&gt;" if email else ""
+    subj_line = escape(subject) if subject else "(no subject)"
+    src = f" &middot; from <code>{escape(source)}</code>" if source else ""
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 6px;font-size:14px;color:#555;">
+        New inquiry &middot; <strong>{escape(topic)}</strong>{src}
+      </p>
+      <p style="margin:0 0 4px;font-size:14px;color:#333;"><strong>{subj_line}</strong></p>
+      <p style="margin:0 0 12px;font-size:13px;color:#555;">From {who}{contact}</p>
+      <blockquote style="margin:0 0 16px;padding:10px 14px;background:#f7f7f9;border-left:3px solid #008f72;border-radius:0 4px 4px 0;font-size:14px;color:#333;white-space:pre-wrap;">{escape(snippet)}</blockquote>
+      <p style="margin:0;font-size:13px;color:#555;">
+        Inquiry #{inquiry_id} &middot;
+        <a href="{site}/api/admin/dashboard/inquiries" style="color:#008f72;">Inquiries queue</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="moderation",
+        alert_key="general_inquiry",
+        subject=f"New inquiry ({topic}): {subject or '(no subject)'}",
+        html_body=html,
+    )
+
+
 def emit_prompt_cache_warranted(*, stats: dict, window_days: int) -> None:
     """One-time nudge: calibrator API traffic is now dense enough that turning
     on prompt caching would save money. See app/services/cache_advisor.py for

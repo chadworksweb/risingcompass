@@ -234,3 +234,75 @@ transaction over a single SQLAlchemy Core connection (`engine.connect()` +
   `track_count / calibrated_count / charge_value / rubric_color` on every real
   Release for the artist. Idempotent.
 - `GET /api/admin/artists/events` — paginated audit log for merge/rename.
+
+## Album Charger (Lyrical Charger tab)
+
+A second top-level tab in the Lyrical Charger frontend (`frontend/lyrical-charger/`,
+`Song Charger` default + `Album Charger`). Charges a whole album by calibrating
+each track and aggregating.
+
+- **Async job model.** A full album is minutes of sequential Opus work, too long
+  to hold an HTTP connection open for, so charging is a background job + polling
+  (table `album_charge_jobs`, migration 071). Router `app/routers/album_charger.py`,
+  prefix `/api/analyzer/album/`:
+  - `POST /calibrate` — validates + bot-checks **synchronously**, creates an
+    `album_charge_jobs` row, launches an `asyncio.create_task` worker (refs held
+    in a module set so the loop doesn't GC them), and returns a `job_token`
+    immediately (202). Reuses `analyzer._check_bot_protection / _validate_lyrics /
+    _resolve_source / _song_persist_fields / _record_user_calibration` and
+    `analyzer.limiter` (6/day). Search-Album (`/search`, `/search-tracks`) is
+    **Musixmatch-gated** (`musixmatch.is_configured()`) and ships dark.
+  - `GET /status/{job_token}` — poll progress (`phase` + `calibrated_tracks`) and,
+    once `status='done'`, the full `AlbumCalibrateOut` result. A job stuck
+    queued/running past 15 min (e.g. a redeploy mid-charge) is reported as errored
+    so the UI stops polling. Limited 600/hour for the poll.
+  - Worker flow (`_run_album_charge`, off the request): read lyrics + per-track
+    cache lookup -> calibrate every track **concurrently** (`asyncio.gather`, cap
+    `ALBUM_TRACK_CONCURRENCY=5`; each track is the normal song path: calibrator +
+    effects + ether + societal), persisting progress as each completes -> one
+    **album synthesis** call (`services/album_synthesis.py`, mirrors
+    `effects_prose.py`) that compiles the album reading FROM the per-song
+    listener/societal prose (songs are the atomic unit; never re-analyzes lyrics)
+    -> single write txn -> store result on the job. Completes (incl. the Release
+    write) even if the client disconnects. The frontend (`charger.js`) submits then
+    polls every 3s, driving the real progress bar.
+  - This removes the timeout problem entirely (every request is short), so no
+    nginx `proxy_read_timeout` change is needed.
+- **No prompt caching.** It was tried (rubric is ~10.9k tokens) but caching only
+  saves input cost, and making the cache hit needs warm-then-serialize ordering
+  that costs more wall-time than it saves. `cache_advisor` will email when LC
+  traffic density makes it worth turning on.
+- **Artist-page attachment:** the Album Charger is the first public path that
+  creates a real `Release` (it has real release metadata). It upserts the artist,
+  creates/updates `Release` with `source='album_charger'` + the synthesis columns
+  (migration 069: `charge_summary, arc_prose, societal_prose, source, submitted_at`),
+  links each scored track via `ReleaseSong` (pointed at the canonical row), and
+  writes aggregates exactly like `refresh-release-aggregates`. Album charge =
+  `compute_release_charge` (mean of track charges). Per-track featured artists are
+  layered onto each track's credit (album artists + that track's features); the
+  Release attaches to the album's primary artist only.
+- **Release date** (form field, encouraged; trusted-source prefill from Musixmatch
+  search) matters: the artist page's default `/releases?status=released` filters
+  out releases with no `release_date`, so a year-only album lands in `unreleased`.
+- **15-track cap** (schema `max_length=15`; frontend disables "+ Add track" and
+  links to the inquiry form). Longer albums -> general inquiry.
+- **Monitoring:** album events flow into LC Activity (`album_success`,
+  `album_search_query`, `album_no_tracks`, `album_other_error` in `lc_events`).
+  `GET /api/admin/lc-events/albums` + an "Album Charger" strip on the LC Activity
+  page (counts + recent charged albums). Email alert `album_charged` (Activity,
+  default-on, toggleable) via `alerts.emit_album_charged`.
+
+## General Inquiry form
+
+Reusable account-free contact form (`frontend/inquiry.html`). First caller is the
+Album Charger's "need more than 15 tracks?" link (`?topic=album_charger&source=...`).
+
+- `app/routers/inquiries.py`: public `POST /api/inquiry` (bot-protected, rate
+  limited 5/hour, no login), admin `GET/PATCH /api/admin/inquiries`. Table
+  `general_inquiries` (migration 070), model `GeneralInquiry`.
+- Admin section `inquiries` (`admin/inquiries.html`) with status/topic filters.
+- Email alert `general_inquiry` (Moderation `[RC-MOD]`, default-on) via
+  `alerts.emit_general_inquiry`.
+- The form **disclaims** that score/calibration/algorithm questions are not
+  answered there and routes them to the Misread report (song page) or the Motion
+  Desk (`/motion-desk/file-a-motion/`).

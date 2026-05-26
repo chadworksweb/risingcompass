@@ -8,7 +8,8 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import LcEvent
+from app.models import LcEvent, Release, Artist
+from app.constants import COLOR_LABELS
 from app.routers.admin import verify_admin_key
 
 router = APIRouter(prefix="/api/admin/lc-events", tags=["lc-events-admin"])
@@ -108,3 +109,48 @@ def event_stats(db: Session = Depends(get_db)):
         "top_ips_week": top_ips,
         "top_referrers_week": top_refs,
     }
+
+
+@router.get("/albums", dependencies=[Depends(verify_admin_key)])
+def album_charger_activity(
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """Album Charger monitoring: counts of albums charged plus the most
+    recent ones. Albums charged through the tool are Releases tagged
+    source='album_charger' (distinct from MusicBrainz/Spotify-derived ones)."""
+    now = datetime.utcnow()
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    week_start = now - timedelta(days=7)
+
+    base = db.query(Release).filter(Release.source == "album_charger")
+    total = base.count()
+    today = base.filter(Release.submitted_at >= today_start).count()
+    week = base.filter(Release.submitted_at >= week_start).count()
+
+    rows = (
+        db.query(Release, Artist.name, Artist.slug)
+        .join(Artist, Artist.id == Release.artist_id)
+        .filter(Release.source == "album_charger")
+        .order_by(desc(Release.submitted_at))
+        .limit(limit)
+        .all()
+    )
+    recent = [{
+        "release_id": rel.id,
+        "title": rel.title,
+        "artist": artist_name,
+        "artist_slug": artist_slug,
+        "release_type": rel.release_type,
+        "release_date": rel.release_date.isoformat() if rel.release_date else None,
+        "release_year": rel.release_year,
+        "charge_value": rel.charge_value,
+        "rubric_color": rel.rubric_color,
+        "tier_label": COLOR_LABELS.get(rel.rubric_color) if rel.rubric_color else None,
+        "track_count": rel.track_count,
+        "calibrated_count": rel.calibrated_count,
+        "contamination_count": rel.contamination_count,
+        "submitted_at": rel.submitted_at.isoformat() if rel.submitted_at else None,
+    } for rel, artist_name, artist_slug in rows]
+
+    return {"total": total, "today": today, "week": week, "recent": recent}

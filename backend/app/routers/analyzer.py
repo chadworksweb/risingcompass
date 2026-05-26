@@ -103,9 +103,15 @@ async def _check_bot_protection(
 
 @router.get("/config")
 async def analyzer_config():
-    """Public config for the LC frontend (which bot protection to render, etc.)."""
+    """Public config for the LC frontend (which bot protection to render, which
+    Musixmatch-gated search surfaces to enable, etc.)."""
+    search_enabled = musixmatch.is_configured()
     return {
         "turnstile_site_key": settings.turnstile_site_key,
+        # Musixmatch-gated surfaces. Both the song "Search by Song" tab and the
+        # album "Search Album" sub-tab ship dark until the key is configured.
+        "song_search_enabled": search_enabled,
+        "album_search_enabled": search_enabled,
     }
 
 

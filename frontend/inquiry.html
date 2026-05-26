@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get in Touch — The Rising Compass</title>
+  <meta name="description" content="Send The Rising Compass a question, a request, or feedback.">
+  <link rel="canonical" href="https://risingcompass.net/inquiry.html">
+
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/inquiry.html">
+  <meta property="og:title" content="Get in Touch — The Rising Compass">
+  <meta property="og:description" content="Send a question, a request, or feedback.">
+  <meta property="og:site_name" content="The Rising Compass">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <style>
+    .inq-page { max-width: 640px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .inq-title { font-size: 1.4rem; font-weight: 600; color: var(--rc-text-bright); margin-bottom: 0.5rem; }
+    .inq-intro { font-size: 0.88rem; color: var(--rc-text); line-height: 1.6; margin-bottom: 1rem; }
+    .inq-intro strong { color: var(--rc-text-bright); }
+    .inq-notice {
+      font-size: 0.82rem; color: var(--rc-text); line-height: 1.55;
+      padding: 0.8rem 1rem; margin-bottom: 1.5rem;
+      background: rgba(255, 187, 51, 0.06);
+      border: 1px solid rgba(255, 187, 51, 0.3);
+      border-radius: var(--rc-radius-sm);
+    }
+    .inq-notice strong { color: var(--rc-text-bright); display: block; margin-bottom: 0.3rem; }
+    .inq-notice ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+    .inq-notice li { margin-bottom: 0.25rem; }
+    .inq-notice a { color: var(--rc-accent); text-decoration: none; }
+    .inq-notice a:hover { text-decoration: underline; }
+    .inq-form { display: flex; flex-direction: column; gap: 1rem; }
+    .inq-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 520px) { .inq-row { grid-template-columns: 1fr; } }
+    .inq-field { display: flex; flex-direction: column; gap: 0.3rem; }
+    .inq-field label {
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--rc-text-dim);
+    }
+    .inq-field input, .inq-field textarea, .inq-field select {
+      width: 100%; padding: 0.6rem 0.8rem; background: var(--rc-bg-card);
+      border: 1px solid var(--rc-border); border-radius: var(--rc-radius-sm);
+      color: var(--rc-text-bright); font-family: var(--rc-font); font-size: 0.9rem; outline: none;
+    }
+    .inq-field input:focus, .inq-field textarea:focus, .inq-field select:focus { border-color: var(--rc-accent); }
+    .inq-field textarea { min-height: 130px; resize: vertical; line-height: 1.5; }
+    .inq-field input::placeholder, .inq-field textarea::placeholder { color: var(--rc-text-dim); opacity: 0.5; }
+    .inq-consent {
+      font-size: 0.72rem; color: var(--rc-text-dim); line-height: 1.5;
+      padding: 0.6rem 0.8rem; background: var(--rc-bg-card);
+      border-radius: var(--rc-radius-sm); border: 1px solid var(--rc-border);
+    }
+    .inq-submit {
+      padding: 0.7rem 1.5rem; font-size: 0.9rem; font-weight: 600;
+      background: var(--rc-accent); color: var(--rc-bg-dark); border: none;
+      border-radius: var(--rc-radius-sm); cursor: pointer; letter-spacing: 0.04em;
+    }
+    .inq-submit:hover { opacity: 0.85; }
+    .inq-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+    .inq-success { text-align: center; padding: 2rem 1rem; }
+    .inq-success-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .inq-success h2 { font-size: 1.2rem; color: var(--rc-accent); margin-bottom: 0.5rem; }
+    .inq-success p { font-size: 0.88rem; color: var(--rc-text); line-height: 1.5; }
+    .inq-error { font-size: 0.82rem; color: var(--rc-red); margin-top: 0.5rem; }
+    .inq-hp { position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+<!-- INCLUDE:header -->
+<header class="rc-header">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+  <div class="rc-search" id="rcSearch">
+    <input type="search" id="rcSearchInput" class="rc-search-input"
+      placeholder="Search artists or songs..." autocomplete="off"
+      aria-label="Search artists or songs" role="combobox"
+      aria-expanded="false" aria-controls="rcSearchPanel" aria-autocomplete="list">
+    <div class="rc-search-panel" id="rcSearchPanel" role="listbox" hidden></div>
+  </div>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
+  <script src="/js/header-search.js" defer></script>
+</header>
+<!-- /INCLUDE:header -->
+
+<div class="inq-page">
+  <h1 class="inq-title">Get in Touch</h1>
+  <p class="inq-intro" id="inq-intro">
+    Have a question, a request, or feedback? Send it here. We read every message and reply when one is needed.
+  </p>
+
+  <div class="inq-notice">
+    <strong>This form will not answer questions about calibration.</strong>
+    Messages about a song's score, why a song was read the way it was, or how the
+    compass algorithm works will not be replied to here. There are proper channels for those:
+    <ul>
+      <li>Think a specific song was read wrong? Open that song's page and use its <a href="/misread-submission.html">misread report</a> link, so the report is tied to the song.</li>
+      <li>Want to challenge a tenet, rule, modifier, or the methodology itself? <a href="/motion-desk/file-a-motion/">File a motion</a>.</li>
+    </ul>
+  </div>
+
+  <form class="inq-form" id="inq-form">
+    <div class="inq-row">
+      <div class="inq-field">
+        <label for="inq-name">Your Name</label>
+        <input type="text" id="inq-name" placeholder="Jane Doe" maxlength="200">
+      </div>
+      <div class="inq-field">
+        <label for="inq-email">Email</label>
+        <input type="email" id="inq-email" placeholder="jane@example.com" maxlength="254">
+      </div>
+    </div>
+    <div class="inq-field">
+      <label for="inq-topic">Topic</label>
+      <select id="inq-topic">
+        <option value="general">General</option>
+        <option value="album_charger">Album Charger</option>
+        <option value="bug">Bug / problem</option>
+        <option value="partnership">Partnership</option>
+        <option value="data">Data correction</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="inq-field">
+      <label for="inq-subject">Subject</label>
+      <input type="text" id="inq-subject" placeholder="A short summary" maxlength="300">
+    </div>
+    <div class="inq-field">
+      <label for="inq-message">Message</label>
+      <textarea id="inq-message" required placeholder="Tell us what you need." maxlength="5000"></textarea>
+    </div>
+
+    <div class="inq-hp" aria-hidden="true">
+      <label for="hp-website">Website (leave blank)</label>
+      <input type="text" id="hp-website" name="website" autocomplete="off" tabindex="-1" value="">
+    </div>
+
+    <div class="inq-consent">
+      By submitting, you consent to your IP address being recorded for moderation. Your contact info is only used to reply about this message.
+    </div>
+    <button type="submit" class="inq-submit" id="inq-submit-btn">Send</button>
+    <div class="inq-error" id="inq-error" style="display:none;"></div>
+  </form>
+
+  <div class="inq-success" id="inq-success" style="display:none;">
+    <div class="inq-success-icon">&#x2713;</div>
+    <h2>Sent</h2>
+    <p>Thanks. We've got your message and will be in touch if a reply is needed.</p>
+  </div>
+</div>
+
+<script>
+(function() {
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const API_BASE = '';
+  const API_KEY = isLocal
+    ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
+    : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
+  const API_HEADERS = API_KEY ? { 'X-Api-Key': API_KEY } : {};
+
+  const params = new URLSearchParams(window.location.search);
+  const VALID_TOPICS = ['general', 'album_charger', 'bug', 'partnership', 'data', 'other'];
+
+  // Prefill from query params (deep links, e.g. the Album Charger's
+  // "need more than 15 tracks?" link).
+  const qTopic = (params.get('topic') || '').toLowerCase();
+  if (VALID_TOPICS.includes(qTopic)) document.getElementById('inq-topic').value = qTopic;
+  const qSubject = params.get('subject');
+  if (qSubject) document.getElementById('inq-subject').value = qSubject.slice(0, 300);
+  const qIntro = params.get('intro');
+  if (qIntro) document.getElementById('inq-intro').textContent = qIntro.slice(0, 300);
+  const source = (params.get('source') || '').slice(0, 40) || null;
+
+  const form = document.getElementById('inq-form');
+  const submitBtn = document.getElementById('inq-submit-btn');
+  const errorEl = document.getElementById('inq-error');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.style.display = 'none';
+    const message = document.getElementById('inq-message').value.trim();
+    if (!message) {
+      errorEl.textContent = 'Please enter a message.';
+      errorEl.style.display = '';
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending...';
+
+    const body = {
+      name: document.getElementById('inq-name').value.trim() || null,
+      email: document.getElementById('inq-email').value.trim() || null,
+      topic: document.getElementById('inq-topic').value || 'general',
+      subject: document.getElementById('inq-subject').value.trim() || null,
+      message: message,
+      source: source,
+      page_url: (document.referrer || '').slice(0, 500) || null,
+      hp_website: document.getElementById('hp-website').value,
+      turnstile_token: '',
+    };
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/inquiry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: 'Submission failed' }));
+        throw new Error(typeof err.detail === 'string' ? err.detail : 'Submission failed');
+      }
+      form.style.display = 'none';
+      document.getElementById('inq-success').style.display = '';
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = '';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send';
+    }
+  });
+})();
+</script>
+
+<!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+<!-- /INCLUDE:footer -->
+
+</body>
+</html>

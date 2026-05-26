@@ -35,6 +35,11 @@ EVENT_TYPES = {
     "submission_honeypot",
     "submission_turnstile_failed",
     "submission_other_error",
+    # Album Charger
+    "album_search_query",
+    "album_success",
+    "album_no_tracks",
+    "album_other_error",
 }
 
 

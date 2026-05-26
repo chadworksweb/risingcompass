@@ -1,0 +1,107 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'inquiries' %}
+{% block title %}Inquiries — Admin{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="inqNew">—</div><div class="label">New</div></div>
+  <div class="stat-card"><div class="val" id="inqOpen">—</div><div class="label">Not closed</div></div>
+  <div class="stat-card"><div class="val" id="inqTotal">—</div><div class="label">All-time</div></div>
+</div>
+
+<h2 class="section-title">Inquiries</h2>
+<div class="filter-bar" id="inqStatusFilters">
+  <button class="filter-btn active" onclick="inqFilter('status','')">All</button>
+  <button class="filter-btn" onclick="inqFilter('status','new')">New</button>
+  <button class="filter-btn" onclick="inqFilter('status','read')">Read</button>
+  <button class="filter-btn" onclick="inqFilter('status','closed')">Closed</button>
+</div>
+<div class="filter-bar" id="inqTopicFilters" style="margin-top:-0.5rem;">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">TOPIC:</span>
+  <button class="filter-btn active" onclick="inqFilter('topic','')">All</button>
+  <button class="filter-btn" onclick="inqFilter('topic','album_charger')">Album Charger</button>
+  <button class="filter-btn" onclick="inqFilter('topic','general')">General</button>
+  <button class="filter-btn" onclick="inqFilter('topic','bug')">Bug</button>
+  <button class="filter-btn" onclick="inqFilter('topic','partnership')">Partnership</button>
+  <button class="filter-btn" onclick="inqFilter('topic','data')">Data</button>
+  <button class="filter-btn" onclick="inqFilter('topic','other')">Other</button>
+</div>
+<div id="inqList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let inqStatus = '';
+let inqTopic = '';
+
+function onAdminReady() { loadInquiries(); }
+
+function inqFilter(kind, val) {
+  if (kind === 'status') inqStatus = val; else inqTopic = val;
+  const bar = document.getElementById(kind === 'status' ? 'inqStatusFilters' : 'inqTopicFilters');
+  bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadInquiries();
+}
+
+async function loadInquiries() {
+  try {
+    let url = '/api/admin/inquiries';
+    const qs = [];
+    if (inqStatus) qs.push('status=' + encodeURIComponent(inqStatus));
+    if (inqTopic) qs.push('topic=' + encodeURIComponent(inqTopic));
+    if (qs.length) url += '?' + qs.join('&');
+    const resp = await fetch(url, { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const rows = await resp.json();
+
+    // Stats need an unfiltered count; fetch all once for the cards.
+    const allResp = await fetch('/api/admin/inquiries', { headers: adminHeaders() });
+    const all = allResp.ok ? await allResp.json() : rows;
+    document.getElementById('inqNew').textContent = all.filter(r => r.status === 'new').length;
+    document.getElementById('inqOpen').textContent = all.filter(r => r.status !== 'closed').length;
+    document.getElementById('inqTotal').textContent = all.length;
+
+    const el = document.getElementById('inqList');
+    if (!rows.length) { el.innerHTML = '<p style="color:#666;">No inquiries match.</p>'; return; }
+    el.innerHTML = rows.map(renderInquiry).join('');
+  } catch (e) { console.error(e); }
+}
+
+function renderInquiry(r) {
+  const when = r.created_at ? r.created_at.replace('T', ' ').slice(0, 19) : '—';
+  const statusColor = r.status === 'new' ? 'var(--accent)' : (r.status === 'closed' ? '#777' : '#aa8');
+  const contact = r.email ? `<a href="mailto:${escHtml(r.email)}" style="color:var(--accent);">${escHtml(r.email)}</a>` : '(no email)';
+  const src = r.source ? ` &nbsp;|&nbsp; from <code>${escHtml(r.source)}</code>` : '';
+  const page = r.page_url ? ` &nbsp;|&nbsp; ${escHtml(r.page_url)}` : '';
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <span style="color:${statusColor};font-weight:bold;text-transform:uppercase;font-size:0.72rem;">${escHtml(r.status)}</span>
+        <span style="background:rgba(0,143,114,0.12);color:var(--accent);font-size:0.7rem;padding:1px 7px;border-radius:3px;margin-left:0.4rem;">${escHtml(r.topic || 'general')}</span>
+        <strong style="margin-left:0.5rem;">${escHtml(r.subject || '(no subject)')}</strong>
+      </div>
+      <div style="color:#666;font-size:0.78rem;">${when}</div>
+    </div>
+    <div style="color:#555;font-size:0.78rem;margin-top:0.25rem;">${escHtml(r.name || '(no name)')} &middot; ${contact}${src}${page}</div>
+    <div style="color:#333;font-size:0.85rem;margin-top:0.4rem;white-space:pre-wrap;">${escHtml(r.message)}</div>
+    <div style="margin-top:0.5rem;display:flex;gap:0.4rem;">
+      <button onclick="setInq(${r.id},'read')" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Mark read</button>
+      <button onclick="setInq(${r.id},'closed')" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Close</button>
+      <button onclick="setInq(${r.id},'new')" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Reopen</button>
+    </div>
+  </div>`;
+}
+
+async function setInq(id, status) {
+  try {
+    const resp = await fetch('/api/admin/inquiries/' + id, {
+      method: 'PATCH',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ status }),
+    });
+    if (resp.ok) loadInquiries();
+  } catch (e) { console.error(e); }
+}
+</script>
+{% endblock %}

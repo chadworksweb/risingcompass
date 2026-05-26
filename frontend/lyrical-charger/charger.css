@@ -1497,3 +1497,353 @@ main {
 .below-fold-grass a:hover {
   border-bottom-style: solid;
 }
+
+/* ============================================================
+   ALBUM CHARGER
+   Top-level mode tabs, manual track builder, gated album search,
+   and the album results breakdown.
+   ============================================================ */
+
+/* ---- Top-level mode tabs (Song Charger / Album Charger) ---- */
+.top-tab-bar {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  max-width: 640px;
+  margin: 1.25rem auto 0.5rem;
+  padding: 0 1rem;
+}
+
+.top-tab {
+  flex: 1;
+  max-width: 220px;
+  padding: 0.7rem 1rem;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--rc-ease), border-color var(--rc-ease), background var(--rc-ease), box-shadow var(--rc-ease);
+}
+
+.top-tab:hover {
+  color: var(--rc-text-bright);
+  border-color: var(--rc-border-ui);
+}
+
+.top-tab.active {
+  color: var(--rc-bg-dark);
+  background: var(--rc-accent);
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 16px var(--rc-accent-glow);
+}
+
+.top-tab-bar.hidden { display: none; }
+
+/* ---- Album sub-tab buttons reuse the inner .tab styling ---- */
+.album-tab {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--rc-ease), border-color var(--rc-ease);
+}
+.album-tab:hover { color: var(--rc-text-bright); }
+.album-tab.active {
+  color: var(--rc-accent);
+  border-bottom-color: var(--rc-accent);
+}
+
+/* ---- Album metadata row (release type + year) ---- */
+.album-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.album-select,
+.album-date,
+.album-year {
+  padding: 0.6rem 0.9rem;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-bright);
+  font-family: var(--rc-font-mono);
+  font-size: 0.82rem;
+  transition: border-color var(--rc-ease), box-shadow var(--rc-ease);
+}
+.album-select { flex: 0 0 auto; }
+.album-date { flex: 1 1 9rem; min-width: 0; color-scheme: dark; }
+.album-year { flex: 1 1 5rem; min-width: 0; }
+.album-select:focus,
+.album-date:focus,
+.album-year:focus {
+  outline: none;
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 0 1px var(--rc-accent-subtle);
+}
+
+.album-date-hint { margin-top: 0; }
+
+/* ---- Track builder ---- */
+.album-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.album-track {
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  background: var(--rc-bg-panel);
+  padding: 0.6rem;
+}
+
+.album-track-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.album-track-num {
+  width: 1.8rem;
+  height: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+}
+
+.album-track-title {
+  width: 100%;
+  padding: 0.5rem 0.8rem;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-bright);
+  font-family: var(--rc-font-mono);
+  font-size: 0.82rem;
+  transition: border-color var(--rc-ease);
+}
+.album-track-title:focus { outline: none; border-color: var(--rc-accent); }
+
+.album-track-lyrics {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text);
+  font-family: var(--rc-font-mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color var(--rc-ease);
+}
+.album-track-lyrics:focus { outline: none; border-color: var(--rc-accent); }
+
+.album-add-track-btn { margin-top: 0.75rem; }
+
+/* ---- Gated album search notice ---- */
+.album-gated-notice {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--rc-border-ui);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}
+.album-gated-notice.hidden { display: none; }
+
+/* ---- Album results: meta pills ---- */
+.album-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.album-meta-pill {
+  padding: 0.3rem 0.7rem;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: 999px;
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Album results: per-track breakdown ---- */
+.album-tracklist { margin-top: 1.5rem; }
+
+.album-tracklist-title {
+  font-family: var(--rc-font);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  margin-bottom: 0.6rem;
+}
+
+.album-track-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.album-track-result {
+  display: grid;
+  grid-template-columns: 1.6rem auto 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+}
+
+.album-track-result.is-skipped {
+  grid-template-columns: 1.6rem 1fr auto;
+  opacity: 0.55;
+}
+
+.atr-num {
+  font-family: var(--rc-font-mono);
+  font-size: 0.74rem;
+  color: var(--rc-text-dim);
+  text-align: right;
+}
+
+.atr-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.atr-title {
+  color: var(--rc-text-bright);
+  font-size: 0.88rem;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
+
+.atr-contam {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--rc-contam-bg);
+  border: 1px solid var(--rc-contam-border);
+  color: var(--rc-orange);
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.atr-charge {
+  font-family: var(--rc-font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.atr-skip {
+  color: var(--rc-text-dim);
+  font-size: 0.78rem;
+  font-style: italic;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .top-tab { font-size: 0.74rem; padding: 0.6rem 0.5rem; }
+  .album-track-result { grid-template-columns: 1.4rem auto 1fr auto; }
+  .album-track-result .atr-charge { grid-column: 1 / -1; text-align: left; padding-left: 1.9rem; }
+}
+
+/* ---- Per-track featured artists ---- */
+.album-track-feats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.album-track-feat-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.album-track-feat-name {
+  width: 100%;
+  padding: 0.45rem 0.8rem;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-bright);
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+  transition: border-color var(--rc-ease);
+}
+.album-track-feat-name:focus { outline: none; border-color: var(--rc-accent); }
+
+.album-track-feat-name::placeholder { color: var(--rc-text-dim); opacity: 0.7; }
+
+.album-track-feat-add {
+  margin-top: 0.5rem;
+  background: transparent;
+  border: 1px dashed var(--rc-border);
+  color: var(--rc-text-dim);
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--rc-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  transition: border-color var(--rc-ease), color var(--rc-ease);
+}
+.album-track-feat-add:hover { border-color: var(--rc-border-ui); color: var(--rc-text-bright); }
+
+/* ---- Album track 15-cap notice ---- */
+.album-track-limit-note {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+}
+.album-track-limit-note a { color: var(--rc-accent); text-decoration: none; }
+.album-track-limit-note a:hover { text-decoration: underline; }
+.album-track-limit-note.hidden { display: none; }
