@@ -297,6 +297,27 @@
     deserves a code review — that's the friction by design.
   </div>
 
+  <div class="audit-card" id="audit-panel" style="margin-bottom:1.5rem;">
+    <h2>Audit a mis-tagged song</h2>
+    <p class="hint" style="margin-top:0.2rem;">
+      A published song whose ether tags are wrong. Opening an audit clears its
+      <code>topics</code> to <code>[]</code> and drops it into the queue below,
+      where you can remap, reject, or (after expanding the taxonomy) re-run the
+      tagger. The old topics are kept in the audit record.
+    </p>
+    <label for="audit-song-id">compass_song id</label>
+    <input type="text" id="audit-song-id" inputmode="numeric" placeholder="e.g. 234">
+    <label for="audit-reason">Reason (why the current tags are wrong)</label>
+    <input type="text" id="audit-reason" placeholder="e.g. 'violence' misreads de-escalation as aggression">
+    <label for="audit-proposed">Proposed new tag (optional)</label>
+    <input type="text" id="audit-proposed" placeholder="leave blank if an existing slug fits / none does">
+    <label for="audit-rationale">Rationale</label>
+    <textarea id="audit-rationale" placeholder="What the honest read is, and why no existing slug captures it."></textarea>
+    <div class="form-actions">
+      <button id="audit-submit" class="warn">Open audit</button>
+    </div>
+  </div>
+
   <div id="queue-container">
     <div class="empty">Loading…</div>
   </div>
@@ -586,8 +607,35 @@ async function refresh() {
   }
 }
 
+async function submitAudit(btn) {
+  const id = (document.getElementById("audit-song-id").value || "").trim();
+  const reason = (document.getElementById("audit-reason").value || "").trim();
+  const rationale = (document.getElementById("audit-rationale").value || "").trim();
+  const proposed = (document.getElementById("audit-proposed").value || "").trim();
+  if (!/^\d+$/.test(id)) { showToast("Enter a numeric compass_song id", true); return; }
+  if (!reason) { showToast("Reason is required", true); return; }
+  if (!rationale) { showToast("Rationale is required", true); return; }
+  btn.disabled = true;
+  try {
+    const out = await postJSON(`/api/admin/ether-audits/${id}/audit`, {
+      reason, rationale, proposed_tag: proposed || null,
+    });
+    showToast(`Opened audit on song ${out.song_id}`);
+    document.getElementById("audit-song-id").value = "";
+    document.getElementById("audit-reason").value = "";
+    document.getElementById("audit-proposed").value = "";
+    document.getElementById("audit-rationale").value = "";
+    await refresh();
+  } catch (err) {
+    showToast(err.message || "audit failed", true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // Bootstrap
 loadTaxonomySlugs();
+document.getElementById("audit-submit").addEventListener("click", (e) => submitAudit(e.currentTarget));
 refresh();
 </script>
 

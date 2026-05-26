@@ -1,9 +1,15 @@
-"""Admin Ether Audits — triage queue for taxonomy-flagged songs.
+"""Admin Ether Audits — triage queue for songs the taxonomy couldn't fit.
 
-When the ether tagger can't honestly fit a song into the closed 24-topic
-taxonomy, it writes a `topic_audit` payload instead of forcing a bad tag.
-This router exposes the queue of flagged rows plus three triage actions:
+A song lands in the queue two ways: the ether tagger writes a `topic_audit`
+when it can't honestly fit a song into the closed 24-topic taxonomy, OR an
+admin opens an audit on an already-tagged song whose tags are wrong. Either
+way the row carries `topics: []` + a `topic_audit` payload.
 
+This router exposes the queue plus one entry action and three triage actions:
+
+  - **Audit** — open an audit on a published, already-tagged song whose ether
+    tags are wrong: clears `topics` to [] and writes a `topic_audit`. The
+    entry point the tagger's own escape-hatch can't provide.
   - **Remap** — pick an existing slug; the agent missed it.
   - **Retag** — re-run the tagger after the admin has added a new slug
     to `services/ether_taxonomy.py` and deployed.
@@ -76,12 +82,18 @@ class RetagIn(BaseModel):
     lyrics: str = Field(..., min_length=1)
 
 
+class AuditIn(BaseModel):
+    reason: str = Field(..., min_length=1, description="Why the current tags are wrong")
+    rationale: str = Field(..., min_length=1, description="What the honest read is / why no slug fits")
+    proposed_tag: Optional[str] = Field(None, description="Suggested new taxonomy slug, if one should exist")
+
+
 class ActionOut(BaseModel):
     song_id: int
     deadpan_line: Optional[str] = None
     topics: list[str] = []
     topic_audit: Optional[dict] = None
-    status: str  # "remapped" | "rejected" | "retagged" | "retag_audit_persisted"
+    status: str  # "audited" | "remapped" | "rejected" | "retagged" | "retag_audit_persisted"
 
 
 # --- Helpers ---
@@ -98,6 +110,16 @@ def _decode_audit(raw: Optional[str]) -> dict:
 
 def _serialize_topics(topics: list[str]) -> str:
     return json.dumps(topics)
+
+
+def _decode_topics(raw: Optional[str]) -> list[str]:
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, list) else []
+    except (TypeError, ValueError):
+        return []
 
 
 def _load_audit_song(db: Session, song_id: int) -> CompassSong:
@@ -150,13 +172,56 @@ def list_queue(
     return AuditQueueOut(items=items, total=total)
 
 
+@router.post("/{song_id}/audit", response_model=ActionOut, dependencies=[Depends(verify_admin_key)])
+def audit_song(
+    song_id: int,
+    data: AuditIn,
+    db: Session = Depends(get_db),
+):
+    """Open an audit on an already-tagged song whose ether tags are wrong.
+
+    The entry point the tagger's own audit escape-hatch can't provide: a human
+    (or Claude Code) decides a published song's ether tags are wrong, so we
+    clear `topics` to [] and write a `topic_audit` payload. The song then
+    surfaces in the panel where remap / retag / reject resolve it. The prior
+    topics are preserved in the audit under `audited_from` for the record.
+
+    Anthropic-free: the reason/rationale/proposed_tag are supplied, not generated.
+    """
+    song = db.query(CompassSong).filter(CompassSong.id == song_id).first()
+    if not song:
+        raise HTTPException(404, "compass_song not found")
+
+    prior_topics = _decode_topics(song.topics)
+    audit = {
+        "reason": data.reason.strip(),
+        "proposed_tag": (data.proposed_tag or "").strip(),
+        "rationale": data.rationale.strip(),
+        "audited_from": prior_topics,
+        "source": "admin_audit",
+    }
+    song.topics = _serialize_topics([])
+    song.topic_audit = json.dumps(audit)
+    db.commit()
+    db.refresh(song)
+    logger.info("Ether tags audited: song=%s audited_from=%s proposed=%r",
+                song.id, prior_topics, audit["proposed_tag"])
+    return ActionOut(
+        song_id=song.id,
+        deadpan_line=song.deadpan_line,
+        topics=[],
+        topic_audit=audit,
+        status="audited",
+    )
+
+
 @router.post("/{song_id}/remap", response_model=ActionOut, dependencies=[Depends(verify_admin_key)])
 def remap_audit(
     song_id: int,
     data: RemapIn,
     db: Session = Depends(get_db),
 ):
-    """Remap an audit-flagged song to an existing taxonomy slug.
+    """Remap an audited song to an existing taxonomy slug.
 
     Writes the slug into `topics` (single-element list) and clears
     `topic_audit`. The deadpan_line is preserved.
