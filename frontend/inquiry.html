@@ -200,6 +200,8 @@
     <div class="inq-consent">
       By submitting, you consent to your IP address being recorded for moderation. Your contact info is only used to reply about this message.
     </div>
+    <!-- Turnstile mount; only renders when a site key is configured server-side -->
+    <div id="inq-turnstile" class="inq-turnstile" style="margin-top:0.2rem;"></div>
     <button type="submit" class="inq-submit" id="inq-submit-btn">Send</button>
     <div class="inq-error" id="inq-error" style="display:none;"></div>
   </form>
@@ -237,6 +239,39 @@
   const submitBtn = document.getElementById('inq-submit-btn');
   const errorEl = document.getElementById('inq-error');
 
+  // Cloudflare Turnstile. The inquiry endpoint shares the Lyrical Charger's bot
+  // protection: when TURNSTILE_SECRET is set server-side, a valid token is
+  // required. Mount the widget when /config returns a site key.
+  let turnstileWidgetId = null;
+  function getTurnstileToken() {
+    if (!window.turnstile || turnstileWidgetId === null) return '';
+    try { return window.turnstile.getResponse(turnstileWidgetId) || ''; } catch (_) { return ''; }
+  }
+  function resetTurnstile() {
+    if (window.turnstile && turnstileWidgetId !== null) {
+      try { window.turnstile.reset(turnstileWidgetId); } catch (_) {}
+    }
+  }
+  (async function initBotProtection() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/analyzer/config`, { headers: API_HEADERS });
+      if (!resp.ok) return;
+      const cfg = await resp.json();
+      if (!cfg.turnstile_site_key) return;
+      window.onInqTurnstileLoad = function () {
+        const mount = document.getElementById('inq-turnstile');
+        if (!mount || !window.turnstile) return;
+        turnstileWidgetId = window.turnstile.render(mount, {
+          sitekey: cfg.turnstile_site_key, theme: 'dark', size: 'flexible',
+        });
+      };
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onInqTurnstileLoad';
+      s.async = true; s.defer = true;
+      document.head.appendChild(s);
+    } catch (_) { /* bot protection is best-effort */ }
+  })();
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.style.display = 'none';
@@ -258,7 +293,7 @@
       source: source,
       page_url: (document.referrer || '').slice(0, 500) || null,
       hp_website: document.getElementById('hp-website').value,
-      turnstile_token: '',
+      turnstile_token: getTurnstileToken(),
     };
 
     try {
@@ -267,6 +302,7 @@
         headers: { 'Content-Type': 'application/json', ...API_HEADERS },
         body: JSON.stringify(body),
       });
+      resetTurnstile();  // tokens are single-use
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ detail: 'Submission failed' }));
         throw new Error(typeof err.detail === 'string' ? err.detail : 'Submission failed');
