@@ -160,6 +160,8 @@ body {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--rc-border);
   background: var(--rc-bg-panel);
+  position: relative;  /* positioning context for the centered search */
+  z-index: 1000;       /* lift the header (and its search dropdown) above page content */
 }
 .rc-back-link {
   display: inline-flex;
@@ -173,10 +175,109 @@ body {
 }
 .rc-back-link:hover { color: var(--rc-accent); }
 .rc-back-link svg { flex-shrink: 0; }
+
+/* Global header search + Google-style autocomplete dropdown. Absolutely
+   centered in the header on desktop; reflows into the flex row on narrow
+   screens (see the 820px breakpoint) so it can't overlap the logo/account. */
+.rc-search {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, 46vw);
+  min-width: 0;
+}
+.rc-search-input {
+  width: 100%;
+  padding: 0.5rem 0.95rem;
+  font-family: var(--rc-font);
+  font-size: 0.88rem;
+  color: var(--rc-text-bright);
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-border-ui);
+  border-radius: 999px;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  /* Subtle accent glow so the bar reads as floating above the page. */
+  box-shadow: 0 0 0 1px rgba(0, 212, 170, 0.04), 0 0 16px rgba(0, 212, 170, 0.12);
+}
+.rc-search-input::placeholder { color: var(--rc-text-dim); }
+.rc-search-input:focus {
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 0 3px var(--rc-accent-subtle), 0 0 24px rgba(0, 212, 170, 0.30);
+}
+.rc-search-panel {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border-ui);
+  border-radius: 12px;
+  /* Drop shadow for depth + an accent glow that ties it to the bar above. */
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 26px rgba(0, 212, 170, 0.16);
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 9999;
+  padding: 0.35rem;
+}
+.rc-search-panel[hidden] { display: none; }
+.rc-search-group-label {
+  padding: 0.5rem 0.6rem 0.25rem;
+  font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--rc-text-dim);
+}
+.rc-search-item {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.5rem 0.6rem; border-radius: 6px;
+  color: var(--rc-text); text-decoration: none;
+}
+a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hover); }
+.rc-search-item-static { opacity: 0.65; }
+.rc-search-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.rc-search-name { font-size: 0.88rem; font-weight: 600; color: var(--rc-text-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-search-sub { font-size: 0.74rem; color: var(--rc-text-dim); margin-left: auto; white-space: nowrap; padding-left: 0.6rem; flex-shrink: 0; }
+.rc-search-empty { padding: 0.7rem 0.6rem; font-size: 0.82rem; color: var(--rc-text-dim); }
+.rc-search-all {
+  display: block; margin-top: 0.25rem; padding: 0.55rem 0.6rem;
+  border-top: 1px solid var(--rc-border);
+  color: var(--rc-accent); font-size: 0.8rem; font-weight: 600; text-decoration: none;
+}
+.rc-search-all:hover { background: var(--rc-accent-subtle); }
+
+/* Page dim scrim while the dropdown is open. Below the header (z 1000), above
+   page content, so the search bar + results stay lit and the page recedes. */
+.rc-search-dim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 900;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.rc-search-dim.show { opacity: 1; pointer-events: auto; }
+
+/* Narrow screens: drop the absolute centering and let the search flow in the
+   header row (flex:1) so it can't sit on top of the logo or account link. */
+@media (max-width: 820px) {
+  .rc-search {
+    position: static;
+    transform: none;
+    width: auto;
+    flex: 1 1 auto;
+    max-width: 460px;
+    margin: 0 0.5rem;
+  }
+}
 @media (max-width: 600px) {
   .rc-header { padding: 0.75rem 1rem; }
   .rc-back-link { font-size: 0.85rem; }
+  .rc-back-link span { display: none; }  /* logo only on mobile — give the search room */
   .rc-account-link { font-size: 0.78rem; padding: 0.3rem 0.65rem; }
+  .rc-search { margin: 0 0.4rem; }
+  .rc-search-input { font-size: 0.82rem; padding: 0.45rem 0.7rem; }
 }
 
 /* Sitewide auth indicator. Renders "Sign in" by default; flips to "Account"

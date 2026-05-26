@@ -47,6 +47,13 @@
     </svg>
     <span>The Rising Compass</span>
   </a>
+  <div class="rc-search" id="rcSearch">
+    <input type="search" id="rcSearchInput" class="rc-search-input"
+      placeholder="Search artists or songs..." autocomplete="off"
+      aria-label="Search artists or songs" role="combobox"
+      aria-expanded="false" aria-controls="rcSearchPanel" aria-autocomplete="list">
+    <div class="rc-search-panel" id="rcSearchPanel" role="listbox" hidden></div>
+  </div>
   <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
   <script>
     (function(){
@@ -88,6 +95,7 @@
       });
     })();
   </script>
+  <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
 

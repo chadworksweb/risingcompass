@@ -57,6 +57,13 @@
       debounceTimer = setTimeout(() => runSearch(q), 300);
     });
 
+    // Prefill + run from ?q= (the header search "See all results" link lands here).
+    const initialQ = (new URLSearchParams(window.location.search).get('q') || '').trim();
+    if (initialQ) {
+      input.value = initialQ;
+      runSearch(initialQ);
+    }
+
     async function runSearch(q) {
       if (currentController) currentController.abort();
       const controller = new AbortController();
