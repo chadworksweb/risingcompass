@@ -9,7 +9,7 @@ honest.
 This is two things at once: a user-facing consensus ("this song was
 calibrated 8 times, consensus is orange -34") and a training corpus for
 later model work (input = lyrics hash + song identity, output = full
-classification).
+calibration).
 
 Lyrics themselves are never stored — only a SHA-256 hash for dedupe /
 variance awareness.

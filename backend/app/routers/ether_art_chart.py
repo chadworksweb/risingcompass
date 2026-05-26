@@ -4,7 +4,7 @@ Three read-only endpoints that surface what the ether tagger has named:
 
   - GET /today          — most recent daily reading, deadpan + topics
   - GET /year/{year}    — position-weighted top 20 + topic distribution
-  - GET /years          — list of years with any classified data
+  - GET /years          — list of years with any calibrated data
 
 API-key gated through the same dependency the rest of the public RC
 endpoints use; mounted from main.py with `_api_key_dep`. No auth

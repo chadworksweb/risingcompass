@@ -62,7 +62,7 @@ EFFECTS_VOICE = """You are writing the "What Might This Song Do to the Listener?
 
 ## Hard "never" list
 
-- Never reference Rising Compass, tiers, colors, charge numbers, or classification vocabulary.
+- Never reference Rising Compass, tiers, colors, charge numbers, or calibration vocabulary.
 - Never use "Normalizes," "Activates," "Models," "Wrapped in," "Framed as," "Baked in," "In today's anything."
 - Never use therapist vocabulary: "defense mechanism," "codependent," "trauma response," "coping strategy," "processing," "emotional regulation."
 - Never use "cycles through," "catalog of," "a kind of," "sort of," "the kind of X that."

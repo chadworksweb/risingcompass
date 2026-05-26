@@ -7,7 +7,7 @@ Two shapes of input supported:
 
 All ingestion paths (LC submit, compass agent approve, stream promotion,
 admin library CRUD) route through `try_link_song`. Best-effort: failures
-are logged but never raised, since linking is ancillary to classification.
+are logged but never raised, since linking is ancillary to calibration.
 
 No release_songs linkage here. Songs are surfaced on the artist page via
 song_artists (credit path) + string match; releases only exist when there's

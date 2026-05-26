@@ -67,6 +67,12 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
         return None
     logger.info("Using cached calibration for '%s' by %s: %s %s",
                 title, artist, existing.rubric_color, existing.charge_value)
+
+    # Return the full stored object, including the generated fields (ether
+    # tags + prose). Callers that hit cache can persist a complete calibration
+    # without re-running the model; ensure_full_calibration() fills any that
+    # are still NULL on older rows. topics / topic_audit are stored as JSON
+    # strings; parse them back to the list / dict shape tag_song emits.
     return {
         "compass_song_id": existing.id,
         "rubric_color": existing.rubric_color,
@@ -77,7 +83,111 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
         "dogma_note": getattr(existing, "dogma_note", None),
         "charge_summary": existing.charge_summary,
         "confidence": 1.0,
+        "effects_prose": getattr(existing, "effects_prose", None),
+        "societal_effects_prose": getattr(existing, "societal_effects_prose", None),
+        "deadpan_line": getattr(existing, "deadpan_line", None),
+        "topics": _load_json(getattr(existing, "topics", None)),
+        "topic_audit": _load_json(getattr(existing, "topic_audit", None)),
     }
+
+
+def _load_json(raw):
+    """Parse a JSON column value back to a Python object. Returns None on
+    empty / invalid input so the generation gap-fill treats it as missing."""
+    if not raw:
+        return None
+    if not isinstance(raw, str):
+        return raw
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+
+
+async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) -> None:
+    """Complete a calibration's generated fields IN PLACE: effects prose,
+    ether tagging (deadpan_line + topics + topic_audit), then societal prose.
+
+    This is the one and only place the calibration's generation steps (effects,
+    ether, societal) are orchestrated. Every in-road reaches it through
+    calibrate_song_async / ensure_full_calibration -- nobody re-implements
+    "calibrate then tag then prose" on the side.
+
+    Idempotent: any field already present (terminal-supplied or cached) is
+    left untouched, so re-running fills only what's missing. Each step fails
+    soft -- on error the field stays as-is and the page falls back to
+    tier-generic copy. The sync step functions run in threads so the event
+    loop isn't blocked through the multi-second model calls; no DB session is
+    held here (the caller owns persistence).
+    """
+    color = calib.get("rubric_color")
+    if not color:
+        return
+
+    # 1. Effects prose -- what the words may do to a listener.
+    if not calib.get("effects_prose"):
+        try:
+            from app.services.effects_prose import generate_effects_prose
+            calib["effects_prose"] = await asyncio.to_thread(
+                generate_effects_prose,
+                title=title, artist=artist, rubric_color=color,
+                charge_value=calib.get("charge_value"),
+                charge_summary=calib.get("charge_summary"),
+                contaminated=bool(calib.get("contaminated", False)),
+                contamination_note=calib.get("contamination_note"),
+                lyrics=lyrics,
+            )
+        except Exception:
+            logger.exception("effects_prose step failed for %s / %s", title, artist)
+
+    # 2. Ether tagging -- names what the song IS: deadpan_line + topic tags.
+    if not calib.get("deadpan_line"):
+        try:
+            from app.services.agents.ether_tagger import tag_song
+            ether = await asyncio.to_thread(
+                tag_song,
+                title=title, artist=artist, lyrics=lyrics,
+                rubric_color=color, charge_value=calib.get("charge_value"),
+                charge_summary=calib.get("charge_summary"),
+                effects_prose=calib.get("effects_prose"),
+            )
+            if ether:
+                calib["deadpan_line"] = ether.get("deadpan_line")
+                calib["topics"] = ether.get("topics")
+                calib["topic_audit"] = ether.get("topic_audit")
+        except Exception:
+            logger.exception("ether_tagging step failed for %s / %s", title, artist)
+
+    # 3. Societal prose -- what running this program at scale does to a society.
+    #    Grounded on the ether tags + listener prose produced above.
+    if not calib.get("societal_effects_prose"):
+        try:
+            from app.services.societal_effects_prose import generate_societal_effects_prose
+            calib["societal_effects_prose"] = await asyncio.to_thread(
+                generate_societal_effects_prose,
+                title=title, artist=artist, rubric_color=color,
+                charge_value=calib.get("charge_value"),
+                charge_summary=calib.get("charge_summary"),
+                contaminated=bool(calib.get("contaminated", False)),
+                contamination_note=calib.get("contamination_note"),
+                lyrics=lyrics,
+                deadpan_line=calib.get("deadpan_line"),
+                topics=calib.get("topics"),
+                effects_prose=calib.get("effects_prose"),
+            )
+        except Exception:
+            logger.exception("societal_effects_prose step failed for %s / %s", title, artist)
+
+
+async def ensure_full_calibration(
+    title: str, artist: str, lyrics: str | None, calibration: dict,
+) -> dict:
+    """Gap-fill the generated fields on an existing calibration dict (e.g. a
+    cache hit) through the one shared generation step. Returns the same dict,
+    mutated. No-op without lyrics (ether + prose need them)."""
+    if lyrics:
+        await _ensure_generation(title, artist, lyrics, calibration)
+    return calibration
 
 
 async def calibrate_song_async(
@@ -88,16 +198,21 @@ async def calibrate_song_async(
     target_year: int | None = None,
     skip_cache: bool = False,
 ) -> dict:
-    """Async version of calibrate_song — uses AsyncAnthropic directly.
+    """The calibration path. Calibrate a song against the rubric, then complete
+    the generated fields (effects prose, ether tagging, societal prose) in one
+    pass. Returns a single complete calibration object that every in-road
+    persists as-is.
 
-    Behavior is identical to calibrate_song. Preferred entry point from
-    async request handlers so asyncio.to_thread isn't needed.
+    Generation runs whenever lyrics are present and is idempotent -- a cache
+    hit or terminal-supplied field is reused, never regenerated. Preferred
+    entry point from async request handlers so asyncio.to_thread isn't needed.
     """
-    # Check for existing calibration first
+    # Check for existing calibration first. A cache hit still goes through
+    # generation gap-fill so older rows missing ether/prose get completed.
     if db and not skip_cache:
         existing = lookup_calibrated(title, artist, db)
         if existing:
-            return existing
+            return await ensure_full_calibration(title, artist, lyrics, existing)
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -159,7 +274,7 @@ async def calibrate_song_async(
     charge_value = _validate_charge_value(result.get("charge_value"), color)
 
     # Ensure all expected keys exist
-    return {
+    calibration = {
         "rubric_color": color,
         "charge_value": charge_value,
         "contaminated": contaminated,
@@ -169,6 +284,13 @@ async def calibrate_song_async(
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
     }
+
+    # Complete the generated fields (effects prose, ether tagging, societal
+    # prose) in the same pass -- the calibration path returns one whole object.
+    if lyrics:
+        await _ensure_generation(title, artist, lyrics, calibration)
+
+    return calibration
 
 
 def calibrate_song(

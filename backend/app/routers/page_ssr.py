@@ -179,12 +179,12 @@ def ssr_song(slug: str):
     summary = song.get("charge_summary")
     answer = (
         f"{question} {summary}" if summary
-        else f"This page reads the meaning behind the lyrics of {tagline}, classified by The Rising Compass."
+        else f"This page reads the meaning behind the lyrics of {tagline}, calibrated by The Rising Compass."
     )
     description = (
         f"This page answers what {tagline} is about - the meaning behind the lyrics. {summary}"
         if summary else
-        f"This page answers what {tagline} is about - the meaning behind the lyrics, classified by The Rising Compass."
+        f"This page answers what {tagline} is about - the meaning behind the lyrics, calibrated by The Rising Compass."
     )
     canonical = f"{_SITE}/songs/{slug}"
 
@@ -224,7 +224,7 @@ def ssr_artist(slug: str):
     question = f"What are {name}'s songs about?"
     description = (
         f"This page answers what {name}'s songs are about - the meaning behind "
-        f"their lyrics, classified by The Rising Compass."
+        f"their lyrics, calibrated by The Rising Compass."
     )
     canonical = f"{_SITE}/artists/{slug}"
 

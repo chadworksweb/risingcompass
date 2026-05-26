@@ -335,7 +335,7 @@ def song_search_unified(
 
 @router.get("/{slug}")
 def song_detail(slug: str):
-    """Look up a song by slug and return full classification data for the effects label page."""
+    """Look up a song by slug and return full calibration data for the effects label page."""
     db = SessionLocal()
     try:
         # Check slug lookup table first

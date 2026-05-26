@@ -24,7 +24,7 @@ from app.schemas import (
 from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
 from app.config import settings
 from app.routers.admin import verify_admin_key
-from app.services.agents.compass_agent import run_compass_agent, _store_calibration, _run_post_calibration_enrichment
+from app.services.agents.compass_agent import run_compass_agent, _store_calibration, _dispatch_ether_audit
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import record_and_reconcile
 from app.services.agents.chart_source import fetch_top_songs
@@ -690,14 +690,13 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     finally:
         write_db.close()
 
-    # === ENRICHMENT — ether tagger + societal effects, each in its own short
-    # session with the Anthropic call held outside any session. Must run
-    # after the compass_songs row is committed (above) so the read snapshots
-    # see the freshly-written row. Fails soft per step.
-    # Skipped in terminal mode — those are Anthropic paths. Backfill scripts
-    # or a later admin pass fill the columns in. ===
-    if cs_id is not None and not terminal_mode:
-        _run_post_calibration_enrichment(cs_id, data.lyrics)
+    # === ETHER AUDIT NOTIFY — the calibration path already produced + stored
+    # the ether tags + prose inside `result` (written by _store_calibration).
+    # In browser/admin mode all that remains is the admin notification for a
+    # no-taxonomy-match. Terminal mode supplies its own tags and skips the
+    # Anthropic path, so nothing to notify here. ===
+    if not terminal_mode:
+        _dispatch_ether_audit(cs_id, snap["title"], snap["artist"], result.get("topic_audit"))
 
     # === EDITORIAL REGEN — separate session, no DB held during API call.
     # Also an Anthropic path: skipped in terminal mode. Use PUT
@@ -730,7 +729,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
 
 @router.post("/drafts/{draft_ref}/songs/{song_id}/correct", response_model=CorrectionApplyOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
 def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionIn, db: Session = Depends(get_db)):
-    """Admin override of an agent-classified draft song, before draft approval.
+    """Admin override of an agent-calibrated draft song, before draft approval.
 
     Replaces the direct-SQL UPDATE pattern that used to live in the
     daily-reading SOP. Atomically:
@@ -835,9 +834,9 @@ def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionI
     )
     db.add(correction)
 
-    # Recalculate draft metrics if all songs classified (matches update_draft behavior).
-    all_classified = all(s.rubric_color is not None for s in draft.songs)
-    if all_classified:
+    # Recalculate draft metrics if all songs calibrated (matches update_draft behavior).
+    all_calibrated = all(s.rubric_color is not None for s in draft.songs)
+    if all_calibrated:
         song_dicts = [
             {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
             for s in draft.songs

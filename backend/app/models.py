@@ -264,6 +264,9 @@ class SubmittedSong(Base):
     ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6, for abuse detection
     effects_prose = Column(Text)  # 3-paragraph per-song description
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
+    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
+    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
+    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
     submitted_at = Column(DateTime, default=datetime.utcnow)
     # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
     activations = Column(Text)
@@ -427,6 +430,9 @@ class StreamSong(Base):
     promoted_to = Column(String(20))  # library / compass — set on promotion
     effects_prose = Column(Text)  # 3-paragraph per-song description
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
+    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
+    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
+    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -683,7 +689,7 @@ class SongRecalibration(Base):
 
 
 class PrePublishCorrection(Base):
-    """Audit row for an admin override of an agent-classified draft song,
+    """Audit row for an admin override of an agent-calibrated draft song,
     written before the draft is approved.
 
     Captures the before/after diff plus an optional human_rationale. Lands

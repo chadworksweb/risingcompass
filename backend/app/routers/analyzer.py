@@ -1,5 +1,6 @@
 """Lyrical Charger — public endpoints for user-submitted song analysis."""
 
+import json
 import logging
 import re
 
@@ -21,7 +22,9 @@ from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
 )
 from app.constants import COLOR_LABELS
-from app.services.agents.calibrator import calibrate_song_async, lookup_calibrated
+from app.services.agents.calibrator import (
+    calibrate_song_async, lookup_calibrated, ensure_full_calibration,
+)
 from app.services import musixmatch
 from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import (
@@ -35,9 +38,6 @@ from app.services.identity_guard import check_lyrics_identity
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
 from app.routers.songs import _get_or_create_slug
 from app.auth import verify_api_or_service_key, optional_clerk_user
-from app.services.effects_prose import generate_effects_prose
-from app.services.societal_effects_prose import generate_societal_effects_prose
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analyzer", tags=["analyzer"])
@@ -299,47 +299,27 @@ def _resolve_source(tier: str, requested: str | None) -> str:
     return ((requested or "service").strip() or "service")[:30]
 
 
-def _generate_lc_prose(
-    *, title: str, artist: str, lyrics: str, calibration: dict,
-) -> tuple[str | None, str | None]:
-    """Generate per-listener + per-society prose for an LC reading.
-
-    Runs inline in the calibrate path (Phase 2, no DB session held) so the
-    prose is grounded on the actual lyrics the user pasted, not just the
-    tier + summary. Both generators fail soft -- a None means the section is
-    simply omitted from the response and the stored row leaves that column
-    NULL.
-
-    The societal generator degrades gracefully without ether-tag topics
-    (submitted songs don't carry them), anchoring on lyrics + calibration +
-    the listener prose instead.
-    """
-    color = calibration.get("rubric_color")
-    if not color:
-        return None, None
-
-    effects = generate_effects_prose(
-        title=title,
-        artist=artist,
-        rubric_color=color,
-        charge_value=calibration.get("charge_value"),
-        charge_summary=calibration.get("charge_summary"),
-        contaminated=bool(calibration.get("contaminated", False)),
-        contamination_note=calibration.get("contamination_note"),
-        lyrics=lyrics,
-    )
-    societal = generate_societal_effects_prose(
-        title=title,
-        artist=artist,
-        rubric_color=color,
-        charge_value=calibration.get("charge_value"),
-        charge_summary=calibration.get("charge_summary"),
-        contaminated=bool(calibration.get("contaminated", False)),
-        contamination_note=calibration.get("contamination_note"),
-        lyrics=lyrics,
-        effects_prose=effects,
-    )
-    return effects, societal
+def _song_persist_fields(calibration: dict) -> dict:
+    """Map a complete calibration object to the SubmittedSong columns that
+    carry the calibration path's full output -- rubric + prose + ether tags.
+    topics / topic_audit are JSON-encoded to match the Text columns."""
+    topics = calibration.get("topics")
+    topic_audit = calibration.get("topic_audit")
+    return {
+        "rubric_color": calibration.get("rubric_color"),
+        "charge_value": calibration.get("charge_value"),
+        "contaminated": calibration.get("contaminated", False),
+        "contamination_note": calibration.get("contamination_note"),
+        "dogma_referenced": bool(calibration.get("dogma_referenced", False)),
+        "dogma_note": calibration.get("dogma_note"),
+        "charge_summary": calibration.get("charge_summary"),
+        "confidence": calibration.get("confidence"),
+        "effects_prose": calibration.get("effects_prose"),
+        "societal_effects_prose": calibration.get("societal_effects_prose"),
+        "deadpan_line": calibration.get("deadpan_line"),
+        "topics": json.dumps(topics) if topics else None,
+        "topic_audit": json.dumps(topic_audit) if topic_audit else None,
+    }
 
 
 def _record_user_calibration(
@@ -517,8 +497,15 @@ async def calibrate_lyrics_endpoint(
                 ),
             )
 
+        # Phase 2 still: run the one calibration path. A cache hit is completed
+        # through the same generation step (ensure_full_calibration) so older
+        # rows missing ether/prose get filled; a miss runs the full path. Either
+        # way `calibration` comes back as one complete object -- rubric + prose
+        # + ether tags. No DB session held through these model calls.
         if cached_calibration:
-            calibration = cached_calibration
+            calibration = await ensure_full_calibration(
+                title, artist, body.lyrics, cached_calibration,
+            )
         else:
             # skip_cache=True since Phase 1 already did the lookup; db=None
             # so calibrate_song_async does not open its own session.
@@ -534,15 +521,8 @@ async def calibrate_lyrics_endpoint(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Still in Phase 2 (no DB session held): generate the per-listener +
-        # per-society prose from the lyrics we have. Public (Lyrical Charger)
-        # readings only -- service callers (e.g. chadlewine.com) keep their
-        # prior behavior and don't draw the extra Opus calls. Both fail soft.
-        effects_prose, societal_prose = (None, None)
-        if is_public:
-            effects_prose, societal_prose = _generate_lc_prose(
-                title=title, artist=artist, lyrics=body.lyrics, calibration=calibration,
-            )
+        effects_prose = calibration.get("effects_prose")
+        societal_prose = calibration.get("societal_effects_prose")
 
         # Phase 3: open a fresh write session now (after the Opus call) and
         # own the whole write transaction here. Kept separate from Phase 1 so
@@ -553,18 +533,9 @@ async def calibrate_lyrics_endpoint(
                 write_db, SubmittedSong,
                 title=title,
                 artist=artist,
-                rubric_color=color,
-                charge_value=calibration.get("charge_value"),
-                contaminated=calibration.get("contaminated", False),
-                contamination_note=calibration.get("contamination_note"),
-                dogma_referenced=bool(calibration.get("dogma_referenced", False)),
-                dogma_note=calibration.get("dogma_note"),
-                charge_summary=calibration.get("charge_summary"),
-                confidence=calibration.get("confidence"),
                 source=source,
-                effects_prose=effects_prose,
-                societal_effects_prose=societal_prose,
                 ip_address=get_remote_address(request),
+                **_song_persist_fields(calibration),
             )
             write_db.commit()
             write_db.refresh(submitted)
@@ -658,6 +629,8 @@ async def calibrate_lyrics_endpoint(
                 song_slug=song_slug,
                 effects_prose=effects_prose,
                 societal_effects_prose=societal_prose,
+                deadpan_line=calibration.get("deadpan_line"),
+                topics=calibration.get("topics"),
             )
         finally:
             write_db.close()
@@ -761,9 +734,13 @@ async def calibrate_search(
         finally:
             read_db.close()
 
-        # Phase 2: no DB session held. Opus call only.
+        # Phase 2 still: run the one calibration path. A cache hit is completed
+        # through the same generation step; a miss runs the full path. `calibration`
+        # comes back complete -- rubric + prose + ether tags. No DB session held.
         if cached_calibration:
-            calibration = cached_calibration
+            calibration = await ensure_full_calibration(
+                title, artist, lyrics, cached_calibration,
+            )
         else:
             calibration = await calibrate_song_async(
                 title, artist, lyrics, db=None, skip_cache=True,
@@ -777,14 +754,8 @@ async def calibrate_search(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        # Still in Phase 2 (no DB session held): generate per-listener +
-        # per-society prose from the fetched lyrics. Public (Lyrical Charger)
-        # readings only -- service callers keep prior behavior. Both fail soft.
-        effects_prose, societal_prose = (None, None)
-        if is_public:
-            effects_prose, societal_prose = _generate_lc_prose(
-                title=title, artist=artist, lyrics=lyrics, calibration=calibration,
-            )
+        effects_prose = calibration.get("effects_prose")
+        societal_prose = calibration.get("societal_effects_prose")
 
         # Phase 3: fresh write session opened after the Opus call (see
         # calibrate-lyrics) so no connection is held idle through Phase 2.
@@ -794,18 +765,9 @@ async def calibrate_search(
                 write_db, SubmittedSong,
                 title=title,
                 artist=artist,
-                rubric_color=color,
-                charge_value=calibration.get("charge_value"),
-                contaminated=calibration.get("contaminated", False),
-                contamination_note=calibration.get("contamination_note"),
-                dogma_referenced=bool(calibration.get("dogma_referenced", False)),
-                dogma_note=calibration.get("dogma_note"),
-                charge_summary=calibration.get("charge_summary"),
-                confidence=calibration.get("confidence"),
                 source=source,
-                effects_prose=effects_prose,
-                societal_effects_prose=societal_prose,
                 ip_address=get_remote_address(request),
+                **_song_persist_fields(calibration),
             )
             write_db.commit()
             write_db.refresh(submitted)
@@ -906,6 +868,8 @@ async def calibrate_search(
                 song_slug=song_slug,
                 effects_prose=effects_prose,
                 societal_effects_prose=societal_prose,
+                deadpan_line=calibration.get("deadpan_line"),
+                topics=calibration.get("topics"),
             )
         finally:
             write_db.close()

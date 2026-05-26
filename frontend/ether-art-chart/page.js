@@ -533,7 +533,7 @@
       const totalSongs = data.total_compass_songs_in_period || 0;
       const auditCount = data.audit_flagged_count || 0;
       meta.textContent =
-        `${period} · ${totalSongs} classified song${totalSongs === 1 ? '' : 's'}`
+        `${period} · ${totalSongs} calibrated song${totalSongs === 1 ? '' : 's'}`
         + (auditCount ? ` · ${auditCount} audit-flagged` : '');
 
       // Status line — coverage honesty.
@@ -542,7 +542,7 @@
         if (totalSongs > 0 && !hasTopTwenty) {
           status.hidden = false;
           status.textContent =
-            'No tagged songs in this year yet — every row is awaiting the deferred backfill or a fresh classifier run.';
+            'No tagged songs in this year yet — every row is awaiting the deferred backfill or a fresh calibrator run.';
         } else {
           status.hidden = true;
         }

@@ -4,6 +4,7 @@ Flow: paste Tidal URL (or title+artist) + why note → auto-resolve metadata →
 fetch lyrics → calibrate via rubric → store. One call, done.
 """
 
+import json
 import logging
 import re
 
@@ -122,6 +123,11 @@ async def add_to_stream(body: StreamSongIn, db: Session = Depends(get_db)):
         contamination_note=result.get("contamination_note"),
         charge_summary=result.get("charge_summary"),
         confidence=result.get("confidence"),
+        effects_prose=result.get("effects_prose"),
+        societal_effects_prose=result.get("societal_effects_prose"),
+        deadpan_line=result.get("deadpan_line"),
+        topics=json.dumps(result["topics"]) if result.get("topics") else None,
+        topic_audit=json.dumps(result["topic_audit"]) if result.get("topic_audit") else None,
         status=status,
     )
     db.commit()

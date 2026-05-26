@@ -88,7 +88,7 @@
           items.push({ url });
           html += `<a class="rc-search-item" href="${url}" role="option">
             <span class="rc-search-name">${esc(a.name)}</span>
-            <span class="rc-search-sub">${meta} classified</span>
+            <span class="rc-search-sub">${meta} calibrated</span>
           </a>`;
         } else {
           // Unindexed artist — not navigable; show as a dim, non-clickable row.

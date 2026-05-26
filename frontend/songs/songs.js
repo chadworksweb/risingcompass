@@ -48,7 +48,7 @@
       if (charger) charger.hidden = true;
     } else {
       title.textContent = 'Song not found';
-      msg.textContent = 'We haven’t classified this song yet, or the link is off. Search the catalog, or send us the lyrics and the compass will read them.';
+      msg.textContent = 'We haven’t calibrated this song yet, or the link is off. Search the catalog, or send us the lyrics and the compass will read them.';
       if (charger) charger.hidden = false;
     }
     nf.hidden = false;
@@ -577,7 +577,7 @@
     const count = activeRuns.length;
     let introText = count === 1
       ? 'This song has been calibrated once. Each submission re-runs the agent and logs the reading — over time, repeated calibrations refine the compass.'
-      : `This song has been calibrated ${count} times. Each reading re-runs the agent and adds to the consensus — the canonical classification drifts toward the confidence-weighted mean as runs accumulate.`;
+      : `This song has been calibrated ${count} times. Each reading re-runs the agent and adds to the consensus — the canonical calibration drifts toward the confidence-weighted mean as runs accumulate.`;
     if (supersededCount > 0) {
       introText += ` ${supersededCount} earlier reading${supersededCount === 1 ? ' is' : 's are'} superseded — shown below but excluded from the consensus because the rubric changed.`;
     }
@@ -805,7 +805,7 @@
       ? `${meaningLead}. Currently uncalibrated by The Rising Compass; previous reasoning shown below.`
       : song.charge_summary
         ? `${meaningLead}: ${song.charge_summary}`
-        : `${meaningLead}, classified ${tierLabel} (${chargeDisplay}) by The Rising Compass on a 58-tenet rubric.`;
+        : `${meaningLead}, calibrated ${tierLabel} (${chargeDisplay}) by The Rising Compass on a 58-tenet rubric.`;
     document.getElementById('meta-description').content = summaryLine;
     document.getElementById('og-title').content = pageTitle;
     document.getElementById('og-description').content = summaryLine;
@@ -837,7 +837,7 @@
     setH2('section-vibe', `Audience Vibe on ${tagline}`);
     setH2('section-runs', `Calibration Runs for ${tagline}`);
     setH2('section-flags', `Flag Activity on ${tagline}`);
-    setH2('section-about', `How Is ${tagline} Classified?`);
+    setH2('section-about', `How Is ${tagline} Calibrated?`);
     setH2('section-artist-claim', `Are You the Artist of ${tagline}?`);
 
     // Hero
@@ -883,7 +883,7 @@
     summaryText.classList.remove('is-loading');
     summaryText.textContent = isUncalibrated
       ? `${tagline} is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.`
-      : song.charge_summary || `${tagline} is classified as ${tierLabel} by The Rising Compass.`;
+      : song.charge_summary || `${tagline} is calibrated as ${tierLabel} by The Rising Compass.`;
 
     // Section 3: Effects — per-song prose if available, else tier-generic fallback.
     const effectsSection = document.getElementById('section-effects');
@@ -955,7 +955,7 @@
       dogmaSection.hidden = true;
     }
 
-    // (Classification Details section removed — the compass gauge in the hero
+    // (Calibration Details section removed — the compass gauge in the hero
     // now carries tier + charge.)
 
     // Section 5: About
@@ -1005,7 +1005,7 @@
         ratingExplanation: song.charge_summary || '',
       },
       additionalProperty: [
-        { '@type': 'PropertyValue', propertyID: 'RisingCompassTier', name: 'Rising Compass Classification', value: tierLabel },
+        { '@type': 'PropertyValue', propertyID: 'RisingCompassTier', name: 'Rising Compass Calibration', value: tierLabel },
         { '@type': 'PropertyValue', propertyID: 'RisingCompassTierColor', name: 'Rising Compass Tier Color', value: color },
         { '@type': 'PropertyValue', propertyID: 'RisingCompassCharge', name: 'Rising Compass Charge Value', value: song.charge_value, minValue: -100, maxValue: 100, unitText: 'charge' },
         { '@type': 'PropertyValue', propertyID: 'RisingCompassSummary', name: 'Rising Compass Charge Summary', value: song.charge_summary || '' },
@@ -1019,7 +1019,7 @@
         chargeSummary: song.charge_summary || '',
         contaminated: song.contaminated,
         contaminationNote: song.contamination_note || null,
-        classifiedBy: {
+        calibratedBy: {
           '@type': 'Organization',
           name: 'Rising Compass',
           url: 'https://risingcompass.net',

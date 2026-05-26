@@ -1,6 +1,6 @@
 """One-off backfill for the 2026-04-20 drop-dead correction.
 
-On 2026-04-20 the agent classified "drop dead" by Olivia Rodrigo as Decent
+On 2026-04-20 the agent calibrated "drop dead" by Olivia Rodrigo as Decent
 +12, not contaminated. The lyric reframes online stalking as "feminine
 intuition" — the agent took the reframing at face value. Chad corrected it
 to Decent -15, contaminated, with a contamination_note documenting the

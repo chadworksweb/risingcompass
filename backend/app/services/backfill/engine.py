@@ -2,9 +2,9 @@
 
 Long-running async task per job. One row at a time, sleeps 1s between
 Opus calls (per build pack §10 — "polite to the API"). Each row runs
-through the standard SOP:
+through the one calibration path, which produces the whole object:
 
-    classifier → effects_prose → ether tagger
+    rubric calibration → effects_prose → ether tagging → societal_prose
 
 For target=compass we insert/update a CompassSong; for target=library
 we insert/update a LibrarySong. Both targets pick up the ether columns
@@ -194,7 +194,9 @@ class _RowCtx:
 
 
 async def _process_row(ctx: _RowCtx) -> None:
-    """Run calibrator + tagger for one row, then persist. Fail-soft."""
+    """Run the calibration path (which now calibrates + tags + proses) for one
+    row, then persist. Tag-only passes skip calibration and re-tag in place.
+    Fail-soft."""
     _set_row_status(ctx.row_id, "calibrating")
 
     calibration: Optional[dict] = None
@@ -221,9 +223,12 @@ async def _process_row(ctx: _RowCtx) -> None:
         _fail_row(ctx.row_id, f"persist: {e}")
         return
 
-    # Ether tagger pass.
+    # Ether tagging.
     ether: Optional[dict] = None
-    if ctx.passes in ("tag", "both"):
+    if ctx.passes == "tag":
+        # Tag-only maintenance pass: re-tag an existing row without
+        # recalibrating (e.g. after a taxonomy change). The standalone tagger
+        # is the right tool here -- no fresh calibration to fold it into.
         _set_row_status(ctx.row_id, "tagging")
         try:
             ether = await asyncio.to_thread(_run_tagger, ctx, result_source, result_id)
@@ -231,11 +236,51 @@ async def _process_row(ctx: _RowCtx) -> None:
             logger.exception("Tagger failed for backfill row %s", ctx.row_id)
             _fail_row(ctx.row_id, f"tagger: {e}")
             return
-
         if ether:
             _persist_ether(result_source, result_id, ether, ctx)
+    elif calibration is not None:
+        # calibrate / both: the calibration path already produced + persisted
+        # the ether tags (via _persist_song -> _apply_generated_fields). Surface
+        # them for the job-row record and fire the no-match audit if needed.
+        ether = {
+            "deadpan_line": calibration.get("deadpan_line"),
+            "topics": calibration.get("topics") or [],
+            "topic_audit": calibration.get("topic_audit"),
+        }
+        _send_ether_audit(result_source, result_id, ctx, calibration.get("topic_audit"))
 
     _complete_row(ctx, result_source, result_id, calibration, ether)
+
+
+def _apply_generated_fields(row, calibration: dict) -> None:
+    """Copy the calibration path's generated output -- effects + societal prose
+    and ether tags -- onto a song row. topics / topic_audit are JSON-encoded to
+    match the Text columns. Only sets what the path actually produced, so a
+    failed-soft step leaves the column untouched."""
+    if calibration.get("effects_prose") is not None:
+        row.effects_prose = calibration["effects_prose"]
+    if calibration.get("societal_effects_prose") is not None:
+        row.societal_effects_prose = calibration["societal_effects_prose"]
+    if calibration.get("deadpan_line") is not None:
+        row.deadpan_line = calibration["deadpan_line"]
+    if calibration.get("topics") is not None:
+        row.topics = json.dumps(calibration["topics"])
+    if calibration.get("topic_audit") is not None:
+        row.topic_audit = json.dumps(calibration["topic_audit"])
+
+
+def _send_ether_audit(source: str, song_id: int, ctx: "_RowCtx", topic_audit) -> None:
+    """Fire the admin notification when the ether tagger found no taxonomy match."""
+    if not topic_audit:
+        return
+    try:
+        from app.services.agents.ether_audit_notifier import send_ether_audit_email
+        send_ether_audit_email(
+            song_id=song_id, title=ctx.title, artist=ctx.artist,
+            audit=topic_audit, settings=settings,
+        )
+    except Exception:
+        logger.exception("Audit notify failed for backfill song %s/%s", source, song_id)
 
 
 def _persist_song(ctx: _RowCtx, calibration: Optional[dict]) -> tuple[str, int]:
@@ -274,6 +319,7 @@ def _persist_compass(db: Session, ctx: _RowCtx, calibration: Optional[dict]) -> 
         existing.dogma_referenced = bool(calibration.get("dogma_referenced", False))
         existing.dogma_note = calibration.get("dogma_note")
         existing.charge_summary = calibration.get("charge_summary")
+        _apply_generated_fields(existing, calibration)
         if ctx.year:
             existing.year = ctx.year
             existing.decade = f"{(ctx.year // 10) * 10}s"
@@ -300,6 +346,7 @@ def _persist_compass(db: Session, ctx: _RowCtx, calibration: Optional[dict]) -> 
         chart_source="backfill_console",
     )
     db.add(song)
+    _apply_generated_fields(song, calibration)
     db.commit()
     db.refresh(song)
     return "compass", song.id
@@ -323,6 +370,7 @@ def _persist_library(db: Session, ctx: _RowCtx, calibration: Optional[dict]) -> 
         existing.dogma_referenced = bool(calibration.get("dogma_referenced", False))
         existing.dogma_note = calibration.get("dogma_note")
         existing.charge_summary = calibration.get("charge_summary")
+        _apply_generated_fields(existing, calibration)
         if ctx.album_id:
             existing.album_id = ctx.album_id
         if ctx.track_number:
@@ -345,6 +393,7 @@ def _persist_library(db: Session, ctx: _RowCtx, calibration: Optional[dict]) -> 
         source="backfill_console",
     )
     db.add(song)
+    _apply_generated_fields(song, calibration)
     db.commit()
     db.refresh(song)
     return "library", song.id
@@ -416,21 +465,10 @@ def _persist_ether(source: str, song_id: int, ether: dict, ctx: _RowCtx) -> None
             json.dumps(ether["topic_audit"]) if ether["topic_audit"] else None
         )
         db.commit()
-
-        if ether["topic_audit"]:
-            try:
-                from app.services.agents.ether_audit_notifier import send_ether_audit_email
-                send_ether_audit_email(
-                    song_id=song_id,
-                    title=ctx.title,
-                    artist=ctx.artist,
-                    audit=ether["topic_audit"],
-                    settings=settings,
-                )
-            except Exception:
-                logger.exception("Audit notify failed for backfill song %s/%s", source, song_id)
     finally:
         db.close()
+
+    _send_ether_audit(source, song_id, ctx, ether.get("topic_audit"))
 
 
 # --- Status helpers -----------------------------------------------------

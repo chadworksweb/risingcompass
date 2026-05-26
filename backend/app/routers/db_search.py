@@ -318,7 +318,7 @@ class SongResetIn(BaseModel):
 
 @router.get("/{table}/{song_id}/reset-preview")
 def reset_preview(table: str, song_id: int, db: Session = Depends(get_db)):
-    """Preflight — current classification + any loud consequences of a reset.
+    """Preflight — current calibration + any loud consequences of a reset.
 
     For compass songs, surfaces which daily readings currently cite this song
     (resetting nulls their cited charge). Admin sees this before confirming.
@@ -365,7 +365,7 @@ def reset_preview(table: str, song_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{table}/{song_id}/reset")
 def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depends(get_db)):
-    """Return a song to uncalibrated state. Nulls classification fields on the
+    """Return a song to uncalibrated state. Nulls calibration fields on the
     row; writes a SongReset audit entry with the full before-snapshot. Keeps
     id, title, artist, and every junction-table linkage intact.
     """
@@ -388,7 +388,7 @@ def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depend
     )
     db.add(reset_row)
 
-    # Null the classification fields. rubric_color is NOT NULL on the three
+    # Null the calibration fields. rubric_color is NOT NULL on the three
     # primary song tables, so use "" as the uncalibrated sentinel — public
     # renderers key off charge_value IS NULL regardless.
     if hasattr(row, "charge_value"): row.charge_value = None

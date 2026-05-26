@@ -1,6 +1,6 @@
 """Ether tagger — names what a compass_song IS through the Ether Art Chart lens.
 
-Single-shot Opus call run after the main classifier. Emits a flat literal
+Single-shot Opus call run after the main calibrator. Emits a flat literal
 deadpan_line plus 0-3 ranked topic slugs from the closed 24-topic taxonomy
 (`services/ether_taxonomy.ETHER_TAXONOMY`). When no honest taxonomy match
 exists, returns an audit payload instead of forcing a bad fit.
@@ -39,7 +39,7 @@ MAX_DEADPAN_LENGTH = 80
 
 _VOICE_BLOCK = """You are the Ether Tagger for The Rising Compass.
 
-Your job: given a song's lyrics and existing classifier outputs, emit two
+Your job: given a song's lyrics and existing calibrator outputs, emit two
 pieces of data that name what the song IS:
 
   1. deadpan_line — a flat, literal naming of the song's content,
@@ -229,7 +229,7 @@ def _build_user_prompt(
         f"  Title:    {title}",
         f"  Artist:   {artist}",
         "",
-        "Existing classifier outputs (for grounding — do not repeat them):",
+        "Existing calibrator outputs (for grounding — do not repeat them):",
     ]
     if rubric_color:
         parts.append(f"  rubric_color:    {rubric_color}")

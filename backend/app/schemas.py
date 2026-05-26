@@ -578,6 +578,11 @@ class LyricsCalibrateOut(BaseModel):
     # Either may be null if generation failed soft.
     effects_prose: Optional[str] = None
     societal_effects_prose: Optional[str] = None
+    # Ether tagging -- names what the song IS. deadpan_line is a flat literal
+    # naming; topics are 0-3 taxonomy slugs, dominant-first. Both null if the
+    # ether tagger failed soft or no lyrics were available.
+    deadpan_line: Optional[str] = None
+    topics: Optional[list] = None
 
 
 class SongSearchIn(BaseModel):

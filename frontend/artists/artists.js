@@ -105,14 +105,14 @@
               html += `<li class="result-item result-artist">
                 <a href="/artists/${encodeURIComponent(a.slug)}">
                   <span class="result-name">${escapeHtml(a.name)}</span>
-                  <span class="result-meta">${a.calibrated_song_count} song${a.calibrated_song_count !== 1 ? 's' : ''} classified</span>
+                  <span class="result-meta">${a.calibrated_song_count} song${a.calibrated_song_count !== 1 ? 's' : ''} calibrated</span>
                 </a>
               </li>`;
             } else {
               html += `<li class="result-item result-artist result-unindexed">
                 <div class="result-unindexed-content">
                   <span class="result-name">${escapeHtml(a.name)}</span>
-                  <span class="result-meta">${a.calibrated_song_count} song${a.calibrated_song_count !== 1 ? 's' : ''} classified — trajectory not yet built</span>
+                  <span class="result-meta">${a.calibrated_song_count} song${a.calibrated_song_count !== 1 ? 's' : ''} calibrated — trajectory not yet built</span>
                   <span class="result-cta">Submit more songs via <a href="/lyrical-charger/">Lyrical Charger</a></span>
                 </div>
               </li>`;
@@ -291,7 +291,7 @@
 
       if (!trajRows.length) {
         const area = container.querySelector('.traj-chart-area') || container;
-        area.innerHTML = '<p class="chart-empty">No classified releases to chart.</p>';
+        area.innerHTML = '<p class="chart-empty">No calibrated releases to chart.</p>';
         maybeInjectJsonLd();
         return;
       }
@@ -341,7 +341,7 @@
 
       if (offset === 0) {
         if (data.items.length === 0) {
-          list.innerHTML = '<li class="empty-row">No classified songs yet.</li>';
+          list.innerHTML = '<li class="empty-row">No calibrated songs yet.</li>';
         } else {
           list.innerHTML = itemsHtml;
         }
@@ -430,9 +430,9 @@
       `${question} — The Rising Compass`;
     const stats = data.stats || {};
     const chargeLabel = stats.catalog_charge != null
-      ? `${chargeDisplay(stats.catalog_charge)} (${stats.catalog_tier_label || 'Unclassified'})`
+      ? `${chargeDisplay(stats.catalog_charge)} (${stats.catalog_tier_label || 'Uncalibrated'})`
       : 'N/A';
-    const desc = `This page answers what ${data.name}'s songs are about — the meaning behind their lyrics, classified by The Rising Compass. ${stats.total_calibrated_songs} songs classified; catalog charge ${chargeLabel}.`;
+    const desc = `This page answers what ${data.name}'s songs are about — the meaning behind their lyrics, calibrated by The Rising Compass. ${stats.total_calibrated_songs} songs calibrated; catalog charge ${chargeLabel}.`;
     document.getElementById('meta-description').content = desc;
     document.getElementById('og-title').content = `${question} — The Rising Compass`;
     document.getElementById('og-description').content = desc;
@@ -478,7 +478,7 @@
         </div>
         <div class="artist-breakdown-stat">
           <span class="stat-value">${totalSongs}</span>
-          <span class="stat-label">Song${totalSongs !== 1 ? 's' : ''} Classified</span>
+          <span class="stat-label">Song${totalSongs !== 1 ? 's' : ''} Calibrated</span>
         </div>
       </div>
       ${pillsHtml ? `<div class="tier-pills">${pillsHtml}</div>` : ''}
@@ -1049,7 +1049,7 @@
         : r.release_type === 'ep' ? 'EPRelease' : 'SingleRelease',
       datePublished: r.release_date || (r.release_year ? String(r.release_year) : undefined),
       additionalProperty: r.charge_value != null ? [
-        { '@type': 'PropertyValue', propertyID: 'RisingCompassTier', name: 'Rising Compass Classification', value: r.tier_label },
+        { '@type': 'PropertyValue', propertyID: 'RisingCompassTier', name: 'Rising Compass Calibration', value: r.tier_label },
         { '@type': 'PropertyValue', propertyID: 'RisingCompassCharge', name: 'Rising Compass Charge Value', value: r.charge_value, minValue: -100, maxValue: 100 },
       ] : undefined,
     }));
@@ -1064,8 +1064,8 @@
       url: `https://risingcompass.net/artists/${encodeURIComponent(summary.slug)}`,
       additionalProperty: [
         { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogCharge', name: 'Catalog Charge', value: summary.stats.catalog_charge, minValue: -100, maxValue: 100 },
-        { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogTier', name: 'Catalog Classification', value: summary.stats.catalog_tier_label },
-        { '@type': 'PropertyValue', propertyID: 'RisingCompassClassifiedSongs', name: 'Total Classified Songs', value: summary.stats.total_calibrated_songs },
+        { '@type': 'PropertyValue', propertyID: 'RisingCompassCatalogTier', name: 'Catalog Calibration', value: summary.stats.catalog_tier_label },
+        { '@type': 'PropertyValue', propertyID: 'RisingCompassCalibratedSongs', name: 'Total Calibrated Songs', value: summary.stats.total_calibrated_songs },
       ],
       album: releases,
     };
