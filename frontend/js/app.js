@@ -306,6 +306,7 @@ const App = (() => {
 
   // --- Calendar Picker ---
   let rolodexDatesCache = {};  // { year: ["2026-01-15", ...] }
+  let rolodexDegreeCache = {};  // { year: { "2026-01-15": 42.5, ... } } -- per-day compass_degree for calendar coloring
 
   // --- Trajectory Chart (year-by-year with zoom + Time Machine) ---
   let allYearData = [];
@@ -2325,8 +2326,12 @@ const App = (() => {
       try {
         const resp = await API.getYearDates(year);
         rolodexDatesCache[year] = resp.dates;
+        const degMap = {};
+        (resp.readings || []).forEach(r => { degMap[r.date] = r.compass_degree; });
+        rolodexDegreeCache[year] = degMap;
       } catch (err) {
         rolodexDatesCache[year] = [];
+        rolodexDegreeCache[year] = {};
       }
     }
     return new Set(rolodexDatesCache[year]);
@@ -2348,6 +2353,9 @@ const App = (() => {
     } else if (calView === 'decade') {
       html = renderCalDecade();
     }
+
+    // Footer link out to the full-page calendar (the dial version of this picker).
+    html += `<a class="cal-fullpage-link" href="/calendar/">Open full calendar &rarr;</a>`;
 
     cal.innerHTML = html;
     wireCalEvents(cal);
@@ -2372,15 +2380,25 @@ const App = (() => {
       const firstDay = new Date(calYear, calMonth, 1).getDay();
       const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
+      const degMap = rolodexDegreeCache[calYear] || {};
       for (let i = 0; i < firstDay; i++) html += '<span class="cal-cell cal-empty"></span>';
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const has = availableDates.has(dateStr);
         const sel = dateStr === calSelectedDate;
         const cls = ['cal-cell'];
-        if (has) cls.push('cal-has-data');
+        let style = '';
+        if (has) {
+          cls.push('cal-has-data');
+          // Each day painted its own spectrum color -- same mechanic as the
+          // compass-container border/glow (Charge.spectrumHexFromT(degree/180)).
+          const deg = degMap[dateStr];
+          if (deg != null && typeof Charge !== 'undefined') {
+            style = ` style="--day-color:${Charge.spectrumHexFromT(deg / 180)}"`;
+          }
+        }
         if (sel) cls.push('cal-selected');
-        html += `<span class="${cls.join(' ')}" data-action="pick-day" data-date="${dateStr}" role="button" tabindex="0" aria-label="${dateStr}">${d}</span>`;
+        html += `<span class="${cls.join(' ')}"${style} data-action="pick-day" data-date="${dateStr}" role="button" tabindex="0" aria-label="${dateStr}">${d}</span>`;
       }
       html += '</div>';
     } else {

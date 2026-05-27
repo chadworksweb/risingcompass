@@ -46,12 +46,14 @@ const Auth = (() => {
     } catch (_) {}
     const link = document.getElementById('rc-account-link');
     if (!link) return;
+    // Update only the label span so the person icon survives.
+    const label = link.querySelector('.rc-account-label');
     if (authed) {
-      link.textContent = 'Account';
+      if (label) label.textContent = 'Account';
       link.setAttribute('data-state', 'in');
       link.href = '/account/';
     } else {
-      link.textContent = 'Sign in';
+      if (label) label.textContent = 'Sign in';
       link.setAttribute('data-state', 'out');
       const ret = window.location.pathname + window.location.search + window.location.hash;
       if (ret && !ret.startsWith('/account/')) {

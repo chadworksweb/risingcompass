@@ -81,7 +81,7 @@ def _changefreq_for(path: str) -> str:
     utility pages monthly."""
     if path == "/":
         return "daily"
-    if path in {"/calibration-log/", "/artists/", "/search/", "/library/"}:
+    if path in {"/calibration-log/", "/artists/", "/search/", "/library/", "/calendar/"}:
         return "daily"
     if path in {"/privacy.html", "/tenets/", "/misread-submission.html", "/amendments/"}:
         return "monthly"

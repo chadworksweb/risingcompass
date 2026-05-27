@@ -34,6 +34,7 @@
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
+  <div class="rc-header-inner">
   <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
     <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
       <rect width="32" height="32" rx="6" fill="#0a0a14"/>
@@ -54,20 +55,25 @@
       aria-expanded="false" aria-controls="rcSearchPanel" aria-autocomplete="list">
     <div class="rc-search-panel" id="rcSearchPanel" role="listbox" hidden></div>
   </div>
-  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">Sign in</a>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span class="rc-account-label">Sign in</span>
+  </a>
+  </div>
   <script>
     (function(){
       function sync() {
         try {
           var link = document.getElementById('rc-account-link');
           if (!link) return;
+          var label = link.querySelector('.rc-account-label');
           var authed = localStorage.getItem('rc_authed') === '1';
           if (authed) {
-            link.textContent = 'Account';
+            if (label) label.textContent = 'Account';
             link.setAttribute('data-state', 'in');
             link.href = '/account/';
           } else {
-            link.textContent = 'Sign in';
+            if (label) label.textContent = 'Sign in';
             link.setAttribute('data-state', 'out');
             // Preserve where the user came from so /account/ can route
             // them back after sign-in / sign-up. Only path + query +
@@ -139,7 +145,7 @@
   <script src="tenets.js"></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
-  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
 </footer>
 <!-- /INCLUDE:footer -->
 </body>

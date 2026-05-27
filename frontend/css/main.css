@@ -154,14 +154,22 @@ body {
 /* Shared global header — included via partials/header.html on every public
    page except the homepage. Logo + back-to-home link. */
 .rc-header {
+  /* Full-width bar (border + background span the viewport)... */
+  border-bottom: 1px solid var(--rc-border);
+  background: var(--rc-bg-panel);
+  position: relative;
+  z-index: 1000;       /* lift the header (and its search dropdown) above page content */
+}
+.rc-header-inner {
+  /* ...while the content (logo, search, account) aligns to the site width,
+     matching the page's content column. */
   display: flex;
   align-items: center;
   gap: 1rem;
+  max-width: var(--rc-max-width);
+  margin: 0 auto;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--rc-border);
-  background: var(--rc-bg-panel);
   position: relative;  /* positioning context for the centered search */
-  z-index: 1000;       /* lift the header (and its search dropdown) above page content */
 }
 .rc-back-link {
   display: inline-flex;
@@ -272,7 +280,7 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   }
 }
 @media (max-width: 600px) {
-  .rc-header { padding: 0.75rem 1rem; }
+  .rc-header-inner { padding: 0.75rem 1rem; }
   .rc-back-link { font-size: 0.85rem; }
   .rc-back-link span { display: none; }  /* logo only on mobile — give the search room */
   .rc-account-link { font-size: 0.78rem; padding: 0.3rem 0.65rem; }
@@ -288,20 +296,29 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   margin-left: auto;
   display: inline-flex;
   align-items: center;
+  gap: 0.4rem;
   text-decoration: none;
   font-family: var(--rc-font);
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  padding: 0.35rem 0.75rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 6px;
-  color: var(--rc-text-dim);
-  border: 1px solid transparent;
+  color: var(--rc-text);
+  border: 1px solid var(--rc-border-ui);
+  background: var(--rc-bg-card);
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.rc-account-link svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 .rc-account-link:hover,
 .rc-account-link:focus-visible {
-  color: var(--rc-text-bright);
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+  background: var(--rc-accent-hover);
   outline: none;
 }
 .rc-account-link[data-state="in"] {
@@ -1720,17 +1737,43 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 .cal-cell.cal-has-data {
   color: var(--rc-text);
   cursor: pointer;
-  transition: background var(--rc-ease-fast), color var(--rc-ease-fast);
+  transition: background var(--rc-ease-fast), color var(--rc-ease-fast),
+    box-shadow var(--rc-ease-fast), border-color var(--rc-ease-fast);
   -webkit-tap-highlight-color: transparent;
+}
+/* A day with its own reading paints in that day's exact spectrum color
+   (--day-color is the interpolated hex, sampled the same way as the
+   compass-container border/glow). No gap, no radius, no border, so adjacent
+   days fuse into one continuous spectrum band -- the calendar reads as a dial. */
+/* Color carried by border + inner glow in the day's spectrum hex -- the exact
+   compass-container mechanic (border-color + inset glow), applied per day.
+   Interior stays dark so each day reads as its own lit dial segment. */
+.cal-cell.cal-has-data[style*="--day-color"] {
+  border: 1px solid var(--day-color);
+  box-shadow: inset 0 0 9px -2px color-mix(in srgb, var(--day-color) 80%, transparent);
+  color: var(--day-color);
 }
 .cal-cell.cal-has-data:hover {
   background: var(--rc-accent-hover);
   color: var(--rc-accent);
 }
+.cal-cell.cal-has-data[style*="--day-color"]:hover {
+  box-shadow: inset 0 0 12px -2px var(--day-color),
+    0 0 7px -1px color-mix(in srgb, var(--day-color) 60%, transparent);
+  color: var(--day-color);
+}
 .cal-cell.cal-selected {
   background: var(--rc-accent) !important;
   color: var(--rc-bg-dark) !important;
   font-weight: 700;
+}
+/* Selected day with a reading: solid fill in its own spectrum color rather
+   than the flat accent, so the picked day still reads as part of the dial. */
+.cal-cell.cal-has-data.cal-selected[style*="--day-color"] {
+  background: var(--day-color) !important;
+  color: var(--rc-bg-dark) !important;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 2px var(--rc-bg-panel);
 }
 
 .cal-hist-msg {
@@ -1740,6 +1783,22 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   padding: 1.2rem 0;
   line-height: 1.6;
 }
+
+.cal-fullpage-link {
+  display: block;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rc-divider);
+  text-align: center;
+  font-family: var(--rc-font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  text-decoration: none;
+  transition: color var(--rc-ease-fast);
+}
+.cal-fullpage-link:hover { color: var(--rc-accent); }
 
 /* Slider */
 .timemachine-wrap {

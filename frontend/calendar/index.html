@@ -3,34 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Motion ledger -- The Rising Compass</title>
-  <meta name="description" content="Every motion ever filed on the Rising Compass framework -- proposed, deliberating, ratified, covered, rejected. Public reading, no sign-in required.">
-  <link rel="canonical" href="https://risingcompass.net/motion-desk/motion-ledger/">
-
+  <title>Calendar -- The Rising Compass</title>
+  <meta name="description" content="The Rising Compass calendar -- every daily reading laid out as a dial. Each day painted its exact charge color across the spectrum, from Ascended to Corrupted.">
+  <meta property="og:title" content="Calendar -- The Rising Compass">
+  <meta property="og:description" content="Every daily Compass reading as a colored calendar dial.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/calendar/">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
-
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/motion-desk/motion-ledger/">
-  <meta property="og:title" content="Motion ledger -- The Rising Compass">
-  <meta property="og:description" content="Every motion ever filed on the Rising Compass framework.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Motion ledger -- The Rising Compass">
-  <meta name="twitter:description" content="Every motion ever filed on the Rising Compass framework.">
-  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Cormorant+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/motion-desk/motion-desk.css">
+  <link rel="stylesheet" href="/calendar/calendar.css">
 </head>
 <body>
-  <a class="skip-nav" href="#main">Skip to content</a>
+  <a class="skip-nav" href="#cal-main">Skip to content</a>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -105,61 +94,48 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="main" class="md-main">
+  <main id="cal-main" class="cal-page">
+    <div class="cal-page-intro">
+      <h1 class="cal-page-title">Calendar</h1>
+      <p class="cal-page-sub">Every daily reading, painted its exact charge color. Drill from days to decades; pick a day to open its reading.</p>
+    </div>
 
-    <section class="md-hero">
-      <p class="md-eyebrow"><a href="/motion-desk/">Motion Desk</a></p>
-      <h1 class="md-title">Motion ledger</h1>
-      <p class="md-kicker">Every motion ever filed, on the record.</p>
-    </section>
+    <div class="cal-page-layout">
+      <section class="cal-stage" aria-label="Compass calendar">
+        <div class="cal-bar">
+          <button class="cal-bar-nav" data-action="prev" aria-label="Previous">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="cal-bar-title" data-action="zoom-out" aria-label="Zoom out">Loading...</button>
+          <button class="cal-bar-nav" data-action="next" aria-label="Next">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+          <button class="cal-bar-today" data-action="today">Today</button>
+        </div>
+        <div id="cal-board" class="cal-board" aria-live="polite"></div>
+        <div class="cal-legend">
+          <span class="cal-legend-label">Ascended</span>
+          <span class="cal-legend-bar" aria-hidden="true"></span>
+          <span class="cal-legend-label">Corrupted</span>
+        </div>
+      </section>
 
-    <nav class="md-tabbar md-tabbar-routed" aria-label="Motion Desk sections">
-      <a class="md-tab" href="/motion-desk/file-a-motion/">File a motion</a>
-      <a class="md-tab active" href="/motion-desk/motion-ledger/" aria-current="page">Motion ledger</a>
-    </nav>
-
-    <section class="md-record" aria-label="Public motion ledger">
-      <p class="md-record-help">
-        Every motion ever filed, public from the moment it lands.
-        Amendments to tenets also appear on the
-        <a href="/amendments/">amendment record</a>.
-      </p>
-
-      <div class="md-filter-row">
-        <button class="md-filter active" data-status="open" type="button">Open</button>
-        <button class="md-filter" data-status="filed" type="button">Filed</button>
-        <button class="md-filter" data-status="in_deliberation" type="button">In deliberation</button>
-        <button class="md-filter" data-status="ratified" type="button">Ratified</button>
-        <button class="md-filter" data-status="covered" type="button">Covered</button>
-        <button class="md-filter" data-status="rejected" type="button">Rejected</button>
-        <button class="md-filter" data-status="all" type="button">All</button>
-      </div>
-      <div class="md-filter-row" id="typeFilters">
-        <button class="md-filter active" data-type="all" type="button">All types</button>
-        <button class="md-filter" data-type="amend_tenet" type="button">Amend tenet</button>
-        <button class="md-filter" data-type="new_tenet" type="button">New tenet</button>
-        <button class="md-filter" data-type="remove_tenet" type="button">Remove tenet</button>
-        <button class="md-filter" data-type="amend_rule" type="button">Amend rule</button>
-        <button class="md-filter" data-type="new_rule" type="button">New rule</button>
-        <button class="md-filter" data-type="remove_rule" type="button">Remove rule</button>
-        <button class="md-filter" data-type="process" type="button">Process</button>
-      </div>
-
-      <div class="md-record-list" id="recordList">
-        <p class="md-empty">Loading...</p>
-      </div>
-    </section>
-
-    <footer class="md-footer">
-      <p class="footer-note">
-        See also: <a href="/motion-desk/file-a-motion/">file a motion</a> &middot; <a href="/tenets/">the tenets</a> &middot; <a href="/amendments/">the amendment record</a>
-      </p>
-    </footer>
-
+      <aside id="cal-detail" class="cal-detail" aria-label="Selected day reading" hidden>
+        <div class="cal-detail-inner">
+          <button class="cal-detail-close" data-action="close-detail" aria-label="Close reading">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+          <div id="cal-detail-body" class="cal-detail-body"></div>
+        </div>
+      </aside>
+    </div>
   </main>
 
-  <script src="/js/auth.js" defer></script>
-  <script src="/motion-desk/motion-desk.js" defer></script>
+  <script src="/js/header-search.js" defer></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/charge.js"></script>
+  <script src="/calendar/calendar.js"></script>
+
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>

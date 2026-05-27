@@ -315,21 +315,37 @@ def get_drift_years(db: Session = Depends(get_db)):
 def get_year_dates(year: int, db: Session = Depends(get_db)):
     """Available reading dates for a given year.
 
-    Live years (>2025): returns sorted list of date strings from DailyReading.
-    Historical years (<=2025): returns empty list (no daily data).
+    Live years (>2025): returns sorted list of date strings from DailyReading,
+    plus a parallel `readings` array carrying each day's compass_degree and
+    charge_level so the calendar can paint every day its own spectrum color.
+    Historical years (<=2025): returns empty lists (no daily data).
     """
     if year <= LIVE_YEAR_CUTOFF:
-        return {"dates": []}
+        return {"dates": [], "readings": []}
 
     from datetime import date
     start = date(year, 1, 1)
     end = date(year, 12, 31)
 
     rows = (
-        db.query(DailyReading.date)
+        db.query(
+            DailyReading.date,
+            DailyReading.compass_degree,
+            DailyReading.charge_level,
+        )
         .filter(DailyReading.date >= start, DailyReading.date <= end)
         .order_by(DailyReading.date)
         .all()
     )
 
-    return {"dates": [r[0].isoformat() for r in rows]}
+    return {
+        "dates": [r[0].isoformat() for r in rows],
+        "readings": [
+            {
+                "date": r[0].isoformat(),
+                "compass_degree": r[1],
+                "charge_level": r[2],
+            }
+            for r in rows
+        ],
+    }
