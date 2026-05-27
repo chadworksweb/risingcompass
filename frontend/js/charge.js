@@ -100,7 +100,7 @@ const Charge = (() => {
     if (!label) return;
 
     if (totalSongs > 0) {
-      label.innerHTML = `${redCount} of ${totalSongs} top songs carry red-charge lyrics`;
+      label.innerHTML = `${redCount} of ${totalSongs} top songs carry corrupted-charge lyrics`;
     } else {
       label.innerHTML = `Showing historical reading`;
     }
