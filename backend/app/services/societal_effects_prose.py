@@ -75,6 +75,7 @@ SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" 
 - Never write a rhetorical question to close a paragraph.
 - Never open consecutive paragraphs with the same word.
 - Never restate the charge_summary verbatim.
+- Never quote the lyrics verbatim. Describe and paraphrase what the words say; never reproduce a run of words copied from the lyrics. The lyrics are your source, never your text.
 - Never moralize or prescribe ("a society should," "people need to," "we have to").
 
 ## Hard "always" list
@@ -192,6 +193,16 @@ def generate_societal_effects_prose(
     raw = re.sub(r"\n{3,}", "\n\n", raw).strip()
     if raw.startswith('"') and raw.endswith('"') and raw.count('"') == 2:
         raw = raw[1:-1].strip()
+
+    # Verbatim-lyric lock: strip any sentence that reproduces the lyrics; the
+    # checks below fail soft if the strip gutted it. No copyrighted lyric text
+    # ships in the public/sold prose.
+    if lyrics:
+        from app.services.lyric_quote_guard import strip_verbatim_quotes
+        raw, stripped = strip_verbatim_quotes(raw, lyrics)
+        if stripped:
+            logger.warning("societal_effects_prose carried verbatim lyric quotes for %s / %s; stripped",
+                           title, artist)
 
     if len(raw) < 120:
         logger.warning(

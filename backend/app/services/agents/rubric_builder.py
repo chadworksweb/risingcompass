@@ -116,7 +116,7 @@ Does NOT fire on:
 
 Test: would the same lyric read as invoking the same specific doctrine if you translated it into another language, or swapped the tradition-specific noun for a cross-traditional one? If yes → no dogma flag. If the song's rhetorical force depends on the specific doctrinal framework, the flag fires.
 
-When `dogma_referenced=true`, `dogma_note` must name which framework (Christian / Islamic / Karmic / Dharmic / Institutional-<name>) and quote the lyric moment that triggered it. One short sentence.
+When `dogma_referenced=true`, `dogma_note` must name which framework (Christian / Islamic / Karmic / Dharmic / Institutional-<name>) and describe, in your own words, the lyric moment that triggered it. Do NOT quote or reproduce the lyric line; paraphrase it. One short sentence.
 
 """
 

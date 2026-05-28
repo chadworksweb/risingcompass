@@ -117,12 +117,24 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     held; by the time `result` reaches here it already carries the ether tags
     + prose, which are written below alongside the rubric fields.
 
-    The `lyrics` kwarg is preserved for signature compatibility but is no
-    longer used here.
+    The `lyrics` kwarg drives the verbatim-lyric lock below -- this is the single
+    storage chokepoint where every grading path converges.
     """
     # Skip storing if calibration failed (rubric_color is None)
     if result.get("rubric_color") is None:
         return None
+
+    # Verbatim-lyric lock at the single storage chokepoint. EVERY grading path
+    # converges here -- terminal (Claude-Code-supplied) and browser/admin (server
+    # AI) both reach _store_calibration -- so this guarantees no copyrighted lyric
+    # text lands in a stored, public, sellable field, no matter which path produced
+    # it. Mutates `result` in place so the caller's draft-song mirror is consistent.
+    if lyrics:
+        from app.services.lyric_quote_guard import scrub_calibration_quotes
+        altered = scrub_calibration_quotes(result, lyrics)
+        if altered:
+            logger.warning("Stripped verbatim lyric quotes from %s for '%s' by %s",
+                           ", ".join(altered), title, artist)
 
     existing = (
         db.query(CompassSong)

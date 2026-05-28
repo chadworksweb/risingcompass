@@ -285,6 +285,19 @@ async def calibrate_song_async(
         "confidence": float(result.get("confidence", 0.5)),
     }
 
+    # Verbatim-lyric backstop on the calibrator's quote-prone short fields, both of
+    # which render on the public song page. The rubric now asks for paraphrase; if a
+    # verbatim run slips through anyway, clear the field so no copyrighted lyric text
+    # ever ships. contaminated / dogma_referenced flags stay set, so the indicators
+    # still show and the page falls back to generic copy.
+    if lyrics:
+        from app.services.lyric_quote_guard import has_verbatim_overlap
+        for _field in ("contamination_note", "dogma_note"):
+            if calibration.get(_field) and has_verbatim_overlap(calibration[_field], lyrics):
+                logger.warning("%s carried verbatim lyric quotes for %s / %s; cleared",
+                               _field, title, artist)
+                calibration[_field] = None
+
     # Complete the generated fields (effects prose, ether tagging, societal
     # prose) in the same pass -- the calibration path returns one whole object.
     if lyrics:

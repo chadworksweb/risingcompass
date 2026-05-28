@@ -149,6 +149,7 @@ async def _step(job_id: int) -> str:
             album_id=row.album_id,
             track_number=row.track_number,
             lyrics=row.lyrics,
+            lyrics_source=row.lyrics_source,
         )
     finally:
         db.close()
@@ -186,7 +187,7 @@ class _RowCtx:
     """Plain data carrier for row work outside a DB session."""
     __slots__ = ("row_id", "job_id", "target", "passes", "title",
                  "artist", "year", "chart_position", "album_id",
-                 "track_number", "lyrics")
+                 "track_number", "lyrics", "lyrics_source")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -197,6 +198,18 @@ async def _process_row(ctx: _RowCtx) -> None:
     """Run the calibration path (which now calibrates + tags + proses) for one
     row, then persist. Tag-only passes skip calibration and re-tag in place.
     Fail-soft."""
+    # Legal guard: never feed Musixmatch-sourced lyrics to the AI calibrator.
+    # Musixmatch API ToS (24 Jun 2025) 2.2.14 forbids using their data to prompt
+    # an AI system. Lyrics for calibration must come from paste or manual admin
+    # supply only. (The Musixmatch fetch path is itself disabled in
+    # services/musixmatch.py; this is the defense at the calibration boundary.)
+    if (ctx.lyrics_source or "").strip().lower() == "musixmatch":
+        _fail_row(
+            ctx.row_id,
+            "blocked: Musixmatch-sourced lyrics cannot be fed to the AI calibrator (ToS 2.2.14)",
+        )
+        return
+
     _set_row_status(ctx.row_id, "calibrating")
 
     calibration: Optional[dict] = None

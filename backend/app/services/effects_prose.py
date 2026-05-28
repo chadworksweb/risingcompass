@@ -78,6 +78,7 @@ EFFECTS_VOICE = """You are writing the "What Might This Song Do to the Listener?
 - Never use passive voice.
 - Never start with "This song is about," "This is a song," or anything that labels before showing.
 - Never restate the charge_summary verbatim.
+- Never quote the lyrics verbatim. Describe and paraphrase what the words say; never reproduce a run of words copied from the lyrics. The lyrics are your source, never your text.
 - Never moralize. Don't say a song is "good" or "bad" or what a listener "should" do.
 - Never use the song title in the prose.
 - Never write a rhetorical question to close a paragraph.
@@ -166,6 +167,16 @@ def generate_effects_prose(
     raw = re.sub(r"\n{3,}", "\n\n", raw).strip()
     if raw.startswith('"') and raw.endswith('"') and raw.count('"') == 2:
         raw = raw[1:-1].strip()
+
+    # Verbatim-lyric lock: strip any sentence that reproduces the lyrics, then let
+    # the sanity checks below fail soft if the strip gutted the prose. Going-forward
+    # guarantee that the public/sold prose carries no copyrighted lyric text.
+    if lyrics:
+        from app.services.lyric_quote_guard import strip_verbatim_quotes
+        raw, stripped = strip_verbatim_quotes(raw, lyrics)
+        if stripped:
+            logger.warning("effects_prose carried verbatim lyric quotes for %s / %s; stripped",
+                           title, artist)
 
     # Basic sanity: at least 2 paragraphs, at least 100 chars.
     if len(raw) < 100:

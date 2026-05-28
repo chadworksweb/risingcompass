@@ -1,4 +1,16 @@
-"""Musixmatch API client — song search and lyrics retrieval."""
+"""Musixmatch API client -- song search and lyrics retrieval.
+
+DISABLED 2026-05-28 for legal compliance. The Musixmatch API Terms of Service
+(24 Jun 2025) clause 2.2.1 forbids commercial use / monetization of Musixmatch
+Data without written approval, and clause 2.2.14 forbids using Musixmatch Data
+"in conjunction with" or "to prompt any AI system" without written approval.
+Rising Compass calibrates by prompting an AI (Claude), so feeding any Musixmatch
+lyric or metadata into the pipeline breaches 2.2.14 (and 2.2.1 once monetized).
+Until a separate WRITTEN commercial + AI license is signed, this service is
+hard-disabled: is_configured() returns False -- so every gated search/fetch path
+stays dark even if MUSIXMATCH_API_KEY is set. Do NOT flip MUSIXMATCH_ENABLED back
+on without that signed license.
+"""
 
 import logging
 from typing import Optional
@@ -11,8 +23,18 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.musixmatch.com/ws/1.1"
 
+# Legal kill switch -- see module docstring. Must stay False until a written
+# Musixmatch commercial + AI license is in hand. While False, is_configured()
+# reports False and every data-access function below refuses regardless of key.
+MUSIXMATCH_ENABLED = False
+
 
 def is_configured() -> bool:
+    # Hard-disabled for ToS compliance (clauses 2.2.1 + 2.2.14). Even with a key
+    # set, the service stays dark until MUSIXMATCH_ENABLED is flipped under a
+    # signed license. Every search/fetch path in this module gates on this.
+    if not MUSIXMATCH_ENABLED:
+        return False
     return bool(settings.musixmatch_api_key)
 
 
@@ -172,6 +194,12 @@ async def get_lyrics(track_id: int) -> Optional[str]:
 
     Returns lyrics text or None if unavailable/not configured.
     """
+    # Hard block independent of is_configured(): Musixmatch lyrics must never
+    # reach the AI calibrator (ToS 2.2.14). Belt-and-suspenders so a future edit
+    # to is_configured() cannot reopen the lyrics->AI path.
+    if not MUSIXMATCH_ENABLED:
+        logger.warning("get_lyrics blocked: Musixmatch disabled for ToS compliance (2.2.14)")
+        return None
     if not is_configured():
         return None
 
