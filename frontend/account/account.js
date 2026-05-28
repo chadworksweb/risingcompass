@@ -353,7 +353,88 @@
     loadCalibrations().catch((err) => console.error(err));
     // Reply / @mention notifications — same fire-and-forget pattern.
     loadNotifications().catch((err) => console.error(err));
+    // Wallet (M5): tier + buckets via /api/billing/me; subscribe / pack buttons.
+    loadWallet().catch((err) => console.error(err));
   }
+
+  // --- Wallet (M5) -------------------------------------------------------
+  async function loadWallet() {
+    const stateEl = document.getElementById('wallet-state');
+    const bodyEl  = document.getElementById('wallet-body');
+    if (!stateEl || !bodyEl) return;
+    let snap;
+    try {
+      const resp = await Auth.authedFetch('/api/billing/me');
+      if (!resp.ok) throw new Error(`GET /api/billing/me failed: ${resp.status}`);
+      snap = await resp.json();
+    } catch (err) {
+      stateEl.textContent = 'Could not load wallet.';
+      console.error(err);
+      return;
+    }
+    document.getElementById('wallet-tier').textContent       = snap.tier_label || snap.tier || 'Free';
+    document.getElementById('wallet-allowance').textContent  = (snap.allowance_credits || 0).toLocaleString();
+    document.getElementById('wallet-purchased').textContent  = (snap.purchased_credits || 0).toLocaleString();
+    document.getElementById('wallet-total').textContent      = (snap.total_credits || 0).toLocaleString();
+    const renewalEl = document.getElementById('wallet-renewal');
+    if (snap.period_end && snap.is_paid) {
+      const d = new Date(snap.period_end);
+      if (!Number.isNaN(d.getTime())) {
+        renewalEl.textContent = `Allowance resets ${d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}.`;
+        renewalEl.hidden = false;
+      }
+    }
+    stateEl.hidden = true;
+    bodyEl.hidden = false;
+  }
+
+  async function startBillingCheckout(kind, key) {
+    const errEl = document.getElementById('wallet-error');
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    const success_url = `${window.location.origin}/account/?billing=success`;
+    const cancel_url  = `${window.location.origin}/account/?billing=cancel`;
+    const path = kind === 'subscribe'
+      ? '/api/billing/checkout/subscription'
+      : '/api/billing/checkout/pack';
+    const body = kind === 'subscribe'
+      ? { tier: key, success_url, cancel_url }
+      : { pack: key, success_url, cancel_url };
+    try {
+      const resp = await Auth.authedFetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Checkout failed (${resp.status}): ${text}`);
+      }
+      const data = await resp.json();
+      if (data.url) {
+        window.location.assign(data.url);
+      } else {
+        throw new Error('Checkout response missing redirect URL.');
+      }
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message || 'Could not start checkout.';
+        errEl.hidden = false;
+      } else {
+        console.error(err);
+      }
+    }
+  }
+
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target instanceof Element ? ev.target.closest('[data-billing]') : null;
+    if (!btn) return;
+    const kind = btn.dataset.billing;
+    if (kind === 'subscribe' && btn.dataset.tier) {
+      startBillingCheckout('subscribe', btn.dataset.tier);
+    } else if (kind === 'pack' && btn.dataset.pack) {
+      startBillingCheckout('pack', btn.dataset.pack);
+    }
+  });
 
   async function render() {
     // Don't flash 'loading' on every state change -- only on first paint.

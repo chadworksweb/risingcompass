@@ -21,17 +21,12 @@
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
 
-  <!-- Password gate overlay -->
-  <div id="lib-gate" class="lib-gate">
-    <div class="lib-gate-inner">
-      <h1 class="lib-gate-title">The Collective Library</h1>
-      <p class="lib-gate-sub">Preview access</p>
-      <form id="lib-gate-form" autocomplete="off">
-        <input type="password" id="lib-gate-input" class="lib-gate-input" placeholder="Access key" autocomplete="off" autofocus>
-        <button type="submit" class="lib-gate-btn">Enter</button>
-      </form>
-      <p id="lib-gate-error" class="lib-gate-error" hidden>Wrong key.</p>
-      <p class="lib-gate-meta">A searchable mirror of the Rising Compass corpus. Every calibrated song, every agent run, every tier. In preview while access is being shaped.</p>
+  <!-- Desktop-only block (CSS-controlled by viewport + pointer media queries) -->
+  <div id="lib-mobile-block" class="lib-mobile-block">
+    <div class="lib-mobile-inner">
+      <h1 class="lib-mobile-title">Desktop only</h1>
+      <p class="lib-mobile-text">The Collective Library is a dense data grid &mdash; designed for desktop. Open this page on a laptop or desktop browser to use it.</p>
+      <p class="lib-mobile-back"><a href="/">Back to The Rising Compass</a></p>
     </div>
   </div>
 
@@ -109,7 +104,7 @@
 <!-- /INCLUDE:header -->
   <h1 class="artists-title" style="padding:1rem 1.5rem 0;margin:0;">Library</h1>
 
-  <main id="main" hidden>
+  <main id="main">
     <section class="lib-intro">
       <p class="lib-intro-text">
         Every song the compass has read. Chart data, deep-dive archive, crowd submissions, and the stream —
@@ -174,7 +169,10 @@
     </section>
 
     <section class="lib-results-meta" id="lib-results-meta"></section>
-    <section id="lib-results" class="lib-results"></section>
+    <section class="lib-results-wrap">
+      <table class="lib-table" id="lib-table"><thead></thead><tbody></tbody></table>
+    </section>
+    <div id="lib-empty" class="lib-empty" hidden></div>
 
     <footer class="lib-footer">
       <p>Powered by <a href="/">The Rising Compass</a>. Every calibration is public — <a href="/#methodology">read the methodology</a>.</p>

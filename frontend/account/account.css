@@ -508,3 +508,43 @@ a.account-notif-headline:hover { text-decoration: underline; }
   color: var(--rc-text-dim);
   font-style: italic;
 }
+
+/* Wallet (M5) -- subscription tier + credit buckets + checkout buttons */
+.wallet-body { display: flex; flex-direction: column; gap: 1rem; }
+.wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem 1rem;
+}
+.wallet-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--rc-bg);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+}
+.wallet-stat-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+}
+.wallet-stat-value {
+  font-size: 1.1rem;
+  color: var(--rc-text-bright);
+  font-weight: 600;
+}
+.wallet-stat-total .wallet-stat-value { color: var(--rc-accent); }
+.wallet-renewal {
+  font-size: 0.82rem;
+  color: var(--rc-text-dim);
+  margin: 0;
+}
+.wallet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

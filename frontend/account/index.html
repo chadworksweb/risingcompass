@@ -191,6 +191,46 @@
       <!-- Right column: its own stack of cards -->
       <div class="account-col account-stack">
 
+      <!-- Wallet: subscription tier + credit buckets -->
+      <section class="account-card" id="acct-wallet">
+        <h2 class="account-activity-title">Wallet</h2>
+        <p class="account-activity-sub">
+          Your subscription tier and credits. Subscriptions give you full
+          Library pagination and Compass readings; credits power Lyrical
+          Charger engine runs. Allowance resets each billing period;
+          purchased credits never expire.
+        </p>
+        <p class="account-activity-state" id="wallet-state">Loading your wallet...</p>
+        <div class="wallet-body" id="wallet-body" hidden>
+          <div class="wallet-grid">
+            <div class="wallet-stat">
+              <span class="wallet-stat-label">Tier</span>
+              <span class="wallet-stat-value" id="wallet-tier">&mdash;</span>
+            </div>
+            <div class="wallet-stat">
+              <span class="wallet-stat-label">Allowance</span>
+              <span class="wallet-stat-value" id="wallet-allowance">&mdash;</span>
+            </div>
+            <div class="wallet-stat">
+              <span class="wallet-stat-label">Purchased</span>
+              <span class="wallet-stat-value" id="wallet-purchased">&mdash;</span>
+            </div>
+            <div class="wallet-stat">
+              <span class="wallet-stat-label">Total</span>
+              <span class="wallet-stat-value wallet-stat-total" id="wallet-total">&mdash;</span>
+            </div>
+          </div>
+          <p class="wallet-renewal" id="wallet-renewal" hidden></p>
+          <div class="wallet-actions">
+            <button type="button" class="account-btn" data-billing="subscribe" data-tier="plus">Subscribe to Plus</button>
+            <button type="button" class="account-btn" data-billing="subscribe" data-tier="pro">Subscribe to Pro</button>
+            <button type="button" class="account-btn account-btn-secondary" data-billing="pack" data-pack="pack_25">Buy 25 credits</button>
+            <button type="button" class="account-btn account-btn-secondary" data-billing="pack" data-pack="pack_100">Buy 100 credits</button>
+          </div>
+          <p class="account-error" id="wallet-error" hidden></p>
+        </div>
+      </section>
+
       <!-- Notifications: its own panel -->
       <section class="account-card" id="acct-notifications">
         <div class="account-activity-head">

@@ -182,118 +182,248 @@
   margin-left: 0.4rem;
 }
 
+.lib-paywall-link {
+  color: var(--rc-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.lib-paywall-link:hover { text-decoration: none; }
+
 .lib-err {
   color: var(--rc-red);
 }
 
-/* Results */
-.lib-results {
-  max-width: var(--rc-max-width, 1100px);
+/* Results table — native page flow, no nested scroll. Wide prose columns
+ * wrap; narrow columns stay tight. The page itself scrolls vertically. */
+.lib-results-wrap {
   margin: 1rem auto 2rem;
   padding: 0 var(--rc-card-padding, 1rem);
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 0.8rem;
 }
 
-.lib-card {
+.lib-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  font-family: var(--rc-font);
   background: var(--rc-bg-card);
   border: 1px solid var(--rc-border);
-  border-left: 3px solid var(--rc-border);
   border-radius: var(--rc-radius);
-  padding: 0.9rem 1rem;
-  transition: border-color 0.15s;
+  table-layout: auto;
 }
 
-.lib-card:hover { border-color: var(--rc-accent); }
-
-.lib-card[data-tier="violet"] { border-left-color: #aa54ff; }
-.lib-card[data-tier="blue"]   { border-left-color: #3388ff; }
-.lib-card[data-tier="green"]  { border-left-color: #33cc55; }
-.lib-card[data-tier="orange"] { border-left-color: #ffbb33; }
-.lib-card[data-tier="red"]    { border-left-color: #ff3333; }
-
-.lib-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.8rem;
-  margin-bottom: 0.4rem;
-}
-
-.lib-card-identity { min-width: 0; flex: 1; }
-
-.lib-card-title {
-  font-size: 0.95rem;
-  font-weight: 700;
+.lib-table th.lib-th {
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 2px solid var(--rc-border);
   color: var(--rc-text-bright);
-  line-height: 1.3;
-  margin-bottom: 0.1rem;
-}
-
-.lib-card-title-link {
-  color: inherit;
-  text-decoration: none;
-}
-
-.lib-card-title-link:hover {
-  color: var(--rc-accent);
-}
-
-.lib-card-artist {
-  font-size: 0.82rem;
-  color: var(--rc-text-dim);
-}
-
-.lib-card-tier {
-  flex-shrink: 0;
-  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
   font-family: var(--rc-font-mono);
+  font-size: 0.74rem;
 }
 
-.lib-card-tier-label {
-  display: block;
+.lib-table td.lib-td,
+.lib-table td.lib-td-charge {
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--rc-border);
+  vertical-align: top;
+  color: var(--rc-text);
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.lib-table tr.lib-tr:hover td { background: rgba(0, 212, 170, 0.06); }
+
+/* Narrow columns stay on one line. Title and artist wrap so the table
+ * never overflows the viewport. 10-column layout:
+ * 1 title, 2 artist, 3 rubric_color, 4 charge, 5 contaminated,
+ * 6 charge_summary, 7 effects_prose, 8 societal_effects_prose,
+ * 9 year, 10 created_at. */
+.lib-table td.lib-td:nth-child(3),  /* rubric_color label */
+.lib-table td.lib-td:nth-child(5),  /* contaminated */
+.lib-table td.lib-td:nth-child(9),  /* year */
+.lib-table td.lib-td:nth-child(10), /* created_at */
+.lib-table td.lib-td-charge {
+  white-space: nowrap;
+}
+
+.lib-table td.lib-td-wide { color: var(--rc-text-dim); }
+
+.lib-null { color: var(--rc-text-dim); }
+
+.lib-link { color: inherit; text-decoration: none; }
+.lib-link:hover { color: var(--rc-accent); text-decoration: underline; }
+
+/* Tier-tinted cells (rubric_color label + synthetic charge cell) */
+.lib-table td.color-violet { color: #aa54ff; font-weight: 600; }
+.lib-table td.color-blue   { color: #3388ff; font-weight: 600; }
+.lib-table td.color-green  { color: #33cc55; font-weight: 600; }
+.lib-table td.color-orange { color: #ffbb33; font-weight: 600; }
+.lib-table td.color-red    { color: #ff3333; font-weight: 600; }
+
+.lib-table td.lib-td-charge {
+  font-family: var(--rc-font-mono);
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Hover tooltips on charge_summary / effects_prose / societal_effects_prose.
+ * Pure CSS: pill trigger in the cell, absolutely-positioned tip revealed on
+ * :hover or :focus-within of the wrap. */
+.lib-hover-wrap {
+  position: relative;
+  display: inline-block;
+  outline: none;
+}
+
+.lib-hover-trigger {
+  display: inline-block;
+  font-family: var(--rc-font-mono);
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 0.1rem;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid var(--rc-border);
+  border-radius: 3px;
+  color: var(--rc-text-dim);
+  cursor: help;
+  user-select: none;
 }
 
-.lib-card-charge {
-  display: block;
-  font-size: 1.1rem;
-  font-weight: 700;
-}
-
-.lib-card-summary {
-  font-size: 0.82rem;
-  line-height: 1.5;
+/* Inline variant — used to make a bare word like "yes" a hover trigger
+ * (contaminated column) without the pill chrome of a button. */
+.lib-hover-trigger--inline {
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--rc-text);
-  margin: 0.2rem 0 0.6rem;
+  text-decoration: underline dotted var(--rc-text-dim);
+  text-underline-offset: 3px;
 }
 
-.lib-card-foot {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+/* Locked variant — subscription-gated prose. Dashed border + dimmer color
+ * signals "available but gated"; tooltip explains. */
+.lib-hover-trigger--locked {
+  border-style: dashed;
+  border-color: var(--rc-text-dim);
+  color: var(--rc-text-dim);
+  cursor: not-allowed;
+}
+
+.lib-hover-wrap:hover .lib-hover-trigger--locked,
+.lib-hover-wrap:focus-within .lib-hover-trigger--locked {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+  border-style: dashed;
+}
+
+.lib-hover-wrap:hover .lib-hover-trigger,
+.lib-hover-wrap:focus-within .lib-hover-trigger {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+}
+
+.lib-hover-tip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 320px;
+  max-width: 520px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text);
+  padding: 0.85rem 1rem 1rem;
+  border-radius: var(--rc-radius);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  font-family: var(--rc-font);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-line;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.lib-hover-wrap:hover .lib-hover-tip,
+.lib-hover-wrap:focus-within .lib-hover-tip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.lib-hover-wrap--right .lib-hover-tip {
+  left: auto;
+  right: 0;
+}
+
+.lib-hover-tip-label {
+  display: block;
   font-family: var(--rc-font-mono);
   font-size: 0.7rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--rc-text-dim);
+  margin-bottom: 0.5rem;
 }
 
-.lib-contam {
-  color: var(--rc-orange, #ffbb33);
-  font-weight: 700;
-  letter-spacing: 0.08em;
+.lib-hover-tip-body { display: block; }
+
+/* Desktop-only block — coarse pointer or narrow viewport */
+.lib-mobile-block { display: none; }
+
+@media (max-width: 1100px), (pointer: coarse) {
+  body > #main,
+  .artists-title,
+  .lib-footer { display: none !important; }
+  .lib-mobile-block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding: 2.5rem 1.5rem;
+  }
+  .lib-mobile-inner {
+    max-width: 480px;
+    text-align: center;
+  }
+  .lib-mobile-title {
+    font-size: 1.35rem;
+    color: var(--rc-text-bright);
+    margin: 0 0 0.9rem;
+    letter-spacing: 0.02em;
+  }
+  .lib-mobile-text {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--rc-text);
+    margin: 0 0 1.5rem;
+  }
+  .lib-mobile-back a {
+    font-family: var(--rc-font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--rc-accent);
+    text-decoration: none;
+  }
+  .lib-mobile-back a:hover { text-decoration: underline; }
 }
 
 /* Empty */
 .lib-empty {
-  text-align: center;
+  max-width: var(--rc-max-width, 1100px);
+  margin: 1rem auto 2rem;
   padding: 3rem 1rem;
+  text-align: center;
   color: var(--rc-text-dim);
 }
 

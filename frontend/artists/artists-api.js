@@ -32,12 +32,27 @@ const ArtistsAPI = (() => {
       return get(path);
     },
     searchSongs: (q, limit = 20, signal) => get(`/api/songs?q=${encodeURIComponent(q)}&limit=${limit}`, signal),
-    searchLibrary: (params = {}) => {
+    searchLibrary: async (params = {}) => {
+      // Library uses BOTH headers when signed-in: X-Api-Key (router-level
+      // dep on songs.router) AND Authorization: Bearer (so the backend
+      // can resolve the user's subscription_tier and lift the 20-cap for
+      // Plus/Pro). Anonymous calls keep just the public key.
       const qs = new URLSearchParams();
       Object.entries(params).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== '') qs.set(k, String(v));
       });
-      return get(`/api/songs/search?${qs.toString()}`);
+      const headers = {};
+      if (API_KEY) headers['X-Api-Key'] = API_KEY;
+      try {
+        if (window.Auth && typeof Auth.getToken === 'function') {
+          if (typeof Auth.init === 'function') { await Auth.init(); }
+          const token = await Auth.getToken();
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (_) { /* anon fallback */ }
+      const resp = await fetch(`${BASE}/api/songs/search?${qs.toString()}`, { headers });
+      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      return resp.json();
     },
     getSong: (slug) => get(`/api/songs/${slug}`),
     getSongFlagCounts: (slug) => get(`/api/songs/${slug}/flag-counts`),

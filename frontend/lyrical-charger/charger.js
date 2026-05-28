@@ -757,9 +757,19 @@ async function submitLyrics() {
 
     if (resp.status === 429) {
       stopProgress();
-      showError("You've hit the free daily limit (20 readings). Try again tomorrow.");
+      showError("You've hit the daily limit. Sign in and pick up a credit pack to keep going, or try again tomorrow.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
+      return;
+    }
+
+    if (resp.status === 402) {
+      // Credit-gated path (M3). Signed-in user without enough credits.
+      stopProgress();
+      showError("Out of credits. Pick up a credit pack or subscribe from your Account page to keep charging songs.");
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      try { window.location.assign('/account/'); } catch (_) {}
       return;
     }
 
@@ -935,9 +945,18 @@ async function submitSearch() {
 
     if (resp.status === 429) {
       stopProgress();
-      showError("You've hit the free daily limit (20 readings). Try again tomorrow.");
+      showError("You've hit the daily limit. Sign in and pick up a credit pack to keep going, or try again tomorrow.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
+      return;
+    }
+
+    if (resp.status === 402) {
+      stopProgress();
+      showError("Out of credits. Pick up a credit pack or subscribe from your Account page to keep charging songs.");
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      try { window.location.assign('/account/'); } catch (_) {}
       return;
     }
 
@@ -1666,6 +1685,11 @@ function hideError() {
       });
       resetTurnstile();
 
+      if (resp.status === 402) {
+        showError("Out of credits for an album of this length. Pick up a credit pack or subscribe from your Account page to keep charging albums.");
+        try { window.location.assign('/account/'); } catch (_) {}
+        return;
+      }
       if (resp.status === 429) {
         showAlbumError("You've hit the free daily album limit. Try again tomorrow.");
         showScreen('screen-album-entry');
