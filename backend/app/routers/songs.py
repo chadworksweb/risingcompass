@@ -337,6 +337,7 @@ def song_search_unified(
             offset=effective_offset,
             limit=effective_limit,
             include_pii=False,
+            include_prose=is_paid,
             attach_slugs=True,
         )
         result["plan_tier"] = plan_tier

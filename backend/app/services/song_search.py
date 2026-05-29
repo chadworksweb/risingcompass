@@ -47,6 +47,12 @@ _SONG_MODELS = {
 
 _PII_FIELDS = {"ip_address", "device_id", "email", "confidence"}
 
+# Prose fields gated to paid viewers (plus/pro/internal). The public Library
+# list shows a "locked" teaser for free/anon; withhold the text server-side so
+# the paywall is enforced, not just a UI veneer. The per-song detail page is a
+# separate path and intentionally stays public.
+_PROSE_FIELDS = {"effects_prose", "societal_effects_prose"}
+
 _COMMON_FIELDS = [
     "id", "title", "artist", "rubric_color", "charge_value",
     "contaminated", "contamination_note", "charge_summary", "effects_prose",
@@ -54,7 +60,7 @@ _COMMON_FIELDS = [
 ]
 
 
-def _serialize_common(row, source: str, include_pii: bool) -> dict:
+def _serialize_common(row, source: str, include_pii: bool, include_prose: bool = True) -> dict:
     out: dict[str, Any] = {"song_source": source}
     for field in _COMMON_FIELDS:
         if hasattr(row, field):
@@ -103,6 +109,11 @@ def _serialize_common(row, source: str, include_pii: bool) -> dict:
         for k in list(out.keys()):
             if k in _PII_FIELDS:
                 out.pop(k, None)
+
+    # Withhold paid-only prose from unpaid viewers (free/anon).
+    if not include_prose:
+        for k in _PROSE_FIELDS:
+            out.pop(k, None)
 
     return out
 
@@ -154,10 +165,12 @@ def search_unified(
     offset: int = 0,
     limit: int = 25,
     include_pii: bool = False,
+    include_prose: bool = True,
     attach_slugs: bool = True,
 ) -> dict:
     """Run a unified search across the four song tables and return a paged,
-    sorted, filtered list of rows serialized with or without PII.
+    sorted, filtered list of rows serialized with or without PII. When
+    include_prose is False the paid-only prose fields are withheld too.
     """
     sources = [source] if source in _SONG_MODELS else list(_SONG_MODELS.keys())
 
@@ -229,7 +242,7 @@ def search_unified(
 
     total = len(merged)
     page = merged[offset:offset + limit]
-    items = [_serialize_common(row, src, include_pii) for src, row in page]
+    items = [_serialize_common(row, src, include_pii, include_prose) for src, row in page]
 
     if attach_slugs and items:
         _attach_slugs(items, db)
