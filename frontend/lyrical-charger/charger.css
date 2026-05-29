@@ -1847,3 +1847,68 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
 .album-track-limit-note a { color: var(--rc-accent); text-decoration: none; }
 .album-track-limit-note a:hover { text-decoration: underline; }
 .album-track-limit-note.hidden { display: none; }
+
+/* ============================================================
+   Share card -- button + modal
+   ============================================================ */
+.result-cta-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.share-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(3, 3, 8, 0.86);
+  backdrop-filter: blur(4px);
+}
+.share-modal.open { display: flex; }
+
+.share-modal__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 92vw;
+}
+
+.share-modal__canvas {
+  width: min(86vw, 460px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.share-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.share-modal__close {
+  position: absolute;
+  top: -0.9rem;
+  right: -0.9rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: 1px solid var(--rc-border-ui);
+  background: var(--rc-bg-card);
+  color: var(--rc-text-bright);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--rc-ease), color var(--rc-ease);
+}
+.share-modal__close:hover { border-color: var(--rc-accent); color: var(--rc-accent); }

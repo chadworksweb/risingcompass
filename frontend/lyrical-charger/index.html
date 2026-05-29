@@ -328,7 +328,10 @@
         <div class="cta-secondary">
           <p>This reading was powered by <a href="https://risingcompass.net">The Rising Compass</a> — a daily frequency diagnostic for popular music.</p>
         </div>
-        <button id="btn-again" class="btn btn-secondary">Calibrate Another</button>
+        <div class="result-cta-buttons">
+          <button id="btn-share" class="btn btn-primary">Share this reading</button>
+          <button id="btn-again" class="btn btn-secondary">Calibrate Another</button>
+        </div>
       </div>
 
       <!-- Footer branding -->
@@ -472,6 +475,18 @@
 
   </main>
 
+  <!-- Share card modal -->
+  <div id="share-modal" class="share-modal" aria-hidden="true">
+    <div class="share-modal__inner">
+      <button id="btn-share-close" class="share-modal__close" aria-label="Close">&times;</button>
+      <canvas id="share-canvas" class="share-modal__canvas" width="1080" height="1080"></canvas>
+      <div class="share-modal__actions">
+        <button id="btn-share-native" class="btn btn-primary">Share</button>
+        <button id="btn-share-download" class="btn btn-secondary">Download PNG</button>
+      </div>
+    </div>
+  </div>
+
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/fair-use.html">Fair Use</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
@@ -479,6 +494,7 @@
 <!-- /INCLUDE:footer -->
 
   <script src="/js/auth.js" defer></script>
+  <script src="share-card.js" defer></script>
   <script src="charger.js" defer></script>
 </body>
 </html>
