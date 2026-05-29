@@ -26,6 +26,8 @@ class CompassSong(Base):
     instrumental = Column(Boolean, default=False)
     effects_prose = Column(Text)  # 3-paragraph per-song description of what the song transmits
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
+    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
+    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
@@ -171,6 +173,8 @@ class LibrarySong(Base):
     source = Column(String(20), default="manual")  # manual / agent
     effects_prose = Column(Text)  # 3-paragraph per-song description
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
+    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
+    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
@@ -264,6 +268,8 @@ class SubmittedSong(Base):
     ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6, for abuse detection
     effects_prose = Column(Text)  # 3-paragraph per-song description
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
+    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
+    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
@@ -430,10 +436,43 @@ class StreamSong(Base):
     promoted_to = Column(String(20))  # library / compass — set on promotion
     effects_prose = Column(Text)  # 3-paragraph per-song description
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
+    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
+    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ProseProvenanceAnchor(Base):
+    """External tamper-evident anchor for one sealed societal-prose version.
+
+    Bridges the in-DB sealed provenance (societal_prose_generated_at + model,
+    migration 075) to a public append-only GitHub log + an OpenTimestamps
+    Bitcoin anchor. Only the hash leaves the DB -- never the prose text. One row
+    per (table, row, prose version); see migration 076. Off the calibration hot
+    path -- populated by the provenance sweep/upgrade crons, fail-soft.
+    """
+    __tablename__ = "prose_provenance_anchors"
+    __table_args__ = (
+        UniqueConstraint("song_table", "song_id", "prose_sha256",
+                         name="uq_prose_anchor_version"),
+        Index("idx_prose_anchor_ots_status", "ots_status"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_table = Column(Text, nullable=False)  # compass_songs|library_songs|submitted_songs|stream_songs
+    song_id = Column(Integer, nullable=False)
+    prose_sha256 = Column(Text, nullable=False)  # sha256(table:id | generated_at | model | prose)
+    generated_at = Column(DateTime, nullable=False)  # copy of the sealed generated_at
+    model = Column(Text, nullable=False)  # copy of the sealed model ('legacy_unknown' for proxy rows)
+    sealed_at = Column(DateTime, default=datetime.utcnow)  # when this anchor row was created
+    github_commit_sha = Column(Text)  # commit that recorded this hash in the public log
+    github_committed_at = Column(DateTime)
+    ots_status = Column(Text, nullable=False, default="pending")  # pending|submitted|complete|failed
+    ots_proof_path = Column(Text)  # path to the batch .ots proof in the provenance repo
+    ots_bitcoin_block = Column(Integer)  # Bitcoin block height once confirmed
+    ots_block_time = Column(DateTime)  # block timestamp once confirmed (optional)
 
 
 class Artist(Base):

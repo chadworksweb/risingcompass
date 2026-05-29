@@ -387,16 +387,16 @@ breaking the rest of `/api/billing/*`. All env passthroughs are in
   entitlement changes to `/api/songs/search` and the calibrate endpoints,
   the error model.
 
-### What's still pending (after the 2026-05-29 hardening pass)
+### Status (deployed 2026-05-29)
 
-Done 2026-05-29: Stripe products/price IDs (TEST), full browser e2e, live webhook
-replay (no double-grant), library prose unlock for paid tiers, 11 audit fixes,
-pre-launch gate. All committed to local `master`, **unpushed**.
+DEPLOYED to production 2026-05-29 (`origin/master`). M0-M6 live; gate LOCKED.
+- Stripe migrated to a **new dedicated Rising Compass account** (off the shared
+  chadlewine account). Billing + donations + Identity all run on the new account;
+  live price IDs + 3 distinct webhook secrets are in prod `/root/rising-compass/.env`
+  (old Stripe config backed up at `.env.bak.predeploy`). Local `.env` uses a Stripe sandbox.
+- Library prose withheld server-side for free/anon (`/api/songs/search`), not just a UI lock.
+- Verified live: `/api/launch-status` locked; `/api/billing/estimate` returns credits;
+  billing schema present (`users.subscription_tier`/`allowance_credits`, `credit_ledger`).
 
-1. **Deploy** -- `git push origin master` + `bash deploy.sh`. Migrations 072-074
-   apply on boot; the launch gate ships LOCKED so nothing transacts.
-2. **Prod LIVE-Stripe wiring (before opening the gate).** Prod runs LIVE Stripe;
-   the price IDs in local `.env` are TEST-mode. `/root/rising-compass/.env` needs
-   LIVE `STRIPE_PRICE_*` IDs + a LIVE webhook endpoint at
-   `https://api.risingcompass.net/api/billing-webhook` + its signing secret.
-3. **Open the gate** when ready: `POST /api/admin/launch-lock/toggle {"locked": false}`.
+**Only remaining step:** open the gate when ready --
+`POST /api/admin/launch-lock/toggle {"locked": false}` (admin session). No redeploy.

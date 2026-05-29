@@ -363,6 +363,9 @@ def _song_persist_fields(calibration: dict) -> dict:
         "confidence": calibration.get("confidence"),
         "effects_prose": calibration.get("effects_prose"),
         "societal_effects_prose": calibration.get("societal_effects_prose"),
+        # Sealed generation provenance, kept in lockstep with the prose column.
+        "societal_prose_generated_at": calibration.get("societal_prose_generated_at"),
+        "societal_prose_model": calibration.get("societal_prose_model"),
         "deadpan_line": calibration.get("deadpan_line"),
         "topics": json.dumps(topics) if topics else None,
         "topic_audit": json.dumps(topic_audit) if topic_audit else None,

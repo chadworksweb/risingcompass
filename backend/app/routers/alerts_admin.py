@@ -29,7 +29,8 @@ router = APIRouter(prefix="/api/admin/alerts", tags=["alerts-admin"])
 # Only alert keys with backend hooks are writable. Anything else returns 422
 # so the UI's coming-soon placeholders can't accidentally persist a fake
 # preference.
-WIRED_ALERT_KEYS = {"comment_created", "prompt_cache_warranted", "album_charged", "general_inquiry"}
+WIRED_ALERT_KEYS = {"comment_created", "prompt_cache_warranted", "album_charged",
+                    "general_inquiry", "provenance_health"}
 
 
 class PrefOut(BaseModel):

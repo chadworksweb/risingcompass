@@ -268,6 +268,42 @@ def emit_general_inquiry(*, inquiry_id: int, name: Optional[str], email: Optiona
     )
 
 
+def emit_provenance_health(*, breaches: list[str], health: dict) -> None:
+    """Activity alert -- the provenance health check found one or more breaches
+    (backlog, stalled sweep, unpushed commits, or OTS proofs stuck off-chain).
+    The caller invokes this ONLY on a breach, so it is silent when healthy."""
+    site = settings.site_url.rstrip("/")
+    items = "".join(f"<li style=\"margin:0 0 4px;\">{escape(b)}</li>" for b in breaches)
+    counts = health.get("counts", {}) or {}
+    counts_str = ", ".join(f"{escape(str(k))}: {v}" for k, v in sorted(counts.items())) or "none"
+    git_ahead = health.get("git_ahead")
+    git_ahead_str = "unknown" if git_ahead is None else str(git_ahead)
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 12px;font-size:14px;color:#333;">
+        Prose provenance anchoring needs attention:
+      </p>
+      <ul style="margin:0 0 16px;padding-left:20px;font-size:14px;color:#cc3333;">{items}</ul>
+      <table style="border-collapse:collapse;font-size:14px;color:#333;margin:0 0 16px;">
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Unanchored sealed</td><td><strong>{health.get('unanchored_sealed', 'n/a')}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">By OTS status</td><td><strong>{escape(counts_str)}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Commits not pushed</td><td><strong>{escape(git_ahead_str)}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Last anchor commit</td><td><strong>{escape(str(health.get('last_commit_at') or 'never'))}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Oldest unconfirmed</td><td><strong>{escape(str(health.get('oldest_unconfirmed_at') or 'none'))}</strong></td></tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard/provenance" style="color:#008f72;">Provenance dashboard</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="activity",
+        alert_key="provenance_health",
+        subject=f"Provenance health: {len(breaches)} issue(s)",
+        html_body=html,
+    )
+
+
 def emit_prompt_cache_warranted(*, stats: dict, window_days: int) -> None:
     """One-time nudge: calibrator API traffic is now dense enough that turning
     on prompt caching would save money. See app/services/cache_advisor.py for

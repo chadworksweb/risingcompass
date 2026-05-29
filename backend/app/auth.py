@@ -191,6 +191,18 @@ def verify_reading_cron_key(x_reading_cron_key: Optional[str] = Header(default=N
         raise HTTPException(status_code=403, detail="Invalid reading cron key")
 
 
+def verify_provenance_cron_key(x_provenance_cron_key: Optional[str] = Header(default=None)):
+    """Service auth for the provenance sweep/upgrade crons. Mirrors the other
+    cron lanes: a separate header secret so a leak stays scoped to provenance."""
+    expected = settings.rc_provenance_cron_key
+    if not expected:
+        raise HTTPException(status_code=503, detail="Provenance cron key not configured")
+    if not x_provenance_cron_key:
+        raise HTTPException(status_code=403, detail="Missing provenance cron key")
+    if not hmac.compare_digest(x_provenance_cron_key, expected):
+        raise HTTPException(status_code=403, detail="Invalid provenance cron key")
+
+
 def _extract_clerk_token(
     authorization: Optional[str], session_cookie: Optional[str]
 ) -> Optional[str]:

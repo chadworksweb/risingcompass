@@ -23,6 +23,14 @@ services:
       - RC_BACKUP_KEY=${RC_BACKUP_KEY}
       - RC_READING_CRON_KEY=${RC_READING_CRON_KEY}
       - RC_LYRICS_SUPPLY_KEY=${RC_LYRICS_SUPPLY_KEY}
+      - RC_PROVENANCE_CRON_KEY=${RC_PROVENANCE_CRON_KEY}
+      # Prose provenance anchoring. Ships DARK (PROVENANCE_ENABLED unset/false).
+      # When enabled, PROVENANCE_REPO_PATH must be a volume-mounted, write-
+      # authenticated git clone of the public anchor repo, and the image must
+      # carry `git` + the `ots` CLI (opentimestamps-client in requirements.txt).
+      - PROVENANCE_ENABLED=${PROVENANCE_ENABLED:-false}
+      - PROVENANCE_REPO_PATH=${PROVENANCE_REPO_PATH}
+      - PROVENANCE_GIT_AUTHOR=${PROVENANCE_GIT_AUTHOR:-rc-provenance <provenance@risingcompass.net>}
       - ADMIN_LOGIN_URL_TOKEN=${ADMIN_LOGIN_URL_TOKEN}
       # Cookie Domain for the admin session so one login covers both the root
       # (Site Admin) and api. (API Admin) hosts -- same-site subdomains.

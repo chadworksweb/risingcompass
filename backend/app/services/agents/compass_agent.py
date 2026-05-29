@@ -162,6 +162,11 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     # when those columns are missing. See feedback_rc_no_api_in_terminal.
     supplied_effects_prose = result.get("effects_prose")
     supplied_societal_prose = result.get("societal_effects_prose")
+    # Sealed societal-prose provenance travels in the calibration dict from the
+    # calibrator path (real generated_at + model); terminal supply leaves them
+    # absent (None). Kept in lockstep with supplied_societal_prose below.
+    supplied_societal_generated_at = result.get("societal_prose_generated_at")
+    supplied_societal_model = result.get("societal_prose_model")
 
     # Terminal-mode callers may also supply the Ether Art Chart fields
     # (deadpan_line + topics + topic_audit) that the ether_tagger would
@@ -191,6 +196,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             existing.effects_prose = supplied_effects_prose
         if supplied_societal_prose is not None:
             existing.societal_effects_prose = supplied_societal_prose
+            existing.societal_prose_generated_at = supplied_societal_generated_at
+            existing.societal_prose_model = supplied_societal_model
         if supplied_deadpan is not None:
             existing.deadpan_line = supplied_deadpan
         if supplied_topics is not None:
@@ -239,6 +246,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             chart_source=chart_source,
             effects_prose=supplied_effects_prose,
             societal_effects_prose=supplied_societal_prose,
+            societal_prose_generated_at=supplied_societal_generated_at,
+            societal_prose_model=supplied_societal_model,
             deadpan_line=supplied_deadpan,
             topics=supplied_topics_json,
             topic_audit=supplied_topic_audit_json,

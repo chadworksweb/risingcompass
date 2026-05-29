@@ -1,0 +1,131 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'provenance' %}
+{% block title %}Prose Provenance — Admin{% endblock %}
+
+{% block content %}
+<p style="font-size:0.9rem;color:var(--text-dim);max-width:60ch;margin:0 0 1.2rem;">
+  Tamper-evident anchoring for societal-prose. Each sealed prose value is
+  published hash-only (the text never leaves the DB) to the public log and
+  OpenTimestamped to Bitcoin. This page is read-only; the sweep / upgrade /
+  health-check run as service crons.
+</p>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="pvEnabled">—</div><div class="label">Anchoring</div></div>
+  <div class="stat-card"><div class="val" id="pvUnanchored">—</div><div class="label">Unanchored sealed</div></div>
+  <div class="stat-card"><div class="val" id="pvComplete">—</div><div class="label">On-chain (complete)</div></div>
+  <div class="stat-card"><div class="val" id="pvAhead">—</div><div class="label">Commits not pushed</div></div>
+</div>
+
+<div style="margin:0.4rem 0 1rem;">
+  <button onclick="loadProvenance()" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Refresh</button>
+  <span id="pvNote" style="font-size:0.8rem;color:var(--text-dim);margin-left:0.6rem;"></span>
+</div>
+
+<h2 class="section-title">Pipeline</h2>
+<table class="data-table" style="width:auto;min-width:420px;font-size:0.88rem;">
+  <tbody>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Repo reachable</td><td id="pvRepo">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Pending (awaiting OTS submit)</td><td id="pvPending">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Submitted (awaiting Bitcoin)</td><td id="pvSubmitted">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Complete (on-chain)</td><td id="pvComplete2">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Failed</td><td id="pvFailed">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Last anchor commit</td><td id="pvLastCommit">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Last anchor created</td><td id="pvLastAnchor">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Oldest unconfirmed</td><td id="pvOldest">—</td></tr>
+  </tbody>
+</table>
+
+<h2 class="section-title">Health</h2>
+<div id="pvHealth" style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;font-size:0.88rem;">
+  <span style="color:var(--text-dim);">Loading...</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onAdminReady() {
+  loadProvenance();
+}
+
+function fmtDate(iso) {
+  if (!iso) return '<span style="color:var(--text-dim);">never</span>';
+  return new Date(iso).toLocaleString();
+}
+
+function ageHours(iso) {
+  if (!iso) return null;
+  return (Date.now() - new Date(iso).getTime()) / 3.6e6;
+}
+
+async function loadProvenance() {
+  const note = document.getElementById('pvNote');
+  note.textContent = 'Loading...';
+  try {
+    const resp = await adminFetch('/api/admin/provenance/status');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const h = await resp.json();
+    const counts = h.counts || {};
+
+    const enabledEl = document.getElementById('pvEnabled');
+    enabledEl.textContent = h.enabled ? 'ON' : 'dark';
+    enabledEl.style.color = h.enabled ? '#33aa55' : 'var(--text-dim)';
+
+    const unEl = document.getElementById('pvUnanchored');
+    unEl.textContent = h.unanchored_sealed;
+    unEl.style.color = h.unanchored_sealed > 0 ? '#cc8800' : '#33aa55';
+
+    document.getElementById('pvComplete').textContent = counts.complete || 0;
+
+    const aheadEl = document.getElementById('pvAhead');
+    aheadEl.textContent = (h.git_ahead === null || h.git_ahead === undefined) ? 'n/a' : h.git_ahead;
+    aheadEl.style.color = h.git_ahead ? '#cc3333' : 'var(--text)';
+
+    const repoEl = document.getElementById('pvRepo');
+    repoEl.textContent = h.repo_ok ? 'yes' : 'no';
+    repoEl.style.color = h.repo_ok ? '#33aa55' : (h.enabled ? '#cc3333' : 'var(--text-dim)');
+
+    document.getElementById('pvPending').textContent = counts.pending || 0;
+    document.getElementById('pvSubmitted').textContent = counts.submitted || 0;
+    document.getElementById('pvComplete2').textContent = counts.complete || 0;
+    const failedEl = document.getElementById('pvFailed');
+    failedEl.textContent = counts.failed || 0;
+    failedEl.style.color = (counts.failed || 0) > 0 ? '#cc3333' : 'var(--text)';
+
+    document.getElementById('pvLastCommit').innerHTML = fmtDate(h.last_commit_at);
+    document.getElementById('pvLastAnchor').innerHTML = fmtDate(h.last_anchor_at);
+
+    const oldestEl = document.getElementById('pvOldest');
+    const oa = ageHours(h.oldest_unconfirmed_at);
+    oldestEl.innerHTML = fmtDate(h.oldest_unconfirmed_at) + (oa !== null ? ` (${Math.round(oa)}h)` : '');
+    oldestEl.style.color = (oa !== null && oa > 72) ? '#cc3333' : 'var(--text)';
+
+    renderHealth(h);
+    note.textContent = '';
+  } catch (e) {
+    note.textContent = 'Error: ' + e.message;
+  }
+}
+
+function renderHealth(h) {
+  const box = document.getElementById('pvHealth');
+  if (!h.enabled) {
+    box.innerHTML = '<span style="color:var(--text-dim);">Anchoring is dark (PROVENANCE_ENABLED is off). '
+      + 'Provision the repo + ots CLI and enable it to start anchoring.</span>';
+    return;
+  }
+  const issues = [];
+  if (!h.repo_ok) issues.push('Anchor repo is unavailable.');
+  if (h.git_ahead) issues.push(`${h.git_ahead} local commit(s) not pushed to the public repo.`);
+  if (h.unanchored_sealed > 25) issues.push(`${h.unanchored_sealed} sealed rows awaiting an anchor.`);
+  const oa = ageHours(h.oldest_unconfirmed_at);
+  if (oa !== null && oa > 72) issues.push(`Oldest unconfirmed proof is ${Math.round(oa)}h old (> 72h).`);
+  if (issues.length === 0) {
+    box.innerHTML = '<span style="color:#33aa55;">Healthy.</span> No breaches against current thresholds.';
+  } else {
+    box.innerHTML = '<strong style="color:#cc3333;">Attention:</strong><ul style="margin:0.5rem 0 0;padding-left:1.2rem;">'
+      + issues.map(i => `<li style="margin:0 0 0.2rem;">${i}</li>`).join('') + '</ul>';
+  }
+}
+</script>
+{% endblock %}

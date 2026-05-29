@@ -530,7 +530,7 @@ def record_and_reconcile(
                 and (soc_missing or tier_or_summary_changed)):
             try:
                 from app.services.societal_effects_prose import generate_societal_effects_prose
-                soc_prose = generate_societal_effects_prose(
+                soc = generate_societal_effects_prose(
                     title=getattr(song, "title", None) or title or "",
                     artist=getattr(song, "artist", None) or artist or "",
                     rubric_color=cur_color,
@@ -542,8 +542,10 @@ def record_and_reconcile(
                     topics=getattr(song, "topics", None),
                     effects_prose=getattr(song, "effects_prose", None),
                 )
-                if soc_prose:
-                    song.societal_effects_prose = soc_prose
+                if soc:
+                    song.societal_effects_prose = soc.prose
+                    song.societal_prose_generated_at = soc.generated_at
+                    song.societal_prose_model = soc.model
             except Exception:
                 logger.exception("societal_effects_prose hook failed for %s/%s", source, song.id)
 

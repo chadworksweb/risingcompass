@@ -274,6 +274,10 @@ def _apply_generated_fields(row, calibration: dict) -> None:
         row.effects_prose = calibration["effects_prose"]
     if calibration.get("societal_effects_prose") is not None:
         row.societal_effects_prose = calibration["societal_effects_prose"]
+        # Provenance in lockstep with the prose: stamp both whenever prose is
+        # written (carried from the calibration path / cache-hit forward-fill).
+        row.societal_prose_generated_at = calibration.get("societal_prose_generated_at")
+        row.societal_prose_model = calibration.get("societal_prose_model")
     if calibration.get("deadpan_line") is not None:
         row.deadpan_line = calibration["deadpan_line"]
     if calibration.get("topics") is not None:

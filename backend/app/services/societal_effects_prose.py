@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 from anthropic import Anthropic
@@ -29,6 +31,20 @@ from app.services.claude_meter import tracked_create
 logger = logging.getLogger(__name__)
 
 AGENT_MODEL = settings.agent_model
+
+
+@dataclass
+class SocietalProseResult:
+    """Sealed generation provenance for one societal-effects prose value.
+
+    `generated_at` is captured at the moment the Anthropic call succeeds (NOT at
+    row insert), and `model` is the model that produced the prose. Callers
+    persist all three together so provenance stays in lockstep with the prose.
+    """
+
+    prose: str
+    model: str
+    generated_at: datetime
 
 TIER_LABELS = {
     "violet": "Ascended",
@@ -110,16 +126,19 @@ def generate_societal_effects_prose(
     deadpan_line: str | None = None,
     topics: str | list | None = None,
     effects_prose: str | None = None,
-) -> Optional[str]:
-    """Run the societal-effects agent. Returns the prose string or None on failure.
+) -> Optional[SocietalProseResult]:
+    """Run the societal-effects agent. Returns a SocietalProseResult (prose +
+    sealed generation provenance) or None on failure.
 
     `topics` may be a JSON-encoded string (the column format) or a list. Both
     are normalized to a comma-separated string before being passed to the
     model. Missing topics are tolerated — the prompt degrades to lyrics +
     calibration anchor.
 
-    Fails soft — on None, the caller leaves the column NULL and the public
-    page hides the section.
+    Fails soft — on None (call error, empty / too-short / malformed output),
+    the result carries NO metadata and the caller leaves all three columns
+    (prose + generated_at + model) untouched, so the public page hides the
+    section.
     """
     if not rubric_color:
         return None
@@ -179,6 +198,11 @@ def generate_societal_effects_prose(
             system=SOCIETAL_VOICE,
             messages=[{"role": "user", "content": user_prompt}],
         )
+        # Seal provenance at the moment the call succeeds, before any
+        # post-processing -- this is the timestamp the prophecy instrument
+        # proves against, not the eventual row insert.
+        generated_at = datetime.utcnow()
+        model = getattr(response, "model", None) or AGENT_MODEL
         raw = (response.content[0].text or "").strip()
     except Exception:
         logger.exception(
@@ -217,4 +241,4 @@ def generate_societal_effects_prose(
         )
         return None
 
-    return raw
+    return SocietalProseResult(prose=raw, model=model, generated_at=generated_at)

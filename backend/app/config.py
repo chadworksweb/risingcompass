@@ -118,6 +118,22 @@ class Settings(BaseSettings):
     clerk_jwks_url: str = ""  # e.g. https://<frontend-api>.clerk.accounts.dev/.well-known/jwks.json
     clerk_authorized_party: str = ""  # e.g. https://risingcompass.net — rejected if azp claim mismatches
 
+    # Prose provenance anchoring (societal_effects_prose). Ships DARK
+    # (provenance_enabled=False) until the public anchor repo + write creds and
+    # the `ots` CLI are provisioned on the server. When on, the sweep cron
+    # publishes hash-only records to provenance_repo_path (a pre-cloned,
+    # write-authenticated working copy of the public provenance repo) and
+    # OpenTimestamps each batch; the upgrade cron confirms them on Bitcoin.
+    # Fail-soft and off the calibration hot path -- never blocks a calibration.
+    provenance_enabled: bool = False
+    provenance_repo_path: str = ""  # local working clone of the public provenance repo
+    provenance_jsonl_name: str = "societal-prose.jsonl"  # cumulative human-readable log within the repo
+    provenance_ots_bin: str = "ots"  # opentimestamps-client CLI (on PATH via requirements)
+    provenance_git_author: str = "rc-provenance <provenance@risingcompass.net>"
+    # Service token for the provenance cron endpoints (X-Provenance-Cron-Key).
+    # Distinct from the other cron lanes so a leak stays scoped to provenance.
+    rc_provenance_cron_key: str = ""
+
     # DO Spaces backup destination
     do_spaces_key: str = ""
     do_spaces_secret: str = ""

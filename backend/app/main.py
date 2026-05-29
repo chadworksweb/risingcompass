@@ -100,7 +100,7 @@ app.add_middleware(
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Api-Key", "X-Backup-Key", "X-Reading-Cron-Key", "Authorization"],
+    allow_headers=["Content-Type", "X-Api-Key", "X-Backup-Key", "X-Reading-Cron-Key", "X-Provenance-Cron-Key", "Authorization"],
 )
 
 
@@ -263,6 +263,8 @@ from app.routers import lc_status_admin
 app.include_router(lc_status_admin.router)
 from app.routers import launch_admin
 app.include_router(launch_admin.router)
+from app.routers import provenance
+app.include_router(provenance.router)
 from app.routers import donate
 app.include_router(donate.router)
 # Billing -- subscription/pack Checkout, wallet, estimate, billing webhook.

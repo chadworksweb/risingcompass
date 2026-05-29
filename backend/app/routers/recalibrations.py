@@ -514,7 +514,7 @@ def accept_proposal(
     # fail-soft contract; uses ether fields when available on the song row.
     try:
         from app.services.societal_effects_prose import generate_societal_effects_prose
-        new_soc_prose = generate_societal_effects_prose(
+        new_soc = generate_societal_effects_prose(
             title=song.title,
             artist=getattr(song, "artist", "") or "",
             rubric_color=song.rubric_color,
@@ -526,8 +526,10 @@ def accept_proposal(
             topics=getattr(song, "topics", None),
             effects_prose=getattr(song, "effects_prose", None),
         )
-        if new_soc_prose:
-            song.societal_effects_prose = new_soc_prose
+        if new_soc:
+            song.societal_effects_prose = new_soc.prose
+            song.societal_prose_generated_at = new_soc.generated_at
+            song.societal_prose_model = new_soc.model
     except Exception:
         logger.exception("societal_effects_prose regeneration failed on accept for %s/%s",
                          p.song_source, p.song_id)

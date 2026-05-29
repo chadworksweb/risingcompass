@@ -85,6 +85,11 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
         "confidence": 1.0,
         "effects_prose": getattr(existing, "effects_prose", None),
         "societal_effects_prose": getattr(existing, "societal_effects_prose", None),
+        # Carry the cached row's sealed provenance forward so a cache-hit
+        # re-persist (e.g. into a new submitted/stream row) keeps the original
+        # generated_at + model rather than re-stamping at insert.
+        "societal_prose_generated_at": getattr(existing, "societal_prose_generated_at", None),
+        "societal_prose_model": getattr(existing, "societal_prose_model", None),
         "deadpan_line": getattr(existing, "deadpan_line", None),
         "topics": _load_json(getattr(existing, "topics", None)),
         "topic_audit": _load_json(getattr(existing, "topic_audit", None)),
@@ -163,7 +168,7 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
     if not calib.get("societal_effects_prose"):
         try:
             from app.services.societal_effects_prose import generate_societal_effects_prose
-            calib["societal_effects_prose"] = await asyncio.to_thread(
+            soc = await asyncio.to_thread(
                 generate_societal_effects_prose,
                 title=title, artist=artist, rubric_color=color,
                 charge_value=calib.get("charge_value"),
@@ -175,6 +180,13 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
                 topics=calib.get("topics"),
                 effects_prose=calib.get("effects_prose"),
             )
+            # Carry the sealed provenance alongside the prose so every persist
+            # site can write generated_at + model in lockstep. Fail-soft: on
+            # None nothing is set and callers write nothing.
+            if soc:
+                calib["societal_effects_prose"] = soc.prose
+                calib["societal_prose_generated_at"] = soc.generated_at
+                calib["societal_prose_model"] = soc.model
         except Exception:
             logger.exception("societal_effects_prose step failed for %s / %s", title, artist)
 

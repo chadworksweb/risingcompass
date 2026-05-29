@@ -104,7 +104,7 @@ def main() -> int:
 
             total_processed += 1
             try:
-                prose: Optional[str] = generate_societal_effects_prose(
+                result = generate_societal_effects_prose(
                     title=title or "",
                     artist=artist or "",
                     rubric_color=color,
@@ -121,14 +121,19 @@ def main() -> int:
                 print(f"  [{source}/{sid}] FAILED: {e}")
                 continue
 
-            if not prose:
+            if not result:
                 total_failed += 1
                 print(f"  [{source}/{sid}] no prose returned: {title} by {artist}")
                 continue
 
+            # Write prose + sealed provenance in lockstep. generated_at is
+            # serialised to ISO text for the SQLite/libsql columns.
             conn.execute(
-                f"UPDATE {table} SET societal_effects_prose = ? WHERE id = ?",
-                (prose, sid),
+                f"UPDATE {table} SET societal_effects_prose = ?, "
+                f"societal_prose_generated_at = ?, societal_prose_model = ? "
+                f"WHERE id = ?",
+                (result.prose, result.generated_at.isoformat(sep=" "),
+                 result.model, sid),
             )
             conn.commit()
             total_generated += 1
