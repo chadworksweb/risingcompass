@@ -47,6 +47,19 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - STRIPE_IDENTITY_WEBHOOK_SECRET=${STRIPE_IDENTITY_WEBHOOK_SECRET}
       - STRIPE_IDENTITY_RETURN_URL=${STRIPE_IDENTITY_RETURN_URL:-https://risingcompass.net/account/?identity=complete}
+      # Billing (monetization M2). Distinct webhook signing secret so a
+      # leaked donation or identity webhook key cannot forge billing events.
+      # Price IDs are created in the Stripe dashboard once per environment
+      # and pasted into the .env (any unset price ID returns 503 from the
+      # corresponding checkout endpoint, so it's safe to leave a tier or
+      # pack temporarily unconfigured).
+      - STRIPE_BILLING_WEBHOOK_SECRET=${STRIPE_BILLING_WEBHOOK_SECRET}
+      - STRIPE_PRICE_PLUS=${STRIPE_PRICE_PLUS}
+      - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO}
+      - STRIPE_PRICE_PACK_25=${STRIPE_PRICE_PACK_25}
+      - STRIPE_PRICE_PACK_100=${STRIPE_PRICE_PACK_100}
+      - STRIPE_PRICE_PACK_300=${STRIPE_PRICE_PACK_300}
+      - STRIPE_BILLING_RETURN_URL=${STRIPE_BILLING_RETURN_URL:-https://risingcompass.net/account/?billing=success}
       - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - CLERK_JWKS_URL=${CLERK_JWKS_URL}

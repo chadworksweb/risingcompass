@@ -13,7 +13,7 @@
       <div class="form-group"><label>Slug (e.g. "acme-co")</label><input type="text" id="ncSlug"></div>
       <div class="form-group"><label>Name</label><input type="text" id="ncName" placeholder="Acme Co."></div>
       <div class="form-group"><label>Behavior</label><select id="ncBehavior"><option value="service">service (skip bot protection)</option><option value="public">public (LC-style, bot protection)</option></select></div>
-      <div class="form-group"><label>Plan tier</label><input type="text" id="ncPlan" value="trial"></div>
+      <div class="form-group"><label>Plan tier</label><input type="text" id="ncPlan" value="free"></div>
       <div class="form-group" style="grid-column:1/-1;"><label>Contact email</label><input type="text" id="ncEmail" placeholder="admin@acme.com"></div>
       <div class="form-group" style="grid-column:1/-1;"><label>Notes</label><textarea id="ncNotes" placeholder="What do they use the API for?"></textarea></div>
     </div>
@@ -58,7 +58,7 @@ function showNewClientForm() {
 function hideNewClientForm() {
   document.getElementById('newClientForm').classList.add('hidden');
   ['ncSlug','ncName','ncEmail','ncNotes'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('ncPlan').value = 'trial';
+  document.getElementById('ncPlan').value = 'free';
 }
 
 async function loadApiClients() {
@@ -90,7 +90,7 @@ async function createClient() {
     slug: document.getElementById('ncSlug').value.trim(),
     name: document.getElementById('ncName').value.trim(),
     behavior: document.getElementById('ncBehavior').value,
-    plan_tier: document.getElementById('ncPlan').value.trim() || 'trial',
+    plan_tier: document.getElementById('ncPlan').value.trim() || 'free',
     contact_email: document.getElementById('ncEmail').value.trim() || null,
     notes: document.getElementById('ncNotes').value.trim() || null,
   };

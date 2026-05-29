@@ -91,6 +91,19 @@ class Settings(BaseSettings):
     # Defaults to /account/ on the frontend.
     stripe_identity_return_url: str = ""
 
+    # Billing (monetization M1-M6). Subscription + credit-pack Stripe price
+    # IDs and a dedicated webhook signing secret so a leaked donation or
+    # identity webhook key can't forge billing events (and vice versa).
+    stripe_billing_webhook_secret: str = ""
+    stripe_price_plus: str = ""        # monthly subscription, Plus tier
+    stripe_price_pro: str = ""         # monthly subscription, Pro tier
+    stripe_price_pack_25: str = ""     # one-time credit pack, 25 credits
+    stripe_price_pack_100: str = ""    # one-time credit pack, 100 credits
+    stripe_price_pack_300: str = ""    # one-time credit pack, 300 credits
+    # Where to send the user after a successful Checkout. Falls back to
+    # /account/?billing=success on site_url.
+    stripe_billing_return_url: str = ""
+
     # Audience Vibe — gap threshold that opens an admin review case.
     # Roadmap calls this "TBD"; starting at 25 and tunable from .env.
     vibe_review_threshold: int = 25

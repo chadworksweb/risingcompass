@@ -100,6 +100,10 @@
     thead.innerHTML = '<tr>' + COLS.map(c => `<th class="lib-th">${escapeHtml(c.name)}</th>`).join('') + '</tr>';
   }
 
+  // Set from each search response; gates whether the locked prose columns
+  // render real text (paid subscribers) or the paywall treatment (free/anon).
+  let viewerIsPaid = false;
+
   async function runSearch() {
     meta.textContent = 'Searching…';
     table.querySelector('tbody').innerHTML = '';
@@ -112,6 +116,7 @@
       return;
     }
 
+    viewerIsPaid = data.user_subscription_tier === 'plus' || data.user_subscription_tier === 'pro';
     const items = data.items || [];
     const total = data.total || 0;
 
@@ -233,14 +238,31 @@
     }
 
     if (col.kind === 'locked') {
-      // Subscription-gated column. Trigger is always present (shows the prose
-      // name with a locked treatment); tooltip explains the paywall. Right-aligned
-      // since both locked columns sit in the right half of the table.
       const labels = {
         effects_prose: 'effects',
         societal_effects_prose: 'societal',
       };
       const labelText = labels[col.name] || col.name;
+      // Paid subscribers read the prose; free/anon see the paywall treatment.
+      // The backend already caps free results, so this is display-only.
+      if (viewerIsPaid) {
+        const v = row[col.name];
+        if (v == null || String(v).trim() === '') {
+          return `<td class="lib-td"><span class="lib-null">—</span></td>`;
+        }
+        return `<td class="lib-td">
+          <span class="lib-hover-wrap lib-hover-wrap--right" tabindex="0">
+            <span class="lib-hover-trigger">${labelText}</span>
+            <span class="lib-hover-tip" role="tooltip">
+              <span class="lib-hover-tip-label">${escapeHtml(col.name)}</span>
+              <span class="lib-hover-tip-body">${escapeHtml(String(v))}</span>
+            </span>
+          </span>
+        </td>`;
+      }
+      // Subscription-gated: trigger shows the prose name with a locked
+      // treatment; tooltip explains the paywall. Right-aligned since both
+      // locked columns sit in the right half of the table.
       return `<td class="lib-td">
         <span class="lib-hover-wrap lib-hover-wrap--right" tabindex="0">
           <span class="lib-hover-trigger lib-hover-trigger--locked">${labelText}</span>

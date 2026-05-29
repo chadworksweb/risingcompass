@@ -46,7 +46,7 @@ class ResolvedClient:
     slug: str
     behavior: str
     status: str
-    plan_tier: str = "trial"
+    plan_tier: str = "free"
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def resolve_key(db: Session, raw_key: str) -> ResolvedClient | None:
 
     snapshot = ResolvedClient(
         id=client.id, slug=client.slug, behavior=client.behavior,
-        status=client.status, plan_tier=client.plan_tier or "trial",
+        status=client.status, plan_tier=client.plan_tier or "free",
     )
 
     # Stamp last_used inline, throttled in-memory. Telemetry only.

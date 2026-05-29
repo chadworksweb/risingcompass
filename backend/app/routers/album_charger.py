@@ -52,6 +52,8 @@ from app.schemas import (
 from app.models import SubmittedSong, Release, ReleaseSong, User, AlbumChargeJob
 from app.constants import COLOR_LABELS
 from app.auth import verify_api_or_service_key, optional_clerk_user
+from app import billing_config
+from app.services import billing as billing_svc
 from app.services import musixmatch
 from app.services.agents.calibrator import (
     calibrate_song_async, lookup_calibrated, ensure_full_calibration,
@@ -209,6 +211,7 @@ async def _run_album_charge(
     source: str,
     meta: dict,
     current_user_id: int | None,
+    hold_cost: int = 0,
 ) -> None:
     """The heavy lifting, run off the request. Updates the job row as it goes
     and writes the final AlbumCalibrateOut into result_json. Never raises into
@@ -221,6 +224,11 @@ async def _run_album_charge(
         if is_public:
             write_event(event_type, meta.get("ip"), meta.get("user_agent"),
                         meta.get("referrer"), payload=payload)
+
+    # Per-track miss flags captured from Phase A so the final settle_hold can
+    # bill only for tracks that actually ran the Opus path. Mutable; updated
+    # by Phase A. Reset to [] on exception so a crash refunds the full hold.
+    miss_track_count = 0
 
     try:
         _update_job(token, status="running", phase="validating")
@@ -343,6 +351,12 @@ async def _run_album_charge(
                     track_number=w["track_number"], title=w["title"], artist=w["artist"],
                     status="skipped", skip_reason="Calibration returned no reading for this track.",
                 ))
+
+        # Cache-aware billing: a track that hit the cache costs 0 credits
+        # (zero-marginal-cost engine read, the subscription benefit). A miss
+        # ran the full Opus path and counts toward the actual cost. settle_hold
+        # below refunds (hold_cost - actual) back to the original bucket split.
+        miss_track_count = sum(1 for w in scored if not w.get("cached"))
 
         if not scored:
             _store_result(token, AlbumCalibrateOut(
@@ -532,6 +546,28 @@ async def _run_album_charge(
                {"reason": "worker_exception", "album": album_title, "artist": artist, "source": source})
         _update_job(token, status="error",
                     error_message="Album calibration failed. Please try again.")
+        # Crash path: nothing scored counts. miss_track_count stays at its
+        # last value (0 if the crash was before Phase A; partial if mid-flight),
+        # and the finally below refunds the rest. This biases toward
+        # over-refunding on crash, which is the right side to err on.
+        miss_track_count = 0
+    finally:
+        # Settle the hold (M3). Refunds (hold_cost - actual_cost) to the
+        # bucket(s) the hold was drawn from; charges extra if actual > hold
+        # (rare since holds are pessimistic). No-op when there was no hold.
+        if current_user_id is not None and hold_cost > 0:
+            actual_cost = miss_track_count * billing_config.COST_ALBUM_TRACK_MISS
+            try:
+                billing_svc.settle_hold(
+                    current_user_id,
+                    hold_cost=hold_cost, actual_cost=actual_cost,
+                    ref_type="album_job", ref_id=token,
+                    context={"album": album_title[:80], "artist": artist[:80]},
+                )
+            except Exception:
+                logger.exception(
+                    "settle_hold failed for album job=%s user=%s", token, current_user_id,
+                )
 
 
 # ------------------------------------------------------------------
@@ -580,6 +616,16 @@ async def calibrate_album(
     if not has_candidate:
         raise HTTPException(422, "Add at least one track with pasted lyrics.")
 
+    # Credit pre-flight + hold (M3). Sized worst-case (every track a miss);
+    # _run_album_charge settles to the actual miss count at the end and
+    # refunds the difference. Anon callers (no current_user) keep the
+    # existing rate-limit gate -- M5 tunes the limiter for that path.
+    hold_cost = 0
+    if current_user is not None:
+        hold_cost = len(body.tracks) * billing_config.COST_ALBUM_TRACK_MISS
+        if hold_cost > 0:
+            billing_svc.check_credits(current_user.id, hold_cost, reason="album")
+
     meta = extract_request_meta(request)
     token = uuid.uuid4().hex
     db = SessionLocal()
@@ -592,9 +638,25 @@ async def calibrate_album(
     finally:
         db.close()
 
+    # Take the hold now -- token is the unique ref_id so a retry of /calibrate
+    # (different token) holds independently; settle_hold inside the worker
+    # reconciles by token. If hold_credits 402s here, the job row already
+    # exists; mark it errored so polling clients see the failure quickly.
+    if current_user is not None and hold_cost > 0:
+        try:
+            billing_svc.hold_credits(
+                current_user.id, hold_cost,
+                ref_type="album_job", ref_id=token,
+                context={"tracks": len(body.tracks), "album": album_title[:80]},
+            )
+        except HTTPException:
+            _update_job(token, status="error",
+                        error_message="Insufficient credits for this album.")
+            raise
+
     cuid = current_user.id if current_user is not None else None
     task = asyncio.create_task(
-        _run_album_charge(token, body, is_public, source, meta, cuid))
+        _run_album_charge(token, body, is_public, source, meta, cuid, hold_cost))
     _running_tasks.add(task)
     task.add_done_callback(_running_tasks.discard)
 

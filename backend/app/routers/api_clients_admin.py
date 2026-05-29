@@ -20,7 +20,7 @@ class ClientCreateIn(BaseModel):
     slug: str
     name: str
     behavior: str = "service"
-    plan_tier: str = "trial"
+    plan_tier: str = "free"
     contact_email: str | None = None
     notes: str | None = None
 

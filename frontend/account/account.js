@@ -293,6 +293,53 @@
   // Clerk's internal state (verify-email, forgot-password, etc).
   let widgetMode = null;
 
+  // --- Pre-launch gate ---------------------------------------------------
+  // Public flag (system_flags 'launch.locked', exposed at /api/launch-status).
+  // When locked we fade the sign-up form + billing buttons; sign-IN stays
+  // open for existing accounts. Fail CLOSED: if the status can't be read we
+  // treat it as locked, matching the "not ready to launch" intent. (The
+  // billing checkout endpoints enforce the same gate server-side -- this is
+  // the UX layer.)
+  let launchLocked = true;
+  let launchMessage = '';
+  async function loadLaunchStatus() {
+    try {
+      const resp = await fetch('/api/launch-status');
+      if (!resp.ok) return;            // keep the fail-closed default
+      const data = await resp.json();
+      launchLocked = !!data.locked;
+      launchMessage = data.message || '';
+    } catch (_) { /* keep locked on error */ }
+  }
+
+  function renderSignupLocked() {
+    el.clerkMount.innerHTML =
+      '<div class="rc-launch-lock">' +
+        '<h2 class="rc-launch-lock-title">Sign-ups opening soon</h2>' +
+        '<p class="rc-launch-lock-msg">' + esc(launchMessage) + '</p>' +
+        '<p class="rc-launch-lock-sub">Already have an account? ' +
+          '<a href="/account/">Sign in</a>.</p>' +
+      '</div>';
+  }
+
+  function lockWalletActions() {
+    const actions = document.querySelector('#wallet-body .wallet-actions');
+    if (!actions) return;
+    actions.classList.add('wallet-actions--locked');
+    actions.querySelectorAll('button[data-billing]').forEach((b) => {
+      b.disabled = true;
+      b.setAttribute('aria-disabled', 'true');
+    });
+    let note = document.getElementById('wallet-locked-note');
+    if (!note) {
+      note = document.createElement('p');
+      note.id = 'wallet-locked-note';
+      note.className = 'wallet-locked-note';
+      actions.parentNode.insertBefore(note, actions);
+    }
+    note.textContent = launchMessage || 'Subscriptions open soon.';
+  }
+
   function ensureWidget() {
     const wantsSignUp = new URLSearchParams(window.location.search).get('mode') === 'signup';
     const want = wantsSignUp ? 'signup' : 'signin';
@@ -310,7 +357,13 @@
       signUpForceRedirectUrl: '/account/',
     };
     if (want === 'signup') {
-      Auth.openSignUp(el.clerkMount, opts);
+      if (launchLocked) {
+        // Pre-launch: don't mount Clerk SignUp. Show the faded gate panel
+        // instead so the public can't create accounts yet.
+        renderSignupLocked();
+      } else {
+        Auth.openSignUp(el.clerkMount, opts);
+      }
     } else {
       Auth.openSignIn(el.clerkMount, opts);
     }
@@ -386,6 +439,7 @@
     }
     stateEl.hidden = true;
     bodyEl.hidden = false;
+    if (launchLocked) lockWalletActions();
   }
 
   async function startBillingCheckout(kind, key) {
@@ -428,6 +482,7 @@
   document.addEventListener('click', (ev) => {
     const btn = ev.target instanceof Element ? ev.target.closest('[data-billing]') : null;
     if (!btn) return;
+    if (launchLocked) return;   // pre-launch: buttons are faded; backend 503s anyway
     const kind = btn.dataset.billing;
     if (kind === 'subscribe' && btn.dataset.tier) {
       startBillingCheckout('subscribe', btn.dataset.tier);
@@ -584,6 +639,10 @@
     fatal('Could not initialise sign-in. Check your network connection and refresh.');
     return;
   }
+
+  // Resolve the pre-launch gate before any render so the sign-up widget is
+  // never briefly mountable while locked.
+  await loadLaunchStatus();
 
   Auth.onChange((evt) => {
     // On a fresh sign-in transition, redirect to returnTo immediately.

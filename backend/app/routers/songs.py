@@ -5,12 +5,13 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy import func, or_, and_
 
-from app.auth import optional_admin_session
+from app import billing_config
+from app.auth import optional_admin_session, optional_clerk_user
 from app.database import SessionLocal
 from app.models import (
     CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
     ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration, SongReset,
-    CalibrationRun, PrePublishCorrection,
+    CalibrationRun, PrePublishCorrection, User,
 )
 from app.services.calibration_corpus import compute_consensus
 from app.services.song_search import search_unified
@@ -291,18 +292,31 @@ def song_search_unified(
     sort_dir: str = "desc",
     offset: int = 0,
     limit: int = 20,
+    current_user: User | None = Depends(optional_clerk_user),
 ):
     """Unified song search across the four song tables.
 
-    Same filter shape as the admin `all_songs` DB tab, minus PII. Free-tier
-    API keys (plan_tier="free") are capped at 20 results per query and
-    cannot paginate — the first page is the preview, beyond that is paid.
+    Same filter shape as the admin `all_songs` DB tab, minus PII. The
+    free-tier 20-cap applies when BOTH paths are unpaid:
+      - user_sub_tier in (None, 'free')
+      - plan_tier not in PAID_API_TIERS
 
-    This is the public-facing endpoint behind the forthcoming Collective
-    Library. Admin equivalent is `/api/admin/db/all_songs`.
+    Paid via either path lifts the cap. A signed-in Plus/Pro user calling
+    with the legacy-public api key is paid (consumer wrapper); a B2B api
+    client on plan_tier='plus'/'pro'/'internal'/'system'/'service' is
+    also paid (B2B wrapper). Same gate, two identities -- the unification
+    described in RISING-COMPASS-MONETIZATION-BUILD-PLAN section 1.
+
+    Admin equivalent is `/api/admin/db/all_songs` (full PII, unlimited).
     """
-    plan_tier = getattr(request.state, "plan_tier", None) or "trial"
-    is_free = plan_tier == "free"
+    plan_tier = getattr(request.state, "plan_tier", None) or "free"
+    client_behavior = getattr(request.state, "client_behavior", "public") or "public"
+    user_sub_tier = current_user.subscription_tier if current_user else None
+    is_paid = (
+        billing_config.is_paid_user(user_sub_tier)
+        or billing_config.is_paid_api_client(plan_tier, behavior=client_behavior)
+    )
+    is_free = not is_paid
     effective_limit = min(20, max(1, limit)) if is_free else min(200, max(1, limit))
     effective_offset = 0 if is_free else max(0, offset)
 
@@ -326,6 +340,7 @@ def song_search_unified(
             attach_slugs=True,
         )
         result["plan_tier"] = plan_tier
+        result["user_subscription_tier"] = user_sub_tier or "free"
         result["free_tier"] = is_free
         result["hidden_count"] = max(0, result["total"] - (result["offset"] + len(result["items"])))
         return result

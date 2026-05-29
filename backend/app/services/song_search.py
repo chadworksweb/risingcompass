@@ -50,6 +50,7 @@ _PII_FIELDS = {"ip_address", "device_id", "email", "confidence"}
 _COMMON_FIELDS = [
     "id", "title", "artist", "rubric_color", "charge_value",
     "contaminated", "contamination_note", "charge_summary", "effects_prose",
+    "societal_effects_prose",
 ]
 
 
@@ -91,6 +92,11 @@ def _serialize_common(row, source: str, include_pii: bool) -> dict:
         out["status"] = getattr(row, "status", None)
         if include_pii:
             out["confidence"] = getattr(row, "confidence", None)
+
+    # Stable cross-source shape: the unified consumer (admin all_songs + public
+    # library) renders one column set; non-compass rows simply emit year=None.
+    out.setdefault("year", getattr(row, "year", None))
+    out.setdefault("created_at", None)
 
     # Trim PII from the common pass — in case any Model has a field we listed
     if not include_pii:

@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    CheckConstraint, Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, LargeBinary, UniqueConstraint
+    CheckConstraint, Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, Index, LargeBinary, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -591,7 +591,7 @@ class ApiClient(Base):
     slug = Column(String(64), unique=True, nullable=False)
     name = Column(Text, nullable=False)
     contact_email = Column(Text)
-    plan_tier = Column(String(32), default="trial")
+    plan_tier = Column(String(32), default="free")
     status = Column(String(16), default="active")  # active | suspended | revoked
     behavior = Column(String(16), default="service", nullable=False)
     notes = Column(Text)
@@ -1444,10 +1444,57 @@ class User(Base):
     banned_at = Column(DateTime)
     banned_reason = Column(Text)
     suspended_until = Column(DateTime)
+    # Billing / metering (migration 072). Two-bucket credit model + Stripe
+    # linkage. credit_ledger is the source of truth; these are the
+    # denormalised fast-read counts.
+    stripe_customer_id = Column(Text)
+    stripe_subscription_id = Column(Text)
+    subscription_tier = Column(String(30), nullable=False, default="free")
+    subscription_status = Column(String(20))
+    subscription_period_end = Column(DateTime)
+    allowance_credits = Column(Integer, nullable=False, default=0)
+    purchased_credits = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+class CreditLedger(Base):
+    """Source of truth for every credit grant and spend (migration 073).
+
+    delta is signed (negative=spend, positive=grant/refund). bucket is one
+    of 'allowance', 'purchased', 'rejected' (preflight 402), 'settlement'
+    (no-delta settle marker). Partial UNIQUE(reason, ref_id, bucket) on
+    ref_id IS NOT NULL gates Stripe webhook replays; bucket lives in the
+    index so a single charge can split across both buckets under the same
+    reason+ref_id without colliding.
+    """
+    __tablename__ = "credit_ledger"
+    __table_args__ = (
+        # Grant idempotency: a replayed Stripe event (same reason+ref_id+
+        # bucket) collides here and no-ops. Declared on the model -- and
+        # mirroring migration 073 exactly -- so create_all / pg_baseline build
+        # a self-sufficient fresh DB (the numbered migration only runs against
+        # already-migrated databases).
+        Index(
+            "uq_credit_ledger_reason_ref_bucket",
+            "reason", "ref_id", "bucket",
+            unique=True,
+            postgresql_where=text("ref_id IS NOT NULL"),
+        ),
+        Index("idx_credit_ledger_user_created", "user_id", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    delta = Column(Integer, nullable=False)
+    bucket = Column(String(20), nullable=False)
+    reason = Column(String(40), nullable=False)
+    ref_type = Column(String(40))
+    ref_id = Column(Text)
+    context_json = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class GeneralInquiry(Base):

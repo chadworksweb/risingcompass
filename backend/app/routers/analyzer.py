@@ -38,11 +38,52 @@ from app.services.identity_guard import check_lyrics_identity
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
 from app.routers.songs import _get_or_create_slug
 from app.auth import verify_api_or_service_key, optional_clerk_user
+from app import billing_config
+from app.services import billing as billing_svc
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analyzer", tags=["analyzer"])
 
-limiter = Limiter(key_func=get_remote_address)
+def _calibrate_daily_limit(key: str) -> str:
+    """Dynamic per-request daily limit for the calibrate-* endpoints (M5).
+
+    slowapi only passes a value to a limit-provider callable whose parameter
+    is named exactly `key` (LimitGroup.__iter__ in slowapi/wrappers.py); it
+    then calls provider(key_function(request)), i.e. with the rate-limit KEY
+    -- 'user:{id}' for signed-in callers, else the client IP (see
+    _limiter_key). A provider with any other parameter name is invoked with
+    NO arguments, which is why the previous `(request)` signature raised
+    TypeError and 500'd every real calibrate request.
+
+    Signed-in users get a generous per-user daily backstop -- the real gate
+    for them is credits (check_credits / charge_credits inside the handler).
+    Anonymous callers get the per-IP cost firewall from billing_config.
+    """
+    if isinstance(key, str) and key.startswith("user:"):
+        return "100/day"
+    return f"{billing_config.ANON_CHARGER_DAILY_LIMIT}/day"
+
+
+def _limiter_key(request: Request) -> str:
+    """Identity-aware rate limit key (M5).
+
+    Signed-in users get a per-user bucket (`user:{id}`) so two people
+    sharing an IP (NAT, family wifi) don't share a daily allowance, and
+    so a paying user moving between networks keeps their bucket. Anon
+    requests fall back to IP -- the per-IP daily allowance is the cost
+    firewall + funnel for unsigned-in traffic.
+
+    request.state.user_id is set by optional_clerk_user / require_clerk_user
+    if the Clerk JWT was valid -- the dependency runs before the limiter
+    on the same request.
+    """
+    uid = getattr(request.state, "user_id", None)
+    if uid:
+        return f"user:{uid}"
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_limiter_key)
 
 
 # ------------------------------------------------------------------
@@ -378,7 +419,7 @@ def _record_user_calibration(
 
 
 @router.post("/calibrate-lyrics", response_model=LyricsCalibrateOut)
-@limiter.limit("20/day")
+@limiter.limit(_calibrate_daily_limit)
 async def calibrate_lyrics_endpoint(
     body: LyricsCalibrateIn,
     request: Request,
@@ -482,6 +523,29 @@ async def calibrate_lyrics_endpoint(
             cached_calibration = lookup_calibrated(title, artist, read_db)
         finally:
             read_db.close()
+
+        # Credit pre-flight (M3). Signed-in users are gated by credits; anon
+        # users keep the existing rate limit + lc_events flow. We pre-check
+        # the worst-case (miss) cost so a known-low-balance wallet fails
+        # fast before the Opus call; settle to the actual cost (hit vs miss)
+        # in the write phase after success. check_credits inline-writes a
+        # 'rejected' ledger row on 402 because BackgroundTasks are dropped
+        # when the response is non-200 (same constraint we already handle
+        # for error lc_events).
+        if current_user is not None:
+            # Pre-flight at the ACTUAL cost. cached_calibration is already
+            # resolved above, so a cache hit (cost 0, the subscription benefit)
+            # must NOT be gated behind a worst-case miss check -- otherwise a
+            # signed-in user at zero balance is wrongly 402'd out of a free
+            # re-read. check_credits is a no-op when cost <= 0.
+            preflight_cost = (
+                billing_config.COST_SONG_CACHE_HIT if cached_calibration
+                else billing_config.COST_SONG_MISS
+            )
+            billing_svc.check_credits(
+                current_user.id, preflight_cost,
+                reason=("song_cache_hit" if cached_calibration else "song_miss"),
+            )
 
         # Phase 2: no DB session held. Opus calls only.
         identity = await check_lyrics_identity(
@@ -612,6 +676,41 @@ async def calibrate_lyrics_endpoint(
                 )
                 write_db.commit()
 
+            # Charge credits on success (M3). Cost differs by cache hit vs
+            # miss: hit is free (subscription benefit, zero marginal cost),
+            # miss costs the Opus run. Failure paths above never reach here,
+            # so the charge happens only on success. 402 here means a
+            # concurrent spend drained the balance between pre-flight and
+            # this point -- rare, but we log and continue: the engine has
+            # already done the work and the result is going out either way.
+            if current_user is not None:
+                cost = (
+                    billing_config.COST_SONG_CACHE_HIT if cached_calibration
+                    else billing_config.COST_SONG_MISS
+                )
+                if cost > 0:
+                    try:
+                        billing_svc.charge_credits(
+                            current_user.id, cost,
+                            reason=("song_cache_hit" if cached_calibration else "song_miss"),
+                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            context={"title": title[:80], "artist": artist[:80]},
+                        )
+                    except HTTPException:
+                        # A concurrent spend drained the wallet between the
+                        # unlocked pre-flight and this charge. The result is
+                        # going out either way; record a delta=0 overrun marker
+                        # so the uncompensated run is visible to reconciliation.
+                        logger.warning(
+                            "charge_credits failed post-success user=%s song=%s",
+                            current_user.id, submitted.id,
+                        )
+                        billing_svc.record_unbilled_overrun(
+                            current_user.id, cost,
+                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            context={"title": title[:80], "artist": artist[:80]},
+                        )
+
             if is_public:
                 schedule_event(background_tasks, "submission_success", request,
                                payload={"title": title, "artist": artist, "source": source,
@@ -640,6 +739,11 @@ async def calibrate_lyrics_endpoint(
             )
         finally:
             write_db.close()
+    except HTTPException:
+        # Let credit-gate (402), validation, and other HTTPExceptions through
+        # untouched -- the blanket Exception handler below otherwise rewrites
+        # them as 500 and the client loses the specific status.
+        raise
     except Exception:
         logger.exception("Calibration failed for submitted lyrics")
         if is_public:
@@ -681,7 +785,7 @@ async def search_songs(body: SongSearchIn, request: Request, background_tasks: B
 # 7. POST /api/analyzer/calibrate-search — Calibrate a song found via search
 # ------------------------------------------------------------------
 @router.post("/calibrate-search", response_model=LyricsCalibrateOut)
-@limiter.limit("20/day")
+@limiter.limit(_calibrate_daily_limit)
 async def calibrate_search(
     body: SearchCalibrateIn,
     request: Request,
@@ -739,6 +843,24 @@ async def calibrate_search(
             cached_calibration = lookup_calibrated(title, artist, read_db)
         finally:
             read_db.close()
+
+        # Credit pre-flight (M3). See calibrate-lyrics for the rationale --
+        # signed-in users gated by credits, anon by per-IP rate limit; pre-check
+        # at worst-case (miss), settle to actual cost in the write phase.
+        if current_user is not None:
+            # Pre-flight at the ACTUAL cost. cached_calibration is already
+            # resolved above, so a cache hit (cost 0, the subscription benefit)
+            # must NOT be gated behind a worst-case miss check -- otherwise a
+            # signed-in user at zero balance is wrongly 402'd out of a free
+            # re-read. check_credits is a no-op when cost <= 0.
+            preflight_cost = (
+                billing_config.COST_SONG_CACHE_HIT if cached_calibration
+                else billing_config.COST_SONG_MISS
+            )
+            billing_svc.check_credits(
+                current_user.id, preflight_cost,
+                reason=("song_cache_hit" if cached_calibration else "song_miss"),
+            )
 
         # Phase 2 still: run the one calibration path. A cache hit is completed
         # through the same generation step; a miss runs the full path. `calibration`
@@ -851,6 +973,36 @@ async def calibrate_search(
                 )
                 write_db.commit()
 
+            # Charge credits on success (M3). See calibrate-lyrics.
+            if current_user is not None:
+                cost = (
+                    billing_config.COST_SONG_CACHE_HIT if cached_calibration
+                    else billing_config.COST_SONG_MISS
+                )
+                if cost > 0:
+                    try:
+                        billing_svc.charge_credits(
+                            current_user.id, cost,
+                            reason=("song_cache_hit" if cached_calibration else "song_miss"),
+                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            context={"title": title[:80], "artist": artist[:80],
+                                     "track_id": body.track_id},
+                        )
+                    except HTTPException:
+                        # A concurrent spend drained the wallet between the
+                        # unlocked pre-flight and this charge. The result is
+                        # going out either way; record a delta=0 overrun marker
+                        # so the uncompensated run is visible to reconciliation.
+                        logger.warning(
+                            "charge_credits failed post-success user=%s song=%s",
+                            current_user.id, submitted.id,
+                        )
+                        billing_svc.record_unbilled_overrun(
+                            current_user.id, cost,
+                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            context={"title": title[:80], "artist": artist[:80]},
+                        )
+
             if is_public:
                 schedule_event(background_tasks, "submission_success", request,
                                payload={"title": title, "artist": artist, "source": source,
@@ -879,6 +1031,9 @@ async def calibrate_search(
             )
         finally:
             write_db.close()
+    except HTTPException:
+        # Let credit-gate (402) and other HTTPExceptions through cleanly.
+        raise
     except Exception:
         logger.exception("Calibration failed for search track %d", body.track_id)
         if is_public:

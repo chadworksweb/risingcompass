@@ -261,8 +261,15 @@ from app.routers import lc_events_admin
 app.include_router(lc_events_admin.router)
 from app.routers import lc_status_admin
 app.include_router(lc_status_admin.router)
+from app.routers import launch_admin
+app.include_router(launch_admin.router)
 from app.routers import donate
 app.include_router(donate.router)
+# Billing -- subscription/pack Checkout, wallet, estimate, billing webhook.
+# Unauthed at the router level; individual routes use Depends(require_clerk_user)
+# where needed. The webhook is signature-verified per-request.
+from app.routers import billing as billing_router
+app.include_router(billing_router.router)
 from app.routers import api_clients_admin
 app.include_router(api_clients_admin.router)
 from app.routers import claude_usage_admin

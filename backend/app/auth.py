@@ -249,6 +249,12 @@ def require_clerk_user(
     request.state.user_id = user.id
     request.state.clerk_user_id = clerk_user_id
     request.state.user_tier = user.tier
+    # Billing snapshot (M1). Endpoints branch on subscription_tier for the
+    # Library/Compass-reading gate, and on the credit buckets for Charger
+    # engine runs.
+    request.state.subscription_tier = user.subscription_tier or "free"
+    request.state.allowance_credits = user.allowance_credits or 0
+    request.state.purchased_credits = user.purchased_credits or 0
     return user
 
 
@@ -277,6 +283,11 @@ def optional_clerk_user(
     request.state.user_id = user.id
     request.state.clerk_user_id = clerk_user_id
     request.state.user_tier = user.tier
+    # Billing snapshot (M1). Same fields as require_clerk_user so endpoints
+    # don't have to branch on which dependency was used.
+    request.state.subscription_tier = user.subscription_tier or "free"
+    request.state.allowance_credits = user.allowance_credits or 0
+    request.state.purchased_credits = user.purchased_credits or 0
     return user
 
 

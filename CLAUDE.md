@@ -306,3 +306,97 @@ Album Charger's "need more than 15 tracks?" link (`?topic=album_charger&source=.
 - The form **disclaims** that score/calibration/algorithm questions are not
   answered there and routes them to the Misread report (song page) or the Motion
   Desk (`/motion-desk/file-a-motion/`).
+
+## Monetization core (M0-M6, built 2026-05-28)
+
+Two-bucket credit metering + two-tier subscription, both wrapping the same
+engine. Source of truth is `credit_ledger`; row counts on `users` are the
+denormalised fast read.
+
+- **Migrations 072 / 073 / 074** add the billing columns, `credit_ledger`,
+  and rename `api_clients.plan_tier` default `trial` -> `free`. Schema baseline
+  is now 74.
+- **Entitlement.** `is_paid = is_paid_user(user_sub) OR is_paid_api_client(plan_tier, behavior)`.
+  `PAID_API_TIERS = {plus, pro, internal}`; `behavior == 'service'` also paid.
+  **`system + public`** (legacy-public) is intentionally **anon-grade** -- it
+  backs the unsigned RC frontend, so anon visitors see the free-tier cap.
+- **Costs** (`app/billing_config.py`): `COST_SONG_MISS=1`, `COST_SONG_CACHE_HIT=0`
+  (subscription benefit, no Opus), `COST_ALBUM_TRACK_MISS=1` (worst-case
+  hold; settle refunds cache hits), `ANON_CHARGER_DAILY_LIMIT=3` per-IP per-day.
+- **Charger flow.** Signed-in users: `check_credits` pre-Opus at the ACTUAL
+  cost (cache hit = 0, so a zero-balance subscriber isn't blocked from a free
+  re-read), `charge_credits` after success; anon: per-IP rate limit only.
+  Album: `hold_credits` at submit, `settle_hold` in worker `finally` (success /
+  no-tracks / crash all reconcile).
+- **Library flow.** `/api/songs/search` returns 20-row cap + no pagination
+  for free; `user_subscription_tier` is in the response so the frontend can
+  render the right paywall hint.
+- **Limiter.** `analyzer.py:limiter.key_func` is `user:{id}` for signed-in,
+  IP for anon. The dynamic limit provider is `_calibrate_daily_limit(key)` --
+  slowapi passes the rate-limit KEY only to a param named exactly `key` (else
+  it calls the provider with no args), returning `100/day` per-user backstop /
+  `3/day` per-IP anon. NOTE: the original `(request)` signature matched neither
+  convention and 500'd every calibrate request -- keep the param named `key`.
+- **Idempotency.** `credit_ledger` partial UNIQUE `(reason, ref_id, bucket)
+  WHERE ref_id IS NOT NULL` -- declared on the `CreditLedger` model AND in
+  migration 073 (so fresh `pg_baseline` installs are replay-safe). Stripe
+  webhook replays (`event.id`/`invoice.id` as ref_id) are no-ops; `charge_credits`
+  also catches the duplicate `IntegrityError` (concurrent same-song) as a no-op.
+  Settlement/refund/expiry rows use ref_id suffixes (`:refund:allowance`,
+  `:refund:purchased`, `:extra`, `:expire`, `:cancel:expire`) to stay
+  independently idempotent.
+- **Ledger integrity.** Forfeited allowance (monthly `reset_allowance` +
+  `subscription.deleted`) writes a negative `allowance_expire` row, so
+  `row buckets == signed ledger sum` holds (verified live). `rejected` /
+  `settlement` / `unbilled_overrun` rows are `delta=0`.
+- **Webhook.** `/api/billing-webhook` has its own signing secret
+  (`STRIPE_BILLING_WEBHOOK_SECRET`) distinct from donations / identity. Always
+  returns 200 after signature verification. **`invoice.paid` is the sole
+  `monthly_grant` authority** (fires for the first invoice too; derives tier
+  from the subscription event, not the row); `checkout.session.completed`
+  mode=subscription only syncs tier/customer/period_end -- it does NOT grant.
+
+- **Pre-launch gate (`launch.locked`, 2026-05-29).** A `system_flags` flag
+  (default LOCKED / fail-closed) that gates public sign-up AND billing checkout;
+  sign-IN for existing accounts is unaffected. Frontend fades the Clerk SignUp
+  form + Wallet buttons (`account.js` reads `GET /api/launch-status`); backend
+  returns 503 `launch_locked` from the checkout endpoints (money safety on live
+  Stripe). Open it with `POST /api/admin/launch-lock/toggle {"locked": false}`
+  (admin session, `launch_admin.py`) -- no redeploy. Mirrors the
+  `lyrical_charger.disabled` kill-switch pattern.
+
+### Required env (M2, both local and prod)
+
+- `STRIPE_BILLING_WEBHOOK_SECRET` -- billing webhook signing secret (distinct).
+- `STRIPE_PRICE_PLUS`, `STRIPE_PRICE_PRO` -- subscription Stripe Price IDs.
+- `STRIPE_PRICE_PACK_25`, `STRIPE_PRICE_PACK_100`, `STRIPE_PRICE_PACK_300` --
+  one-time credit pack Stripe Price IDs.
+- `STRIPE_BILLING_RETURN_URL` -- fallback success URL (caller usually overrides).
+
+Unset price IDs return 503 from the matching checkout endpoint without
+breaking the rest of `/api/billing/*`. All env passthroughs are in
+`docker-compose.yml` under the `backend` service.
+
+### Spec docs
+
+- `RISING-COMPASS-FINANCIALS.md` -- pricing, costs, refund/downgrade
+  semantics, gross-margin model.
+- `RISING-COMPASS-DATABASE-SCHEMA.md` -- the 072-073-074 migrations + the
+  ledger integrity invariant.
+- `RISING-COMPASS-API-SPEC.md` -- every `/api/billing/*` route, the
+  entitlement changes to `/api/songs/search` and the calibrate endpoints,
+  the error model.
+
+### What's still pending (after the 2026-05-29 hardening pass)
+
+Done 2026-05-29: Stripe products/price IDs (TEST), full browser e2e, live webhook
+replay (no double-grant), library prose unlock for paid tiers, 11 audit fixes,
+pre-launch gate. All committed to local `master`, **unpushed**.
+
+1. **Deploy** -- `git push origin master` + `bash deploy.sh`. Migrations 072-074
+   apply on boot; the launch gate ships LOCKED so nothing transacts.
+2. **Prod LIVE-Stripe wiring (before opening the gate).** Prod runs LIVE Stripe;
+   the price IDs in local `.env` are TEST-mode. `/root/rising-compass/.env` needs
+   LIVE `STRIPE_PRICE_*` IDs + a LIVE webhook endpoint at
+   `https://api.risingcompass.net/api/billing-webhook` + its signing secret.
+3. **Open the gate** when ready: `POST /api/admin/launch-lock/toggle {"locked": false}`.
