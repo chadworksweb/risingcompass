@@ -42,6 +42,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://risingcompass.net/fair-use.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://risingcompass.net/inquiry.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
