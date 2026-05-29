@@ -3,23 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Search — The Rising Compass</title>
-  <meta name="description" content="Search any artist or song and see its lyrical charge calibration. The Rising Compass calibrates music by what the lyrics transmit, not genre or popularity.">
-  <meta property="og:title" content="Search — The Rising Compass">
-  <meta property="og:description" content="Search any artist or song and see its lyrical charge calibration.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/search/">
-  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
-  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+  <title>Fair Use &amp; Licensing &mdash; The Rising Compass</title>
+  <meta name="description" content="How The Rising Compass uses song lyrics: fair use, licensing, and the lines we hold. Straight talk.">
+  <link rel="canonical" href="https://risingcompass.net/fair-use.html">
+
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="img/favicon-192.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/artists/artists.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <style>
+    .legal-page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    .legal-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+      margin-bottom: 0.5rem;
+    }
+    .legal-sub {
+      font-size: 0.9rem;
+      color: var(--rc-text-dim);
+      font-style: italic;
+      margin-bottom: 0.4rem;
+    }
+    .legal-updated {
+      font-size: 0.78rem;
+      color: var(--rc-text-dim);
+      margin-bottom: 2rem;
+    }
+    .legal-page h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+      margin-top: 2rem;
+      margin-bottom: 0.6rem;
+    }
+    .legal-page p,
+    .legal-page ul {
+      font-size: 0.88rem;
+      color: var(--rc-text);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+    .legal-page ul { padding-left: 1.4rem; }
+    .legal-page li { margin-bottom: 0.4rem; }
+    .legal-page a { color: var(--rc-accent); text-decoration: none; }
+    .legal-page a:hover { opacity: 0.7; }
+    .legal-page strong { color: var(--rc-text-bright); }
+  </style>
 </head>
 <body>
-  <a class="skip-nav" href="#main">Skip to content</a>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -93,49 +135,44 @@
   <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
-  <h1 class="artists-title" style="padding:1rem 1.5rem 0;margin:0;">Search</h1>
 
-  <main id="main">
-    <div class="search-container">
-      <input
-        type="search"
-        id="search-input"
-        class="search-input"
-        placeholder="Search artists or songs..."
-        autocomplete="off"
-        autofocus
-      >
-    </div>
+  <div class="legal-page">
+    <h1 class="legal-title">Fair Use &amp; Licensing</h1>
+    <p class="legal-sub">Straight talk about how we use lyrics, why it is lawful, and what we do not do.</p>
+    <p class="legal-updated">Last updated: May 28, 2026</p>
 
-    <div id="searching-state" class="searching-state" role="status" aria-live="polite" hidden>
-      <span class="searching-dot"></span>
-      <span class="searching-dot"></span>
-      <span class="searching-dot"></span>
-      <span class="searching-label">Searching&hellip;</span>
-    </div>
+    <p>The Rising Compass reads the lyrics of songs and publishes a tier, a charge score, and original written commentary about what a song transmits. This page explains, in plain language, the legal basis for that work and the lines we hold.</p>
 
-    <div id="results-container" class="results-container">
-      <!-- Populated by JS -->
-    </div>
+    <h2>We rely on fair use, not a lyrics license</h2>
+    <p>We read a song's lyrics the way a critic reads a book in order to review it, then publish our own analysis. The tier, the score, and the commentary are original work <strong>about</strong> the song &mdash; criticism, commentary, and analysis, the same basis on which critics quote and review the works they discuss. We do not hold, and do not claim, a license to any song's lyrics; our use rests on fair use, the long-standing principle that allows commentary on and criticism of creative works.</p>
 
-    <div id="empty-state" class="empty-state" hidden>
-      <p class="empty-message">No results found.</p>
-      <p class="empty-cta">Help build the database. <a href="/lyrical-charger/">Submit lyrics via Lyrical Charger</a>.</p>
-    </div>
+    <h2>We are not a lyrics service</h2>
+    <p>The Rising Compass is not a lyrics site and does not operate a lyrics database. We do not sell song lyrics or offer them for download. Our purpose is to analyze and comment on songs, not to distribute their lyrics.</p>
 
-    <div id="initial-state" class="initial-state">
-      <p>Search for any artist to see their lyrical charge trajectory, or search for a song to see its effects label.</p>
-    </div>
-  </main>
+    <h2>We do not keep the lyrics</h2>
+    <p>To produce a reading we read a song's lyrics once and then discard them. We retain our own analysis and a one-way fingerprint used only to detect when a song's lyrics have changed &mdash; never the lyric text itself.</p>
 
-  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <h2>Licensing and third-party sources</h2>
+    <p>We do not build the Compass on lyric services whose terms forbid this kind of use, and wherever we rely on a third-party source we follow its terms. When you paste lyrics into the Lyrical Charger yourself, you are the source &mdash; and by submitting them you confirm you have the right to do so.</p>
 
-  <script src="/artists/artists-api.js"></script>
-  <script src="/artists/artists.js"></script>
+    <h2>We measure songs, not people</h2>
+    <p>The Compass rates songs, not artists. The same artist can score at every tier across a career. A reading is our independent, good-faith interpretation under a fixed, published rubric &mdash; analysis and opinion, not a statement of fact about any person.</p>
+
+    <h2>We are independent</h2>
+    <p>The Rising Compass is not affiliated with, endorsed by, sponsored by, or connected to any artist, songwriter, record label, music publisher, or streaming platform. It is an independent instrument.</p>
+
+    <h2>Rights holders</h2>
+    <p>If you hold rights in a work and have a concern about how it appears here, you can reach us through our <a href="/inquiry.html">general inquiry form</a>.</p>
+
+    <h2>This is not legal advice</h2>
+    <p>This page describes our practices in plain language; it is not legal advice. A calibration is a cultural diagnostic &mdash; analysis and commentary &mdash; not a professional judgment and not a factual claim about any person.</p>
+  </div>
+
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/fair-use.html">Fair Use</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a></p>
 </footer>
 <!-- /INCLUDE:footer -->
+
 </body>
 </html>
