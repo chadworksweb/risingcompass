@@ -2579,6 +2579,34 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   50% { transform: translateY(3px); }
 }
 
+/* CTA row under the compass: View Songs (left half) + Reset to Today (right half) */
+.year-view-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.year-view-row .year-view-btn {
+  flex: 1 1 50%;
+  min-width: 0;
+  margin-top: 0;
+}
+.year-reset-btn {
+  border-color: var(--rc-border);
+  color: var(--rc-text-dim);
+  background: rgba(255, 255, 255, 0.06);
+}
+.year-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.year-reset-btn svg {
+  animation: none;
+  transition: transform 0.5s ease;
+}
+.year-reset-btn:hover svg {
+  transform: rotate(360deg);
+}
+
 /* === Year Songs — Load More + Days Badge === */
 .year-load-more {
   display: block;

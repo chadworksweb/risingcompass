@@ -142,9 +142,8 @@ const App = (() => {
     const container = document.getElementById('reading-content');
     if (!container) return;
 
-    // Remove year view button if present
-    const yearBtn = document.getElementById('year-view-btn');
-    if (yearBtn) yearBtn.remove();
+    // Remove the compass CTA row if present
+    removeCompassCta();
 
     // Restore panel header for daily readings
     const header = document.querySelector('#reading-panel .card-header');
@@ -1291,8 +1290,7 @@ const App = (() => {
   // a year/day that has no coverage, so the panel stops sitting on stale
   // content from the previous selection. Mirrors the ether card's notice.
   function renderReadingEmpty(kind, label) {
-    const yearBtn = document.getElementById('year-view-btn');
-    if (yearBtn) yearBtn.remove();
+    removeCompassCta();
     const header = document.querySelector('#reading-panel .card-header');
     const desc = document.querySelector('#reading-panel .card-desc');
     const container = document.getElementById('reading-content');
@@ -2692,32 +2690,63 @@ const App = (() => {
   }
 
   function showYearViewButton(year, degree, chargeLevel) {
-    // Remove existing button if any
-    const existing = document.getElementById('year-view-btn');
-    if (existing) existing.remove();
-
     const isYTD = year === new Date().getFullYear();
     const tier = chargeLevel || degreeToTier(degree);
     const hex = COLOR_HEX[tier] || '#888';
     const label = isYTD ? `View ${year} YTD Songs` : `View ${year} Songs`;
+    mountCompassCta(label, hex);
+  }
 
-    const btn = document.createElement('button');
-    btn.id = 'year-view-btn';
-    btn.className = 'year-view-btn';
-    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
-    btn.style.borderColor = hex;
-    btn.style.color = hex;
+  // Removes the compass CTA row (View Songs + Reset to Today) if present.
+  function removeCompassCta() {
+    const row = document.getElementById('year-view-row');
+    if (row) row.remove();
+    const stray = document.getElementById('year-view-btn');
+    if (stray) stray.remove();
+  }
 
-    btn.addEventListener('click', () => {
+  // Snap the compass back to the live "today" daily reading and clear any
+  // time-travel state (historical-index slider + its reset button), then
+  // re-fetch + re-render today's reading across the compass, top-20, and ether.
+  function resetCompassToToday() {
+    const tmReset = document.getElementById('timemachine-reset');
+    if (tmReset && tmReset.style.display !== 'none') tmReset.click();
+    removeCompassCta();
+    loadCurrent();
+  }
+
+  // Builds the split CTA row under the compass: left half = "View ... Songs"
+  // (tier-colored, scrolls to the reading panel), right half = "Reset to Today"
+  // (returns the compass to the most recent daily reading).
+  function mountCompassCta(label, hex) {
+    removeCompassCta();
+
+    const row = document.createElement('div');
+    row.id = 'year-view-row';
+    row.className = 'year-view-row';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.id = 'year-view-btn';
+    viewBtn.className = 'year-view-btn';
+    viewBtn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+    viewBtn.style.borderColor = hex;
+    viewBtn.style.color = hex;
+    viewBtn.addEventListener('click', () => {
       const panel = document.getElementById('reading-panel');
       if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    // Append inside compass panel, below the compass
+    const resetBtn = document.createElement('button');
+    resetBtn.id = 'compass-reset-today';
+    resetBtn.className = 'year-view-btn year-reset-btn';
+    resetBtn.innerHTML = `<span>Reset to Today</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>`;
+    resetBtn.addEventListener('click', resetCompassToToday);
+
+    row.appendChild(viewBtn);
+    row.appendChild(resetBtn);
+
     const compassPanel = document.getElementById('compass-panel');
-    if (compassPanel) {
-      compassPanel.appendChild(btn);
-    }
+    if (compassPanel) compassPanel.appendChild(row);
   }
 
   function renderYearSongs(year, degree, chargeLevel, container) {
@@ -3241,28 +3270,9 @@ const App = (() => {
   }
 
   function showDailyViewButton(date, degree, chargeLevel) {
-    // Remove existing button if any
-    const existing = document.getElementById('year-view-btn');
-    if (existing) existing.remove();
-
     const tier = chargeLevel || degreeToTier(degree);
     const hex = COLOR_HEX[tier] || '#888';
-    const label = `View ${formatDate(date)} Songs`;
-
-    const btn = document.createElement('button');
-    btn.id = 'year-view-btn';
-    btn.className = 'year-view-btn';
-    btn.innerHTML = `<span>${label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
-    btn.style.borderColor = hex;
-    btn.style.color = hex;
-
-    btn.addEventListener('click', () => {
-      const panel = document.getElementById('reading-panel');
-      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-
-    const compassPanel = document.getElementById('compass-panel');
-    if (compassPanel) compassPanel.appendChild(btn);
+    mountCompassCta(`View ${formatDate(date)} Songs`, hex);
   }
 
   // --- Helpers ---
