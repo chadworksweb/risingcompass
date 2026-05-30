@@ -64,6 +64,41 @@ const Auth = (() => {
     }
   }
 
+  // ---------- PostHog identity ----------
+  // Tie product-analytics events to the signed-in account. The PostHog
+  // snippet (baked into <head> via the analytics partial) defines a global
+  // stub immediately, so these calls are safe even before array.js loads --
+  // they queue and flush on load. All no-op if PostHog isn't on the page.
+  function _phIdentify() {
+    try {
+      const ph = window.posthog;
+      if (!ph || !clerk || !clerk.user) return;
+      const u = clerk.user;
+      const email = (u.primaryEmailAddress && u.primaryEmailAddress.emailAddress) || undefined;
+      // Clerk user id is the stable distinct_id; RC tier/handle land later
+      // via _phSetUserProps when getMe() resolves (no extra fetch).
+      ph.identify(u.id, email ? { email } : {});
+    } catch (_) {}
+  }
+
+  function _phReset() {
+    try {
+      if (window.posthog) window.posthog.reset();
+    } catch (_) {}
+  }
+
+  function _phSetUserProps(me) {
+    try {
+      const ph = window.posthog;
+      if (!ph || !me) return;
+      ph.setPersonProperties({
+        rc_user_id: me.id,
+        handle: me.handle || undefined,
+        tier: me.tier || undefined,
+      });
+    } catch (_) {}
+  }
+
   function decodePkHost(pk) {
     // pk_(test|live)_<base64 of host plus trailing '$'>
     const parts = pk.split('_');
@@ -104,6 +139,7 @@ const Auth = (() => {
       const initialSignedIn = !!clerk.user;
       _prevSignedIn = initialSignedIn;
       _syncAuthState(initialSignedIn);
+      if (initialSignedIn) _phIdentify();
       clerk.addListener(() => {
         cachedMe = undefined;
         const isSignedIn = !!clerk.user;
@@ -116,6 +152,8 @@ const Auth = (() => {
         const justSignedOut = (_prevSignedIn === true) && !isSignedIn;
         _prevSignedIn = isSignedIn;
         _syncAuthState(isSignedIn);
+        if (justSignedIn) _phIdentify();
+        else if (justSignedOut) _phReset();
         const evt = { isSignedIn, justSignedIn, justSignedOut };
         for (const fn of listeners) {
           try { fn(evt); } catch (err) { console.error('Auth listener error', err); }
@@ -161,6 +199,7 @@ const Auth = (() => {
     }
     if (!resp.ok) throw new Error(`GET /api/users/me failed: ${resp.status}`);
     cachedMe = await resp.json();
+    _phSetUserProps(cachedMe);
     return cachedMe;
   }
 
@@ -194,6 +233,7 @@ const Auth = (() => {
       throw err;
     }
     cachedMe = body;
+    _phSetUserProps(cachedMe);
     return body;
   }
 

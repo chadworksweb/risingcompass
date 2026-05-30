@@ -3,6 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- INCLUDE:analytics -->
+<!-- PostHog product analytics. Edit the init config here, then run
+     scripts/build_partials.py (deploy.sh runs it automatically) to bake the
+     change into every page's <head>. Loaded as high in <head> as possible so
+     the initial pageview is captured. The stub below queues calls until
+     array.js loads, so posthog.* is safe to call immediately. -->
+<script>
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  // Skip PostHog entirely for admin sessions. The admin login sets a
+  // readable rc_ph_optout=1 cookie (path=/); when present we never call
+  // init(), so array.js never loads and nothing is captured. Logging out
+  // (or the cookie expiring with the idle window) re-enables capture.
+  if (document.cookie.split('; ').indexOf('rc_ph_optout=1') === -1) {
+    posthog.init('phc_oNyndpLonvCtB78foyro2icFUa4erjz3eCXegEuMJBGs',{api_host:'https://us.i.posthog.com', defaults:'2026-01-30'})
+  }
+</script>
+<!-- /INCLUDE:analytics -->
   <title>Privacy Policy — The Rising Compass</title>
   <meta name="description" content="Privacy Policy for The Rising Compass.">
   <link rel="canonical" href="https://risingcompass.net/privacy.html">
@@ -160,7 +177,7 @@
 
   <div class="privacy-page">
     <h1 class="privacy-title">Privacy Policy</h1>
-    <p class="privacy-updated">Last updated: March 30, 2026</p>
+    <p class="privacy-updated">Last updated: May 30, 2026</p>
 
     <p>The Rising Compass ("we," "us," "our") operates <strong>risingcompass.net</strong>. This policy explains what data we collect, how we use it, and your choices.</p>
 
@@ -168,7 +185,7 @@
 
     <p><strong>Automatically collected:</strong></p>
     <ul>
-      <li><strong>Analytics data.</strong> We use Google Analytics 4 (GA4) to collect anonymous usage data such as pages visited, device type, browser, and general geographic region. GA4 may set cookies on your device. No personally identifiable information is collected through analytics.</li>
+      <li><strong>Analytics data.</strong> We use Google Analytics 4 (GA4) and PostHog to collect usage data such as pages visited, device type, browser, general geographic region, and interactions with the site. These tools may set cookies on your device. Analytics is anonymous for signed-out visitors; if you sign in to an account, we associate your usage with that account to understand how members use the product. PostHog stores this data in the United States.</li>
       <li><strong>IP address.</strong> Your IP address may be logged when you submit a Misread Report. It is used solely for abuse prevention.</li>
     </ul>
 
@@ -193,6 +210,7 @@
     <h2>4. Third-Party Services</h2>
     <ul>
       <li><strong>Google Analytics 4</strong> — usage analytics. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.</li>
+      <li><strong>PostHog</strong> — product analytics (pageviews and interaction events), with data stored in the United States. See <a href="https://posthog.com/privacy" target="_blank" rel="noopener">PostHog's Privacy Policy</a>.</li>
       <li><strong>Resend</strong> — email delivery for Misread Report confirmations. See <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend's Privacy Policy</a>.</li>
       <li><strong>Musixmatch</strong> — song search and lyrics retrieval for the Lyrical Charger "Search by Song" feature. Your search queries are sent to Musixmatch to find matching songs. See <a href="https://about.musixmatch.com/privacy" target="_blank" rel="noopener">Musixmatch's Privacy Policy</a>.</li>
     </ul>
@@ -202,12 +220,12 @@
     <ul>
       <li><strong>Misread Reports</strong> are retained indefinitely for calibration purposes.</li>
       <li><strong>Lyrical Charger calibrations</strong> (tier, charge value, summary) are retained indefinitely as part of The Rising Compass lyrical charge database. Lyrics are never stored.</li>
-      <li><strong>Analytics data</strong> is retained per Google's standard GA4 retention policies.</li>
+      <li><strong>Analytics data</strong> is retained per Google's standard GA4 retention policies and PostHog's data retention settings.</li>
     </ul>
 
     <h2>6. Your Choices</h2>
     <ul>
-      <li>You can block Google Analytics by using a browser extension such as <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener">Google Analytics Opt-out</a>.</li>
+      <li>You can block Google Analytics by using a browser extension such as <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener">Google Analytics Opt-out</a>. PostHog and Google Analytics are also blocked by most ad/tracker-blocking browser extensions, and respect Do Not Track / Global Privacy Control signals where your browser sends them.</li>
       <li>You can clear local storage through your browser settings.</li>
       <li>You are not required to submit any personal information to use the site. The compass readings and historical data are fully accessible without providing any data.</li>
     </ul>

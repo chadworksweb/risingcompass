@@ -151,6 +151,21 @@ def login_submit(
         path="/api/admin",
         domain=settings.admin_cookie_domain or None,
     )
+    # Flag this browser as an admin so the public site's PostHog snippet opts
+    # out of capture (it gates init() on the absence of this cookie). Unlike
+    # the session cookie it is readable (not HttpOnly) and path="/" so the
+    # static frontend JS can see it; it carries no session value, just "1".
+    # Expires with the idle window and is cleared on logout below.
+    response.set_cookie(
+        key="rc_ph_optout",
+        value="1",
+        max_age=settings.admin_session_idle_seconds,
+        httponly=False,
+        secure=_is_https(request),
+        samesite="lax",
+        path="/",
+        domain=settings.admin_cookie_domain or None,
+    )
     auth_svc.record_attempt(
         db, username=user.username, ip=ip, user_agent=ua,
         success=True,
@@ -175,6 +190,11 @@ def logout(
     response.delete_cookie(
         key=auth_svc.SESSION_COOKIE_NAME,
         path="/api/admin",
+        domain=settings.admin_cookie_domain or None,
+    )
+    response.delete_cookie(
+        key="rc_ph_optout",
+        path="/",
         domain=settings.admin_cookie_domain or None,
     )
     return {"status": "ok"}
