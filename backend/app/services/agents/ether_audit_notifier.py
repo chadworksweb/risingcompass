@@ -81,7 +81,7 @@ def send_ether_audit_email(
         <a href="{escape(admin_url)}" style="color:#c9a960;">Triage in admin &rarr; Ether Audits</a>
       </p>
       <p style="color:#666;font-size:13px;">
-        The agent flagged this song because no slug in the 24-topic taxonomy
+        The agent flagged this song because no slug in the 25-topic taxonomy
         honestly fits. Either accept the proposed tag (code change to
         <code>services/ether_taxonomy.py</code>) or remap to an existing slug.
       </p>

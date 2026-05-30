@@ -27,7 +27,7 @@ Usage:
 
 Ether Art Chart fields (deadpan_line + topics) are Claude-Code-supplied here
 so the server skips the ether_tagger Anthropic call. topics must be slugs from
-the closed 24-topic taxonomy (app/services/ether_taxonomy.ETHER_TAXONOMY),
+the closed 25-topic taxonomy (app/services/ether_taxonomy.ETHER_TAXONOMY),
 ordered dominant-first, max 3. If no slug honestly fits, omit --topic and pass
 the three --topic-audit-* args instead (mutually exclusive with --topic).
 

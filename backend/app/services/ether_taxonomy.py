@@ -1,4 +1,4 @@
-"""The Ether Art Chart — closed 24-topic taxonomy (single source of truth).
+"""The Ether Art Chart — closed 25-topic taxonomy (single source of truth).
 
 Imported by the ether tagger prompt and the admin Ether Audits surface. Adding
 a tag is a one-line dict insertion + redeploy — intentional friction, since
@@ -178,13 +178,20 @@ ETHER_TAXONOMY = {
              "constant surveillance dressed as love"),
         ],
     },
+    "resilience": {
+        "scope": "Endurance, bouncing back, carrying on — weathering hard times as the subject.",
+        "examples": [
+            ("Destiny's Child", "Survivor",
+             "enduring and outlasting what tried to break the narrator"),
+        ],
+    },
 }
 
 
 VALID_SLUGS = frozenset(ETHER_TAXONOMY.keys())
 
-assert len(VALID_SLUGS) == 24, (
-    "Taxonomy must remain at 24 entries unless audit-accept adds one."
+assert len(VALID_SLUGS) == 25, (
+    "Taxonomy must remain at 25 entries unless audit-accept adds one."
 )
 
 

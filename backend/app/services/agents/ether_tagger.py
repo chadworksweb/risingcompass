@@ -1,7 +1,7 @@
 """Ether tagger — names what a compass_song IS through the Ether Art Chart lens.
 
 Single-shot Opus call run after the main calibrator. Emits a flat literal
-deadpan_line plus 0-3 ranked topic slugs from the closed 24-topic taxonomy
+deadpan_line plus 0-3 ranked topic slugs from the closed 25-topic taxonomy
 (`services/ether_taxonomy.ETHER_TAXONOMY`). When no honest taxonomy match
 exists, returns an audit payload instead of forcing a bad fit.
 
@@ -45,7 +45,7 @@ pieces of data that name what the song IS:
   1. deadpan_line — a flat, literal naming of the song's content,
      approximately len(artist) + len(title) characters long.
 
-  2. topics — 0 to 3 tags from the closed 24-topic taxonomy below,
+  2. topics — 0 to 3 tags from the closed 25-topic taxonomy below,
      ordered most-dominant-first. If no honest match exists in the
      taxonomy, return topics: [] and a topic_audit payload.
 
@@ -113,13 +113,13 @@ AUDIT ESCAPE HATCH — mandatory when nothing fits
 ═══════════════════════════════════════════════════════════════════════
 
 If you cannot honestly tag the song with even one topic from the
-24-topic list, return:
+25-topic list, return:
 
   topics: []
   topic_audit: {
     "reason": "no match found",
     "proposed_tag": "short-slug-suggestion",
-    "rationale": "one sentence on why none of the 24 fit and what
+    "rationale": "one sentence on why none of the 25 fit and what
                   the new tag would capture"
   }
 
@@ -199,7 +199,7 @@ def _build_system_prompt() -> str:
     return "\n".join([
         _VOICE_BLOCK,
         "═══════════════════════════════════════════════════════════════════════",
-        "TOPICS — closed taxonomy of 24 (do not invent)",
+        "TOPICS — closed taxonomy of 25 (do not invent)",
         "═══════════════════════════════════════════════════════════════════════",
         "",
         taxonomy_for_prompt(),
