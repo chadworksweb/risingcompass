@@ -377,6 +377,17 @@ Unset price IDs return 503 from the matching checkout endpoint without
 breaking the rest of `/api/billing/*`. All env passthroughs are in
 `docker-compose.yml` under the `backend` service.
 
+### PostHog (server-side analytics, 2026-05-30)
+
+- `POSTHOG_API_KEY` -- PostHog project key (`phc_...`, same project as the
+  frontend snippet) used by the Python SDK to capture server-side revenue +
+  async events (`app/services/posthog_analytics.py`). **Prod `.env` only** --
+  intentionally NOT set in local `.env` so server capture is a no-op locally.
+- `POSTHOG_HOST` -- defaults to `https://us.i.posthog.com` in docker-compose.
+- Unset key -> server capture is a fail-soft no-op (billing/album unaffected).
+  See `RISING-COMPASS-ANALYTICS.md` for the full integration (client snippet,
+  `/ph` first-party proxy, events, dashboards).
+
 ### Spec docs
 
 - `RISING-COMPASS-FINANCIALS.md` -- pricing, costs, refund/downgrade
