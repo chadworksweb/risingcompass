@@ -319,15 +319,21 @@ run_deploy() {
         echo "=== No backend or frontend changes detected ==="
     fi
 
-    # Quick smoke test
+    # Quick smoke test. The backend runs migrations on boot, so it may not
+    # answer for a few seconds after the container starts -- retry before
+    # warning so a normal boot delay is not reported as a failure.
     echo ""
     echo "=== Smoke test ==="
-    local status
-    status=$(curl -s -o /dev/null -w "%{http_code}" https://api.risingcompass.net/api/health)
+    local status="" i
+    for i in $(seq 1 10); do
+        status=$(curl -s -o /dev/null -w "%{http_code}" https://api.risingcompass.net/api/health)
+        [ "$status" = "200" ] && break
+        sleep 3
+    done
     if [ "$status" = "200" ]; then
         echo "API OK (200)"
     else
-        echo "WARNING: API returned $status"
+        echo "WARNING: API returned $status after retries"
     fi
 
     echo ""
