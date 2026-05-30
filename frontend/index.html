@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- INCLUDE:analytics -->
-<!-- PostHog product analytics. Edit the init config here, then run
+<!-- PostHog + Google Analytics. Edit the config here, then run
      scripts/build_partials.py (deploy.sh runs it automatically) to bake the
-     change into every page's <head>. Loaded as high in <head> as possible so
-     the initial pageview is captured. The stub below queues calls until
+     change into every page's <head>. Both are gated together below: prod host
+     only, excluded for admin sessions (rc_ph_optout cookie), the ?skip-analytics
+     personal opt-out, and Do Not Track. The PostHog stub queues calls until
      array.js loads, so posthog.* is safe to call immediately. -->
 <script>
   !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -29,10 +30,28 @@
     if (document.cookie.split('; ').indexOf('rc_ph_optout=1') !== -1) return;
     // Personal device opt-out (set above / on a prior visit).
     try { if (localStorage.getItem('rc_skip_analytics') === '1') return; } catch (e) {}
-    // api_host is the first-party proxy path (nginx /ph/* -> PostHog; see
+    // Do Not Track: honor it for BOTH PostHog and GA. PostHog also has its own
+    // respect_dnt; this gate additionally covers GA, which has no built-in DNT.
+    var dnt = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+    if (dnt === '1' || dnt === 'yes') return;
+    // PostHog -- first-party proxy (nginx /ph/* -> PostHog; see
     // deploy/_ph_proxy_patch.py) so ad-blockers don't drop events. ui_host
     // points the toolbar/links at the real PostHog app.
-    posthog.init('phc_oNyndpLonvCtB78foyro2icFUa4erjz3eCXegEuMJBGs',{api_host:'https://risingcompass.net/ph', ui_host:'https://us.posthog.com', respect_dnt:true, defaults:'2026-01-30'})
+    posthog.init('phc_oNyndpLonvCtB78foyro2icFUa4erjz3eCXegEuMJBGs',{api_host:'https://risingcompass.net/ph', ui_host:'https://us.posthog.com', respect_dnt:true, defaults:'2026-01-30'});
+    // Google Analytics (gtag) -- kept alongside PostHog for a quick traffic
+    // look. Same gating as above (prod-only, admin-excluded, opt-out, DNT), so
+    // admin/operator browsing stays out of GA too. Loads direct (not proxied).
+    try {
+      var GA_ID = 'G-D1R63RVHMS';
+      var gs = document.createElement('script');
+      gs.async = true;
+      gs.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+      document.head.appendChild(gs);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', GA_ID);
+    } catch (e) {}
   })();
 </script>
 <!-- /INCLUDE:analytics -->
@@ -79,14 +98,8 @@
   }
   </script>
 
-  <!-- Google Analytics -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D1R63RVHMS"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-D1R63RVHMS');
-  </script>
+  <!-- Google Analytics now loads (gated) via the analytics partial on every
+       page; the standalone homepage snippet was removed to avoid double-counting. -->
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
