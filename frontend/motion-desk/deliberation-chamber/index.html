@@ -29,7 +29,10 @@
     if (document.cookie.split('; ').indexOf('rc_ph_optout=1') !== -1) return;
     // Personal device opt-out (set above / on a prior visit).
     try { if (localStorage.getItem('rc_skip_analytics') === '1') return; } catch (e) {}
-    posthog.init('phc_oNyndpLonvCtB78foyro2icFUa4erjz3eCXegEuMJBGs',{api_host:'https://us.i.posthog.com', defaults:'2026-01-30'})
+    // api_host is the first-party proxy path (nginx /ph/* -> PostHog; see
+    // deploy/_ph_proxy_patch.py) so ad-blockers don't drop events. ui_host
+    // points the toolbar/links at the real PostHog app.
+    posthog.init('phc_oNyndpLonvCtB78foyro2icFUa4erjz3eCXegEuMJBGs',{api_host:'https://risingcompass.net/ph', ui_host:'https://us.posthog.com', defaults:'2026-01-30'})
   })();
 </script>
 <!-- /INCLUDE:analytics -->
