@@ -93,6 +93,15 @@ let lastResult = null;     // last calibration payload, for the share card
 // simply absent. Auth.init() is fired early but never blocks the page.
 if (window.Auth) { window.Auth.init().catch(() => {}); }
 
+// PostHog event helper. No-op unless the lib actually loaded (it is gated off
+// on localhost, for admin sessions, and for opted-out devices in the
+// analytics partial), so these calls are always safe.
+function phCapture(event, props) {
+  try {
+    if (window.posthog && window.posthog.__loaded) window.posthog.capture(event, props || {});
+  } catch (_) {}
+}
+
 async function calibrateHeaders() {
   const headers = { 'Content-Type': 'application/json' };
   if (API_KEY) headers['X-Api-Key'] = API_KEY;
@@ -764,6 +773,7 @@ async function submitLyrics() {
 
     if (resp.status === 429) {
       stopProgress();
+      phCapture('paywall_hit', { surface: 'charger_single', reason: 'daily_limit', signed_in: !!(window.Auth && window.Auth.isSignedIn()) });
       showError("You've hit the daily limit. Sign in and pick up a credit pack to keep going, or try again tomorrow.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
@@ -773,6 +783,7 @@ async function submitLyrics() {
     if (resp.status === 402) {
       // Credit-gated path (M3). Signed-in user without enough credits.
       stopProgress();
+      phCapture('paywall_hit', { surface: 'charger_single', reason: 'out_of_credits', signed_in: true });
       showError("Out of credits. Pick up a credit pack or subscribe from your Account page to keep charging songs.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
@@ -1013,6 +1024,13 @@ async function submitSearch() {
 // ============================================================
 function renderResults(data) {
   lastResult = data;
+  phCapture('song_charged', {
+    tier: data.tier,
+    charge: data.charge,
+    contaminated: !!data.contaminated,
+    has_consensus: !!(data.consensus && data.consensus.run_count >= 2),
+    signed_in: !!(window.Auth && window.Auth.isSignedIn()),
+  });
   // Identity
   if (data.title && data.title !== 'Untitled') {
     let html = `<div class="result-song-title">${esc(data.title)}</div>`;
@@ -1738,11 +1756,13 @@ function hideError() {
       resetTurnstile();
 
       if (resp.status === 402) {
+        phCapture('paywall_hit', { surface: 'charger_album', reason: 'out_of_credits', signed_in: true });
         showError("Out of credits for an album of this length. Pick up a credit pack or subscribe from your Account page to keep charging albums.");
         try { window.location.assign('/account/'); } catch (_) {}
         return;
       }
       if (resp.status === 429) {
+        phCapture('paywall_hit', { surface: 'charger_album', reason: 'daily_limit', signed_in: !!(window.Auth && window.Auth.isSignedIn()) });
         showAlbumError("You've hit the free daily album limit. Try again tomorrow.");
         showScreen('screen-album-entry');
         albumBtnSubmit.disabled = false;
@@ -1833,6 +1853,20 @@ function hideError() {
           showScreen('screen-album-entry');
           albumBtnSubmit.disabled = false;
           return;
+        }
+        // album_charged for anon only; signed-in album charges are captured
+        // server-side (album worker) with the Clerk distinct_id so they merge
+        // to the identified person and survive the tab closing mid-poll.
+        if (!(window.Auth && window.Auth.isSignedIn())) {
+          phCapture('album_charged', {
+            tier: result.tier,
+            charge: result.charge,
+            track_count: result.track_count,
+            calibrated_count: result.calibrated_count,
+            contamination_count: result.contamination_count,
+            release_type: result.release_type,
+            signed_in: false,
+          });
         }
         completeProgress();
         await new Promise((r) => setTimeout(r, 500));

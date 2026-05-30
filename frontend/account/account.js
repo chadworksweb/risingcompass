@@ -442,6 +442,14 @@
     if (launchLocked) lockWalletActions();
   }
 
+  // PostHog event helper. No-op unless the lib actually loaded (gated off on
+  // localhost, for admins, and for opted-out devices in the analytics partial).
+  function phCapture(event, props) {
+    try {
+      if (window.posthog && window.posthog.__loaded) window.posthog.capture(event, props || {});
+    } catch (_) {}
+  }
+
   async function startBillingCheckout(kind, key) {
     const errEl = document.getElementById('wallet-error');
     if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
@@ -465,6 +473,7 @@
       }
       const data = await resp.json();
       if (data.url) {
+        phCapture('checkout_started', { type: kind, key });
         window.location.assign(data.url);
       } else {
         throw new Error('Checkout response missing redirect URL.');
@@ -542,6 +551,7 @@
         el.handleInput.value.trim(),
         el.avatarInput.value.trim() || null,
       );
+      phCapture('account_handle_claimed', { tier: me.tier });
       // If they came via returnTo and onboarding was the only blocker
       // (tier already id_verified, e.g. webhook fired during onboarding
       // -- rare but possible), bounce. Otherwise show the profile so

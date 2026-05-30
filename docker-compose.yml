@@ -68,6 +68,10 @@ services:
       - STRIPE_PRICE_PACK_100=${STRIPE_PRICE_PACK_100}
       - STRIPE_PRICE_PACK_300=${STRIPE_PRICE_PACK_300}
       - STRIPE_BILLING_RETURN_URL=${STRIPE_BILLING_RETURN_URL:-https://risingcompass.net/account/?billing=success}
+      # PostHog server-side analytics (revenue + async album events). Same
+      # project as the frontend snippet; unset -> server capture is a no-op.
+      - POSTHOG_API_KEY=${POSTHOG_API_KEY}
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://us.i.posthog.com}
       - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - CLERK_JWKS_URL=${CLERK_JWKS_URL}

@@ -104,6 +104,13 @@ class Settings(BaseSettings):
     # /account/?billing=success on site_url.
     stripe_billing_return_url: str = ""
 
+    # PostHog server-side analytics (revenue + async album events). Same
+    # project as the frontend snippet; the project API key (phc_...) is what
+    # the Python SDK uses to ingest. Unset -> server-side capture is a no-op
+    # (e.g. local dev), so the rest of billing/album work is unaffected.
+    posthog_api_key: str = ""
+    posthog_host: str = "https://us.i.posthog.com"
+
     # Audience Vibe — gap threshold that opens an admin review case.
     # Roadmap calls this "TBD"; starting at 25 and tunable from .env.
     vibe_review_threshold: int = 25

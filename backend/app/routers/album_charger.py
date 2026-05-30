@@ -55,6 +55,7 @@ from app.auth import verify_api_or_service_key, optional_clerk_user
 from app import billing_config
 from app.services import billing as billing_svc
 from app.services import musixmatch
+from app.services import posthog_analytics
 from app.services.agents.calibrator import (
     calibrate_song_async, lookup_calibrated, ensure_full_calibration,
 )
@@ -527,6 +528,30 @@ async def _run_album_charge(
             track_count=len(body.tracks), calibrated_count=len(scored),
             contamination_count=contamination_count,
         )
+
+        # Server-side album_charged for SIGNED-IN users only -- the anon path
+        # captures this client-side. distinct_id = Clerk id so it merges with
+        # the browser person and survives the tab closing before the poll ends.
+        if current_user_id is not None:
+            ph_db = SessionLocal()
+            try:
+                _ph_user = ph_db.query(User).filter(User.id == current_user_id).first()
+                _ph_clerk_id = _ph_user.clerk_user_id if _ph_user else None
+            finally:
+                ph_db.close()
+            posthog_analytics.capture(
+                _ph_clerk_id,
+                "album_charged",
+                {
+                    "tier": agg_color,
+                    "charge": agg_charge,
+                    "track_count": len(body.tracks),
+                    "calibrated_count": len(scored),
+                    "contamination_count": contamination_count,
+                    "release_type": body.release_type,
+                    "signed_in": True,
+                },
+            )
 
         track_results.sort(key=lambda r: (r.track_number is None, r.track_number or 0))
         _store_result(token, AlbumCalibrateOut(

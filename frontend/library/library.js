@@ -104,6 +104,14 @@
   // render real text (paid subscribers) or the paywall treatment (free/anon).
   let viewerIsPaid = false;
 
+  // PostHog event helper. No-op unless the lib actually loaded (gated off on
+  // localhost, for admins, and for opted-out devices in the analytics partial).
+  function phCapture(event, props) {
+    try {
+      if (window.posthog && window.posthog.__loaded) window.posthog.capture(event, props || {});
+    } catch (_) {}
+  }
+
   async function runSearch() {
     meta.textContent = 'Searching…';
     table.querySelector('tbody').innerHTML = '';
@@ -134,6 +142,7 @@
     const isFree = !!data.free_tier;
     const metaBits = [`<strong>${items.length.toLocaleString()}</strong> of <strong>${total.toLocaleString()}</strong> results shown`];
     if (hidden > 0 && isFree) {
+      phCapture('paywall_hit', { surface: 'library', reason: 'results_locked', hidden_count: hidden });
       metaBits.push(
         `<span class="lib-paywall-hint">${hidden.toLocaleString()} more behind the paywall &mdash; ` +
         `<a href="/account/" class="lib-paywall-link">subscribe to see all</a>.</span>`

@@ -11,13 +11,26 @@
      array.js loads, so posthog.* is safe to call immediately. -->
 <script>
   !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-  // Skip PostHog entirely for admin sessions. The admin login sets a
-  // readable rc_ph_optout=1 cookie (path=/); when present we never call
-  // init(), so array.js never loads and nothing is captured. Logging out
-  // (or the cookie expiring with the idle window) re-enables capture.
-  if (document.cookie.split('; ').indexOf('rc_ph_optout=1') === -1) {
+  (function () {
+    // Personal opt-out: ?skip-analytics=1 sets a persistent flag for this
+    // browser, =0 clears it. Lets the operator exclude their own devices
+    // regardless of admin login.
+    try {
+      var p = new URLSearchParams(window.location.search).get('skip-analytics');
+      if (p === '1') localStorage.setItem('rc_skip_analytics', '1');
+      else if (p === '0') localStorage.removeItem('rc_skip_analytics');
+    } catch (e) {}
+    // Production host only -- never capture from localhost / dev / staging,
+    // so test traffic doesn't pollute the prod project.
+    var h = window.location.hostname;
+    if (h !== 'risingcompass.net' && h !== 'www.risingcompass.net') return;
+    // Admin session: the admin login sets a readable rc_ph_optout=1 cookie
+    // (path=/). When present we never init, so nothing is captured.
+    if (document.cookie.split('; ').indexOf('rc_ph_optout=1') !== -1) return;
+    // Personal device opt-out (set above / on a prior visit).
+    try { if (localStorage.getItem('rc_skip_analytics') === '1') return; } catch (e) {}
     posthog.init('phc_oNyndpLonvCtB78foyro2icFUa4erjz3eCXegEuMJBGs',{api_host:'https://us.i.posthog.com', defaults:'2026-01-30'})
-  }
+  })();
 </script>
 <!-- /INCLUDE:analytics -->
   <title>Are You the Artist? — The Rising Compass</title>

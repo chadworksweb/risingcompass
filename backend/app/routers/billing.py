@@ -43,6 +43,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import CreditLedger, User
 from app.services import billing as billing_svc
+from app.services import posthog_analytics
 from app.services.feature_flags import is_launch_locked, launch_locked_message
 from app.services.stripe_service import (
     construct_billing_event,
@@ -495,6 +496,17 @@ def _handle_checkout_completed(event_id: str, obj: dict) -> None:
             ref_id=event_id,
             context={"pack_key": pack_key, "session_id": obj.get("id")},
         )
+        amount_total = obj.get("amount_total")
+        posthog_analytics.capture(
+            user.clerk_user_id,
+            "credit_pack_purchased",
+            {
+                "pack_key": pack_key,
+                "credits": credits,
+                "revenue": (amount_total / 100.0) if isinstance(amount_total, int) else None,
+                "currency": (obj.get("currency") or "usd").upper(),
+            },
+        )
 
 
 def _handle_invoice_paid(event_id: str, obj: dict) -> None:
@@ -560,6 +572,27 @@ def _handle_invoice_paid(event_id: str, obj: dict) -> None:
         reset_allowance=True,
     )
 
+    # Server-side revenue event (invoice.paid is the single authority, so this
+    # is the one place subscription revenue is counted). billing_reason splits
+    # the first charge from renewals so they don't double-count in funnels.
+    billing_reason = obj.get("billing_reason")
+    sub_event = (
+        "subscription_started" if billing_reason == "subscription_create"
+        else "subscription_renewed" if billing_reason == "subscription_cycle"
+        else "subscription_payment"
+    )
+    amount_paid = obj.get("amount_paid")
+    posthog_analytics.capture(
+        user.clerk_user_id,
+        sub_event,
+        {
+            "tier": tier.key,
+            "billing_reason": billing_reason,
+            "revenue": (amount_paid / 100.0) if isinstance(amount_paid, int) else None,
+            "currency": (obj.get("currency") or "usd").upper(),
+        },
+    )
+
 
 def _handle_subscription_updated(obj: dict) -> None:
     user = _resolve_user(
@@ -596,6 +629,7 @@ def _handle_subscription_deleted(obj: dict) -> None:
         if not u:
             return
         prior = u.allowance_credits or 0
+        prior_tier = u.subscription_tier
         if prior > 0:
             db.add(CreditLedger(
                 user_id=u.id, delta=-prior, bucket="allowance",
@@ -609,6 +643,11 @@ def _handle_subscription_deleted(obj: dict) -> None:
         u.stripe_subscription_id = None
         u.allowance_credits = 0
         db.commit()
+        posthog_analytics.capture(
+            user.clerk_user_id,
+            "subscription_canceled",
+            {"prior_tier": prior_tier},
+        )
     except Exception:
         db.rollback()
         logger.exception("subscription.deleted handler failed for user %s", user.id)
