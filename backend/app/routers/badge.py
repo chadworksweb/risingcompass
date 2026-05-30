@@ -1,11 +1,16 @@
 """Badge API — public lookup endpoints for embedded Rising Compass badges.
 
-Song lookup: searches compass_songs, library_songs, submitted_songs.
+Song lookup: searches compass_songs, library_songs, submitted_songs and
+returns the FULL per-song record (classification, Ether Art Chart, prose,
+analysis, chart/catalog context) for API consumers, not just the badge
+slice. The legacy badge keys (tier/charge/charge_summary/...) are preserved
+so existing badge embeds keep working.
 Album lookup: returns stored album calibration (computed mean of tracks).
 Album calibrate: computes + stores album calibration from track lookups.
 """
 
 import re
+import json
 import logging
 from datetime import datetime
 from typing import Optional
@@ -64,8 +69,24 @@ def _song_has_pending_flag(
     return db.query(q.exists()).scalar() or False
 
 
+def _parse_json(raw):
+    """Best-effort decode of a JSON-encoded text column (topics, activations,
+    topic_audit). Returns the parsed value, or None when the column is empty
+    or not valid JSON, so a malformed row never 500s a lookup."""
+    if not raw:
+        return None
+    if not isinstance(raw, str):
+        return raw
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+
+
 def _find_calibration(title: str, artist: str, db) -> dict | None:
-    """Search all calibration tables for a match. Returns dict or None."""
+    """Search all calibration tables for a match. Returns the full per-song
+    record (or None). Fields absent on a given table resolve to None via
+    getattr, so the same shape comes back regardless of which table matched."""
     title_lower = title.lower()
     artist_lower = artist.lower()
     title_stripped = re.sub(r"[^\w\s]", "", title_lower)
@@ -110,25 +131,59 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
                 .first()
             )
             song_slug = slug_row[0] if slug_row else None
+            # created_at on compass/library, submitted_at on submitted.
+            created = getattr(row, "created_at", None) or getattr(row, "submitted_at", None)
             return {
+                # --- Identity ---
                 "title": row.title,
                 "artist": row.artist,
+                # Which calibration table this resolved against
+                # (compass | library | submitted).
+                "song_source": source,
+                # Canonical RC URL slug so consumers can deep-link to the
+                # specific song page (risingcompass.net/songs/<slug>) instead
+                # of the RC homepage. Null when no slug row exists yet for this
+                # (source, id) — caller should fall back.
+                "song_slug": song_slug,
+                # --- Classification ---
                 "tier": row.rubric_color,
                 "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
                 "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
                 "charge": row.charge_value,
+                "charge_summary": getattr(row, "charge_summary", None),
+                "confidence": getattr(row, "confidence", None),
                 "contaminated": getattr(row, "contaminated", False) or False,
                 "contamination_note": getattr(row, "contamination_note", None),
-                "charge_summary": getattr(row, "charge_summary", None),
+                "dogma_referenced": getattr(row, "dogma_referenced", False) or False,
+                "dogma_note": getattr(row, "dogma_note", None),
+                "calibration_failed": getattr(row, "calibration_failed", False) or False,
+                "instrumental": getattr(row, "instrumental", None),
                 # True when this song has an open misread/satirical flag that
                 # hasn't been resolved. Consumers can render a "PENDING" stamp
                 # to indicate the score is being contested.
                 "pending": pending,
-                # Canonical RC URL slug so consumers can deep-link the badge
-                # to the specific song page (risingcompass.net/songs/<slug>)
-                # instead of the RC homepage. Null when no slug row exists
-                # yet for this (source, id) — caller should fall back.
-                "song_slug": song_slug,
+                # --- Ether Art Chart ---
+                # deadpan_line: flat literal naming of the song.
+                # topics: taxonomy slugs, dominant-first (decoded to a list).
+                "deadpan_line": getattr(row, "deadpan_line", None),
+                "topics": _parse_json(getattr(row, "topics", None)),
+                "topic_audit": _parse_json(getattr(row, "topic_audit", None)),
+                # --- Prose / analysis ---
+                "effects_prose": getattr(row, "effects_prose", None),
+                "societal_effects_prose": getattr(row, "societal_effects_prose", None),
+                "message_analysis": getattr(row, "message_analysis", None),
+                "expression_analysis": getattr(row, "expression_analysis", None),
+                "intention_analysis": getattr(row, "intention_analysis", None),
+                "activations": _parse_json(getattr(row, "activations", None)),
+                # --- Chart / catalog context (table-specific; None elsewhere) ---
+                "year": getattr(row, "year", None),
+                "decade": getattr(row, "decade", None),
+                "chart_position": getattr(row, "chart_position", None),
+                "chart_position_letter": getattr(row, "chart_position_letter", None),
+                "chart_source": getattr(row, "chart_source", None),
+                "track_number": getattr(row, "track_number", None),
+                "source": getattr(row, "source", None),
+                "calibrated_at": created.isoformat() if created else None,
             }
 
     return None
@@ -153,9 +208,13 @@ def badge_lookup(
     title: str = Query(..., min_length=1),
     artist: str = Query(..., min_length=1),
 ):
-    """Look up a song's Rising Compass calibration for badge display.
+    """Look up a song's full Rising Compass record for badge + data display.
 
-    Returns tier, charge, summary, and hex color. Does not calibrate — lookup only.
+    Returns the complete per-song payload: classification (tier / charge /
+    charge_summary / contamination / dogma / confidence), Ether Art Chart
+    (deadpan_line / topics / topic_audit), prose + analysis (effects_prose /
+    societal_effects_prose / message|expression|intention_analysis /
+    activations), and chart/catalog context. Does not calibrate — lookup only.
     """
     db = SessionLocal()
     try:
