@@ -167,6 +167,18 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     # absent (None). Kept in lockstep with supplied_societal_prose below.
     supplied_societal_generated_at = result.get("societal_prose_generated_at")
     supplied_societal_model = result.get("societal_prose_model")
+    # Write-time FLOOR for terminal-supplied prose. Claude Code wrote this prose
+    # (no server Anthropic call), so there is no generation seal to carry. Stamp
+    # the moment it lands in the DB -- generated_at then means "existed by this
+    # time" (a floor, not a sealed generation) and model 'terminal_supplied'
+    # marks it as such, paralleling migration 075's 'legacy_unknown' proxy. This
+    # keeps the frozen provenance hash recipe unchanged and makes the row
+    # anchorable + visible to the backlog counter; without it the prose writes
+    # with NULL generated_at and is silently un-anchorable. See
+    # RISING-COMPASS-PROSE-PROVENANCE.md and feedback_rc_no_api_in_terminal.
+    if supplied_societal_prose is not None and supplied_societal_generated_at is None:
+        supplied_societal_generated_at = datetime.utcnow()
+        supplied_societal_model = supplied_societal_model or "terminal_supplied"
 
     # Terminal-mode callers may also supply the Ether Art Chart fields
     # (deadpan_line + topics + topic_audit) that the ether_tagger would
