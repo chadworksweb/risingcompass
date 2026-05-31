@@ -16,6 +16,14 @@ services:
       # /songs/<slug> + /artists/<slug> (app/routers/page_ssr.py). Same source
       # the nginx static mount uses, so it updates with the frontend git pull.
       - ./frontend:/app/frontend:ro
+      # Prose provenance anchoring (dark unless PROVENANCE_ENABLED=true): a
+      # write-authenticated clone of the public anchor repo the sweep commits +
+      # pushes hash-only batches into, plus the SSH deploy key it pushes with.
+      # Both are owned by uid 1000 (appuser) on the host; the clone's
+      # core.sshCommand points git at /provenance-key. See
+      # RISING-COMPASS-PROSE-PROVENANCE.md SS5.
+      - /root/rising-compass-provenance:/provenance
+      - /root/.ssh/rcprov_deploy:/provenance-key:ro
     environment:
       - RC_ADMIN_KEY=${RC_ADMIN_KEY:-change-me}
       - RC_API_KEY=${RC_API_KEY:-change-me}
