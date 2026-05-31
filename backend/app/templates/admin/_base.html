@@ -613,26 +613,54 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
   const resultsEl = document.getElementById('cmdkResults');
   if (!trigger || !overlay || !input || !resultsEl) return;
 
-  // Site Admin pages/sections. Keywords widen what matches each label.
-  const PAGES = [
-    { label: 'Dashboard', url: '/api/admin/dashboard', kw: 'home overview' },
-    { label: 'Recalibrate', url: '/api/admin/recalibrate', kw: 'calibration recalc song' },
-    { label: 'Misread Reports', url: '/api/admin/dashboard/misread', kw: 'wrong queue calibration flag' },
-    { label: 'Ether Audits', url: '/api/admin/ether-audits', kw: 'taxonomy topics tags' },
-    { label: 'Backfill', url: '/api/admin/backfill', kw: 'historical billboard import console' },
-    { label: 'V1 Test', url: '/api/admin/dashboard/v1-test', kw: 'frozen tenets' },
-    { label: 'Users', url: '/api/admin/dashboard/users', kw: 'accounts community tier handle email' },
-    { label: 'Moderation', url: '/api/admin/dashboard/lobby-mod', kw: 'comments lobby reports bans' },
-    { label: 'Motions', url: '/api/admin/dashboard/motions', kw: 'deliberation amendments proposals chamber' },
-    { label: 'Artist Verified', url: '/api/admin/dashboard/artist-verified', kw: 'verification claims' },
-    { label: 'LC Submissions', url: '/api/admin/dashboard/submissions', kw: 'lyrical charger songs' },
-    { label: 'LC Activity', url: '/api/admin/dashboard/lc-activity', kw: 'lyrical charger albums events' },
-    { label: 'LC Status', url: '/api/admin/dashboard/lc-status', kw: 'lyrical charger kill switch disabled' },
-    { label: 'Alerts', url: '/api/admin/dashboard/alerts', kw: 'email notifications prefs provenance' },
-    { label: 'Inquiries', url: '/api/admin/dashboard/inquiries', kw: 'contact form general' },
-    { label: 'Database', url: '/api/admin/dashboard/db', kw: 'db explorer sql tables rows' },
-    { label: 'Claude Usage', url: '/api/admin/dashboard/claude-usage', kw: 'api cost tokens anthropic meter' },
-    { label: 'Prose Provenance', url: '/api/admin/dashboard/provenance', kw: 'anchor bitcoin opentimestamps hash sealed integrity' },
+  // Navigation index: g='page' = top-level admin sections; g='feature' =
+  // sub-areas, DB tables, headings, and functions. Keywords widen matches.
+  const NAV = [
+    // --- Pages (sections) ---
+    { g: 'page', label: 'Dashboard', url: '/api/admin/dashboard', kw: 'home overview' },
+    { g: 'page', label: 'Recalibrate', url: '/api/admin/recalibrate', kw: 'calibration recalc song' },
+    { g: 'page', label: 'Misread Reports', url: '/api/admin/dashboard/misread', kw: 'wrong queue calibration flag' },
+    { g: 'page', label: 'Ether Audits', url: '/api/admin/ether-audits', kw: 'taxonomy topics tags' },
+    { g: 'page', label: 'Backfill', url: '/api/admin/backfill', kw: 'historical billboard import console year' },
+    { g: 'page', label: 'V1 Test', url: '/api/admin/dashboard/v1-test', kw: 'frozen tenets' },
+    { g: 'page', label: 'Users', url: '/api/admin/dashboard/users', kw: 'accounts community tier handle email' },
+    { g: 'page', label: 'Moderation', url: '/api/admin/dashboard/lobby-mod', kw: 'comments lobby reports bans' },
+    { g: 'page', label: 'Motions', url: '/api/admin/dashboard/motions', kw: 'deliberation amendments proposals chamber' },
+    { g: 'page', label: 'Artist Verified', url: '/api/admin/dashboard/artist-verified', kw: 'verification claims' },
+    { g: 'page', label: 'LC Submissions', url: '/api/admin/dashboard/submissions', kw: 'lyrical charger songs' },
+    { g: 'page', label: 'LC Activity', url: '/api/admin/dashboard/lc-activity', kw: 'lyrical charger albums events' },
+    { g: 'page', label: 'LC Status', url: '/api/admin/dashboard/lc-status', kw: 'lyrical charger kill switch disabled' },
+    { g: 'page', label: 'Alerts', url: '/api/admin/dashboard/alerts', kw: 'email notifications prefs provenance' },
+    { g: 'page', label: 'Inquiries', url: '/api/admin/dashboard/inquiries', kw: 'contact form general' },
+    { g: 'page', label: 'Database', url: '/api/admin/dashboard/db', kw: 'db explorer sql tables rows' },
+    { g: 'page', label: 'Claude Usage', url: '/api/admin/dashboard/claude-usage', kw: 'api cost tokens anthropic meter' },
+    { g: 'page', label: 'Prose Provenance', url: '/api/admin/dashboard/provenance', kw: 'anchor bitcoin opentimestamps hash sealed integrity' },
+    { g: 'page', label: 'API Monitor', url: '/api/admin/dashboard/api-monitor', kw: 'api clients keys requests rate limit' },
+    // --- Features / functions / actions ---
+    { g: 'feature', label: 'Recalibrate a song', url: '/api/admin/recalibrate', kw: 'fix re-grade rubric override' },
+    { g: 'feature', label: 'Backfill a year', url: '/api/admin/backfill', kw: 'historical billboard chart import' },
+    { g: 'feature', label: 'Merge artists', url: '/api/admin/dashboard/db?table=artists', kw: 'dedupe combine rename artist' },
+    { g: 'feature', label: 'Reset song calibration', url: '/api/admin/dashboard/db?table=compass_songs', kw: 'wipe re-grade clear' },
+    { g: 'feature', label: 'Manage alerts / notifications', url: '/api/admin/dashboard/alerts', kw: 'email toggle prefs' },
+    { g: 'feature', label: 'Comments', url: '/api/admin/dashboard/lobby-mod', kw: 'lobby moderation replies reports' },
+    { g: 'feature', label: 'Bans', url: '/api/admin/dashboard/lobby-mod', kw: 'banned devices block moderation' },
+    { g: 'feature', label: 'Claude API cost / tokens', url: '/api/admin/dashboard/claude-usage', kw: 'spend usage anthropic meter' },
+    // --- Provenance sub-areas / headings ---
+    { g: 'feature', label: 'Anchoring pipeline', url: '/api/admin/dashboard/provenance', kw: 'provenance funnel sealed anchored on-chain' },
+    { g: 'feature', label: 'Provenance batches', url: '/api/admin/dashboard/provenance', kw: 'commits ots proof github bitcoin block' },
+    { g: 'feature', label: 'Integrity re-verify', url: '/api/admin/dashboard/provenance', kw: 'provenance mismatch ots verify tamper' },
+    { g: 'feature', label: 'Verify a prose value', url: '/api/admin/dashboard/provenance', kw: 'provenance hash recipe sha256 audit' },
+    // --- DB explorer tables ---
+    { g: 'feature', label: 'Compass songs (DB)', url: '/api/admin/dashboard/db?table=compass_songs', kw: 'table chart calibrated' },
+    { g: 'feature', label: 'Library songs (DB)', url: '/api/admin/dashboard/db?table=library_songs', kw: 'table catalog' },
+    { g: 'feature', label: 'Submitted songs (DB)', url: '/api/admin/dashboard/db?table=submitted_songs', kw: 'table lyrical charger' },
+    { g: 'feature', label: 'Stream songs (DB)', url: '/api/admin/dashboard/db?table=stream_songs', kw: 'table' },
+    { g: 'feature', label: 'Artists (DB)', url: '/api/admin/dashboard/db?table=artists', kw: 'table' },
+    { g: 'feature', label: 'Releases (DB)', url: '/api/admin/dashboard/db?table=releases', kw: 'table albums singles' },
+    { g: 'feature', label: 'Calibration runs (DB)', url: '/api/admin/dashboard/db?table=calibration_runs', kw: 'table corpus log' },
+    { g: 'feature', label: 'Song recalibrations (DB)', url: '/api/admin/dashboard/db?table=song_recalibrations', kw: 'table' },
+    { g: 'feature', label: 'Trash (DB)', url: '/api/admin/dashboard/db?table=trash', kw: 'table deleted' },
+    { g: 'feature', label: 'All songs (DB)', url: '/api/admin/dashboard/db?table=all_songs', kw: 'table union everything' },
   ];
 
   let flat = [];   // selectable items in render order
@@ -649,16 +677,19 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
   function close() { overlay.classList.remove('open'); }
   function isOpen() { return overlay.classList.contains('open'); }
 
-  function matchPages(q) {
-    if (!q) return PAGES.slice(0, 8);
+  function matchNav(q) {
+    if (!q) return NAV.filter(n => n.g === 'page').slice(0, 8);  // top sections on open
     const t = q.toLowerCase();
-    return PAGES.filter(p => (p.label + ' ' + p.kw).toLowerCase().includes(t)).slice(0, 8);
+    return NAV.filter(n => (n.label + ' ' + n.kw).toLowerCase().includes(t)).slice(0, 14);
   }
 
   function render(q, recordGroups) {
     const groups = [];
-    const pages = matchPages(q);
+    const nav = matchNav(q);
+    const pages = nav.filter(n => n.g === 'page');
+    const features = nav.filter(n => n.g === 'feature');
     if (pages.length) groups.push({ type: 'Pages', items: pages.map(p => ({ label: p.label, sublabel: '', url: p.url })) });
+    if (features.length) groups.push({ type: 'Features', items: features.map(p => ({ label: p.label, sublabel: '', url: p.url })) });
     (recordGroups || []).forEach(g => { if (g.items && g.items.length) groups.push(g); });
 
     flat = [];

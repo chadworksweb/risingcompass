@@ -16,7 +16,9 @@ from app.auth import (
 )
 from app.database import get_db
 from app.config import settings
-from app.models import CompassSong, LibrarySong, SubmittedSong, Artist
+from app.models import (
+    CompassSong, LibrarySong, SubmittedSong, Artist, User, GeneralInquiry, Motion,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -118,6 +120,66 @@ def admin_search(q: str = "", db: Session = Depends(get_db)):
                 "url": f"/api/admin/dashboard/db?table=artists&q={quote(a.name)}",
             }
             for a in artists
+        ]})
+
+    # Community users by claimed handle (NULL handles = onboarding incomplete,
+    # so they never match). Lands on the Users section.
+    users = (
+        db.query(User)
+        .filter(User.handle.isnot(None))
+        .filter(User.handle.ilike(like))
+        .order_by(User.handle.asc())
+        .limit(6)
+        .all()
+    )
+    if users:
+        groups.append({"type": "Users", "items": [
+            {
+                "label": f"@{u.handle}",
+                "sublabel": u.tier,
+                "url": "/api/admin/dashboard/users",
+            }
+            for u in users
+        ]})
+
+    # General inquiries by who/what. Lands on the Inquiries queue.
+    inquiries = (
+        db.query(GeneralInquiry)
+        .filter(or_(
+            GeneralInquiry.subject.ilike(like),
+            GeneralInquiry.name.ilike(like),
+            GeneralInquiry.email.ilike(like),
+        ))
+        .order_by(GeneralInquiry.id.desc())
+        .limit(6)
+        .all()
+    )
+    if inquiries:
+        groups.append({"type": "Inquiries", "items": [
+            {
+                "label": (i.subject or "(no subject)") + (f" -- {i.name}" if i.name else ""),
+                "sublabel": f"{i.topic or 'general'} . {i.status}",
+                "url": "/api/admin/dashboard/inquiries",
+            }
+            for i in inquiries
+        ]})
+
+    # Motions by their one-line claim. Lands on the Motions section.
+    motions = (
+        db.query(Motion)
+        .filter(Motion.claim.ilike(like))
+        .order_by(Motion.id.desc())
+        .limit(6)
+        .all()
+    )
+    if motions:
+        groups.append({"type": "Motions", "items": [
+            {
+                "label": m.claim,
+                "sublabel": f"{m.motion_type} . {m.status}",
+                "url": "/api/admin/dashboard/motions",
+            }
+            for m in motions
         ]})
 
     return {"groups": groups}
