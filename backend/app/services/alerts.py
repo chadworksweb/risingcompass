@@ -304,6 +304,39 @@ def emit_provenance_health(*, breaches: list[str], health: dict) -> None:
     )
 
 
+def emit_provenance_integrity(*, mismatches: list[str], health: dict) -> None:
+    """Moderation alert -- the integrity re-verify cron found one or more
+    `complete` proofs whose published hash NO LONGER matches its on-chain
+    OpenTimestamp. That means the public batch file was corrupted or tampered:
+    the highest-severity provenance event. Caller invokes this ONLY on a
+    mismatch, so it is silent otherwise."""
+    site = settings.site_url.rstrip("/")
+    items = "".join(f"<li style=\"margin:0 0 4px;\"><code>{escape(p)}</code></li>" for p in mismatches)
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 12px;font-size:14px;color:#cc3333;">
+        <strong>Provenance integrity failure.</strong> {len(mismatches)} batch
+        proof(s) no longer match their on-chain OpenTimestamp -- the public log
+        was corrupted or tampered. This breaks the tamper-evidence chain for the
+        prose anchored in these batches and needs investigation now.
+      </p>
+      <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;color:#333;">{items}</ul>
+      <p style="margin:0 0 8px;font-size:13px;color:#555;">
+        Mismatches by OTS status: {escape(", ".join(f"{k}: {v}" for k, v in sorted((health.get('counts') or {}).items())) or 'none')}.
+      </p>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard/provenance" style="color:#008f72;">Provenance dashboard</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="moderation",
+        alert_key="provenance_integrity",
+        subject=f"Provenance INTEGRITY FAILURE: {len(mismatches)} proof(s)",
+        html_body=html,
+    )
+
+
 def emit_prompt_cache_warranted(*, stats: dict, window_days: int) -> None:
     """One-time nudge: calibrator API traffic is now dense enough that turning
     on prompt caching would save money. See app/services/cache_advisor.py for

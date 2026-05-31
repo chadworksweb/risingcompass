@@ -140,6 +140,14 @@ class Settings(BaseSettings):
     # Service token for the provenance cron endpoints (X-Provenance-Cron-Key).
     # Distinct from the other cron lanes so a leak stays scoped to provenance.
     rc_provenance_cron_key: str = ""
+    # Integrity re-verify cron: how many distinct batch proofs to `ots verify`
+    # per run (round-robin, least-recently-verified first). Catches a complete
+    # proof that has since been corrupted/tampered in the public repo.
+    provenance_reverify_sample: int = 25
+    # Dead-man's-switch: the sweep cron pings this external uptime URL on a
+    # healthy run (and {url}/fail on an errored run, healthchecks.io-style), so
+    # a silently-dead cron pages without any RC code. Empty = dark / no ping.
+    provenance_heartbeat_url: str = ""
 
     # DO Spaces backup destination
     do_spaces_key: str = ""

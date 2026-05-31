@@ -473,6 +473,8 @@ class ProseProvenanceAnchor(Base):
     ots_proof_path = Column(Text)  # path to the batch .ots proof in the provenance repo
     ots_bitcoin_block = Column(Integer)  # Bitcoin block height once confirmed
     ots_block_time = Column(DateTime)  # block timestamp once confirmed (optional)
+    ots_last_verified_at = Column(DateTime)  # when the integrity cron last ran `ots verify` (migration 077)
+    ots_verify_status = Column(Text)  # last re-verify result: ok|mismatch|inconclusive (migration 077)
 
 
 class Artist(Base):

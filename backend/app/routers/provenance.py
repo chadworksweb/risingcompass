@@ -1,10 +1,13 @@
 """Cron + admin endpoints for societal-prose provenance anchoring.
 
-  POST /api/admin/provenance/sweep    -> anchor newly-sealed prose: append
-                                         hash-only records to the public repo,
-                                         OpenTimestamp the batch, commit + push.
-  POST /api/admin/provenance/upgrade  -> confirm pending OTS proofs on Bitcoin.
-  GET  /api/admin/provenance/status   -> anchor counts by ots_status (admin UI).
+  POST /api/admin/provenance/sweep     -> anchor newly-sealed prose: append
+                                          hash-only records to the public repo,
+                                          OpenTimestamp the batch, commit + push.
+                                          Pings the dead-man's-switch on finish.
+  POST /api/admin/provenance/upgrade   -> confirm pending OTS proofs on Bitcoin.
+  POST /api/admin/provenance/reverify  -> re-verify a sample of complete proofs
+                                          against Bitcoin; alert on a mismatch.
+  GET  /api/admin/provenance/status    -> anchor counts by ots_status (admin UI).
 
 The two mutating endpoints are service-keyed (X-Provenance-Cron-Key), a
 separate cron lane from backups / readings so a leak stays scoped. All three
@@ -25,12 +28,31 @@ router = APIRouter(prefix="/api/admin/provenance", tags=["provenance"])
 
 @router.post("/sweep", dependencies=[Depends(verify_provenance_cron_key)])
 def sweep(db: Session = Depends(get_db)):
-    return provenance_anchor.sweep(db)
+    res = provenance_anchor.sweep(db)
+    # Dead-man's-switch: ping the external uptime monitor so a silently-dead
+    # sweep cron pages without any RC code. Skip when disabled (the lane is
+    # intentionally dark); ok on a clean run, fail otherwise. No-op if no URL.
+    if res.get("status") != "disabled":
+        provenance_anchor.heartbeat_ping(ok=res.get("status") in ("swept", "nothing_new"))
+    return res
 
 
 @router.post("/upgrade", dependencies=[Depends(verify_provenance_cron_key)])
 def upgrade(db: Session = Depends(get_db)):
     return provenance_anchor.upgrade(db)
+
+
+@router.post("/reverify", dependencies=[Depends(verify_provenance_cron_key)])
+def reverify(db: Session = Depends(get_db)):
+    """Cron lane: re-prove a rolling sample of complete proofs against Bitcoin.
+    Emails the admin (the opt-in 'provenance_integrity' moderation alert) ONLY
+    when a proof no longer matches its on-chain timestamp -- the corruption /
+    tampering signal. Returns the run summary so the cron is self-documenting."""
+    res = provenance_anchor.reverify(db)
+    if res.get("mismatches"):
+        from app.services.alerts import emit_provenance_integrity
+        emit_provenance_integrity(mismatches=res["mismatches"], health=res)
+    return res
 
 
 @router.post("/health-check", dependencies=[Depends(verify_provenance_cron_key)])

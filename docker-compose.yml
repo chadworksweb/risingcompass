@@ -31,6 +31,10 @@ services:
       - PROVENANCE_ENABLED=${PROVENANCE_ENABLED:-false}
       - PROVENANCE_REPO_PATH=${PROVENANCE_REPO_PATH}
       - PROVENANCE_GIT_AUTHOR=${PROVENANCE_GIT_AUTHOR:-rc-provenance <provenance@risingcompass.net>}
+      # Integrity re-verify cron: proofs to `ots verify` per run (round-robin).
+      - PROVENANCE_REVERIFY_SAMPLE=${PROVENANCE_REVERIFY_SAMPLE:-25}
+      # Dead-man's-switch ping URL for the sweep cron (empty = dark / no ping).
+      - PROVENANCE_HEARTBEAT_URL=${PROVENANCE_HEARTBEAT_URL}
       - ADMIN_LOGIN_URL_TOKEN=${ADMIN_LOGIN_URL_TOKEN}
       # Cookie Domain for the admin session so one login covers both the root
       # (Site Admin) and api. (API Admin) hosts -- same-site subdomains.

@@ -38,6 +38,7 @@ import re
 import subprocess
 from datetime import datetime, timedelta
 
+import httpx
 from sqlalchemy import func
 
 from app.config import settings
@@ -56,6 +57,14 @@ _PROSE_MODELS = [
 ]
 
 _BITCOIN_ATTEST_RE = re.compile(r"BitcoinBlockHeaderAttestation\((\d+)\)")
+# `ots verify` output classification. CONSERVATIVE on purpose: only an
+# unambiguous content-mismatch is treated as tampering (-> alarm). A
+# not-yet-confirmed / calendar-unreachable / missing-CLI run is 'inconclusive'
+# and never alarms -- it just gets retried next round. Exact strings are the
+# opentimestamps-client phrasings and should be confirmed against real CLI
+# output during first-run validation (see RISING-COMPASS-PROSE-PROVENANCE.md).
+_OTS_VERIFY_SUCCESS_RE = re.compile(r"\bSuccess!", re.I)
+_OTS_VERIFY_MISMATCH_RE = re.compile(r"does not match|hash mismatch|failed to verify", re.I)
 
 # Health-check breach thresholds (see evaluate_breaches). Tunable; chosen so a
 # single calibration landing between a sweep and the daily health check does not
@@ -145,6 +154,13 @@ def _health_raw(db) -> dict:
     )
     last_commit = db.query(func.max(ProseProvenanceAnchor.github_committed_at)).scalar()
     last_anchor = db.query(func.max(ProseProvenanceAnchor.sealed_at)).scalar()
+    integrity_mismatches = (
+        db.query(func.count())
+        .select_from(ProseProvenanceAnchor)
+        .filter(ProseProvenanceAnchor.ots_verify_status == "mismatch")
+        .scalar()
+    ) or 0
+    last_reverify = db.query(func.max(ProseProvenanceAnchor.ots_last_verified_at)).scalar()
     repo = settings.provenance_repo_path
     repo_ok = _repo_ready(repo)
     return {
@@ -156,13 +172,15 @@ def _health_raw(db) -> dict:
         "oldest_unconfirmed_at": oldest_unconfirmed,
         "last_commit_at": last_commit,
         "last_anchor_at": last_anchor,
+        "integrity_mismatches": integrity_mismatches,
+        "last_reverify_at": last_reverify,
     }
 
 
 def health(db) -> dict:
     """JSON-serializable health payload for the admin status endpoint/page."""
     h = _health_raw(db)
-    for k in ("oldest_unconfirmed_at", "last_commit_at", "last_anchor_at"):
+    for k in ("oldest_unconfirmed_at", "last_commit_at", "last_anchor_at", "last_reverify_at"):
         h[k] = h[k].isoformat() if h[k] else None
     return h
 
@@ -175,6 +193,11 @@ def evaluate_breaches(db) -> list[str]:
         return []
     now = datetime.utcnow()
     breaches: list[str] = []
+    if h["integrity_mismatches"]:
+        breaches.append(
+            f"{h['integrity_mismatches']} anchor(s) FAILED ots re-verification "
+            "(published hash no longer matches its on-chain proof -- possible "
+            "corruption or tampering)")
     if not h["repo_ok"]:
         breaches.append("enabled but the anchor repo is unavailable")
     if h["git_ahead"]:
@@ -259,6 +282,46 @@ def _ots_block(abs_proof: str) -> int | None:
         return None
     m = _BITCOIN_ATTEST_RE.search(info.stdout or "")
     return int(m.group(1)) if m else None
+
+
+def _ots_verify(abs_proof: str) -> str:
+    """Re-verify a confirmed proof against its file + Bitcoin. Returns:
+      'ok'           -- the file still matches the on-chain timestamp.
+      'mismatch'     -- the file no longer matches (corruption/tampering). ALARM.
+      'inconclusive' -- not yet confirmable, calendar/network error, missing
+                        original file, or the `ots` CLI is unavailable. NO alarm.
+    Fail-soft: any error returns 'inconclusive', never raises. `ots verify` needs
+    the original batch file present alongside the .ots, which the sweep commits."""
+    try:
+        proc = _run([settings.provenance_ots_bin, "verify", abs_proof],
+                    cwd=os.path.dirname(abs_proof))
+    except OSError:
+        logger.warning("ots verify: CLI not runnable (%r)", settings.provenance_ots_bin)
+        return "inconclusive"
+    out = f"{proc.stdout or ''}\n{proc.stderr or ''}"
+    if _OTS_VERIFY_MISMATCH_RE.search(out):
+        logger.error("ots verify MISMATCH for %s", os.path.basename(abs_proof))
+        return "mismatch"
+    if proc.returncode == 0 and _OTS_VERIFY_SUCCESS_RE.search(out):
+        return "ok"
+    return "inconclusive"
+
+
+def heartbeat_ping(*, ok: bool = True) -> bool:
+    """Dead-man's-switch: ping the external uptime monitor so a silently-dead
+    sweep cron pages without any RC code. Pings the configured URL on a healthy
+    run, and {url}/fail on a failed one (healthchecks.io convention; harmless
+    elsewhere). No-op (returns False) when no URL is configured. Fail-soft."""
+    url = settings.provenance_heartbeat_url
+    if not url:
+        return False
+    target = url if ok else url.rstrip("/") + "/fail"
+    try:
+        resp = httpx.get(target, timeout=10.0)
+    except httpx.HTTPError:
+        logger.warning("provenance heartbeat ping failed (ok=%s)", ok)
+        return False
+    return 200 <= resp.status_code < 300
 
 
 def sweep(db, *, limit: int = 2000) -> dict:
@@ -409,3 +472,63 @@ def upgrade(db) -> dict:
     db.commit()
     return {"status": "upgraded", "confirmed_batches": len(confirmed_paths),
             **status_counts(db)}
+
+
+def reverify(db, *, sample: int | None = None) -> dict:
+    """Re-prove a rolling sample of `complete` proofs against Bitcoin to catch a
+    proof that has since been corrupted/tampered in the public repo. Round-robins
+    the least-recently-verified proofs first (NULL = never verified sorts first),
+    runs `ots verify` per distinct batch proof, and records the result on every
+    anchor sharing that proof. A 'mismatch' is the tampering signal -- surfaced
+    in the return value (caller emits the provenance_integrity alert) and in the
+    health breach list. Fail-soft and dark-safe."""
+    if not settings.provenance_enabled:
+        return {"status": "disabled"}
+    repo = settings.provenance_repo_path
+    if not _repo_ready(repo):
+        return {"status": "misconfigured", "detail": "provenance_repo_path is not a git clone"}
+
+    n = sample if sample is not None else settings.provenance_reverify_sample
+    # Distinct complete proofs, least-recently-verified (NULLs) first.
+    proof_paths = [
+        row[0] for row in (
+            db.query(ProseProvenanceAnchor.ots_proof_path)
+            .filter(ProseProvenanceAnchor.ots_status == "complete")
+            .filter(ProseProvenanceAnchor.ots_proof_path.isnot(None))
+            .group_by(ProseProvenanceAnchor.ots_proof_path)
+            .order_by(func.min(ProseProvenanceAnchor.ots_last_verified_at).asc().nullsfirst())
+            .limit(n)
+            .all()
+        )
+    ]
+    if not proof_paths:
+        return {"status": "nothing_to_verify", **status_counts(db)}
+
+    now = datetime.utcnow()
+    checked = 0
+    mismatches: list[str] = []
+    inconclusive = 0
+    for proof_rel in proof_paths:
+        proof_abs = os.path.join(repo, proof_rel)
+        result = "inconclusive" if not os.path.isfile(proof_abs) else _ots_verify(proof_abs)
+        anchors = (
+            db.query(ProseProvenanceAnchor)
+            .filter(ProseProvenanceAnchor.ots_proof_path == proof_rel)
+            .filter(ProseProvenanceAnchor.ots_status == "complete")
+            .all()
+        )
+        for a in anchors:
+            a.ots_last_verified_at = now
+            a.ots_verify_status = result
+        checked += 1
+        if result == "mismatch":
+            mismatches.append(proof_rel)
+        elif result == "inconclusive":
+            inconclusive += 1
+    db.commit()
+
+    return {
+        "status": "reverified", "proofs_checked": checked,
+        "mismatches": mismatches, "mismatch_count": len(mismatches),
+        "inconclusive": inconclusive, **status_counts(db),
+    }
