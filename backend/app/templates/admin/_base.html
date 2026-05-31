@@ -347,6 +347,26 @@
   .db-merge-banner .db-merge-cancel { background: transparent; color: var(--text-dim); border: 1px solid var(--border); padding: 0.25rem 0.6rem; font-size: 0.72rem; }
   .db-merge-banner .db-merge-cancel:hover { color: var(--text); border-color: var(--text-dim); }
   @keyframes dbResetPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 58, 30, 0.5); } 50% { box-shadow: 0 0 0 4px rgba(192, 58, 30, 0); } }
+  /* ---- Global admin search (command palette) ---- */
+  .cmdk-trigger { display: flex; align-items: center; gap: 0.5rem; width: 100%; max-width: 420px; margin: 0 0 1.1rem; padding: 0.42rem 0.7rem; background: #fff; border: 1px solid var(--border); border-radius: 6px; color: var(--text-hint); font-size: 0.83rem; cursor: text; }
+  .cmdk-trigger:hover { border-color: var(--text-dim); }
+  .cmdk-trigger svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .cmdk-trigger .kbd { margin-left: auto; font-size: 0.7rem; color: var(--text-hint); border: 1px solid var(--border-soft); border-radius: 3px; padding: 0 0.32rem; background: var(--panel); }
+  .cmdk-overlay { position: fixed; inset: 0; background: rgba(20, 20, 30, 0.35); z-index: 2000; display: none; align-items: flex-start; justify-content: center; }
+  .cmdk-overlay.open { display: flex; }
+  .cmdk-box { margin-top: 10vh; width: min(560px, 92vw); background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 16px 48px rgba(0,0,0,0.22); overflow: hidden; }
+  .cmdk-input-wrap { display: flex; align-items: center; gap: 0.55rem; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--border-soft); }
+  .cmdk-input-wrap svg { width: 16px; height: 16px; color: var(--text-hint); flex-shrink: 0; }
+  .cmdk-input { flex: 1; border: none !important; outline: none; font-size: 0.95rem; padding: 0; box-shadow: none !important; }
+  .cmdk-input:focus { box-shadow: none !important; border: none !important; }
+  .cmdk-results { max-height: 56vh; overflow-y: auto; padding: 0.3rem 0; }
+  .cmdk-group { padding: 0.45rem 0.9rem 0.2rem; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-hint); }
+  .cmdk-item { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.45rem 0.9rem; cursor: pointer; }
+  .cmdk-item .lbl { font-size: 0.88rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmdk-item .sub { font-size: 0.74rem; color: var(--text-hint); margin-left: auto; white-space: nowrap; flex-shrink: 0; font-family: monospace; }
+  .cmdk-item.sel { background: rgba(0, 143, 114, 0.10); }
+  .cmdk-empty { padding: 1rem 0.9rem; color: var(--text-hint); font-size: 0.85rem; }
+  .cmdk-foot { padding: 0.4rem 0.9rem; border-top: 1px solid var(--border-soft); font-size: 0.7rem; color: var(--text-hint); display: flex; gap: 1.2rem; }
   .hidden { display: none !important; }
   /* Admin panel hidden until logged in */
   .admin-panel { display: none; }
@@ -441,6 +461,14 @@
   </aside>
 
   <main class="admin-main">
+    {# Global admin search trigger -- opens the command palette (Ctrl/Cmd+K or
+       '/'). In-flow at the top of every admin page so it never overlaps the
+       fixed corner buttons. #}
+    <div class="cmdk-trigger" id="cmdkTrigger" role="button" tabindex="0" aria-label="Search admin (Control K)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="14.5" y2="14.5" stroke-linecap="round"/></svg>
+      <span>Search admin...</span>
+      <span class="kbd">Ctrl K</span>
+    </div>
     {# Central source of truth for the H1 on each admin section. Add an
        entry here when wiring a new dashboard page so the heading stays
        in sync with the sidebar label. Falls back to a generic title if
@@ -474,6 +502,17 @@
 
 </div><!-- /.admin-shell -->
 </div><!-- /.admin-panel -->
+
+<div class="cmdk-overlay" id="cmdkOverlay">
+  <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="Admin search">
+    <div class="cmdk-input-wrap">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="14.5" y2="14.5" stroke-linecap="round"/></svg>
+      <input class="cmdk-input" id="cmdkInput" type="text" placeholder="Search pages, songs, artists..." autocomplete="off" spellcheck="false">
+    </div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>&uarr;&darr; navigate</span><span>&crarr; open</span><span>esc close</span></div>
+  </div>
+</div>
 
 <script>
 // --- Auth (shared across all admin pages) ---
@@ -561,6 +600,145 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
 
   mq.addEventListener('change', apply);
   apply();
+})();
+
+// --- Global admin search (command palette) ---
+// Ctrl/Cmd+K, '/', or clicking the top search box opens an overlay that finds
+// admin PAGES (instant, client-side registry) and RECORDS (songs/artists, via
+// /api/admin/search). Arrow keys move the selection, Enter opens it, Esc closes.
+(function cmdk() {
+  const trigger = document.getElementById('cmdkTrigger');
+  const overlay = document.getElementById('cmdkOverlay');
+  const input = document.getElementById('cmdkInput');
+  const resultsEl = document.getElementById('cmdkResults');
+  if (!trigger || !overlay || !input || !resultsEl) return;
+
+  // Site Admin pages/sections. Keywords widen what matches each label.
+  const PAGES = [
+    { label: 'Dashboard', url: '/api/admin/dashboard', kw: 'home overview' },
+    { label: 'Recalibrate', url: '/api/admin/recalibrate', kw: 'calibration recalc song' },
+    { label: 'Misread Reports', url: '/api/admin/dashboard/misread', kw: 'wrong queue calibration flag' },
+    { label: 'Ether Audits', url: '/api/admin/ether-audits', kw: 'taxonomy topics tags' },
+    { label: 'Backfill', url: '/api/admin/backfill', kw: 'historical billboard import console' },
+    { label: 'V1 Test', url: '/api/admin/dashboard/v1-test', kw: 'frozen tenets' },
+    { label: 'Users', url: '/api/admin/dashboard/users', kw: 'accounts community tier handle email' },
+    { label: 'Moderation', url: '/api/admin/dashboard/lobby-mod', kw: 'comments lobby reports bans' },
+    { label: 'Motions', url: '/api/admin/dashboard/motions', kw: 'deliberation amendments proposals chamber' },
+    { label: 'Artist Verified', url: '/api/admin/dashboard/artist-verified', kw: 'verification claims' },
+    { label: 'LC Submissions', url: '/api/admin/dashboard/submissions', kw: 'lyrical charger songs' },
+    { label: 'LC Activity', url: '/api/admin/dashboard/lc-activity', kw: 'lyrical charger albums events' },
+    { label: 'LC Status', url: '/api/admin/dashboard/lc-status', kw: 'lyrical charger kill switch disabled' },
+    { label: 'Alerts', url: '/api/admin/dashboard/alerts', kw: 'email notifications prefs provenance' },
+    { label: 'Inquiries', url: '/api/admin/dashboard/inquiries', kw: 'contact form general' },
+    { label: 'Database', url: '/api/admin/dashboard/db', kw: 'db explorer sql tables rows' },
+    { label: 'Claude Usage', url: '/api/admin/dashboard/claude-usage', kw: 'api cost tokens anthropic meter' },
+    { label: 'Prose Provenance', url: '/api/admin/dashboard/provenance', kw: 'anchor bitcoin opentimestamps hash sealed integrity' },
+  ];
+
+  let flat = [];   // selectable items in render order
+  let sel = 0;
+  let reqId = 0;
+  let debounceT = null;
+
+  function open() {
+    overlay.classList.add('open');
+    input.value = '';
+    render('', null);
+    setTimeout(() => input.focus(), 0);
+  }
+  function close() { overlay.classList.remove('open'); }
+  function isOpen() { return overlay.classList.contains('open'); }
+
+  function matchPages(q) {
+    if (!q) return PAGES.slice(0, 8);
+    const t = q.toLowerCase();
+    return PAGES.filter(p => (p.label + ' ' + p.kw).toLowerCase().includes(t)).slice(0, 8);
+  }
+
+  function render(q, recordGroups) {
+    const groups = [];
+    const pages = matchPages(q);
+    if (pages.length) groups.push({ type: 'Pages', items: pages.map(p => ({ label: p.label, sublabel: '', url: p.url })) });
+    (recordGroups || []).forEach(g => { if (g.items && g.items.length) groups.push(g); });
+
+    flat = [];
+    let html = '';
+    if (!groups.length) {
+      html = `<div class="cmdk-empty">${q.length < 2 ? 'Type to search pages, songs, artists.' : 'No matches.'}</div>`;
+    } else {
+      groups.forEach(g => {
+        html += `<div class="cmdk-group">${escHtml(g.type)}</div>`;
+        g.items.forEach(it => {
+          const idx = flat.length;
+          flat.push(it);
+          html += `<div class="cmdk-item" data-idx="${idx}">` +
+            `<span class="lbl">${escHtml(it.label)}</span>` +
+            (it.sublabel ? `<span class="sub">${escHtml(it.sublabel)}</span>` : '') +
+            `</div>`;
+        });
+      });
+    }
+    resultsEl.innerHTML = html;
+    sel = 0;
+    paintSel();
+  }
+
+  function paintSel() {
+    const items = resultsEl.querySelectorAll('.cmdk-item');
+    items.forEach((el, i) => el.classList.toggle('sel', i === sel));
+    if (items[sel]) items[sel].scrollIntoView({ block: 'nearest' });
+  }
+
+  function go(idx) {
+    const it = flat[idx];
+    if (it && it.url) window.location.href = it.url;
+  }
+
+  async function fetchRecords(q) {
+    const my = ++reqId;
+    try {
+      const resp = await adminFetch('/api/admin/search?q=' + encodeURIComponent(q));
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (my !== reqId || !isOpen()) return;  // stale or closed
+      render(q, data.groups || []);
+    } catch (e) { /* ignore -- pages still work */ }
+  }
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    render(q, null);                 // instant page matches
+    clearTimeout(debounceT);
+    if (q.length >= 2) debounceT = setTimeout(() => fetchRecords(q), 180);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, flat.length - 1); paintSel(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); paintSel(); }
+    else if (e.key === 'Enter') { e.preventDefault(); go(sel); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
+
+  resultsEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.cmdk-item');
+    if (item) go(parseInt(item.dataset.idx, 10));
+  });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  trigger.addEventListener('click', open);
+  trigger.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault(); isOpen() ? close() : open(); return;
+    }
+    if (e.key === '/' && !isOpen()) {
+      const el = document.activeElement;
+      const tag = (el && el.tagName || '').toLowerCase();
+      if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !(el && el.isContentEditable)) {
+        e.preventDefault(); open();
+      }
+    }
+  });
 })();
 </script>
 

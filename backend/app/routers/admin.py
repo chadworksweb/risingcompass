@@ -1,8 +1,10 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from pathlib import Path
+from urllib.parse import quote
 import os
 import shutil
 import tempfile
@@ -14,6 +16,7 @@ from app.auth import (
 )
 from app.database import get_db
 from app.config import settings
+from app.models import CompassSong, LibrarySong, SubmittedSong, Artist
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -52,6 +55,72 @@ def _gate_admin_section(request: Request, section: str) -> None:
     is_api = section in API_ADMIN_SECTIONS
     if (kind == "api") != is_api:
         raise HTTPException(status_code=404)
+
+
+# Song tables searched by the global admin search, with the short source label
+# the palette shows. All three carry title + artist + rubric_color + charge_value.
+_SEARCH_SONG_TABLES = (
+    ("compass", CompassSong),
+    ("submitted", SubmittedSong),
+    ("library", LibrarySong),
+)
+
+
+@router.get("/search", dependencies=[Depends(verify_admin_key)])
+def admin_search(q: str = "", db: Session = Depends(get_db)):
+    """Record lookup behind the admin command palette (Stripe-style search).
+
+    Returns matches grouped by type, each with a deep-link to where the admin
+    acts on it -- the DB explorer, pre-filtered (`?table=&q=`). Page/section
+    navigation is handled client-side, so this endpoint is records only. Min 2
+    chars; cheap (ILIKE + small LIMITs)."""
+    q = (q or "").strip()
+    if len(q) < 2:
+        return {"groups": []}
+    like = f"%{q}%"
+    groups: list[dict] = []
+
+    song_items: list[dict] = []
+    for label_src, Model in _SEARCH_SONG_TABLES:
+        rows = (
+            db.query(Model)
+            .filter(or_(Model.title.ilike(like), Model.artist.ilike(like)))
+            .order_by(Model.id.desc())
+            .limit(5)
+            .all()
+        )
+        for r in rows:
+            cv = getattr(r, "charge_value", None)
+            sub = f"{label_src} . {getattr(r, 'rubric_color', None) or 'uncalibrated'}"
+            if cv is not None:
+                sub += f" {cv:+d}"
+            song_items.append({
+                "label": f"{r.title} -- {r.artist}",
+                "sublabel": sub,
+                # all_songs = the explorer's cross-table union; q matches title.
+                "url": f"/api/admin/dashboard/db?table=all_songs&q={quote(r.title)}",
+            })
+    if song_items:
+        groups.append({"type": "Songs", "items": song_items[:8]})
+
+    artists = (
+        db.query(Artist)
+        .filter(Artist.name.ilike(like))
+        .order_by(Artist.name.asc())
+        .limit(6)
+        .all()
+    )
+    if artists:
+        groups.append({"type": "Artists", "items": [
+            {
+                "label": a.name,
+                "sublabel": a.slug,
+                "url": f"/api/admin/dashboard/db?table=artists&q={quote(a.name)}",
+            }
+            for a in artists
+        ]})
+
+    return {"groups": groups}
 
 
 @router.get("/dashboard")

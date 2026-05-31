@@ -89,8 +89,18 @@ async function initDbExplorer() {
     return;
   }
   renderDbSubTabs();
-  const preferred = dbTablesMeta.find(t => t.table === 'all_songs') || dbTablesMeta[0];
+  // Deep-link support (e.g. from the admin command palette):
+  // ?table=<name>&q=<quick-search>. Falls back to all_songs.
+  const params = new URLSearchParams(window.location.search);
+  const wantTable = params.get('table');
+  const preferred = (wantTable && dbTablesMeta.find(t => t.table === wantTable))
+    || dbTablesMeta.find(t => t.table === 'all_songs') || dbTablesMeta[0];
   dbSelectTable(preferred.table);
+  const wantQ = params.get('q');
+  if (wantQ) {
+    document.getElementById('dbQuickSearch').value = wantQ;
+    dbRunQuery();
+  }
 }
 
 function renderDbSubTabs() {
