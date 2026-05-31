@@ -70,6 +70,11 @@ def health_check(db: Session = Depends(get_db)):
 
 @router.get("/status", dependencies=[Depends(verify_admin_key)])
 def status(db: Session = Depends(get_db)):
-    """Full health payload for the admin Provenance page (counts, backlog,
-    unpushed commits, oldest unconfirmed proof, last commit time)."""
-    return provenance_anchor.health(db)
+    """Full payload for the admin Provenance page: the health snapshot (counts,
+    backlog, unpushed commits, oldest unconfirmed proof, integrity mismatches)
+    plus `detail` -- per-table coverage, model/quality breakdown, and recent
+    batches with the fields the page turns into links out (GitHub commit/batch/
+    .ots, Bitcoin block explorer)."""
+    h = provenance_anchor.health(db)
+    h["detail"] = provenance_anchor.dashboard_detail(db)
+    return h

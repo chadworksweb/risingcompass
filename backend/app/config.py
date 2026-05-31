@@ -148,6 +148,11 @@ class Settings(BaseSettings):
     # healthy run (and {url}/fail on an errored run, healthchecks.io-style), so
     # a silently-dead cron pages without any RC code. Empty = dark / no ping.
     provenance_heartbeat_url: str = ""
+    # Public web URL of the anchor repo + a Bitcoin block explorer base, used
+    # ONLY by the admin Provenance page to build links out (commit / batch /
+    # .ots / on-chain block). The explorer base has the block height appended.
+    provenance_repo_url: str = "https://github.com/chadworksweb/rising-compass-provenance"
+    provenance_block_explorer: str = "https://blockstream.info/block-height/"
 
     # DO Spaces backup destination
     do_spaces_key: str = ""

@@ -185,6 +185,90 @@ def health(db) -> dict:
     return h
 
 
+def dashboard_detail(db) -> dict:
+    """Richer, JSON-serializable admin payload for the Provenance page: per-table
+    prose coverage, the provenance-quality (model) breakdown, and recent batches
+    with the fields the page turns into links (commit, batch file, .ots, Bitcoin
+    block). Read-only; returns a stable shape even before any anchors exist."""
+    per_table = []
+    total_sealed = 0
+    for table, Model in _PROSE_MODELS:
+        sealed = (
+            db.query(func.count())
+            .select_from(Model)
+            .filter(Model.societal_effects_prose.isnot(None))
+            .filter(Model.societal_effects_prose != "")
+            .filter(Model.societal_prose_generated_at.isnot(None))
+            .scalar()
+        ) or 0
+        anchored = (
+            db.query(func.count(func.distinct(ProseProvenanceAnchor.song_id)))
+            .filter(ProseProvenanceAnchor.song_table == table)
+            .scalar()
+        ) or 0
+        total_sealed += sealed
+        per_table.append({"table": table, "sealed": sealed, "anchored": anchored})
+
+    # Provenance-quality breakdown: real sealed models vs the 'terminal_supplied'
+    # write-time floor vs the 'legacy_unknown' proxy. Sorted commonest-first.
+    model_rows = (
+        db.query(ProseProvenanceAnchor.model, func.count())
+        .group_by(ProseProvenanceAnchor.model)
+        .all()
+    )
+    models = [{"model": m, "count": c}
+              for m, c in sorted(model_rows, key=lambda r: (-r[1], r[0] or ""))]
+
+    # Recent batches: anchors in one batch share a proof + commit + status, so
+    # aggregate per ots_proof_path (proof_rel = 'batches/<name>.jsonl.ots').
+    batch_rows = (
+        db.query(
+            ProseProvenanceAnchor.ots_proof_path,
+            func.count(),
+            func.min(ProseProvenanceAnchor.ots_status),
+            func.max(ProseProvenanceAnchor.ots_bitcoin_block),
+            func.max(ProseProvenanceAnchor.github_commit_sha),
+            func.max(ProseProvenanceAnchor.github_committed_at),
+            func.min(ProseProvenanceAnchor.id),
+            func.max(ProseProvenanceAnchor.id),
+            func.max(ProseProvenanceAnchor.ots_verify_status),
+        )
+        .filter(ProseProvenanceAnchor.ots_proof_path.isnot(None))
+        .group_by(ProseProvenanceAnchor.ots_proof_path)
+        .order_by(func.max(ProseProvenanceAnchor.id).desc())
+        .limit(15)
+        .all()
+    )
+    batches = []
+    for proof, n, status, block, commit, committed_at, amin, amax, vstatus in batch_rows:
+        jsonl = proof[:-4] if proof and proof.endswith(".ots") else proof
+        batches.append({
+            "proof_path": proof,
+            "jsonl_path": jsonl,
+            "count": n,
+            "status": status,
+            "bitcoin_block": block,
+            "commit": commit,
+            "committed_at": committed_at.isoformat() if committed_at else None,
+            "anchor_range": [amin, amax],
+            "verify_status": vstatus,
+        })
+
+    total_anchors = db.query(func.count()).select_from(ProseProvenanceAnchor).scalar() or 0
+    return {
+        "total_sealed": total_sealed,
+        "total_anchors": total_anchors,
+        "per_table": per_table,
+        "models": models,
+        "batches": batches,
+        "links": {
+            "repo_url": settings.provenance_repo_url,
+            "block_explorer": settings.provenance_block_explorer,
+            "ots_url": "https://opentimestamps.org",
+        },
+    }
+
+
 def evaluate_breaches(db) -> list[str]:
     """Return human-readable breach reasons, or [] when healthy. Disabled is not
     a breach -- the subsystem ships dark on purpose until provisioned."""

@@ -1,64 +1,155 @@
 {% extends "admin/_base.html" %}
 {% set active_section = 'provenance' %}
-{% block title %}Prose Provenance — Admin{% endblock %}
+{% block title %}Prose Provenance -- Admin{% endblock %}
 
 {% block content %}
-<p style="font-size:0.9rem;color:var(--text-dim);max-width:60ch;margin:0 0 1.2rem;">
-  Tamper-evident anchoring for societal-prose. Each sealed prose value is
-  published hash-only (the text never leaves the DB) to the public log and
-  OpenTimestamped to Bitcoin. This page is read-only; the sweep / upgrade /
-  health-check run as service crons.
-</p>
+<style>
+  .pv-funnel { display:flex; flex-direction:column; gap:0.45rem; max-width:560px; }
+  .pv-stage { display:flex; align-items:center; gap:0.6rem; font-size:0.85rem; }
+  .pv-stage .lbl { width:160px; color:var(--text-dim); flex:0 0 auto; }
+  .pv-track { flex:1; background:#f0f0f2; border-radius:4px; height:18px; position:relative; overflow:hidden; }
+  .pv-fill { height:100%; border-radius:4px; background:#008f72; }
+  .pv-stage .num { width:48px; text-align:right; font-variant-numeric:tabular-nums; flex:0 0 auto; }
+  .pv-bar { background:#f0f0f2; border-radius:4px; height:10px; overflow:hidden; min-width:60px; }
+  .pv-bar > span { display:block; height:100%; background:#5a8; }
+  .pv-badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:0.72rem; font-weight:600; }
+  .pv-badge.complete { background:#e3f5ea; color:#1c7c47; }
+  .pv-badge.submitted { background:#fdf3e0; color:#b9770e; }
+  .pv-badge.pending   { background:#eef0f3; color:#5a6270; }
+  .pv-badge.failed    { background:#fbe6e6; color:#c0392b; }
+  .pv-badge.mismatch  { background:#fbe6e6; color:#c0392b; }
+  .pv-badge.ok        { background:#e3f5ea; color:#1c7c47; }
+  .pv-links a { display:inline-block; margin-right:1rem; font-size:0.85rem; color:#008f72; }
+  .pv-mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:0.8rem; }
+  #pvBatches a { color:#008f72; }
+  .pv-card { background:#fff; border:1px solid var(--border); border-radius:6px; padding:1rem 1.1rem; }
+</style>
 
-<div class="stats-grid">
-  <div class="stat-card"><div class="val" id="pvEnabled">—</div><div class="label">Anchoring</div></div>
-  <div class="stat-card"><div class="val" id="pvUnanchored">—</div><div class="label">Unanchored sealed</div></div>
-  <div class="stat-card"><div class="val" id="pvComplete">—</div><div class="label">On-chain (complete)</div></div>
-  <div class="stat-card"><div class="val" id="pvAhead">—</div><div class="label">Commits not pushed</div></div>
+<p style="font-size:0.9rem;color:var(--text-dim);max-width:64ch;margin:0 0 0.5rem;">
+  Tamper-evident anchoring for societal-prose. Each sealed prose value is
+  published <strong>hash-only</strong> (the text never leaves the DB) to a public
+  GitHub log and OpenTimestamped to Bitcoin. This page is read-only; sweep /
+  upgrade / reverify / health-check run as service crons.
+</p>
+<div class="pv-links" style="margin:0 0 1rem;">
+  <a id="pvRepoLink" href="#" target="_blank" rel="noopener">Public anchor repo &#8599;</a>
+  <a id="pvOtsLink" href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps &#8599;</a>
 </div>
 
-<div style="margin:0.4rem 0 1rem;">
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="pvEnabled">&mdash;</div><div class="label">Anchoring</div></div>
+  <div class="stat-card"><div class="val" id="pvOnchain">&mdash;</div><div class="label">On-chain (Bitcoin)</div></div>
+  <div class="stat-card"><div class="val" id="pvSubmittedC">&mdash;</div><div class="label">Awaiting Bitcoin</div></div>
+  <div class="stat-card"><div class="val" id="pvUnanchored">&mdash;</div><div class="label">Unanchored backlog</div></div>
+  <div class="stat-card"><div class="val" id="pvMismatches">&mdash;</div><div class="label">Integrity mismatches</div></div>
+</div>
+
+<div style="margin:0.5rem 0 1.2rem;">
   <button onclick="loadProvenance()" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Refresh</button>
   <span id="pvNote" style="font-size:0.8rem;color:var(--text-dim);margin-left:0.6rem;"></span>
 </div>
 
-<h2 class="section-title">Pipeline</h2>
-<table class="data-table" style="width:auto;min-width:420px;font-size:0.88rem;">
+<h2 class="section-title">Anchoring pipeline</h2>
+<div class="pv-card" style="margin:0 0 1.4rem;">
+  <div class="pv-funnel" id="pvFunnel">
+    <span style="color:var(--text-dim);font-size:0.85rem;">Loading...</span>
+  </div>
+  <p style="margin:0.8rem 0 0;font-size:0.78rem;color:var(--text-dim);">
+    Sealed prose &rarr; anchored (hash + commit) &rarr; OpenTimestamp submitted &rarr;
+    confirmed on a Bitcoin block. A gap at "anchored" is the sweep backlog; a gap
+    at "on-chain" is normal (confirmation takes hours).
+  </p>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:1.4rem;margin:0 0 1.4rem;">
+  <div style="flex:1;min-width:300px;">
+    <h2 class="section-title">Coverage by table</h2>
+    <table class="data-table" style="width:100%;font-size:0.85rem;">
+      <thead><tr>
+        <th style="text-align:left;">Table</th><th style="text-align:right;">Sealed</th>
+        <th style="text-align:right;">Anchored</th><th style="width:120px;">Coverage</th>
+      </tr></thead>
+      <tbody id="pvPerTable"><tr><td colspan="4" style="color:var(--text-dim);">Loading...</td></tr></tbody>
+    </table>
+  </div>
+  <div style="flex:1;min-width:300px;">
+    <h2 class="section-title">Provenance quality (by model)</h2>
+    <table class="data-table" style="width:100%;font-size:0.85rem;">
+      <thead><tr>
+        <th style="text-align:left;">Model tag</th><th style="text-align:right;">Anchors</th>
+        <th style="width:120px;">Share</th>
+      </tr></thead>
+      <tbody id="pvModels"><tr><td colspan="3" style="color:var(--text-dim);">Loading...</td></tr></tbody>
+    </table>
+    <p style="margin:0.5rem 0 0;font-size:0.76rem;color:var(--text-dim);">
+      A real model id = sealed at generation. <span class="pv-mono">terminal_supplied</span>
+      = write-time floor (Claude-Code-supplied prose). <span class="pv-mono">legacy_unknown</span>
+      = pre-provenance proxy (row insert time).
+    </p>
+  </div>
+</div>
+
+<h2 class="section-title">Recent batches</h2>
+<table class="data-table" style="width:100%;font-size:0.84rem;margin:0 0 1.4rem;">
+  <thead><tr>
+    <th style="text-align:left;">Anchors</th><th>Status</th><th>Bitcoin block</th>
+    <th>Committed</th><th>Links</th>
+  </tr></thead>
+  <tbody id="pvBatches"><tr><td colspan="5" style="color:var(--text-dim);">Loading...</td></tr></tbody>
+</table>
+
+<h2 class="section-title">Pipeline detail</h2>
+<table class="data-table" style="width:auto;min-width:420px;font-size:0.86rem;">
   <tbody>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Repo reachable</td><td id="pvRepo">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Pending (awaiting OTS submit)</td><td id="pvPending">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Submitted (awaiting Bitcoin)</td><td id="pvSubmitted">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Complete (on-chain)</td><td id="pvComplete2">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Failed</td><td id="pvFailed">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Last anchor commit</td><td id="pvLastCommit">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Last anchor created</td><td id="pvLastAnchor">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Oldest unconfirmed</td><td id="pvOldest">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Last integrity re-verify</td><td id="pvLastReverify">—</td></tr>
-    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Integrity mismatches</td><td id="pvMismatches">—</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Repo reachable</td><td id="pvRepo">&mdash;</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Commits not pushed</td><td id="pvAhead">&mdash;</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Pending / Submitted / Complete / Failed</td><td id="pvCounts">&mdash;</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Last anchor commit</td><td id="pvLastCommit">&mdash;</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Oldest unconfirmed</td><td id="pvOldest">&mdash;</td></tr>
+    <tr><td style="padding:0.3rem 1.2rem 0.3rem 0;color:var(--text-dim);">Last integrity re-verify</td><td id="pvLastReverify">&mdash;</td></tr>
   </tbody>
 </table>
 
 <h2 class="section-title">Health</h2>
-<div id="pvHealth" style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;font-size:0.88rem;">
+<div id="pvHealth" class="pv-card" style="font-size:0.88rem;margin:0 0 1.4rem;">
   <span style="color:var(--text-dim);">Loading...</span>
+</div>
+
+<h2 class="section-title">How to verify a prose value</h2>
+<div class="pv-card" style="font-size:0.84rem;color:var(--text);max-width:72ch;">
+  <ol style="margin:0;padding-left:1.2rem;">
+    <li style="margin:0 0 0.4rem;">Recompute the hash from the published fields + the revealed prose:
+      <div class="pv-mono" style="margin:0.3rem 0;background:#f7f7f9;padding:6px 10px;border-radius:4px;">
+        sha256( "&lt;table&gt;:&lt;id&gt;\n&lt;generated_at&gt;\n&lt;model&gt;\n&lt;prose&gt;" )
+      </div>
+    </li>
+    <li style="margin:0 0 0.4rem;">Confirm it matches the <span class="pv-mono">sha256</span> in
+      <span class="pv-mono">societal-prose.jsonl</span> in the public repo.</li>
+    <li>Run <span class="pv-mono">ots verify batches/&lt;batch&gt;.jsonl.ots</span> -- it proves that
+      batch existed no later than its Bitcoin block. Bitcoin, not the DB or this app, is the trust root.</li>
+  </ol>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function onAdminReady() {
-  loadProvenance();
-}
+function onAdminReady() { loadProvenance(); }
 
 function fmtDate(iso) {
   if (!iso) return '<span style="color:var(--text-dim);">never</span>';
   return new Date(iso).toLocaleString();
 }
-
 function ageHours(iso) {
   if (!iso) return null;
   return (Date.now() - new Date(iso).getTime()) / 3.6e6;
 }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => (
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+let LINKS = {};
+function commitUrl(sha) { return `${LINKS.repo_url}/commit/${sha}`; }
+function blobUrl(path) { return `${LINKS.repo_url}/blob/main/${path}`; }
+function blockUrl(n) { return `${LINKS.block_explorer}${n}`; }
 
 async function loadProvenance() {
   const note = document.getElementById('pvNote');
@@ -67,51 +158,123 @@ async function loadProvenance() {
     const resp = await adminFetch('/api/admin/provenance/status');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const h = await resp.json();
+    const d = h.detail || {};
     const counts = h.counts || {};
+    LINKS = (d.links) || {};
+
+    document.getElementById('pvRepoLink').href = LINKS.repo_url || '#';
+    if (LINKS.ots_url) document.getElementById('pvOtsLink').href = LINKS.ots_url;
 
     const enabledEl = document.getElementById('pvEnabled');
     enabledEl.textContent = h.enabled ? 'ON' : 'dark';
     enabledEl.style.color = h.enabled ? '#33aa55' : 'var(--text-dim)';
 
+    document.getElementById('pvOnchain').textContent = counts.complete || 0;
+    document.getElementById('pvSubmittedC').textContent = counts.submitted || 0;
+
     const unEl = document.getElementById('pvUnanchored');
     unEl.textContent = h.unanchored_sealed;
     unEl.style.color = h.unanchored_sealed > 0 ? '#cc8800' : '#33aa55';
 
-    document.getElementById('pvComplete').textContent = counts.complete || 0;
+    const mmEl = document.getElementById('pvMismatches');
+    mmEl.textContent = h.integrity_mismatches || 0;
+    mmEl.style.color = (h.integrity_mismatches || 0) > 0 ? '#cc3333' : '#33aa55';
 
-    const aheadEl = document.getElementById('pvAhead');
-    aheadEl.textContent = (h.git_ahead === null || h.git_ahead === undefined) ? 'n/a' : h.git_ahead;
-    aheadEl.style.color = h.git_ahead ? '#cc3333' : 'var(--text)';
+    renderFunnel(d, counts);
+    renderPerTable(d.per_table || []);
+    renderModels(d.models || []);
+    renderBatches(d.batches || []);
 
+    // pipeline detail
     const repoEl = document.getElementById('pvRepo');
     repoEl.textContent = h.repo_ok ? 'yes' : 'no';
     repoEl.style.color = h.repo_ok ? '#33aa55' : (h.enabled ? '#cc3333' : 'var(--text-dim)');
-
-    document.getElementById('pvPending').textContent = counts.pending || 0;
-    document.getElementById('pvSubmitted').textContent = counts.submitted || 0;
-    document.getElementById('pvComplete2').textContent = counts.complete || 0;
-    const failedEl = document.getElementById('pvFailed');
-    failedEl.textContent = counts.failed || 0;
-    failedEl.style.color = (counts.failed || 0) > 0 ? '#cc3333' : 'var(--text)';
-
+    const aheadEl = document.getElementById('pvAhead');
+    aheadEl.textContent = (h.git_ahead == null) ? 'n/a' : h.git_ahead;
+    aheadEl.style.color = h.git_ahead ? '#cc3333' : 'var(--text)';
+    document.getElementById('pvCounts').textContent =
+      `${counts.pending||0} / ${counts.submitted||0} / ${counts.complete||0} / ${counts.failed||0}`;
     document.getElementById('pvLastCommit').innerHTML = fmtDate(h.last_commit_at);
-    document.getElementById('pvLastAnchor').innerHTML = fmtDate(h.last_anchor_at);
-
     const oldestEl = document.getElementById('pvOldest');
     const oa = ageHours(h.oldest_unconfirmed_at);
     oldestEl.innerHTML = fmtDate(h.oldest_unconfirmed_at) + (oa !== null ? ` (${Math.round(oa)}h)` : '');
     oldestEl.style.color = (oa !== null && oa > 72) ? '#cc3333' : 'var(--text)';
-
     document.getElementById('pvLastReverify').innerHTML = fmtDate(h.last_reverify_at);
-    const mmEl = document.getElementById('pvMismatches');
-    mmEl.textContent = h.integrity_mismatches || 0;
-    mmEl.style.color = (h.integrity_mismatches || 0) > 0 ? '#cc3333' : '#33aa55';
 
     renderHealth(h);
     note.textContent = '';
   } catch (e) {
     note.textContent = 'Error: ' + e.message;
   }
+}
+
+function bar(width, color) {
+  return `<div class="pv-track"><div class="pv-fill" style="width:${width}%;${color?`background:${color};`:''}"></div></div>`;
+}
+
+function renderFunnel(d, counts) {
+  const sealed = d.total_sealed || 0;
+  const anchored = d.total_anchors || 0;
+  const submitted = (counts.submitted || 0) + (counts.complete || 0);
+  const complete = counts.complete || 0;
+  const max = Math.max(sealed, 1);
+  const stages = [
+    ['Sealed prose', sealed, '#5a6270'],
+    ['Anchored', anchored, '#008f72'],
+    ['OTS submitted', submitted, '#b9770e'],
+    ['On-chain (Bitcoin)', complete, '#1c7c47'],
+  ];
+  document.getElementById('pvFunnel').innerHTML = stages.map(([lbl, n, c]) =>
+    `<div class="pv-stage"><span class="lbl">${lbl}</span>` +
+    `<div class="pv-track"><div class="pv-fill" style="width:${Math.round(100*n/max)}%;background:${c};"></div></div>` +
+    `<span class="num">${n}</span></div>`).join('');
+}
+
+function renderPerTable(rows) {
+  const body = document.getElementById('pvPerTable');
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim);">none</td></tr>'; return; }
+  body.innerHTML = rows.map(r => {
+    const pct = r.sealed ? Math.round(100 * r.anchored / r.sealed) : 100;
+    const gap = r.sealed - r.anchored;
+    return `<tr><td class="pv-mono">${esc(r.table)}</td>` +
+      `<td style="text-align:right;">${r.sealed}</td>` +
+      `<td style="text-align:right;${gap>0?'color:#cc8800;':''}">${r.anchored}</td>` +
+      `<td><div class="pv-bar"><span style="width:${pct}%;${gap>0?'background:#cc8800;':''}"></span></div></td></tr>`;
+  }).join('');
+}
+
+function renderModels(rows) {
+  const body = document.getElementById('pvModels');
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="3" style="color:var(--text-dim);">no anchors yet</td></tr>'; return; }
+  const total = rows.reduce((s, r) => s + r.count, 0) || 1;
+  body.innerHTML = rows.map(r => {
+    const pct = Math.round(100 * r.count / total);
+    const real = r.model !== 'legacy_unknown' && r.model !== 'terminal_supplied';
+    const color = real ? '#008f72' : (r.model === 'terminal_supplied' ? '#b9770e' : '#5a6270');
+    return `<tr><td class="pv-mono">${esc(r.model)}</td>` +
+      `<td style="text-align:right;">${r.count}</td>` +
+      `<td><div class="pv-bar"><span style="width:${pct}%;background:${color};"></span></div></td></tr>`;
+  }).join('');
+}
+
+function renderBatches(rows) {
+  const body = document.getElementById('pvBatches');
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="5" style="color:var(--text-dim);">no batches yet</td></tr>'; return; }
+  body.innerHTML = rows.map(b => {
+    const st = esc(b.status || 'pending');
+    const badge = `<span class="pv-badge ${st}">${st}</span>` +
+      (b.verify_status ? ` <span class="pv-badge ${esc(b.verify_status)}">verify:${esc(b.verify_status)}</span>` : '');
+    const range = `#${b.anchor_range ? b.anchor_range[0] + '-' + b.anchor_range[1] : '?'} (${b.count})`;
+    const block = b.bitcoin_block
+      ? `<a href="${blockUrl(b.bitcoin_block)}" target="_blank" rel="noopener">${b.bitcoin_block} &#8599;</a>`
+      : '<span style="color:var(--text-dim);">pending</span>';
+    const links = [];
+    if (b.commit) links.push(`<a href="${commitUrl(b.commit)}" target="_blank" rel="noopener">commit</a>`);
+    if (b.jsonl_path) links.push(`<a href="${blobUrl(b.jsonl_path)}" target="_blank" rel="noopener">batch</a>`);
+    if (b.proof_path) links.push(`<a href="${blobUrl(b.proof_path)}" target="_blank" rel="noopener">.ots</a>`);
+    return `<tr><td class="pv-mono">${range}</td><td>${badge}</td><td>${block}</td>` +
+      `<td>${fmtDate(b.committed_at)}</td><td>${links.join(' &middot; ')}</td></tr>`;
+  }).join('');
 }
 
 function renderHealth(h) {
