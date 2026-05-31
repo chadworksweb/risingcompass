@@ -411,3 +411,38 @@ DEPLOYED to production 2026-05-29 (`origin/master`). M0-M6 live; gate LOCKED.
 
 **Only remaining step:** open the gate when ready --
 `POST /api/admin/launch-lock/toggle {"locked": false}` (admin session). No redeploy.
+
+## Prose provenance (societal-prose anchoring, LIVE 2026-05-31)
+
+Tamper-evident provenance for `societal_effects_prose`. Three layers; full spec
+in `Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-PROSE-PROVENANCE.md`.
+
+- **Seal (always on).** Every `societal_effects_prose` write also stamps
+  `societal_prose_generated_at` + `societal_prose_model`, in lockstep, across the
+  4 prose tables (`compass_songs`, `library_songs`, `submitted_songs`,
+  `stream_songs`; `agent_draft_songs` excluded). Centralised via the shared
+  mappers (`analyzer._song_persist_fields`, `backfill/engine._apply_generated_fields`)
+  + the direct sites. **Terminal-supplied prose** (Claude-Code via
+  `compass_agent._store_calibration`) carries no server seal, so a **write-time
+  floor** stamps `model='terminal_supplied'` + `utcnow()` (parallels the
+  migration-075 `legacy_unknown` proxy). Migration 075.
+- **External anchor (`services/provenance_anchor.py`, migration 076/077).** The
+  `sweep` publishes **hash-only** records (`sha256(table:id | generated_at | model
+  | prose)` -- prose never leaves the DB) to a public GitHub repo
+  (`chadworksweb/rising-compass-provenance`) and OpenTimestamps each batch to
+  Bitcoin; `upgrade` confirms proofs on-chain; `reverify` re-`ots verify`s a
+  sample of complete proofs (integrity). Table `prose_provenance_anchors`.
+- **Endpoints** (`routers/provenance.py`, `X-Provenance-Cron-Key`): `POST
+  /api/admin/provenance/{sweep,upgrade,reverify,health-check}`; `GET .../status`
+  (admin) feeds the **Site Admin -> System -> Provenance** monitoring page.
+- **Crons** (le-projects-01, `/root/risingcompass-provenance/provenance-cron.sh`):
+  sweep `0 16` UTC (noon ET, after the reading), upgrade `13 */4`, reverify `40 6`,
+  health-check `30 16`. Alerts `provenance_health` + `provenance_integrity` (opt-in,
+  enabled).
+- **Config / dark switch.** Gated on `PROVENANCE_ENABLED` (now true in prod).
+  Other env: `PROVENANCE_REPO_PATH=/provenance` (volume-mounted write clone),
+  `RC_PROVENANCE_CRON_KEY`, `PROVENANCE_REVERIFY_SAMPLE`, `PROVENANCE_HEARTBEAT_URL`
+  (dead-man's-switch, unset), `PROVENANCE_REPO_URL` + `PROVENANCE_BLOCK_EXPLORER`
+  (admin link bases). The image needs `git` + `openssh-client` + the `ots` CLI
+  (`opentimestamps-client`); push uses the SSH deploy key mounted at `/provenance-key`.
+  Everything is fail-soft and OFF the calibration hot path.
