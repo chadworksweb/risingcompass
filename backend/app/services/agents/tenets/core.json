@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "ratified_at": "2026-05-18",
+  "ratified_at": "2026-05-31",
   "tiers": [
     {
       "slug": "violet",
@@ -657,6 +657,14 @@
       "ratified_at": "2026-05-18",
       "status": "ratified",
       "text": "Era-coded language reads in its era's conventions, not contemporary critical frames. Pop-romance phrases like \"you can't escape me,\" \"you're mine forever,\" \"always be my baby,\" \"you'll always be a part of me\" are romantic-eternal vocabulary in 20th-century love songs -- they assert the persistence of the feeling, not surveillance or control. R4 (predatory control) triggers on literal watching/following/monitoring/threatening/keeping-from-leaving imagery, not on era-standard possessive intensifiers. Modern stalker-discourse, parasocial-attachment critique, and codependence vocabulary are interpretive frames that did not exist when most 20th-century pop was written; importing them as if they were the song's intended meaning is the time-dimension equivalent of R6's artist-bias error -- substituting a frame the lyrics never delivered for the lyrics themselves. Test: does the song contain literal surveillance/control imagery (watching, following, tracking, asserting ownership over someone present, threatening, keeping-from-leaving)? If yes, R4 applies normally. If only romantic-eternal vocabulary, R4 does NOT apply, and the language reads as conventional pop devotion. The Compass reads the lyrics on the page in the conventions of their period and does not retrofit contemporary critical frames onto older works. Canonical correction: \"Always Be My Baby\" (Mariah Carey, 1996) was initially miscalled Degraded -45 in the 2026 backfill on a modern-bias reading of \"you can't escape me\" as surveillance-coded. Re-read in 1996 conventions, the chorus is confidence in the depth of the love itself, paired with explicit release (\"I'm lettin' you fly,\" \"I won't beg,\" \"I will not stand in your way\"). With R12 active, the song lands low Elevated."
+    },
+    {
+      "id": "R13",
+      "title": "Profanity is not graded; weaponizing it as a targeted insult is.",
+      "text": "Profanity is not graded; profanity weaponized as a targeted insult is. Swearing on its own is neutral register (\"damn good night,\" \"f**k yeah\") and does not move the charge -- the mirror of R3. But profanity aimed as contempt or a put-down at a target (ex, rival, bystander, self) carries the contempt tenets (Degraded 9, Corrupted 4) at the weight the targeting earns. Test: strip the profanity; if a cruelty survives (\"I hate you,\" \"you're beneath me\"), it grades; if only emphasis remains, it does not. Canonical: \"F**k You (Forget You)\" (CeeLo Green, 2011) curses the ex and an innocent new partner -- contempt for named targets, lands Degraded despite the grief.",
+      "status": "ratified",
+      "version": "1.0",
+      "ratified_at": "2026-05-31"
     }
   ]
 }
