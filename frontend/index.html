@@ -111,14 +111,15 @@
   <link rel="stylesheet" href="/calibration-log/calibration-log.css">
   <link rel="stylesheet" href="/methodology/methodology.css">
 
-  <!-- Splash gate: while body.rc-splash is on, everything below the header is
-       hidden and a single big loader fills the area. The gate holds for a
-       minimum of 4000ms AND until DOMContentLoaded, then the dashboard reveals
-       all at once. Stage labels advance on a timer so the user sees what is
-       conceptually happening (initializing -> rubric -> today's charge ->
+  <!-- Splash gate: while body.rc-splash is on, the header AND everything below
+       it are hidden and a single big loader fills the area. The gate holds for a
+       minimum of 4000ms AND until DOMContentLoaded, then the header + dashboard
+       reveal all at once. Stage labels advance on a timer so the user sees what
+       is conceptually happening (initializing -> rubric -> today's charge ->
        trajectory -> stitching). Mirrors the Lyrical Charger progress pattern. -->
   <style>
     #rc-splash { display: none; }
+    body.rc-splash .rc-header,
     body.rc-splash .main-dashboard,
     body.rc-splash .secondary-nav,
     body.rc-splash .lc-promo,
