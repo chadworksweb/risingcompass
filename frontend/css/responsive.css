@@ -170,7 +170,7 @@
 
 @media (max-width: 480px) {
   .site-header {
-    padding: 1.2rem 0.8rem 0.8rem;
+    padding: 0.8rem;
   }
 
   .site-title {
