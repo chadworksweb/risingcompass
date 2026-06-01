@@ -369,7 +369,7 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   color: var(--rc-text-dim);
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  margin-top: 0.3rem;
+  margin-bottom: 0.3rem;
 }
 
 .main-dashboard {
