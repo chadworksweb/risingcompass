@@ -28,6 +28,10 @@ class CompassSong(Base):
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
     societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
     societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
+    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
+    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
+    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
+    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
@@ -175,6 +179,10 @@ class LibrarySong(Base):
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
     societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
     societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
+    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
+    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
+    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
+    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
@@ -270,6 +278,10 @@ class SubmittedSong(Base):
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
     societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
     societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
+    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
+    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
+    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
+    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
@@ -438,6 +450,10 @@ class StreamSong(Base):
     societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
     societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
     societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
+    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
+    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
+    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
+    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
     deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
     topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
     topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
