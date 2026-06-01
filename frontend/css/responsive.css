@@ -169,10 +169,6 @@
 }
 
 @media (max-width: 480px) {
-  .site-header {
-    padding: 0.8rem;
-  }
-
   .site-title {
     font-size: 1.1rem;
     letter-spacing: 0.1em;
