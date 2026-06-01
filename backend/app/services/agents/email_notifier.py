@@ -1,6 +1,7 @@
 """Resend API email sender for draft notifications."""
 
 import logging
+import time
 from typing import Optional
 
 import httpx
@@ -53,27 +54,43 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
 
     html = _build_html(draft, songs, config, incomplete_titles=incomplete_titles)
 
-    try:
-        resp = httpx.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {config.resend_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "from": config.email_from,
-                "to": [config.approval_email],
-                "subject": subject,
-                "html": html,
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        logger.info("Draft email sent for %s (Resend ID: %s)", draft.date, resp.json().get("id"))
-        return True
-    except Exception:
-        logger.exception("Failed to send draft email via Resend")
-        return False
+    # Resend occasionally returns a transient 5xx (e.g. 504 Gateway Timeout).
+    # There is no second chance once the cron run ends, so retry a few times
+    # with backoff before giving up.
+    max_attempts = 4
+    backoff_seconds = [2, 5, 12]
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = httpx.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {config.resend_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": config.email_from,
+                    "to": [config.approval_email],
+                    "subject": subject,
+                    "html": html,
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            logger.info("Draft email sent for %s (Resend ID: %s)", draft.date, resp.json().get("id"))
+            return True
+        except Exception:
+            if attempt < max_attempts:
+                delay = backoff_seconds[attempt - 1]
+                logger.warning(
+                    "Resend send failed for %s (attempt %d/%d) -- retrying in %ds",
+                    draft.date, attempt, max_attempts, delay,
+                )
+                time.sleep(delay)
+            else:
+                logger.exception(
+                    "Failed to send draft email via Resend after %d attempts", max_attempts
+                )
+    return False
 
 
 def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optional[set] = None) -> str:
