@@ -31,7 +31,7 @@
 </div>
 
 <div class="sub-header">
-  <span>ID</span><span>Title</span><span>Artist</span><span>Color</span><span>Charge</span><span>Conf.</span><span>IP</span><span>Actions</span>
+  <span>ID</span><span>When</span><span>Title</span><span>Artist</span><span>Color</span><span>Charge</span><span>Conf.</span><span>IP</span><span>Actions</span>
 </div>
 <div id="subList"></div>
 <div class="pagination" id="subPagination"></div>
@@ -107,11 +107,12 @@ function renderSubs(list) {
     const chargeClass = s.charge_value > 0 ? 'positive' : s.charge_value < 0 ? 'negative' : 'zero';
     const chargeStr = s.charge_value !== null ? (s.charge_value > 0 ? '+' : '') + s.charge_value : '—';
     const confPct = s.confidence !== null ? Math.round(s.confidence * 100) : 0;
-    const dateStr = s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '';
+    const whenStr = s.submitted_at ? String(s.submitted_at).replace('T', ' ').slice(0, 19) : '—';
     return `
       <div class="sub-row">
         <span style="color:#666;">${s.id}</span>
-        <span>${esc(s.title || '(no title)')}${s.contaminated ? ' <span class="contam-tag">CONTAM</span>' : ''}</span>
+        <span style="font-size:0.75rem;color:#555;">${whenStr}</span>
+        <span>${esc(s.title || '(no title)')}${s.contaminated ? ' <span class="contam-tag">CONTAM</span>' : ''}${s.dogma_referenced ? ' <span class="dogma-tag">DOGMA</span>' : ''}</span>
         <span>${esc(s.artist || '(no artist)')}</span>
         <span><span class="color-dot ${s.rubric_color}"></span>${colorLabels[s.rubric_color] || s.rubric_color}</span>
         <span class="sub-charge ${chargeClass}">${chargeStr}</span>

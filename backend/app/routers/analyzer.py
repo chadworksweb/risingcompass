@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import time
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -20,6 +21,7 @@ from app.schemas import (
 from app.models import SubmittedSong, LyricalChargerSubscriber, UserCalibration, User
 from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
+    lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
 )
 from app.constants import COLOR_LABELS
 from app.services.agents.calibrator import (
@@ -44,6 +46,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analyzer", tags=["analyzer"])
 
+# The anon/user daily caps are admin-tunable (LC admin -> Daily rate limits),
+# stored in system_flags. Reading them on every calibrate request would mean a
+# DB hit inside the limit provider, so cache them in-process for a short TTL.
+# An admin change propagates within _LC_LIMIT_TTL seconds.
+_LC_LIMIT_CACHE: dict = {"anon": None, "user": None, "ts": 0.0}
+_LC_LIMIT_TTL = 30.0
+
+
+def _lc_daily_limits() -> tuple[int, int]:
+    """(anon_per_ip, user_per_user) daily limits. Cached, fail-soft to defaults."""
+    now = time.monotonic()
+    if _LC_LIMIT_CACHE["anon"] is None or now - _LC_LIMIT_CACHE["ts"] > _LC_LIMIT_TTL:
+        try:
+            db = SessionLocal()
+            try:
+                anon = lyrical_charger_anon_daily_limit(db)
+                user = lyrical_charger_user_daily_limit(db)
+            finally:
+                db.close()
+            _LC_LIMIT_CACHE.update(anon=anon, user=user, ts=now)
+        except Exception:
+            logger.exception("Failed to read LC daily limits; using code defaults")
+            return (billing_config.ANON_CHARGER_DAILY_LIMIT, 100)
+    return (_LC_LIMIT_CACHE["anon"], _LC_LIMIT_CACHE["user"])
+
+
 def _calibrate_daily_limit(key: str) -> str:
     """Dynamic per-request daily limit for the calibrate-* endpoints (M5).
 
@@ -57,11 +85,13 @@ def _calibrate_daily_limit(key: str) -> str:
 
     Signed-in users get a generous per-user daily backstop -- the real gate
     for them is credits (check_credits / charge_credits inside the handler).
-    Anonymous callers get the per-IP cost firewall from billing_config.
+    Anonymous callers get the per-IP cost firewall. Both caps are tunable
+    from the LC admin section; see _lc_daily_limits.
     """
+    anon, user = _lc_daily_limits()
     if isinstance(key, str) and key.startswith("user:"):
-        return "100/day"
-    return f"{billing_config.ANON_CHARGER_DAILY_LIMIT}/day"
+        return f"{user}/day"
+    return f"{anon}/day"
 
 
 def _limiter_key(request: Request) -> str:

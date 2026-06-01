@@ -662,6 +662,7 @@ class AlbumTrackResult(BaseModel):
     tier_label: Optional[str] = None
     charge: Optional[int] = None
     contaminated: bool = False
+    dogma_referenced: bool = False
     song_slug: Optional[str] = None
     skip_reason: Optional[str] = None
 
@@ -760,6 +761,8 @@ class SubmittedSongOut(BaseModel):
     charge_value: Optional[int] = None
     contaminated: bool
     contamination_note: Optional[str] = None
+    dogma_referenced: bool = False
+    dogma_note: Optional[str] = None
     charge_summary: Optional[str] = None
     confidence: Optional[float] = None
     source: str
@@ -1142,11 +1145,19 @@ class LCStatusOut(BaseModel):
     message: str
     subscribers_total: int
     subscribers_unnotified: int
+    anon_daily_limit: int
+    user_daily_limit: int
 
 
 class LCToggleIn(BaseModel):
     disabled: bool
     message: Optional[str] = None  # null/omitted leaves the existing message in place
+
+
+class LCLimitsIn(BaseModel):
+    # null/omitted leaves that limit unchanged; both are per-day caps.
+    anon_daily_limit: Optional[int] = None
+    user_daily_limit: Optional[int] = None
 
 
 class LCNotifyOut(BaseModel):

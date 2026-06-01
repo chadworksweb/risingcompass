@@ -66,7 +66,7 @@ function renderMisread(list) {
         ${s.user_handle
           ? `<strong style="color:var(--accent-strong);">@${esc(s.user_handle)}</strong> <span style="color:var(--text-hint);font-family:monospace;font-size:0.72rem;">(${esc(s.user_anon_id || '')})</span>`
           : `<em style="color:var(--text-hint);">${esc(s.first_name || '')} ${esc(s.last_name || '')}</em> ${s.email ? `&middot; ${esc(s.email)}` : ''} <span style="background:#fff0d0;color:var(--tier-orange);font-size:0.65rem;padding:0.05rem 0.35rem;border-radius:3px;text-transform:uppercase;letter-spacing:0.04em;margin-left:0.3rem;font-weight:700;">legacy</span>`}
-        &middot; ${new Date(s.created_at).toLocaleDateString()}
+        &middot; ${s.created_at ? String(s.created_at).replace('T', ' ').slice(0, 19) : '—'}
         ${s.device_id ? `<br>Device: ${esc(s.device_id.slice(0, 8))}...` : ''}
         ${s.ip_address ? ` &middot; IP: ${esc(s.ip_address)}` : ''}
       </div>
@@ -80,6 +80,7 @@ function renderMisread(list) {
             <button class="btn-sm btn-flag" onclick="flagAndBan(${s.id})">Flag &amp; Ban</button>
           ` : ''}
         ` : `
+          <a class="btn-sm" style="background:var(--accent);color:#fff;text-decoration:none;display:inline-block;" href="/api/admin/recalibrate?song_source=${encodeURIComponent(s.song_source || '')}&song_id=${encodeURIComponent(s.song_id || '')}&q=${encodeURIComponent(s.song_title || '')}">Review &rarr;</a>
           ${s.status === 'pending' ? `
             <button class="btn-sm" onclick="updateMisread(${s.id},'reviewed')">Reviewed</button>
             <button class="btn-sm" onclick="updateMisread(${s.id},'accepted')">Accept</button>

@@ -15,12 +15,14 @@ from app.database import get_db
 from app.models import LyricalChargerSubscriber
 from app.routers.admin import verify_admin_key
 from app.schemas import (
-    LCStatusOut, LCToggleIn, LCSubscriberOut, LCNotifyOut,
+    LCStatusOut, LCToggleIn, LCSubscriberOut, LCNotifyOut, LCLimitsIn,
 )
 from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
     set_lyrical_charger_disabled, set_lyrical_charger_disabled_message,
     DEFAULT_LC_DISABLED_MESSAGE,
+    lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
+    set_lyrical_charger_anon_daily_limit, set_lyrical_charger_user_daily_limit,
 )
 from app.services.lc_subscriber_notifier import notify_subscribers
 
@@ -39,11 +41,28 @@ def _status_payload(db: Session) -> LCStatusOut:
         message=lyrical_charger_disabled_message(db),
         subscribers_total=total,
         subscribers_unnotified=unnotified,
+        anon_daily_limit=lyrical_charger_anon_daily_limit(db),
+        user_daily_limit=lyrical_charger_user_daily_limit(db),
     )
 
 
 @router.get("", response_model=LCStatusOut, dependencies=[Depends(verify_admin_key)])
 def get_status(db: Session = Depends(get_db)):
+    return _status_payload(db)
+
+
+@router.post("/limits", response_model=LCStatusOut, dependencies=[Depends(verify_admin_key)])
+def set_limits(data: LCLimitsIn, db: Session = Depends(get_db)):
+    """Update the LC calibrate daily caps. Takes effect within ~30s (the
+    limiter caches the values in-process)."""
+    if data.anon_daily_limit is not None:
+        if data.anon_daily_limit < 0:
+            raise HTTPException(400, "anon_daily_limit must be >= 0")
+        set_lyrical_charger_anon_daily_limit(db, data.anon_daily_limit)
+    if data.user_daily_limit is not None:
+        if data.user_daily_limit < 0:
+            raise HTTPException(400, "user_daily_limit must be >= 0")
+        set_lyrical_charger_user_daily_limit(db, data.user_daily_limit)
     return _status_payload(db)
 
 

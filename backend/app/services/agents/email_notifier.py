@@ -139,6 +139,11 @@ def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optiona
             'font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px;">'
             'contaminated</span>'
         ) if s.contaminated else ""
+        dogma_badge = (
+            '<span style="display:inline-block;background:#e6e3f7;color:#5a4fc0;'
+            'font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px;">'
+            'dogma</span>'
+        ) if getattr(s, "dogma_referenced", False) else ""
 
         incomplete_badge = (
             '<div style="display:inline-block;background:#ffe8e8;color:#cc0000;'
@@ -163,6 +168,7 @@ def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optiona
                 <span style="display:inline-block;background:{bg};color:{color};font-weight:600;font-size:12px;padding:3px 10px;border-radius:4px;">{label}</span>
                 {cv_str}
                 {contam_badge}
+                {dogma_badge}
             </td>
             <td style="padding:30px 8px 10px;color:#555;font-size:13px;line-height:1.4;vertical-align:top;">
                 {s.charge_summary or ''}

@@ -484,55 +484,20 @@ def accept_proposal(
             logger.exception("Failed to seed pre-rubric_update run for song %s/%s",
                              p.song_source, p.song_id)
 
-    # Apply to the song.
+    # Apply to the song -- CHARGE ONLY.
+    #
+    # Recalibration runs exist to compound and fine-tune the charge (and the
+    # tier it derives). The lyrics never change between runs, so charge_summary,
+    # effects_prose, and societal_effects_prose stay accurate to the lyrics and
+    # are deliberately NOT rewritten here. That keeps prose from piling up
+    # iteration-on-iteration and -- critically -- keeps the provenance seal on
+    # societal prose stable: rewriting would re-stamp generated_at/model and
+    # force the next anchor sweep to publish a new hash for unchanged text.
+    # To intentionally rewrite prose, use the dedicated prose-regeneration path
+    # (clear the prose field -> re-run the calibrator gap-fill, which re-seals),
+    # never recalibration.
     song.rubric_color = p.proposed_color
     song.charge_value = p.proposed_charge
-    if p.proposed_summary:
-        song.charge_summary = p.proposed_summary
-
-    # Regenerate effects prose now that tier + charge_summary have shifted.
-    # Fails soft — leaves the old prose in place rather than nulling. The
-    # next calibration run through record_and_reconcile will also retry.
-    try:
-        from app.services.effects_prose import generate_effects_prose
-        new_prose = generate_effects_prose(
-            title=song.title,
-            artist=getattr(song, "artist", "") or "",
-            rubric_color=song.rubric_color,
-            charge_value=song.charge_value,
-            charge_summary=song.charge_summary,
-            contaminated=bool(getattr(song, "contaminated", False)),
-            contamination_note=getattr(song, "contamination_note", None),
-        )
-        if new_prose:
-            song.effects_prose = new_prose
-    except Exception:
-        logger.exception("effects_prose regeneration failed on accept for %s/%s",
-                         p.song_source, p.song_id)
-
-    # Regenerate societal effects prose alongside the listener prose. Same
-    # fail-soft contract; uses ether fields when available on the song row.
-    try:
-        from app.services.societal_effects_prose import generate_societal_effects_prose
-        new_soc = generate_societal_effects_prose(
-            title=song.title,
-            artist=getattr(song, "artist", "") or "",
-            rubric_color=song.rubric_color,
-            charge_value=song.charge_value,
-            charge_summary=song.charge_summary,
-            contaminated=bool(getattr(song, "contaminated", False)),
-            contamination_note=getattr(song, "contamination_note", None),
-            deadpan_line=getattr(song, "deadpan_line", None),
-            topics=getattr(song, "topics", None),
-            effects_prose=getattr(song, "effects_prose", None),
-        )
-        if new_soc:
-            song.societal_effects_prose = new_soc.prose
-            song.societal_prose_generated_at = new_soc.generated_at
-            song.societal_prose_model = new_soc.model
-    except Exception:
-        logger.exception("societal_effects_prose regeneration failed on accept for %s/%s",
-                         p.song_source, p.song_id)
 
     # Consensus restart on ANY accepted recalibration (2026-04-23): supersede
     # prior calibration_runs so the consensus engine starts fresh against the

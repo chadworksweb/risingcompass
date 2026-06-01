@@ -95,16 +95,18 @@ function renderV1Result(el, data) {
   const hex = color ? V1_TIER_HEX[color] : '#666';
   const charge = (data.charge_value === null || data.charge_value === undefined) ? '—' : data.charge_value;
   const contamBadge = data.contaminated ? ' <span style="color:var(--rc-orange,#cc8800);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">contaminated</span>' : '';
+  const dogmaBadge = data.dogma_referenced ? ' <span style="color:#6b5fd6;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">dogma</span>' : '';
   el.innerHTML = `
     <div style="padding:1rem;border-left:3px solid ${hex};background:rgba(0,0,0,0.02);">
       <div style="font-family:monospace;font-size:0.75rem;color:var(--text-dim);margin-bottom:0.3rem;">
         V1 (${esc(data.rubric_commit)}) · ${esc(data.title)} — ${esc(data.artist)}
       </div>
       <div style="font-size:1.2rem;font-weight:700;color:${hex};">
-        ${esc(tier)} (${esc(String(charge))})${contamBadge}
+        ${esc(tier)} (${esc(String(charge))})${contamBadge}${dogmaBadge}
       </div>
       ${data.charge_summary ? `<div style="margin-top:0.5rem;font-size:0.9rem;line-height:1.4;">${esc(data.charge_summary)}</div>` : ''}
       ${data.contamination_note ? `<div style="margin-top:0.4rem;font-size:0.8rem;color:var(--rc-orange,#cc8800);">Contamination: ${esc(data.contamination_note)}</div>` : ''}
+      ${data.dogma_note ? `<div style="margin-top:0.4rem;font-size:0.8rem;color:#6b5fd6;">Dogma: ${esc(data.dogma_note)}</div>` : ''}
       ${data.confidence !== null ? `<div style="margin-top:0.4rem;font-size:0.75rem;color:var(--text-dim);">confidence ${data.confidence}</div>` : ''}
     </div>
   `;

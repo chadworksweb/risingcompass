@@ -944,6 +944,24 @@
       }
     }
 
+    // Dogma hazard-style badge on the hero — parallel to the contamination
+    // badge. The fuller Dogma Reference section below still carries the note.
+    const dogmaBadge = document.getElementById('song-dogma-badge');
+    if (dogmaBadge) {
+      if (!isUncalibrated && song.dogma_referenced) {
+        const dtip = document.getElementById('song-dogma-tooltip');
+        if (dtip) {
+          dtip.innerHTML = `<strong>Dogma referenced.</strong> ${escapeHtml(
+            song.dogma_note ||
+            `${tagline} invokes a specific doctrinal framework. This tag is metadata only — it does not affect the charge.`
+          )}`;
+        }
+        dogmaBadge.hidden = false;
+      } else {
+        dogmaBadge.hidden = true;
+      }
+    }
+
     // Section 3b: Dogma Reference — only surfaces when the tag fired.
     const dogmaSection = document.getElementById('section-dogma');
     if (!isUncalibrated && song.dogma_referenced) {

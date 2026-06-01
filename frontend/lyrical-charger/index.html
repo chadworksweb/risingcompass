@@ -272,6 +272,11 @@
               <button type="button" id="artist-parse-btn" class="artist-parse-btn">Split into rows</button>
             </div>
           </div>
+          <p class="input-hint caps-hint">
+            Double-check your capitalization! We know some songs and artists use lowercase and special characters on purpose, but proper capitalization, symbols, and
+            <span class="hint-term" tabindex="0">artist syntax<span class="hint-tip" role="tooltip">The artist fields above are built for this: add each artist on its own row and mark them Primary or Featured -- no need to type "feat." or "&amp;" into one field. Typed them all in one field (e.g. Kenny Rogers &amp; Dolly Parton)? Hit "Split into rows" and we'll separate them for you.</span></span>
+            help keep our data clean.
+          </p>
           <textarea id="lyrics-input" placeholder="Paste the full lyrics here..." rows="12" spellcheck="false"></textarea>
           <p class="input-hint">Paste the complete lyrics. The more complete they are, the more accurate the reading.</p>
         </div>
@@ -371,6 +376,7 @@
 
       <!-- Contamination -->
       <div class="result-contamination hidden" id="result-contamination"></div>
+      <div class="result-dogma hidden" id="result-dogma"></div>
 
       <!-- Misread link -->
       <div class="result-misread" id="result-misread"></div>
@@ -422,6 +428,11 @@
               <button type="button" id="album-artist-parse-btn" class="artist-parse-btn">Split into rows</button>
             </div>
           </div>
+          <p class="input-hint caps-hint">
+            Double-check your capitalization! We know some albums and artists use lowercase and special characters on purpose, but proper capitalization, symbols, and
+            <span class="hint-term" tabindex="0">artist syntax<span class="hint-tip" role="tooltip">The album artist fields above are built for this: add each artist on its own row and mark them Primary or Featured -- no need to type "feat." or "&amp;" into one field. Typed them all in one field (e.g. Kenny Rogers &amp; Dolly Parton)? Hit "Split into rows" and we'll separate them for you.</span></span>
+            help keep our data clean.
+          </p>
 
           <div class="album-meta-row">
             <select id="album-release-type" class="album-select" aria-label="Release type">

@@ -52,6 +52,64 @@ def set_lyrical_charger_disabled_message(db: Session, message: str | None) -> No
     db.commit()
 
 
+# --- Lyrical Charger daily rate limits -------------------------------------
+# Per-IP (anon) and per-user (signed-in) daily caps for the calibrate-*
+# endpoints, tunable from the LC admin section. Stored as text in
+# system_flags; an absent flag falls back to the code default.
+
+LC_ANON_DAILY_LIMIT_KEY = "lyrical_charger.anon_daily_limit"
+LC_USER_DAILY_LIMIT_KEY = "lyrical_charger.user_daily_limit"
+DEFAULT_LC_USER_DAILY_LIMIT = 100
+
+
+def _default_anon_daily_limit() -> int:
+    # Lazy import keeps feature_flags free of a billing_config dependency at
+    # module load (feature_flags is imported very early by the routers).
+    from app import billing_config
+    return billing_config.ANON_CHARGER_DAILY_LIMIT
+
+
+def _read_int_flag(db: Session, key: str, default: int) -> int:
+    raw = _get_flag(db, key)
+    if raw is None:
+        return default
+    try:
+        val = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return val if val >= 0 else default
+
+
+def _set_int_flag(db: Session, key: str, value: int | None) -> None:
+    row = db.query(SystemFlag).filter(SystemFlag.key == key).first()
+    if value is None:
+        if row:
+            db.delete(row)
+            db.commit()
+        return
+    if row:
+        row.value = str(int(value))
+    else:
+        db.add(SystemFlag(key=key, value=str(int(value))))
+    db.commit()
+
+
+def lyrical_charger_anon_daily_limit(db: Session) -> int:
+    return _read_int_flag(db, LC_ANON_DAILY_LIMIT_KEY, _default_anon_daily_limit())
+
+
+def lyrical_charger_user_daily_limit(db: Session) -> int:
+    return _read_int_flag(db, LC_USER_DAILY_LIMIT_KEY, DEFAULT_LC_USER_DAILY_LIMIT)
+
+
+def set_lyrical_charger_anon_daily_limit(db: Session, value: int | None) -> None:
+    _set_int_flag(db, LC_ANON_DAILY_LIMIT_KEY, value)
+
+
+def set_lyrical_charger_user_daily_limit(db: Session, value: int | None) -> None:
+    _set_int_flag(db, LC_USER_DAILY_LIMIT_KEY, value)
+
+
 # --- Launch lock -----------------------------------------------------------
 # Soft pre-launch gate for the public sign-up form AND the billing checkout
 # (subscribe / buy credits). Default is LOCKED when the flag has never been

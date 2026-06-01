@@ -471,6 +471,50 @@ main {
   margin-top: 0.5rem;
 }
 
+/* Capitalization guidance note + "artist syntax" tooltip */
+.caps-hint {
+  margin-top: 0.75rem;
+  margin-bottom: 0.85rem;
+  line-height: 1.6;
+}
+
+.hint-term {
+  position: relative;
+  color: var(--rc-accent);
+  border-bottom: 1px dotted var(--rc-accent);
+  cursor: help;
+  outline: none;
+  white-space: nowrap;
+}
+
+.hint-tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.45rem);
+  z-index: 30;
+  width: max-content;
+  max-width: 280px;
+  padding: 0.55rem 0.7rem;
+  background: var(--rc-bg-dark);
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-bright);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--rc-ease);
+  pointer-events: none;
+}
+
+.hint-term:hover .hint-tip,
+.hint-term:focus .hint-tip,
+.hint-term:focus-visible .hint-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* Search tab */
 .search-fields {
   display: grid;
@@ -1012,6 +1056,32 @@ main {
 }
 
 .contam-note {
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  line-height: 1.6;
+}
+
+/* Dogma reference block — sibling to .result-contamination. */
+.result-dogma {
+  text-align: center;
+  padding: 1rem 1.5rem;
+  margin: 0 auto 2rem;
+  max-width: 480px;
+  background: var(--rc-dogma-bg);
+  border: 1px solid var(--rc-dogma-border);
+  border-radius: var(--rc-radius);
+}
+
+.dogma-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-dogma);
+  margin-bottom: 0.25rem;
+}
+
+.dogma-note {
   font-size: 0.78rem;
   color: var(--rc-text-dim);
   line-height: 1.6;
@@ -1772,6 +1842,19 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
   font-family: var(--rc-font-mono);
   font-size: 0.7rem;
   font-weight: 700;
+}
+
+/* Dogma marker — sibling to .atr-contam. Scroll emoji carries its own color. */
+.atr-dogma {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--rc-dogma-bg);
+  border: 1px solid var(--rc-dogma-border);
+  font-size: 0.65rem;
 }
 
 .atr-charge {

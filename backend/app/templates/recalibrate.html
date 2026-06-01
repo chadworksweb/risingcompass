@@ -403,6 +403,30 @@
   // sessionStorage key from the pre-cookie era.
   try { sessionStorage.removeItem('rc-admin-key'); } catch (e) {}
   loadFlags();
+  applySongDeepLink();
+
+  // Deep-link from a Misread report's "Review" button:
+  //   /api/admin/recalibrate?song_source=<src>&song_id=<id>&q=<title>
+  // Auto-selects the reported song into the manual pipeline. Falls back to a
+  // primed search box when the exact row can't be resolved (e.g. the report's
+  // song_id was never linked, or the title isn't in the first page of results).
+  async function applySongDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const q = (params.get('q') || '').trim();
+    const src = params.get('song_source');
+    const sid = params.get('song_id');
+    if (!q && !(src && sid)) return;
+    if (q) $('song-search').value = q;
+    if (src && sid) {
+      try {
+        const res = await api('GET', `/api/admin/db/all_songs?q=${encodeURIComponent(q || src)}&limit=50`);
+        const rows = (res && res.rows) || [];
+        const match = rows.find(r => String(r.song_source) === String(src) && String(r.id) === String(sid));
+        if (match) { selectSongFromSearch(match); return; }
+      } catch (_) { /* fall through to the primed search */ }
+    }
+    if (q) doSongSearch();
+  }
 
   // --- Flag inbox (satirical_flag pipeline) ---
   async function loadFlags() {

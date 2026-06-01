@@ -458,6 +458,7 @@ async def _run_album_charge(
                     tier_label=COLOR_LABELS.get(calibration.get("rubric_color")),
                     charge=calibration.get("charge_value"),
                     contaminated=calibration.get("contaminated", False),
+                    dogma_referenced=calibration.get("dogma_referenced", False),
                     song_slug=slug,
                 ))
 

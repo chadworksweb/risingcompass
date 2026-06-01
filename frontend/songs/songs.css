@@ -122,6 +122,56 @@
 .song-contam-badge:focus .contam-tooltip,
 .song-contam-badge:focus-within .contam-tooltip { display: block; }
 
+/* Dogma badge — sibling to the contamination badge, anchored top-LEFT so the
+   two never overlap (contamination stays top-right). */
+.song-dogma-badge {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+  background: var(--rc-dogma-bg);
+  border: 1px solid var(--rc-dogma-border);
+  cursor: help;
+  z-index: 2;
+}
+.song-dogma-badge[hidden] { display: none; }
+.song-dogma-badge .dogma-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.song-dogma-badge-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-dogma);
+}
+.song-dogma-badge .contam-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.4rem;
+  width: 230px;
+  padding: 0.55rem 0.65rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--rc-text);
+  text-align: left;
+  z-index: 10;
+}
+.song-dogma-badge:hover .contam-tooltip,
+.song-dogma-badge:focus .contam-tooltip,
+.song-dogma-badge:focus-within .contam-tooltip { display: block; }
+
 .song-hero {
   max-width: 640px;
   margin: 0 auto;

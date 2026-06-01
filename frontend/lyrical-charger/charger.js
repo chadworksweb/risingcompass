@@ -71,6 +71,7 @@ const resultSocietal = $('#result-societal');
 const resultSocietalBody = $('#result-societal-body');
 const resultConsensus = $('#result-consensus');
 const resultContamination = $('#result-contamination');
+const resultDogma = $('#result-dogma');
 const resultMisread = $('#result-misread');
 const btnAgain = $('#btn-again');
 const btnShare = $('#btn-share');
@@ -1125,6 +1126,17 @@ function renderResults(data) {
     resultContamination.classList.add('hidden');
   }
 
+  // Dogma reference — parallel tag to contamination.
+  if (data.dogma_referenced && data.dogma_note) {
+    resultDogma.innerHTML = `
+      <div class="dogma-label">&#x1F4DC; Dogma Reference</div>
+      <div class="dogma-note">${esc(data.dogma_note)}</div>
+    `;
+    resultDogma.classList.remove('hidden');
+  } else {
+    resultDogma.classList.add('hidden');
+  }
+
   // Misread link + view-details link
   const misreadParams = new URLSearchParams();
   misreadParams.set('title', data.title || '');
@@ -1963,12 +1975,14 @@ function hideError() {
       ? `<a class="atr-title" href="/songs/${encodeURIComponent(t.song_slug)}">${esc(t.title)}</a>`
       : `<span class="atr-title">${esc(t.title)}</span>`;
     const contam = t.contaminated ? '<span class="atr-contam" title="Contaminated">!</span>' : '';
+    const dogma = t.dogma_referenced ? '<span class="atr-dogma" title="Dogma referenced">&#x1F4DC;</span>' : '';
     return `
       <li class="album-track-result">
         <span class="atr-num">${esc(String(num))}</span>
         <span class="atr-dot" style="background: var(--rc-${color})"></span>
         ${titleHtml}
         ${contam}
+        ${dogma}
         <span class="atr-charge ${getChargeClass(charge)}">${sign}${charge}</span>
       </li>`;
   }

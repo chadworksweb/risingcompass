@@ -262,6 +262,16 @@
   border-radius: 2px;
 }
 
+.cl-diff-dogma {
+  color: var(--rc-dogma);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--rc-dogma);
+  padding: 0.08rem 0.35rem;
+  border-radius: 2px;
+}
+
 .cl-diff-arrow {
   color: var(--rc-text-dim);
   font-family: var(--rc-font-mono);

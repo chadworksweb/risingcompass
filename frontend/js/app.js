@@ -207,6 +207,7 @@ const App = (() => {
         if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
 
         if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
+        if (song.dogma_referenced && song.dogma_note) lines += `<div class="mei-line mei-dogma">&#x1F4DC; ${escapeHtml(song.dogma_note)}</div>`;
         const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color, pos: song.position });
         if (song.message_analysis) disputeParams.set('ma', song.message_analysis);
         if (song.expression_analysis) disputeParams.set('ea', song.expression_analysis);
@@ -230,6 +231,7 @@ const App = (() => {
           </div>
           <div class="song-actions">
             ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
+            ${song.dogma_referenced ? '<span class="song-dogma" aria-hidden="true" title="Dogma referenced">&#x1F4DC;</span>' : ''}
             ${hasTooltip ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
           </div>
           ${tooltipHtml}
@@ -2788,6 +2790,7 @@ const App = (() => {
         let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
         if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
         if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
+        if (song.dogma_referenced && song.dogma_note) lines += `<div class="mei-line mei-dogma">&#x1F4DC; ${escapeHtml(song.dogma_note)}</div>`;
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
       const instrClass = song.instrumental ? ' instrumental' : '';
@@ -2805,6 +2808,7 @@ const App = (() => {
           </div>
           <div class="song-actions">
             ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
+            ${song.dogma_referenced ? '<span class="song-dogma" aria-hidden="true" title="Dogma referenced">&#x1F4DC;</span>' : ''}
             ${hasTooltip ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
           </div>
           ${tooltipHtml}

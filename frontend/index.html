@@ -276,14 +276,34 @@
   <a href="#compass-panel" class="skip-nav">Skip to main content</a>
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Sitewide auth indicator. Sub-pages get this via partials/header.html;
-       the homepage has its own .site-header, so the indicator is placed
-       directly here with a floating position. localStorage flag is written
-       by /account/ on session confirm and cleared on sign-out. -->
-  <a href="/account/" id="rc-account-link" class="rc-account-link rc-account-link-floating" data-state="out">
+  <!-- INCLUDE:header -->
+<header class="rc-header">
+  <div class="rc-header-inner">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+  <div class="rc-search" id="rcSearch">
+    <input type="search" id="rcSearchInput" class="rc-search-input"
+      placeholder="Search artists or songs..." autocomplete="off"
+      aria-label="Search artists or songs" role="combobox"
+      aria-expanded="false" aria-controls="rcSearchPanel" aria-autocomplete="list">
+    <div class="rc-search-panel" id="rcSearchPanel" role="listbox" hidden></div>
+  </div>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     <span class="rc-account-label">Sign in</span>
   </a>
+  </div>
   <script>
     (function(){
       function sync() {
@@ -325,6 +345,9 @@
       });
     })();
   </script>
+  <script src="/js/header-search.js" defer></script>
+</header>
+<!-- /INCLUDE:header -->
 
   <header class="site-header">
     <h1 class="site-title">The Rising <span>Compass</span></h1>

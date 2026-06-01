@@ -69,6 +69,9 @@
     const contam = side.contaminated
       ? '<span class="cl-diff-contam">Contaminated</span>'
       : '';
+    const dogma = side.dogma_referenced
+      ? '<span class="cl-diff-dogma">Dogma</span>'
+      : '';
     const tierDot = tier ? `<span class="cl-diff-tier cl-diff-tier-${tier}"></span>` : '';
     return `
       <span class="cl-diff-side">
@@ -76,6 +79,7 @@
         <span>${tierLabel}</span>
         <span class="cl-diff-charge">${charge}</span>
         ${contam}
+        ${dogma}
       </span>
     `;
   }

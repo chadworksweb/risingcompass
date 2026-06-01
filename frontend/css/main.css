@@ -30,6 +30,10 @@
   --rc-contam-bg: rgba(226, 138, 108, 0.12);
   --rc-contam-border: rgba(226, 138, 108, 0.25);
   --rc-contam-zero-border: rgba(0, 212, 170, 0.2);
+  /* Dogma-reference tag — parallel to contamination, distinct indigo hue. */
+  --rc-dogma: #8a7fe0;
+  --rc-dogma-bg: rgba(138, 127, 224, 0.12);
+  --rc-dogma-border: rgba(138, 127, 224, 0.3);
 
   /* Typography */
   --rc-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -911,6 +915,15 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   flex-shrink: 0;
 }
 
+/* Dogma-reference inline marker — sibling to .song-contam. The scroll glyph
+   is an emoji (carries its own color), so no color rule is needed. */
+.song-dogma {
+  font-size: 0.85rem;
+  line-height: 1;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
 /* Song M E I Tooltip */
 .song-item {
   position: relative;
@@ -989,6 +1002,14 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 
 .mei-contam {
   color: #cc2244;
+  margin-top: 0.2rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Dogma note line — sibling to .mei-contam. Darker indigo for the light card. */
+.mei-dogma {
+  color: #5a4fc0;
   margin-top: 0.2rem;
   padding-top: 0.2rem;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
