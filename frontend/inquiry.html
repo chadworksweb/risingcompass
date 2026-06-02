@@ -238,6 +238,7 @@
         <option value="bug">Bug / problem</option>
         <option value="partnership">Partnership</option>
         <option value="data">Data correction</option>
+        <option value="lyrics_rejected">Lyrics rejected (appeal)</option>
         <option value="other">Other</option>
       </select>
     </div>
@@ -281,7 +282,7 @@
   const API_HEADERS = API_KEY ? { 'X-Api-Key': API_KEY } : {};
 
   const params = new URLSearchParams(window.location.search);
-  const VALID_TOPICS = ['general', 'album_charger', 'bug', 'partnership', 'data', 'other'];
+  const VALID_TOPICS = ['general', 'album_charger', 'bug', 'partnership', 'data', 'lyrics_rejected', 'other'];
 
   // Prefill from query params (deep links, e.g. the Album Charger's
   // "need more than 15 tracks?" link).

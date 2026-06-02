@@ -1,6 +1,6 @@
 """One-shot: populate effects_prose for every calibrated song missing it.
 
-Iterates compass_songs + library_songs + submitted_songs + stream_songs.
+Iterates compass_songs + library_songs + submitted_songs + cl_stream_songs.
 For each row with charge_value IS NOT NULL AND effects_prose IS NULL,
 calls the effects-prose agent and writes the result.
 
@@ -40,7 +40,7 @@ TABLES = [
     ("compass", "compass_songs"),
     ("library", "library_songs"),
     ("submitted", "submitted_songs"),
-    ("stream", "stream_songs"),
+    ("stream", "cl_stream_songs"),
 ]
 
 

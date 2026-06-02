@@ -26,7 +26,7 @@ _TIMESTAMP_COLS = {
     "compass": ("compass_songs", "created_at"),
     "library": ("library_songs", "created_at"),
     "submitted": ("submitted_songs", "submitted_at"),
-    "stream": ("stream_songs", "created_at"),
+    "stream": ("cl_stream_songs", "created_at"),
 }
 
 

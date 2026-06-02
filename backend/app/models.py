@@ -430,7 +430,10 @@ class StreamSong(Base):
     Songs land here first, get auto-calibrated, then can be promoted to
     library_songs (official non-chart archive).
     """
-    __tablename__ = "stream_songs"
+    # Table renamed stream_songs -> cl_stream_songs (migration 079). The Python
+    # class stays StreamSong, and the provenance published label stays
+    # "stream_songs" for on-chain anchor continuity (see provenance_anchor.py).
+    __tablename__ = "cl_stream_songs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(Text, nullable=False)

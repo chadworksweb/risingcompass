@@ -611,6 +611,31 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     draft_song = next((s for s in draft.songs if s.id == song_id), None)
     if not draft_song:
         raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
+
+    # === LYRICS QUALITY GATE — protect the official library (compass_songs) ===
+    # Both modes below write compass_songs from here (terminal Claude-Code-supplied
+    # calibration AND browser/admin Anthropic calibration), so this is the single
+    # choke point for the chart-driven corpus. Hard-block short / fragmented /
+    # gibberish lyrics, mirroring the public Lyrical Charger guard
+    # (analyzer._validate_lyrics). Function-level import: analyzer is a sibling
+    # router, imported here to avoid any module-load ordering coupling.
+    from app.routers.analyzer import _validate_lyrics
+    lyrics_error = _validate_lyrics(data.lyrics or "")
+    if lyrics_error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "lyrics_rejected",
+                "reason": lyrics_error,
+                "appeal_url": "/inquiry.html?topic=lyrics_rejected&source=supply_lyrics",
+                "message": (
+                    f"{lyrics_error} These lyrics were not added to the library. "
+                    "If they are accurate and complete, appeal at "
+                    "/inquiry.html?topic=lyrics_rejected"
+                ),
+            },
+        )
+
     snap = {
         "song_id": draft_song.id,
         "title": draft_song.title,

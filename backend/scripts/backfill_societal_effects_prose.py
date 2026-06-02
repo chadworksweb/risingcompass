@@ -1,6 +1,6 @@
 """One-shot: populate societal_effects_prose for every calibrated song missing it.
 
-Iterates compass_songs + library_songs + submitted_songs + stream_songs.
+Iterates compass_songs + library_songs + submitted_songs + cl_stream_songs.
 Requires the song to already have:
   - charge_value + rubric_color + charge_summary (calibration done)
   - effects_prose (per-listener prose run; we reference it for context)
@@ -42,7 +42,7 @@ TABLES = [
     ("compass", "compass_songs"),
     ("library", "library_songs"),
     ("submitted", "submitted_songs"),
-    ("stream", "stream_songs"),
+    ("stream", "cl_stream_songs"),
 ]
 
 

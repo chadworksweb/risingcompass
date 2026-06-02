@@ -499,6 +499,18 @@ async def calibrate_lyrics_endpoint(
             _log_error_event("submission_failed_validation", request,
                              payload={"reason": lyrics_error, "source": source,
                                       "title": body.title[:100], "artist": body.artist[:100]})
+            # Public callers get a structured detail with an appeal route to the
+            # general-inquiry form (topic lyrics_rejected). Service/API callers
+            # keep the plain-string detail below for programmatic handling.
+            raise HTTPException(422, {
+                "error": "lyrics_rejected",
+                "reason": lyrics_error,
+                "appeal_url": "/inquiry.html?topic=lyrics_rejected&source=lyrical_charger",
+                "message": (
+                    f"{lyrics_error} If these are accurate and complete lyrics, "
+                    "appeal at /inquiry.html?topic=lyrics_rejected"
+                ),
+            })
         raise HTTPException(422, lyrics_error)
 
     # Prose detection — observe only, do NOT block. We log flagged submissions

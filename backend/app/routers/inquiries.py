@@ -30,7 +30,7 @@ router = APIRouter(tags=["inquiries"])
 # Admin endpoints live on their own router (cookie auth, no X-Api-Key).
 admin_router = APIRouter(tags=["inquiries-admin"])
 
-VALID_TOPICS = {"general", "album_charger", "bug", "partnership", "data", "other"}
+VALID_TOPICS = {"general", "album_charger", "bug", "partnership", "data", "lyrics_rejected", "other"}
 VALID_STATUSES = {"new", "read", "closed"}
 
 

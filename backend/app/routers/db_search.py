@@ -41,7 +41,7 @@ TABLES = {
     "compass_songs": CompassSong,
     "library_songs": LibrarySong,
     "submitted_songs": SubmittedSong,
-    "stream_songs": StreamSong,
+    "cl_stream_songs": StreamSong,
     "artists": Artist,
     "releases": Release,
     "misread_submissions": MisreadSubmission,
@@ -58,7 +58,7 @@ SEARCH_COLUMNS = {
     "compass_songs": ["title", "artist"],
     "library_songs": ["title", "artist"],
     "submitted_songs": ["title", "artist"],
-    "stream_songs": ["title", "artist"],
+    "cl_stream_songs": ["title", "artist"],
     "artists": ["name", "slug"],
     "releases": ["title"],
     "misread_submissions": ["song_title", "song_artist", "email", "first_name", "last_name"],
@@ -308,7 +308,7 @@ RESETTABLE_SOURCES = {
     "compass_songs": (CompassSong, "compass"),
     "library_songs": (LibrarySong, "library"),
     "submitted_songs": (SubmittedSong, "submitted"),
-    "stream_songs": (StreamSong, "stream"),
+    "cl_stream_songs": (StreamSong, "stream"),
 }
 
 

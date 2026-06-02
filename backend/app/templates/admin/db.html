@@ -242,15 +242,15 @@ async function dbLoadAll(total) {
   }
 }
 
-const DB_RESETTABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'all_songs']);
-const DB_DELETABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'artists', 'releases', 'misread_submissions', 'audience_vibe_pushes', 'song_recalibrations', 'calibration_runs', 'all_songs']);
+const DB_RESETTABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'cl_stream_songs', 'all_songs']);
+const DB_DELETABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'cl_stream_songs', 'artists', 'releases', 'misread_submissions', 'audience_vibe_pushes', 'song_recalibrations', 'calibration_runs', 'all_songs']);
 const DB_SOURCE_TO_TABLE = {
   compass: 'compass_songs',
   library: 'library_songs',
   submitted: 'submitted_songs',
-  stream: 'stream_songs',
+  stream: 'cl_stream_songs',
 };
-const DB_MERGEABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'stream_songs', 'all_songs']);
+const DB_MERGEABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'cl_stream_songs', 'all_songs']);
 let dbMergeSource = null;
 
 function renderDbResults(data) {

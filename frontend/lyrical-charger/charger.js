@@ -808,7 +808,13 @@ async function submitLyrics() {
     if (!resp.ok) {
       stopProgress();
       const data = await resp.json().catch(() => ({}));
-      showError(data.detail || 'Calibration failed. Try again.');
+      const d = data.detail;
+      if (d && typeof d === 'object') {
+        // Structured rejection (e.g. lyrics_rejected) carries an appeal link.
+        showError(d.reason || d.message || 'Calibration failed. Try again.', d.appeal_url);
+      } else {
+        showError(d || 'Calibration failed. Try again.');
+      }
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -990,7 +996,13 @@ async function submitSearch() {
     if (!resp.ok) {
       stopProgress();
       const data = await resp.json().catch(() => ({}));
-      showError(data.detail || 'Calibration failed. Try again.');
+      const d = data.detail;
+      if (d && typeof d === 'object') {
+        // Structured rejection (e.g. lyrics_rejected) carries an appeal link.
+        showError(d.reason || d.message || 'Calibration failed. Try again.', d.appeal_url);
+      } else {
+        showError(d || 'Calibration failed. Try again.');
+      }
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -1277,8 +1289,18 @@ function getChargeClass(charge) {
   return 'charge-high-negative';
 }
 
-function showError(msg) {
-  errorMessage.textContent = msg;
+function showError(msg, appealUrl) {
+  errorMessage.textContent = '';
+  errorMessage.appendChild(document.createTextNode(msg));
+  if (appealUrl) {
+    errorMessage.appendChild(document.createTextNode(' '));
+    const a = document.createElement('a');
+    a.href = appealUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = 'Appeal this';
+    errorMessage.appendChild(a);
+  }
   errorMessage.classList.remove('hidden');
 }
 

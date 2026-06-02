@@ -48,7 +48,12 @@ from app.models import (
 
 logger = logging.getLogger(__name__)
 
-# (published table name, model). AgentDraftSong carries no societal prose.
+# (published label, model). AgentDraftSong carries no societal prose.
+# The label is the frozen identity string baked into every anchor's hash
+# (canonical_hash) -- NOT the live table name. CL Stream's table was renamed
+# stream_songs -> cl_stream_songs (migration 079) but its label stays
+# "stream_songs" so every already-anchored row keeps verifying; live prose is
+# always fetched through the model, never by the label string.
 _PROSE_MODELS = [
     ("compass_songs", CompassSong),
     ("library_songs", LibrarySong),
