@@ -20,6 +20,18 @@ api.risingcompass.net    → nginx → backend:8000
 - **8:00 UTC daily** — cron at `/root/risingcompass-readings/reading.sh` hits `POST /api/admin/agent/cron/calibrate-live` with `X-Reading-Cron-Key` (`RC_READING_CRON_KEY`) → agent calibrates today's top songs → creates draft reading → emails you for review. Service-token authed, not admin-session — distinct from the human admin login.
 - **You review** — click approve link in email (or reject/edit via admin dashboard)
 - **3:00 UTC daily** — certbot checks if SSL certs need renewal
+- **4:17 UTC Monday** — cron refreshes the MaxMind GeoLite2-Country DB used by
+  the cookie consent bar's geo-aware default (`/api/geo-country`). Reads
+  `MAXMIND_LICENSE_KEY` from `.env`, writes `/root/geoip/GeoLite2-Country.mmdb`,
+  then needs a backend restart to load the new DB.
+
+  Crontab line (deploy user; sources `.env` so the key stays only there):
+  ```
+  17 4 * * 1 bash -c 'set -a; . /root/rising-compass/.env; set +a; bash /root/rising-compass/deploy/refresh_geoip.sh && cd /root/rising-compass && docker compose restart backend' >> /var/log/geoip-refresh.log 2>&1
+  ```
+  Requires `MAXMIND_LICENSE_KEY=...` in `/root/rising-compass/.env` (free MaxMind
+  account). Until that key + the first `mmdb` exist, `/api/geo-country` returns
+  null and the consent bar safely behaves as opt-in everywhere.
 
 You don't need to do anything unless you get an email.
 

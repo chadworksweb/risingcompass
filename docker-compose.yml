@@ -24,6 +24,10 @@ services:
       # RISING-COMPASS-PROSE-PROVENANCE.md SS5.
       - /root/rising-compass-provenance:/provenance
       - /root/.ssh/rcprov_deploy:/provenance-key:ro
+      # MaxMind GeoLite2 country DB for the cookie consent bar's geo-aware
+      # default (/api/geo-country). Read-only; refresh on the host. If the file
+      # is absent the endpoint returns null and the bar behaves as opt-in.
+      - /root/geoip:/geoip:ro
     environment:
       - RC_ADMIN_KEY=${RC_ADMIN_KEY:-change-me}
       - RC_API_KEY=${RC_API_KEY:-change-me}
@@ -87,6 +91,12 @@ services:
       # project as the frontend snippet; unset -> server capture is a no-op.
       - POSTHOG_API_KEY=${POSTHOG_API_KEY}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://us.i.posthog.com}
+      # Admin "View in PostHog" deep link (Site Admin -> user detail). PROJECT_ID
+      # unset -> button hides. distinct_id is the Clerk user id (auth.js identify).
+      - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID}
+      - POSTHOG_UI_HOST=${POSTHOG_UI_HOST:-https://us.posthog.com}
+      # MaxMind GeoLite2 country DB path (mounted read-only above).
+      - GEOIP_DB_PATH=${GEOIP_DB_PATH:-/geoip/GeoLite2-Country.mmdb}
       - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - CLERK_JWKS_URL=${CLERK_JWKS_URL}

@@ -5,8 +5,13 @@
 {% block subtabs %}
 <nav class="admin-subtabs" aria-label="User detail tabs">
   <a class="admin-subtab" href="/api/admin/dashboard/users">All users</a>
-  <a class="admin-subtab active" href="#" id="tab-profile">Profile</a>
-  <a class="admin-subtab" href="#" id="tab-comments">Comments</a>
+  <a class="admin-subtab" href="#" data-tab="profile" id="tab-profile">Profile</a>
+  <a class="admin-subtab active" href="#" data-tab="activity" id="tab-activity">Activity</a>
+  <a class="admin-subtab" href="#" data-tab="calibrations" id="tab-calibrations">Calibrations</a>
+  <a class="admin-subtab" href="#" data-tab="submissions" id="tab-submissions">Submissions</a>
+  <a class="admin-subtab" href="#" data-tab="motions" id="tab-motions">Motions</a>
+  <a class="admin-subtab" href="#" data-tab="payments" id="tab-payments">Payments</a>
+  <a class="admin-subtab" href="#" data-tab="comments" id="tab-comments">Comments</a>
 </nav>
 {% endblock %}
 
@@ -15,6 +20,9 @@
   .ud-card { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
   .ud-handle { font-family: monospace; font-size: 1.2rem; font-weight: 700; color: var(--accent-strong); margin: 0; }
   .ud-anon { font-family: monospace; font-size: 0.78rem; color: var(--text-hint); }
+  .ud-headrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .ud-ph-link { font-size: 0.78rem; font-weight: 700; text-decoration: none; padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid var(--accent); color: var(--accent-strong); background: rgba(0,143,114,0.08); white-space: nowrap; }
+  .ud-ph-link:hover { background: rgba(0,143,114,0.16); }
   .ud-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem 1.25rem; margin-top: 0.8rem; }
   .ud-meta-grid dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 700; margin-bottom: 0.1rem; }
   .ud-meta-grid dd { margin: 0; font-size: 0.88rem; color: var(--text); }
@@ -40,9 +48,38 @@
   .ud-comment-body { font-size: 0.88rem; line-height: 1.5; color: var(--text); white-space: pre-wrap; word-wrap: break-word; padding: 0.25rem 0; }
   .ud-comment-target { font-family: monospace; font-size: 0.72rem; color: var(--text-hint); }
   .ud-comment-hidden-reason { font-size: 0.78rem; color: var(--tier-orange); margin-top: 0.3rem; padding: 0.3rem 0.5rem; background: rgba(255, 187, 51, 0.08); border-left: 2px solid var(--tier-orange); border-radius: 0 3px 3px 0; }
+
+  /* Activity timeline */
+  .ud-act-row { display: flex; gap: 0.7rem; align-items: baseline; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-soft); font-size: 0.86rem; }
+  .ud-act-type { flex-shrink: 0; width: 92px; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 0.12rem 0.35rem; border-radius: 3px; text-align: center; }
+  .ud-act-when { flex-shrink: 0; width: 150px; font-family: monospace; font-size: 0.72rem; color: var(--text-hint); }
+  .ud-act-summary { flex: 1; color: var(--text); word-wrap: break-word; }
+  .ud-act-summary a { color: var(--accent-strong); }
+  .t-comment { background: rgba(0,143,114,0.12); color: var(--accent-strong); }
+  .t-calibration { background: rgba(64,96,255,0.12); color: #3a57d6; }
+  .t-misread { background: #fff0d0; color: var(--tier-orange); }
+  .t-motion { background: #efe4fb; color: #6b3fa0; }
+  .t-argument { background: #e6e0f5; color: #6b3fa0; }
+  .t-payment { background: rgba(0,143,114,0.08); color: var(--accent-strong); }
+  .t-verification { background: var(--panel-strong); color: var(--text-dim); }
+
+  /* Generic list cards (calibrations / submissions / motions) */
+  .ud-li { padding: 0.65rem 0.85rem; border: 1px solid var(--border-soft); border-radius: 5px; margin-bottom: 0.5rem; background: var(--panel); }
+  .ud-li-meta { display: flex; gap: 0.7rem; flex-wrap: wrap; align-items: center; font-size: 0.76rem; color: var(--text-dim); margin-bottom: 0.25rem; }
+  .ud-pill { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.08rem 0.45rem; border-radius: 3px; background: var(--panel-strong); color: var(--text-dim); }
+  .ud-led { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.78rem; }
+  .ud-led th, .ud-led td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-soft); text-align: left; }
+  .ud-led .pos { color: var(--accent-strong); }
+  .ud-led .neg { color: var(--red); }
+  .ud-subhead { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 1rem 0 0.5rem; }
 </style>
 
-<div id="ud-panel-profile"></div>
+<div id="ud-panel-profile" style="display:none;"></div>
+<div id="ud-panel-activity"></div>
+<div id="ud-panel-calibrations" style="display:none;"></div>
+<div id="ud-panel-submissions" style="display:none;"></div>
+<div id="ud-panel-motions" style="display:none;"></div>
+<div id="ud-panel-payments" style="display:none;"></div>
 <div id="ud-panel-comments" style="display:none;">
   <div class="ud-comments-filters" id="udCommentFilters">
     <button class="filter-btn active" data-state="">All</button>
@@ -60,11 +97,13 @@
 {% block scripts %}
 <script>
 const USER_IDENT = {{ anon_id | tojson }};
+const TABS = ['profile', 'activity', 'calibrations', 'submissions', 'motions', 'payments', 'comments'];
 let commentFilter = '';
 
 function onAdminReady() {
-  document.getElementById('tab-profile').addEventListener('click', (ev) => { ev.preventDefault(); showTab('profile'); });
-  document.getElementById('tab-comments').addEventListener('click', (ev) => { ev.preventDefault(); showTab('comments'); });
+  document.querySelectorAll('.admin-subtab[data-tab]').forEach((a) => {
+    a.addEventListener('click', (ev) => { ev.preventDefault(); showTab(a.dataset.tab); });
+  });
   document.querySelectorAll('#udCommentFilters .filter-btn').forEach((b) => {
     b.addEventListener('click', () => {
       commentFilter = b.dataset.state || '';
@@ -72,34 +111,56 @@ function onAdminReady() {
       loadComments();
     });
   });
+  // Profile loads always (header info). Deep-link via #tab in the hash.
   loadProfile();
-  // Deep-link: /dashboard/user/{id}#comments lands on the Comments tab.
-  if (window.location.hash === '#comments') {
-    showTab('comments');
-  }
+  const hashTab = (window.location.hash || '').replace('#', '');
+  showTab(TABS.includes(hashTab) ? hashTab : 'activity');
 }
+
+const LOADERS = {
+  profile: loadProfile,
+  activity: loadActivity,
+  calibrations: loadCalibrations,
+  submissions: loadSubmissions,
+  motions: loadMotions,
+  payments: loadPayments,
+  comments: loadComments,
+};
 
 function showTab(name) {
-  ['profile', 'comments'].forEach((n) => {
-    document.getElementById('ud-panel-' + n).style.display = (n === name) ? '' : 'none';
-    document.getElementById('tab-' + n).classList.toggle('active', n === name);
+  TABS.forEach((n) => {
+    const panel = document.getElementById('ud-panel-' + n);
+    if (panel) panel.style.display = (n === name) ? '' : 'none';
+    const tab = document.getElementById('tab-' + n);
+    if (tab) tab.classList.toggle('active', n === name);
   });
-  if (name === 'comments' && !document.getElementById('udCommentList').dataset.loaded) {
-    loadComments();
-  }
+  const panel = document.getElementById('ud-panel-' + name);
+  if (panel && !panel.dataset.loaded && LOADERS[name]) LOADERS[name]();
 }
 
+async function fetchJson(path) {
+  const resp = await adminFetch(path);
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
+function fail(el, err) {
+  el.innerHTML = `<p style="color:var(--red);">${esc((err && err.message) || 'Failed.')}</p>`;
+}
+
+function loading(el) { el.innerHTML = '<p style="color:#666;">Loading...</p>'; }
+
+function dt(s) { return s ? new Date(s).toLocaleString() : '--'; }
+
+// ---------- Profile ----------
 async function loadProfile() {
   const el = document.getElementById('ud-panel-profile');
-  el.innerHTML = '<p style="color:#666;">Loading...</p>';
+  loading(el);
   try {
-    const resp = await adminFetch(`/api/admin/users/${encodeURIComponent(USER_IDENT)}`);
-    if (!resp.ok) throw new Error(await resp.text());
-    const data = await resp.json();
+    const data = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}`);
     renderProfile(data);
-  } catch (err) {
-    el.innerHTML = `<p style="color:var(--red);">${esc(err.message || 'Failed.')}</p>`;
-  }
+    el.dataset.loaded = '1';
+  } catch (err) { fail(el, err); }
 }
 
 function renderProfile(data) {
@@ -109,61 +170,204 @@ function renderProfile(data) {
   if (u.status === 'banned') {
     statusBlock = `<span class="ud-status-banned">Banned</span> &middot; <span style="color:var(--text-dim);">${esc(u.banned_reason || '')}</span>`;
   } else if (u.status === 'suspended') {
-    statusBlock = `<span class="ud-status-suspended">Suspended</span> until ${u.suspended_until ? new Date(u.suspended_until).toLocaleString() : '?'}`;
+    statusBlock = `<span class="ud-status-suspended">Suspended</span> until ${dt(u.suspended_until)}`;
   } else {
     statusBlock = `<span style="color:var(--accent-strong);">Active</span>`;
   }
+
+  const phBtn = u.posthog_person_url
+    ? `<a class="ud-ph-link" href="${esc(u.posthog_person_url)}" target="_blank" rel="noopener">View in PostHog &#8599;</a>`
+    : '';
 
   const verRows = data.verifications.length
     ? data.verifications.map((v) => `
         <tr>
           <td>${esc(v.provider)}</td>
           <td>${esc(v.status)}</td>
-          <td>${v.verified_at ? new Date(v.verified_at).toLocaleString() : '--'}</td>
-          <td>${new Date(v.created_at).toLocaleString()}</td>
-          <td style="color:var(--text-hint);">${esc(v.provider_reference.slice(0, 24) + '...')}</td>
-        </tr>
-      `).join('')
+          <td>${dt(v.verified_at)}</td>
+          <td>${dt(v.created_at)}</td>
+          <td style="color:var(--text-hint);">${esc((v.provider_reference || '').slice(0, 24) + '...')}</td>
+        </tr>`).join('')
     : `<tr><td colspan="5" style="color:var(--text-hint);">No verification attempts.</td></tr>`;
 
   document.getElementById('ud-panel-profile').innerHTML = `
     <div class="ud-card">
-      <p class="ud-handle">${u.handle ? '@' + esc(u.handle) : '(no handle)'}</p>
-      <p class="ud-anon">${esc(u.anon_id)}</p>
+      <div class="ud-headrow">
+        <div>
+          <p class="ud-handle">${u.handle ? '@' + esc(u.handle) : '(no handle)'}</p>
+          <p class="ud-anon">${esc(u.anon_id)}</p>
+        </div>
+        ${phBtn}
+      </div>
       <dl class="ud-meta-grid">
         <div><dt>Tier</dt><dd><span class="ud-tier-badge ${esc(u.tier)}">${esc(tierLabel)}</span></dd></div>
         <div><dt>Status</dt><dd>${statusBlock}</dd></div>
+        <div><dt>Subscription</dt><dd>${esc(u.subscription_tier || 'free')}${u.subscription_status ? ' (' + esc(u.subscription_status) + ')' : ''}</dd></div>
+        <div><dt>Credits</dt><dd>${u.allowance_credits} allowance / ${u.purchased_credits} purchased</dd></div>
         <div><dt>Comments</dt><dd>${u.comment_count}</dd></div>
-        <div><dt>Misread submitted</dt><dd>${u.misread_count}</dd></div>
-        <div><dt>Joined</dt><dd>${new Date(u.created_at).toLocaleString()}</dd></div>
+        <div><dt>Calibrations</dt><dd>${u.calibration_count}</dd></div>
+        <div><dt>Misreads</dt><dd>${u.misread_count}</dd></div>
+        <div><dt>Motions / arguments</dt><dd>${u.motion_count} / ${u.argument_count}</dd></div>
+        <div><dt>Joined</dt><dd>${dt(u.created_at)}</dd></div>
       </dl>
     </div>
     <div class="ud-card">
       <h2 class="section-title" style="margin-top:0;">Verification history</h2>
       <table class="ud-verifications" style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr><th style="text-align:left;">Provider</th><th style="text-align:left;">Status</th><th style="text-align:left;">Verified</th><th style="text-align:left;">Created</th><th style="text-align:left;">Session ref</th></tr>
-        </thead>
+        <thead><tr><th style="text-align:left;">Provider</th><th style="text-align:left;">Status</th><th style="text-align:left;">Verified</th><th style="text-align:left;">Created</th><th style="text-align:left;">Session ref</th></tr></thead>
         <tbody>${verRows}</tbody>
       </table>
-    </div>
-  `;
+    </div>`;
 }
 
+// ---------- Activity timeline ----------
+async function loadActivity() {
+  const el = document.getElementById('ud-panel-activity');
+  loading(el);
+  try {
+    const data = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/activity?limit=300`);
+    if (!data.items.length) { el.innerHTML = '<div class="ud-card">No recorded activity.</div>'; el.dataset.loaded = '1'; return; }
+    el.innerHTML = `<div class="ud-card" style="padding:0.4rem 0.6rem;">
+      <p style="color:var(--text-dim);font-size:0.78rem;margin:0.4rem 0.4rem 0.6rem;">${data.items.length} of ${data.total} events</p>
+      ${data.items.map((e) => `
+        <div class="ud-act-row">
+          <span class="ud-act-type t-${esc(e.type)}">${esc(e.type)}</span>
+          <span class="ud-act-when">${dt(e.when)}</span>
+          <span class="ud-act-summary">${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener">${esc(e.summary)}</a>` : esc(e.summary)}</span>
+        </div>`).join('')}
+    </div>`;
+    el.dataset.loaded = '1';
+  } catch (err) { fail(el, err); }
+}
+
+// ---------- Calibrations ----------
+async function loadCalibrations() {
+  const el = document.getElementById('ud-panel-calibrations');
+  loading(el);
+  try {
+    const data = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/calibrations?limit=300`);
+    if (!data.items.length) { el.innerHTML = '<div class="ud-card">No Lyrical Charger calibrations (signed-in).</div>'; el.dataset.loaded = '1'; return; }
+    el.innerHTML = `<p style="color:var(--text-dim);font-size:0.78rem;margin-bottom:0.6rem;">${data.items.length} of ${data.total}</p>` +
+      data.items.map((c) => `
+        <div class="ud-li">
+          <div class="ud-li-meta">
+            <span class="ud-pill">${esc(c.rubric_color || '?')}</span>
+            <span>charge ${c.charge_value != null ? c.charge_value : '?'}</span>
+            <span>${dt(c.calibrated_at)}</span>
+            <span style="color:var(--text-hint);">${esc(c.song_source)}#${c.song_id}</span>
+          </div>
+          <div style="font-weight:600;">${c.song_slug ? `<a href="/songs/${esc(c.song_slug)}/" target="_blank" rel="noopener">${esc(c.title || '?')}</a>` : esc(c.title || '?')} <span style="color:var(--text-dim);font-weight:400;">by ${esc(c.artist || '?')}</span></div>
+          ${c.charge_summary ? `<div style="font-size:0.82rem;color:var(--text-dim);margin-top:0.2rem;">${esc(c.charge_summary)}</div>` : ''}
+        </div>`).join('');
+    el.dataset.loaded = '1';
+  } catch (err) { fail(el, err); }
+}
+
+// ---------- Submissions (misread / satirical) ----------
+async function loadSubmissions() {
+  const el = document.getElementById('ud-panel-submissions');
+  loading(el);
+  try {
+    const data = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/submissions?limit=300`);
+    if (!data.items.length) { el.innerHTML = '<div class="ud-card">No misread / satirical submissions.</div>'; el.dataset.loaded = '1'; return; }
+    el.innerHTML = `<p style="color:var(--text-dim);font-size:0.78rem;margin-bottom:0.6rem;">${data.items.length} of ${data.total}</p>` +
+      data.items.map((s) => `
+        <div class="ud-li">
+          <div class="ud-li-meta">
+            <span class="ud-pill">${esc(s.report_type)}</span>
+            <span class="ud-pill">${esc(s.status)}</span>
+            <span>${dt(s.created_at)}</span>
+          </div>
+          <div style="font-weight:600;">"${esc(s.song_title)}" <span style="color:var(--text-dim);font-weight:400;">by ${esc(s.song_artist)} (${esc(s.song_color)})</span></div>
+          <div style="font-size:0.84rem;color:var(--text);margin-top:0.25rem;white-space:pre-wrap;">${esc(s.message)}</div>
+        </div>`).join('');
+    el.dataset.loaded = '1';
+  } catch (err) { fail(el, err); }
+}
+
+// ---------- Motions + arguments ----------
+async function loadMotions() {
+  const el = document.getElementById('ud-panel-motions');
+  loading(el);
+  try {
+    const data = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/motions?limit=300`);
+    const motions = data.motions.length
+      ? data.motions.map((m) => `
+          <div class="ud-li">
+            <div class="ud-li-meta">
+              <span class="ud-pill">${esc(m.motion_type)}</span>
+              <span class="ud-pill">${esc(m.status)}</span>
+              ${m.target_kind ? `<span style="color:var(--text-hint);">${esc(m.target_kind)}:${esc(m.target_ref || '')}</span>` : ''}
+              <span>${dt(m.filed_at)}</span>
+            </div>
+            <div>${esc(m.claim)}</div>
+          </div>`).join('')
+      : '<p style="color:var(--text-hint);">None filed.</p>';
+    const args = data.arguments.length
+      ? data.arguments.map((a) => `
+          <div class="ud-li">
+            <div class="ud-li-meta">
+              <span class="ud-pill">${esc(a.post_type)}</span>
+              <span><a href="/motion-desk/deliberation-chamber/${a.motion_id}/" target="_blank" rel="noopener">motion #${a.motion_id}</a></span>
+              <span>${dt(a.created_at)}</span>
+            </div>
+            <div>${esc(a.summary)}</div>
+          </div>`).join('')
+      : '<p style="color:var(--text-hint);">None posted.</p>';
+    el.innerHTML = `<div class="ud-subhead">Motions filed (${data.motions.length})</div>${motions}
+                    <div class="ud-subhead">Chamber arguments (${data.arguments.length})</div>${args}`;
+    el.dataset.loaded = '1';
+  } catch (err) { fail(el, err); }
+}
+
+// ---------- Payments / credit ledger ----------
+async function loadPayments() {
+  const el = document.getElementById('ud-panel-payments');
+  loading(el);
+  try {
+    const d = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/payments?limit=300`);
+    const ledger = d.ledger.length
+      ? d.ledger.map((r) => `
+          <tr>
+            <td class="${r.delta >= 0 ? 'pos' : 'neg'}">${r.delta >= 0 ? '+' : ''}${r.delta}</td>
+            <td>${esc(r.bucket)}</td>
+            <td>${esc(r.reason)}</td>
+            <td style="color:var(--text-hint);">${esc(r.ref_type || '')}${r.ref_id ? ' / ' + esc(r.ref_id) : ''}</td>
+            <td style="color:var(--text-hint);">${dt(r.created_at)}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="5" style="color:var(--text-hint);">No ledger entries.</td></tr>`;
+    el.innerHTML = `
+      <div class="ud-card">
+        <dl class="ud-meta-grid">
+          <div><dt>Subscription</dt><dd>${esc(d.subscription_tier || 'free')}${d.subscription_status ? ' (' + esc(d.subscription_status) + ')' : ''}</dd></div>
+          <div><dt>Renews / ends</dt><dd>${dt(d.subscription_period_end)}</dd></div>
+          <div><dt>Allowance credits</dt><dd>${d.allowance_credits}</dd></div>
+          <div><dt>Purchased credits</dt><dd>${d.purchased_credits}</dd></div>
+          <div><dt>Stripe customer</dt><dd>${d.has_stripe_customer ? 'yes' : 'no'}</dd></div>
+        </dl>
+      </div>
+      <div class="ud-card">
+        <h2 class="section-title" style="margin-top:0;">Credit ledger (${d.ledger_total})</h2>
+        <table class="ud-led">
+          <thead><tr><th>Delta</th><th>Bucket</th><th>Reason</th><th>Ref</th><th>When</th></tr></thead>
+          <tbody>${ledger}</tbody>
+        </table>
+      </div>`;
+    el.dataset.loaded = '1';
+  } catch (err) { fail(el, err); }
+}
+
+// ---------- Comments ----------
 async function loadComments() {
   const el = document.getElementById('udCommentList');
-  el.innerHTML = '<p style="color:#666;">Loading...</p>';
+  loading(el);
   try {
     const params = new URLSearchParams({ limit: '200' });
     if (commentFilter) params.set('state', commentFilter);
-    const resp = await adminFetch(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/comments?${params.toString()}`);
-    if (!resp.ok) throw new Error(await resp.text());
-    const data = await resp.json();
+    const data = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/comments?${params.toString()}`);
     renderComments(data);
-    el.dataset.loaded = '1';
-  } catch (err) {
-    el.innerHTML = `<p style="color:var(--red);">${esc(err.message || 'Failed.')}</p>`;
-  }
+    document.getElementById('ud-panel-comments').dataset.loaded = '1';
+  } catch (err) { fail(el, err); }
 }
 
 function renderComments(data) {
@@ -182,13 +386,12 @@ function renderComments(data) {
           <div class="ud-comment-meta">
             <span class="ud-comment-state ud-state-${esc(c.state)}">${esc(stateLabel)}</span>
             <span class="ud-comment-target">${esc(target)}</span>
-            <span>${new Date(c.created_at).toLocaleString()}</span>
+            <span>${dt(c.created_at)}</span>
             <span style="color:var(--text-hint);">#${c.id}</span>
           </div>
           <div class="ud-comment-body">${esc(c.content)}</div>
           ${hidden}
-        </div>
-      `;
+        </div>`;
     }).join('');
 }
 </script>

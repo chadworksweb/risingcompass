@@ -1,0 +1,171 @@
+/* Cookie-consent bar for Rising Compass. Ported from chadlewine's ConsentBanner
+   and remapped to the RC dark palette (css/main.css tokens). Fixed to the
+   bottom; the details panel expands above the action row. Injected on every
+   page by js/consent.js (linked from the footer partial). */
+
+.rc-consent {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background-color: var(--rc-bg-dark, #0a0a14);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.40) 0, rgba(0, 0, 0, 0.40) 1px, transparent 1px, transparent 3px),
+    repeating-linear-gradient(90deg, rgba(0, 212, 170, 0.08) 0, rgba(0, 212, 170, 0.08) 1px, transparent 1px, transparent 6px),
+    radial-gradient(150% 130% at 50% 150%, rgba(0, 212, 170, 0.14), transparent 62%);
+  border-top: 1px solid var(--rc-accent, #00d4aa);
+  color: var(--rc-text-bright, #eeeef4);
+  font-family: var(--rc-font, 'Inter', system-ui, sans-serif);
+  box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 212, 170, 0.25);
+  animation: rc-consent-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rc-consent-rise {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.rc-consent__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0.9rem 1.25rem;
+}
+
+.rc-consent__label {
+  flex-shrink: 0;
+  align-self: center;
+  font-family: var(--rc-font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.74rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rc-accent, #00d4aa);
+  background: #000;
+  padding: 0.28rem 0.6rem;
+  white-space: nowrap;
+}
+
+.rc-consent__text {
+  flex: 1 1 280px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--rc-text, #c8c8d8);
+}
+
+.rc-consent__text a {
+  color: var(--rc-accent, #00d4aa);
+  text-decoration: underline;
+}
+
+.rc-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rc-consent__btn {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.5rem 0.95rem;
+  border-radius: var(--rc-radius-lg, 8px);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.rc-consent__btn--primary {
+  background: var(--rc-accent, #00d4aa);
+  color: var(--rc-bg-dark, #0a0a14);
+}
+.rc-consent__btn--primary:hover { opacity: 0.9; }
+
+.rc-consent__btn--ghost {
+  background: transparent;
+  color: var(--rc-text-bright, #eeeef4);
+  border-color: var(--rc-border-ui, #646490);
+}
+.rc-consent__btn--ghost:hover {
+  background: var(--rc-accent-hover, rgba(0, 212, 170, 0.15));
+}
+
+.rc-consent__details {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.25rem 1rem;
+  border-top: 1px solid var(--rc-border, #2a2a3e);
+}
+
+.rc-consent__category {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rc-divider, rgba(255, 255, 255, 0.06));
+}
+
+.rc-consent__cat-info { flex: 1; }
+.rc-consent__cat-name { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.15rem; color: var(--rc-text-bright, #eeeef4); }
+.rc-consent__cat-desc { font-size: 0.78rem; color: var(--rc-text-dim, #c0c0ca); line-height: 1.45; }
+
+.rc-consent__always {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim, #c0c0ca);
+  white-space: nowrap;
+}
+
+/* Toggle switch */
+.rc-consent__toggle {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.rc-consent__toggle input { opacity: 0; width: 0; height: 0; }
+.rc-consent__slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(120, 120, 140, 0.45);
+  border-radius: 999px;
+  transition: background 0.18s ease;
+  cursor: pointer;
+}
+.rc-consent__slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.18s ease;
+}
+.rc-consent__toggle input:checked + .rc-consent__slider {
+  background: var(--rc-accent, #00d4aa);
+}
+.rc-consent__toggle input:checked + .rc-consent__slider::before {
+  transform: translateX(18px);
+}
+.rc-consent__toggle input:focus-visible + .rc-consent__slider {
+  outline: 2px solid var(--rc-accent, #00d4aa);
+  outline-offset: 2px;
+}
+
+.rc-consent__save-row { padding-top: 0.85rem; }
+
+@media (max-width: 560px) {
+  .rc-consent__actions { width: 100%; }
+  .rc-consent__btn { flex: 1 1 auto; text-align: center; }
+}

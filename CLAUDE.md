@@ -446,3 +446,55 @@ in `Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-PROSE-PROV
   (admin link bases). The image needs `git` + `openssh-client` + the `ots` CLI
   (`opentimestamps-client`); push uses the SSH deploy key mounted at `/provenance-key`.
   Everything is fail-soft and OFF the calibration hot path.
+
+## Per-user admin activity view (2026-06-02)
+
+Site Admin -> Community -> Users -> click a user. The detail page shows
+**everything a user does**, keyed by their handle (the chosen handle IS the
+pseudonym -- no real-name masking, no anon_id "reveal" gate; that build-plan-1.7
+scheme was dropped. `anon_id` remains only as the stable public ID + URL key).
+
+- `routers/users_admin.py` -- detail returns billing summary + counts;
+  `_resolve_user` matches anon_id -> handle -> id; `list_users` takes `?q=`
+  (handle/anon_id ILIKE; the Users list page has a search box). New admin-gated
+  endpoints under `/api/admin/users/{ident}/`: `comments`, `calibrations`
+  (signed-in Lyrical Charger runs from `user_calibrations`), `submissions`
+  (misread/satirical), `motions` (filed + chamber arguments), `payments`
+  (billing + `credit_ledger`), and `activity` (unified reverse-chron timeline
+  merging all of the above + verifications; pulls <=300/source, merges, slices).
+- `templates/admin/user_detail.html` -- tabs Profile | Activity | Calibrations |
+  Submissions | Motions | Payments | Comments (Activity default), plus a
+  **"View in PostHog"** button (hidden unless `POSTHOG_PROJECT_ID` set).
+- General Inquiries are intentionally NOT linked (no user_id; `users` stores no
+  email -- Clerk holds it).
+- **PostHog identify is already done in `frontend/js/auth.js`** (distinct_id =
+  Clerk user id, with handle/tier person props). The admin button deep-links to
+  `{POSTHOG_UI_HOST}/project/{POSTHOG_PROJECT_ID}/person/{clerk_user_id}`.
+- New env: `POSTHOG_PROJECT_ID`, `POSTHOG_UI_HOST` (default us.posthog.com).
+
+## Cookie consent bar (geo-aware, 2026-06-02)
+
+Ported from chadlewine into vanilla JS (static frontend). Two categories:
+Essential (always on) + Analytics (PostHog + GA). Choice stored in the
+`rc_cookie_consent` cookie (`essential:1|analytics:X`, 1yr, SameSite=Lax).
+
+- **Geo-aware default:** EU/UK/EEA = opt-in (analytics OFF until Accept), rest =
+  opt-out (load unless Rejected). Country from `GET /api/geo-country`
+  (`routers/geo.py`, MaxMind GeoLite2 via `geoip2`, **no X-Api-Key** so the bar
+  can call it anon). **Fail-closed:** null country (DB missing / lookup fail /
+  2.5s timeout) -> treated as opt-in. So until the mmdb is placed, the bar
+  behaves as opt-in everywhere.
+- **Analytics are consent-gated.** `partials/analytics.html` keeps the PostHog
+  stub but moved the real init into `window.rcInitAnalytics()`, called by
+  `js/consent.js` only on consent. `rcInitAnalytics()` still enforces the hard
+  overrides: prod host only, admin `rc_ph_optout` cookie, personal
+  `rc_skip_analytics`, **Do Not Track, and Global Privacy Control (GPC)** --
+  DNT/GPC also suppress the bar (no nag, analytics never load), honored
+  regardless of stored consent.
+- **Assets:** `css/consent.css` + `js/consent.js`; CSS link is in the analytics
+  head partial, `<script defer src="/js/consent.js">` + a "Cookie preferences"
+  link (`rcOpenCookiePrefs()`) are in the footer partial -> on every page after
+  `scripts/build_partials.py`. `privacy.html` documents it.
+- **Ops:** mmdb mounted `/root/geoip:/geoip:ro`, path `GEOIP_DB_PATH`. Fetch /
+  refresh with `deploy/refresh_geoip.sh` (needs `MAXMIND_LICENSE_KEY`; cron it
+  weekly, restart backend after). `geoip2` is in `requirements.txt`.

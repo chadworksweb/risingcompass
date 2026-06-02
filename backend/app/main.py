@@ -218,6 +218,11 @@ app.include_router(chart_snapshots.public_router, dependencies=_api_key_dep)
 # authenticated hit.
 app.include_router(users.router)
 
+# Public geo lookup for the cookie consent bar's geo-aware default. No
+# X-Api-Key gate -- the consent bar loads standalone and calls it anonymously.
+from app.routers import geo
+app.include_router(geo.router)
+
 # Public Participation Lobby comments. Reads are anonymous; writes require
 # require_clerk_user (Tier 1) and a claimed handle. No X-Api-Key gate --
 # the JWT (when present) is the authorization for writes.

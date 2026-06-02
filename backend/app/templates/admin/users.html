@@ -31,6 +31,10 @@
   .users-total { color: var(--text-dim); font-size: 0.8rem; font-weight: 600; margin-bottom: 0.6rem; }
 </style>
 
+<div class="filter-bar" id="userSearchBar">
+  <input type="search" id="userSearch" placeholder="Search handle..." autocomplete="off"
+    style="flex:1;max-width:320px;padding:0.45rem 0.7rem;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:0.85rem;">
+</div>
 <div class="filter-bar" id="userFilters">
   <button class="filter-btn active" data-filter="tier" data-value="">All tiers</button>
   <button class="filter-btn" data-filter="tier" data-value="id_verified">Tier 2 (verified)</button>
@@ -51,9 +55,20 @@
 
 {% block scripts %}
 <script>
-const userFilters = { tier: '', status: '' };
+const userFilters = { tier: '', status: '', q: '' };
+let _searchTimer = null;
 
 function onAdminReady() {
+  const search = document.getElementById('userSearch');
+  if (search) {
+    search.addEventListener('input', () => {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => {
+        userFilters.q = search.value.trim();
+        loadUsers();
+      }, 250);
+    });
+  }
   document.querySelectorAll('#userFilters .filter-btn').forEach((b) => {
     b.addEventListener('click', () => {
       userFilters.tier = b.dataset.value;
@@ -78,6 +93,7 @@ async function loadUsers() {
     const params = new URLSearchParams({ limit: '100' });
     if (userFilters.tier) params.set('tier', userFilters.tier);
     if (userFilters.status) params.set('status', userFilters.status);
+    if (userFilters.q) params.set('q', userFilters.q);
     const resp = await adminFetch(`/api/admin/users?${params.toString()}`);
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
