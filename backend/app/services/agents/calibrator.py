@@ -24,6 +24,12 @@ AGENT_MODEL = settings.agent_model
 
 VALID_COLORS = {"violet", "blue", "green", "orange", "red"}
 
+# The structured format (CALIBRATION_FORMAT) requires an explicit
+# "Contamination: none" / "Contamination: <artifact>" line before the VERDICT.
+# This is a binary determination made independently of charge_value; folding an
+# artifact into the charge and skipping the flag is the failure this guards.
+_CONTAM_LINE_RE = re.compile(r"(?im)^\s*Contamination:\s*\S")
+
 
 def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
     """Look up an existing calibration from the CompassSong table.
@@ -238,26 +244,56 @@ async def calibrate_song_async(
         title, artist, lyrics=lyrics, examples=examples
     )
 
-    response = await tracked_create_async(
-        client,
-        call_site="calibrator",
-        context={"title": title, "artist": artist, "target_year": target_year},
-        model=AGENT_MODEL,
-        max_tokens=2048,
-        temperature=0,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-
-    raw = response.content[0].text.strip()
-
-    # Split reasoning from JSON — reasoning comes first, JSON starts at first {
+    # Mandatory CONTAMINATION CHECK guard. The structured format requires an
+    # explicit "Contamination:" line before the VERDICT, run every song and
+    # independent of charge_value. If the response omits it, the model skipped
+    # the step -- retry once with a corrective nudge, then proceed with a loud
+    # warning. Only enforced when lyrics are present (the no-lyrics path returns
+    # a null calibration and produces no reasoning).
+    messages = [{"role": "user", "content": user_prompt}]
+    raw = ""
     reasoning = ""
-    json_str = raw
-    brace_idx = raw.find("{")
-    if brace_idx > 0:
-        reasoning = raw[:brace_idx].strip()
-        json_str = raw[brace_idx:]
+    json_str = ""
+    attempts = 2 if lyrics else 1
+    for attempt in range(1, attempts + 1):
+        response = await tracked_create_async(
+            client,
+            call_site="calibrator",
+            context={"title": title, "artist": artist, "target_year": target_year},
+            model=AGENT_MODEL,
+            max_tokens=2048,
+            temperature=0,
+            system=system_prompt,
+            messages=messages,
+        )
+
+        raw = response.content[0].text.strip()
+
+        # Split reasoning from JSON — reasoning comes first, JSON starts at first {
+        reasoning = ""
+        json_str = raw
+        brace_idx = raw.find("{")
+        if brace_idx > 0:
+            reasoning = raw[:brace_idx].strip()
+            json_str = raw[brace_idx:]
+
+        if not lyrics or _CONTAM_LINE_RE.search(reasoning):
+            break
+
+        logger.warning(
+            "calibrator omitted the mandatory 'Contamination:' line for '%s' by %s (attempt %d/%d)",
+            title, artist, attempt, attempts,
+        )
+        if attempt < attempts:
+            messages = [
+                {"role": "user", "content": user_prompt},
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": (
+                    "Your response omitted the required CONTAMINATION CHECK step. Re-run the "
+                    "full structured format and include an explicit 'Contamination: none' or "
+                    "'Contamination: <artifact>' line before the VERDICT, then the JSON."
+                )},
+            ]
 
     if reasoning:
         logger.info("Agent reasoning for '%s' by %s:\n%s", title, artist, reasoning)

@@ -102,7 +102,22 @@ curl -b rc-cookies.txt -X POST \
   "https://api.risingcompass.net/api/admin/agent/calibrate"
 ```
 
-### Delete a song (instrumental, duplicate, etc.)
+### Tag an instrumental (do NOT delete)
+Instrumentals (no real lyrics) stay on the chart as historical record. Setting `instrumental = true`
+is the whole procedure: the frontend greys the dot (rubric_color is never rendered) and excludes the
+song from the compass reading. Leave `rubric_color`/`charge_value` as-is; never calibrate it.
+```bash
+ssh root@138.197.111.66 "cd /root/rising-compass && docker compose exec -T backend python3 -c \"
+from app.database import SessionLocal
+from sqlalchemy import text
+db = SessionLocal()
+db.execute(text('UPDATE compass_songs SET instrumental = true WHERE id = :i'), {'i': 123})
+db.commit(); db.close()
+\""
+```
+
+### Delete a song (duplicate only)
+Only true duplicates get deleted. Instrumentals are tagged (above), not removed.
 ```bash
 curl -b rc-cookies.txt -X DELETE \
   "https://api.risingcompass.net/api/admin/agent/songs/123"
