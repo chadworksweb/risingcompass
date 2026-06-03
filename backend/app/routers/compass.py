@@ -4,20 +4,21 @@ from sqlalchemy import func, extract
 from datetime import date, timedelta
 
 from app.database import get_db
-from app.models import CompassSong, DailyReading, ReadingSong, WeeklyAlbumReading
+from app.models import Song, DailyReading, ReadingSong, WeeklyAlbumReading
 from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyReadingSummary, PaginatedReadings, ReadingSongOut
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated
 from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
-from app.constants import CHART_SOURCES, HISTORICAL_DEGREES
+from app.constants import HISTORICAL_DEGREES
+from app.services import song_store
 
 router = APIRouter(prefix="/api/compass", tags=["compass"])
 
 
 def _song_out(rs: ReadingSong, slug_map: dict[str, str] | None = None) -> ReadingSongOut:
-    """Build ReadingSongOut by joining ReadingSong with its linked CompassSong."""
-    cs = rs.compass_song
+    """Build ReadingSongOut by joining ReadingSong with its linked Song."""
+    cs = rs.song
     primary = normalize_artist_name(rs.artist or "").lower()
     artist_slug = (slug_map or {}).get(primary)
     return ReadingSongOut(
@@ -57,12 +58,12 @@ def _historical_aggregate(db: Session) -> tuple[float, str]:
     Uses HISTORICAL_DEGREES for legacy songs (old 3-tier "blue" = 65,
     not the 5-tier center of 45) so the aggregate isn't artificially positive.
     """
-    songs = db.query(CompassSong).filter(CompassSong.chart_source.in_(CHART_SOURCES)).all()
-    if not songs:
+    rows = song_store.all_aggregating_appearance_rows(db)  # list[(Song, position)]
+    if not rows:
         return 90.0, "green"
     song_dicts = [
-        {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "chart_position": s.chart_position}
-        for s in songs
+        {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "chart_position": pos}
+        for (s, pos) in rows
     ]
     deg = compute_degree(song_dicts, color_degrees=HISTORICAL_DEGREES)
     return deg, degree_to_charge(deg)
@@ -76,7 +77,7 @@ def get_current(db: Session = Depends(get_db)):
     # Most recent daily song reading (eager-load songs → compass_song)
     reading = (
         db.query(DailyReading)
-        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.song))
         .order_by(DailyReading.date.desc())
         .first()
     )
@@ -178,7 +179,7 @@ def get_reading(reading_date: date, db: Session = Depends(get_db)):
     """Specific date reading with songs."""
     reading = (
         db.query(DailyReading)
-        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.compass_song))
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.song))
         .filter(DailyReading.date == reading_date)
         .first()
     )

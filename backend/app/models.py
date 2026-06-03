@@ -73,7 +73,8 @@ class ReadingSong(Base):
     chart_source = Column(Text, default="spotify")
 
     reading = relationship("DailyReading", back_populates="songs")
-    compass_song = relationship("CompassSong")
+    compass_song = relationship("CompassSong", foreign_keys=[compass_song_id])
+    song = relationship("Song", foreign_keys=[song_id])  # unified renovation
 
 
 class ChartSnapshot(Base):

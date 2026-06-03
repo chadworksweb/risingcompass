@@ -23,11 +23,10 @@ from app.database import SessionLocal
 from app.models import (
     AlbumCalibration,
     Artist,
-    CompassSong,
-    LibrarySong,
+    Chart,
+    ChartAppearance,
     MisreadSubmission,
-    SongSlug,
-    SubmittedSong,
+    Song,
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
 
@@ -36,35 +35,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/badge", tags=["badge"])
 
 
-_SOURCE_FOR_MODEL = {
-    CompassSong: "compass",
-    LibrarySong: "library",
-    SubmittedSong: "submitted",
-}
-
-
-def _song_has_pending_flag(
-    db, *, song_source: str, song_id: int, title_lower: str, artist_lower: str
-) -> bool:
-    """True if any misread submission against this song is still pending
-    (not yet reviewed, accepted, or rejected). Matches by polymorphic
-    (song_source, song_id) first — falls back to case-insensitive
-    (song_title, song_artist) for legacy rows with null polymorphic keys.
-    """
+def _song_has_pending_flag(db, *, title_lower: str, artist_lower: str) -> bool:
+    """True if any misread submission against this song (matched by
+    case-insensitive title + artist) is still pending."""
     q = db.query(MisreadSubmission.id).filter(
-        MisreadSubmission.status == "pending"
-    ).filter(
-        or_(
-            and_(
-                MisreadSubmission.song_source == song_source,
-                MisreadSubmission.song_id == song_id,
-            ),
-            and_(
-                MisreadSubmission.song_source.is_(None),
-                func.lower(MisreadSubmission.song_title) == title_lower,
-                func.lower(MisreadSubmission.song_artist) == artist_lower,
-            ),
-        )
+        MisreadSubmission.status == "pending",
+        func.lower(MisreadSubmission.song_title) == title_lower,
+        func.lower(MisreadSubmission.song_artist) == artist_lower,
     )
     return db.query(q.exists()).scalar() or False
 
@@ -84,109 +61,96 @@ def _parse_json(raw):
 
 
 def _find_calibration(title: str, artist: str, db) -> dict | None:
-    """Search all calibration tables for a match. Returns the full per-song
-    record (or None). Fields absent on a given table resolve to None via
-    getattr, so the same shape comes back regardless of which table matched."""
+    """Look up a song's full per-song record in the unified `songs` table.
+    Exact case-insensitive (title, artist) first, then punctuation-fuzzy on
+    title. Chart/catalog context comes from the song's most-recent chart
+    appearance (a song can chart in many years); None for non-charting songs."""
     title_lower = title.lower()
     artist_lower = artist.lower()
     title_stripped = re.sub(r"[^\w\s]", "", title_lower)
 
-    # Search order: compass_songs → library_songs → submitted_songs
-    for Model in (CompassSong, LibrarySong, SubmittedSong):
-        # Exact match
-        row = (
-            db.query(Model)
-            .filter(func.lower(Model.title) == title_lower)
-            .filter(func.lower(Model.artist) == artist_lower)
-            .order_by(Model.id.desc())
-            .first()
-        )
+    row = (
+        db.query(Song)
+        .filter(func.lower(Song.title) == title_lower)
+        .filter(func.lower(Song.artist) == artist_lower)
+        .order_by(Song.id.desc())
+        .first()
+    )
+    if not row:
+        candidates = db.query(Song).filter(func.lower(Song.artist) == artist_lower).all()
+        for c in candidates:
+            if re.sub(r"[^\w\s]", "", c.title.lower()) == title_stripped:
+                row = c
+                break
 
-        # Fuzzy match (strip punctuation)
-        if not row:
-            candidates = (
-                db.query(Model)
-                .filter(func.lower(Model.artist) == artist_lower)
-                .all()
-            )
-            for c in candidates:
-                if re.sub(r"[^\w\s]", "", c.title.lower()) == title_stripped:
-                    row = c
-                    break
+    if not (row and row.rubric_color and row.charge_value is not None):
+        return None
 
-        if row and row.rubric_color and row.charge_value is not None:
-            source = _SOURCE_FOR_MODEL[Model]
-            pending = _song_has_pending_flag(
-                db,
-                song_source=source,
-                song_id=row.id,
-                title_lower=row.title.lower(),
-                artist_lower=(row.artist or "").lower(),
-            )
-            slug_row = (
-                db.query(SongSlug.slug)
-                .filter(SongSlug.song_source == source)
-                .filter(SongSlug.song_id == row.id)
-                .order_by(SongSlug.id.desc())
-                .first()
-            )
-            song_slug = slug_row[0] if slug_row else None
-            # created_at on compass/library, submitted_at on submitted.
-            created = getattr(row, "created_at", None) or getattr(row, "submitted_at", None)
-            return {
-                # --- Identity ---
-                "title": row.title,
-                "artist": row.artist,
-                # Which calibration table this resolved against
-                # (compass | library | submitted).
-                "song_source": source,
-                # Canonical RC URL slug so consumers can deep-link to the
-                # specific song page (risingcompass.net/songs/<slug>) instead
-                # of the RC homepage. Null when no slug row exists yet for this
-                # (source, id) — caller should fall back.
-                "song_slug": song_slug,
-                # --- Classification ---
-                "tier": row.rubric_color,
-                "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
-                "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
-                "charge": row.charge_value,
-                "charge_summary": getattr(row, "charge_summary", None),
-                "confidence": getattr(row, "confidence", None),
-                "contaminated": getattr(row, "contaminated", False) or False,
-                "contamination_note": getattr(row, "contamination_note", None),
-                "dogma_referenced": getattr(row, "dogma_referenced", False) or False,
-                "dogma_note": getattr(row, "dogma_note", None),
-                "calibration_failed": getattr(row, "calibration_failed", False) or False,
-                "instrumental": getattr(row, "instrumental", None),
-                # True when this song has an open misread/satirical flag that
-                # hasn't been resolved. Consumers can render a "PENDING" stamp
-                # to indicate the score is being contested.
-                "pending": pending,
-                # --- Ether Art Chart ---
-                # deadpan_line: flat literal naming of the song.
-                # topics: taxonomy slugs, dominant-first (decoded to a list).
-                "deadpan_line": getattr(row, "deadpan_line", None),
-                "topics": _parse_json(getattr(row, "topics", None)),
-                "topic_audit": _parse_json(getattr(row, "topic_audit", None)),
-                # --- Prose / analysis ---
-                "effects_prose": getattr(row, "effects_prose", None),
-                "societal_effects_prose": getattr(row, "societal_effects_prose", None),
-                "message_analysis": getattr(row, "message_analysis", None),
-                "expression_analysis": getattr(row, "expression_analysis", None),
-                "intention_analysis": getattr(row, "intention_analysis", None),
-                "activations": _parse_json(getattr(row, "activations", None)),
-                # --- Chart / catalog context (table-specific; None elsewhere) ---
-                "year": getattr(row, "year", None),
-                "decade": getattr(row, "decade", None),
-                "chart_position": getattr(row, "chart_position", None),
-                "chart_position_letter": getattr(row, "chart_position_letter", None),
-                "chart_source": getattr(row, "chart_source", None),
-                "track_number": getattr(row, "track_number", None),
-                "source": getattr(row, "source", None),
-                "calibrated_at": created.isoformat() if created else None,
-            }
+    pending = _song_has_pending_flag(
+        db, title_lower=row.title.lower(), artist_lower=(row.artist or "").lower(),
+    )
 
-    return None
+    # Chart/catalog context from the most-recent appearance (best position tie-break).
+    from app.services.song_store import decade_of
+    appr = (
+        db.query(ChartAppearance, Chart.slug)
+        .join(Chart, Chart.id == ChartAppearance.chart_id)
+        .filter(ChartAppearance.song_id == row.id)
+        .order_by(ChartAppearance.year.desc().nullslast(),
+                  ChartAppearance.position.asc().nullslast())
+        .first()
+    )
+    if appr:
+        ca, chart_slug = appr
+        ctx_year, ctx_pos = ca.year, ca.position
+        ctx_decade = decade_of(ca.year) if ca.year else None
+        ctx_letter = ca.position_letter or None
+        ctx_source = chart_slug
+    else:
+        ctx_year = ctx_decade = ctx_pos = ctx_letter = ctx_source = None
+
+    from app.services.artist_utils import generate_song_slug
+    return {
+        # --- Identity ---
+        "title": row.title,
+        "artist": row.artist,
+        "song_source": "songs",  # unified: one Library table
+        "song_slug": generate_song_slug(row.title, row.artist or ""),
+        # --- Classification ---
+        "tier": row.rubric_color,
+        "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
+        "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
+        "charge": row.charge_value,
+        "charge_summary": row.charge_summary,
+        "confidence": row.confidence,
+        "contaminated": row.contaminated or False,
+        "contamination_note": row.contamination_note,
+        "dogma_referenced": row.dogma_referenced or False,
+        "dogma_note": row.dogma_note,
+        "calibration_failed": row.calibration_failed or False,
+        "instrumental": row.instrumental,
+        "pending": pending,
+        # --- Ether Art Chart ---
+        "deadpan_line": row.deadpan_line,
+        "topics": _parse_json(row.topics),
+        "topic_audit": _parse_json(row.topic_audit),
+        # --- Prose / analysis ---
+        "effects_prose": row.effects_prose,
+        "societal_effects_prose": row.societal_effects_prose,
+        "message_analysis": row.message_analysis,
+        "expression_analysis": row.expression_analysis,
+        "intention_analysis": row.intention_analysis,
+        "activations": _parse_json(row.activations),
+        # --- Chart / catalog context (from most-recent appearance; None if non-charting) ---
+        "year": ctx_year,
+        "decade": ctx_decade,
+        "chart_position": ctx_pos,
+        "chart_position_letter": ctx_letter,
+        "chart_source": ctx_source,
+        "track_number": row.track_number,
+        "source": row.canonical_calibration_method,
+        "calibrated_at": row.created_at.isoformat() if row.created_at else None,
+    }
 
 
 def _derive_tier(charge: int) -> tuple[str, str, str]:

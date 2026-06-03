@@ -120,5 +120,16 @@ def year_appearance_rows(db: Session, year: int):
     )
 
 
+def all_aggregating_appearance_rows(db: Session):
+    """Every (Song, position) on an aggregating chart -- the HCI corpus. One row
+    per appearance (the legacy per-charting-compass-row grain)."""
+    return (
+        db.query(Song, ChartAppearance.position)
+        .join(ChartAppearance, ChartAppearance.song_id == Song.id)
+        .filter(ChartAppearance.chart_id.in_(_aggregating_chart_ids(db)))
+        .all()
+    )
+
+
 def get_song(db: Session, song_id: int) -> Song | None:
     return db.query(Song).get(song_id)
