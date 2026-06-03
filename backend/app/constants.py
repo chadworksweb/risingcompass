@@ -30,6 +30,23 @@ CHART_SOURCES = {
     "spotify_global_daily",
 }
 
+# Unified song-entity renovation: maps a legacy compass_songs.chart_source value
+# to a `charts.slug`. Consumed by scripts/unify_songs.py (Phase 2) when building
+# chart_appearances, and by the post-cutover write paths. Sources NOT present
+# here (NON_CHART_SOURCES) produce NO chart_appearance -- the structural
+# "non-chart" boundary that replaces today's CHART_SOURCES membership test.
+CHART_SOURCE_TO_CHART_SLUG = {
+    "billboard_hot_100": "billboard_yearend_hot100",
+    "billboard_yearend_2024": "billboard_yearend_hot100",
+    "billboard_yearend_2025": "billboard_yearend_hot100",
+    "billboard_200": "billboard_200",
+    "spotify_top50_usa": "spotify_top50_usa",
+    "spotify_viral50_usa": "spotify_viral50_usa",
+    "spotify_global_daily": "spotify_global_daily",
+    "spotify": "spotify",
+}
+NON_CHART_SOURCES = {"manual", "backfill_console"}
+
 # Degree mapping for legacy (pre-5-tier) songs. Old 3-tier system had
 # no violet tier, so most songs were green or orange. Blue is mapped to 65
 # (upper Elevated, nearly Decent) to reflect that coarseness honestly.

@@ -65,6 +65,8 @@ class ReadingSong(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     reading_id = Column(Integer, ForeignKey("daily_readings.id"), nullable=False)
     compass_song_id = Column(Integer, ForeignKey("compass_songs.id", ondelete="SET NULL"), nullable=True)
+    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
     position = Column(Integer, nullable=False)
@@ -229,6 +231,8 @@ class AgentDraftSong(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     draft_id = Column(Integer, ForeignKey("agent_drafts.id"), nullable=False)
     compass_song_id = Column(Integer, ForeignKey("compass_songs.id", ondelete="SET NULL"), nullable=True)
+    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
     position = Column(Integer, nullable=False)
@@ -1629,3 +1633,120 @@ class AlbumChargeJob(Base):
     ip_address = Column(String(45))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ===========================================================================
+# Unified song-entity renovation (migrations 081/082). `songs` is the atomic
+# unit AND the entire Library; "charting" is a derived role via chart
+# appearances; ingestion is a logged dimension. The four legacy song tables
+# (compass_songs, library_songs, submitted_songs, cl_stream_songs) fold into
+# `songs` in Phase 2 and are dropped in Phase 5. See
+# RISING-COMPASS-SONG-ENTITY-RENOVATION.md.
+# ===========================================================================
+
+
+class Song(Base):
+    """The atomic song entity = the entire Library. One row per canonical
+    (title, artist); holds the single canonical calibration."""
+    __tablename__ = "songs"
+    __table_args__ = (
+        UniqueConstraint("canonical_key", name="uq_songs_canonical_key"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(Text, nullable=False)   # display, original casing
+    artist = Column(Text, nullable=False)  # display, original casing
+    # normalize_for_search(title) + '\x1f' + normalize_for_search(normalize_artist_name(artist))
+    canonical_key = Column(Text, nullable=False)
+    # --- canonical calibration (identical column set across the 4 legacy tables) ---
+    rubric_color = Column(Text)            # nullable: the Library includes uncalibrated songs
+    charge_value = Column(Integer)         # -100 to +100
+    charge_summary = Column(Text)
+    contaminated = Column(Boolean, default=False)
+    contamination_note = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
+    instrumental = Column(Boolean, default=False)
+    confidence = Column(Float)
+    effects_prose = Column(Text)
+    societal_effects_prose = Column(Text)
+    societal_prose_generated_at = Column(DateTime)
+    societal_prose_model = Column(Text)
+    prior_effects_prose = Column(Text)
+    prior_societal_effects_prose = Column(Text)
+    prior_societal_prose_generated_at = Column(DateTime)
+    prior_societal_prose_model = Column(Text)
+    deadpan_line = Column(Text)
+    topics = Column(Text)
+    topic_audit = Column(Text)
+    activations = Column(Text)
+    calibration_failed = Column(Boolean, default=False)
+    message_analysis = Column(Text)
+    expression_analysis = Column(Text)
+    intention_analysis = Column(Text)
+    # --- library linkage (from library_songs) ---
+    album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=True)
+    track_number = Column(Integer)
+    # method that owns the current canonical calibration -- gates overwrite rules
+    # (authoritative chart_reading/editorial/terminal beats crowd lyrical_charger/stream)
+    canonical_calibration_method = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Chart(Base):
+    """A chart definition (Billboard Year-End Hot 100, Spotify Top 50, ...)."""
+    __tablename__ = "charts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(Text, nullable=False, unique=True)
+    label = Column(Text, nullable=False)
+    cadence = Column(Text, nullable=False, default="annual")  # annual|daily|weekly
+    provider = Column(Text)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ChartAppearance(Base):
+    """A song's placement on a chart at a time. Charting = EXISTS an appearance."""
+    __tablename__ = "chart_appearances"
+    __table_args__ = (
+        UniqueConstraint(
+            "song_id", "chart_id", "year", "position", "position_letter",
+            name="uq_chart_appearance",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    chart_id = Column(Integer, ForeignKey("charts.id"), nullable=False)
+    year = Column(Integer)
+    period = Column(Date)  # specific date for daily/weekly charts; NULL for annual
+    position = Column(Integer)
+    position_letter = Column(Text, nullable=False, server_default="", default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SongIngestion(Base):
+    """How a song entered the corpus (logged dimension; one+ per song)."""
+    __tablename__ = "song_ingestions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    # chart_reading | lyrical_charger | api_client | terminal | editorial | stream
+    method = Column(Text, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    api_client_id = Column(Integer)
+    ip_address = Column(String(45))  # new home for submitted_songs.ip_address PII
+    detail = Column(Text)            # JSON: stream source_url/platform, submitted source, etc.
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SongIdMap(Base):
+    """Migration-only old (source, id) -> new songs.id mapping. Permanent through
+    Phase 5 as the reverse-mapping rollback net."""
+    __tablename__ = "song_id_map"
+
+    old_source = Column(Text, primary_key=True)  # compass|library|submitted|stream
+    old_id = Column(Integer, primary_key=True)
+    new_song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    canonical_key = Column(Text, nullable=False)
