@@ -3,19 +3,23 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 
 from app.database import get_db
-from app.models import CompassSong, DailyReading, ReadingSong
+from app.models import Song, DailyReading, ReadingSong
 from app.schemas import DecadeAggregate, YearAggregate
 from app.services.compass_calc import (
     compute_degree, position_weight, compute_live_year_degree,
 )
 from app.services.charge_calc import degree_to_charge
-from app.constants import CHART_SOURCES, HISTORICAL_DEGREES
+from app.constants import HISTORICAL_DEGREES
+from app.services import song_store
 
 router = APIRouter(prefix="/api/drift", tags=["drift"])
 
 DECADE_ORDER = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"]
 
-# Cutoff: years <= this use CompassSong table, years > this use ReadingSong/DailyReading
+# Cutoff: years <= this read historical chart_appearances; years > this read the
+# live DailyReading/ReadingSong daily-snapshot mechanism. Both resolve the song
+# via the unified `songs` table (renovation: charting is a chart_appearance;
+# the live daily reading stays its own mechanism, resolved by ReadingSong.song_id).
 LIVE_YEAR_CUTOFF = 2025
 
 
@@ -40,7 +44,8 @@ def compute_historical_degree(songs: list[dict]) -> float:
 def _aggregate_live_year(db: Session, year: int) -> list[dict]:
     """
     Deduplicate ReadingSongs for a calendar year, computing days_on_chart
-    and effective_weight for each unique song.
+    and effective_weight for each unique song. Calibration is resolved via the
+    unified `songs` table (ReadingSong.song_id).
 
     Returns list of dicts with keys:
       title, artist, rubric_color, charge_value, contaminated, contamination_note,
@@ -50,11 +55,10 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
     start = date(year, 1, 1)
     end = date(year, 12, 31)
 
-    # Get all reading songs for this year with their reading dates, joining CompassSong
     rows = (
-        db.query(ReadingSong, DailyReading.date, CompassSong)
+        db.query(ReadingSong, DailyReading.date, Song)
         .join(DailyReading, ReadingSong.reading_id == DailyReading.id)
-        .outerjoin(CompassSong, ReadingSong.compass_song_id == CompassSong.id)
+        .outerjoin(Song, ReadingSong.song_id == Song.id)
         .filter(DailyReading.date >= start, DailyReading.date <= end)
         .order_by(DailyReading.date)
         .all()
@@ -77,7 +81,7 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
 
     # Group by (title_lower, artist_lower)
     groups: dict[tuple[str, str], dict] = {}
-    for rs, reading_date, cs in rows:
+    for rs, reading_date, song in rows:
         key = (rs.title.strip().lower(), rs.artist.strip().lower())
 
         total_in_reading = reading_sizes.get(rs.reading_id, 20)
@@ -87,12 +91,12 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
             groups[key] = {
                 "title": rs.title,
                 "artist": rs.artist,
-                "rubric_color": cs.rubric_color if cs else None,
-                "charge_value": cs.charge_value if cs else None,
-                "contaminated": cs.contaminated if cs else False,
-                "contamination_note": cs.contamination_note if cs else None,
-                "charge_summary": cs.charge_summary if cs else None,
-                "instrumental": cs.instrumental if cs else False,
+                "rubric_color": song.rubric_color if song else None,
+                "charge_value": song.charge_value if song else None,
+                "contaminated": song.contaminated if song else False,
+                "contamination_note": song.contamination_note if song else None,
+                "charge_summary": song.charge_summary if song else None,
+                "instrumental": song.instrumental if song else False,
                 "days_on_chart": 1,
                 "effective_weight": pw,
                 "position": rs.position,
@@ -105,11 +109,11 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
             # Update to most recent appearance
             if reading_date >= g["_latest_date"]:
                 g["_latest_date"] = reading_date
-                g["rubric_color"] = cs.rubric_color if cs else g["rubric_color"]
-                g["charge_value"] = cs.charge_value if cs else g["charge_value"]
-                g["contaminated"] = cs.contaminated if cs else g["contaminated"]
-                g["contamination_note"] = cs.contamination_note if cs else g["contamination_note"]
-                g["charge_summary"] = cs.charge_summary if cs else g["charge_summary"]
+                g["rubric_color"] = song.rubric_color if song else g["rubric_color"]
+                g["charge_value"] = song.charge_value if song else g["charge_value"]
+                g["contaminated"] = song.contaminated if song else g["contaminated"]
+                g["contamination_note"] = song.contamination_note if song else g["contamination_note"]
+                g["charge_summary"] = song.charge_summary if song else g["charge_summary"]
                 g["position"] = rs.position
 
     # Clean up internal field and sort by days_on_chart desc
@@ -124,34 +128,34 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
 
 @router.get("", response_model=list[DecadeAggregate])
 def get_drift(db: Session = Depends(get_db)):
-    """Decade-by-decade aggregate compass data for historical visualization."""
+    """Decade-by-decade aggregate compass data for historical visualization.
+
+    One row per aggregating chart appearance in the decade (the legacy
+    per-(song,year)-row grain); a song charting in N years contributes N times.
+    """
     results = []
 
     for decade in DECADE_ORDER:
-        chart_songs = db.query(CompassSong).filter(
-            CompassSong.decade == decade,
-            CompassSong.chart_source.in_(CHART_SOURCES),
-        ).all()
-        if not chart_songs:
+        rows = song_store.decade_appearance_rows(db, decade)  # list[(Song, position)]
+        if not rows:
             continue
 
         # Exclude instrumentals from aggregate calculations
-        scored_songs = [s for s in chart_songs if not s.instrumental]
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in scored_songs]
+        scored = [(s, pos) for (s, pos) in rows if not s.instrumental]
+        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": pos} for (s, pos) in scored]
         deg = compute_historical_degree(song_dicts)
-        contam = sum(1 for s in scored_songs if s.contaminated)
+        contam = sum(1 for (s, _) in scored if s.contaminated)
 
-        # Count songs per color (scored songs only — excludes instrumentals)
         color_counts = {}
-        for s in scored_songs:
+        for (s, _) in scored:
             color_counts[s.rubric_color] = color_counts.get(s.rubric_color, 0) + 1
 
         results.append(DecadeAggregate(
             decade=decade,
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
-            chart_song_count=len(scored_songs),
-            total_song_count=len(chart_songs),
+            chart_song_count=len(scored),
+            total_song_count=len(rows),
             contamination_count=contam,
             color_counts=color_counts,
         ))
@@ -168,12 +172,11 @@ def get_year_songs(
 ):
     """Songs for a specific year with pagination.
 
-    Historical years (<=2025): CompassSong table, ordered by chart_position.
-    Live years (>=2026): ReadingSong table, deduplicated, ordered by days_on_chart.
+    Historical years (<=2025): songs with an aggregating chart appearance in the
+    year, ordered by position. Live years (>=2026): ReadingSong, deduplicated,
+    ordered by days_on_chart.
     """
-    from app.services.artist_utils import generate_song_slug
-
-    from app.services.artist_utils import normalize_artist_name, resolve_artist_slugs
+    from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
 
     if year > LIVE_YEAR_CUTOFF:
         # Live year — deduplicate from ReadingSong
@@ -205,27 +208,14 @@ def get_year_songs(
             "limit": limit,
         }
     else:
-        # Historical year — CompassSong table. Only charting sources are
-        # public; chart_source="manual" (and any non-CHART_SOURCES value) is a
-        # parked/non-chart row, hidden from the public list to match the
-        # year-aggregate filter (get_drift_years) which uses the same set.
-        total = (
-            db.query(func.count(CompassSong.id))
-            .filter(CompassSong.year == year)
-            .filter(CompassSong.chart_source.in_(CHART_SOURCES))
-            .scalar()
-        )
-
-        songs = (
-            db.query(CompassSong)
-            .filter(CompassSong.year == year)
-            .filter(CompassSong.chart_source.in_(CHART_SOURCES))
-            .order_by(CompassSong.chart_position)
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
-        slug_map = resolve_artist_slugs([s.artist for s in songs], db)
+        # Historical year — one entry per song with an aggregating appearance in
+        # the year, ordered by position. Non-chart (parked) rows never got an
+        # appearance, so they are excluded structurally (matches the old
+        # chart_source-IN-CHART_SOURCES filter).
+        rows = song_store.year_song_rows(db, year)  # list[(Song, position)]
+        total = len(rows)
+        page = rows[offset:offset + limit]
+        slug_map = resolve_artist_slugs([s.artist for (s, _) in page], db)
 
         return {
             "songs": [
@@ -237,13 +227,13 @@ def get_year_songs(
                     "contaminated": s.contaminated,
                     "contamination_note": s.contamination_note,
                     "charge_summary": s.charge_summary,
-                    "position": s.chart_position,
+                    "position": pos,
                     "days_on_chart": 1,
                     "instrumental": s.instrumental or False,
                     "song_slug": generate_song_slug(s.title, s.artist),
                     "artist_slug": slug_map.get(normalize_artist_name(s.artist or "").lower()),
                 }
-                for s in songs
+                for (s, pos) in page
             ],
             "total": total,
             "offset": offset,
@@ -255,38 +245,26 @@ def get_year_songs(
 def get_drift_years(db: Session = Depends(get_db)):
     """Year-by-year aggregate compass data for Time Machine.
 
-    Includes both historical years (CompassSong table) and live years (ReadingSong).
+    Historical years (chart_appearances) + live years (ReadingSong).
     """
     results = []
 
-    # Historical years from CompassSong table (up to cutoff)
-    years = (
-        db.query(CompassSong.year)
-        .filter(CompassSong.year <= LIVE_YEAR_CUTOFF)
-        .distinct()
-        .order_by(CompassSong.year)
-        .all()
-    )
-
-    for (year,) in years:
-        chart_songs = db.query(CompassSong).filter(
-            CompassSong.year == year,
-            CompassSong.chart_source.in_(CHART_SOURCES),
-        ).all()
-        if not chart_songs:
+    # Historical years from chart_appearances (up to cutoff)
+    for year in song_store.available_chart_years(db, max_year=LIVE_YEAR_CUTOFF):
+        rows = song_store.year_appearance_rows(db, year)  # list[(Song, position)]
+        if not rows:
             continue
 
-        # Exclude instrumentals from aggregate calculations
-        scored_songs = [s for s in chart_songs if not s.instrumental]
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": s.chart_position} for s in scored_songs]
+        scored = [(s, pos) for (s, pos) in rows if not s.instrumental]
+        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": pos} for (s, pos) in scored]
         deg = compute_historical_degree(song_dicts)
 
         results.append(YearAggregate(
             year=year,
             compass_degree=deg,
             charge_level=degree_to_charge(deg),
-            chart_song_count=len(scored_songs),
-            total_song_count=len(chart_songs),
+            chart_song_count=len(scored),
+            total_song_count=len(rows),
         ))
 
     # Live years from DailyReading/ReadingSong
@@ -305,7 +283,6 @@ def get_drift_years(db: Session = Depends(get_db)):
             continue
 
         deg = compute_live_year_degree(deduped)
-        contam_count = sum(1 for s in deduped if s.get("contaminated"))
 
         results.append(YearAggregate(
             year=year,
@@ -315,7 +292,6 @@ def get_drift_years(db: Session = Depends(get_db)):
             total_song_count=len(deduped),
         ))
 
-    # Sort all results by year
     results.sort(key=lambda r: r.year)
     return results
 
