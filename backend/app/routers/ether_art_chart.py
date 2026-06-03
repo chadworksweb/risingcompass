@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import CHART_SOURCES
 from app.database import get_db
 from app.models import CompassSong, DailyReading, ReadingSong
 from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
@@ -279,11 +280,12 @@ def get_year(year: int, db: Session = Depends(get_db)):
                 FROM compass_songs cs
                 WHERE cs.year = :year_int
                   AND cs.deadpan_line IS NOT NULL
+                  AND cs.chart_source = ANY(:sources)
                 ORDER BY cs.chart_position ASC, cs.chart_position_letter ASC, cs.id ASC
                 LIMIT 20
                 """
             ),
-            {"year_int": year},
+            {"year_int": year, "sources": list(CHART_SOURCES)},
         ).fetchall()
 
     top_20_slug_map = resolve_artist_slugs([row.artist for row in top_rows], db)

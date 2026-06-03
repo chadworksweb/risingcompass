@@ -205,12 +205,21 @@ def get_year_songs(
             "limit": limit,
         }
     else:
-        # Historical year — CompassSong table
-        total = db.query(func.count(CompassSong.id)).filter(CompassSong.year == year).scalar()
+        # Historical year — CompassSong table. Only charting sources are
+        # public; chart_source="manual" (and any non-CHART_SOURCES value) is a
+        # parked/non-chart row, hidden from the public list to match the
+        # year-aggregate filter (get_drift_years) which uses the same set.
+        total = (
+            db.query(func.count(CompassSong.id))
+            .filter(CompassSong.year == year)
+            .filter(CompassSong.chart_source.in_(CHART_SOURCES))
+            .scalar()
+        )
 
         songs = (
             db.query(CompassSong)
             .filter(CompassSong.year == year)
+            .filter(CompassSong.chart_source.in_(CHART_SOURCES))
             .order_by(CompassSong.chart_position)
             .offset(offset)
             .limit(limit)
