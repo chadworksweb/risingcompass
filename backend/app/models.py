@@ -1700,9 +1700,11 @@ class Chart(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     slug = Column(Text, nullable=False, unique=True)
     label = Column(Text, nullable=False)
-    cadence = Column(Text, nullable=False, default="annual")  # annual|daily|weekly
+    # server_default so create_all-built tables carry the DB default the
+    # migration-081 seed INSERT relies on (the NOT NULL column is omitted there).
+    cadence = Column(Text, nullable=False, default="annual", server_default="annual")  # annual|daily|weekly
     provider = Column(Text)
-    active = Column(Boolean, nullable=False, default=True)
+    active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

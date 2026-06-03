@@ -156,13 +156,15 @@ def up(conn):
     # (Phase 0 enumeration) with CHART_SOURCES + CHART_REGISTRY. The
     # chart_source -> chart slug mapping lives in app/constants.py
     # (CHART_SOURCE_TO_CHART_SLUG); 'manual'/'backfill_console' are non-chart.
+    # active set explicitly: create_all may have already built `charts` from the
+    # model (NOT NULL active with no DB default), so omitting it would NotNull-fail.
     conn.execute(text("""
-        INSERT INTO charts (slug, label, cadence, provider) VALUES
-            ('billboard_yearend_hot100', 'Billboard Year-End Hot 100', 'annual', 'billboard'),
-            ('billboard_200', 'Billboard 200', 'annual', 'billboard'),
-            ('spotify_top50_usa', 'Spotify Top 50 - USA', 'daily', 'spotify'),
-            ('spotify_viral50_usa', 'Spotify Viral 50 - USA', 'daily', 'spotify'),
-            ('spotify_global_daily', 'Spotify Global Daily', 'daily', 'spotify'),
-            ('spotify', 'Spotify (legacy)', 'daily', 'spotify')
+        INSERT INTO charts (slug, label, cadence, provider, active) VALUES
+            ('billboard_yearend_hot100', 'Billboard Year-End Hot 100', 'annual', 'billboard', TRUE),
+            ('billboard_200', 'Billboard 200', 'annual', 'billboard', TRUE),
+            ('spotify_top50_usa', 'Spotify Top 50 - USA', 'daily', 'spotify', TRUE),
+            ('spotify_viral50_usa', 'Spotify Viral 50 - USA', 'daily', 'spotify', TRUE),
+            ('spotify_global_daily', 'Spotify Global Daily', 'daily', 'spotify', TRUE),
+            ('spotify', 'Spotify (legacy)', 'daily', 'spotify', TRUE)
         ON CONFLICT (slug) DO NOTHING
     """))
