@@ -191,6 +191,8 @@ app.include_router(misread.router, dependencies=_api_key_dep)
 app.include_router(artist_verification.router, dependencies=_api_key_dep)
 from app.routers import inquiries
 app.include_router(inquiries.router, dependencies=_api_key_dep)
+from app.routers import chart_anomalies
+app.include_router(chart_anomalies.router, dependencies=_api_key_dep)
 # Analyzer accepts either public RC_API_KEY (Lyrical Charger) or RC_SERVICE_KEY
 # (first-party callers like chadlewine.com). Endpoints that distinguish
 # behavior re-declare the dependency to capture the tier.
@@ -259,6 +261,7 @@ app.include_router(admin.router)
 app.include_router(misread.admin_router)
 app.include_router(artist_verification.admin_router)
 app.include_router(inquiries.admin_router)
+app.include_router(chart_anomalies.admin_router)
 app.include_router(agent.router)
 app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)

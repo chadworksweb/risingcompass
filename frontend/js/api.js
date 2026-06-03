@@ -53,6 +53,7 @@ const API = (() => {
     getWeeklyAlbumsHistory: (page = 1) => get(`/api/weekly-albums/history?page=${page}`),
     getWeeklyAlbumsReading: (date) => get(`/api/weekly-albums/reading/${date}`),
     getDailyChart: (days) => get(`/api/compass/daily-chart${days ? '?days=' + days : ''}`),
+    getChartAnomalies: () => get('/api/compass/anomalies'),
     getEtherToday: () => get('/api/ether-art-chart/today'),
     getEtherDate: (date) => get(`/api/ether-art-chart/date/${date}`),
     getEtherYears: () => get('/api/ether-art-chart/years'),

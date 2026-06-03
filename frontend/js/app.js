@@ -37,6 +37,35 @@ const App = (() => {
     red: 'Corrupted',
   };
 
+  // Daily-chart anomaly markers, loaded from the admin-managed API and keyed by
+  // reading date (YYYY-MM-DD). Each value is an array -- a date can carry more
+  // than one marker. Major album releases flood the charts and produce the
+  // visible spikes; the marker + tooltip note explains the deviation. Managed
+  // in Site Admin -> System -> Chart Anomalies.
+  let CHART_ANOMALIES = {};
+
+  async function loadChartAnomalies() {
+    try {
+      const rows = await API.getChartAnomalies();
+      const map = {};
+      (rows || []).forEach(r => {
+        if (!r.date) return;
+        (map[r.date] = map[r.date] || []).push(r);
+      });
+      CHART_ANOMALIES = map;
+    } catch (e) {
+      CHART_ANOMALIES = {};  // chart still renders without markers
+    }
+  }
+
+  function anomalyLabel(a) {
+    if (a.anomaly_type === 'album_release') {
+      const named = [a.artist, a.album].filter(Boolean).join(' - ');
+      return named || a.note || 'Album release';
+    }
+    return a.note || 'Chart anomaly';
+  }
+
   // --- Initialize ---
   async function init() {
     Compass.render('compass-container');
@@ -1417,7 +1446,7 @@ const App = (() => {
       </div>`;
 
     try {
-      const data = await API.getDailyChart();
+      const [data] = await Promise.all([API.getDailyChart(), loadChartAnomalies()]);
       dailyChartLoaded = true;
 
       if (!data.length) {
@@ -1914,6 +1943,15 @@ const App = (() => {
     svg += `<path class="trajectory-line" d="${linePath}" stroke="url(#daily-grad)" />`;
     svg += `</g>`;
 
+    // Anomaly markers: a faint guide + top marker for any annotated date in the
+    // current zoom window. The hover tooltip (which snaps to the nearest date by
+    // x) names the anomaly when the column is hovered.
+    dailyChartPoints.forEach((p, i) => {
+      if (!CHART_ANOMALIES[data[i].date]) return;
+      svg += `<line class="daily-annot-line" x1="${p.x.toFixed(1)}" y1="${padT}" x2="${p.x.toFixed(1)}" y2="${(padT + chartH).toFixed(1)}" />`;
+      svg += `<circle class="daily-annot-flag" cx="${p.x.toFixed(1)}" cy="${padT}" r="2.4" />`;
+    });
+
     // X-axis labels — boundary-based (stock chart style)
     // Labels snap to natural time boundaries, then thin to fit.
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2009,7 +2047,12 @@ const App = (() => {
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
-      tooltip.innerHTML = `<strong>${fdate}</strong><br><span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}`;
+      let tipHtml = `<strong>${fdate}</strong><br><span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}`;
+      const annots = CHART_ANOMALIES[d.date];
+      if (annots && annots.length) {
+        tipHtml += annots.map(a => `<div class="traj-tooltip-annot">${escapeHtml(anomalyLabel(a))}</div>`).join('');
+      }
+      tooltip.innerHTML = tipHtml;
       tooltip.style.display = 'block';
     });
 

@@ -1,0 +1,217 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'chart-anomalies' %}
+{% block title %}Chart Anomalies — Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+  .anom-form { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 1rem 1.1rem; margin-bottom: 1.5rem; }
+  .anom-grid { display: grid; grid-template-columns: 150px 180px 1fr 1fr; gap: 0.8rem; }
+  .anom-grid .form-group { margin-bottom: 0; }
+  .anom-note-row { margin-top: 0.8rem; }
+  .anom-actions-row { margin-top: 0.9rem; display: flex; align-items: center; gap: 0.8rem; }
+  .anom-active-row { display: flex; align-items: center; gap: 0.45rem; }
+  .anom-active-row input { width: auto; }
+  .anom-active-row label { margin: 0; }
+  .anom-cancel { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .anom-cancel:hover { color: var(--text); border-color: var(--text-dim); background: #fff; }
+  .anom-row { display: grid; grid-template-columns: 110px 130px 1fr auto; gap: 0.8rem; align-items: center; padding: 0.65rem 0.85rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 4px; margin-bottom: 0.45rem; font-size: 0.86rem; }
+  .anom-row.inactive { opacity: 0.55; }
+  .anom-date { font-family: monospace; font-weight: 700; color: var(--text); }
+  .anom-type { font-size: 0.72rem; background: rgba(0,143,114,0.12); color: var(--accent); padding: 1px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.03em; justify-self: start; }
+  .anom-label strong { color: var(--text); }
+  .anom-label .note { color: var(--text-dim); font-size: 0.8rem; }
+  .anom-row .actions { display: flex; gap: 0.3rem; }
+  .anom-row .actions button { padding: 0.25rem 0.7rem; font-size: 0.75rem; }
+  .anom-empty { color: var(--text-dim); padding: 1rem 0; }
+  @media (max-width: 700px) { .anom-grid { grid-template-columns: 1fr 1fr; } .anom-row { grid-template-columns: 1fr; gap: 0.35rem; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;max-width:60ch;">
+  Markers placed on the public daily chart to explain a spike or dip. Pick the
+  reading date, choose the anomaly type, and name it. Inactive markers stay
+  saved but are hidden from the chart.
+</p>
+
+<form class="anom-form" id="anomForm" onsubmit="return submitAnomaly(event)">
+  <input type="hidden" id="anomId" value="">
+  <div class="anom-grid">
+    <div class="form-group">
+      <label for="anomDate">Date</label>
+      <input type="date" id="anomDate" required>
+    </div>
+    <div class="form-group">
+      <label for="anomType">Anomaly</label>
+      <select id="anomType" onchange="updateTypeFields()">
+        <option value="album_release">Album release</option>
+      </select>
+    </div>
+    <div class="form-group anom-type-album">
+      <label for="anomArtist">Artist</label>
+      <input type="text" id="anomArtist" placeholder="e.g. Taylor Swift" maxlength="300">
+    </div>
+    <div class="form-group anom-type-album">
+      <label for="anomAlbum">Album</label>
+      <input type="text" id="anomAlbum" placeholder="e.g. The Tortured Poets Department" maxlength="300">
+    </div>
+  </div>
+  <div class="form-group anom-note-row">
+    <label for="anomNote">Note (optional)</label>
+    <input type="text" id="anomNote" placeholder="Extra context shown in the tooltip" maxlength="500">
+  </div>
+  <div class="anom-actions-row">
+    <button type="submit" id="anomSubmitBtn">Add marker</button>
+    <button type="button" class="anom-cancel hidden" id="anomCancelBtn" onclick="cancelEdit()">Cancel edit</button>
+    <div class="anom-active-row">
+      <input type="checkbox" id="anomActive" checked>
+      <label for="anomActive">Show on chart</label>
+    </div>
+  </div>
+  <div class="status-msg" id="anomMsg"></div>
+</form>
+
+<h2 class="section-title">Markers</h2>
+<div id="anomList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let anomCache = [];
+
+function onAdminReady() { loadAnomalies(); }
+
+const ANOM_TYPE_LABELS = { album_release: 'Album release' };
+
+function anomalyLabel(r) {
+  if (r.anomaly_type === 'album_release') {
+    const named = [r.artist, r.album].filter(Boolean).join(' - ');
+    return named || r.note || '(unnamed album release)';
+  }
+  return r.note || (ANOM_TYPE_LABELS[r.anomaly_type] || r.anomaly_type);
+}
+
+// Show/hide the per-type fields. Only album_release exists today; this is the
+// hook for future types that carry different fields.
+function updateTypeFields() {
+  const t = document.getElementById('anomType').value;
+  document.querySelectorAll('.anom-type-album').forEach(el => {
+    el.classList.toggle('hidden', t !== 'album_release');
+  });
+}
+
+async function loadAnomalies() {
+  try {
+    const resp = await adminFetch('/api/admin/chart-anomalies');
+    if (!resp.ok) return;
+    anomCache = await resp.json();
+    const el = document.getElementById('anomList');
+    if (!anomCache.length) { el.innerHTML = '<div class="anom-empty">No markers yet.</div>'; return; }
+    el.innerHTML = anomCache.map(renderAnomaly).join('');
+  } catch (e) { console.error(e); }
+}
+
+function renderAnomaly(r) {
+  const typeLabel = ANOM_TYPE_LABELS[r.anomaly_type] || r.anomaly_type;
+  const note = (r.note && (r.artist || r.album)) ? `<span class="note"> &middot; ${escHtml(r.note)}</span>` : '';
+  return `<div class="anom-row ${r.active ? '' : 'inactive'}">
+    <span class="anom-date">${escHtml(r.date)}</span>
+    <span class="anom-type">${escHtml(typeLabel)}</span>
+    <span class="anom-label"><strong>${escHtml(anomalyLabel(r))}</strong>${note}</span>
+    <span class="actions">
+      <button onclick="editAnomaly(${r.id})">Edit</button>
+      <button onclick="toggleAnomaly(${r.id}, ${r.active ? 'false' : 'true'})">${r.active ? 'Hide' : 'Show'}</button>
+      <button class="btn-danger" onclick="deleteAnomaly(${r.id})">Delete</button>
+    </span>
+  </div>`;
+}
+
+function formPayload() {
+  return {
+    date: document.getElementById('anomDate').value,
+    anomaly_type: document.getElementById('anomType').value,
+    artist: document.getElementById('anomArtist').value.trim(),
+    album: document.getElementById('anomAlbum').value.trim(),
+    note: document.getElementById('anomNote').value.trim(),
+    active: document.getElementById('anomActive').checked,
+  };
+}
+
+async function submitAnomaly(e) {
+  e.preventDefault();
+  const msg = document.getElementById('anomMsg');
+  const id = document.getElementById('anomId').value;
+  const payload = formPayload();
+  if (!payload.date) { showMsg(msg, 'Pick a date.', 'error'); return false; }
+  if (payload.anomaly_type === 'album_release' && !payload.artist && !payload.album) {
+    showMsg(msg, 'Enter an artist or album name.', 'error'); return false;
+  }
+  try {
+    const url = id ? '/api/admin/chart-anomalies/' + id : '/api/admin/chart-anomalies';
+    const resp = await adminFetch(url, {
+      method: id ? 'PATCH' : 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      let detail = 'Save failed.';
+      try { detail = (await resp.json()).detail || detail; } catch (_) {}
+      showMsg(msg, detail, 'error');
+      return false;
+    }
+    showMsg(msg, id ? 'Marker updated.' : 'Marker added.', 'success');
+    resetForm();
+    loadAnomalies();
+  } catch (e) {
+    showMsg(msg, 'Network error.', 'error');
+  }
+  return false;
+}
+
+function editAnomaly(id) {
+  const r = anomCache.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('anomId').value = r.id;
+  document.getElementById('anomDate').value = r.date;
+  document.getElementById('anomType').value = r.anomaly_type;
+  document.getElementById('anomArtist').value = r.artist || '';
+  document.getElementById('anomAlbum').value = r.album || '';
+  document.getElementById('anomNote').value = r.note || '';
+  document.getElementById('anomActive').checked = !!r.active;
+  document.getElementById('anomSubmitBtn').textContent = 'Save changes';
+  document.getElementById('anomCancelBtn').classList.remove('hidden');
+  updateTypeFields();
+  document.getElementById('anomForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelEdit() { resetForm(); }
+
+function resetForm() {
+  document.getElementById('anomForm').reset();
+  document.getElementById('anomId').value = '';
+  document.getElementById('anomActive').checked = true;
+  document.getElementById('anomSubmitBtn').textContent = 'Add marker';
+  document.getElementById('anomCancelBtn').classList.add('hidden');
+  updateTypeFields();
+}
+
+async function toggleAnomaly(id, makeActive) {
+  try {
+    const resp = await adminFetch('/api/admin/chart-anomalies/' + id, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify({ active: makeActive }),
+    });
+    if (resp.ok) loadAnomalies();
+  } catch (e) { console.error(e); }
+}
+
+async function deleteAnomaly(id) {
+  if (!confirm('Delete this marker permanently?')) return;
+  try {
+    const resp = await adminFetch('/api/admin/chart-anomalies/' + id, { method: 'DELETE' });
+    if (resp.ok) loadAnomalies();
+  } catch (e) { console.error(e); }
+}
+</script>
+{% endblock %}

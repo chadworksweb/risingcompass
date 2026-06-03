@@ -1582,6 +1582,29 @@ class GeneralInquiry(Base):
     handled_at = Column(DateTime)
 
 
+class ChartAnomaly(Base):
+    """Admin-authored annotation explaining a spike/dip on the daily chart.
+
+    Anchored to a reading date. `anomaly_type` classifies the cause (the first
+    and only type so far is 'album_release', where `artist` + `album` name the
+    release that flooded the chart). `note` is an optional freeform line used as
+    the display fallback for types that carry no artist/album. `active` hides a
+    row from the public chart without deleting it. Multiple rows may share a
+    date; the chart renders one marker per date and lists them together.
+    """
+    __tablename__ = "chart_anomalies"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False, index=True)   # reading date the marker sits on
+    anomaly_type = Column(String(40), nullable=False, default="album_release")
+    artist = Column(Text)
+    album = Column(Text)
+    note = Column(Text)                               # freeform fallback / extra context
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class AlbumChargeJob(Base):
     """Async job for an Album Charger run.
 

@@ -1140,6 +1140,43 @@ class GeneralInquirySubmitOut(BaseModel):
     message: str
 
 
+# --- Chart anomalies (admin-authored daily-chart markers) ---
+ANOMALY_TYPES = {"album_release"}
+
+
+class ChartAnomalyOut(BaseModel):
+    id: int
+    date: datetime.date
+    anomaly_type: str
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    note: Optional[str] = None
+    active: bool
+    created_at: Optional[datetime.datetime] = None
+    updated_at: Optional[datetime.datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ChartAnomalyCreate(BaseModel):
+    date: datetime.date
+    anomaly_type: str = Field("album_release", max_length=40)
+    artist: Optional[str] = Field(None, max_length=300)
+    album: Optional[str] = Field(None, max_length=300)
+    note: Optional[str] = Field(None, max_length=500)
+    active: bool = True
+
+
+class ChartAnomalyUpdate(BaseModel):
+    """Partial update -- every field optional so the admin can edit one at a time."""
+    date: Optional[datetime.date] = None
+    anomaly_type: Optional[str] = Field(None, max_length=40)
+    artist: Optional[str] = Field(None, max_length=300)
+    album: Optional[str] = Field(None, max_length=300)
+    note: Optional[str] = Field(None, max_length=500)
+    active: Optional[bool] = None
+
+
 class LCStatusOut(BaseModel):
     disabled: bool
     message: str

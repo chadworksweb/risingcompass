@@ -452,6 +452,7 @@
       <a class="admin-nav-item {% if active == 'db' %}active{% endif %}" href="/api/admin/dashboard/db">DB</a>
       <a class="admin-nav-item {% if active == 'claude-usage' %}active{% endif %}" href="/api/admin/dashboard/claude-usage">Claude Usage</a>
       <a class="admin-nav-item {% if active == 'provenance' %}active{% endif %}" href="/api/admin/dashboard/provenance">Provenance</a>
+      <a class="admin-nav-item {% if active == 'chart-anomalies' %}active{% endif %}" href="/api/admin/dashboard/chart-anomalies">Chart Anomalies</a>
     </div>
 
     <div class="admin-nav-group">
@@ -492,6 +493,7 @@
       'users': 'Users',
       'motions': 'Motions',
       'provenance': 'Prose Provenance',
+      'chart-anomalies': 'Chart Anomalies',
     } %}
     <h1>{{ section_titles.get(active|default(''), 'Admin') }}</h1>
     {# Optional sub-tab bar between H1 and content. Templates override
@@ -636,6 +638,7 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
     { g: 'page', label: 'Database', url: '/api/admin/dashboard/db', kw: 'db explorer sql tables rows' },
     { g: 'page', label: 'Claude Usage', url: '/api/admin/dashboard/claude-usage', kw: 'api cost tokens anthropic meter' },
     { g: 'page', label: 'Prose Provenance', url: '/api/admin/dashboard/provenance', kw: 'anchor bitcoin opentimestamps hash sealed integrity' },
+    { g: 'page', label: 'Chart Anomalies', url: '/api/admin/dashboard/chart-anomalies', kw: 'annotation marker spike album release daily chart event' },
     { g: 'page', label: 'API Monitor', url: '/api/admin/dashboard/api-monitor', kw: 'api clients keys requests rate limit' },
     // --- Features / functions / actions ---
     { g: 'feature', label: 'Recalibrate a song', url: '/api/admin/recalibrate', kw: 'fix re-grade rubric override' },

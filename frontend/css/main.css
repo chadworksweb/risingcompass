@@ -1611,6 +1611,32 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   color: var(--rc-text-dim);
 }
 
+/* Album-release annotation note inside the daily tooltip */
+.traj-tooltip-annot {
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--rc-border);
+  font-size: 0.66rem;
+  color: var(--rc-accent);
+  white-space: normal;
+  max-width: 180px;
+}
+
+/* Daily-chart event markers (major album releases) */
+.daily-annot-line {
+  stroke: var(--rc-accent);
+  stroke-width: 1;
+  stroke-opacity: 0.28;
+  pointer-events: none;
+}
+
+.daily-annot-flag {
+  fill: var(--rc-accent);
+  stroke: var(--rc-bg-dark);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
 /* === Calendar Picker === */
 .reading-charge-group {
   position: relative;
