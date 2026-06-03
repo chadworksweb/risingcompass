@@ -1,100 +1,79 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0a0a14"/>
-      <stop offset="50%" stop-color="#0e0e1a"/>
-      <stop offset="100%" stop-color="#0a0a14"/>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&family=JetBrains+Mono:wght@400&display=swap');
+      .title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 66px; letter-spacing: 2px; fill: #f4f4fa; }
+      .tag { font-family: 'JetBrains Mono', monospace; font-weight: 400; font-size: 24px; letter-spacing: 5px; fill: #ffffff; }
+    </style>
+
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e0e1a"/>
+      <stop offset="55%" stop-color="#0a0a14"/>
+      <stop offset="100%" stop-color="#060609"/>
     </linearGradient>
-    <radialGradient id="vignette" cx="50%" cy="50%" r="55%">
-      <stop offset="0%" stop-color="transparent"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.6)"/>
+
+    <radialGradient id="bloom" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/>
     </radialGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+
+    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+      <stop offset="45%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.5"/>
+    </radialGradient>
+
+    <linearGradient id="spectrum" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#9933ff"/>
+      <stop offset="25%" stop-color="#3388ff"/>
+      <stop offset="50%" stop-color="#33cc55"/>
+      <stop offset="75%" stop-color="#ffbb33"/>
+      <stop offset="100%" stop-color="#ff3333"/>
+    </linearGradient>
+
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="4" height="2" fill="#000000" fill-opacity="0.05"/>
+    </pattern>
+
+    <filter id="borderGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="9"/>
     </filter>
-    <filter id="glow-soft">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+
+    <filter id="dialGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
 
-  <!-- Background -->
+  <!-- Field -->
   <rect width="1200" height="630" fill="url(#bg)"/>
-
-  <!-- Waveform texture: gentle (left) → harsh (right) -->
-  <!-- Violet - barely there -->
-  <path d="M0,310 C60,305 120,315 180,308 C240,302 300,318 360,310 C420,303 480,317 540,310 C600,304 660,316 720,310 C780,305 840,315 900,310 C960,306 1020,314 1080,310 L1200,309" fill="none" stroke="#9933ff" stroke-width="0.8" opacity="0.12"/>
-  <!-- Blue -->
-  <path d="M0,320 C50,308 100,332 150,315 C200,300 250,340 300,318 C350,298 400,342 450,322 C500,304 550,338 600,325 C650,312 700,336 750,328 C800,318 850,335 900,330 C950,324 1000,334 1050,332 L1200,330" fill="none" stroke="#3388ff" stroke-width="0.8" opacity="0.15"/>
-  <!-- Green -->
-  <path d="M0,335 C40,312 80,358 120,328 C160,300 200,362 240,332 C280,306 320,358 360,335 C400,314 440,356 480,340 C520,324 560,354 600,342 C640,332 680,350 720,345 C760,338 800,350 840,347 L1200,345" fill="none" stroke="#33cc55" stroke-width="1" opacity="0.2"/>
-  <!-- Orange -->
-  <path d="M0,350 Q30,325 60,355 Q90,380 120,345 Q150,315 180,358 Q210,390 240,342 Q270,305 300,360 Q330,395 360,340 Q390,300 420,365 Q450,400 480,338 Q510,295 540,368 Q570,405 600,335 Q630,290 660,370 Q690,408 720,332 Q750,285 780,374 Q810,412 840,330 Q870,280 900,376 Q930,415 960,328 Q990,278 1020,378 Q1050,418 1080,326 Q1110,276 1140,380 Q1170,420 1200,324" fill="none" stroke="#ffbb33" stroke-width="0.8" opacity="0.18"/>
-  <!-- Red - harsh -->
-  <path d="M0,370 L20,345 L35,385 L50,335 L70,392 L85,328 L105,398 L120,322 L140,402 L155,318 L175,406 L190,315 L210,410 L225,312 L245,412 L260,310 L280,415 L295,308 L315,418 L330,305 L350,420 L365,302 L385,422 L400,300 L420,424 L435,298 L455,426 L470,296 L490,428 L505,294 L525,430 L540,292 L560,432 L575,290 L595,434 L610,288 L630,436 L645,286 L665,438 L680,284 L700,440 L715,282 L735,442 L750,280 L770,444 L785,278 L805,446 L820,276 L840,448 L855,274 L875,450 L890,272 L910,452 L925,270 L945,454 L960,268 L980,456 L995,266 L1015,458 L1030,264 L1050,460 L1065,262 L1085,462 L1100,260 L1120,464 L1135,258 L1155,466 L1170,256 L1190,468 L1200,254" fill="none" stroke="#ff3333" stroke-width="0.7" opacity="0.12"/>
-
-  <!-- Vignette -->
+  <rect width="1200" height="630" fill="url(#bloom)"/>
+  <rect width="1200" height="630" fill="url(#scan)"/>
   <rect width="1200" height="630" fill="url(#vignette)"/>
 
-  <!-- === COMPASS (centered in 1:1 safe zone: x=285-915, 630x630) === -->
-  <!-- Compass center: 600, 310 | Radius: 120 -->
+  <!-- Spectrum border (left -> right) with phosphor bloom -->
+  <rect x="31" y="31" width="1138" height="568" fill="none" stroke="url(#spectrum)" stroke-width="14" opacity="0.85" filter="url(#borderGlow)"/>
+  <rect x="31" y="31" width="1138" height="568" fill="none" stroke="url(#spectrum)" stroke-width="6"/>
 
-  <!-- 5 color arcs -->
-  <!-- Ascended (violet): 180° to 144° -->
-  <path d="M 480,310 A 120,120 0 0,1 514.6,242.2" fill="none" stroke="#9933ff" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
-  <!-- Elevated (blue): 144° to 108° -->
-  <path d="M 514.6,242.2 A 120,120 0 0,1 637.1,194.4" fill="none" stroke="#3388ff" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
-  <!-- Decent (green): 108° to 72° -->
-  <path d="M 637.1,194.4 A 120,120 0 0,1 685.4,242.2" fill="none" stroke="#33cc55" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
-  <!-- Degraded (orange): 72° to 36° -->
-  <path d="M 685.4,242.2 A 120,120 0 0,1 717.1,310" fill="none" stroke="#ffbb33" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
-  <!-- Corrupted (red): 36° to 0° -->
-  <path d="M 717.1,310 A 120,120 0 0,1 720,310" fill="none" stroke="#ff3333" stroke-width="16" stroke-linecap="butt" opacity="0.7"/>
-
-  <!-- Simpler approach: individual arc segments using proper math -->
-  <!-- CX=600, CY=310, R=120. Half circle from 180° to 0° (left to right) -->
-  <!-- Each tier = 36° of the semicircle -->
-
-  <!-- Redraw arcs properly -->
-  <!-- Clear the bad arcs above by overlaying correct ones -->
-  <rect x="460" y="170" width="280" height="160" fill="#0e0e1a" opacity="0.99"/>
-
-  <!-- Arc segments (SVG angles: 0°=right, going counterclockwise) -->
-  <!-- Ascended: from 180° to 144° -->
-  <path d="M 480,310 A 120,120 0 0,1 502.9,240.0" fill="none" stroke="#9933ff" stroke-width="14" opacity="0.75"/>
-  <!-- Elevated: from 144° to 108° -->
-  <path d="M 502.9,240.0 A 120,120 0 0,1 563.0,196.1" fill="none" stroke="#3388ff" stroke-width="14" opacity="0.75"/>
-  <!-- Decent: from 108° to 72° -->
-  <path d="M 563.0,196.1 A 120,120 0 0,1 637.0,196.1" fill="none" stroke="#33cc55" stroke-width="14" opacity="0.75"/>
-  <!-- Degraded (orange): from 72° to 36° -->
-  <path d="M 637.0,196.1 A 120,120 0 0,1 697.1,240.0" fill="none" stroke="#ffbb33" stroke-width="14" opacity="0.75"/>
-  <!-- Corrupted: from 36° to 0° -->
-  <path d="M 697.1,240.0 A 120,120 0 0,1 720,310" fill="none" stroke="#ff3333" stroke-width="14" opacity="0.75"/>
-
-  <!-- Needle pointing straight up (90° = Decent/neutral) -->
-  <g transform="rotate(0, 600, 310)">
-    <polygon points="600,195 596,310 604,310" fill="#c8c8d8" opacity="0.9"/>
-    <circle cx="600" cy="310" r="7" fill="#00d4aa" opacity="0.9"/>
+  <!-- Compass gauge (centered), uncut, with teal phosphor glow -->
+  <g filter="url(#dialGlow)">
+    <svg x="415" y="60" width="370" height="236" viewBox="1.5 5.5 29 18.5" overflow="visible">
+      <g fill="none" stroke-width="6">
+        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" stroke="#9933ff"/>
+        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" stroke="#3388ff"/>
+        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" stroke="#33cc55"/>
+        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" stroke="#ffbb33"/>
+        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" stroke="#ff3333"/>
+      </g>
+      <polygon points="16,8 13.9,20 18.1,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3.2" fill="#00d4aa"/>
+    </svg>
   </g>
 
-  <!-- Score box -->
-  <rect x="560" y="328" width="80" height="32" rx="4" fill="#181828" stroke="#2a2a3e" stroke-width="1"/>
-  <text x="600" y="351" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="18" fill="#eeeef4">0</text>
+  <!-- Title (two lines) -->
+  <text class="title" x="600" y="396" text-anchor="middle">THE RISING</text>
+  <text class="title" x="600" y="464" text-anchor="middle">COMPASS</text>
 
-  <!-- Tier label -->
-  <rect x="552" y="366" width="96" height="24" rx="3" fill="#33cc55" fill-opacity="0.15" stroke="#33cc55" stroke-opacity="0.4" stroke-width="1"/>
-  <text x="600" y="383" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="11" fill="#c8c8d8" letter-spacing="1.5">DECENT</text>
-
-  <!-- Title above compass -->
-  <text x="600" y="140" text-anchor="middle" font-family="'Inter','Segoe UI',sans-serif" font-weight="700" font-size="48" fill="#eeeef4" letter-spacing="1">THE RISING COMPASS</text>
-
-  <!-- Accent line -->
-  <line x1="460" y1="156" x2="740" y2="156" stroke="#00d4aa" stroke-width="1.5" opacity="0.5" filter="url(#glow)"/>
-
-  <!-- Tagline below compass -->
-  <text x="600" y="440" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="400" font-size="13" fill="#6a6a7e" letter-spacing="2.5">WHAT OUR SONGS ARE REALLY SAYING</text>
-
-  <!-- URL -->
-  <text x="600" y="530" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="400" font-size="13" fill="#00d4aa" opacity="0.4" letter-spacing="2">risingcompass.net</text>
+  <!-- Tagline (two lines), white -->
+  <text class="tag" x="600" y="522" text-anchor="middle">WHAT OUR SONGS</text>
+  <text class="tag" x="600" y="558" text-anchor="middle">ARE REALLY SAYING</text>
 </svg>
