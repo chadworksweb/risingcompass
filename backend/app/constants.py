@@ -47,6 +47,16 @@ CHART_SOURCE_TO_CHART_SLUG = {
 }
 NON_CHART_SOURCES = {"manual", "backfill_console"}
 
+# Chart slugs whose appearances count toward the compass charge + year/decade
+# aggregates -- the unified-model equivalent of CHART_SOURCES. Mirrors the old
+# set: everything except the Spotify Viral 50 (a side snapshot chart, never part
+# of the main compass charge). Songs can still chart on viral50 (it's a real
+# chart) without polluting the aggregate.
+AGGREGATING_CHART_SLUGS = {
+    "billboard_yearend_hot100", "billboard_200", "spotify",
+    "spotify_top50_usa", "spotify_global_daily",
+}
+
 # Degree mapping for legacy (pre-5-tier) songs. Old 3-tier system had
 # no violet tier, so most songs were green or orange. Blue is mapped to 65
 # (upper Elevated, nearly Decent) to reflect that coarseness honestly.
