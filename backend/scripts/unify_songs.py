@@ -277,6 +277,12 @@ def _collision_preview(conn, key_of):
 # Apply (idempotent, single transaction)
 # --------------------------------------------------------------------------- #
 def apply(conn, data, groups):
+    # Pre-counts of every shared reference table: Phase 2 is non-destructive, so
+    # verify() asserts none of these shrink.
+    guard_tables = POLY_STD + ["backfill_job_rows", "comments", "reading_songs",
+                               "agent_draft_songs", "lc_events",
+                               "pre_publish_corrections", "prose_provenance_anchors"]
+    pre_counts = {t: conn.execute(text(f"SELECT count(*) FROM {t}")).scalar() for t in guard_tables}
     print("APPLY: resetting unified tables + repoint pointers...")
     # 1. reset (idempotent): null pointers first (remove FK refs), then clear.
     for t in POLY_STD + ["backfill_job_rows", "comments"]:
@@ -367,14 +373,51 @@ def apply(conn, data, groups):
                  "ip": r.get("ip_address"), "d": json.dumps(detail),
                  "ca": get_created(r, src) or datetime.utcnow()})
 
-    # 7. dedupe UNIQUE-collapse tables, 8. repoint
-    _dedupe_and_repoint(conn)
+    # 7. repoint the NEW pointer columns ONLY. No deletes/dedup in Phase 2: the
+    # live site still reads the shared tables (song_artists, vibe needles, ...) by
+    # the OLD (song_source, song_id) key, and there is no UNIQUE on unified_song_id
+    # yet, so duplicates are harmless. The collapse-dedup (_finalize_dedup) runs in
+    # Phase 5, just before unified_song_id gains its UNIQUE + the old keys drop.
+    _repoint(conn)
 
     print(f"APPLY: built {len(key_to_song)} songs, {ap} chart_appearances, "
           f"{sum(len(m) for m in groups.values())} ingestions.")
+    return pre_counts
 
 
-def _dedupe_and_repoint(conn):
+def _repoint(conn):
+    """Phase 2: populate the new pointer columns from song_id_map. Non-destructive
+    (no row deletes) -- safe while the old (song_source, song_id) keys are live."""
+    for t in POLY_STD:
+        conn.execute(text(f"""
+            UPDATE {t} SET unified_song_id = m.new_song_id
+            FROM song_id_map m
+            WHERE {t}.song_source = m.old_source AND {t}.song_id = m.old_id
+        """))
+    conn.execute(text("""
+        UPDATE backfill_job_rows SET unified_song_id = m.new_song_id
+        FROM song_id_map m
+        WHERE backfill_job_rows.result_song_source = m.old_source
+          AND backfill_job_rows.result_song_id = m.old_id
+    """))
+    conn.execute(text("""
+        UPDATE comments SET unified_song_id = m.new_song_id
+        FROM song_id_map m
+        WHERE comments.target_type = 'song'
+          AND comments.target_source = m.old_source AND comments.target_id = m.old_id
+    """))
+    for t, idcol, src, newcol in HARD:
+        conn.execute(text(f"""
+            UPDATE {t} SET {newcol} = m.new_song_id
+            FROM song_id_map m
+            WHERE m.old_source = :src AND {t}.{idcol} = m.old_id
+        """), {"src": src})
+
+
+def _finalize_dedup(conn):
+    """Phase 5 ONLY: collapse duplicate references that share a song after merge,
+    run just before unified_song_id gets its UNIQUE constraint and the legacy
+    (song_source, song_id) columns are dropped. NOT called in Phase 2."""
     # COMBINE vibe needles that collapse to one song
     conn.execute(text("""
         WITH grp AS (
@@ -415,35 +458,12 @@ def _dedupe_and_repoint(conn):
             ) d WHERE z.id = d.id AND d.rn > 1
         """))
 
-    # repoint standard polymorphic tables
-    for t in POLY_STD:
-        conn.execute(text(f"""
-            UPDATE {t} SET unified_song_id = m.new_song_id
-            FROM song_id_map m
-            WHERE {t}.song_source = m.old_source AND {t}.song_id = m.old_id
-        """))
-    conn.execute(text("""
-        UPDATE backfill_job_rows SET unified_song_id = m.new_song_id
-        FROM song_id_map m
-        WHERE backfill_job_rows.result_song_source = m.old_source
-          AND backfill_job_rows.result_song_id = m.old_id
-    """))
-    conn.execute(text("""
-        UPDATE comments SET unified_song_id = m.new_song_id
-        FROM song_id_map m
-        WHERE comments.target_type = 'song'
-          AND comments.target_source = m.old_source AND comments.target_id = m.old_id
-    """))
-    # hard-FK tables
-    for t, idcol, src, newcol in HARD:
-        conn.execute(text(f"""
-            UPDATE {t} SET {newcol} = m.new_song_id
-            FROM song_id_map m
-            WHERE m.old_source = :src AND {t}.{idcol} = m.old_id
-        """), {"src": src})
+    # NOTE: the unified_song_id / song_id repoint UPDATEs are NOT here -- they run
+    # in Phase 2 via _repoint(). _finalize_dedup only removes/combines the
+    # now-redundant duplicate rows, at Phase 5.
 
 
-def verify(conn, groups):
+def verify(conn, groups, pre_counts=None):
     print("\nVERIFY:")
     ok = True
 
@@ -469,6 +489,15 @@ def verify(conn, groups):
             f"SELECT count(*) FROM {t} WHERE unified_song_id IS NOT NULL "
             f"AND unified_song_id NOT IN (SELECT id FROM songs)")).scalar()
         check(f"{t}.unified_song_id resolves", bad == 0, f"({bad} bad)" if bad else "")
+    # non-destructive guard: Phase 2 must not delete any shared reference rows
+    if pre_counts:
+        changed = {}
+        for t, pc in pre_counts.items():
+            now = conn.execute(text(f"SELECT count(*) FROM {t}")).scalar()
+            if now != pc:
+                changed[t] = (pc, now)
+        check("non-destructive (no shared rows deleted/added)", not changed,
+              str(changed) if changed else "")
     return ok
 
 
@@ -477,6 +506,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="write changes (default: dry run)")
     ap.add_argument("--yes", action="store_true", help="required confirmation with --apply")
+    ap.add_argument("--no-commit", action="store_true",
+                    help="run the full apply + verify then ROLL BACK (dry-apply test; no writes persist)")
     args = ap.parse_args()
 
     conn = engine.connect()
@@ -492,8 +523,12 @@ def main():
             print("Refusing to --apply without --yes.")
             trans.rollback()
             return
-        apply(conn, data, groups)
-        if verify(conn, groups):
+        pre = apply(conn, data, groups)
+        passed = verify(conn, groups, pre)
+        if args.no_commit:
+            trans.rollback()
+            print(f"\n--no-commit DRY-APPLY: ROLLED BACK (no writes). verify = {'PASS' if passed else 'FAIL'}")
+        elif passed:
             trans.commit()
             print("\nCOMMITTED.")
         else:
