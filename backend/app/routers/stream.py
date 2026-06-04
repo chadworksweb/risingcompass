@@ -1,7 +1,16 @@
-"""CL Stream — lowest-friction path from hearing a song to calibrated entry.
+"""CL Stream -- lowest-friction path from hearing a song to calibrated entry.
 
-Flow: paste Tidal URL (or title+artist) + why note → auto-resolve metadata →
-fetch lyrics → calibrate via rubric → store. One call, done.
+Flow: paste Tidal URL (or title+artist) + why note -> auto-resolve metadata ->
+fetch lyrics -> calibrate via rubric -> store. One call, done.
+
+Unified song-entity renovation (Phase 5b): native. A "stream entry" is now a
+`song_ingestions` row with method='stream' hanging off the atomic `songs` row;
+the workflow columns (note / source_url / source_platform / status /
+promoted_to) live in that ingestion's `detail` JSON. There is no cl_stream_songs
+row. The admin responses are rebuilt from songs + the stream ingestion. Promotion
+no longer copies a row between tables -- the song already IS in the Library; it
+only elevates the canonical calibration to authoritative (so a later crowd read
+can't override it) and records the promotion.
 """
 
 import json
@@ -10,20 +19,74 @@ import re
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import StreamSong, LibrarySong, CompassSong
 from app.schemas import StreamSongIn, StreamSongOut, StreamPromoteIn
 from app.routers.admin import verify_admin_key
 from app.services.agents.calibrator import calibrate_song_async
 from app.services import musixmatch
-from app.services.artist_linker import try_link_song
-from app.services.calibration_corpus import record_and_reconcile, hash_lyrics, get_or_create_song
+from app.services.artist_linker import parse_artist_string
+from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
+from app.services.song_sync import store_calibrated_song
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/stream", tags=["cl-stream"])
+
+
+# --- response rebuild (songs + stream ingestion) ---
+
+# One stream entry = one song_ingestions row (method='stream') joined to its
+# songs row. `id` is the ingestion id (stable per stream submission); the
+# workflow fields come off the ingestion detail, the calibration off songs.
+_STREAM_SELECT = """
+    SELECT i.id AS id, i.detail AS detail, i.created_at AS created_at,
+           s.id AS song_id, s.title AS title, s.artist AS artist,
+           s.rubric_color AS rubric_color, s.charge_value AS charge_value,
+           s.contaminated AS contaminated, s.contamination_note AS contamination_note,
+           s.charge_summary AS charge_summary, s.confidence AS confidence
+    FROM song_ingestions i
+    JOIN songs s ON s.id = i.song_id
+    WHERE i.method = 'stream'
+"""
+
+
+def _stream_out(row) -> dict:
+    """Build a StreamSongOut-shaped dict from a stream ingestion row (joined to
+    songs). The workflow columns live in ingestion.detail; the calibration on
+    songs."""
+    detail = row["detail"]
+    if isinstance(detail, str):
+        try:
+            detail = json.loads(detail)
+        except Exception:
+            detail = {}
+    detail = detail or {}
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "artist": row["artist"],
+        "note": detail.get("note") or "",
+        "source_url": detail.get("source_url"),
+        "source_platform": detail.get("source_platform"),
+        "rubric_color": row["rubric_color"],
+        "charge_value": row["charge_value"],
+        "contaminated": bool(row["contaminated"]),
+        "contamination_note": row["contamination_note"],
+        "charge_summary": row["charge_summary"],
+        "confidence": row["confidence"],
+        "status": detail.get("status") or ("calibrated" if row["rubric_color"] else "failed"),
+        "promoted_to": detail.get("promoted_to"),
+        "created_at": row["created_at"],
+    }
+
+
+def _fetch_stream_entry(db: Session, ingestion_id: int):
+    return db.execute(
+        text(_STREAM_SELECT + " AND i.id = :i"), {"i": ingestion_id}
+    ).mappings().first()
 
 
 # --- Tidal URL resolution ---
@@ -108,52 +171,55 @@ async def add_to_stream(body: StreamSongIn, db: Session = Depends(get_db)):
     # Calibrate
     result = await calibrate_song_async(title, artist, lyrics=lyrics, db=db)
 
-    status = "calibrated" if result.get("rubric_color") else "failed"
+    if result.get("rubric_color") is None:
+        # Native model: a stream entry can't exist without a calibrated songs
+        # row to hang its ingestion on (song_ingestions.song_id is NOT NULL).
+        # A failed calibration is surfaced immediately instead of persisting a
+        # status='failed' placeholder row to clean up later. Re-submit to retry.
+        raise HTTPException(422, "Calibration failed -- no rubric color. Re-submit to retry.")
 
-    song, _created = get_or_create_song(
-        db, StreamSong,
-        title=title,
-        artist=artist,
-        note=body.note,
-        source_url=body.source_url,
-        source_platform=platform,
-        rubric_color=result.get("rubric_color"),
-        charge_value=result.get("charge_value"),
-        contaminated=result.get("contaminated", False),
-        contamination_note=result.get("contamination_note"),
-        charge_summary=result.get("charge_summary"),
-        confidence=result.get("confidence"),
-        effects_prose=result.get("effects_prose"),
-        societal_effects_prose=result.get("societal_effects_prose"),
-        societal_prose_generated_at=result.get("societal_prose_generated_at"),
-        societal_prose_model=result.get("societal_prose_model"),
-        deadpan_line=result.get("deadpan_line"),
-        topics=json.dumps(result["topics"]) if result.get("topics") else None,
-        topic_audit=json.dumps(result["topic_audit"]) if result.get("topic_audit") else None,
-        status=status,
+    # Native unified storage: upsert the atomic songs row (crowd 'stream' method
+    # -> never overrides an existing authoritative calibration) + a stream
+    # ingestion carrying the workflow detail (note/url/platform/status). No
+    # cl_stream_songs row.
+    detail = {
+        "note": body.note,
+        "source_url": body.source_url,
+        "source_platform": platform,
+        "status": "calibrated",
+        "promoted_to": None,
+    }
+    song_id, created = store_calibrated_song(
+        db, source="stream",
+        title=title, artist=artist, calibration=result,
+        ingestion_detail=detail,
+        artist_entries=parse_artist_string(artist or ""),
     )
     db.commit()
-    db.refresh(song)
-    if status == "calibrated":
-        try:
-            record_and_reconcile(
-                db,
-                title=title,
-                artist=artist,
-                calibration=result,
-                triggered_by="cl_stream",
-                lyrics_hash=hash_lyrics(lyrics),
-                agent_model=result.get("agent_model"),
-                direct_song_source="stream",
-                direct_song_id=song.id,
-            )
-            db.commit()
-        except Exception:
-            db.rollback()
-            logger.exception("Corpus log failed for stream song %d", song.id)
-    from app.services.song_sync import safe_sync
-    safe_sync(db, "stream", song.id)  # dual-write mirror (Phase 3)
-    return song
+
+    try:
+        record_and_reconcile(
+            db,
+            title=title,
+            artist=artist,
+            calibration=result,
+            triggered_by="cl_stream",
+            lyrics_hash=hash_lyrics(lyrics),
+            agent_model=result.get("agent_model"),
+            direct_song_source="songs",
+            direct_song_id=song_id,
+            is_new_row=created,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Corpus log failed for stream song %s", song_id)
+
+    row = db.execute(
+        text(_STREAM_SELECT + " AND i.song_id = :s ORDER BY i.id DESC"),
+        {"s": song_id},
+    ).mappings().first()
+    return _stream_out(row)
 
 
 @router.get("", response_model=list[StreamSongOut], dependencies=[Depends(verify_admin_key)])
@@ -163,77 +229,103 @@ def list_stream(
     db: Session = Depends(get_db),
 ):
     """List CL Stream entries, newest first."""
-    q = db.query(StreamSong)
+    sql = _STREAM_SELECT
+    params: dict = {"lim": limit}
     if status:
-        q = q.filter(StreamSong.status == status)
-    return q.order_by(StreamSong.created_at.desc()).limit(limit).all()
+        sql += " AND i.detail IS NOT NULL AND (i.detail::jsonb ->> 'status') = :status"
+        params["status"] = status
+    sql += " ORDER BY i.created_at DESC, i.id DESC LIMIT :lim"
+    rows = db.execute(text(sql), params).mappings().all()
+    return [_stream_out(r) for r in rows]
 
 
 @router.get("/{song_id}", response_model=StreamSongOut, dependencies=[Depends(verify_admin_key)])
 def get_stream_song(song_id: int, db: Session = Depends(get_db)):
-    song = db.query(StreamSong).filter(StreamSong.id == song_id).first()
-    if not song:
+    row = _fetch_stream_entry(db, song_id)
+    if not row:
         raise HTTPException(404, "Stream song not found")
-    return song
+    return _stream_out(row)
 
 
 @router.post("/{song_id}/promote", response_model=StreamSongOut, dependencies=[Depends(verify_admin_key)])
 def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depends(get_db)):
-    """Promote a stream song into library_songs or compass_songs."""
-    song = db.query(StreamSong).filter(StreamSong.id == song_id).first()
-    if not song:
+    """Promote a stream song into the authoritative Library.
+
+    In the unified model the song already IS in the Library, so promotion no
+    longer copies a row between tables. It (a) elevates the canonical
+    calibration method to authoritative -- editorial (library) / chart_reading
+    (compass) -- so a later crowd read can't override it, (b) records an
+    editorial/chart_reading ingestion breadcrumb, and (c) marks the stream
+    ingestion promoted. A 'cl_stream' pick maps to no aggregating chart, so it
+    stays out of the compass charge structurally (matching the legacy
+    chart_position=0 / chart_source='cl_stream' non-chart behavior)."""
+    row = _fetch_stream_entry(db, song_id)
+    if not row:
         raise HTTPException(404, "Stream song not found")
-    if song.status == "promoted":
-        raise HTTPException(409, f"Already promoted to {song.promoted_to}")
-    if not song.rubric_color:
-        raise HTTPException(400, "Cannot promote — calibration failed. Re-calibrate first.")
+    detail = row["detail"]
+    if isinstance(detail, str):
+        try:
+            detail = json.loads(detail)
+        except Exception:
+            detail = {}
+    detail = detail or {}
+    if detail.get("status") == "promoted":
+        raise HTTPException(409, f"Already promoted to {detail.get('promoted_to')}")
+    if not row["rubric_color"]:
+        raise HTTPException(400, "Cannot promote -- calibration failed. Re-calibrate first.")
 
-    if body.target == "library":
-        entry, _created = get_or_create_song(
-            db, LibrarySong,
-            title=song.title,
-            artist=song.artist,
-            rubric_color=song.rubric_color,
-            charge_value=song.charge_value,
-            contaminated=song.contaminated,
-            contamination_note=song.contamination_note,
-            charge_summary=song.charge_summary,
-            source="stream",
+    sid = row["song_id"]
+    method = "chart_reading" if body.target == "compass" else "editorial"
+    db.execute(
+        text("UPDATE songs SET canonical_calibration_method = :m WHERE id = :i"),
+        {"m": method, "i": sid},
+    )
+    # Editorial/chart_reading ingestion breadcrumb (one per song+method).
+    if not db.execute(
+        text("SELECT 1 FROM song_ingestions WHERE song_id = :s AND method = :m LIMIT 1"),
+        {"s": sid, "m": method},
+    ).scalar():
+        db.execute(
+            text("INSERT INTO song_ingestions (song_id, method, detail) VALUES (:s, :m, :d)"),
+            {"s": sid, "m": method, "d": json.dumps({"promoted_from": "stream", "target": body.target})},
         )
-
-    elif body.target == "compass":
-        import datetime
-        entry, _created = get_or_create_song(
-            db, CompassSong,
-            title=song.title,
-            artist=song.artist,
-            year=datetime.datetime.utcnow().year,
-            decade=f"{(datetime.datetime.utcnow().year // 10) * 10}s",
-            chart_position=0,  # non-chart
-            rubric_color=song.rubric_color,
-            charge_value=song.charge_value,
-            contaminated=song.contaminated,
-            contamination_note=song.contamination_note,
-            charge_summary=song.charge_summary,
-            chart_source="cl_stream",
-        )
-
-    song.status = "promoted"
-    song.promoted_to = body.target
+    detail["status"] = "promoted"
+    detail["promoted_to"] = body.target
+    db.execute(
+        text("UPDATE song_ingestions SET detail = :d WHERE id = :i"),
+        {"d": json.dumps(detail), "i": song_id},
+    )
     db.commit()
-    db.refresh(song)
-    db.refresh(entry)
-    try_link_song(entry.title, entry.artist, body.target, entry.id, db)
-    from app.services.song_sync import safe_sync
-    safe_sync(db, body.target, entry.id)  # dual-write mirror (Phase 3)
-    return song
+    return _stream_out(_fetch_stream_entry(db, song_id))
 
 
 @router.delete("/{song_id}", dependencies=[Depends(verify_admin_key)])
 def delete_stream_song(song_id: int, db: Session = Depends(get_db)):
-    song = db.query(StreamSong).filter(StreamSong.id == song_id).first()
-    if not song:
+    """Remove a stream entry. Deletes the stream ingestion; if that leaves the
+    songs row a pure stream artifact (no chart appearance, no other ingestion,
+    not referenced by any reading), the song and its directly-owned reference
+    rows are removed too -- mirroring the legacy 'the row disappears'. A song
+    that has since charted or been referenced is kept (only the stream ingestion
+    drops)."""
+    row = _fetch_stream_entry(db, song_id)
+    if not row:
         raise HTTPException(404, "Stream song not found")
-    db.delete(song)
+    sid = row["song_id"]
+    title, artist = row["title"], row["artist"]
+
+    db.execute(text("DELETE FROM song_ingestions WHERE id = :i"), {"i": song_id})
+
+    orphan = (
+        not db.execute(text("SELECT 1 FROM song_ingestions WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
+        and not db.execute(text("SELECT 1 FROM chart_appearances WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
+        and not db.execute(text("SELECT 1 FROM reading_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
+        and not db.execute(text("SELECT 1 FROM agent_draft_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
+    )
+    if orphan:
+        for t in ("song_artists", "song_slugs", "user_calibrations", "calibration_runs",
+                  "misread_submissions"):
+            db.execute(text(f"DELETE FROM {t} WHERE unified_song_id = :s"), {"s": sid})
+        db.execute(text("DELETE FROM song_id_map WHERE new_song_id = :s"), {"s": sid})
+        db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": sid})
     db.commit()
-    return {"deleted": song_id, "title": song.title, "artist": song.artist}
+    return {"deleted": song_id, "title": title, "artist": artist, "song_removed": orphan}
