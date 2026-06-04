@@ -324,6 +324,7 @@ class UserCalibration(Base):
     user_id = Column(Integer, nullable=False, index=True)
     song_source = Column(String(20), nullable=False)  # compass | library | submitted
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     song_slug = Column(Text)  # denormalized for the account-page link
     title = Column(Text)
     artist = Column(Text)
@@ -426,6 +427,7 @@ class MisreadSubmission(Base):
     # matcher when the submitted (title, artist) resolves cleanly.
     song_source = Column(String(20))  # compass / library / submitted
     song_id = Column(Integer)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
 
 
 class StreamSong(Base):
@@ -702,6 +704,7 @@ class SongRecalibrationProposal(Base):
     lens = Column(String(20), nullable=False)  # standard | satire  (how the agent re-reads)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     pipeline = Column(String(40))  # manual | rubric_update | satirical_flag | vibe_gap | consensus_drift
     trigger_ref_id = Column(Integer)  # FK-shaped pointer back to the triggering row (flag id, etc.)
     original_charge = Column(Integer)
@@ -738,6 +741,7 @@ class SongRecalibration(Base):
     lens = Column(String(20), nullable=False)  # standard | satire
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     proposal_id = Column(Integer, ForeignKey("song_recalibration_proposals.id", ondelete="SET NULL"))
     pipeline = Column(String(40))  # manual | rubric_update | satirical_flag | vibe_gap | consensus_drift
     trigger_ref_id = Column(Integer)
@@ -813,6 +817,7 @@ class AudienceVibeNeedle(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     current_value = Column(Integer, nullable=False, default=0)  # -100..+100
     pushes_up_total = Column(Integer, nullable=False, default=0)
     pushes_down_total = Column(Integer, nullable=False, default=0)
@@ -840,6 +845,7 @@ class AudienceVibePush(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     direction = Column(Integer, nullable=False)  # +1 (higher), 0 (agree), -1 (lower)
     user_id = Column(Integer)  # nullable — placeholder for future auth
     device_id = Column(Text)
@@ -866,6 +872,7 @@ class AudienceVibeReviewCase(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     compass_charge = Column(Integer)
     compass_color = Column(String(20))
     vibe_value = Column(Integer, nullable=False)
@@ -915,6 +922,7 @@ class CalibrationRun(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_source = Column(String(20))
     song_id = Column(Integer)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     title = Column(Text)
     artist = Column(Text)
     rubric_color = Column(String(20))
@@ -952,6 +960,7 @@ class SongReset(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     before_charge = Column(Integer)
     before_color = Column(String(20))
     before_summary = Column(Text)
@@ -1065,6 +1074,7 @@ class ArtistVerificationBlock(Base):
     artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
     song_source = Column(String(20), nullable=False)  # compass | library | submitted
     song_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     block_text = Column(Text)
     video_url = Column(Text)
     audio_url = Column(Text)
@@ -1096,6 +1106,7 @@ class ArtistVerificationInquiry(Base):
     song_artist = Column(Text, nullable=False)
     song_source = Column(String(20))
     song_id = Column(Integer)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     song_color = Column(String(20))
     song_position = Column(Integer)
     claimant_name = Column(Text, nullable=False)
@@ -1225,6 +1236,7 @@ class BackfillJobRow(Base):
     # Result hand-off — which song row was created/updated
     result_song_source = Column(String(20))  # 'compass' | 'library'
     result_song_id = Column(Integer)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
     # Cached calibrator + tagger output for quick UI display
     rubric_color = Column(Text)
     charge_value = Column(Integer)
@@ -1289,6 +1301,7 @@ class Comment(Base):
     target_type = Column(Text, nullable=False)
     target_source = Column(Text)
     target_id = Column(Integer, nullable=False)
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082; target_type='song' only)
     # Self-referential FKs are DEFERRABLE INITIALLY DEFERRED: a top-level
     # comment sets thread_root_id to its own (not-yet-assigned) id, so the
     # check must happen at commit, not at the INSERT flush. (On SQLite this
