@@ -343,6 +343,7 @@ async function loadPayments() {
           <div><dt>Renews / ends</dt><dd>${dt(d.subscription_period_end)}</dd></div>
           <div><dt>Allowance credits</dt><dd>${d.allowance_credits}</dd></div>
           <div><dt>Purchased credits</dt><dd>${d.purchased_credits}</dd></div>
+          <div><dt>Free charges today</dt><dd>${d.daily_free_eligible ? `${d.daily_free_used} / ${d.daily_free_limit} used (${d.daily_free_remaining} left)` : 'n/a (paid tier)'}</dd></div>
           <div><dt>Stripe customer</dt><dd>${d.has_stripe_customer ? 'yes' : 'no'}</dd></div>
         </dl>
       </div>

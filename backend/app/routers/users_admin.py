@@ -29,8 +29,11 @@ from pydantic import BaseModel
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
+from app import billing_config
 from app.auth import require_admin_session
 from app.database import get_db
+from app.services import billing as billing_svc
+from app.services.feature_flags import lyrical_charger_free_daily_charges
 from app.models import (
     AccountVerification,
     Comment,
@@ -562,6 +565,11 @@ class UserPaymentsOut(BaseModel):
     allowance_credits: int
     purchased_credits: int
     has_stripe_customer: bool
+    # Free-tier daily-charge allotment (eligible only when tier is free).
+    daily_free_eligible: bool
+    daily_free_limit: int
+    daily_free_used: int
+    daily_free_remaining: int
     ledger: list[CreditLedgerRowOut]
     ledger_total: int
 
@@ -581,6 +589,9 @@ def get_user_payments(
         base.order_by(CreditLedger.created_at.desc())
         .offset(offset).limit(limit).all()
     )
+    df_eligible = not billing_config.is_paid_user(u.subscription_tier)
+    df_limit = lyrical_charger_free_daily_charges(db) if df_eligible else 0
+    df_used = billing_svc.daily_free_used_today(db, u.id) if df_eligible else 0
     return UserPaymentsOut(
         subscription_tier=u.subscription_tier,
         subscription_status=u.subscription_status,
@@ -588,6 +599,10 @@ def get_user_payments(
         allowance_credits=u.allowance_credits or 0,
         purchased_credits=u.purchased_credits or 0,
         has_stripe_customer=bool(u.stripe_customer_id),
+        daily_free_eligible=df_eligible,
+        daily_free_limit=df_limit,
+        daily_free_used=df_used,
+        daily_free_remaining=max(0, df_limit - df_used),
         ledger=[
             CreditLedgerRowOut(
                 id=r.id,

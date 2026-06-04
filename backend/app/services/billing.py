@@ -27,15 +27,76 @@ handles for error lc_events).
 
 import json
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.database import SessionLocal
 from app.models import CreditLedger, User
 
 logger = logging.getLogger(__name__)
+
+# Free-tier daily-charge passes are recorded as delta=0 ledger rows in this
+# bucket/reason. delta=0 keeps the balance-equals-ledger-sum invariant intact
+# (same family as 'rejected'/'settlement'/'overrun'); "used today" is a count
+# of these rows since UTC midnight, so the allotment self-resets with no job.
+DAILY_FREE_BUCKET = "daily_free"
+DAILY_FREE_REASON = "daily_free"
+
+
+# --- Free-tier daily allotment -------------------------------------------
+
+def _utc_day_start() -> datetime:
+    """UTC midnight of the current day -- the daily-free reset boundary."""
+    return datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _daily_free_eligible(user: User) -> bool:
+    """Only free-tier accounts get the daily-free allotment. Paid tiers
+    (plus/pro) spend allowance -> purchased as usual."""
+    from app import billing_config
+    return not billing_config.is_paid_user(user.subscription_tier)
+
+
+def _free_daily_limit(db) -> int:
+    """Admin-tunable free-tier daily-charge count (system_flags, defaults to
+    billing_config.DAILY_FREE_CHARGES)."""
+    from app.services.feature_flags import lyrical_charger_free_daily_charges
+    return lyrical_charger_free_daily_charges(db)
+
+
+def daily_free_used_today(db, user_id: int) -> int:
+    """Count of free-tier daily passes this user has consumed since UTC
+    midnight. Indexed by (user_id, created_at)."""
+    return (
+        db.query(func.count(CreditLedger.id))
+        .filter(CreditLedger.user_id == user_id)
+        .filter(CreditLedger.bucket == DAILY_FREE_BUCKET)
+        .filter(CreditLedger.created_at >= _utc_day_start())
+        .scalar()
+    ) or 0
+
+
+def daily_free_status(user: User) -> dict:
+    """Daily-free usage snapshot for the wallet UI / admin. Paid users report
+    a zero allotment (not eligible)."""
+    eligible = _daily_free_eligible(user)
+    db = SessionLocal()
+    try:
+        limit = _free_daily_limit(db) if eligible else 0
+        used = daily_free_used_today(db, user.id) if eligible else 0
+    finally:
+        db.close()
+    return {
+        "daily_free_eligible": eligible,
+        "daily_free_limit": limit,
+        "daily_free_used": used,
+        "daily_free_remaining": max(0, limit - used),
+        "daily_free_resets_at": (_utc_day_start() + timedelta(days=1)).isoformat() + "Z",
+    }
 
 
 # --- Read helpers (no DB write) -------------------------------------------
@@ -59,12 +120,22 @@ def wallet_snapshot(user: User) -> dict:
 
 # --- Pre-flight ----------------------------------------------------------
 
-def check_credits(user_id: int, cost: int, *, reason: str = "preflight") -> None:
+def check_credits(
+    user_id: int,
+    cost: int,
+    *,
+    reason: str = "preflight",
+    allow_daily_free: bool = False,
+) -> None:
     """Raise 402 if `user_id` can't afford `cost`. Inline-writes a rejected
     ledger row so the rejection shows up in the admin view even though the
     response is a non-200 (BackgroundTasks won't fire).
 
     No-op if cost <= 0.
+
+    allow_daily_free=True (single-song charger preflight): a free-tier user
+    with a remaining daily-free pass is admitted regardless of credit balance
+    -- the pass is consumed later by charge_song on success.
     """
     if cost <= 0:
         return
@@ -74,6 +145,9 @@ def check_credits(user_id: int, cost: int, *, reason: str = "preflight") -> None
         u = db.query(User).filter(User.id == user_id).first()
         if not u:
             raise HTTPException(status_code=401, detail="User not found")
+        if allow_daily_free and _daily_free_eligible(u):
+            if daily_free_used_today(db, user_id) < _free_daily_limit(db):
+                return
         balance = total_credits(u)
         if balance < cost:
             db.add(CreditLedger(
@@ -183,6 +257,77 @@ def charge_credits(
         }
     finally:
         db.close()
+
+
+def charge_song(
+    user_id: int,
+    cost: int,
+    *,
+    reason: str,
+    ref_type: str,
+    ref_id: Optional[str] = None,
+    context: Optional[dict] = None,
+) -> dict:
+    """Single-song charge with free-tier daily-pass priority.
+
+    A free-tier user with a daily-free pass left for the UTC day consumes one
+    pass (a delta=0 'daily_free' ledger row -- no bucket debit) instead of
+    spending credits. Once the daily allotment is exhausted, and for ALL paid
+    users, this falls through to charge_credits (allowance -> purchased).
+
+    Returns the usual charge dict plus 'source' in {'daily_free','credits','free'}.
+    The user-row lock serialises the count+insert so concurrent runs for the
+    same user can't over-grant passes; the (reason,ref_id,bucket) unique index
+    makes a same-song replay idempotent.
+    """
+    if cost <= 0:
+        return {"source": "free", "allowance_spent": 0, "purchased_spent": 0, "new_balance": None}
+
+    db = SessionLocal()
+    try:
+        u = (
+            db.query(User)
+            .filter(User.id == user_id)
+            .with_for_update()
+            .first()
+        )
+        if not u:
+            raise HTTPException(status_code=401, detail="User not found")
+        if _daily_free_eligible(u):
+            limit = _free_daily_limit(db)
+            used = daily_free_used_today(db, user_id)
+            if used < limit:
+                db.add(CreditLedger(
+                    user_id=user_id, delta=0, bucket=DAILY_FREE_BUCKET,
+                    reason=DAILY_FREE_REASON, ref_type=ref_type, ref_id=ref_id,
+                    context_json=json.dumps({
+                        **(context or {}),
+                        "daily_free_used": used + 1, "daily_free_limit": limit,
+                    }),
+                ))
+                try:
+                    db.commit()
+                except IntegrityError:
+                    # Same-song double-submit: the pass was already recorded.
+                    db.rollback()
+                    logger.info("charge_song daily_free replay ignored: ref_id=%s", ref_id)
+                    return {"source": "daily_free", "allowance_spent": 0,
+                            "purchased_spent": 0, "new_balance": None, "replayed": True}
+                return {"source": "daily_free", "allowance_spent": 0,
+                        "purchased_spent": 0, "new_balance": None}
+        # No free pass available (allotment spent, or a paid user): release the
+        # row lock without writing, then debit credits via charge_credits
+        # (which takes its own lock + handles the 402 / replay paths).
+        db.rollback()
+    finally:
+        db.close()
+
+    res = charge_credits(
+        user_id, cost,
+        reason=reason, ref_type=ref_type, ref_id=ref_id, context=context,
+    )
+    res["source"] = "credits"
+    return res
 
 
 def record_unbilled_overrun(

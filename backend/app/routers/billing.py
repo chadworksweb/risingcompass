@@ -230,6 +230,9 @@ async def billing_me(user: User = Depends(require_clerk_user)):
     snap = billing_svc.wallet_snapshot(user)
     snap["tier_label"] = billing_config.TIERS.get(snap["tier"], billing_config.TIER_FREE).label
     snap["is_paid"] = billing_config.is_paid_user(snap["tier"])
+    # Free-tier daily-charge allotment (used / remaining / reset). Paid users
+    # report a zero allotment; the UI only shows the line when eligible.
+    snap.update(billing_svc.daily_free_status(user))
     return snap
 
 

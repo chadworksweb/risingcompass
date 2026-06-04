@@ -59,6 +59,10 @@ def set_lyrical_charger_disabled_message(db: Session, message: str | None) -> No
 
 LC_ANON_DAILY_LIMIT_KEY = "lyrical_charger.anon_daily_limit"
 LC_USER_DAILY_LIMIT_KEY = "lyrical_charger.user_daily_limit"
+# Free-tier daily free-charge allotment (distinct from the slowapi backstop
+# above): how many fresh single-song runs a FREE-TIER account gets per UTC day
+# at zero credit cost. See billing.charge_song / billing_config.DAILY_FREE_CHARGES.
+LC_FREE_DAILY_CHARGES_KEY = "lyrical_charger.free_daily_charges"
 DEFAULT_LC_USER_DAILY_LIMIT = 100
 
 
@@ -67,6 +71,11 @@ def _default_anon_daily_limit() -> int:
     # module load (feature_flags is imported very early by the routers).
     from app import billing_config
     return billing_config.ANON_CHARGER_DAILY_LIMIT
+
+
+def _default_free_daily_charges() -> int:
+    from app import billing_config
+    return billing_config.DAILY_FREE_CHARGES
 
 
 def _read_int_flag(db: Session, key: str, default: int) -> int:
@@ -102,12 +111,20 @@ def lyrical_charger_user_daily_limit(db: Session) -> int:
     return _read_int_flag(db, LC_USER_DAILY_LIMIT_KEY, DEFAULT_LC_USER_DAILY_LIMIT)
 
 
+def lyrical_charger_free_daily_charges(db: Session) -> int:
+    return _read_int_flag(db, LC_FREE_DAILY_CHARGES_KEY, _default_free_daily_charges())
+
+
 def set_lyrical_charger_anon_daily_limit(db: Session, value: int | None) -> None:
     _set_int_flag(db, LC_ANON_DAILY_LIMIT_KEY, value)
 
 
 def set_lyrical_charger_user_daily_limit(db: Session, value: int | None) -> None:
     _set_int_flag(db, LC_USER_DAILY_LIMIT_KEY, value)
+
+
+def set_lyrical_charger_free_daily_charges(db: Session, value: int | None) -> None:
+    _set_int_flag(db, LC_FREE_DAILY_CHARGES_KEY, value)
 
 
 # --- Launch lock -----------------------------------------------------------

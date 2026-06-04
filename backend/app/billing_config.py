@@ -98,6 +98,16 @@ SIGNUP_GRANT_CREDITS = 1
 # firewall + funnel; signed-in users are gated by credits instead.
 ANON_CHARGER_DAILY_LIMIT = 3
 
+# Free-tier daily charge allotment (code default; admin-tunable via
+# system_flags -> lyrical_charger.free_daily_charges). A FREE-TIER signed-in
+# user gets this many fresh single-song Charger runs per UTC day at no credit
+# cost, consumed BEFORE any credit bucket. Tracked in credit_ledger as
+# delta=0 'daily_free' rows (no balance impact), so "used today" is a count of
+# those rows since UTC midnight -- no reset job, full audit trail. Paid tiers
+# (plus/pro) get NO daily-free allotment: they spend allowance -> purchased as
+# usual (they pay for volume). Album charging is unaffected (hold/settle model).
+DAILY_FREE_CHARGES = 5
+
 
 def is_paid_user(subscription_tier) -> bool:
     """True if a user's subscription tier counts as paid (plus or pro)."""

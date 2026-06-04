@@ -361,7 +361,7 @@ function wireSubscribeForm() {
 checkAvailability();
 
 // ============================================================
-// Donate widget (Stripe Checkout — same account as chadlewine)
+// Donate widget (Stripe Checkout — dedicated Rising Compass account)
 // ============================================================
 function initDonateWidget() {
   const widget = $('#donate-widget');
@@ -473,22 +473,74 @@ function initDonateWidget() {
 
 initDonateWidget();
 
-// Entry-screen "Support this tool" link: bring up the donate widget.
-// When LC is online, the unavailable screen is hidden but the widget
-// inside it is still in the DOM — we toggle to it on click and let
-// the user dismiss with the back/refresh.
+// "Support this tool" is a real page VIEW (URL ?support), not a hashless
+// modal. Opening it pushes a history entry so the browser Back button pops
+// back to the charger the user was on -- never out to the homepage. Both
+// the song-entry and album-entry links route through openSupportView().
+// The view reuses the donate widget that lives inside #screen-unavailable.
+let supportReturnScreen = 'screen-entry';
+
+function renderSupportView(headlineText) {
+  const headline = document.querySelector('.unavail-headline');
+  const msg = document.getElementById('unavail-message');
+  const subscribeCard = document.querySelector('#screen-unavailable .unavail-card');
+  if (headline) headline.textContent = headlineText || 'Support Lyrical Charger.';
+  if (msg) msg.textContent = 'Thanks for keeping this tool alive and free.';
+  if (subscribeCard) subscribeCard.style.display = 'none';
+  showScreen('screen-unavailable');
+}
+
+function openSupportView(headlineText, returnScreen) {
+  supportReturnScreen = returnScreen || 'screen-entry';
+  renderSupportView(headlineText);
+  // Add a history entry only if we aren't already on the support URL, so a
+  // repeat click doesn't stack duplicate states. Back from here pops to the
+  // charger (handled by the popstate listener below).
+  if (!new URLSearchParams(window.location.search).has('support')) {
+    history.pushState(
+      { view: 'support', ret: supportReturnScreen, headline: headlineText || '' },
+      '',
+      window.location.pathname + '?support',
+    );
+  }
+}
+
+function closeSupportView() {
+  // Restore the subscribe card we hid so a later genuine "unavailable" state
+  // still shows it, then return to the charger screen we came from.
+  const subscribeCard = document.querySelector('#screen-unavailable .unavail-card');
+  if (subscribeCard) subscribeCard.style.display = '';
+  showScreen(supportReturnScreen || 'screen-entry');
+}
+
+window.addEventListener('popstate', (e) => {
+  const onSupport = new URLSearchParams(window.location.search).has('support');
+  const unavail = document.getElementById('screen-unavailable');
+  const showingUnavail = unavail && unavail.classList.contains('active');
+  if (onSupport && !showingUnavail) {
+    // Forward/restore navigation back onto the support view.
+    if (e.state && e.state.ret) supportReturnScreen = e.state.ret;
+    renderSupportView(e.state && e.state.headline);
+  } else if (!onSupport && showingUnavail) {
+    // Back pressed out of the support view -> return to the charger.
+    closeSupportView();
+  }
+});
+
 const entryDonateLink = document.getElementById('entry-donate-link');
 if (entryDonateLink) {
   entryDonateLink.addEventListener('click', (e) => {
     e.preventDefault();
-    const msg = document.getElementById('unavail-message');
-    const headline = document.querySelector('.unavail-headline');
-    const subscribeCard = document.querySelector('#screen-unavailable .unavail-card');
-    if (headline) headline.textContent = 'Support Lyrical Charger.';
-    if (msg) msg.textContent = "Thanks for keeping this tool alive and free.";
-    if (subscribeCard) subscribeCard.style.display = 'none';
-    showScreen('screen-unavailable');
+    openSupportView('Support Lyrical Charger.', 'screen-entry');
   });
+}
+
+// Deep link / refresh on ?support: drop a clean charger entry behind the
+// support view (replaceState to the bare path, then openSupportView pushes
+// ?support) so Back still lands on the charger rather than the prior site.
+if (new URLSearchParams(window.location.search).has('support')) {
+  history.replaceState({}, '', window.location.pathname);
+  openSupportView('Support Lyrical Charger.', 'screen-entry');
 }
 
 // Donation return: ?donated=cs_test_... means Stripe redirected here
@@ -788,7 +840,7 @@ async function submitLyrics() {
       showError("Out of credits. Pick up a credit pack or subscribe from your Account page to keep charging songs.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
-      try { window.location.assign('/account/'); } catch (_) {}
+      try { window.location.assign('/account/?reason=out_of_credits&returnTo=' + encodeURIComponent(window.location.pathname)); } catch (_) {}
       return;
     }
 
@@ -981,7 +1033,7 @@ async function submitSearch() {
       showError("Out of credits. Pick up a credit pack or subscribe from your Account page to keep charging songs.");
       showScreen('screen-entry');
       btnSubmit.disabled = false;
-      try { window.location.assign('/account/'); } catch (_) {}
+      try { window.location.assign('/account/?reason=out_of_credits&returnTo=' + encodeURIComponent(window.location.pathname)); } catch (_) {}
       return;
     }
 
@@ -1792,7 +1844,7 @@ function hideError() {
       if (resp.status === 402) {
         phCapture('paywall_hit', { surface: 'charger_album', reason: 'out_of_credits', signed_in: true });
         showError("Out of credits for an album of this length. Pick up a credit pack or subscribe from your Account page to keep charging albums.");
-        try { window.location.assign('/account/'); } catch (_) {}
+        try { window.location.assign('/account/?reason=out_of_credits&returnTo=' + encodeURIComponent(window.location.pathname)); } catch (_) {}
         return;
       }
       if (resp.status === 429) {
@@ -2025,13 +2077,7 @@ function hideError() {
   if (albumDonateLink) {
     albumDonateLink.addEventListener('click', (e) => {
       e.preventDefault();
-      const headline = document.querySelector('.unavail-headline');
-      const msg = document.getElementById('unavail-message');
-      const subscribeCard = document.querySelector('#screen-unavailable .unavail-card');
-      if (headline) headline.textContent = 'Support the Charger.';
-      if (msg) msg.textContent = 'Thanks for keeping this tool alive and free.';
-      if (subscribeCard) subscribeCard.style.display = 'none';
-      showScreen('screen-unavailable');
+      openSupportView('Support the Charger.', 'screen-album-entry');
     });
   }
 

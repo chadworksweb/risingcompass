@@ -1,7 +1,10 @@
 """Stripe wrapper for Lyrical Charger donations.
 
-Mirrors chadlewine/src/lib/stripe.ts. Same Stripe account, separate
-webhook endpoint with its own signing secret.
+Runs on the dedicated Rising Compass Stripe account (migrated off the shared
+chadlewine account at launch, 2026-05-29). Donations, subscriptions, and
+credit packs all use the one settings.stripe_secret_key; the donation webhook
+has its own signing secret (settings.stripe_webhook_secret), distinct from the
+billing + identity webhook secrets so a leak of one can't forge the others.
 
 Donations are mode='payment' (one-time gift), submit_type='donate' so
 Stripe Checkout shows a "Donate" button instead of "Pay". Line items

@@ -23,6 +23,7 @@ from app.services.feature_flags import (
     DEFAULT_LC_DISABLED_MESSAGE,
     lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
     set_lyrical_charger_anon_daily_limit, set_lyrical_charger_user_daily_limit,
+    lyrical_charger_free_daily_charges, set_lyrical_charger_free_daily_charges,
 )
 from app.services.lc_subscriber_notifier import notify_subscribers
 
@@ -43,6 +44,7 @@ def _status_payload(db: Session) -> LCStatusOut:
         subscribers_unnotified=unnotified,
         anon_daily_limit=lyrical_charger_anon_daily_limit(db),
         user_daily_limit=lyrical_charger_user_daily_limit(db),
+        free_daily_charges=lyrical_charger_free_daily_charges(db),
     )
 
 
@@ -63,6 +65,10 @@ def set_limits(data: LCLimitsIn, db: Session = Depends(get_db)):
         if data.user_daily_limit < 0:
             raise HTTPException(400, "user_daily_limit must be >= 0")
         set_lyrical_charger_user_daily_limit(db, data.user_daily_limit)
+    if data.free_daily_charges is not None:
+        if data.free_daily_charges < 0:
+            raise HTTPException(400, "free_daily_charges must be >= 0")
+        set_lyrical_charger_free_daily_charges(db, data.free_daily_charges)
     return _status_payload(db)
 
 

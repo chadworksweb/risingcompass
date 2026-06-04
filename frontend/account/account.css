@@ -128,6 +128,17 @@
   color: var(--rc-red);
 }
 
+.wallet-paywall-note {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--rc-accent);
+  background: var(--rc-accent-subtle);
+  border-radius: 6px;
+  color: var(--rc-text-bright);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .account-consent {
   display: flex;
   gap: 0.6rem;
@@ -542,6 +553,11 @@ a.account-notif-headline:hover { text-decoration: underline; }
   font-size: 0.82rem;
   color: var(--rc-text-dim);
   margin: 0;
+}
+.wallet-daily-free {
+  font-size: 0.85rem;
+  color: var(--rc-text);
+  margin: 0.4rem 0 0;
 }
 .wallet-actions {
   display: flex;

@@ -437,9 +437,39 @@
         renewalEl.hidden = false;
       }
     }
+    // Free-tier daily-charge allotment. Only shown for eligible (free-tier)
+    // accounts; paid users see their allowance/renewal line instead.
+    const dailyFreeEl = document.getElementById('wallet-daily-free');
+    if (dailyFreeEl && snap.daily_free_eligible && snap.daily_free_limit > 0) {
+      const used = snap.daily_free_used || 0;
+      const limit = snap.daily_free_limit;
+      const remaining = snap.daily_free_remaining != null ? snap.daily_free_remaining : Math.max(0, limit - used);
+      dailyFreeEl.textContent = remaining > 0
+        ? `Free charges today: ${used} of ${limit} used (${remaining} left). Resets at midnight UTC.`
+        : `Free charges today: ${used} of ${limit} used. You're out of free charges until midnight UTC -- pick up a credit pack or subscribe to keep going.`;
+      dailyFreeEl.hidden = false;
+    }
     stateEl.hidden = true;
     bodyEl.hidden = false;
     if (launchLocked) lockWalletActions();
+    maybeShowPaywallNote();
+  }
+
+  // When the Charger bounces a signed-in, out-of-credits user here
+  // (`?reason=out_of_credits`), surface why they landed on this page and
+  // bring the wallet into view -- otherwise the redirect reads as a context-
+  // less dump onto the account page.
+  function maybeShowPaywallNote() {
+    const reason = new URLSearchParams(window.location.search).get('reason');
+    if (reason !== 'out_of_credits') return;
+    const note = document.getElementById('wallet-paywall');
+    if (!note) return;
+    note.textContent = "You're out of credits. Pick up a credit pack or subscribe below to keep charging songs on Lyrical Charger.";
+    note.hidden = false;
+    const card = document.getElementById('acct-wallet');
+    if (card && typeof card.scrollIntoView === 'function') {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   // PostHog event helper. No-op unless the lib actually loaded (gated off on

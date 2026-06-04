@@ -589,6 +589,7 @@ async def calibrate_lyrics_endpoint(
             billing_svc.check_credits(
                 current_user.id, preflight_cost,
                 reason=("song_cache_hit" if cached_calibration else "song_miss"),
+                allow_daily_free=True,
             )
 
         # Phase 2: no DB session held. Opus calls only.
@@ -720,19 +721,20 @@ async def calibrate_lyrics_endpoint(
                 )
                 if cost > 0:
                     try:
-                        billing_svc.charge_credits(
+                        billing_svc.charge_song(
                             current_user.id, cost,
                             reason=("song_cache_hit" if cached_calibration else "song_miss"),
                             ref_type="submitted_song", ref_id=str(submitted_id),
                             context={"title": title[:80], "artist": artist[:80]},
                         )
                     except HTTPException:
-                        # A concurrent spend drained the wallet between the
-                        # unlocked pre-flight and this charge. The result is
-                        # going out either way; record a delta=0 overrun marker
-                        # so the uncompensated run is visible to reconciliation.
+                        # Free pass spent AND a concurrent spend drained the
+                        # wallet between the unlocked pre-flight and this charge.
+                        # The result is going out either way; record a delta=0
+                        # overrun marker so the uncompensated run is visible to
+                        # reconciliation.
                         logger.warning(
-                            "charge_credits failed post-success user=%s song=%s",
+                            "charge_song failed post-success user=%s song=%s",
                             current_user.id, submitted_id,
                         )
                         billing_svc.record_unbilled_overrun(
@@ -890,6 +892,7 @@ async def calibrate_search(
             billing_svc.check_credits(
                 current_user.id, preflight_cost,
                 reason=("song_cache_hit" if cached_calibration else "song_miss"),
+                allow_daily_free=True,
             )
 
         # Phase 2 still: run the one calibration path. A cache hit is completed
@@ -985,7 +988,7 @@ async def calibrate_search(
                 )
                 if cost > 0:
                     try:
-                        billing_svc.charge_credits(
+                        billing_svc.charge_song(
                             current_user.id, cost,
                             reason=("song_cache_hit" if cached_calibration else "song_miss"),
                             ref_type="submitted_song", ref_id=str(submitted_id),
@@ -993,12 +996,13 @@ async def calibrate_search(
                                      "track_id": body.track_id},
                         )
                     except HTTPException:
-                        # A concurrent spend drained the wallet between the
-                        # unlocked pre-flight and this charge. The result is
-                        # going out either way; record a delta=0 overrun marker
-                        # so the uncompensated run is visible to reconciliation.
+                        # Free pass spent AND a concurrent spend drained the
+                        # wallet between the unlocked pre-flight and this charge.
+                        # The result is going out either way; record a delta=0
+                        # overrun marker so the uncompensated run is visible to
+                        # reconciliation.
                         logger.warning(
-                            "charge_credits failed post-success user=%s song=%s",
+                            "charge_song failed post-success user=%s song=%s",
                             current_user.id, submitted_id,
                         )
                         billing_svc.record_unbilled_overrun(

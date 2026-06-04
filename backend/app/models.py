@@ -1549,7 +1549,9 @@ class CreditLedger(Base):
 
     delta is signed (negative=spend, positive=grant/refund). bucket is one
     of 'allowance', 'purchased', 'rejected' (preflight 402), 'settlement'
-    (no-delta settle marker). Partial UNIQUE(reason, ref_id, bucket) on
+    (no-delta settle marker), or 'daily_free' (no-delta marker for a free-tier
+    daily-charge pass -- counted per UTC day, never debits a balance bucket).
+    Partial UNIQUE(reason, ref_id, bucket) on
     ref_id IS NOT NULL gates Stripe webhook replays; bucket lives in the
     index so a single charge can split across both buckets under the same
     reason+ref_id without colliding.

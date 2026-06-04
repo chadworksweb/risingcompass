@@ -29,8 +29,9 @@
 <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;">
   <p style="font-size:0.88rem;color:var(--text-dim);margin:0 0 0.8rem;">
     Per-day caps on the Charger calibrate endpoints. <strong>Anonymous</strong> is per-IP (the public
-    cost firewall). <strong>Signed-in</strong> is a per-user backstop — paying users are really gated by
-    credits, so this is just a ceiling. Changes take effect within ~30s.
+    cost firewall). <strong>Signed-in</strong> is a per-user backstop ceiling. <strong>Free charges</strong>
+    is how many fresh single-song runs a <em>free-tier</em> account gets per UTC day at no credit cost
+    (consumed before any credits; paid tiers are unaffected). Changes take effect within ~30s.
   </p>
   <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-end;">
     <div>
@@ -40,6 +41,10 @@
     <div>
       <label style="display:block;font-size:0.82rem;color:var(--text-dim);margin-bottom:0.3rem;">Signed-in (per-user / day)</label>
       <input type="number" id="lcsUserLimit" min="0" step="1" style="width:8rem;font-family:inherit;font-size:0.9rem;padding:0.45rem 0.5rem;border:1px solid var(--border);border-radius:4px;">
+    </div>
+    <div>
+      <label style="display:block;font-size:0.82rem;color:var(--text-dim);margin-bottom:0.3rem;">Free charges (free-tier / day)</label>
+      <input type="number" id="lcsFreeDaily" min="0" step="1" style="width:8rem;font-family:inherit;font-size:0.9rem;padding:0.45rem 0.5rem;border:1px solid var(--border);border-radius:4px;">
     </div>
     <button class="btn btn-primary" onclick="lcsSaveLimits()">Save limits</button>
     <span id="lcsLimitsNote" style="font-size:0.82rem;color:var(--text-dim);"></span>
@@ -103,6 +108,7 @@ async function loadStatus() {
     document.getElementById('lcsMessage').value = s.message || '';
     document.getElementById('lcsAnonLimit').value = s.anon_daily_limit;
     document.getElementById('lcsUserLimit').value = s.user_daily_limit;
+    document.getElementById('lcsFreeDaily').value = s.free_daily_charges;
 
     const enableBtn = document.getElementById('lcsBtnEnable');
     const disableBtn = document.getElementById('lcsBtnDisable');
@@ -144,7 +150,9 @@ async function lcsSaveLimits() {
   const note = document.getElementById('lcsLimitsNote');
   const anon = parseInt(document.getElementById('lcsAnonLimit').value, 10);
   const user = parseInt(document.getElementById('lcsUserLimit').value, 10);
-  if (!Number.isInteger(anon) || anon < 0 || !Number.isInteger(user) || user < 0) {
+  const free = parseInt(document.getElementById('lcsFreeDaily').value, 10);
+  if (!Number.isInteger(anon) || anon < 0 || !Number.isInteger(user) || user < 0
+      || !Number.isInteger(free) || free < 0) {
     note.textContent = 'Limits must be whole numbers >= 0.';
     return;
   }
@@ -153,7 +161,7 @@ async function lcsSaveLimits() {
     const resp = await adminFetch('/api/admin/lc-status/limits', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({anon_daily_limit: anon, user_daily_limit: user}),
+      body: JSON.stringify({anon_daily_limit: anon, user_daily_limit: user, free_daily_charges: free}),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     note.textContent = 'Saved. Live within ~30s.';

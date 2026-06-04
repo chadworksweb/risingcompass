@@ -1184,6 +1184,7 @@ class LCStatusOut(BaseModel):
     subscribers_unnotified: int
     anon_daily_limit: int
     user_daily_limit: int
+    free_daily_charges: int
 
 
 class LCToggleIn(BaseModel):
@@ -1195,6 +1196,8 @@ class LCLimitsIn(BaseModel):
     # null/omitted leaves that limit unchanged; both are per-day caps.
     anon_daily_limit: Optional[int] = None
     user_daily_limit: Optional[int] = None
+    # Free-tier daily free-charge allotment (signed-in free accounts only).
+    free_daily_charges: Optional[int] = None
 
 
 class LCNotifyOut(BaseModel):
