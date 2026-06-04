@@ -49,15 +49,32 @@ _CALIB = [
 
 
 def sync_legacy_song_to_unified(db, source: str, legacy_id: int):
-    """Mirror legacy (source, legacy_id) into songs + appearance + ingestion and
-    repoint its references. Returns the unified songs.id, or None if skipped.
-    Does NOT commit -- the caller owns the transaction."""
+    """Mirror legacy (source, legacy_id) into the unified model by READING the
+    legacy row, then delegating to upsert_unified_song. Phase-3 dual-write path;
+    retired at Phase 5 once every writer calls upsert_unified_song natively (no
+    legacy read). Does NOT commit -- the caller owns the transaction."""
     tbl = _LEGACY_TABLE.get(source)
     if not tbl or not legacy_id:
         return None
     row = db.execute(text(f"SELECT * FROM {tbl} WHERE id = :i"), {"i": legacy_id}).mappings().first()
     if not row:
         return None
+    return upsert_unified_song(db, source, legacy_id, dict(row))
+
+
+def upsert_unified_song(db, source: str, legacy_id, row: dict):
+    """Upsert one song into songs + chart_appearance + song_ingestion and repoint
+    its references, driven entirely by the in-memory `row` dict -- NO legacy-table
+    read, so it survives the Phase-5 drop. `row` carries the identity + calibration
+    fields (the legacy column names: title, artist, the _CALIB set, plus
+    chart_source/year/chart_position/chart_position_letter/album_id/track_number/
+    ip_address/source as applicable). `legacy_id` is used only to maintain
+    song_id_map + repoint (song_source, legacy_id) references during the
+    transition; pass None once the legacy tables are gone. Does NOT commit --
+    the caller owns the transaction. Returns the unified songs.id or None.
+
+    Authoritative-first: a crowd write (lyrical_charger/stream) never overwrites
+    an existing authoritative (chart_reading/editorial/terminal) calibration."""
     title, artist = row.get("title"), row.get("artist")
     if not title or not artist:
         return None
@@ -94,12 +111,13 @@ def sync_legacy_song_to_unified(db, source: str, legacy_id: int):
             text(f"INSERT INTO songs ({collist}) VALUES ({vallist}) RETURNING id"), params
         ).scalar()
 
-    # id map (idempotent)
-    db.execute(text(
-        "INSERT INTO song_id_map (old_source, old_id, new_song_id, canonical_key) "
-        "VALUES (:s, :i, :n, :k) "
-        "ON CONFLICT (old_source, old_id) DO UPDATE SET new_song_id = :n, canonical_key = :k"
-    ), {"s": source, "i": legacy_id, "n": song_id, "k": key})
+    # id map (idempotent) -- transition-only; needs the legacy (source, id).
+    if legacy_id:
+        db.execute(text(
+            "INSERT INTO song_id_map (old_source, old_id, new_song_id, canonical_key) "
+            "VALUES (:s, :i, :n, :k) "
+            "ON CONFLICT (old_source, old_id) DO UPDATE SET new_song_id = :n, canonical_key = :k"
+        ), {"s": source, "i": legacy_id, "n": song_id, "k": key})
 
     # chart appearance (compass only; non-chart sources get none)
     if source == "compass":
@@ -124,17 +142,20 @@ def sync_legacy_song_to_unified(db, source: str, legacy_id: int):
             "VALUES (:s, :m, :ip, :d)"
         ), {"s": song_id, "m": method, "ip": row.get("ip_address"), "d": json.dumps(detail)})
 
-    # repoint this song's references
-    for t in ("song_artists", "song_slugs", "release_songs", "user_calibrations",
-              "calibration_runs", "misread_submissions"):
-        db.execute(text(
-            f"UPDATE {t} SET unified_song_id = :n WHERE song_source = :s AND song_id = :i"
-        ), {"n": song_id, "s": source, "i": legacy_id})
-    if source == "compass":
-        db.execute(text("UPDATE reading_songs SET song_id = :n WHERE compass_song_id = :i"),
-                   {"n": song_id, "i": legacy_id})
-        db.execute(text("UPDATE agent_draft_songs SET song_id = :n WHERE compass_song_id = :i"),
-                   {"n": song_id, "i": legacy_id})
+    # repoint this song's references -- transition-only; keyed by the legacy
+    # (source, id). Post-drop the references already carry the unified song_id
+    # (renamed from unified_song_id in Phase 5c), so this no-ops out.
+    if legacy_id:
+        for t in ("song_artists", "song_slugs", "release_songs", "user_calibrations",
+                  "calibration_runs", "misread_submissions"):
+            db.execute(text(
+                f"UPDATE {t} SET unified_song_id = :n WHERE song_source = :s AND song_id = :i"
+            ), {"n": song_id, "s": source, "i": legacy_id})
+        if source == "compass":
+            db.execute(text("UPDATE reading_songs SET song_id = :n WHERE compass_song_id = :i"),
+                       {"n": song_id, "i": legacy_id})
+            db.execute(text("UPDATE agent_draft_songs SET song_id = :n WHERE compass_song_id = :i"),
+                       {"n": song_id, "i": legacy_id})
     return song_id
 
 
