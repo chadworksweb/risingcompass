@@ -330,11 +330,15 @@ def fetch_run_fingerprints(
     Used by the Lyrical Charger divergence guard to compare a new submission
     against prior runs for the same (title, artist). NULLs are filtered out
     — older runs predate the fingerprint column and contribute no signal.
-    """
+
+    Unified renovation: aggregates by the atomic song (every run across its
+    former duplicate rows), resolving (source, id) like compute_consensus."""
+    unified = resolve_unified_song(db, source=source, song_id=song_id)
+    if unified is None:
+        return []
     rows = (
         db.query(CalibrationRun.lyrics_fingerprint)
-        .filter(CalibrationRun.song_source == source)
-        .filter(CalibrationRun.song_id == song_id)
+        .filter(CalibrationRun.unified_song_id == unified.id)
         .filter(CalibrationRun.superseded.is_(False))
         .filter(CalibrationRun.lyrics_fingerprint.isnot(None))
         .all()

@@ -218,6 +218,7 @@ def store_calibrated_song(
     chart_source: str | None = None, year: int | None = None,
     chart_position: int | None = None, chart_position_letter: str = "",
     album_id: int | None = None, track_number: int | None = None,
+    ip_address: str | None = None,
     ingestion_detail: dict | None = None,
     artist_entries: list | None = None,
 ) -> tuple[int | None, bool]:
@@ -242,6 +243,7 @@ def store_calibrated_song(
         "chart_position": chart_position,
         "chart_position_letter": chart_position_letter or "",
         "album_id": album_id, "track_number": track_number,
+        "ip_address": ip_address,
     })
     song_id = upsert_unified_song(db, source, None, row, ingestion_detail=ingestion_detail,
                                   only_set_present=True)

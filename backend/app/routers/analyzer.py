@@ -644,54 +644,42 @@ async def calibrate_lyrics_endpoint(
         # no connection is held idle through Phase 2.
         write_db = SessionLocal()
         try:
-            submitted, _created = get_or_create_song(
-                write_db, SubmittedSong,
-                title=title,
-                artist=artist,
-                source=source,
-                ip_address=get_remote_address(request),
-                **_song_persist_fields(calibration),
-            )
-            write_db.commit()
-            write_db.refresh(submitted)
             structured = (
                 [{"name": a.name, "role": a.role, "position": i} for i, a in enumerate(body.artists)]
                 if body.artists else None
             )
-            try_link_song(title, artist, "submitted", submitted.id, write_db, structured=structured)
-            from app.services.song_sync import safe_sync as _safe_sync
-            _safe_sync(write_db, "submitted", submitted.id)  # dual-write mirror (Phase 3)
+            # Native unified storage (Phase 5b): upsert the atomic songs row
+            # (crowd lyrical_charger method -> never overrides an authoritative
+            # calibration), log the submission ingestion (source + ip), link
+            # artists onto the unified id. No legacy submitted_songs row.
+            from app.services.song_sync import store_calibrated_song
+            from app.services.artist_linker import parse_artist_string
+            submitted_id, _created = store_calibrated_song(
+                write_db, source="submitted",
+                title=title, artist=artist, calibration=calibration,
+                ip_address=get_remote_address(request),
+                ingestion_detail={"source": source},
+                artist_entries=(structured or parse_artist_string(artist or "")),
+            )
+            write_db.commit()
 
             consensus_info = None
             try:
-                if pre_canonical_info:
-                    result = record_and_reconcile(
-                        write_db,
-                        title=title,
-                        artist=artist,
-                        calibration=calibration,
-                        triggered_by="lyrical_charger",
-                        lyrics_hash=hash_lyrics(body.lyrics),
-                        lyrics_fingerprint=fingerprint,
-                        agent_model=calibration.get("agent_model"),
-                        direct_song_source=pre_canonical_info[0],
-                        direct_song_id=pre_canonical_info[1],
-                        is_new_row=False,
-                    )
-                else:
-                    result = record_and_reconcile(
-                        write_db,
-                        title=title,
-                        artist=artist,
-                        calibration=calibration,
-                        triggered_by="lyrical_charger",
-                        lyrics_hash=hash_lyrics(body.lyrics),
-                        lyrics_fingerprint=fingerprint,
-                        agent_model=calibration.get("agent_model"),
-                        direct_song_source="submitted",
-                        direct_song_id=submitted.id,
-                        is_new_row=True,
-                    )
+                # is_new_row: a song existing BEFORE this submission (pre_canonical)
+                # has prior state worth seeding; a first-time song does not.
+                result = record_and_reconcile(
+                    write_db,
+                    title=title,
+                    artist=artist,
+                    calibration=calibration,
+                    triggered_by="lyrical_charger",
+                    lyrics_hash=hash_lyrics(body.lyrics),
+                    lyrics_fingerprint=fingerprint,
+                    agent_model=calibration.get("agent_model"),
+                    direct_song_source="songs",
+                    direct_song_id=submitted_id,
+                    is_new_row=(pre_canonical_info is None),
+                )
                 write_db.commit()
                 consensus_info = result.get("consensus")
             except Exception:
@@ -699,12 +687,8 @@ async def calibrate_lyrics_endpoint(
                 logger.exception("Corpus/consensus step failed (non-fatal)")
 
             # Slug for the song detail page link returned to the frontend.
-            # Resolves to the canonical row this submission ended up against
-            # (compass/library when one existed, submitted when this is the
-            # first time we've seen this title+artist).
-            canonical_source, canonical_id = (
-                pre_canonical_info if pre_canonical_info else ("submitted", submitted.id)
-            )
+            # The submission always reconciles against the one atomic unified song.
+            canonical_source, canonical_id = "songs", submitted_id
             song_slug = None
             try:
                 song_slug = _get_or_create_slug(
@@ -740,7 +724,7 @@ async def calibrate_lyrics_endpoint(
                         billing_svc.charge_credits(
                             current_user.id, cost,
                             reason=("song_cache_hit" if cached_calibration else "song_miss"),
-                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            ref_type="submitted_song", ref_id=str(submitted_id),
                             context={"title": title[:80], "artist": artist[:80]},
                         )
                     except HTTPException:
@@ -750,11 +734,11 @@ async def calibrate_lyrics_endpoint(
                         # so the uncompensated run is visible to reconciliation.
                         logger.warning(
                             "charge_credits failed post-success user=%s song=%s",
-                            current_user.id, submitted.id,
+                            current_user.id, submitted_id,
                         )
                         billing_svc.record_unbilled_overrun(
                             current_user.id, cost,
-                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            ref_type="submitted_song", ref_id=str(submitted_id),
                             context={"title": title[:80], "artist": artist[:80]},
                         )
 
@@ -764,7 +748,7 @@ async def calibrate_lyrics_endpoint(
                                         "tier": color, "charge": calibration.get("charge_value"),
                                         "contaminated": calibration.get("contaminated", False),
                                         "confidence": calibration.get("confidence")},
-                               submission_id=submitted.id)
+                               submission_id=submitted_id)
 
             return LyricsCalibrateOut(
                 status="scored",
@@ -936,68 +920,40 @@ async def calibrate_search(
         # calibrate-lyrics) so no connection is held idle through Phase 2.
         write_db = SessionLocal()
         try:
-            submitted, _created = get_or_create_song(
-                write_db, SubmittedSong,
-                title=title,
-                artist=artist,
-                source=source,
-                ip_address=get_remote_address(request),
-                **_song_persist_fields(calibration),
-            )
-            write_db.commit()
-            write_db.refresh(submitted)
             structured = (
                 [{"name": a.name, "role": a.role, "position": i} for i, a in enumerate(body.artists)]
                 if body.artists else None
             )
-            try_link_song(title, artist, "submitted", submitted.id, write_db, structured=structured)
-            from app.services.song_sync import safe_sync as _safe_sync
-            _safe_sync(write_db, "submitted", submitted.id)  # dual-write mirror (Phase 3)
+            # Native unified storage (Phase 5b): see calibrate-lyrics. `created`
+            # tells us whether this was the song's first appearance (seed vs not).
+            from app.services.song_sync import store_calibrated_song
+            from app.services.artist_linker import parse_artist_string
+            submitted_id, created = store_calibrated_song(
+                write_db, source="submitted",
+                title=title, artist=artist, calibration=calibration,
+                ip_address=get_remote_address(request),
+                ingestion_detail={"source": source},
+                artist_entries=(structured or parse_artist_string(artist or "")),
+            )
+            write_db.commit()
 
-            # Canonical the reading reconciled against -- used for the slug
-            # link + the user-calibration attribution below. Defaults to the
-            # submitted row; overwritten when a pre-existing canonical is found.
-            canonical_source, canonical_id = "submitted", submitted.id
+            # The submission reconciles against the one atomic unified song.
+            canonical_source, canonical_id = "songs", submitted_id
             consensus_info = None
             try:
-                # Same pre-lookup pattern as calibrate-lyrics. pre_canonical may
-                # be None (first time) or point at a known row (re-run).
-                # Refetch here because the submitted row was added in this session.
-                pre_canonical = find_canonical_song(title, artist, write_db)
-                # The just-created `submitted` row will exact-match (title, artist)
-                # -- rule it out so we correctly detect first-time submissions.
-                if pre_canonical and pre_canonical[0] == "submitted" and pre_canonical[1].id == submitted.id:
-                    pre_canonical = None
-
-                if pre_canonical:
-                    canonical_source, canonical_id = pre_canonical[0], pre_canonical[1].id
-                    result = record_and_reconcile(
-                        write_db,
-                        title=title,
-                        artist=artist,
-                        calibration=calibration,
-                        triggered_by="lyrical_charger_search",
-                        lyrics_hash=hash_lyrics(lyrics),
-                        lyrics_fingerprint=fingerprint,
-                        agent_model=calibration.get("agent_model"),
-                        direct_song_source=pre_canonical[0],
-                        direct_song_id=pre_canonical[1].id,
-                        is_new_row=False,
-                    )
-                else:
-                    result = record_and_reconcile(
-                        write_db,
-                        title=title,
-                        artist=artist,
-                        calibration=calibration,
-                        triggered_by="lyrical_charger_search",
-                        lyrics_hash=hash_lyrics(lyrics),
-                        lyrics_fingerprint=fingerprint,
-                        agent_model=calibration.get("agent_model"),
-                        direct_song_source="submitted",
-                        direct_song_id=submitted.id,
-                        is_new_row=True,
-                    )
+                result = record_and_reconcile(
+                    write_db,
+                    title=title,
+                    artist=artist,
+                    calibration=calibration,
+                    triggered_by="lyrical_charger_search",
+                    lyrics_hash=hash_lyrics(lyrics),
+                    lyrics_fingerprint=fingerprint,
+                    agent_model=calibration.get("agent_model"),
+                    direct_song_source="songs",
+                    direct_song_id=submitted_id,
+                    is_new_row=created,
+                )
                 write_db.commit()
                 consensus_info = result.get("consensus")
             except Exception:
@@ -1033,7 +989,7 @@ async def calibrate_search(
                         billing_svc.charge_credits(
                             current_user.id, cost,
                             reason=("song_cache_hit" if cached_calibration else "song_miss"),
-                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            ref_type="submitted_song", ref_id=str(submitted_id),
                             context={"title": title[:80], "artist": artist[:80],
                                      "track_id": body.track_id},
                         )
@@ -1044,11 +1000,11 @@ async def calibrate_search(
                         # so the uncompensated run is visible to reconciliation.
                         logger.warning(
                             "charge_credits failed post-success user=%s song=%s",
-                            current_user.id, submitted.id,
+                            current_user.id, submitted_id,
                         )
                         billing_svc.record_unbilled_overrun(
                             current_user.id, cost,
-                            ref_type="submitted_song", ref_id=str(submitted.id),
+                            ref_type="submitted_song", ref_id=str(submitted_id),
                             context={"title": title[:80], "artist": artist[:80]},
                         )
 
@@ -1058,7 +1014,7 @@ async def calibrate_search(
                                         "tier": color, "charge": calibration.get("charge_value"),
                                         "contaminated": calibration.get("contaminated", False),
                                         "confidence": calibration.get("confidence")},
-                               submission_id=submitted.id)
+                               submission_id=submitted_id)
 
             return LyricsCalibrateOut(
                 status="scored",
