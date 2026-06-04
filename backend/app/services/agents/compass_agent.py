@@ -238,6 +238,9 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                 db.rollback()
             except Exception:
                 pass
+        # Dual-write mirror into the unified songs model (Phase 3 transition).
+        from app.services.song_sync import safe_sync
+        safe_sync(db, "compass", existing.id)
         return existing.id
     else:
         current_year = date.today().year
@@ -324,6 +327,9 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             except Exception:
                 pass
 
+        # Dual-write mirror into the unified songs model (Phase 3 transition).
+        from app.services.song_sync import safe_sync
+        safe_sync(db, "compass", song_id)
         return song_id
 
 

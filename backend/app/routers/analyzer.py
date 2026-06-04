@@ -659,6 +659,8 @@ async def calibrate_lyrics_endpoint(
                 if body.artists else None
             )
             try_link_song(title, artist, "submitted", submitted.id, write_db, structured=structured)
+            from app.services.song_sync import safe_sync as _safe_sync
+            _safe_sync(write_db, "submitted", submitted.id)  # dual-write mirror (Phase 3)
 
             consensus_info = None
             try:
@@ -949,6 +951,8 @@ async def calibrate_search(
                 if body.artists else None
             )
             try_link_song(title, artist, "submitted", submitted.id, write_db, structured=structured)
+            from app.services.song_sync import safe_sync as _safe_sync
+            _safe_sync(write_db, "submitted", submitted.id)  # dual-write mirror (Phase 3)
 
             # Canonical the reading reconciled against -- used for the slug
             # link + the user-calibration attribution below. Defaults to the

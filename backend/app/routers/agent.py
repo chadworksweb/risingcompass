@@ -503,6 +503,17 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
             )
             db.add(rs)
 
+        # Dual-write coherence (Phase 3): resolve each reading song to its unified
+        # entity so the live-year + /current read paths (ReadingSong.song_id) work
+        # for new readings. The compass rows were mirrored at calibration time.
+        db.flush()
+        from sqlalchemy import text as _sql_text
+        db.execute(_sql_text(
+            "UPDATE reading_songs SET song_id = m.new_song_id FROM song_id_map m "
+            "WHERE reading_songs.reading_id = :rid AND m.old_source = 'compass' "
+            "AND reading_songs.compass_song_id = m.old_id"
+        ), {"rid": reading.id})
+
     draft.status = "approved"
     db.commit()
     db.refresh(draft)

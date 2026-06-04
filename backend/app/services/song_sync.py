@@ -1,0 +1,154 @@
+"""Dual-write sync -- mirror one legacy song row into the unified model.
+
+Phase-3 transition mechanism. The legacy writers (compass_agent._store_calibration,
+analyzer Lyrical Charger, stream, draft approval) stay the CANONICAL calibration
+path; right after each legacy write they call sync_legacy_song_to_unified so the
+unified `songs` + `chart_appearances` stay fresh and the repointed references
+(reading_songs.song_id, song_artists.unified_song_id, ...) keep pointing at the
+right entity. This lets the read paths flip to the unified model incrementally
+WITHOUT staleness, instead of a single big-bang cutover. Removed at Phase 5 when
+the legacy writers are retired and the legacy tables drop.
+
+Idempotent (upsert by canonical_key) and best-effort (callers wrap in try/except).
+Authoritative-first: a crowd write (lyrical_charger/stream) never overwrites an
+existing authoritative (chart_reading/editorial) calibration on the unified row.
+NEVER touches prose_provenance_anchors. See RISING-COMPASS-SONG-ENTITY-RENOVATION.md.
+"""
+
+import json
+import logging
+
+from sqlalchemy import text
+
+from app.services.song_identity import compute_canonical_key
+from app.constants import CHART_SOURCE_TO_CHART_SLUG
+
+logger = logging.getLogger(__name__)
+
+_AUTH_SOURCES = {"compass", "library"}
+_AUTH_METHODS = {"chart_reading", "editorial", "terminal"}
+_METHOD = {
+    "compass": "chart_reading", "library": "editorial",
+    "submitted": "lyrical_charger", "stream": "stream",
+}
+_LEGACY_TABLE = {
+    "compass": "compass_songs", "library": "library_songs",
+    "submitted": "submitted_songs", "stream": "cl_stream_songs",
+}
+# Calibration columns copied onto the unified songs row (absent ones -> NULL).
+_CALIB = [
+    "rubric_color", "charge_value", "charge_summary", "contaminated",
+    "contamination_note", "dogma_referenced", "dogma_note", "instrumental",
+    "confidence", "effects_prose", "societal_effects_prose",
+    "societal_prose_generated_at", "societal_prose_model", "prior_effects_prose",
+    "prior_societal_effects_prose", "prior_societal_prose_generated_at",
+    "prior_societal_prose_model", "deadpan_line", "topics", "topic_audit",
+    "activations", "calibration_failed", "message_analysis",
+    "expression_analysis", "intention_analysis",
+]
+
+
+def sync_legacy_song_to_unified(db, source: str, legacy_id: int):
+    """Mirror legacy (source, legacy_id) into songs + appearance + ingestion and
+    repoint its references. Returns the unified songs.id, or None if skipped.
+    Does NOT commit -- the caller owns the transaction."""
+    tbl = _LEGACY_TABLE.get(source)
+    if not tbl or not legacy_id:
+        return None
+    row = db.execute(text(f"SELECT * FROM {tbl} WHERE id = :i"), {"i": legacy_id}).mappings().first()
+    if not row:
+        return None
+    title, artist = row.get("title"), row.get("artist")
+    if not title or not artist:
+        return None
+    key = compute_canonical_key(title, artist)
+    method = _METHOD[source]
+    incoming_auth = source in _AUTH_SOURCES
+
+    existing = db.execute(
+        text("SELECT id, canonical_calibration_method FROM songs WHERE canonical_key = :k"),
+        {"k": key},
+    ).mappings().first()
+
+    if existing:
+        song_id = existing["id"]
+        cur_auth = (existing["canonical_calibration_method"] or "") in _AUTH_METHODS
+        # Authoritative-first: only overwrite calibration when the incoming write
+        # is authoritative, or the existing row isn't authoritative.
+        if incoming_auth or not cur_auth:
+            sets = ", ".join(f"{c} = :{c}" for c in _CALIB)
+            params = {c: row.get(c) for c in _CALIB}
+            params.update({"sid": song_id, "m": method})
+            db.execute(text(
+                f"UPDATE songs SET {sets}, canonical_calibration_method = :m WHERE id = :sid"
+            ), params)
+    else:
+        params = {c: row.get(c) for c in _CALIB}
+        params.update({
+            "title": title, "artist": artist, "canonical_key": key, "m": method,
+            "album_id": row.get("album_id"), "track_number": row.get("track_number"),
+        })
+        collist = "title, artist, canonical_key, canonical_calibration_method, album_id, track_number, " + ", ".join(_CALIB)
+        vallist = ":title, :artist, :canonical_key, :m, :album_id, :track_number, " + ", ".join(f":{c}" for c in _CALIB)
+        song_id = db.execute(
+            text(f"INSERT INTO songs ({collist}) VALUES ({vallist}) RETURNING id"), params
+        ).scalar()
+
+    # id map (idempotent)
+    db.execute(text(
+        "INSERT INTO song_id_map (old_source, old_id, new_song_id, canonical_key) "
+        "VALUES (:s, :i, :n, :k) "
+        "ON CONFLICT (old_source, old_id) DO UPDATE SET new_song_id = :n, canonical_key = :k"
+    ), {"s": source, "i": legacy_id, "n": song_id, "k": key})
+
+    # chart appearance (compass only; non-chart sources get none)
+    if source == "compass":
+        slug = CHART_SOURCE_TO_CHART_SLUG.get(row.get("chart_source") or "billboard_hot_100")
+        if slug:
+            cid = db.execute(text("SELECT id FROM charts WHERE slug = :s"), {"s": slug}).scalar()
+            if cid:
+                db.execute(text(
+                    "INSERT INTO chart_appearances (song_id, chart_id, year, position, position_letter) "
+                    "VALUES (:sid, :cid, :y, :p, :pl) "
+                    "ON CONFLICT (song_id, chart_id, year, position, position_letter) DO NOTHING"
+                ), {"sid": song_id, "cid": cid, "y": row.get("year"),
+                    "p": row.get("chart_position"), "pl": row.get("chart_position_letter") or ""})
+
+    # ingestion (one per song+method)
+    if not db.execute(text(
+        "SELECT 1 FROM song_ingestions WHERE song_id = :s AND method = :m LIMIT 1"
+    ), {"s": song_id, "m": method}).scalar():
+        detail = {"chart_source": row.get("chart_source")} if source == "compass" else {"source": row.get("source")}
+        db.execute(text(
+            "INSERT INTO song_ingestions (song_id, method, ip_address, detail) "
+            "VALUES (:s, :m, :ip, :d)"
+        ), {"s": song_id, "m": method, "ip": row.get("ip_address"), "d": json.dumps(detail)})
+
+    # repoint this song's references
+    for t in ("song_artists", "song_slugs", "release_songs", "user_calibrations",
+              "calibration_runs", "misread_submissions"):
+        db.execute(text(
+            f"UPDATE {t} SET unified_song_id = :n WHERE song_source = :s AND song_id = :i"
+        ), {"n": song_id, "s": source, "i": legacy_id})
+    if source == "compass":
+        db.execute(text("UPDATE reading_songs SET song_id = :n WHERE compass_song_id = :i"),
+                   {"n": song_id, "i": legacy_id})
+        db.execute(text("UPDATE agent_draft_songs SET song_id = :n WHERE compass_song_id = :i"),
+                   {"n": song_id, "i": legacy_id})
+    return song_id
+
+
+def safe_sync(db, source: str, legacy_id: int):
+    """Best-effort wrapper: sync + commit, swallow + log failures so the
+    canonical legacy write is never jeopardised by the dual-write mirror."""
+    try:
+        sid = sync_legacy_song_to_unified(db, source, legacy_id)
+        db.commit()
+        return sid
+    except Exception:
+        logger.exception("song_sync failed for %s:%s", source, legacy_id)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
