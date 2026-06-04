@@ -26,14 +26,19 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
     incomplete_titles = set()
     if db:
         from sqlalchemy import func
-        from app.models import CompassSong
+        from app.models import Song
+        from app.services.song_identity import compute_canonical_key
         for s in songs:
+            q = db.query(Song)
+            artist = getattr(s, "artist", None)
+            if artist:
+                q = q.filter(Song.canonical_key == compute_canonical_key(s.title, artist))
+            else:
+                q = q.filter(func.lower(Song.title) == s.title.lower())
             existing = (
-                db.query(CompassSong)
-                .filter(func.lower(CompassSong.title) == s.title.lower())
-                .filter(CompassSong.rubric_color.isnot(None))
-                .filter(CompassSong.charge_value.isnot(None))
-                .filter(CompassSong.charge_summary.isnot(None))
+                q.filter(Song.rubric_color.isnot(None))
+                .filter(Song.charge_value.isnot(None))
+                .filter(Song.charge_summary.isnot(None))
                 .first()
             )
             if not existing:

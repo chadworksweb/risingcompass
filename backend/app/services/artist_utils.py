@@ -6,7 +6,7 @@ import unicodedata
 
 from sqlalchemy import func
 
-from app.models import Artist, Release, ReleaseSong, SongArtist, CompassSong, LibrarySong, SubmittedSong
+from app.models import Artist, Release, ReleaseSong, SongArtist, Song
 from app.constants import COLOR_LABELS, COLOR_HEX
 
 logger = logging.getLogger(__name__)
@@ -87,34 +87,27 @@ def count_songs_by_artist(artist_name: str, db) -> int:
         .filter(func.lower(Artist.name) == name_lower)
         .first()
     )
-    total = 0
-    sources = [
-        ("compass", CompassSong),
-        ("library", LibrarySong),
-        ("submitted", SubmittedSong),
-    ]
-    for source, Model in sources:
-        string_match_ids = {
+    # Unified: distinct calibrated songs credited to the artist via string match
+    # OR a song_artists credit (joined on unified_song_id).
+    ids = {
+        sid for (sid,) in (
+            db.query(Song.id)
+            .filter(func.lower(Song.artist) == name_lower)
+            .filter(Song.charge_value.isnot(None))
+            .all()
+        )
+    }
+    if artist_row:
+        ids |= {
             sid for (sid,) in (
-                db.query(Model.id)
-                .filter(func.lower(Model.artist) == name_lower)
-                .filter(Model.charge_value.isnot(None))
+                db.query(Song.id)
+                .join(SongArtist, SongArtist.unified_song_id == Song.id)
+                .filter(SongArtist.artist_id == artist_row.id)
+                .filter(Song.charge_value.isnot(None))
                 .all()
             )
         }
-        credit_ids: set[int] = set()
-        if artist_row:
-            credit_ids = {
-                sid for (sid,) in (
-                    db.query(Model.id)
-                    .join(SongArtist, (SongArtist.song_source == source) & (SongArtist.song_id == Model.id))
-                    .filter(SongArtist.artist_id == artist_row.id)
-                    .filter(Model.charge_value.isnot(None))
-                    .all()
-                )
-            }
-        total += len(string_match_ids | credit_ids)
-    return total
+    return len(ids)
 
 
 def generate_song_slug(title: str, artist: str) -> str:
@@ -293,13 +286,14 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
             matched = _match_track_in_memory(track["title"], all_songs)
             if not matched:
                 continue
-            key = (matched["source"], matched["id"])
+            key = matched["id"]  # unified songs.id
             if key in linked_keys:
                 continue
             db.add(ReleaseSong(
                 release_id=release.id,
-                song_source=matched["source"],
+                song_source="songs",
                 song_id=matched["id"],
+                unified_song_id=matched["id"],
                 track_number=track.get("position"),
             ))
             linked_keys.add(key)
@@ -408,7 +402,7 @@ def _apply_catch_all(artist: Artist, all_songs: list[dict], db) -> int:
     Returns the count of songs newly linked.
     """
     linked_keys = _get_linked_song_keys(artist, db)
-    unlinked = [s for s in all_songs if (s["source"], s["id"]) not in linked_keys]
+    unlinked = [s for s in all_songs if s["id"] not in linked_keys]
     if not unlinked:
         return 0
 
@@ -429,7 +423,8 @@ def _apply_catch_all(artist: Artist, all_songs: list[dict], db) -> int:
     charges: list[int] = []
     contam = 0
     for s in unlinked:
-        db.add(ReleaseSong(release_id=catch_all.id, song_source=s["source"], song_id=s["id"]))
+        db.add(ReleaseSong(release_id=catch_all.id, song_source="songs",
+                           song_id=s["id"], unified_song_id=s["id"]))
         if s["charge"] is not None:
             charges.append(s["charge"])
         if s["contaminated"]:
@@ -454,31 +449,30 @@ def _find_artist_songs_full(artist_name: str, db) -> list[dict]:
     """
     name_lower = artist_name.lower()
     results: list[dict] = []
-    for source, Model in [("compass", CompassSong), ("library", LibrarySong), ("submitted", SubmittedSong)]:
-        query = (
-            db.query(Model)
-            .filter(func.lower(Model.artist) == name_lower)
-            .filter(Model.charge_value.isnot(None))
-        )
-        if Model is SubmittedSong:
-            query = query.filter(Model.artist.isnot(None))
-        for row in query.all():
-            results.append({
-                "source": source,
-                "id": row.id,
-                "title": row.title or "",
-                "charge": row.charge_value,
-                "contaminated": getattr(row, "contaminated", False) or False,
-            })
+    query = (
+        db.query(Song)
+        .filter(func.lower(Song.artist) == name_lower)
+        .filter(Song.charge_value.isnot(None))
+        .filter(Song.artist.isnot(None))
+    )
+    for row in query.all():
+        results.append({
+            "source": "songs",
+            "id": row.id,
+            "title": row.title or "",
+            "charge": row.charge_value,
+            "contaminated": row.contaminated or False,
+        })
     return results
 
 
-def _get_linked_song_keys(artist: Artist, db) -> set[tuple[str, int]]:
-    """Get set of (source, song_id) already linked to any of this artist's releases."""
+def _get_linked_song_keys(artist: Artist, db) -> set[int]:
+    """Get set of unified song ids already linked to any of this artist's releases."""
     keys = set()
     for release in artist.releases:
         for link in release.songs:
-            keys.add((link.song_source, link.song_id))
+            if link.unified_song_id is not None:
+                keys.add(link.unified_song_id)
     return keys
 
 

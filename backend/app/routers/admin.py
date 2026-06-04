@@ -17,7 +17,7 @@ from app.auth import (
 from app.database import get_db
 from app.config import settings
 from app.models import (
-    CompassSong, LibrarySong, SubmittedSong, Artist, User, GeneralInquiry, Motion,
+    Song, Artist, User, GeneralInquiry, Motion,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -59,15 +59,6 @@ def _gate_admin_section(request: Request, section: str) -> None:
         raise HTTPException(status_code=404)
 
 
-# Song tables searched by the global admin search, with the short source label
-# the palette shows. All three carry title + artist + rubric_color + charge_value.
-_SEARCH_SONG_TABLES = (
-    ("compass", CompassSong),
-    ("submitted", SubmittedSong),
-    ("library", LibrarySong),
-)
-
-
 @router.get("/search", dependencies=[Depends(verify_admin_key)])
 def admin_search(q: str = "", db: Session = Depends(get_db)):
     """Record lookup behind the admin command palette (Stripe-style search).
@@ -83,25 +74,25 @@ def admin_search(q: str = "", db: Session = Depends(get_db)):
     groups: list[dict] = []
 
     song_items: list[dict] = []
-    for label_src, Model in _SEARCH_SONG_TABLES:
-        rows = (
-            db.query(Model)
-            .filter(or_(Model.title.ilike(like), Model.artist.ilike(like)))
-            .order_by(Model.id.desc())
-            .limit(5)
-            .all()
-        )
-        for r in rows:
-            cv = getattr(r, "charge_value", None)
-            sub = f"{label_src} . {getattr(r, 'rubric_color', None) or 'uncalibrated'}"
-            if cv is not None:
-                sub += f" {cv:+d}"
-            song_items.append({
-                "label": f"{r.title} -- {r.artist}",
-                "sublabel": sub,
-                # all_songs = the explorer's cross-table union; q matches title.
-                "url": f"/api/admin/dashboard/db?table=all_songs&q={quote(r.title)}",
-            })
+    rows = (
+        db.query(Song)
+        .filter(or_(Song.title.ilike(like), Song.artist.ilike(like)))
+        .order_by(Song.id.desc())
+        .limit(8)
+        .all()
+    )
+    for r in rows:
+        cv = r.charge_value
+        method = r.canonical_calibration_method or "song"
+        sub = f"{method} . {r.rubric_color or 'uncalibrated'}"
+        if cv is not None:
+            sub += f" {cv:+d}"
+        song_items.append({
+            "label": f"{r.title} -- {r.artist}",
+            "sublabel": sub,
+            # all_songs = the explorer's cross-table union; q matches title.
+            "url": f"/api/admin/dashboard/db?table=all_songs&q={quote(r.title)}",
+        })
     if song_items:
         groups.append({"type": "Songs", "items": song_items[:8]})
 
