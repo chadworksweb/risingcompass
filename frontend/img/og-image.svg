@@ -73,7 +73,6 @@
   <text class="title" x="600" y="396" text-anchor="middle">THE RISING</text>
   <text class="title" x="600" y="464" text-anchor="middle">COMPASS</text>
 
-  <!-- Tagline (two lines), white -->
-  <text class="tag" x="600" y="522" text-anchor="middle">WHAT OUR SONGS</text>
-  <text class="tag" x="600" y="558" text-anchor="middle">ARE REALLY SAYING</text>
+  <!-- Tagline (one line) -->
+  <text class="tag" x="600" y="540" text-anchor="middle">MAKING THE VIBE VISIBLE</text>
 </svg>
