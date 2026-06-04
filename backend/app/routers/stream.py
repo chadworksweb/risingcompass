@@ -151,6 +151,8 @@ async def add_to_stream(body: StreamSongIn, db: Session = Depends(get_db)):
         except Exception:
             db.rollback()
             logger.exception("Corpus log failed for stream song %d", song.id)
+    from app.services.song_sync import safe_sync
+    safe_sync(db, "stream", song.id)  # dual-write mirror (Phase 3)
     return song
 
 
@@ -222,6 +224,8 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
     db.refresh(song)
     db.refresh(entry)
     try_link_song(entry.title, entry.artist, body.target, entry.id, db)
+    from app.services.song_sync import safe_sync
+    safe_sync(db, body.target, entry.id)  # dual-write mirror (Phase 3)
     return song
 
 
