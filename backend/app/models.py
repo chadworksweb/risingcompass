@@ -634,6 +634,8 @@ class SongSlug(Base):
     artist = Column(Text, nullable=False)
     song_source = Column(String(20))  # compass / library / submitted
     song_id = Column(Integer)
+    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
