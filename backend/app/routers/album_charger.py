@@ -49,7 +49,7 @@ from app.schemas import (
     AlbumChargeJobOut, AlbumChargeStatusOut,
     AlbumSearchIn, AlbumSearchOut, AlbumTracklistIn, AlbumTracklistOut,
 )
-from app.models import SubmittedSong, Release, ReleaseSong, User, AlbumChargeJob
+from app.models import Release, ReleaseSong, User, AlbumChargeJob
 from app.constants import COLOR_LABELS
 from app.auth import verify_api_or_service_key, optional_clerk_user
 from app import billing_config
@@ -60,13 +60,12 @@ from app.services.agents.calibrator import (
     calibrate_song_async, lookup_calibrated, ensure_full_calibration,
 )
 from app.services.artist_linker import (
-    try_link_song, upsert_artist, parse_artist_string, format_artist_string,
+    upsert_artist, parse_artist_string, format_artist_string,
 )
 from app.services.artist_utils import compute_release_charge, normalize_artist_name
 from app.services.album_synthesis import generate_album_synthesis
-from app.services.calibration_corpus import (
-    record_and_reconcile, hash_lyrics, find_canonical_song, get_or_create_song,
-)
+from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
+from app.services.song_sync import store_calibrated_song
 from app.services.lyrics_fingerprint import compute_fingerprint
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
 from app.services.alerts import emit_album_charged
@@ -81,7 +80,6 @@ from app.routers.analyzer import (
     _check_bot_protection,
     _validate_lyrics,
     _resolve_source,
-    _song_persist_fields,
     _record_user_calibration,
     _log_error_event,
 )
@@ -400,24 +398,25 @@ async def _run_album_charge(
                 track_title = w["title"]
                 track_artist = w["artist"]
                 calibration = w["calibration"]
-                submitted, _created = get_or_create_song(
-                    write_db, SubmittedSong,
-                    title=track_title, artist=track_artist, source=source,
+                # Native unified storage: upsert the atomic songs row (crowd
+                # lyrical_charger method -> never overrides authoritative) + a
+                # submission ingestion + artist credits onto the unified id. No
+                # submitted_songs row.
+                song_id, created = store_calibrated_song(
+                    write_db, source="submitted",
+                    title=track_title, artist=track_artist, calibration=calibration,
                     ip_address=ip,
-                    **_song_persist_fields(calibration),
+                    ingestion_detail={"source": source},
+                    artist_entries=w["structured"],
                 )
                 write_db.commit()
-                write_db.refresh(submitted)
-                try_link_song(track_title, track_artist, "submitted", submitted.id,
-                              write_db, structured=w["structured"])
+                if song_id is None:
+                    # Defensive: scored already filters to rubric_color present,
+                    # so this shouldn't happen. Skip the track if it does.
+                    continue
 
-                canonical_source, canonical_id = "submitted", submitted.id
+                canonical_source, canonical_id = "songs", song_id
                 try:
-                    pre_canonical = find_canonical_song(track_title, track_artist, write_db)
-                    if pre_canonical and pre_canonical[0] == "submitted" and pre_canonical[1].id == submitted.id:
-                        pre_canonical = None
-                    if pre_canonical:
-                        canonical_source, canonical_id = pre_canonical[0], pre_canonical[1].id
                     record_and_reconcile(
                         write_db,
                         title=track_title, artist=track_artist, calibration=calibration,
@@ -425,15 +424,14 @@ async def _run_album_charge(
                         lyrics_hash=hash_lyrics(w["lyrics"]),
                         lyrics_fingerprint=w["fingerprint"],
                         agent_model=calibration.get("agent_model"),
-                        direct_song_source=canonical_source,
-                        direct_song_id=canonical_id,
-                        is_new_row=(canonical_source == "submitted" and canonical_id == submitted.id),
+                        direct_song_source="songs",
+                        direct_song_id=song_id,
+                        is_new_row=created,
                     )
                     write_db.commit()
                 except Exception:
                     write_db.rollback()
                     logger.exception("Corpus step failed for album track '%s' (non-fatal)", track_title)
-                    canonical_source, canonical_id = "submitted", submitted.id
 
                 slug = None
                 try:
@@ -504,12 +502,13 @@ async def _run_album_charge(
             write_db.flush()
 
             for w in scored:
-                c_source, c_id = w.get("canonical", ("submitted", None))
+                c_source, c_id = w.get("canonical", ("songs", None))
                 if c_id is None:
                     continue
                 write_db.add(ReleaseSong(
                     release_id=release.id, song_source=c_source,
                     song_id=c_id, track_number=w["track_number"],
+                    unified_song_id=c_id,
                 ))
             write_db.commit()
             release_id = release.id

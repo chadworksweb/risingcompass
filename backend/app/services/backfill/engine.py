@@ -6,9 +6,10 @@ through the one calibration path, which produces the whole object:
 
     rubric calibration → effects_prose → ether tagging → societal_prose
 
-For target=compass we insert/update a CompassSong; for target=library
-we insert/update a LibrarySong. Both targets pick up the ether columns
-that migrations 042 + 043 added.
+Native (Phase 5b): both targets land on the unified `songs` table via
+store_calibrated_song -- compass = chart_reading method (the 'backfill_console'
+source is non-chart, so no chart_appearance), library = editorial method with
+album linkage. Both pick up the ether columns the calibration path produces.
 
 State machine on the row:
     queued → calibrating → tagging → done
@@ -29,7 +30,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, date
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import func
@@ -37,7 +38,10 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import BackfillJob, BackfillJobRow, CompassSong, LibrarySong
+from app.models import BackfillJob, BackfillJobRow, Song
+from app.services.song_identity import compute_canonical_key
+from app.services.song_sync import store_calibrated_song
+from app.services.artist_linker import parse_artist_string
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +257,7 @@ async def _process_row(ctx: _RowCtx) -> None:
             _persist_ether(result_source, result_id, ether, ctx)
     elif calibration is not None:
         # calibrate / both: the calibration path already produced + persisted
-        # the ether tags (via _persist_song -> _apply_generated_fields). Surface
+        # the ether tags (via _persist_song -> store_calibrated_song). Surface
         # them for the job-row record and fire the no-match audit if needed.
         ether = {
             "deadpan_line": calibration.get("deadpan_line"),
@@ -263,27 +267,6 @@ async def _process_row(ctx: _RowCtx) -> None:
         _send_ether_audit(result_source, result_id, ctx, calibration.get("topic_audit"))
 
     _complete_row(ctx, result_source, result_id, calibration, ether)
-
-
-def _apply_generated_fields(row, calibration: dict) -> None:
-    """Copy the calibration path's generated output -- effects + societal prose
-    and ether tags -- onto a song row. topics / topic_audit are JSON-encoded to
-    match the Text columns. Only sets what the path actually produced, so a
-    failed-soft step leaves the column untouched."""
-    if calibration.get("effects_prose") is not None:
-        row.effects_prose = calibration["effects_prose"]
-    if calibration.get("societal_effects_prose") is not None:
-        row.societal_effects_prose = calibration["societal_effects_prose"]
-        # Provenance in lockstep with the prose: stamp both whenever prose is
-        # written (carried from the calibration path / cache-hit forward-fill).
-        row.societal_prose_generated_at = calibration.get("societal_prose_generated_at")
-        row.societal_prose_model = calibration.get("societal_prose_model")
-    if calibration.get("deadpan_line") is not None:
-        row.deadpan_line = calibration["deadpan_line"]
-    if calibration.get("topics") is not None:
-        row.topics = json.dumps(calibration["topics"])
-    if calibration.get("topic_audit") is not None:
-        row.topic_audit = json.dumps(calibration["topic_audit"])
 
 
 def _send_ether_audit(source: str, song_id: int, ctx: "_RowCtx", topic_audit) -> None:
@@ -301,137 +284,52 @@ def _send_ether_audit(source: str, song_id: int, ctx: "_RowCtx", topic_audit) ->
 
 
 def _persist_song(ctx: _RowCtx, calibration: Optional[dict]) -> tuple[str, int]:
-    """Insert or update the song row in the target table.
+    """Insert or update the unified songs row for one backfill row.
 
-    For tag-only jobs, calibration is None and we look up an existing
-    row instead of creating one. Returns (source, id).
-    """
+    Native (Phase 5b): both targets land on the atomic `songs` table via
+    store_calibrated_song -- compass = chart_reading method (chart_source
+    'backfill_console' is non-chart, so no chart_appearance), library =
+    editorial method with album linkage. For tag-only jobs (calibration is
+    None) we look up the existing unified song instead of creating one.
+    Returns ("songs", id)."""
+    if ctx.target == "compass":
+        source = "compass"
+        extra = {"chart_source": "backfill_console", "year": ctx.year,
+                 "chart_position": ctx.chart_position}
+        ingestion_detail = {"chart_source": "backfill_console"}
+    elif ctx.target == "library":
+        source = "library"
+        extra = {"album_id": ctx.album_id, "track_number": ctx.track_number}
+        ingestion_detail = {"source": "backfill_console"}
+    else:
+        raise ValueError(f"unknown target: {ctx.target}")
+
     db: Session = SessionLocal()
     try:
-        if ctx.target == "compass":
-            return _persist_compass(db, ctx, calibration)
-        elif ctx.target == "library":
-            return _persist_library(db, ctx, calibration)
-        else:
-            raise ValueError(f"unknown target: {ctx.target}")
+        if calibration is None:
+            # tag-only: existing row is required
+            existing = _find_song(db, ctx.title, ctx.artist)
+            if not existing:
+                raise RuntimeError(f"tag-only pass: no existing song to tag ({ctx.target})")
+            return "songs", existing.id
+
+        song_id, _created = store_calibrated_song(
+            db, source=source, title=ctx.title, artist=ctx.artist,
+            calibration=calibration, ingestion_detail=ingestion_detail,
+            artist_entries=parse_artist_string(ctx.artist or ""),
+            **extra,
+        )
+        db.commit()
+        if song_id is None:
+            raise RuntimeError("store_calibrated_song produced no row (no rubric_color)")
+        return "songs", song_id
     finally:
         db.close()
 
 
-def _persist_compass(db: Session, ctx: _RowCtx, calibration: Optional[dict]) -> tuple[str, int]:
-    """Insert or update a CompassSong row."""
-    existing = _find_compass(db, ctx.title, ctx.artist)
-
-    if calibration is None:
-        # tag-only: existing row is required
-        if not existing:
-            raise RuntimeError("tag-only pass: no existing compass_song to tag")
-        return "compass", existing.id
-
-    if existing:
-        existing.rubric_color = calibration["rubric_color"]
-        existing.charge_value = calibration.get("charge_value")
-        existing.contaminated = bool(calibration.get("contaminated", False))
-        existing.contamination_note = calibration.get("contamination_note")
-        existing.dogma_referenced = bool(calibration.get("dogma_referenced", False))
-        existing.dogma_note = calibration.get("dogma_note")
-        existing.charge_summary = calibration.get("charge_summary")
-        _apply_generated_fields(existing, calibration)
-        if ctx.year:
-            existing.year = ctx.year
-            existing.decade = f"{(ctx.year // 10) * 10}s"
-        if ctx.chart_position:
-            existing.chart_position = ctx.chart_position
-        db.commit()
-        return "compass", existing.id
-
-    year = ctx.year or date.today().year
-    decade = f"{(year // 10) * 10}s"
-    song = CompassSong(
-        title=ctx.title,
-        artist=ctx.artist,
-        year=year,
-        decade=decade,
-        chart_position=ctx.chart_position or 0,
-        rubric_color=calibration["rubric_color"],
-        charge_value=calibration.get("charge_value"),
-        contaminated=bool(calibration.get("contaminated", False)),
-        contamination_note=calibration.get("contamination_note"),
-        dogma_referenced=bool(calibration.get("dogma_referenced", False)),
-        dogma_note=calibration.get("dogma_note"),
-        charge_summary=calibration.get("charge_summary"),
-        chart_source="backfill_console",
-    )
-    db.add(song)
-    _apply_generated_fields(song, calibration)
-    db.commit()
-    db.refresh(song)
-    return "compass", song.id
-
-
-def _persist_library(db: Session, ctx: _RowCtx, calibration: Optional[dict]) -> tuple[str, int]:
-    """Insert or update a LibrarySong row. Album linkage is left for a
-    later pass — v1 just lands the song on title+artist."""
-    existing = _find_library(db, ctx.title, ctx.artist)
-
-    if calibration is None:
-        if not existing:
-            raise RuntimeError("tag-only pass: no existing library_song to tag")
-        return "library", existing.id
-
-    if existing:
-        existing.rubric_color = calibration["rubric_color"]
-        existing.charge_value = calibration.get("charge_value")
-        existing.contaminated = bool(calibration.get("contaminated", False))
-        existing.contamination_note = calibration.get("contamination_note")
-        existing.dogma_referenced = bool(calibration.get("dogma_referenced", False))
-        existing.dogma_note = calibration.get("dogma_note")
-        existing.charge_summary = calibration.get("charge_summary")
-        _apply_generated_fields(existing, calibration)
-        if ctx.album_id:
-            existing.album_id = ctx.album_id
-        if ctx.track_number:
-            existing.track_number = ctx.track_number
-        db.commit()
-        return "library", existing.id
-
-    song = LibrarySong(
-        title=ctx.title,
-        artist=ctx.artist,
-        rubric_color=calibration["rubric_color"],
-        charge_value=calibration.get("charge_value"),
-        contaminated=bool(calibration.get("contaminated", False)),
-        contamination_note=calibration.get("contamination_note"),
-        dogma_referenced=bool(calibration.get("dogma_referenced", False)),
-        dogma_note=calibration.get("dogma_note"),
-        charge_summary=calibration.get("charge_summary"),
-        album_id=ctx.album_id,
-        track_number=ctx.track_number,
-        source="backfill_console",
-    )
-    db.add(song)
-    _apply_generated_fields(song, calibration)
-    db.commit()
-    db.refresh(song)
-    return "library", song.id
-
-
-def _find_compass(db: Session, title: str, artist: str) -> Optional[CompassSong]:
-    return (
-        db.query(CompassSong)
-        .filter(func.lower(CompassSong.title) == title.lower())
-        .filter(func.lower(CompassSong.artist) == artist.lower())
-        .first()
-    )
-
-
-def _find_library(db: Session, title: str, artist: str) -> Optional[LibrarySong]:
-    return (
-        db.query(LibrarySong)
-        .filter(func.lower(LibrarySong.title) == title.lower())
-        .filter(func.lower(LibrarySong.artist) == artist.lower())
-        .first()
-    )
+def _find_song(db: Session, title: str, artist: str) -> Optional[Song]:
+    key = compute_canonical_key(title, artist)
+    return db.query(Song).filter(Song.canonical_key == key).first()
 
 
 def _run_tagger(ctx: _RowCtx, source: str, song_id: int) -> Optional[dict]:
@@ -441,10 +339,7 @@ def _run_tagger(ctx: _RowCtx, source: str, song_id: int) -> Optional[dict]:
     # Pull current calibration + effects_prose from the DB to ground the tagger.
     db: Session = SessionLocal()
     try:
-        if source == "compass":
-            row = db.query(CompassSong).filter(CompassSong.id == song_id).first()
-        else:
-            row = db.query(LibrarySong).filter(LibrarySong.id == song_id).first()
+        row = db.query(Song).filter(Song.id == song_id).first()
         if not row:
             return None
         rubric_color = row.rubric_color
@@ -470,10 +365,7 @@ def _persist_ether(source: str, song_id: int, ether: dict, ctx: _RowCtx) -> None
     if the agent flagged the row."""
     db: Session = SessionLocal()
     try:
-        if source == "compass":
-            row = db.query(CompassSong).filter(CompassSong.id == song_id).first()
-        else:
-            row = db.query(LibrarySong).filter(LibrarySong.id == song_id).first()
+        row = db.query(Song).filter(Song.id == song_id).first()
         if not row:
             return
         row.deadpan_line = ether["deadpan_line"]

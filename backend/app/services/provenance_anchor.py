@@ -39,27 +39,27 @@ import subprocess
 from datetime import datetime, timedelta
 
 import httpx
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app.config import settings
-from app.models import (
-    CompassSong, LibrarySong, SubmittedSong, StreamSong, ProseProvenanceAnchor,
-)
+from app.models import Song, ProseProvenanceAnchor
 
 logger = logging.getLogger(__name__)
 
-# (published label, model). AgentDraftSong carries no societal prose.
-# The label is the frozen identity string baked into every anchor's hash
-# (canonical_hash) -- NOT the live table name. CL Stream's table was renamed
-# stream_songs -> cl_stream_songs (migration 079) but its label stays
-# "stream_songs" so every already-anchored row keeps verifying; live prose is
-# always fetched through the model, never by the label string.
-_PROSE_MODELS = [
-    ("compass_songs", CompassSong),
-    ("library_songs", LibrarySong),
-    ("submitted_songs", SubmittedSong),
-    ("stream_songs", StreamSong),
-]
+# Unified song-entity renovation (Phase 5b): sealed prose now lives on the atomic
+# `songs` table, and FUTURE anchors carry the label `song_table='songs'`. Existing
+# anchors (labels compass_songs / library_songs / submitted_songs / stream_songs)
+# are FROZEN -- their hash bakes in the old label, and they keep verifying off the
+# committed batch file, never the live DB. To avoid redundantly re-anchoring prose
+# that a legacy anchor already covers (same prose version), the sweep resolves a
+# unified song back to its pre-migration (source, id) via song_id_map and skips it
+# if a legacy-label anchor for that exact prose already exists.
+_OLD_SOURCE_LABEL = {
+    "compass": "compass_songs",
+    "library": "library_songs",
+    "submitted": "submitted_songs",
+    "stream": "stream_songs",
+}
 
 _BITCOIN_ATTEST_RE = re.compile(r"BitcoinBlockHeaderAttestation\((\d+)\)")
 # `ots verify` output classification. CONSERVATIVE on purpose: only an
@@ -96,41 +96,60 @@ def status_counts(db) -> dict:
     return {"counts": {status: count for status, count in rows}}
 
 
-def _pending_hash(db, table: str, row) -> str | None:
-    """The canonical hash for a sealed-prose row that has NO anchor yet, or None
-    if the row carries no sealed prose or its current version is already
-    anchored. Shared by the sweep (what to anchor) and the health check (how far
-    behind we are) so both agree on 'needs an anchor'."""
+def _pending_hash(db, row) -> str | None:
+    """The canonical 'songs' hash for a sealed-prose unified song that has NO
+    anchor yet (under the unified label OR any frozen legacy label its prose was
+    already anchored under), or None if the row carries no sealed prose or its
+    current version is already anchored. Shared by the sweep (what to anchor) and
+    the health check (how far behind we are) so both agree on 'needs an anchor'."""
     prose = row.societal_effects_prose
     gen_at = row.societal_prose_generated_at
     if not prose or gen_at is None:
         return None
     model = row.societal_prose_model or "unknown"
-    h = canonical_hash(table, row.id, gen_at.isoformat(), model, prose)
-    exists = db.query(ProseProvenanceAnchor.id).filter_by(
-        song_table=table, song_id=row.id, prose_sha256=h).first()
-    return None if exists else h
+    gen_at_iso = gen_at.isoformat()
+    h = canonical_hash("songs", row.id, gen_at_iso, model, prose)
+    # Already anchored under the unified label?
+    if db.query(ProseProvenanceAnchor.id).filter_by(
+            song_table="songs", song_id=row.id, prose_sha256=h).first():
+        return None
+    # Already anchored under a frozen legacy label (migrated prose, unchanged
+    # version)? Resolve this unified song back to its pre-migration (source, id)
+    # rows and check each legacy-label hash. NEVER re-anchors what a Bitcoin
+    # anchor already covers.
+    legacy = db.execute(
+        text("SELECT old_source, old_id FROM song_id_map WHERE new_song_id = :n"),
+        {"n": row.id},
+    ).all()
+    for old_source, old_id in legacy:
+        label = _OLD_SOURCE_LABEL.get(old_source)
+        if not label:
+            continue
+        h_old = canonical_hash(label, old_id, gen_at_iso, model, prose)
+        if db.query(ProseProvenanceAnchor.id).filter_by(
+                song_table=label, song_id=old_id, prose_sha256=h_old).first():
+            return None
+    return h
 
 
-def _sealed_rows(db, Model):
+def _sealed_rows(db):
     return (
-        db.query(Model)
-        .filter(Model.societal_effects_prose.isnot(None))
-        .filter(Model.societal_effects_prose != "")
-        .filter(Model.societal_prose_generated_at.isnot(None))
+        db.query(Song)
+        .filter(Song.societal_effects_prose.isnot(None))
+        .filter(Song.societal_effects_prose != "")
+        .filter(Song.societal_prose_generated_at.isnot(None))
         .all()
     )
 
 
 def count_unanchored(db) -> int:
-    """Sealed prose rows (across all four tables) whose current version has no
-    anchor -- the backlog between sealing and anchoring. Near 0 right after a
-    sweep; a growing number means the sweep is not running or is failing."""
+    """Sealed prose songs whose current version has no anchor -- the backlog
+    between sealing and anchoring. Near 0 right after a sweep; a growing number
+    means the sweep is not running or is failing."""
     n = 0
-    for table, Model in _PROSE_MODELS:
-        for r in _sealed_rows(db, Model):
-            if _pending_hash(db, table, r):
-                n += 1
+    for r in _sealed_rows(db):
+        if _pending_hash(db, r):
+            n += 1
     return n
 
 
@@ -195,24 +214,23 @@ def dashboard_detail(db) -> dict:
     prose coverage, the provenance-quality (model) breakdown, and recent batches
     with the fields the page turns into links (commit, batch file, .ots, Bitcoin
     block). Read-only; returns a stable shape even before any anchors exist."""
-    per_table = []
-    total_sealed = 0
-    for table, Model in _PROSE_MODELS:
-        sealed = (
-            db.query(func.count())
-            .select_from(Model)
-            .filter(Model.societal_effects_prose.isnot(None))
-            .filter(Model.societal_effects_prose != "")
-            .filter(Model.societal_prose_generated_at.isnot(None))
-            .scalar()
-        ) or 0
-        anchored = (
-            db.query(func.count(func.distinct(ProseProvenanceAnchor.song_id)))
-            .filter(ProseProvenanceAnchor.song_table == table)
-            .scalar()
-        ) or 0
-        total_sealed += sealed
-        per_table.append({"table": table, "sealed": sealed, "anchored": anchored})
+    # Coverage is now reported for the unified `songs` model (the live source of
+    # sealed prose). Historical legacy-label anchors remain in total_anchors /
+    # the model + batch breakdowns; they're not re-listed as live coverage rows.
+    total_sealed = (
+        db.query(func.count())
+        .select_from(Song)
+        .filter(Song.societal_effects_prose.isnot(None))
+        .filter(Song.societal_effects_prose != "")
+        .filter(Song.societal_prose_generated_at.isnot(None))
+        .scalar()
+    ) or 0
+    anchored_songs = (
+        db.query(func.count(func.distinct(ProseProvenanceAnchor.song_id)))
+        .filter(ProseProvenanceAnchor.song_table == "songs")
+        .scalar()
+    ) or 0
+    per_table = [{"table": "songs", "sealed": total_sealed, "anchored": anchored_songs}]
 
     # Provenance-quality breakdown: real sealed models vs the 'terminal_supplied'
     # write-time floor vs the 'legacy_unknown' proxy. Sorted commonest-first.
@@ -426,26 +444,23 @@ def sweep(db, *, limit: int = 2000) -> dict:
 
     new_records: list[dict] = []
     new_anchor_ids: list[int] = []
-    for table, Model in _PROSE_MODELS:
-        for r in _sealed_rows(db, Model):
-            h = _pending_hash(db, table, r)
-            if not h:
-                continue
-            gen_at = r.societal_prose_generated_at
-            model = r.societal_prose_model or "unknown"
-            anchor = ProseProvenanceAnchor(
-                song_table=table, song_id=r.id, prose_sha256=h,
-                generated_at=gen_at, model=model, ots_status="pending",
-            )
-            db.add(anchor)
-            db.flush()
-            new_anchor_ids.append(anchor.id)
-            new_records.append({
-                "v": 1, "anchor_id": anchor.id, "table": table, "id": r.id,
-                "generated_at": gen_at.isoformat(), "model": model, "sha256": h,
-            })
-            if len(new_records) >= limit:
-                break
+    for r in _sealed_rows(db):
+        h = _pending_hash(db, r)
+        if not h:
+            continue
+        gen_at = r.societal_prose_generated_at
+        model = r.societal_prose_model or "unknown"
+        anchor = ProseProvenanceAnchor(
+            song_table="songs", song_id=r.id, prose_sha256=h,
+            generated_at=gen_at, model=model, ots_status="pending",
+        )
+        db.add(anchor)
+        db.flush()
+        new_anchor_ids.append(anchor.id)
+        new_records.append({
+            "v": 1, "anchor_id": anchor.id, "table": "songs", "id": r.id,
+            "generated_at": gen_at.isoformat(), "model": model, "sha256": h,
+        })
         if len(new_records) >= limit:
             break
 

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
 from sqlalchemy.orm import joinedload
-from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong, PrePublishCorrection, Song
+from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, PrePublishCorrection, Song
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
@@ -24,9 +24,12 @@ from app.schemas import (
 from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
 from app.config import settings
 from app.routers.admin import verify_admin_key
+from sqlalchemy import text
 from app.services.agents.compass_agent import run_compass_agent, _store_calibration, _dispatch_ether_audit
-from app.services.artist_linker import try_link_song
+from app.services.artist_linker import parse_artist_string
 from app.services.calibration_corpus import record_and_reconcile
+from app.services.song_sync import store_calibrated_song
+from app.services.song_identity import compute_canonical_key
 from app.services.agents.chart_source import fetch_top_songs
 from app.services.agents.calibrator import calibrate_song_async
 from app.services.agents.email_notifier import send_draft_email
@@ -571,7 +574,10 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
             if update.charge_summary is not None:
                 existing.charge_summary = update.charge_summary
             if update.compass_song_id is not None:
-                existing.compass_song_id = update.compass_song_id
+                # Native (Phase 5b): the operator-supplied id links the draft song
+                # to its unified songs row. (The field name predates the rename;
+                # compass_song_id FK -> compass_songs would reject a unified id.)
+                existing.song_id = update.compass_song_id
             tmp = enforce_contamination_rule({"rubric_color": existing.rubric_color, "contaminated": existing.contaminated, "contamination_note": existing.contamination_note})
             existing.contaminated = tmp["contaminated"]
             existing.contamination_note = tmp["contamination_note"]
@@ -884,75 +890,95 @@ def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionI
 
 @router.post("/songs", response_model=CompassSongOut, dependencies=[Depends(verify_admin_key)])
 def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
-    """Manually feed a song calibration into the CompassSong table.
+    """Manually feed a song calibration into the unified Library.
 
     This serves two purposes:
     1. Training data for the agent (few-shot examples)
     2. Source for the public library
 
-    All songs are stored regardless of tier — the library is non-opinionated.
+    All songs are stored regardless of tier -- the library is non-opinionated.
+    Native (Phase 5b): lands an atomic songs row via the storage chokepoint
+    (compass / chart_reading method). A 'manual' chart_source is non-chart, so
+    no chart_appearance is created; year/position are echoed in the response
+    only.
     """
     current_year = data.year or date.today().year
     decade = f"{(current_year // 10) * 10}s"
 
-    from app.services.calibration_corpus import get_or_create_song
-    song, created = get_or_create_song(
-        db, CompassSong,
-        title=data.title,
-        artist=data.artist,
-        year=current_year,
-        decade=decade,
-        chart_position=0,  # manual feed, no chart position
-        rubric_color=data.rubric_color,
-        charge_value=data.charge_value,
-        contaminated=data.contaminated,
-        contamination_note=data.contamination_note,
-        charge_summary=data.charge_summary,
-        chart_source=data.chart_source,
-    )
-    if not created:
+    key = compute_canonical_key(data.title, data.artist)
+    existing = db.execute(
+        text("SELECT id, title, artist FROM songs WHERE canonical_key = :k"), {"k": key}
+    ).mappings().first()
+    if existing:
         raise HTTPException(
             status_code=409,
             detail=(
-                f"A compass song for '{song.title}' by '{song.artist}' already "
-                f"exists (id={song.id}, year={song.year}). Use the admin DB "
-                f"Explorer to edit or reset it instead of feeding a duplicate."
+                f"A song for '{existing['title']}' by '{existing['artist']}' already "
+                f"exists (id={existing['id']}). Use the admin DB Explorer to edit "
+                f"or reset it instead of feeding a duplicate."
             ),
         )
+
+    calibration = {
+        "rubric_color": data.rubric_color,
+        "charge_value": data.charge_value,
+        "contaminated": data.contaminated,
+        "contamination_note": data.contamination_note,
+        "charge_summary": data.charge_summary,
+    }
+    song_id, _created = store_calibrated_song(
+        db, source="compass",
+        title=data.title, artist=data.artist, calibration=calibration,
+        chart_source=data.chart_source, year=current_year, chart_position=0,
+        artist_entries=parse_artist_string(data.artist or ""),
+    )
     db.commit()
-    db.refresh(song)
-    try_link_song(song.title, song.artist, "compass", song.id, db)
     try:
         record_and_reconcile(
             db,
-            title=song.title,
-            artist=song.artist,
+            title=data.title,
+            artist=data.artist,
             calibration={
-                "rubric_color": song.rubric_color,
-                "charge_value": song.charge_value,
-                "charge_summary": song.charge_summary,
-                "contaminated": bool(song.contaminated),
-                "contamination_note": song.contamination_note,
-                "dogma_referenced": bool(song.dogma_referenced or False),
-                "dogma_note": song.dogma_note,
+                "rubric_color": data.rubric_color,
+                "charge_value": data.charge_value,
+                "charge_summary": data.charge_summary,
+                "contaminated": bool(data.contaminated),
+                "contamination_note": data.contamination_note,
+                "dogma_referenced": False,
+                "dogma_note": None,
                 "confidence": None,
             },
             triggered_by="compass_manual",
-            direct_song_source="compass",
-            direct_song_id=song.id,
+            direct_song_source="songs",
+            direct_song_id=song_id,
+            is_new_row=True,
         )
         db.commit()
     except Exception:
         db.rollback()
-        logger.exception("Corpus log failed for manual compass song %d", song.id)
-    return song
+        logger.exception("Corpus log failed for manual compass song %s", song_id)
 
+    s = db.execute(text(
+        "SELECT id, title, artist, rubric_color, charge_value, contaminated, "
+        "contamination_note, charge_summary, instrumental FROM songs WHERE id = :i"
+    ), {"i": song_id}).mappings().first()
+    return {
+        "id": s["id"], "title": s["title"], "artist": s["artist"],
+        "year": current_year, "decade": decade, "chart_position": 0,
+        "rubric_color": s["rubric_color"], "charge_value": s["charge_value"],
+        "contaminated": bool(s["contaminated"]),
+        "contamination_note": s["contamination_note"],
+        "charge_summary": s["charge_summary"],
+        "instrumental": bool(s["instrumental"]),
+    }
 
 
 @router.delete("/songs/{song_id}", dependencies=[Depends(verify_admin_key)])
 def delete_song(song_id: int, db: Session = Depends(get_db)):
-    """Delete a song from the CompassSong table."""
-    song = db.query(CompassSong).filter(CompassSong.id == song_id).first()
+    """Delete a song from the unified Library by songs.id. FK actions cascade
+    its chart_appearances + ingestions and SET NULL the reading/draft/credit/
+    slug references."""
+    song = db.query(Song).filter(Song.id == song_id).first()
     if not song:
         raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found")
     title, artist = song.title, song.artist
