@@ -227,8 +227,14 @@ async def _fetch_musicbrainz_data(artist_name: str) -> dict | None:
 
     releases_with_tracks = []
     for rel in mb_releases:
-        tracks = await musicbrainz.get_release_tracks(rel["mbid"])
-        releases_with_tracks.append({**rel, "tracks": tracks})
+        result = await musicbrainz.get_release_tracks(rel["mbid"])
+        # Filter v2: a release-group with no official release is a
+        # bootleg/broadcast that MB never tagged. Skip it entirely so no
+        # Release row is created (the title/secondary filters in
+        # get_artist_releases can't catch these innocuously-titled groups).
+        if not result["has_official"]:
+            continue
+        releases_with_tracks.append({**rel, "tracks": result["tracks"]})
 
     return {
         "mbid": mbid,

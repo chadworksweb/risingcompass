@@ -176,15 +176,26 @@ async def get_artist_releases(
     return all_releases
 
 
-async def get_release_tracks(release_group_mbid: str) -> list[dict]:
-    """Get track listing for a release group.
+async def get_release_tracks(release_group_mbid: str) -> dict:
+    """Fetch the first OFFICIAL release in a group and its track listing.
 
-    Fetches the first official release in the group and returns its tracks.
-    Returns list of dicts with: position, title, length_ms.
+    Returns {"has_official": bool, "tracks": [{position, title, length_ms}, ...]}.
+
+    `has_official` is the commercial-release gate (Filter v2). A release-group
+    with zero `status=official` releases is a bootleg / broadcast / unofficial
+    group -- MB leaves these untagged by secondary-type, so the title and
+    secondary-type filters in get_artist_releases can't catch them. Callers
+    drop the whole release when has_official is False.
+
+    On a fetch error we fail OPEN (has_official=True, tracks=[]) so a transient
+    MB hiccup never deletes a real commercial release -- the resolve is
+    idempotent and re-runnable, whereas a clean empty official-releases list is
+    the genuine bootleg signal.
     """
     await _rate_limit()
     try:
-        # First, get releases in this release group
+        # First, get the OFFICIAL releases in this release group. An empty list
+        # means the group has no commercial release -> drop it.
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 f"{BASE_URL}/release",
@@ -201,7 +212,7 @@ async def get_release_tracks(release_group_mbid: str) -> list[dict]:
 
         releases = data.get("releases", [])
         if not releases:
-            return []
+            return {"has_official": False, "tracks": []}
 
         release_mbid = releases[0]["id"]
 
@@ -225,11 +236,11 @@ async def get_release_tracks(release_group_mbid: str) -> list[dict]:
                     "length_ms": t.get("length"),
                 })
 
-        return tracks
+        return {"has_official": True, "tracks": tracks}
 
     except Exception:
         logger.exception("MusicBrainz track fetch failed for release-group %s", release_group_mbid)
-        return []
+        return {"has_official": True, "tracks": []}
 
 
 def _map_release_type(primary_type: str) -> Optional[str]:
