@@ -7,9 +7,10 @@ from sqlalchemy import func, or_, and_
 
 from app import billing_config
 from app.auth import optional_admin_session, optional_clerk_user
+from sqlalchemy import text
 from app.database import SessionLocal
 from app.models import (
-    CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
+    Song, SongSlug,
     ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration, SongReset,
     CalibrationRun, PrePublishCorrection, User,
 )
@@ -21,6 +22,22 @@ from app.services.artist_utils import generate_song_slug
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
+
+
+def _slug_unified_id(db, slug_row) -> int | None:
+    """The unified songs.id a slug points at. Prefer the slug's unified_song_id;
+    fall back to song_source='songs' (native slug) or song_id_map for any legacy
+    straggler whose unified_song_id wasn't backfilled."""
+    if slug_row.unified_song_id:
+        return slug_row.unified_song_id
+    if slug_row.song_source == "songs":
+        return slug_row.song_id
+    if slug_row.song_source and slug_row.song_id:
+        return db.execute(
+            text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+            {"s": slug_row.song_source, "i": slug_row.song_id},
+        ).scalar()
+    return None
 
 
 @router.get("/{slug}/flag-counts")
@@ -38,17 +55,15 @@ def song_flag_counts(slug: str):
     try:
         slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
         if slug_row:
-            title, artist, source, song_id = (
-                slug_row.title, slug_row.artist, slug_row.song_source, slug_row.song_id,
-            )
+            title, artist = slug_row.title, slug_row.artist
+            unified_id = _slug_unified_id(db, slug_row)
         else:
             song = _find_by_generated_slug(slug, db)
             if not song:
                 raise HTTPException(404, "Song not found")
             title = song["title"]
             artist = song.get("artist") or ""
-            source = song.get("song_source")
-            song_id = song.get("song_id")
+            unified_id = song.get("song_id")
 
         title_l = (title or "").strip().lower()
         artist_l = (artist or "").strip().lower()
@@ -57,11 +72,8 @@ def song_flag_counts(slug: str):
             func.lower(MisreadSubmission.song_title) == title_l,
             func.lower(MisreadSubmission.song_artist) == artist_l,
         )]
-        if source and song_id:
-            match_clauses.append(and_(
-                MisreadSubmission.song_source == source,
-                MisreadSubmission.song_id == song_id,
-            ))
+        if unified_id:
+            match_clauses.append(MisreadSubmission.unified_song_id == unified_id)
         match = or_(*match_clauses)
 
         def _count_distinct_devices(report_type: str) -> int:
@@ -94,21 +106,19 @@ def song_history(slug: str, admin_user=Depends(optional_admin_session)):
     try:
         slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
         if slug_row:
-            source, song_id = slug_row.song_source, slug_row.song_id
+            unified_id = _slug_unified_id(db, slug_row)
         else:
             song = _find_by_generated_slug(slug, db)
             if not song:
                 raise HTTPException(404, "Song not found")
-            source = song.get("song_source")
-            song_id = song.get("song_id")
+            unified_id = song.get("song_id")
 
-        if not (source and song_id):
+        if not unified_id:
             return {"recalibrations": []}
 
         q = (
             db.query(SongRecalibration)
-            .filter(SongRecalibration.song_source == source)
-            .filter(SongRecalibration.song_id == song_id)
+            .filter(SongRecalibration.unified_song_id == unified_id)
         )
         # All recalibrations are auto-promoted (2026-04-23); gate retired.
         rows = q.order_by(SongRecalibration.applied_at.desc()).all()
@@ -143,8 +153,7 @@ def song_history(slug: str, admin_user=Depends(optional_admin_session)):
 
         reset_rows = (
             db.query(SongReset)
-            .filter(SongReset.song_source == source)
-            .filter(SongReset.song_id == song_id)
+            .filter(SongReset.unified_song_id == unified_id)
             .order_by(SongReset.reset_at.desc())
             .all()
         )
@@ -166,14 +175,14 @@ def song_history(slug: str, admin_user=Depends(optional_admin_session)):
             for r in reset_rows
         ]
 
-        # Pre-publish corrections — the capture table for admin overrides of
-        # draft songs before publication. Only linked to compass_songs (drafts
-        # get published there), so filter applies only when source=compass.
+        # Pre-publish corrections -- the capture table for admin overrides of
+        # draft songs before publication. The audit pointer compass_song_id now
+        # carries the unified songs.id (Phase 5b).
         corrections: list = []
-        if source == "compass":
+        if True:
             cq = (
                 db.query(PrePublishCorrection)
-                .filter(PrePublishCorrection.compass_song_id == song_id)
+                .filter(PrePublishCorrection.compass_song_id == unified_id)
             )
             for r in cq.order_by(PrePublishCorrection.occurred_at.desc()).all():
                 corrections.append({
@@ -222,21 +231,19 @@ def song_calibration_runs(slug: str, limit: int = 50):
     try:
         slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
         if slug_row:
-            source, song_id = slug_row.song_source, slug_row.song_id
+            unified_id = _slug_unified_id(db, slug_row)
         else:
             song = _find_by_generated_slug(slug, db)
             if not song:
                 raise HTTPException(404, "Song not found")
-            source = song.get("song_source")
-            song_id = song.get("song_id")
+            unified_id = song.get("song_id")
 
-        if not (source and song_id):
+        if not unified_id:
             return {"runs": [], "consensus": None}
 
         rows = (
             db.query(CalibrationRun)
-            .filter(CalibrationRun.song_source == source)
-            .filter(CalibrationRun.song_id == song_id)
+            .filter(CalibrationRun.unified_song_id == unified_id)
             .order_by(CalibrationRun.run_at.desc())
             .limit(max(1, min(limit, 500)))
             .all()
@@ -264,11 +271,11 @@ def song_calibration_runs(slug: str, limit: int = 50):
         # it predates run-logging (seeded / imported songs have no CalibrationRun
         # rows). Synthesize that first entry from the song's own reading.
         if not runs:
-            seed = _synthesize_initial_run(source, song_id, db)
+            seed = _synthesize_initial_run(unified_id, db)
             if seed:
                 runs = [seed]
 
-        consensus = compute_consensus(db, source, song_id)
+        consensus = compute_consensus(db, "songs", unified_id)
         if consensus:
             consensus["tier_label"] = COLOR_LABELS.get(consensus["rubric_color"], "")
             consensus["tier_hex"] = COLOR_HEX.get(consensus["rubric_color"], "#999")
@@ -358,10 +365,11 @@ def song_detail(slug: str):
         slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
 
         if slug_row:
-            song = _resolve_song(slug_row.song_source, slug_row.song_id, db)
+            unified_id = _slug_unified_id(db, slug_row)
+            song = _resolve_song(unified_id, db) if unified_id else None
             if song:
                 song["slug"] = slug
-                _enrich_with_release_context(song, slug_row.song_source, slug_row.song_id, db)
+                _enrich_with_release_context(song, unified_id, db)
                 return song
 
         # Fallback: try to match slug against generated slugs
@@ -391,36 +399,31 @@ def song_search(q: str = "", limit: int = 20):
         results = []
         seen = set()  # (title_lower, artist_lower) to dedupe
 
-        for source, Model in [("compass", CompassSong), ("library", LibrarySong), ("submitted", SubmittedSong)]:
-            title_norm_expr = func.replace(func.lower(Model.title), "&", "and")
-            query = (
-                db.query(Model)
-                .filter(or_(
-                    func.lower(Model.title).contains(q_lower),
-                    title_norm_expr.contains(q_norm),
-                ))
-                .filter(Model.charge_value.isnot(None))
-            )
-            if Model is SubmittedSong:
-                query = query.filter(Model.title.isnot(None), Model.artist.isnot(None))
-            for row in query.limit(limit).all():
-                key = (row.title.lower(), (row.artist or "").lower())
-                if key in seen:
-                    continue
-                seen.add(key)
+        title_norm_expr = func.replace(func.lower(Song.title), "&", "and")
+        query = (
+            db.query(Song)
+            .filter(or_(
+                func.lower(Song.title).contains(q_lower),
+                title_norm_expr.contains(q_norm),
+            ))
+            .filter(Song.charge_value.isnot(None))
+        )
+        for row in query.limit(limit * 2).all():
+            key = (row.title.lower(), (row.artist or "").lower())
+            if key in seen:
+                continue
+            seen.add(key)
 
-                slug = _get_or_create_slug(row.title, row.artist or "", source, row.id, db)
-                results.append({
-                    "title": row.title,
-                    "artist": getattr(row, "artist", None),
-                    "slug": slug,
-                    "rubric_color": row.rubric_color,
-                    "charge_value": row.charge_value,
-                    "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
-                    "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
-                })
-                if len(results) >= limit:
-                    break
+            slug = _get_or_create_slug(row.title, row.artist or "", "songs", row.id, db)
+            results.append({
+                "title": row.title,
+                "artist": row.artist,
+                "slug": slug,
+                "rubric_color": row.rubric_color,
+                "charge_value": row.charge_value,
+                "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
+                "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
+            })
             if len(results) >= limit:
                 break
 
@@ -436,7 +439,7 @@ def song_search(q: str = "", limit: int = 20):
         db.close()
 
 
-def _synthesize_initial_run(source: str, song_id: int, db) -> dict | None:
+def _synthesize_initial_run(unified_id: int, db) -> dict | None:
     """Build a virtual 'initial calibration' run from the song's own reading.
 
     For songs with no logged CalibrationRun rows (seeded / imported before run
@@ -444,11 +447,7 @@ def _synthesize_initial_run(source: str, song_id: int, db) -> dict | None:
     reading that put the song on the compass. Returns None for uncalibrated
     songs (charge_value IS NULL) — there's nothing to show.
     """
-    model_map = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong, "stream": StreamSong}
-    model = model_map.get(source)
-    if not model:
-        return None
-    row = db.query(model).get(song_id)
+    row = db.query(Song).get(unified_id)
     if not row or row.charge_value is None:
         return None
     # No run_at: these rows have no calibration timestamp. created_at is the
@@ -473,13 +472,9 @@ def _synthesize_initial_run(source: str, song_id: int, db) -> dict | None:
     }
 
 
-def _resolve_song(source: str, song_id: int, db) -> dict | None:
-    """Resolve a polymorphic song reference to a full display dict."""
-    model_map = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong, "stream": StreamSong}
-    model = model_map.get(source)
-    if not model:
-        return None
-    row = db.query(model).get(song_id)
+def _resolve_song(unified_id: int, db) -> dict | None:
+    """Resolve a unified song id to a full display dict."""
+    row = db.query(Song).get(unified_id)
     if not row:
         return None
 
@@ -487,30 +482,29 @@ def _resolve_song(source: str, song_id: int, db) -> dict | None:
     is_uncalibrated = row.charge_value is None
     return {
         "title": row.title,
-        "artist": getattr(row, "artist", None),
+        "artist": row.artist,
         "rubric_color": row.rubric_color if row.rubric_color else None,
         "charge_value": row.charge_value,
         "tier_label": COLOR_LABELS.get(row.rubric_color, "") if row.rubric_color else "",
         "tier_hex": COLOR_HEX.get(row.rubric_color, "#999") if row.rubric_color else "#999",
-        "contaminated": getattr(row, "contaminated", False) or False,
-        "contamination_note": getattr(row, "contamination_note", None),
-        "dogma_referenced": getattr(row, "dogma_referenced", False) or False,
-        "dogma_note": getattr(row, "dogma_note", None),
-        "charge_summary": getattr(row, "charge_summary", None),
-        "effects_prose": getattr(row, "effects_prose", None),
-        "societal_effects_prose": getattr(row, "societal_effects_prose", None),
+        "contaminated": row.contaminated or False,
+        "contamination_note": row.contamination_note,
+        "dogma_referenced": row.dogma_referenced or False,
+        "dogma_note": row.dogma_note,
+        "charge_summary": row.charge_summary,
+        "effects_prose": row.effects_prose,
+        "societal_effects_prose": row.societal_effects_prose,
         "uncalibrated": is_uncalibrated,
-        "song_source": source,
-        "song_id": song_id,
+        "song_source": "songs",
+        "song_id": unified_id,
     }
 
 
-def _enrich_with_release_context(song: dict, source: str, song_id: int, db):
+def _enrich_with_release_context(song: dict, unified_id: int, db):
     """Add release + artist context to a song dict if available."""
     link = (
         db.query(ReleaseSong)
-        .filter(ReleaseSong.song_source == source)
-        .filter(ReleaseSong.song_id == song_id)
+        .filter(ReleaseSong.unified_song_id == unified_id)
         .first()
     )
     if link:
@@ -536,35 +530,46 @@ def _enrich_with_release_context(song: dict, source: str, song_id: int, db):
 
 
 def _find_by_generated_slug(slug: str, db) -> dict | None:
-    """Try to match a slug by generating slugs from all songs."""
-    # This is a fallback for songs not yet in the slug table.
-    # Search the most common tables first.
-    for source, Model in [("compass", CompassSong), ("library", LibrarySong), ("submitted", SubmittedSong)]:
-        query = db.query(Model).filter(Model.charge_value.isnot(None))
-        if Model is SubmittedSong:
-            query = query.filter(Model.title.isnot(None), Model.artist.isnot(None))
-        for row in query.all():
-            generated = generate_song_slug(row.title, row.artist or "")
-            if generated == slug:
-                # Create slug entry for faster future lookups
-                _get_or_create_slug(row.title, row.artist or "", source, row.id, db)
-                song = _resolve_song(source, row.id, db)
-                if song:
-                    song["slug"] = slug
-                    _enrich_with_release_context(song, source, row.id, db)
-                return song
+    """Try to match a slug by generating slugs from the unified Library."""
+    # Fallback for songs not yet in the slug table. Iterates the atomic songs.
+    for row in db.query(Song).filter(Song.charge_value.isnot(None)).all():
+        generated = generate_song_slug(row.title, row.artist or "")
+        if generated == slug:
+            # Create slug entry for faster future lookups
+            _get_or_create_slug(row.title, row.artist or "", "songs", row.id, db)
+            song = _resolve_song(row.id, db)
+            if song:
+                song["slug"] = slug
+                _enrich_with_release_context(song, row.id, db)
+            return song
     return None
 
 
 def _get_or_create_slug(title: str, artist: str, source: str, song_id: int, db) -> str:
-    """Get existing slug or create one for a song."""
-    # Check if this song already has a slug
-    existing = (
-        db.query(SongSlug)
-        .filter(SongSlug.song_source == source)
-        .filter(SongSlug.song_id == song_id)
-        .first()
-    )
+    """Get existing slug or create one for a song. Native callers pass
+    source='songs' with the unified id; the unified_song_id pointer is set so
+    the unified read paths (and song_search._attach_slugs) resolve it."""
+    # Resolve the unified id for the pointer (source='songs' -> the id directly,
+    # any legacy pair via song_id_map).
+    if source == "songs":
+        unified_id = song_id
+    else:
+        unified_id = db.execute(
+            text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+            {"s": source, "i": song_id},
+        ).scalar()
+
+    # Check if this song already has a slug (by unified id, else legacy pair).
+    existing = None
+    if unified_id:
+        existing = db.query(SongSlug).filter(SongSlug.unified_song_id == unified_id).first()
+    if existing is None:
+        existing = (
+            db.query(SongSlug)
+            .filter(SongSlug.song_source == source)
+            .filter(SongSlug.song_id == song_id)
+            .first()
+        )
     if existing:
         return existing.slug
 
@@ -583,6 +588,7 @@ def _get_or_create_slug(title: str, artist: str, source: str, song_id: int, db) 
         artist=artist,
         song_source=source,
         song_id=song_id,
+        unified_song_id=unified_id,
     )
     db.add(entry)
     db.commit()

@@ -10,8 +10,7 @@ from sqlalchemy import func, text
 
 from app.database import SessionLocal
 from app.models import (
-    Artist, Release, ReleaseSong, SongArtist,
-    CompassSong, LibrarySong, SubmittedSong, SongSlug,
+    Artist, Release, ReleaseSong, Song, SongSlug,
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import (
@@ -19,13 +18,6 @@ from app.services.artist_utils import (
 )
 from app.services.compass_calc import charge_to_degree
 from app.services.charge_calc import degree_to_charge
-
-
-_SONG_MODEL_MAP = {
-    "compass": CompassSong,
-    "library": LibrarySong,
-    "submitted": SubmittedSong,
-}
 
 logger = logging.getLogger(__name__)
 
@@ -172,17 +164,9 @@ def artist_search(
                 m.slug,
                 (SELECT COUNT(*) FROM releases r WHERE r.artist_id = m.id)
                     AS release_count,
-                (
-                    (SELECT COUNT(*) FROM compass_songs
-                       WHERE lower(artist) = lower(m.name)
-                         AND charge_value IS NOT NULL)
-                  + (SELECT COUNT(*) FROM library_songs
-                       WHERE lower(artist) = lower(m.name)
-                         AND charge_value IS NOT NULL)
-                  + (SELECT COUNT(*) FROM submitted_songs
-                       WHERE lower(artist) = lower(m.name)
-                         AND charge_value IS NOT NULL)
-                ) AS song_count
+                (SELECT COUNT(*) FROM songs
+                   WHERE lower(artist) = lower(m.name)
+                     AND charge_value IS NOT NULL) AS song_count
             FROM matched m
             """
         )
@@ -209,22 +193,12 @@ def artist_search(
                 """
                 SELECT MIN(artist) AS name, COUNT(*) AS song_count
                 FROM (
-                    SELECT artist FROM compass_songs
-                     WHERE (lower(artist) LIKE :pat
-                            OR replace(lower(artist), '&', 'and') LIKE :pat_norm)
-                       AND charge_value IS NOT NULL
-                    UNION ALL
-                    SELECT artist FROM library_songs
-                     WHERE (lower(artist) LIKE :pat
-                            OR replace(lower(artist), '&', 'and') LIKE :pat_norm)
-                       AND charge_value IS NOT NULL
-                    UNION ALL
-                    SELECT artist FROM submitted_songs
+                    SELECT artist FROM songs
                      WHERE (lower(artist) LIKE :pat
                             OR replace(lower(artist), '&', 'and') LIKE :pat_norm)
                        AND charge_value IS NOT NULL
                        AND artist IS NOT NULL
-                )
+                ) sub
                 GROUP BY lower(artist)
                 ORDER BY name
                 LIMIT :limit
@@ -525,79 +499,60 @@ def artist_top_songs(
         if not artist:
             raise HTTPException(404, "Artist not found")
 
+        # Unified: distinct atomic songs credited to this artist -- on a release
+        # they own (release_songs.unified_song_id) OR directly credited
+        # (song_artists.unified_song_id). One row per song; cross-year/cross-table
+        # duplicates already collapsed into the unified entity.
+        rows = db.execute(text(
+            """
+            SELECT s.id, s.title, s.artist, s.rubric_color, s.charge_value, s.contaminated
+              FROM songs s
+             WHERE s.charge_value IS NOT NULL
+               AND s.id IN (
+                    SELECT rs.unified_song_id
+                      FROM release_songs rs
+                      JOIN releases r ON r.id = rs.release_id
+                     WHERE r.artist_id = :aid AND rs.unified_song_id IS NOT NULL
+                    UNION
+                    SELECT sa.unified_song_id
+                      FROM song_artists sa
+                     WHERE sa.artist_id = :aid AND sa.unified_song_id IS NOT NULL
+               )
+            """
+        ), {"aid": artist.id}).all()
+
         items: list[dict] = []
-        seen: set = set()
-        for source, Model in _SONG_MODEL_MAP.items():
-            columns = (
-                Model.id,
-                Model.title,
-                Model.artist,
-                Model.rubric_color,
-                Model.charge_value,
-                Model.contaminated,
-            )
-            # Path 1: songs on releases owned by this artist (release_songs).
-            via_release = (
-                db.query(*columns, ReleaseSong.unified_song_id)
-                .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
-                .join(Release, ReleaseSong.release_id == Release.id)
-                .filter(Release.artist_id == artist.id)
-                .filter(Model.charge_value.isnot(None))
-                .distinct()
-                .all()
-            )
-            # Path 2: songs where this artist is directly credited (collabs + features).
-            via_credit = (
-                db.query(*columns, SongArtist.unified_song_id)
-                .join(SongArtist, (SongArtist.song_source == source) & (SongArtist.song_id == Model.id))
-                .filter(SongArtist.artist_id == artist.id)
-                .filter(Model.charge_value.isnot(None))
-                .distinct()
-                .all()
-            )
-            for song_id, title, song_artist, rubric_color, charge_value, contaminated, unified_id in list(via_release) + list(via_credit):
-                # Dedup by the UNIFIED song entity so cross-year / cross-table
-                # duplicates (e.g. "A Bar Song" 2024 + 2025) collapse to one row.
-                # Fall back to (source, id) for any legacy row not yet mapped.
-                key = ("u", unified_id) if unified_id is not None else (source, song_id)
-                if key in seen:
-                    continue
-                seen.add(key)
-                items.append({
-                    "song_source": source,
-                    "song_id": song_id,
-                    "title": title,
-                    "artist": song_artist or artist.name,
-                    "rubric_color": rubric_color,
-                    "charge_value": charge_value,
-                    "tier_label": COLOR_LABELS.get(rubric_color, ""),
-                    "tier_hex": COLOR_HEX.get(rubric_color, "#999"),
-                    "contaminated": bool(contaminated) if contaminated is not None else False,
-                })
+        for song_id, title, song_artist, rubric_color, charge_value, contaminated in rows:
+            items.append({
+                "song_source": "songs",
+                "song_id": song_id,
+                "title": title,
+                "artist": song_artist or artist.name,
+                "rubric_color": rubric_color,
+                "charge_value": charge_value,
+                "tier_label": COLOR_LABELS.get(rubric_color, ""),
+                "tier_hex": COLOR_HEX.get(rubric_color, "#999"),
+                "contaminated": bool(contaminated) if contaminated is not None else False,
+            })
 
         # Rank merged list, then paginate. For typical catalogs (<=1000 songs)
-        # this in-Python sort is cheaper than a SQL UNION ALL with ORDER BY.
+        # this in-Python sort is cheaper than a SQL ORDER BY.
         items.sort(key=lambda x: (x["charge_value"] is None, -(x["charge_value"] or 0)))
         total = len(items)
         page = items[offset:offset + limit]
 
-        # Attach song_slugs in one lookup for the page we're returning
+        # Attach song_slugs (by unified id) in one lookup for the page.
         if page:
-            keys = [(it["song_source"], it["song_id"]) for it in page]
-            # song_slugs indexes by (song_source, song_id) — query in one IN clause per source
-            slug_map: dict[tuple, str] = {}
-            for source in {k[0] for k in keys}:
-                ids = [k[1] for k in keys if k[0] == source]
-                rows = (
-                    db.query(SongSlug.song_source, SongSlug.song_id, SongSlug.slug)
-                    .filter(SongSlug.song_source == source)
-                    .filter(SongSlug.song_id.in_(ids))
-                    .all()
-                )
-                for s, sid, slug_value in rows:
-                    slug_map[(s, sid)] = slug_value
+            ids = [it["song_id"] for it in page]
+            slug_map: dict[int, str] = {}
+            for sid, slug_value in (
+                db.query(SongSlug.unified_song_id, SongSlug.slug)
+                .filter(SongSlug.unified_song_id.in_(ids))
+                .all()
+            ):
+                slug_map.setdefault(sid, slug_value)
             for it in page:
-                it["slug"] = slug_map.get((it["song_source"], it["song_id"]))
+                it["slug"] = slug_map.get(it["song_id"])
 
         payload = {"items": page, "total": total, "offset": offset, "limit": limit}
         _artist_cache_set(cache_key, payload)
@@ -713,7 +668,7 @@ def artist_songs(
 
         items = []
         for link in links:
-            song_data = _resolve_song(link.song_source, link.song_id, db)
+            song_data = _resolve_song(link.unified_song_id, db)
             if song_data:
                 song_data["release_id"] = link.release_id
                 song_data["track_number"] = link.track_number
@@ -730,36 +685,34 @@ def _get_release_song_charges(release: Release, db) -> list[int]:
     """Get all individual song charge values for a release."""
     charges = []
     for link in release.songs:
-        song = _resolve_song_row(link.song_source, link.song_id, db)
+        song = _resolve_song_row(link.unified_song_id, db)
         if song and song.charge_value is not None:
             charges.append(song.charge_value)
     return charges
 
 
-def _resolve_song_row(source: str, song_id: int, db):
-    """Resolve a polymorphic song reference to the actual row."""
-    model_map = {"compass": CompassSong, "library": LibrarySong, "submitted": SubmittedSong}
-    model = model_map.get(source)
-    if not model:
+def _resolve_song_row(unified_id, db):
+    """Resolve a unified song id to the songs row."""
+    if not unified_id:
         return None
-    return db.query(model).get(song_id)
+    return db.query(Song).get(unified_id)
 
 
-def _resolve_song(source: str, song_id: int, db) -> dict | None:
-    """Resolve a song reference to a display dict."""
-    row = _resolve_song_row(source, song_id, db)
+def _resolve_song(unified_id, db) -> dict | None:
+    """Resolve a unified song id to a display dict."""
+    row = _resolve_song_row(unified_id, db)
     if not row:
         return None
     return {
         "title": row.title,
-        "artist": getattr(row, "artist", None),
+        "artist": row.artist,
         "rubric_color": row.rubric_color,
         "charge_value": row.charge_value,
         "tier_label": COLOR_LABELS.get(row.rubric_color, ""),
         "tier_hex": COLOR_HEX.get(row.rubric_color, "#999"),
-        "contaminated": getattr(row, "contaminated", False) or False,
-        "contamination_note": getattr(row, "contamination_note", None),
-        "charge_summary": getattr(row, "charge_summary", None),
-        "song_source": source,
-        "song_id": song_id,
+        "contaminated": row.contaminated or False,
+        "contamination_note": row.contamination_note,
+        "charge_summary": row.charge_summary,
+        "song_source": "songs",
+        "song_id": unified_id,
     }
