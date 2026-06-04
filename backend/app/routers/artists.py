@@ -534,7 +534,7 @@ def artist_top_songs(
             raise HTTPException(404, "Artist not found")
 
         items: list[dict] = []
-        seen: set[tuple[str, int]] = set()
+        seen: set = set()
         for source, Model in _SONG_MODEL_MAP.items():
             columns = (
                 Model.id,
@@ -546,7 +546,7 @@ def artist_top_songs(
             )
             # Path 1: songs on releases owned by this artist (release_songs).
             via_release = (
-                db.query(*columns)
+                db.query(*columns, ReleaseSong.unified_song_id)
                 .join(ReleaseSong, (ReleaseSong.song_source == source) & (ReleaseSong.song_id == Model.id))
                 .join(Release, ReleaseSong.release_id == Release.id)
                 .filter(Release.artist_id == artist.id)
@@ -556,15 +556,18 @@ def artist_top_songs(
             )
             # Path 2: songs where this artist is directly credited (collabs + features).
             via_credit = (
-                db.query(*columns)
+                db.query(*columns, SongArtist.unified_song_id)
                 .join(SongArtist, (SongArtist.song_source == source) & (SongArtist.song_id == Model.id))
                 .filter(SongArtist.artist_id == artist.id)
                 .filter(Model.charge_value.isnot(None))
                 .distinct()
                 .all()
             )
-            for song_id, title, song_artist, rubric_color, charge_value, contaminated in list(via_release) + list(via_credit):
-                key = (source, song_id)
+            for song_id, title, song_artist, rubric_color, charge_value, contaminated, unified_id in list(via_release) + list(via_credit):
+                # Dedup by the UNIFIED song entity so cross-year / cross-table
+                # duplicates (e.g. "A Bar Song" 2024 + 2025) collapse to one row.
+                # Fall back to (source, id) for any legacy row not yet mapped.
+                key = ("u", unified_id) if unified_id is not None else (source, song_id)
                 if key in seen:
                     continue
                 seen.add(key)

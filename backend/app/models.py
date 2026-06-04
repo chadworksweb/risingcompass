@@ -563,6 +563,8 @@ class SongArtist(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_source = Column(String(20), nullable=False)
     song_id = Column(Integer, nullable=False)
+    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
     artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(20), nullable=False, default="primary")
     position = Column(Integer, nullable=False, default=0)
@@ -614,6 +616,8 @@ class ReleaseSong(Base):
     release_id = Column(Integer, ForeignKey("releases.id"), nullable=False)
     song_source = Column(String(20), nullable=False)  # compass / library / submitted
     song_id = Column(Integer, nullable=False)
+    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
+    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
     track_number = Column(Integer)
 
     release = relationship("Release", back_populates="songs")
