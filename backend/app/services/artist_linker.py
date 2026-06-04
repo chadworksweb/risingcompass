@@ -110,9 +110,14 @@ def link_song_artists(
     song_source: str,
     song_id: int,
     entries: list[dict],
+    unified_song_id: int | None = None,
 ) -> None:
     """Upsert song_artists rows. No release linkage — releases require
-    real release metadata (title, date, type) which we don't invent here."""
+    real release metadata (title, date, type) which we don't invent here.
+
+    `unified_song_id` is set on the credit row so it survives the Phase-5 drop
+    (renamed to song_id in 5c). Native callers pass song_source='songs' with the
+    unified id as both song_id and unified_song_id."""
     if not entries:
         return
 
@@ -134,13 +139,17 @@ def link_song_artists(
             .filter(SongArtist.artist_id == artist.id)
             .first()
         )
-        if not existing:
+        if existing:
+            if unified_song_id is not None and existing.unified_song_id is None:
+                existing.unified_song_id = unified_song_id
+        else:
             db.add(SongArtist(
                 song_source=song_source,
                 song_id=song_id,
                 artist_id=artist.id,
                 role=role,
                 position=position,
+                unified_song_id=unified_song_id,
             ))
 
 

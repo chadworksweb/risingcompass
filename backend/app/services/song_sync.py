@@ -62,7 +62,8 @@ def sync_legacy_song_to_unified(db, source: str, legacy_id: int):
     return upsert_unified_song(db, source, legacy_id, dict(row))
 
 
-def upsert_unified_song(db, source: str, legacy_id, row: dict):
+def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_detail: dict | None = None,
+                        only_set_present: bool = False):
     """Upsert one song into songs + chart_appearance + song_ingestion and repoint
     its references, driven entirely by the in-memory `row` dict -- NO legacy-table
     read, so it survives the Phase-5 drop. `row` carries the identity + calibration
@@ -93,12 +94,18 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict):
         # Authoritative-first: only overwrite calibration when the incoming write
         # is authoritative, or the existing row isn't authoritative.
         if incoming_auth or not cur_auth:
-            sets = ", ".join(f"{c} = :{c}" for c in _CALIB)
-            params = {c: row.get(c) for c in _CALIB}
-            params.update({"sid": song_id, "m": method})
-            db.execute(text(
-                f"UPDATE songs SET {sets}, canonical_calibration_method = :m WHERE id = :sid"
-            ), params)
+            # only_set_present (native writes): overwrite only the calibration
+            # columns the incoming object actually carries, so a re-read that
+            # omits prose/analysis fields never nulls existing values. The mirror
+            # path passes the full legacy row, so default (full overwrite) holds.
+            cols = [c for c in _CALIB if row.get(c) is not None] if only_set_present else _CALIB
+            if cols:
+                sets = ", ".join(f"{c} = :{c}" for c in cols)
+                params = {c: row.get(c) for c in cols}
+                params.update({"sid": song_id, "m": method})
+                db.execute(text(
+                    f"UPDATE songs SET {sets}, canonical_calibration_method = :m WHERE id = :sid"
+                ), params)
     else:
         params = {c: row.get(c) for c in _CALIB}
         params.update({
@@ -136,7 +143,10 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict):
     if not db.execute(text(
         "SELECT 1 FROM song_ingestions WHERE song_id = :s AND method = :m LIMIT 1"
     ), {"s": song_id, "m": method}).scalar():
-        detail = {"chart_source": row.get("chart_source")} if source == "compass" else {"source": row.get("source")}
+        if ingestion_detail is not None:
+            detail = ingestion_detail
+        else:
+            detail = {"chart_source": row.get("chart_source")} if source == "compass" else {"source": row.get("source")}
         db.execute(text(
             "INSERT INTO song_ingestions (song_id, method, ip_address, detail) "
             "VALUES (:s, :m, :ip, :d)"
@@ -173,3 +183,72 @@ def safe_sync(db, source: str, legacy_id: int):
         except Exception:
             pass
         return None
+
+
+# --- native storage chokepoint ------------------------------------------- #
+
+# Calibration-object columns that pass straight onto the songs row. topics /
+# topic_audit are JSON-encoded separately (Text columns). Mirrors the legacy
+# analyzer._song_persist_fields so every native writer maps identically.
+_PASSTHROUGH = [
+    "rubric_color", "charge_value", "charge_summary", "contamination_note",
+    "dogma_note", "confidence", "effects_prose", "societal_effects_prose",
+    "societal_prose_generated_at", "societal_prose_model", "deadpan_line",
+    "activations", "message_analysis", "expression_analysis", "intention_analysis",
+]
+
+
+def calibration_to_columns(calibration: dict) -> dict:
+    """Map a calibration object to the songs calibration columns (JSON-encoding
+    topics / topic_audit to match the Text columns)."""
+    topics = calibration.get("topics")
+    topic_audit = calibration.get("topic_audit")
+    out = {k: calibration.get(k) for k in _PASSTHROUGH}
+    out["contaminated"] = bool(calibration.get("contaminated", False))
+    out["dogma_referenced"] = bool(calibration.get("dogma_referenced", False))
+    out["instrumental"] = bool(calibration.get("instrumental", False))
+    out["calibration_failed"] = bool(calibration.get("calibration_failed", False))
+    out["topics"] = json.dumps(topics) if topics else None
+    out["topic_audit"] = json.dumps(topic_audit) if topic_audit else None
+    return out
+
+
+def store_calibrated_song(
+    db, *, source: str, title: str, artist: str, calibration: dict,
+    chart_source: str | None = None, year: int | None = None,
+    chart_position: int | None = None, chart_position_letter: str = "",
+    album_id: int | None = None, track_number: int | None = None,
+    ingestion_detail: dict | None = None,
+    artist_entries: list | None = None,
+) -> tuple[int | None, bool]:
+    """Native storage chokepoint -- the single place a calibrated song lands in
+    the unified model. Upserts the songs row by canonical_key (authoritative-
+    first via `source`/method), writes a chart_appearance (chart sources only)
+    and a song_ingestion (with optional workflow `ingestion_detail`), and links
+    artists onto the unified id. NO legacy-table touch. Returns (songs.id,
+    created) -- created=True when this call inserted a brand-new songs row.
+    Returns (None, False) if the calibration failed (no rubric_color). Does NOT
+    commit."""
+    if calibration.get("rubric_color") is None:
+        return None, False
+    key = compute_canonical_key(title, artist)
+    existed = db.execute(
+        text("SELECT 1 FROM songs WHERE canonical_key = :k LIMIT 1"), {"k": key}
+    ).scalar()
+    row = calibration_to_columns(calibration)
+    row.update({
+        "title": title, "artist": artist,
+        "chart_source": chart_source, "year": year,
+        "chart_position": chart_position,
+        "chart_position_letter": chart_position_letter or "",
+        "album_id": album_id, "track_number": track_number,
+    })
+    song_id = upsert_unified_song(db, source, None, row, ingestion_detail=ingestion_detail,
+                                  only_set_present=True)
+    if song_id and artist_entries:
+        from app.services.artist_linker import link_song_artists
+        link_song_artists(
+            db, song_source="songs", song_id=song_id,
+            unified_song_id=song_id, entries=artist_entries,
+        )
+    return song_id, (not existed)
