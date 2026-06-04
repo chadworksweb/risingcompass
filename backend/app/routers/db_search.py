@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
-    CompassSong, LibrarySong, SubmittedSong, StreamSong,
     Artist, Release, MisreadSubmission, AudienceVibePush,
     SongRecalibration, SongReset, ReadingSong, CalibrationRun, Trash,
     SongArtist, ReleaseSong, AudienceVibeNeedle, AudienceVibeReviewCase,
@@ -46,10 +45,6 @@ TABLES = {
     "songs": Song,
     "chart_appearances": ChartAppearance,
     "song_ingestions": SongIngestion,
-    "compass_songs": CompassSong,
-    "library_songs": LibrarySong,
-    "submitted_songs": SubmittedSong,
-    "cl_stream_songs": StreamSong,
     "artists": Artist,
     "releases": Release,
     "misread_submissions": MisreadSubmission,
@@ -64,10 +59,6 @@ TABLES = {
 # Columns matched by the `q=` quick-search per table.
 SEARCH_COLUMNS = {
     "songs": ["title", "artist", "canonical_key"],
-    "compass_songs": ["title", "artist"],
-    "library_songs": ["title", "artist"],
-    "submitted_songs": ["title", "artist"],
-    "cl_stream_songs": ["title", "artist"],
     "artists": ["name", "slug"],
     "releases": ["title"],
     "misread_submissions": ["song_title", "song_artist", "email", "first_name", "last_name"],
@@ -313,11 +304,10 @@ def query_table(
 
 # --- Song reset ---
 
+# Unified song-entity renovation: reset/delete/merge operate on the atomic
+# `songs` entity, keyed by its unified id; references repoint via unified_song_id.
 RESETTABLE_SOURCES = {
-    "compass_songs": (CompassSong, "compass"),
-    "library_songs": (LibrarySong, "library"),
-    "submitted_songs": (SubmittedSong, "submitted"),
-    "cl_stream_songs": (StreamSong, "stream"),
+    "songs": (Song, "songs"),
 }
 
 
@@ -339,10 +329,10 @@ def reset_preview(table: str, song_id: int, db: Session = Depends(get_db)):
     if not row:
         raise HTTPException(404, f"{table} id={song_id} not found")
     warnings = []
-    if polymorphic == "compass":
+    if polymorphic == "songs":
         reading_rows = (
             db.query(ReadingSong.reading_id, ReadingSong.position)
-            .filter(ReadingSong.compass_song_id == song_id)
+            .filter(ReadingSong.song_id == song_id)
             .all()
         )
         if reading_rows:
@@ -388,6 +378,7 @@ def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depend
     reset_row = SongReset(
         song_source=polymorphic,
         song_id=song_id,
+        unified_song_id=song_id,
         before_charge=getattr(row, "charge_value", None),
         before_color=getattr(row, "rubric_color", None),
         before_summary=getattr(row, "charge_summary", None),
@@ -418,12 +409,12 @@ def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depend
 
 # --- Soft delete (move to trash) ---
 
-# Tables that support soft-delete via the admin DB explorer. Songs always
-# route through their polymorphic source; other tables go to trash by name.
-# The unified entity + its dimensions are browse-only here -- mutations must
-# go through the proper unified write paths, not the generic delete cascade
-# (a raw `songs` delete would orphan chart_appearances + reading_songs.song_id).
-DELETABLE_TABLES = set(TABLES.keys()) - {"trash", "songs", "chart_appearances", "song_ingestions"}
+# Tables that support soft-delete via the admin DB explorer. A `songs` delete is
+# FK-safe (chart_appearances + song_ingestions CASCADE; reading/draft/credit/slug
+# references SET NULL) and additionally snapshots + clears the polymorphic refs
+# via the cascade below. chart_appearances / song_ingestions are browse-only --
+# they're managed through the song, never deleted standalone here.
+DELETABLE_TABLES = set(TABLES.keys()) - {"trash", "chart_appearances", "song_ingestions"}
 
 
 class DeleteIn(BaseModel):
@@ -459,21 +450,19 @@ _POLYMORPHIC_SONG_REFS = [
 
 
 def _capture_and_delete_song_cascade(polymorphic: str, song_id: int, db: Session) -> dict:
-    """Snapshot + delete every row anywhere that references this song.
+    """Snapshot + delete every row anywhere that references this unified song.
 
-    Polymorphic (song_source, song_id) references and the two FK-based
-    references (reading_songs.compass_song_id, lc_events.submission_id)
-    are all captured in related_data and removed from their tables, so
-    the song is invisible outside the trash entry.
-    """
+    Polymorphic references (keyed by unified_song_id) and the two unified
+    hard-FK references (reading_songs.song_id, lc_events.song_id) are all
+    captured in related_data and removed/nulled, so the song is invisible
+    outside the trash entry. `song_id` is the unified songs.id."""
     related: dict = {}
 
     for name, Model in _POLYMORPHIC_SONG_REFS:
         col_map = {c.name: c for c in sa_inspect(Model).columns}
         rows = (
             db.query(Model)
-            .filter(Model.song_source == polymorphic)
-            .filter(Model.song_id == song_id)
+            .filter(Model.unified_song_id == song_id)
             .all()
         )
         if rows:
@@ -481,31 +470,21 @@ def _capture_and_delete_song_cascade(polymorphic: str, song_id: int, db: Session
             for r in rows:
                 db.delete(r)
 
-    # Compass-specific FK ref
-    if polymorphic == "compass":
-        col_map = {c.name: c for c in sa_inspect(ReadingSong).columns}
-        rs_rows = (
-            db.query(ReadingSong)
-            .filter(ReadingSong.compass_song_id == song_id)
-            .all()
-        )
-        if rs_rows:
-            related["reading_songs"] = [_serialize_row(r, col_map) for r in rs_rows]
-            for r in rs_rows:
-                db.delete(r)
+    # Unified hard-FK refs (reading_songs.song_id, lc_events.song_id). These are
+    # ON DELETE SET NULL, but capture + clear them so the trash entry is complete.
+    col_map = {c.name: c for c in sa_inspect(ReadingSong).columns}
+    rs_rows = db.query(ReadingSong).filter(ReadingSong.song_id == song_id).all()
+    if rs_rows:
+        related["reading_songs"] = [_serialize_row(r, col_map) for r in rs_rows]
+        for r in rs_rows:
+            r.song_id = None
 
-    # Submitted-specific FK ref
-    if polymorphic == "submitted":
-        col_map = {c.name: c for c in sa_inspect(LcEvent).columns}
-        lc_rows = (
-            db.query(LcEvent)
-            .filter(LcEvent.submission_id == song_id)
-            .all()
-        )
-        if lc_rows:
-            related["lc_events"] = [_serialize_row(r, col_map) for r in lc_rows]
-            for r in lc_rows:
-                db.delete(r)
+    col_map = {c.name: c for c in sa_inspect(LcEvent).columns}
+    lc_rows = db.query(LcEvent).filter(LcEvent.song_id == song_id).all()
+    if lc_rows:
+        related["lc_events"] = [_serialize_row(r, col_map) for r in lc_rows]
+        for r in lc_rows:
+            r.song_id = None
 
     return related
 
@@ -590,8 +569,8 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
     import json as _json
 
     if data.source_table not in RESETTABLE_SOURCES or data.target_table not in RESETTABLE_SOURCES:
-        raise HTTPException(400, "Merge supported only between song tables (compass/library/submitted/stream)")
-    if data.source_table == data.target_table and data.source_id == data.target_id:
+        raise HTTPException(400, "Merge supported only between unified songs")
+    if data.source_id == data.target_id:
         raise HTTPException(400, "Source and target are the same row")
 
     src_poly = _table_to_polymorphic(data.source_table)
@@ -614,23 +593,22 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
     dropped_counts: dict[str, int] = {}
 
     def _repoint(Model, has_unique: bool = False, unique_cols: list[str] | None = None):
-        """Repoint every polymorphic row from (src_poly, src_id) to (tgt_poly, tgt_id).
-        If has_unique, check for existing target rows on the unique cols first and
-        delete source conflicts instead of updating (target keeps its own).
+        """Repoint every reference row from the source unified song to the target.
+        If has_unique, check for an existing target row on the unique cols first
+        and delete source conflicts instead of updating (target keeps its own).
         """
         name = Model.__tablename__
         rows = (
             db.query(Model)
-            .filter(Model.song_source == src_poly)
-            .filter(Model.song_id == data.source_id)
+            .filter(Model.unified_song_id == data.source_id)
             .all()
         )
         moved = 0
         dropped = 0
         for r in rows:
-            if has_unique and unique_cols:
+            if has_unique and unique_cols is not None:
                 # Does a target-side row already satisfy the same unique?
-                q = db.query(Model).filter(Model.song_source == tgt_poly).filter(Model.song_id == data.target_id)
+                q = db.query(Model).filter(Model.unified_song_id == data.target_id)
                 for col in unique_cols:
                     q = q.filter(getattr(Model, col) == getattr(r, col))
                 conflict = q.first()
@@ -638,7 +616,8 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
                     db.delete(r)
                     dropped += 1
                     continue
-            r.song_source = tgt_poly
+            r.unified_song_id = data.target_id
+            r.song_source = "songs"
             r.song_id = data.target_id
             moved += 1
         if moved:
@@ -658,40 +637,23 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
     _repoint(SongReset)
     _repoint(MisreadSubmission)
 
-    # Source-specific FK refs
-    if src_poly == "compass":
-        rows = db.query(ReadingSong).filter(ReadingSong.compass_song_id == data.source_id).all()
-        moved = 0
-        if tgt_poly == "compass":
-            for r in rows:
-                r.compass_song_id = data.target_id
-                moved += 1
-        else:
-            for r in rows:
-                r.compass_song_id = None
-                moved += 1
-        if moved:
-            moved_counts["reading_songs"] = moved
+    # Unified hard-FK refs (reading_songs.song_id, lc_events.song_id) -> target.
+    rows = db.query(ReadingSong).filter(ReadingSong.song_id == data.source_id).all()
+    if rows:
+        for r in rows:
+            r.song_id = data.target_id
+        moved_counts["reading_songs"] = len(rows)
 
-    if src_poly == "submitted":
-        rows = db.query(LcEvent).filter(LcEvent.submission_id == data.source_id).all()
-        moved = 0
-        if tgt_poly == "submitted":
-            for r in rows:
-                r.submission_id = data.target_id
-                moved += 1
-        else:
-            for r in rows:
-                r.submission_id = None
-                moved += 1
-        if moved:
-            moved_counts["lc_events"] = moved
+    rows = db.query(LcEvent).filter(LcEvent.song_id == data.source_id).all()
+    if rows:
+        for r in rows:
+            r.song_id = data.target_id
+        moved_counts["lc_events"] = len(rows)
 
-    # Source slug: delete rather than move — target keeps its own slugs
+    # Source slugs: delete rather than move — target keeps its own slugs
     slug_rows = (
         db.query(SongSlug)
-        .filter(SongSlug.song_source == src_poly)
-        .filter(SongSlug.song_id == data.source_id)
+        .filter(SongSlug.unified_song_id == data.source_id)
         .all()
     )
     for s in slug_rows:

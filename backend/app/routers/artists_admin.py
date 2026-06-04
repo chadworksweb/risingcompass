@@ -13,13 +13,13 @@ from app.auth import require_admin_session
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.models import (
-    Artist, ArtistAdminEvent, Release, ReleaseSong,
-    CompassSong, LibrarySong, SubmittedSong,
+    Artist, ArtistAdminEvent, Release, ReleaseSong, Song,
 )
 from app.services.artist_utils import (
     generate_artist_slug, normalize_artist_name, compute_release_charge,
     count_songs_by_artist, resolve_artist_releases,
 )
+from app.services.song_identity import compute_canonical_key
 
 logger = logging.getLogger(__name__)
 
@@ -146,27 +146,20 @@ def refresh_release_aggregates(
         if not artist:
             raise HTTPException(404, "Artist not found")
 
-        SOURCE_MODEL = {
-            "compass": CompassSong,
-            "library": LibrarySong,
-            "submitted": SubmittedSong,
-        }
-
         updated = []
         for release in artist.releases:
             links = release.songs
             charges: list[int] = []
             contam = 0
             for link in links:
-                Model = SOURCE_MODEL.get(link.song_source)
-                if Model is None:
+                if link.unified_song_id is None:
                     continue
-                row = db.query(Model).filter(Model.id == link.song_id).first()
+                row = db.query(Song).get(link.unified_song_id)
                 if row is None:
                     continue
                 if row.charge_value is not None:
                     charges.append(row.charge_value)
-                if getattr(row, "contaminated", False):
+                if row.contaminated:
                     contam += 1
 
             release.calibrated_count = len(charges)
@@ -234,35 +227,21 @@ async def resolve_metadata(
 
 
 def _get_distinct_artist_names(db, min_songs: int) -> list[str]:
-    """Get distinct artist names across all song tables with >= min_songs."""
-    # Collect all artist names with counts
+    """Get distinct artist names from the unified Library with >= min_songs."""
     counts: dict[str, int] = {}
-
-    for Model in (CompassSong, LibrarySong, SubmittedSong):
-        query = (
-            db.query(Model.artist, func.count(Model.id))
-            .filter(Model.charge_value.isnot(None))
-        )
-        if Model is SubmittedSong:
-            query = query.filter(Model.artist.isnot(None))
-        rows = query.group_by(func.lower(Model.artist)).all()
-        for name, count in rows:
-            if name:
-                key = name.lower()
-                counts[key] = counts.get(key, 0) + count
-                # Keep the first casing we see
-                if key not in counts:
-                    counts[key] = count
-
-    # We need to also keep original names — rebuild with proper casing
-    name_map: dict[str, str] = {}  # lowercase → display name
-    for Model in (CompassSong, LibrarySong, SubmittedSong):
-        query = db.query(func.distinct(Model.artist)).filter(Model.charge_value.isnot(None))
-        if Model is SubmittedSong:
-            query = query.filter(Model.artist.isnot(None))
-        for (name,) in query.all():
-            if name and name.lower() not in name_map:
-                name_map[name.lower()] = name
+    name_map: dict[str, str] = {}  # lowercase -> display name
+    rows = (
+        db.query(Song.artist, func.count(Song.id))
+        .filter(Song.charge_value.isnot(None))
+        .filter(Song.artist.isnot(None))
+        .group_by(func.lower(Song.artist))
+        .all()
+    )
+    for name, count in rows:
+        if name:
+            key = name.lower()
+            counts[key] = count
+            name_map.setdefault(key, name)
 
     return [
         name_map[key]
@@ -272,29 +251,21 @@ def _get_distinct_artist_names(db, min_songs: int) -> list[str]:
 
 
 def _find_songs_for_artist(artist_name: str, db) -> list[tuple[str, int, int | None, bool]]:
-    """Find all calibrated songs for an artist across all tables.
+    """Find all calibrated songs for an artist in the unified Library.
 
     Returns list of (source, song_id, charge_value, contaminated).
     """
     name_lower = artist_name.lower()
     results = []
-
-    for source, Model in [("compass", CompassSong), ("library", LibrarySong), ("submitted", SubmittedSong)]:
-        query = (
-            db.query(Model)
-            .filter(func.lower(Model.artist) == name_lower)
-            .filter(Model.charge_value.isnot(None))
-        )
-        if Model is SubmittedSong:
-            query = query.filter(Model.artist.isnot(None))
-        for row in query.all():
-            results.append((
-                source,
-                row.id,
-                row.charge_value,
-                getattr(row, "contaminated", False) or False,
-            ))
-
+    rows = (
+        db.query(Song)
+        .filter(func.lower(Song.artist) == name_lower)
+        .filter(Song.charge_value.isnot(None))
+        .filter(Song.artist.isnot(None))
+        .all()
+    )
+    for row in rows:
+        results.append(("songs", row.id, row.charge_value, row.contaminated or False))
     return results
 
 
@@ -306,9 +277,6 @@ def _find_songs_for_artist(artist_name: str, db) -> list[tuple[str, int, int | N
 # dedupe SQL stays verbatim). On Postgres the whole transaction commits
 # atomically with no stream to lose mid-flight.
 # ============================================================
-
-_SONG_TABLES = ("compass_songs", "library_songs", "submitted_songs")
-
 
 def _invalidate_artist_caches() -> None:
     """After a merge or rename, the shared artist cache in routers.artists
@@ -371,93 +339,109 @@ def merge_artist(
 
         rewrites: dict = {}
 
-        # 0. Song-row collisions. Migration 037 puts a UNIQUE index on
-        #    (lower(title), lower(artist)) per song table — so two artists
-        #    with the same song title ("Sweet Caroline" under both
-        #    "Neil Diamond" and "Neil Diamonds") have duplicate song rows
-        #    that will trip the later UPDATE artist = ... step. For each
-        #    collision, migrate the source song's FKs onto the target song
-        #    then drop the source song row.
-        song_source_map = {
-            "compass_songs": "compass",
-            "library_songs": "library",
-            "submitted_songs": "submitted",
-        }
+        # 0. Song-row collisions. songs.canonical_key is UNIQUE; renaming the
+        #    source artist's songs to the target name (step 3) would collide on
+        #    canonical_key for any same-title song already under the target
+        #    ("Sweet Caroline" under both "Neil Diamond" and "Neil Diamonds").
+        #    For each such pair, repoint the source song's references onto the
+        #    target song (keyed by unified_song_id), then drop the source song.
         dup_song_rows_merged = 0
         dup_release_song_links_migrated = 0
         dup_release_song_links_dropped = 0
         dup_song_artist_links_migrated = 0
         dup_song_artist_links_dropped = 0
         dup_song_slugs_dropped = 0
-        for tbl, src_type in song_source_map.items():
-            collisions = conn.execute(
+        collisions = conn.execute(
+            text(
+                "SELECT src.id, tgt.id"
+                "  FROM songs src"
+                "  JOIN songs tgt ON lower(src.title) = lower(tgt.title)"
+                " WHERE lower(src.artist) = lower(:sname)"
+                "   AND lower(tgt.artist) = lower(:tname)"
+                "   AND src.id != tgt.id"
+            ),
+            {"sname": source_name, "tname": target_name},
+        ).fetchall()
+        for src_sid, tgt_sid in collisions:
+            # release_songs: drop links where the target is already on the same
+            # release; move the rest from src -> tgt.
+            cur = conn.execute(
                 text(
-                    f"SELECT src.id, tgt.id"
-                    f"  FROM {tbl} src"
-                    f"  JOIN {tbl} tgt ON lower(src.title) = lower(tgt.title)"
-                    f" WHERE lower(src.artist) = lower(:sname)"
-                    f"   AND lower(tgt.artist) = lower(:tname)"
-                    f"   AND src.id != tgt.id"
+                    "DELETE FROM release_songs WHERE unified_song_id = :src"
+                    "   AND release_id IN (SELECT release_id FROM release_songs WHERE unified_song_id = :tgt)"
                 ),
-                {"sname": source_name, "tname": target_name},
-            ).fetchall()
-            for src_sid, tgt_sid in collisions:
-                # release_songs: drop links where the target song is already
-                # on the same release; rewrite the rest from src -> tgt.
-                cur = conn.execute(
-                    text(
-                        "DELETE FROM release_songs"
-                        " WHERE song_source = :stype AND song_id = :src_sid"
-                        "   AND release_id IN ("
-                        "       SELECT release_id FROM release_songs"
-                        "        WHERE song_source = :stype AND song_id = :tgt_sid"
-                        "   )"
-                    ),
-                    {"stype": src_type, "src_sid": src_sid, "tgt_sid": tgt_sid},
-                )
-                dup_release_song_links_dropped += cur.rowcount or 0
-                cur = conn.execute(
-                    text(
-                        "UPDATE release_songs SET song_id = :tgt_sid"
-                        " WHERE song_source = :stype AND song_id = :src_sid"
-                    ),
-                    {"tgt_sid": tgt_sid, "stype": src_type, "src_sid": src_sid},
-                )
-                dup_release_song_links_migrated += cur.rowcount or 0
+                {"src": src_sid, "tgt": tgt_sid},
+            )
+            dup_release_song_links_dropped += cur.rowcount or 0
+            cur = conn.execute(
+                text(
+                    "UPDATE release_songs SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
+                    " WHERE unified_song_id = :src"
+                ),
+                {"tgt": tgt_sid, "src": src_sid},
+            )
+            dup_release_song_links_migrated += cur.rowcount or 0
 
-                # song_artists: same dedupe-then-rewrite, on artist_id key.
-                cur = conn.execute(
-                    text(
-                        "DELETE FROM song_artists"
-                        " WHERE song_source = :stype AND song_id = :src_sid"
-                        "   AND artist_id IN ("
-                        "       SELECT artist_id FROM song_artists"
-                        "        WHERE song_source = :stype AND song_id = :tgt_sid"
-                        "   )"
-                    ),
-                    {"stype": src_type, "src_sid": src_sid, "tgt_sid": tgt_sid},
-                )
-                dup_song_artist_links_dropped += cur.rowcount or 0
-                cur = conn.execute(
-                    text(
-                        "UPDATE song_artists SET song_id = :tgt_sid"
-                        " WHERE song_source = :stype AND song_id = :src_sid"
-                    ),
-                    {"tgt_sid": tgt_sid, "stype": src_type, "src_sid": src_sid},
-                )
-                dup_song_artist_links_migrated += cur.rowcount or 0
+            # song_artists: dedupe on artist_id, then move.
+            cur = conn.execute(
+                text(
+                    "DELETE FROM song_artists WHERE unified_song_id = :src"
+                    "   AND artist_id IN (SELECT artist_id FROM song_artists WHERE unified_song_id = :tgt)"
+                ),
+                {"src": src_sid, "tgt": tgt_sid},
+            )
+            dup_song_artist_links_dropped += cur.rowcount or 0
+            cur = conn.execute(
+                text(
+                    "UPDATE song_artists SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
+                    " WHERE unified_song_id = :src"
+                ),
+                {"tgt": tgt_sid, "src": src_sid},
+            )
+            dup_song_artist_links_migrated += cur.rowcount or 0
 
-                # song_slugs: unique on slug; the src slug likely differs
-                # from tgt's, but the target's is the canonical one going
-                # forward. Drop any slug rows pointing at the src song row.
-                cur = conn.execute(
-                    text("DELETE FROM song_slugs WHERE song_source = :stype AND song_id = :src_sid"),
-                    {"stype": src_type, "src_sid": src_sid},
-                )
-                dup_song_slugs_dropped += cur.rowcount or 0
+            # song_slugs: target's are canonical; drop the source's.
+            cur = conn.execute(
+                text("DELETE FROM song_slugs WHERE unified_song_id = :src"), {"src": src_sid}
+            )
+            dup_song_slugs_dropped += cur.rowcount or 0
 
-                conn.execute(text(f"DELETE FROM {tbl} WHERE id = :src_sid"), {"src_sid": src_sid})
-                dup_song_rows_merged += 1
+            # user_calibrations: dedupe on user_id, then move (UNIQUE user+song).
+            conn.execute(
+                text(
+                    "DELETE FROM user_calibrations WHERE unified_song_id = :src"
+                    "   AND user_id IN (SELECT user_id FROM user_calibrations WHERE unified_song_id = :tgt)"
+                ),
+                {"src": src_sid, "tgt": tgt_sid},
+            )
+            conn.execute(
+                text(
+                    "UPDATE user_calibrations SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
+                    " WHERE unified_song_id = :src"
+                ),
+                {"tgt": tgt_sid, "src": src_sid},
+            )
+
+            # No-per-song-unique references: repoint by unified id.
+            for t in ("calibration_runs", "song_recalibrations", "song_recalibration_proposals",
+                      "song_resets", "misread_submissions"):
+                conn.execute(
+                    text(f"UPDATE {t} SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
+                         f" WHERE unified_song_id = :src"),
+                    {"tgt": tgt_sid, "src": src_sid},
+                )
+            # Audience vibe (per-song unique): keep the target's, drop the source's.
+            for t in ("audience_vibe_needles", "audience_vibe_pushes", "audience_vibe_review_cases"):
+                conn.execute(text(f"DELETE FROM {t} WHERE unified_song_id = :src"), {"src": src_sid})
+            # Unified hard-FK refs + the id map.
+            conn.execute(text("UPDATE reading_songs SET song_id = :tgt WHERE song_id = :src"), {"tgt": tgt_sid, "src": src_sid})
+            conn.execute(text("UPDATE agent_draft_songs SET song_id = :tgt WHERE song_id = :src"), {"tgt": tgt_sid, "src": src_sid})
+            conn.execute(text("UPDATE lc_events SET song_id = :tgt WHERE song_id = :src"), {"tgt": tgt_sid, "src": src_sid})
+            conn.execute(text("UPDATE song_id_map SET new_song_id = :tgt WHERE new_song_id = :src"), {"tgt": tgt_sid, "src": src_sid})
+
+            # Drop the source song (cascades chart_appearances + song_ingestions).
+            conn.execute(text("DELETE FROM songs WHERE id = :src"), {"src": src_sid})
+            dup_song_rows_merged += 1
         rewrites["dup_song_rows_merged"] = dup_song_rows_merged
         rewrites["dup_release_song_links_migrated"] = dup_release_song_links_migrated
         rewrites["dup_release_song_links_dropped"] = dup_release_song_links_dropped
@@ -534,13 +518,21 @@ def merge_artist(
         rewrites["release_songs_moved"] = release_songs_moved
         rewrites["release_songs_dropped_as_dup"] = release_songs_dropped_as_dup
 
-        # 3. Normalise the denormalised `artist` string column on song tables.
-        for tbl in _SONG_TABLES:
-            cur = conn.execute(
-                text(f"UPDATE {tbl} SET artist = :tname WHERE lower(artist) = lower(:sname)"),
-                {"tname": target_name, "sname": source_name},
+        # 3. Normalise the denormalised `artist` string column on songs AND
+        #    recompute canonical_key (it derives from title + artist; a stale key
+        #    would hide the song from canonical_key lookups and let a future
+        #    calibration create a duplicate). Step 0 already removed the rows that
+        #    would collide on the new key, so the UNIQUE holds.
+        song_rows = conn.execute(
+            text("SELECT id, title FROM songs WHERE lower(artist) = lower(:sname)"),
+            {"sname": source_name},
+        ).fetchall()
+        for sid, title in song_rows:
+            conn.execute(
+                text("UPDATE songs SET artist = :tname, canonical_key = :key WHERE id = :id"),
+                {"tname": target_name, "key": compute_canonical_key(title or "", target_name), "id": sid},
             )
-            rewrites[f"{tbl}_artist_string_rewritten"] = cur.rowcount or 0
+        rewrites["songs_artist_string_rewritten"] = len(song_rows)
 
         # 4. Drop the source Artist row.
         conn.execute(text("DELETE FROM artists WHERE id = :source_id"), {"source_id": source_id})
@@ -641,12 +633,20 @@ def rename_artist(
             new_slug = derived_slug
 
         rewrites: dict = {}
-        for tbl in _SONG_TABLES:
-            cur = conn.execute(
-                text(f"UPDATE {tbl} SET artist = :new_name WHERE lower(artist) = lower(:old_name)"),
-                {"new_name": new_name, "old_name": old_name},
+        # Rewrite the denormalised artist string on songs AND recompute
+        # canonical_key (derives from title + artist). A canonical_key collision
+        # with an existing song raises IntegrityError -> 500 (same as the legacy
+        # per-table UNIQUE behavior); use merge-into to resolve real duplicates.
+        song_rows = conn.execute(
+            text("SELECT id, title FROM songs WHERE lower(artist) = lower(:old_name)"),
+            {"old_name": old_name},
+        ).fetchall()
+        for sid, title in song_rows:
+            conn.execute(
+                text("UPDATE songs SET artist = :new_name, canonical_key = :key WHERE id = :id"),
+                {"new_name": new_name, "key": compute_canonical_key(title or "", new_name), "id": sid},
             )
-            rewrites[f"{tbl}_artist_string_rewritten"] = cur.rowcount or 0
+        rewrites["songs_artist_string_rewritten"] = len(song_rows)
 
         if new_slug:
             conn.execute(
