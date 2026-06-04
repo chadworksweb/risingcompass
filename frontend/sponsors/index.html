@@ -72,32 +72,34 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>The Collective Library — The Rising Compass</title>
-  <meta name="description" content="Search the Rising Compass corpus — every calibrated song across chart data, the archive, crowd submissions, and the stream. One lens on popular music's lyrical substance.">
-  <meta property="og:title" content="The Collective Library — The Rising Compass">
-  <meta property="og:description" content="Search every calibrated song in the Rising Compass corpus.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/library/">
+  <title>Sponsors — The Rising Compass</title>
+  <meta name="description" content="The people and organizations supporting The Rising Compass. Founding sponsors and current sponsorship.">
+  <link rel="canonical" href="https://risingcompass.net/sponsors/">
+
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/sponsors/">
+  <meta property="og:title" content="Sponsors — The Rising Compass">
+  <meta property="og:description" content="The people and organizations supporting The Rising Compass.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sponsors — The Rising Compass">
+  <meta name="twitter:description" content="The people and organizations supporting The Rising Compass.">
+  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/library/library.css">
+  <link rel="stylesheet" href="sponsors.css">
 </head>
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
-
-  <!-- Desktop-only block (CSS-controlled by viewport + pointer media queries) -->
-  <div id="lib-mobile-block" class="lib-mobile-block">
-    <div class="lib-mobile-inner">
-      <h1 class="lib-mobile-title">Desktop only</h1>
-      <p class="lib-mobile-text">The Collective Library is a dense data grid &mdash; designed for desktop. Open this page on a laptop or desktop browser to use it.</p>
-      <p class="lib-mobile-back"><a href="/">Back to The Rising Compass</a></p>
-    </div>
-  </div>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -171,85 +173,80 @@
   <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
-  <h1 class="artists-title" style="padding:1rem 1.5rem 0;margin:0;">Library</h1>
 
-  <main id="main">
-    <section class="lib-intro">
-      <p class="lib-intro-text">
-        Every song the compass has read. Chart data, deep-dive archive, crowd submissions, and the stream —
-        searchable as one corpus. Each entry shows the tier, charge, and reasoning.
-      </p>
+  <main id="main" class="sp-main">
+
+    <!-- HERO -->
+    <section class="sp-hero">
+      <h1 class="sp-title">Sponsors</h1>
     </section>
 
-    <section class="lib-controls">
-      <div class="lib-search-row">
-        <input type="search" id="lib-q" class="lib-q" placeholder="Search by song title or artist…" autocomplete="off">
+    <!-- FOUNDING SPONSORS -->
+    <section class="sp-section" id="founding-sponsors">
+      <div class="sp-section-header">
+        <p class="sp-section-eyebrow">From the beginning</p>
+        <h2 class="sp-section-title">Founding Sponsors</h2>
       </div>
-      <div class="lib-filters">
-        <label class="lib-filter">
-          <span class="lib-filter-label">Tier</span>
-          <select id="lib-tier">
-            <option value="">Any</option>
-            <option value="violet">Ascended</option>
-            <option value="blue">Elevated</option>
-            <option value="green">Decent</option>
-            <option value="orange">Degraded</option>
-            <option value="red">Corrupted</option>
-          </select>
-        </label>
-        <label class="lib-filter">
-          <span class="lib-filter-label">Source</span>
-          <select id="lib-source">
-            <option value="">All sources</option>
-            <option value="compass">Chart (compass)</option>
-            <option value="library">Archive (library)</option>
-            <option value="submitted">Crowd (Lyrical Charger)</option>
-            <option value="stream">Stream</option>
-          </select>
-        </label>
-        <label class="lib-filter">
-          <span class="lib-filter-label">Charge min</span>
-          <input type="number" id="lib-charge-min" min="-100" max="100" placeholder="-100">
-        </label>
-        <label class="lib-filter">
-          <span class="lib-filter-label">Charge max</span>
-          <input type="number" id="lib-charge-max" min="-100" max="100" placeholder="+100">
-        </label>
-        <label class="lib-filter">
-          <span class="lib-filter-label">Contaminated</span>
-          <select id="lib-contam">
-            <option value="">Any</option>
-            <option value="true">Contaminated only</option>
-            <option value="false">Clean only</option>
-          </select>
-        </label>
-        <label class="lib-filter">
-          <span class="lib-filter-label">Sort</span>
-          <select id="lib-sort">
-            <option value="created_at|desc">Newest first</option>
-            <option value="created_at|asc">Oldest first</option>
-            <option value="charge_value|desc">Highest charge</option>
-            <option value="charge_value|asc">Lowest charge</option>
-            <option value="title|asc">Title A→Z</option>
-            <option value="artist|asc">Artist A→Z</option>
-          </select>
-        </label>
-      </div>
+
+      <ul class="sp-sponsor-list">
+        <li class="sp-sponsor">
+          <a class="sp-sponsor-name" href="https://www.youtube.com/Heroek" target="_blank" rel="noopener">Heroek</a>
+        </li>
+      </ul>
     </section>
 
-    <section class="lib-results-meta" id="lib-results-meta"></section>
-    <section class="lib-results-wrap">
-      <table class="lib-table" id="lib-table"><thead></thead><tbody></tbody></table>
-    </section>
-    <div id="lib-empty" class="lib-empty" hidden></div>
+    <!-- CURRENT SPONSORSHIP -- inlined support band (NOT an INCLUDE so the
+         donate source can be segmented to "sponsors_support"; keep in sync
+         with partials/support-callout.html by hand if that partial changes). -->
+    <section class="sp-section" id="current-sponsorship">
+      <section class="card support-callout" id="support-panel" data-donate-source="sponsors_support" aria-labelledby="support-headline">
+        <div class="support-callout-inner">
+          <div class="support-callout-text">
+            <h2 class="support-callout-headline" id="support-headline">Join The Special List Above</h2>
+            <p class="support-callout-desc">
+              Every calibration of a song here costs real money. Each charge calls a paid API engine, plus
+              the hosting and other services that hold it all together. This is grassroots, managed and
+              perpetually developed by one person. No venture capital, no investors, no labels, no ads.
+            </p>
+            <p class="support-callout-em">If The Rising Compass has shifted how you hear music, throw a few bucks toward keeping it alive and free.</p>
+          </div>
 
-    <footer class="lib-footer">
-      <p>Powered by <a href="/">The Rising Compass</a>. Every calibration is public — <a href="/#methodology">read the methodology</a>.</p>
-    </footer>
+          <div class="support-callout-widget">
+            <div id="rc-donate-widget" class="rc-donate-widget">
+              <div class="rc-donate-amounts" role="group" aria-label="Donation amount">
+                <button type="button" class="rc-donate-preset rc-donate-preset--active" data-amount="5">$5</button>
+                <button type="button" class="rc-donate-preset" data-amount="10">$10</button>
+                <button type="button" class="rc-donate-preset" data-amount="25">$25</button>
+                <button type="button" class="rc-donate-preset" data-amount="50">$50</button>
+                <div class="rc-donate-custom">
+                  <span class="rc-donate-dollar">$</span>
+                  <input id="rc-donate-custom-input" class="rc-donate-input" type="number" min="1" step="1" placeholder="Other" inputmode="numeric" aria-label="Custom donation amount">
+                </div>
+                <button type="button" id="rc-donate-submit" class="rc-btn-donate" disabled>Donate $5</button>
+              </div>
+
+              <label class="rc-donate-consent">
+                <input type="checkbox" id="rc-donate-consent">
+                <span>
+                  I agree to the <button type="button" id="rc-donate-terms-trigger" class="rc-donate-terms-trigger">donation terms</button>.
+                </span>
+              </label>
+              <p id="rc-donate-terms" class="rc-donate-terms hidden">
+                Donations are voluntary and non-refundable. They do not entitle the donor to any goods,
+                services, rights, or benefits, and create no obligation on the part of The Rising Compass to
+                provide anything in return.
+              </p>
+
+              <p id="rc-donate-status" class="rc-donate-status" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <script defer src="/js/support.js"></script>
+    </section>
+
   </main>
 
-  <script src="/artists/artists-api.js"></script>
-  <script src="/library/library.js"></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/fair-use.html">Fair Use</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sponsors/">Sponsors</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a> &nbsp;|&nbsp; <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a></p>

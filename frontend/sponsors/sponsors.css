@@ -1,0 +1,111 @@
+/* ============================================================
+   Sponsors page -- supplements main.css
+   Tokens from /css/main.css; structure mirrors the methodology page.
+   ============================================================ */
+
+.sp-main {
+  max-width: var(--rc-max-width);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  color: var(--rc-text);
+}
+
+/* --- Hero ------------------------------------------------- */
+
+.sp-hero {
+  padding: 1.5rem 0 1.5rem;
+}
+
+.sp-title {
+  font-size: clamp(1.6rem, 4.2vw, 2.4rem);
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+
+/* --- Section frame --------------------------------------- */
+
+.sp-section {
+  padding: 2.5rem 0 1rem;
+  border-top: 1px solid var(--rc-border);
+  scroll-margin-top: 1rem;
+}
+
+.sp-section:first-of-type {
+  border-top: none;
+  padding-top: 1rem;
+}
+
+.sp-section-header {
+  margin: 0 0 1.5rem;
+}
+
+.sp-section-eyebrow {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+  margin: 0 0 0.2rem;
+}
+
+.sp-section-title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+
+/* --- Sponsor list ---------------------------------------- */
+
+.sp-sponsor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.sp-sponsor {
+  padding: 1.2rem 1.3rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  transition: border-color var(--rc-ease);
+}
+
+.sp-sponsor:hover {
+  border-color: var(--rc-accent);
+}
+
+.sp-sponsor-name {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+.sp-sponsor-name:hover {
+  color: var(--rc-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* --- Responsive ------------------------------------------ */
+
+@media (max-width: 600px) {
+  .sp-main {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .sp-section-title {
+    font-size: 1.25rem;
+  }
+}

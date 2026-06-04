@@ -1,0 +1,55 @@
+<!-- Support callout - global, portable donation band.
+     Drop into any page by adding an empty INCLUDE block named support-callout
+     (open + close marker comments with nothing between), then run
+     scripts/build_partials.py (deploy.sh runs it automatically). Do NOT write
+     the literal marker syntax inside this partial - the build regex would
+     match it and truncate the include.
+     Requires /css/main.css (.support-callout / .rc-donate-* live there).
+     Carries its own script, so no per-page wiring is needed. Donations from
+     this form are tracked under the data-donate-source value below
+     (Donation.source column + Stripe metadata) -- set a different value to
+     segment a different page's donations. -->
+<section class="card support-callout" id="support-panel" data-donate-source="homepage_support" aria-labelledby="support-headline">
+  <div class="support-callout-inner">
+    <div class="support-callout-text">
+      <h2 class="support-callout-headline" id="support-headline">Keep the compass turning.</h2>
+      <p class="support-callout-desc">
+        Every calibration of a song here costs real money. Each charge calls a paid API engine, plus
+        the hosting and other services that hold it all together. This is grassroots, managed and
+        perpetually developed by one person. No venture capital, no investors, no labels, no ads.
+      </p>
+      <p class="support-callout-em">If The Rising Compass has shifted how you hear music, throw a few bucks toward keeping it alive and free.</p>
+    </div>
+
+    <div class="support-callout-widget">
+      <div id="rc-donate-widget" class="rc-donate-widget">
+        <div class="rc-donate-amounts" role="group" aria-label="Donation amount">
+          <button type="button" class="rc-donate-preset rc-donate-preset--active" data-amount="5">$5</button>
+          <button type="button" class="rc-donate-preset" data-amount="10">$10</button>
+          <button type="button" class="rc-donate-preset" data-amount="25">$25</button>
+          <button type="button" class="rc-donate-preset" data-amount="50">$50</button>
+          <div class="rc-donate-custom">
+            <span class="rc-donate-dollar">$</span>
+            <input id="rc-donate-custom-input" class="rc-donate-input" type="number" min="1" step="1" placeholder="Other" inputmode="numeric" aria-label="Custom donation amount">
+          </div>
+          <button type="button" id="rc-donate-submit" class="rc-btn-donate" disabled>Donate $5</button>
+        </div>
+
+        <label class="rc-donate-consent">
+          <input type="checkbox" id="rc-donate-consent">
+          <span>
+            I agree to the <button type="button" id="rc-donate-terms-trigger" class="rc-donate-terms-trigger">donation terms</button>.
+          </span>
+        </label>
+        <p id="rc-donate-terms" class="rc-donate-terms hidden">
+          Donations are voluntary and non-refundable. They do not entitle the donor to any goods,
+          services, rights, or benefits, and create no obligation on the part of The Rising Compass to
+          provide anything in return.
+        </p>
+
+        <p id="rc-donate-status" class="rc-donate-status" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+</section>
+<script defer src="/js/support.js"></script>
