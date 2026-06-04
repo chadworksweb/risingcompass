@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
 from sqlalchemy.orm import joinedload
-from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong, PrePublishCorrection
+from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, CompassSong, PrePublishCorrection, Song
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
@@ -495,24 +495,13 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
         for song in draft.songs:
             rs = ReadingSong(
                 reading_id=reading.id,
-                compass_song_id=song.compass_song_id,
+                song_id=song.song_id,  # unified entity (Phase 5b native)
                 title=song.title,
                 artist=song.artist,
                 position=song.position,
                 chart_source=song.chart_source,
             )
             db.add(rs)
-
-        # Dual-write coherence (Phase 3): resolve each reading song to its unified
-        # entity so the live-year + /current read paths (ReadingSong.song_id) work
-        # for new readings. The compass rows were mirrored at calibration time.
-        db.flush()
-        from sqlalchemy import text as _sql_text
-        db.execute(_sql_text(
-            "UPDATE reading_songs SET song_id = m.new_song_id FROM song_id_map m "
-            "WHERE reading_songs.reading_id = :rid AND m.old_source = 'compass' "
-            "AND reading_songs.compass_song_id = m.old_id"
-        ), {"rid": reading.id})
 
     draft.status = "approved"
     db.commit()
@@ -698,7 +687,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
         ds.charge_summary = result["charge_summary"]
         ds.confidence = result.get("confidence")
         ds.lyrics_available = True
-        ds.compass_song_id = cs_id
+        ds.song_id = cs_id  # unified songs.id (Phase 5b native store)
 
         all_calibrated = all(s.rubric_color is not None for s in draft.songs)
         if all_calibrated:
@@ -824,10 +813,10 @@ def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionI
     draft_song.contaminated = tmp["contaminated"]
     draft_song.contamination_note = tmp["contamination_note"]
 
-    # Mirror to compass_songs if this draft song is linked to one.
-    compass_song_id = draft_song.compass_song_id
-    if compass_song_id:
-        cs = db.query(CompassSong).filter(CompassSong.id == compass_song_id).first()
+    # Mirror to the unified songs row if this draft song is linked to one.
+    unified_song_id = draft_song.song_id
+    if unified_song_id:
+        cs = db.query(Song).filter(Song.id == unified_song_id).first()
         if cs:
             if data.rubric_color is not None:
                 cs.rubric_color = data.rubric_color
@@ -854,7 +843,7 @@ def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionI
     correction = PrePublishCorrection(
         draft_id=draft.id,
         draft_song_id=draft_song.id,
-        compass_song_id=compass_song_id,
+        compass_song_id=unified_song_id,  # audit pointer -> unified songs.id (Phase 5b)
         before_rubric_color=before["rubric_color"],
         before_charge_value=before["charge_value"],
         before_contaminated=before["contaminated"],

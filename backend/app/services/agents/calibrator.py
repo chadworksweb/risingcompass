@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import CompassSong
+from app.models import CompassSong, Song
 from app.services.claude_meter import tracked_create_async
 from app.services.contamination import enforce_contamination_rule
 from app.services.agents.compass_agent_rubric import (
@@ -31,34 +31,25 @@ VALID_COLORS = {"violet", "blue", "green", "orange", "red"}
 _CONTAM_LINE_RE = re.compile(r"(?im)^\s*Contamination:\s*\S")
 
 
+# Calibration methods authoritative enough to serve as a cache hit -- a crowd
+# (lyrical_charger / stream) calibration never pre-empts a fresh authoritative
+# read. Mirrors the legacy compass-only cache scope on the unified model.
+_AUTHORITATIVE_METHODS = {"chart_reading", "editorial", "terminal"}
+
+
 def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
-    """Look up an existing calibration from the CompassSong table.
+    """Look up an existing AUTHORITATIVE calibration from the unified songs table.
 
-    Case-insensitive match on title + artist. Returns calibration dict or None.
-    A song is fully calibrated when it has rubric_color, charge_value, and charge_summary.
-    Incomplete records (missing any of the three) return None so the song gets recalibrated.
+    Match on canonical_key (the normalized title+primary-artist identity, which
+    already subsumes the old punctuation-insensitive fallback). Returns a
+    calibration dict or None. A song is a usable cache hit only when it is fully
+    calibrated (rubric_color, charge_value, charge_summary) AND its canonical
+    calibration was set by an authoritative method -- so the daily read / LC
+    don't reuse a crowd calibration, exactly as the legacy compass-only cache did.
     """
-    existing = (
-        db.query(CompassSong)
-        .filter(func.lower(CompassSong.title) == title.lower())
-        .filter(func.lower(CompassSong.artist) == artist.lower())
-        .order_by(CompassSong.id.desc())
-        .first()
-    )
-
-    # Fallback: match ignoring punctuation (apostrophes stripped by shell escaping)
-    if not existing:
-        stripped = re.sub(r"[^\w\s]", "", title.lower())
-        candidates = (
-            db.query(CompassSong)
-            .filter(func.lower(CompassSong.artist) == artist.lower())
-            .order_by(CompassSong.id.desc())
-            .all()
-        )
-        for c in candidates:
-            if re.sub(r"[^\w\s]", "", c.title.lower()) == stripped:
-                existing = c
-                break
+    from app.services.song_identity import compute_canonical_key
+    key = compute_canonical_key(title, artist)
+    existing = db.query(Song).filter(Song.canonical_key == key).first()
 
     if not existing:
         return None
@@ -71,6 +62,10 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
                            ("charge_summary", existing.charge_summary),
                        ] if not v and v != 0))
         return None
+    if (existing.canonical_calibration_method or "") not in _AUTHORITATIVE_METHODS:
+        # Calibrated, but only by a crowd method -- not a cache hit; the caller
+        # runs a fresh (authoritative) calibration just as it did pre-unification.
+        return None
     logger.info("Using cached calibration for '%s' by %s: %s %s",
                 title, artist, existing.rubric_color, existing.charge_value)
 
@@ -80,7 +75,7 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
     # are still NULL on older rows. topics / topic_audit are stored as JSON
     # strings; parse them back to the list / dict shape tag_song emits.
     return {
-        "compass_song_id": existing.id,
+        "song_id": existing.id,
         "rubric_color": existing.rubric_color,
         "charge_value": existing.charge_value,
         "contaminated": existing.contaminated or False,

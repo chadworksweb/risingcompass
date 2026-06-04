@@ -64,7 +64,7 @@ def _write_draft_and_songs(
         for s in calibrated_songs:
             db.add(AgentDraftSong(
                 draft_id=draft.id,
-                compass_song_id=s.get("compass_song_id"),
+                song_id=s.get("song_id"),
                 title=s["title"],
                 artist=s["artist"],
                 position=s["position"],
@@ -136,151 +136,45 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             logger.warning("Stripped verbatim lyric quotes from %s for '%s' by %s",
                            ", ".join(altered), title, artist)
 
-    existing = (
-        db.query(CompassSong)
-        .filter(func.lower(CompassSong.title) == title.lower())
-        .filter(func.lower(CompassSong.artist) == artist.lower())
-        .first()
-    )
-
-    # Fallback: match ignoring punctuation (apostrophes stripped by shell escaping)
-    if not existing:
-        stripped = re.sub(r"[^\w\s]", "", title.lower())
-        candidates = (
-            db.query(CompassSong)
-            .filter(func.lower(CompassSong.artist) == artist.lower())
-            .all()
-        )
-        for c in candidates:
-            if re.sub(r"[^\w\s]", "", c.title.lower()) == stripped:
-                existing = c
-                break
-
-    # Terminal-mode callers may include effects_prose / societal_effects_prose
-    # in the result dict (Claude Code wrote them). Pre-writing them here gates
-    # the Anthropic prose-gen hook in record_and_reconcile, which only fires
-    # when those columns are missing. See feedback_rc_no_api_in_terminal.
-    supplied_effects_prose = result.get("effects_prose")
-    supplied_societal_prose = result.get("societal_effects_prose")
-    # Sealed societal-prose provenance travels in the calibration dict from the
-    # calibrator path (real generated_at + model); terminal supply leaves them
-    # absent (None). Kept in lockstep with supplied_societal_prose below.
-    supplied_societal_generated_at = result.get("societal_prose_generated_at")
-    supplied_societal_model = result.get("societal_prose_model")
     # Write-time FLOOR for terminal-supplied prose. Claude Code wrote this prose
     # (no server Anthropic call), so there is no generation seal to carry. Stamp
-    # the moment it lands in the DB -- generated_at then means "existed by this
-    # time" (a floor, not a sealed generation) and model 'terminal_supplied'
-    # marks it as such, paralleling migration 075's 'legacy_unknown' proxy. This
-    # keeps the frozen provenance hash recipe unchanged and makes the row
-    # anchorable + visible to the backlog counter; without it the prose writes
-    # with NULL generated_at and is silently un-anchorable. See
-    # RISING-COMPASS-PROSE-PROVENANCE.md and feedback_rc_no_api_in_terminal.
-    if supplied_societal_prose is not None and supplied_societal_generated_at is None:
-        supplied_societal_generated_at = datetime.utcnow()
-        supplied_societal_model = supplied_societal_model or "terminal_supplied"
+    # the moment it lands -- generated_at then means "existed by this time" (a
+    # floor, not a sealed generation) and model 'terminal_supplied' marks it as
+    # such, paralleling migration 075's 'legacy_unknown' proxy. Mutated onto
+    # `result` so the native store + the caller's draft-song mirror agree, and
+    # so the frozen provenance hash recipe stays unchanged + the row stays
+    # anchorable. See RISING-COMPASS-PROSE-PROVENANCE.md and
+    # feedback_rc_no_api_in_terminal.
+    if (result.get("societal_effects_prose") is not None
+            and result.get("societal_prose_generated_at") is None):
+        result["societal_prose_generated_at"] = datetime.utcnow()
+        result["societal_prose_model"] = result.get("societal_prose_model") or "terminal_supplied"
 
-    # Terminal-mode callers may also supply the Ether Art Chart fields
-    # (deadpan_line + topics + topic_audit) that the ether_tagger would
-    # otherwise produce via Anthropic. Writing them here lets the supply-lyrics
-    # path skip the tagger. topics/topic_audit are stored as JSON strings to
-    # match the columns the tagger writes. See feedback_rc_no_api_in_terminal.
-    supplied_deadpan = result.get("deadpan_line")
-    supplied_topics = result.get("topics")
-    supplied_topic_audit = result.get("topic_audit")
-    supplied_topics_json = (
-        json.dumps(supplied_topics) if supplied_topics is not None else None
+    # Native unified storage (Phase 5b): upsert the atomic songs row by
+    # canonical_key + a chart_appearance for this (chart, year, position) + a
+    # chart_reading ingestion + artist credits. Authoritative-first overwrite is
+    # enforced in the chokepoint; only_set_present means a daily re-read never
+    # nulls prose/analysis fields the calibration object doesn't carry.
+    from app.services.song_sync import store_calibrated_song
+    from app.services.artist_linker import parse_artist_string
+    current_year = date.today().year
+    song_id, created = store_calibrated_song(
+        db,
+        source="compass",
+        title=title, artist=artist,
+        calibration=result,
+        chart_source=chart_source,
+        year=current_year,
+        chart_position=chart_position,
+        artist_entries=parse_artist_string(artist or ""),
     )
-    supplied_topic_audit_json = (
-        json.dumps(supplied_topic_audit) if supplied_topic_audit else None
-    )
+    if song_id is None:
+        return None
+    db.commit()
 
-    if existing:
-        existing.rubric_color = result["rubric_color"]
-        existing.charge_value = result.get("charge_value")
-        existing.contaminated = result["contaminated"]
-        existing.contamination_note = result["contamination_note"]
-        existing.dogma_referenced = bool(result.get("dogma_referenced", False))
-        existing.dogma_note = result.get("dogma_note")
-        existing.charge_summary = result["charge_summary"]
-        existing.chart_source = chart_source
-        if supplied_effects_prose is not None:
-            existing.effects_prose = supplied_effects_prose
-        if supplied_societal_prose is not None:
-            existing.societal_effects_prose = supplied_societal_prose
-            existing.societal_prose_generated_at = supplied_societal_generated_at
-            existing.societal_prose_model = supplied_societal_model
-        if supplied_deadpan is not None:
-            existing.deadpan_line = supplied_deadpan
-        if supplied_topics is not None:
-            existing.topics = supplied_topics_json
-        if supplied_topic_audit is not None:
-            existing.topic_audit = supplied_topic_audit_json
-        db.flush()
-        # Commit the compass_song update before the linker. If the linker's
-        # multi-statement work fails, the calibration data is already
-        # persisted and the caller's session can be reset without losing
-        # work. db.rollback() in the except clears the invalid transaction so
-        # the caller can continue.
-        db.commit()
-        try:
-            from app.services.artist_linker import link_song_artists, parse_artist_string
-            link_song_artists(
-                db,
-                song_source="compass",
-                song_id=existing.id,
-                entries=parse_artist_string(existing.artist or ""),
-            )
-            db.commit()
-        except Exception:
-            logger.exception("artist link failed for existing compass song %d", existing.id)
-            try:
-                db.rollback()
-            except Exception:
-                pass
-        # Dual-write mirror into the unified songs model (Phase 3 transition).
-        from app.services.song_sync import safe_sync
-        safe_sync(db, "compass", existing.id)
-        return existing.id
-    else:
-        current_year = date.today().year
-        decade = f"{(current_year // 10) * 10}s"
-        song = CompassSong(
-            title=title,
-            artist=artist,
-            year=current_year,
-            decade=decade,
-            chart_position=chart_position,
-            rubric_color=result["rubric_color"],
-            charge_value=result.get("charge_value"),
-            contaminated=result["contaminated"],
-            contamination_note=result["contamination_note"],
-            dogma_referenced=bool(result.get("dogma_referenced", False)),
-            dogma_note=result.get("dogma_note"),
-            charge_summary=result["charge_summary"],
-            chart_source=chart_source,
-            effects_prose=supplied_effects_prose,
-            societal_effects_prose=supplied_societal_prose,
-            societal_prose_generated_at=supplied_societal_generated_at,
-            societal_prose_model=supplied_societal_model,
-            deadpan_line=supplied_deadpan,
-            topics=supplied_topics_json,
-            topic_audit=supplied_topic_audit_json,
-        )
-        db.add(song)
-        db.flush()
-        # Commit the compass_song insert before the risky post-work. If
-        # record_and_reconcile or link_song_artists fail, the calibration row
-        # is already persisted and the caller's session is reset via
-        # db.rollback() in the except so it can keep working (mutating
-        # draft_song, etc.) afterwards.
-        db.commit()
-        song_id = song.id
-
-        # First-ever appearance on the compass — log a calibration run so the
-        # corpus grows on chart debuts. Subsequent days where the song stays
-        # on the chart do NOT re-log: the corpus is agent practice on new
-        # data, not redundant re-entries for the same song.
+    # First-ever appearance of this song -> log a calibration run so the corpus
+    # grows on chart debuts. Re-reads of an already-known song do NOT re-log.
+    if created:
         try:
             from app.services.calibration_corpus import record_and_reconcile
             record_and_reconcile(
@@ -297,40 +191,19 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                     "confidence": result.get("confidence"),
                 },
                 triggered_by="compass_daily",
-                direct_song_source="compass",
+                direct_song_source="songs",
                 direct_song_id=song_id,
                 is_new_row=True,
             )
             db.commit()
         except Exception:
-            logger.exception("Daily corpus log failed for compass song %d", song_id)
+            logger.exception("Daily corpus log failed for song %d", song_id)
             try:
                 db.rollback()
             except Exception:
                 pass
 
-        # Best-effort artist linking: upsert Artist rows + song_artists credits
-        # using the same parser the LC submit and admin library paths use.
-        try:
-            from app.services.artist_linker import link_song_artists, parse_artist_string
-            link_song_artists(
-                db,
-                song_source="compass",
-                song_id=song_id,
-                entries=parse_artist_string(song.artist or ""),
-            )
-            db.commit()
-        except Exception:
-            logger.exception("artist link failed for new compass song %d", song_id)
-            try:
-                db.rollback()
-            except Exception:
-                pass
-
-        # Dual-write mirror into the unified songs model (Phase 3 transition).
-        from app.services.song_sync import safe_sync
-        safe_sync(db, "compass", song_id)
-        return song_id
+    return song_id
 
 
 def _dispatch_ether_audit(cs_id: int | None, title: str | None,
@@ -432,7 +305,7 @@ def run_compass_agent(
                 "artist": artist,
                 "position": position,
                 "chart_source": chart_source,
-                "compass_song_id": None,
+                "song_id": None,
                 "lyrics_available": False,
                 "rubric_color": None,
                 "charge_value": None,
@@ -471,7 +344,7 @@ def run_compass_agent(
             "artist": artist,
             "position": position,
             "chart_source": chart_source,
-            "compass_song_id": cs_id,
+            "song_id": cs_id,
             "lyrics_available": True,
             **result,
         })
@@ -517,7 +390,7 @@ def run_compass_agent(
     if not draft_only:
         for s in calibrated_songs:
             _dispatch_ether_audit(
-                s.get("compass_song_id"), s.get("title"),
+                s.get("song_id"), s.get("title"),
                 s.get("artist"), s.get("topic_audit"),
             )
 
