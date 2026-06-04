@@ -22,13 +22,14 @@ import json
 import logging
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models import (
     CalibrationRun, CompassSong, LibrarySong, SubmittedSong, StreamSong,
-    SongRecalibration, Artist, SongArtist,
+    SongRecalibration, Artist, SongArtist, Song,
 )
+from app.services.song_identity import compute_canonical_key
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,76 @@ _SONG_TABLES = [
     ("submitted", SubmittedSong),
     ("stream", StreamSong),
 ]
+
+# Unified song-entity renovation (Phase 5b): the corpus operates on the atomic
+# `songs` row. Calibration runs / recalibrations key off the unified song id
+# (CalibrationRun.unified_song_id), so consensus aggregates EVERY run for the
+# song -- across the former cross-table / cross-year duplicate rows that merged
+# into it. Public signatures (find_canonical_song, compute_consensus) are kept
+# stable: legacy (source, id) inputs resolve to the unified song via song_id_map
+# (source='songs' means the id is already the unified id).
+
+
+def resolve_unified_song(
+    db: Session, *,
+    source: str | None = None, song_id: int | None = None,
+    title: str | None = None, artist: str | None = None,
+) -> Song | None:
+    """Resolve to the unified Song. Priority: explicit (source, id) -- 'songs'
+    is the unified id directly, a legacy (source, id) maps via song_id_map --
+    then (title, artist) by canonical_key, then the song_artists credit-path
+    fallback (mirrors find_canonical_song's second pass)."""
+    if song_id and source == "songs":
+        return db.query(Song).get(song_id)
+    if song_id and source:
+        new_id = db.execute(
+            text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+            {"s": source, "i": song_id},
+        ).scalar()
+        if new_id:
+            return db.query(Song).get(new_id)
+    if title and artist:
+        key = compute_canonical_key(title, artist)
+        song = db.query(Song).filter(Song.canonical_key == key).first()
+        if song:
+            return song
+        return _find_song_via_credits(db, title, artist)
+    return None
+
+
+def _find_song_via_credits(db: Session, title: str, artist: str) -> Song | None:
+    """Credit-path fallback: split the credit string, look the artists up, and
+    find a unified song with the same title carrying ANY of them via
+    song_artists.unified_song_id. Catches reordered/abbreviated credits."""
+    from app.services.artist_linker import parse_artist_string
+    t_lower = title.strip().lower()
+    artist_ids: list[int] = []
+    for e in parse_artist_string(artist):
+        name = (e.get("name") or "").strip()
+        if not name:
+            continue
+        a_row = db.query(Artist).filter(func.lower(Artist.name) == name.lower()).first()
+        if a_row:
+            artist_ids.append(a_row.id)
+    if not artist_ids:
+        return None
+    candidate_ids = {
+        sid for (sid,) in (
+            db.query(SongArtist.unified_song_id)
+            .filter(SongArtist.artist_id.in_(artist_ids))
+            .filter(SongArtist.unified_song_id.isnot(None))
+            .distinct()
+            .all()
+        )
+    }
+    if not candidate_ids:
+        return None
+    return (
+        db.query(Song)
+        .filter(Song.id.in_(candidate_ids))
+        .filter(func.lower(Song.title) == t_lower)
+        .first()
+    )
 
 
 def hash_lyrics(lyrics: str | None) -> str | None:
@@ -147,73 +218,19 @@ def get_or_create_song(
 
 
 def find_canonical_song(title: str, artist: str, db: Session) -> tuple[str, object] | None:
-    """Find the canonical song row for (title, credit_string).
+    """Find the canonical unified song for (title, credit_string).
 
-    Two-pass match. Priority: compass > library > submitted > stream.
-      1. Exact case-insensitive match on the full artist credit string.
-      2. Fallback: split the submitted credit into individual artists, look
-         them up in the artists table, and find a song with the same title
-         that has ANY of those artists credited via song_artists. This
-         catches "Runway by Doechii" matching a prior "Runway by Lady Gaga
-         & Doechii" entry — same song, different credit ordering.
-    """
+    Returns ("songs", Song) or None. Unified renovation: a single atomic
+    `songs` row by canonical_key, with the song_artists credit-path fallback
+    that catches reordered/abbreviated credits ("Runway by Doechii" matching a
+    prior "Runway by Lady Gaga & Doechii"). The ("songs", id) shape keeps the
+    legacy (source, id) call contract -- downstream polymorphic writes now use
+    song_source='songs' + the unified id."""
     if not title or not artist:
         return None
-    t_lower = title.strip().lower()
-    a_lower = artist.strip().lower()
-
-    for source, Model in _SONG_TABLES:
-        if not hasattr(Model, "title") or not hasattr(Model, "artist"):
-            continue
-        row = (
-            db.query(Model)
-            .filter(func.lower(Model.title) == t_lower)
-            .filter(func.lower(Model.artist) == a_lower)
-            .first()
-        )
-        if row:
-            return source, row
-
-    # Fallback via song_artists — catches cross-credit matches.
-    from app.services.artist_linker import parse_artist_string
-    entries = parse_artist_string(artist)
-    artist_ids: list[int] = []
-    for e in entries:
-        name = (e.get("name") or "").strip()
-        if not name:
-            continue
-        a_row = (
-            db.query(Artist)
-            .filter(func.lower(Artist.name) == name.lower())
-            .first()
-        )
-        if a_row:
-            artist_ids.append(a_row.id)
-    if not artist_ids:
-        return None
-
-    for source, Model in _SONG_TABLES:
-        if not hasattr(Model, "title"):
-            continue
-        candidate_ids = {
-            sid for (sid,) in (
-                db.query(SongArtist.song_id)
-                .filter(SongArtist.song_source == source)
-                .filter(SongArtist.artist_id.in_(artist_ids))
-                .distinct()
-                .all()
-            )
-        }
-        if not candidate_ids:
-            continue
-        row = (
-            db.query(Model)
-            .filter(Model.id.in_(candidate_ids))
-            .filter(func.lower(Model.title) == t_lower)
-            .first()
-        )
-        if row:
-            return source, row
+    song = resolve_unified_song(db, title=title, artist=artist)
+    if song:
+        return "songs", song
     return None
 
 
@@ -224,12 +241,17 @@ _find_canonical_song = find_canonical_song
 def _seed_initial_run_if_missing(source: str, song, db: Session):
     """Lazy backfill: if a song has no calibration_runs history yet but is
     already calibrated, log its current state as the initial run so consensus
-    starts with proper context.
-    """
+    starts with proper context. Keyed by the unified song id -- `song` may be a
+    unified Song (source='songs') or a legacy row (resolved via song_id_map)."""
+    unified = song if source == "songs" else resolve_unified_song(
+        db, source=source, song_id=getattr(song, "id", None),
+        title=getattr(song, "title", None), artist=getattr(song, "artist", None),
+    )
+    if unified is None:
+        return
     existing_count = (
         db.query(func.count(CalibrationRun.id))
-        .filter(CalibrationRun.song_source == source)
-        .filter(CalibrationRun.song_id == song.id)
+        .filter(CalibrationRun.unified_song_id == unified.id)
         .scalar()
     )
     if existing_count > 0:
@@ -238,8 +260,9 @@ def _seed_initial_run_if_missing(source: str, song, db: Session):
         # Song is uncalibrated (or was reset) — nothing to seed
         return
     seed = CalibrationRun(
-        song_source=source,
-        song_id=song.id,
+        song_source="songs",
+        song_id=unified.id,
+        unified_song_id=unified.id,
         title=getattr(song, "title", None),
         artist=getattr(song, "artist", None),
         rubric_color=getattr(song, "rubric_color", None) or None,
@@ -267,16 +290,18 @@ def log_run(
     triggered_by: str,
     song_source: str | None = None,
     song_id: int | None = None,
+    unified_song_id: int | None = None,
     lyrics_hash: str | None = None,
     lyrics_fingerprint: bytes | None = None,
     agent_model: str | None = None,
 ) -> CalibrationRun:
     """Record one agent run. Always writes. The caller has already committed
-    the song row (or decided no song row is appropriate).
-    """
+    the song row (or decided no song row is appropriate). `unified_song_id`
+    keys the run to the atomic song for consensus aggregation."""
     run = CalibrationRun(
         song_source=song_source,
         song_id=song_id,
+        unified_song_id=unified_song_id,
         title=title,
         artist=artist,
         rubric_color=calibration.get("rubric_color"),
@@ -321,11 +346,18 @@ def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
     """Weighted-mean consensus across all runs for a song. Weighted by
     confidence (defaults to 0.5 when the run didn't report one). Returns
     None if there are no usable runs.
-    """
+
+    Unified renovation: aggregates by the atomic song. (source, song_id) is
+    resolved to the unified song id (source='songs' -> id is already unified;
+    a legacy pair maps via song_id_map), then every CalibrationRun for that
+    unified song counts -- including runs from former duplicate rows. Signature
+    kept stable for callers (e.g. the public song page)."""
+    unified = resolve_unified_song(db, source=source, song_id=song_id)
+    if unified is None:
+        return None
     runs = (
         db.query(CalibrationRun)
-        .filter(CalibrationRun.song_source == source)
-        .filter(CalibrationRun.song_id == song_id)
+        .filter(CalibrationRun.unified_song_id == unified.id)
         .filter(CalibrationRun.charge_value.isnot(None))
         .filter(CalibrationRun.superseded.is_(False))
         .all()
@@ -393,8 +425,9 @@ def apply_consensus_to_song(
     if tier_flip:
         recal = SongRecalibration(
             lens="standard",
-            song_source=source,
+            song_source="songs",
             song_id=song.id,
+            unified_song_id=song.id,
             pipeline="consensus_drift",
             trigger_ref_id=None,
             before_charge=before_charge,
@@ -445,25 +478,25 @@ def record_and_reconcile(
 
     Returns {"consensus": {...}, "run": {...}, "user_run": {...}}.
     """
-    canonical = None
+    # Resolve the atomic unified song. A direct (source, id) pointer wins
+    # (source='songs' is the unified id; a legacy pair maps via song_id_map);
+    # otherwise match by (title, artist) / credit path.
+    song = None
     if direct_song_source and direct_song_id:
-        for source, Model in _SONG_TABLES:
-            if source == direct_song_source:
-                row = db.query(Model).get(direct_song_id)
-                if row:
-                    canonical = (source, row)
-                break
-    if canonical is None:
-        canonical = find_canonical_song(title, artist, db)
+        song = resolve_unified_song(
+            db, source=direct_song_source, song_id=direct_song_id,
+            title=title, artist=artist,
+        )
+    if song is None:
+        song = resolve_unified_song(db, title=title, artist=artist)
 
-    source = canonical[0] if canonical else None
-    song = canonical[1] if canonical else None
+    source = "songs" if song is not None else None
 
     # Only seed when we're reconciling against a PRE-EXISTING row. A row that
     # was just created by this very submission has no prior history to seed
     # — the current calibration IS the user's run.
-    if canonical and not is_new_row:
-        _seed_initial_run_if_missing(source, song, db)
+    if song is not None and not is_new_row:
+        _seed_initial_run_if_missing("songs", song, db)
 
     run = log_run(
         db,
@@ -473,6 +506,7 @@ def record_and_reconcile(
         triggered_by=triggered_by,
         song_source=source,
         song_id=song.id if song else None,
+        unified_song_id=song.id if song else None,
         lyrics_hash=lyrics_hash,
         lyrics_fingerprint=lyrics_fingerprint,
         agent_model=agent_model,
