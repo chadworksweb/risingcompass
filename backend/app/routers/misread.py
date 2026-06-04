@@ -9,9 +9,9 @@ from typing import Optional
 
 from app.database import get_db
 from app.models import (
-    MisreadSubmission, MisreadBan,
-    CompassSong, LibrarySong, SubmittedSong,
+    MisreadSubmission, MisreadBan, Song,
 )
+from app.services.song_identity import compute_canonical_key
 from app.schemas import (
     MisreadSubmissionCreate, MisreadSubmissionOut,
     MisreadStatusUpdate, MisreadBanOut,
@@ -36,27 +36,15 @@ admin_router = APIRouter(tags=["misread-admin"])
 VALID_REPORT_TYPES = {"misread", "satirical"}
 
 
-def _resolve_polymorphic_song(db: Session, title: str, artist: str) -> tuple[Optional[str], Optional[int]]:
-    """Best-effort polymorphic lookup by case-insensitive (title, artist).
-
-    Order matches the existing precedence in badge.lookup: compass → library →
-    submitted. Returns (None, None) if no match — the string columns remain
-    the source of truth for what the user typed.
-    """
-    title_l = title.strip().lower()
-    artist_l = artist.strip().lower()
-    for source, Model in [
-        ("compass", CompassSong),
-        ("library", LibrarySong),
-        ("submitted", SubmittedSong),
-    ]:
-        q = db.query(Model).filter(func.lower(Model.title) == title_l)
-        if hasattr(Model, "artist"):
-            q = q.filter(func.lower(Model.artist) == artist_l)
-        row = q.first()
-        if row:
-            return source, row.id
-    return None, None
+def _resolve_polymorphic_song(db: Session, title: str, artist: str) -> Optional[int]:
+    """Best-effort unified lookup by canonical_key. Returns the unified songs.id
+    or None -- the string columns remain the source of truth for what the user
+    typed."""
+    if not title or not artist:
+        return None
+    key = compute_canonical_key(title, artist)
+    row = db.query(Song.id).filter(Song.canonical_key == key).first()
+    return row[0] if row else None
 
 
 def _send_receipt_email(submission: MisreadSubmission) -> bool:
@@ -271,7 +259,7 @@ def submit_misread(
     if _is_banned(db, data.device_id, ip):
         raise HTTPException(status_code=403, detail="You have been banned from submitting reports.")
 
-    song_source, song_id = _resolve_polymorphic_song(db, data.song_title, data.song_artist)
+    unified_song_id = _resolve_polymorphic_song(db, data.song_title, data.song_artist)
 
     # One report per user per song per report_type. Prevents a single user
     # repeatedly flagging the same song to inflate the count -- the public
@@ -306,8 +294,9 @@ def submit_misread(
         ip_address=ip,
         report_type=data.report_type,
         proof_context=proof,
-        song_source=song_source,
-        song_id=song_id,
+        song_source="songs" if unified_song_id else None,
+        song_id=unified_song_id,
+        unified_song_id=unified_song_id,
     )
     db.add(submission)
     db.commit()

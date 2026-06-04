@@ -24,45 +24,45 @@ from typing import Iterable, Optional
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Artist, CompassSong, LibrarySong, SubmittedSong, StreamSong, SongSlug,
+    Artist, Song, SongSlug,
     PrePublishCorrection, SongRecalibration,
 )
-from sqlalchemy import func
+from sqlalchemy import func, text
 from app.services.artist_utils import generate_song_slug, normalize_artist_name
 
 
-_SONG_MODELS = {
-    "compass": CompassSong,
-    "library": LibrarySong,
-    "submitted": SubmittedSong,
-    "stream": StreamSong,
-}
+def _to_unified_id(db: Session, song_source: Optional[str], song_id: Optional[int]) -> Optional[int]:
+    """Resolve an incoming (source, id) to the unified songs.id. source='songs'
+    is the id directly; a legacy pair maps via song_id_map."""
+    if not song_id:
+        return None
+    if song_source == "songs" or song_source is None:
+        return song_id if song_source == "songs" else None
+    return db.execute(
+        text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+        {"s": song_source, "i": song_id},
+    ).scalar()
 
 
 def _lookup_song_anchor(
     db: Session,
-    song_source: Optional[str],
-    song_id: Optional[int],
+    unified_id: Optional[int],
     slug_cache: dict,
 ) -> Optional[dict]:
-    """Resolve (source, id) → title/artist/slug. Returns None if the song is
-    gone (trashed, cascaded) — feed entry stays standalone but still renders."""
-    if not (song_source and song_id):
+    """Resolve a unified songs.id → title/artist/slug. Returns None if the song
+    is gone (trashed, cascaded) — feed entry stays standalone but still renders."""
+    if not unified_id:
         return None
-    model = _SONG_MODELS.get(song_source)
-    if not model:
-        return None
-    row = db.query(model).filter(model.id == song_id).first()
+    row = db.query(Song).filter(Song.id == unified_id).first()
     if not row:
         return None
 
-    cache_key = (song_source, song_id)
+    cache_key = ("songs", unified_id)
     slug = slug_cache.get(cache_key)
     if slug is None:
         slug_row = (
             db.query(SongSlug)
-            .filter(SongSlug.song_source == song_source)
-            .filter(SongSlug.song_id == song_id)
+            .filter(SongSlug.unified_song_id == unified_id)
             .first()
         )
         slug = slug_row.slug if slug_row else generate_song_slug(row.title, row.artist)
@@ -85,8 +85,8 @@ def _lookup_song_anchor(
             slug_cache[artist_cache_key] = artist_slug
 
     return {
-        "song_source": song_source,
-        "song_id": song_id,
+        "song_source": "songs",
+        "song_id": unified_id,
         "title": row.title,
         "artist": row.artist,
         "slug": slug,
@@ -100,7 +100,8 @@ def _correction_to_entry(
     slug_cache: dict,
 ) -> dict:
     """Adapter: pre_publish_corrections row → normalized feed entry."""
-    anchor = _lookup_song_anchor(db, "compass", row.compass_song_id, slug_cache)
+    # compass_song_id now carries the unified songs.id (Phase 5b).
+    anchor = _lookup_song_anchor(db, row.compass_song_id, slug_cache)
     if anchor:
         title = f"{anchor['title']} - {anchor['artist']}"
     else:
@@ -144,7 +145,7 @@ def _recalibration_to_entry(
     slug_cache: dict,
 ) -> dict:
     """Adapter: song_recalibrations row → normalized feed entry."""
-    anchor = _lookup_song_anchor(db, row.song_source, row.song_id, slug_cache)
+    anchor = _lookup_song_anchor(db, row.unified_song_id, slug_cache)
     if anchor:
         title = f"{anchor['title']} - {anchor['artist']}"
     else:
@@ -208,26 +209,31 @@ def list_feed_entries(
     slug_cache: dict = {}
     entries: list[dict] = []
 
+    # Resolve a per-song filter to the unified id (callers pass the song page's
+    # source/id, now 'songs'/unified-id; legacy pairs map via song_id_map).
+    filter_unified_id = (
+        _to_unified_id(db, song_source, song_id)
+        if (song_source is not None and song_id is not None) else None
+    )
+    song_filter = song_source is not None and song_id is not None
+
     # Pre-publish corrections. (Auto-promoted 2026-04-23 — gate kept for
     # backward compat with legacy unpromoted rows, but default feed shows all.)
     if not types or "pre_publish_correction" in types:
         q = db.query(PrePublishCorrection)
-        if song_source is not None and song_id is not None:
-            # pre_publish corrections are always anchored to compass songs;
-            # filter to matching compass_song_id only when source=compass.
-            if song_source == "compass":
-                q = q.filter(PrePublishCorrection.compass_song_id == song_id)
-            else:
-                q = q.filter(False)
+        if song_filter:
+            # compass_song_id now carries the unified songs.id.
+            q = q.filter(PrePublishCorrection.compass_song_id == filter_unified_id) \
+                if filter_unified_id else q.filter(False)
         for row in q.all():
             entries.append(_correction_to_entry(row, db, slug_cache))
 
     # Song recalibrations. (Auto-promoted — see note above.)
     if not types or "recalibration" in types:
         q = db.query(SongRecalibration)
-        if song_source is not None and song_id is not None:
-            q = q.filter(SongRecalibration.song_source == song_source)
-            q = q.filter(SongRecalibration.song_id == song_id)
+        if song_filter:
+            q = q.filter(SongRecalibration.unified_song_id == filter_unified_id) \
+                if filter_unified_id else q.filter(False)
         for row in q.all():
             entries.append(_recalibration_to_entry(row, db, slug_cache))
 

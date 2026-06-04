@@ -8,20 +8,25 @@ v1 identity model is device-id-only (anonymous, gameable at small scale —
 roadmap accepts that "scale is the defense" until real-account auth ships).
 The schema reserves a nullable user_id column so account-based gating can
 layer in without a migration.
+
+Unified song-entity renovation (Phase 5b): needles / pushes / review-cases are
+keyed on the atomic song via `unified_song_id`. Callers still pass the
+(source, song_id) the song page carries (now source='songs' + the unified id);
+legacy pairs resolve through song_id_map. Writes stamp song_source='songs' +
+the unified id so every vote for a song aggregates onto one needle.
 """
 
 import logging
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func, and_
+from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import (
-    AudienceVibeNeedle, AudienceVibePush, AudienceVibeReviewCase,
-    CompassSong, LibrarySong, SubmittedSong, SongSlug,
+    AudienceVibeNeedle, AudienceVibePush, AudienceVibeReviewCase, SongSlug, Song,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,35 +46,31 @@ VIBE_MAX = 100
 VIBE_WINDOW = 15   # W — max swing from compass in either direction
 VIBE_INERTIA = 8   # k — votes' worth of pull-toward-compass before it commits
 
-SONG_MODELS = {
-    "compass": CompassSong,
-    "library": LibrarySong,
-    "submitted": SubmittedSong,
-}
-
 
 class VibeError(Exception):
     """Domain error from the vibe service. Message is safe to surface to the caller."""
 
 
-def _resolve_song(db: Session, source: str, song_id: int):
-    model = SONG_MODELS.get(source)
-    if not model:
-        raise VibeError(f"Invalid song_source: {source}")
-    row = db.query(model).get(song_id)
+def _resolve_song(db: Session, source: str, song_id: int) -> Song:
+    """Resolve an incoming (source, song_id) to the unified Song. source='songs'
+    is the unified id directly; a legacy pair maps via song_id_map."""
+    if source == "songs":
+        row = db.query(Song).get(song_id)
+    else:
+        nid = db.execute(
+            text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+            {"s": source, "i": song_id},
+        ).scalar()
+        row = db.query(Song).get(nid) if nid else None
     if not row:
         raise VibeError(f"{source} song id={song_id} not found")
     return row
 
 
-def _initial_needle_value(db: Session, source: str, song_id: int) -> int:
+def _initial_needle_value(song: Optional[Song]) -> int:
     """Initial audience needle value = compass charge so the offset starts at
     0. Falls back to 0 for uncalibrated songs."""
-    try:
-        song = _resolve_song(db, source, song_id)
-    except VibeError:
-        return 0
-    return int(getattr(song, "charge_value", None) or 0)
+    return int((song.charge_value if song else None) or 0)
 
 
 def _consensus_value(compass: Optional[int], up: int, agree: int, down: int) -> int:
@@ -88,18 +89,17 @@ def _consensus_value(compass: Optional[int], up: int, agree: int, down: int) -> 
     return max(VIBE_MIN, min(VIBE_MAX, anchor + offset))
 
 
-def _get_or_create_needle(db: Session, source: str, song_id: int) -> AudienceVibeNeedle:
+def _get_or_create_needle(db: Session, unified_id: int, song: Song) -> AudienceVibeNeedle:
     needle = (
         db.query(AudienceVibeNeedle)
-        .filter(AudienceVibeNeedle.song_source == source)
-        .filter(AudienceVibeNeedle.song_id == song_id)
+        .filter(AudienceVibeNeedle.unified_song_id == unified_id)
         .first()
     )
     if needle:
         return needle
     needle = AudienceVibeNeedle(
-        song_source=source, song_id=song_id,
-        current_value=_initial_needle_value(db, source, song_id),
+        song_source="songs", song_id=unified_id, unified_song_id=unified_id,
+        current_value=_initial_needle_value(song),
         pushes_up_total=0, pushes_down_total=0, pushes_agree_total=0,
     )
     db.add(needle)
@@ -107,16 +107,13 @@ def _get_or_create_needle(db: Session, source: str, song_id: int) -> AudienceVib
     return needle
 
 
-def _check_eligibility(
-    db: Session, source: str, song_id: int, device_id: str, year: int,
-) -> bool:
+def _check_eligibility(db: Session, unified_id: int, device_id: str, year: int) -> bool:
     """True if this device has not already pushed this song this year."""
     if not device_id:
         return False
     existing = (
         db.query(AudienceVibePush.id)
-        .filter(AudienceVibePush.song_source == source)
-        .filter(AudienceVibePush.song_id == song_id)
+        .filter(AudienceVibePush.unified_song_id == unified_id)
         .filter(AudienceVibePush.device_id == device_id)
         .filter(AudienceVibePush.push_year == year)
         .first()
@@ -124,12 +121,11 @@ def _check_eligibility(
     return existing is None
 
 
-def _year_directional_split(db: Session, source: str, song_id: int, year: int) -> dict:
+def _year_directional_split(db: Session, unified_id: int, year: int) -> dict:
     """Counts of pushes in the current year, by direction."""
     rows = (
         db.query(AudienceVibePush.direction, func.count(AudienceVibePush.id))
-        .filter(AudienceVibePush.song_source == source)
-        .filter(AudienceVibePush.song_id == song_id)
+        .filter(AudienceVibePush.unified_song_id == unified_id)
         .filter(AudienceVibePush.push_year == year)
         .group_by(AudienceVibePush.direction)
         .all()
@@ -141,15 +137,14 @@ def _year_directional_split(db: Session, source: str, song_id: int, year: int) -
 
 
 def _maybe_open_review_case(
-    db: Session, source: str, song_id: int, vibe_value: int,
+    db: Session, unified_id: int, song: Song, vibe_value: int,
 ) -> Optional[AudienceVibeReviewCase]:
     """If the gap exceeds threshold, open a review case (or update the existing
     open one with the latest snapshot). Only one open case per song.
     """
     threshold = settings.vibe_review_threshold
-    song = _resolve_song(db, source, song_id)
-    compass_charge = getattr(song, "charge_value", None)
-    compass_color = getattr(song, "rubric_color", None)
+    compass_charge = song.charge_value
+    compass_color = song.rubric_color
     if compass_charge is None:
         return None
 
@@ -159,8 +154,7 @@ def _maybe_open_review_case(
 
     existing = (
         db.query(AudienceVibeReviewCase)
-        .filter(AudienceVibeReviewCase.song_source == source)
-        .filter(AudienceVibeReviewCase.song_id == song_id)
+        .filter(AudienceVibeReviewCase.unified_song_id == unified_id)
         .filter(AudienceVibeReviewCase.status == "open")
         .first()
     )
@@ -172,7 +166,7 @@ def _maybe_open_review_case(
         return existing
 
     case = AudienceVibeReviewCase(
-        song_source=source, song_id=song_id,
+        song_source="songs", song_id=unified_id, unified_song_id=unified_id,
         compass_charge=compass_charge, compass_color=compass_color,
         vibe_value=vibe_value, gap=gap, status="open",
     )
@@ -182,11 +176,11 @@ def _maybe_open_review_case(
 
 def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) -> dict:
     """Public read of the vibe state for one song."""
-    _resolve_song(db, source, song_id)  # 404-fail if song missing
+    song = _resolve_song(db, source, song_id)  # 404-fail if song missing
+    unified_id = song.id
     needle = (
         db.query(AudienceVibeNeedle)
-        .filter(AudienceVibeNeedle.song_source == source)
-        .filter(AudienceVibeNeedle.song_id == song_id)
+        .filter(AudienceVibeNeedle.unified_song_id == unified_id)
         .first()
     )
     year = datetime.utcnow().year
@@ -196,7 +190,7 @@ def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) 
         return {
             # Synthesise the initial value (= compass charge) so the frontend
             # offset visualization shows 0 before any push has been recorded.
-            "value": _initial_needle_value(db, source, song_id),
+            "value": _initial_needle_value(song),
             "pushes_up_total": 0,
             "pushes_down_total": 0,
             "pushes_agree_total": 0,
@@ -205,13 +199,13 @@ def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) 
             "current_year": year,
         }
 
-    eligible = _check_eligibility(db, source, song_id, device_id, year) if device_id else False
+    eligible = _check_eligibility(db, unified_id, device_id, year) if device_id else False
     return {
         "value": needle.current_value,
         "pushes_up_total": needle.pushes_up_total,
         "pushes_down_total": needle.pushes_down_total,
         "pushes_agree_total": getattr(needle, "pushes_agree_total", 0) or 0,
-        "year_split": _year_directional_split(db, source, song_id, year),
+        "year_split": _year_directional_split(db, unified_id, year),
         "eligible_to_push": eligible,
         "current_year": year,
         "last_push_at": needle.last_push_at.isoformat() if needle.last_push_at else None,
@@ -241,16 +235,18 @@ def apply_push(
         raise VibeError("device_id is required to push the vibe")
 
     song = _resolve_song(db, source, song_id)  # validate target
-    compass_charge = getattr(song, "charge_value", None)
+    unified_id = song.id
+    compass_charge = song.charge_value
     year = datetime.utcnow().year
 
-    if not _check_eligibility(db, source, song_id, device_id, year):
+    if not _check_eligibility(db, unified_id, device_id, year):
         raise VibeError("Already pushed this song this year. Each person gets one push per song per year.")
 
-    needle = _get_or_create_needle(db, source, song_id)
+    needle = _get_or_create_needle(db, unified_id, song)
 
     push = AudienceVibePush(
-        song_source=source, song_id=song_id, direction=direction,
+        song_source="songs", song_id=unified_id, unified_song_id=unified_id,
+        direction=direction,
         device_id=device_id, ip_address=ip_address, push_year=year,
         user_id=user_id,
     )
@@ -275,7 +271,7 @@ def apply_push(
     needle.last_push_at = datetime.utcnow()
     needle.updated_at = needle.last_push_at
 
-    case = _maybe_open_review_case(db, source, song_id, new_value)
+    case = _maybe_open_review_case(db, unified_id, song, new_value)
 
     try:
         db.commit()
@@ -293,7 +289,7 @@ def apply_push(
         "pushes_up_total": needle.pushes_up_total,
         "pushes_down_total": needle.pushes_down_total,
         "pushes_agree_total": needle.pushes_agree_total or 0,
-        "year_split": _year_directional_split(db, source, song_id, year),
+        "year_split": _year_directional_split(db, unified_id, year),
         "eligible_to_push": False,  # they just pushed
         "current_year": year,
         "review_case_opened": bool(case and case.id is not None),
@@ -318,53 +314,56 @@ def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
         .all()
     )
 
-    # Cache needles + slugs per (source, id) so repeat votes hit the DB once.
+    # Cache needles + slugs + songs per unified id so repeat votes hit the DB once.
     needle_cache: dict = {}
     slug_cache: dict = {}
+    song_cache: dict = {}
 
-    def _needle_value(source: str, song_id: int):
-        key = (source, song_id)
-        if key not in needle_cache:
+    def _needle_value(unified_id):
+        if unified_id not in needle_cache:
             needle = (
                 db.query(AudienceVibeNeedle)
-                .filter(AudienceVibeNeedle.song_source == source)
-                .filter(AudienceVibeNeedle.song_id == song_id)
+                .filter(AudienceVibeNeedle.unified_song_id == unified_id)
                 .first()
             )
-            needle_cache[key] = needle.current_value if needle else None
-        return needle_cache[key]
+            needle_cache[unified_id] = needle.current_value if needle else None
+        return needle_cache[unified_id]
 
-    def _slug(source: str, song_id: int):
+    def _slug(unified_id):
         # Slugs live in the song_slugs table, not on the song row.
-        key = (source, song_id)
-        if key not in slug_cache:
+        if unified_id not in slug_cache:
             row = (
                 db.query(SongSlug)
-                .filter(SongSlug.song_source == source)
-                .filter(SongSlug.song_id == song_id)
+                .filter(SongSlug.unified_song_id == unified_id)
                 .first()
             )
-            slug_cache[key] = row.slug if row else None
-        return slug_cache[key]
+            slug_cache[unified_id] = row.slug if row else None
+        return slug_cache[unified_id]
+
+    def _song(unified_id):
+        if unified_id not in song_cache:
+            song_cache[unified_id] = db.query(Song).get(unified_id) if unified_id else None
+        return song_cache[unified_id]
 
     items = []
     for p in pushes:
+        unified_id = p.unified_song_id
         entry = {
-            "song_source": p.song_source,
-            "song_id": p.song_id,
+            "song_source": "songs",
+            "song_id": unified_id,
             "direction": p.direction,
             "direction_label": _DIRECTION_LABEL.get(p.direction, "agree"),
             "push_year": p.push_year,
             "pushed_at": p.pushed_at.isoformat() if p.pushed_at else None,
-            "current_value": _needle_value(p.song_source, p.song_id),
-            "song_slug": _slug(p.song_source, p.song_id),
+            "current_value": _needle_value(unified_id),
+            "song_slug": _slug(unified_id),
         }
-        try:
-            song = _resolve_song(db, p.song_source, p.song_id)
+        song = _song(unified_id)
+        if song:
             entry["song_title"] = song.title
-            entry["song_artist"] = getattr(song, "artist", None)
-            entry["compass_charge"] = getattr(song, "charge_value", None)
-        except VibeError:
+            entry["song_artist"] = song.artist
+            entry["compass_charge"] = song.charge_value
+        else:
             entry["song_title"] = None
         items.append(entry)
 
