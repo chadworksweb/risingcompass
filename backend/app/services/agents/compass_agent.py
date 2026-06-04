@@ -6,11 +6,10 @@ import re
 from datetime import date, datetime
 
 from anthropic import Anthropic
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import AgentDraft, AgentDraftSong, CompassSong
+from app.models import AgentDraft, AgentDraftSong
 from app.services.agents.calibrator import calibrate_song, lookup_calibrated, AGENT_MODEL
 from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email

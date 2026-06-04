@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import CompassSong, Song
+from app.models import Song
 from app.services.claude_meter import tracked_create_async
 from app.services.contamination import enforce_contamination_rule
 from app.services.agents.compass_agent_rubric import (

@@ -18,7 +18,7 @@ from app.schemas import (
     SongSearchIn, SongSearchOut, SearchCalibrateIn,
     LCAvailabilityOut, LCSubscribeIn, LCSubscribeOut,
 )
-from app.models import SubmittedSong, LyricalChargerSubscriber, UserCalibration, User
+from app.models import LyricalChargerSubscriber, UserCalibration, User
 from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
     lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
