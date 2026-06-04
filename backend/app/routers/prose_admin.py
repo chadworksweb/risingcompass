@@ -19,22 +19,39 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.auth import verify_admin_or_lyrics_key
 from app.database import get_db, SessionLocal
-from app.models import CompassSong, LibrarySong, SubmittedSong, StreamSong
+from app.models import Song
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/prose", tags=["prose-admin"])
 
-SONG_MODELS = {
-    "compass": CompassSong,
-    "library": LibrarySong,
-    "submitted": SubmittedSong,
-    "stream": StreamSong,
-}
+# Legacy sources resolve to the unified Song via song_id_map; 'songs' is the
+# unified id directly. New callers pass source='songs'; the legacy strings keep
+# old admin/frontend callers working through the map fallback.
+LEGACY_SOURCES = {"compass", "library", "submitted", "stream"}
+
+
+def _resolve_song_id(db: Session, source: str, song_id: int) -> Optional[int]:
+    """Map a (source, song_id) pair to the unified Song.id.
+
+    source == 'songs' -> the id is already unified. A legacy source maps via
+    song_id_map. Returns None if no mapping exists.
+    """
+    if source == "songs":
+        return song_id
+    row = db.execute(
+        text(
+            "SELECT new_song_id FROM song_id_map "
+            "WHERE old_source = :s AND old_id = :i"
+        ),
+        {"s": source, "i": song_id},
+    ).first()
+    return row[0] if row else None
 
 
 class RegenRequest(BaseModel):
@@ -75,11 +92,10 @@ async def regenerate_prose(
     song_id = body.song_id
     lyrics = body.lyrics.strip()
 
-    model_cls = SONG_MODELS.get(source)
-    if not model_cls:
+    if source != "songs" and source not in LEGACY_SOURCES:
         raise HTTPException(
             status_code=422,
-            detail=f"Unknown source '{source}'. Use: compass, library, submitted, stream",
+            detail=f"Unknown source '{source}'. Use: songs (or legacy compass, library, submitted, stream)",
         )
     if not lyrics:
         raise HTTPException(status_code=422, detail="lyrics must not be empty")
@@ -87,7 +103,10 @@ async def regenerate_prose(
     # --- Phase 1: read song, build calibration dict, archive prose ----------
     db_read = SessionLocal()
     try:
-        song = db_read.query(model_cls).filter(model_cls.id == song_id).first()
+        unified_id = _resolve_song_id(db_read, source, song_id)
+        if unified_id is None:
+            raise HTTPException(status_code=404, detail=f"{source} song {song_id} not found")
+        song = db_read.query(Song).get(unified_id)
         if not song:
             raise HTTPException(status_code=404, detail=f"{source} song {song_id} not found")
         if not song.rubric_color:
@@ -133,7 +152,7 @@ async def regenerate_prose(
     # --- Phase 3: write (archive old, apply new) in one transaction ----------
     db_write = SessionLocal()
     try:
-        song = db_write.query(model_cls).filter(model_cls.id == song_id).first()
+        song = db_write.query(Song).get(unified_id)
         if not song:
             raise HTTPException(status_code=404, detail=f"{source} song {song_id} disappeared between reads")
 

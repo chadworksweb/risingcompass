@@ -48,10 +48,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, and_
 
+from sqlalchemy import text
 from app.database import get_db
 from app.models import (
-    SongRecalibration, SongRecalibrationProposal,
-    CompassSong, LibrarySong, SubmittedSong, StreamSong,
+    SongRecalibration, SongRecalibrationProposal, Song,
     MisreadSubmission, CalibrationRun, SongSlug,
 )
 from app.routers.admin import verify_admin_key
@@ -67,21 +67,20 @@ router = APIRouter(prefix="/api/admin/recalibrations", tags=["recalibrations"])
 VALID_LENSES = {"standard", "satire"}
 VALID_PIPELINES = {"manual", "rubric_update", "satirical_flag", "vibe_gap", "consensus_drift"}
 
-SONG_MODELS = {
-    "compass": CompassSong,
-    "library": LibrarySong,
-    "submitted": SubmittedSong,
-    "stream": StreamSong,
-}
 
-
-def _resolve_song(db: Session, source: str, song_id: int):
-    model = SONG_MODELS.get(source)
-    if not model:
-        raise HTTPException(400, f"Invalid song_source. Must be one of: {', '.join(SONG_MODELS)}")
-    row = db.query(model).get(song_id)
+def _resolve_song(db: Session, source: str, song_id: int) -> Song:
+    """Resolve an incoming (source, song_id) to the unified Song. source='songs'
+    is the unified id directly; a legacy pair maps via song_id_map."""
+    if source == "songs":
+        row = db.query(Song).get(song_id)
+    else:
+        nid = db.execute(
+            text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+            {"s": source, "i": song_id},
+        ).scalar()
+        row = db.query(Song).get(nid) if nid else None
     if not row:
-        raise HTTPException(404, f"{source} song id={song_id} not found")
+        raise HTTPException(404, f"song {source}:{song_id} not found")
     return row
 
 
@@ -108,7 +107,7 @@ def _vibe_snapshot(db: Session, source: str, song_id: int) -> Optional[str]:
         return None
 
 
-def _flag_counts_for_song(db: Session, source: str, song_id: int, title: str, artist: str) -> dict:
+def _flag_counts_for_song(db: Session, unified_id: int, title: str, artist: str) -> dict:
     """Snapshot of distinct-device flag counts at this moment."""
     title_l = (title or "").strip().lower()
     artist_l = (artist or "").strip().lower()
@@ -117,10 +116,7 @@ def _flag_counts_for_song(db: Session, source: str, song_id: int, title: str, ar
             func.lower(MisreadSubmission.song_title) == title_l,
             func.lower(MisreadSubmission.song_artist) == artist_l,
         ),
-        and_(
-            MisreadSubmission.song_source == source,
-            MisreadSubmission.song_id == song_id,
-        ),
+        MisreadSubmission.unified_song_id == unified_id,
     )
 
     def _count(report_type: str) -> int:
@@ -253,9 +249,10 @@ def start_recalibration(
             raise HTTPException(400, "rubric_change_note required (10+ chars) for new rubric changes")
 
     song = _resolve_song(db, data.song_source, data.song_id)
-    original_color = getattr(song, "rubric_color", None)
-    original_charge = getattr(song, "charge_value", None)
-    original_summary = getattr(song, "charge_summary", None)
+    unified_id = song.id
+    original_color = song.rubric_color
+    original_charge = song.charge_value
+    original_summary = song.charge_summary
 
     try:
         if data.lens == "satire":
@@ -280,8 +277,9 @@ def start_recalibration(
 
     proposal = SongRecalibrationProposal(
         lens=data.lens,
-        song_source=data.song_source,
-        song_id=data.song_id,
+        song_source="songs",
+        song_id=unified_id,
+        unified_song_id=unified_id,
         pipeline=data.pipeline,
         trigger_ref_id=data.trigger_ref_id,
         original_charge=original_charge,
@@ -439,22 +437,24 @@ def accept_proposal(
         raise HTTPException(400, "Proposal has no proposed values to apply")
 
     song = _resolve_song(db, p.song_source, p.song_id)
+    unified_id = song.id
 
     # Snapshot the public state at the moment of recalibration.
     flag_counts = _flag_counts_for_song(
-        db, p.song_source, p.song_id, song.title, getattr(song, "artist", "") or "",
+        db, unified_id, song.title, song.artist or "",
     )
-    vibe_snapshot = _vibe_snapshot(db, p.song_source, p.song_id)
+    vibe_snapshot = _vibe_snapshot(db, "songs", unified_id)
 
     # Snapshot the song's CURRENT summary before we overwrite it. The proposal
     # only carries before_charge/before_color; the summary lives on the song
     # record itself and would otherwise be lost on apply.
-    before_summary = getattr(song, "charge_summary", None)
+    before_summary = song.charge_summary
 
     audit = SongRecalibration(
         lens=p.lens,
-        song_source=p.song_source,
-        song_id=p.song_id,
+        song_source="songs",
+        song_id=unified_id,
+        unified_song_id=unified_id,
         proposal_id=p.id,
         pipeline=p.pipeline,
         trigger_ref_id=p.trigger_ref_id,
@@ -479,10 +479,9 @@ def accept_proposal(
     # mutate song below, or the seed captures the new values.
     if p.pipeline == "rubric_update":
         try:
-            _seed_initial_run_if_missing(p.song_source, song, db)
+            _seed_initial_run_if_missing("songs", song, db)
         except Exception:
-            logger.exception("Failed to seed pre-rubric_update run for song %s/%s",
-                             p.song_source, p.song_id)
+            logger.exception("Failed to seed pre-rubric_update run for song %s", unified_id)
 
     # Apply to the song -- CHARGE ONLY.
     #
@@ -511,8 +510,7 @@ def accept_proposal(
     slug = p.rubric_change_slug or p.pipeline
     prior = (
         db.query(CalibrationRun)
-        .filter(CalibrationRun.song_source == p.song_source)
-        .filter(CalibrationRun.song_id == p.song_id)
+        .filter(CalibrationRun.unified_song_id == unified_id)
         .filter(CalibrationRun.superseded.is_(False))
         .all()
     )
@@ -534,8 +532,9 @@ def accept_proposal(
             "confidence": 1.0,
         },
         triggered_by=p.pipeline,
-        song_source=p.song_source,
-        song_id=p.song_id,
+        song_source="songs",
+        song_id=unified_id,
+        unified_song_id=unified_id,
         lyrics_hash=None,
         agent_model=p.ai_model,
     )
@@ -556,8 +555,7 @@ def accept_proposal(
 
     slug_row = (
         db.query(SongSlug)
-        .filter(SongSlug.song_source == p.song_source)
-        .filter(SongSlug.song_id == p.song_id)
+        .filter(SongSlug.unified_song_id == unified_id)
         .order_by(SongSlug.id.desc())
         .first()
     )
@@ -566,8 +564,8 @@ def accept_proposal(
     return {
         "applied": True,
         "audit_id": audit.id,
-        "song_source": p.song_source,
-        "song_id": p.song_id,
+        "song_source": "songs",
+        "song_id": unified_id,
         "song_slug": song_slug,
         "before": {"charge": p.original_charge, "color": p.original_color},
         "after": {"charge": p.proposed_charge, "color": p.proposed_color},

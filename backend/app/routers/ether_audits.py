@@ -34,11 +34,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import CompassSong
+from app.models import Song
 from app.routers.admin import verify_admin_key
 from app.services.ether_taxonomy import VALID_SLUGS
 
@@ -53,8 +54,8 @@ class AuditItem(BaseModel):
     id: int
     title: str
     artist: str
-    year: int
-    chart_position: int
+    year: Optional[int]
+    chart_position: Optional[int]
     rubric_color: str
     charge_value: Optional[int]
     deadpan_line: Optional[str]
@@ -122,10 +123,30 @@ def _decode_topics(raw: Optional[str]) -> list[str]:
         return []
 
 
-def _load_audit_song(db: Session, song_id: int) -> CompassSong:
-    song = db.query(CompassSong).filter(CompassSong.id == song_id).first()
+def _latest_appearance(db: Session, song_id: int) -> tuple[Optional[int], Optional[int]]:
+    """Year + chart position from the song's most-recent chart appearance.
+
+    Charting moved out of the song row into `chart_appearances`; the unified
+    `Song` has no year/position. A manual/library song with no appearance
+    returns (None, None) -- the queue item then carries nulls.
+    """
+    row = db.execute(
+        text(
+            "SELECT year, position FROM chart_appearances "
+            "WHERE song_id = :sid "
+            "ORDER BY year DESC NULLS LAST, id DESC LIMIT 1"
+        ),
+        {"sid": song_id},
+    ).first()
+    if not row:
+        return None, None
+    return row[0], row[1]
+
+
+def _load_audit_song(db: Session, song_id: int) -> Song:
+    song = db.query(Song).filter(Song.id == song_id).first()
     if not song:
-        raise HTTPException(404, "compass_song not found")
+        raise HTTPException(404, "song not found")
     if not song.topic_audit:
         raise HTTPException(409, "song has no open audit")
     return song
@@ -143,10 +164,10 @@ def list_queue(
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
 
-    base = db.query(CompassSong).filter(CompassSong.topic_audit.isnot(None))
+    base = db.query(Song).filter(Song.topic_audit.isnot(None))
     total = base.count()
     rows = (
-        base.order_by(CompassSong.created_at.desc().nullslast(), CompassSong.id.desc())
+        base.order_by(Song.created_at.desc().nullslast(), Song.id.desc())
         .offset(offset)
         .limit(limit)
         .all()
@@ -155,12 +176,13 @@ def list_queue(
     items = []
     for row in rows:
         audit = _decode_audit(row.topic_audit)
+        year, position = _latest_appearance(db, row.id)
         items.append(AuditItem(
             id=row.id,
             title=row.title,
             artist=row.artist,
-            year=row.year,
-            chart_position=row.chart_position,
+            year=year,
+            chart_position=position,
             rubric_color=row.rubric_color,
             charge_value=row.charge_value,
             deadpan_line=row.deadpan_line,
@@ -188,9 +210,9 @@ def audit_song(
 
     Anthropic-free: the reason/rationale/proposed_tag are supplied, not generated.
     """
-    song = db.query(CompassSong).filter(CompassSong.id == song_id).first()
+    song = db.query(Song).filter(Song.id == song_id).first()
     if not song:
-        raise HTTPException(404, "compass_song not found")
+        raise HTTPException(404, "song not found")
 
     prior_topics = _decode_topics(song.topics)
     audit = {
