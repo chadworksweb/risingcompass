@@ -24,7 +24,7 @@ from app.models import (
     SongRecalibration, SongReset, ReadingSong, CalibrationRun, Trash,
     SongArtist, ReleaseSong, AudienceVibeNeedle, AudienceVibeReviewCase,
     SongSlug, SongRecalibrationProposal, LcEvent, PrePublishCorrection,
-    V1Test,
+    V1Test, Song, ChartAppearance, SongIngestion,
 )
 from app.routers.admin import verify_admin_key
 from app.services.song_search import search_unified
@@ -38,6 +38,14 @@ router = APIRouter(
 
 
 TABLES = {
+    # Unified song-entity renovation: the atomic song + its dimensions.
+    # The `all_songs` virtual view already reads `songs` via search_unified;
+    # these expose the raw unified rows (canonical_key, method, appearances,
+    # ingestions) for admin introspection. The legacy per-table tabs below
+    # stay until the Phase-5 drop so dual-write coherence remains inspectable.
+    "songs": Song,
+    "chart_appearances": ChartAppearance,
+    "song_ingestions": SongIngestion,
     "compass_songs": CompassSong,
     "library_songs": LibrarySong,
     "submitted_songs": SubmittedSong,
@@ -55,6 +63,7 @@ TABLES = {
 
 # Columns matched by the `q=` quick-search per table.
 SEARCH_COLUMNS = {
+    "songs": ["title", "artist", "canonical_key"],
     "compass_songs": ["title", "artist"],
     "library_songs": ["title", "artist"],
     "submitted_songs": ["title", "artist"],
@@ -411,7 +420,10 @@ def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depend
 
 # Tables that support soft-delete via the admin DB explorer. Songs always
 # route through their polymorphic source; other tables go to trash by name.
-DELETABLE_TABLES = set(TABLES.keys()) - {"trash"}
+# The unified entity + its dimensions are browse-only here -- mutations must
+# go through the proper unified write paths, not the generic delete cascade
+# (a raw `songs` delete would orphan chart_appearances + reading_songs.song_id).
+DELETABLE_TABLES = set(TABLES.keys()) - {"trash", "songs", "chart_appearances", "song_ingestions"}
 
 
 class DeleteIn(BaseModel):

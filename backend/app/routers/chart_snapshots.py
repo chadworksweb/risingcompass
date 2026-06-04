@@ -34,11 +34,12 @@ from sqlalchemy.orm import Session
 
 from app.auth import verify_reading_cron_key
 from app.database import SessionLocal, get_db
-from app.models import AgentDraft, ChartSnapshot, CompassSong
+from app.models import AgentDraft, ChartSnapshot, Song
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import fetch_top_songs, fetch_viral_songs
 from app.services.agents.compass_agent import run_compass_agent
 from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
+from app.services.song_store import find_song_by_title_artist
 
 logger = logging.getLogger(__name__)
 
@@ -64,31 +65,21 @@ class ChartSnapshotOut(BaseModel):
     songs: list[ReadingSongOut]
 
 
-def _build_song(snap: ChartSnapshot, cs: CompassSong | None, artist_slug: str | None = None) -> ReadingSongOut:
+def _build_song(snap: ChartSnapshot, song: Song | None, artist_slug: str | None = None) -> ReadingSongOut:
     return ReadingSongOut(
         id=snap.id,
         title=snap.title,
         artist=snap.artist,
         position=snap.position,
-        rubric_color=cs.rubric_color if cs else None,
-        charge_value=cs.charge_value if cs else None,
-        contaminated=bool(cs.contaminated) if cs else False,
-        contamination_note=cs.contamination_note if cs else None,
-        charge_summary=cs.charge_summary if cs else None,
+        rubric_color=song.rubric_color if song else None,
+        charge_value=song.charge_value if song else None,
+        contaminated=bool(song.contaminated) if song else False,
+        contamination_note=song.contamination_note if song else None,
+        charge_summary=song.charge_summary if song else None,
         chart_source=snap.chart_source,
-        instrumental=bool(cs.instrumental) if cs else False,
+        instrumental=bool(song.instrumental) if song else False,
         song_slug=generate_song_slug(snap.title, snap.artist),
         artist_slug=artist_slug,
-    )
-
-
-def _lookup_compass_song(db: Session, title: str, artist: str) -> CompassSong | None:
-    """Case-insensitive title+artist match against compass_songs."""
-    return (
-        db.query(CompassSong)
-        .filter(func.lower(CompassSong.title) == title.strip().lower())
-        .filter(func.lower(CompassSong.artist) == artist.strip().lower())
-        .first()
     )
 
 
@@ -145,7 +136,7 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
     songs = [
         _build_song(
             snap,
-            _lookup_compass_song(db, snap.title, snap.artist),
+            find_song_by_title_artist(db, snap.title, snap.artist),
             slug_map.get(normalize_artist_name(snap.artist or "").lower()),
         )
         for snap in snaps
