@@ -1,18 +1,16 @@
-"""Dual-write sync -- mirror one legacy song row into the unified model.
+"""Native storage chokepoint for the unified song entity.
 
-Phase-3 transition mechanism. The legacy writers (compass_agent._store_calibration,
-analyzer Lyrical Charger, stream, draft approval) stay the CANONICAL calibration
-path; right after each legacy write they call sync_legacy_song_to_unified so the
-unified `songs` + `chart_appearances` stay fresh and the repointed references
-(reading_songs.song_id, song_artists.unified_song_id, ...) keep pointing at the
-right entity. This lets the read paths flip to the unified model incrementally
-WITHOUT staleness, instead of a single big-bang cutover. Removed at Phase 5 when
-the legacy writers are retired and the legacy tables drop.
+Phase 5b: every calibrated-song writer (compass daily, Lyrical Charger, Album
+Charger, CL Stream, library/manual admin, backfill) lands its row here via
+`store_calibrated_song` -> `upsert_unified_song`, writing ONLY the unified model
+(`songs` + `chart_appearances` + `song_ingestions`) keyed by canonical_key. No
+legacy song-table read or write. The Phase-3 dual-write mirror
+(sync_legacy_song_to_unified / safe_sync) is retired.
 
-Idempotent (upsert by canonical_key) and best-effort (callers wrap in try/except).
-Authoritative-first: a crowd write (lyrical_charger/stream) never overwrites an
-existing authoritative (chart_reading/editorial) calibration on the unified row.
-NEVER touches prose_provenance_anchors. See RISING-COMPASS-SONG-ENTITY-RENOVATION.md.
+Idempotent (upsert by canonical_key). Authoritative-first: a crowd write
+(lyrical_charger/stream) never overwrites an existing authoritative
+(chart_reading/editorial/terminal) calibration on the unified row. NEVER touches
+prose_provenance_anchors. See RISING-COMPASS-SONG-ENTITY-RENOVATION.md.
 """
 
 import json
@@ -31,10 +29,6 @@ _METHOD = {
     "compass": "chart_reading", "library": "editorial",
     "submitted": "lyrical_charger", "stream": "stream",
 }
-_LEGACY_TABLE = {
-    "compass": "compass_songs", "library": "library_songs",
-    "submitted": "submitted_songs", "stream": "cl_stream_songs",
-}
 # Calibration columns copied onto the unified songs row (absent ones -> NULL).
 _CALIB = [
     "rubric_color", "charge_value", "charge_summary", "contaminated",
@@ -46,20 +40,6 @@ _CALIB = [
     "activations", "calibration_failed", "message_analysis",
     "expression_analysis", "intention_analysis",
 ]
-
-
-def sync_legacy_song_to_unified(db, source: str, legacy_id: int):
-    """Mirror legacy (source, legacy_id) into the unified model by READING the
-    legacy row, then delegating to upsert_unified_song. Phase-3 dual-write path;
-    retired at Phase 5 once every writer calls upsert_unified_song natively (no
-    legacy read). Does NOT commit -- the caller owns the transaction."""
-    tbl = _LEGACY_TABLE.get(source)
-    if not tbl or not legacy_id:
-        return None
-    row = db.execute(text(f"SELECT * FROM {tbl} WHERE id = :i"), {"i": legacy_id}).mappings().first()
-    if not row:
-        return None
-    return upsert_unified_song(db, source, legacy_id, dict(row))
 
 
 def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_detail: dict | None = None,
@@ -167,22 +147,6 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
             db.execute(text("UPDATE agent_draft_songs SET song_id = :n WHERE compass_song_id = :i"),
                        {"n": song_id, "i": legacy_id})
     return song_id
-
-
-def safe_sync(db, source: str, legacy_id: int):
-    """Best-effort wrapper: sync + commit, swallow + log failures so the
-    canonical legacy write is never jeopardised by the dual-write mirror."""
-    try:
-        sid = sync_legacy_song_to_unified(db, source, legacy_id)
-        db.commit()
-        return sid
-    except Exception:
-        logger.exception("song_sync failed for %s:%s", source, legacy_id)
-        try:
-            db.rollback()
-        except Exception:
-            pass
-        return None
 
 
 # --- native storage chokepoint ------------------------------------------- #

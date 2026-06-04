@@ -28,10 +28,9 @@ from app.services.agents.calibrator import (
     calibrate_song_async, lookup_calibrated, ensure_full_calibration,
 )
 from app.services import musixmatch
-from app.services.artist_linker import try_link_song
 from app.services.calibration_corpus import (
     record_and_reconcile, hash_lyrics, find_canonical_song,
-    get_or_create_song, fetch_run_fingerprints,
+    fetch_run_fingerprints,
 )
 from app.services.lyrics_fingerprint import (
     compute_fingerprint, max_jaccard, DIVERGENCE_THRESHOLD,
