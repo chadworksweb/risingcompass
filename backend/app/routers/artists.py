@@ -273,36 +273,28 @@ def _song_charges_for_artist(artist_id: int, db) -> list[int]:
     via UNION (dedupes across the two paths), then joins each source table
     once with UNION ALL to pull their charge_values.
     """
+    # Unified: distinct songs credited to the artist (via the repointed
+    # unified_song_id on release_songs + song_artists), each charge counted ONCE
+    # -- so cross-year / cross-table duplicates no longer double-weight the mean.
     sql = text(
         """
-        WITH artist_song_ids AS (
-            SELECT rs.song_source AS src, rs.song_id AS sid
-              FROM release_songs rs
-              JOIN releases r ON r.id = rs.release_id
-             WHERE r.artist_id = :aid
-            UNION
-            SELECT sa.song_source AS src, sa.song_id AS sid
-              FROM song_artists sa
-             WHERE sa.artist_id = :aid
-        )
-        SELECT cs.charge_value
-          FROM compass_songs cs
-          JOIN artist_song_ids a ON a.src = 'compass' AND a.sid = cs.id
-         WHERE cs.charge_value IS NOT NULL
-        UNION ALL
-        SELECT ls.charge_value
-          FROM library_songs ls
-          JOIN artist_song_ids a ON a.src = 'library' AND a.sid = ls.id
-         WHERE ls.charge_value IS NOT NULL
-        UNION ALL
-        SELECT ss.charge_value
-          FROM submitted_songs ss
-          JOIN artist_song_ids a ON a.src = 'submitted' AND a.sid = ss.id
-         WHERE ss.charge_value IS NOT NULL
+        SELECT DISTINCT s.id, s.charge_value
+          FROM songs s
+         WHERE s.charge_value IS NOT NULL
+           AND s.id IN (
+                SELECT rs.unified_song_id
+                  FROM release_songs rs
+                  JOIN releases r ON r.id = rs.release_id
+                 WHERE r.artist_id = :aid AND rs.unified_song_id IS NOT NULL
+                UNION
+                SELECT sa.unified_song_id
+                  FROM song_artists sa
+                 WHERE sa.artist_id = :aid AND sa.unified_song_id IS NOT NULL
+           )
         """
     )
     rows = db.execute(sql, {"aid": artist_id}).all()
-    return [r[0] for r in rows if r[0] is not None]
+    return [r[1] for r in rows if r[1] is not None]
 
 
 @router.get("/{slug}/summary")
