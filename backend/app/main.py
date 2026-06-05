@@ -56,41 +56,52 @@ def _cleanup_orphan_drafts():
     finally:
         db.close()
 
-# Create tables on startup (handles fresh installs)
-Base.metadata.create_all(bind=engine)
+def _init_database():
+    """Schema init + idempotent seeds. Runs ONLY on real app startup (lifespan),
+    never on bare module import.
 
-# Apply versioned migrations (handles ALTER TABLE on existing tables)
-run_migrations(engine)
+    SAFETY: previously this block ran at module-import time, so importing
+    `app.main` for any reason (e.g. a local validation/import sweep) executed
+    create_all + run_migrations against whatever `DATABASE_URL` pointed at -- and
+    local `.env` points at the PROD managed DB through the SSH tunnel, so an
+    import could (and once did) migrate production. Keeping it inside lifespan
+    means it fires when uvicorn actually serves the app, not on import.
+    """
+    # Create tables (handles fresh installs)
+    Base.metadata.create_all(bind=engine)
+    # Apply versioned migrations (handles ALTER TABLE on existing tables)
+    run_migrations(engine)
 
-# Bootstrap system API clients + migrate env keys into api_client_keys
-from app.services.api_clients import bootstrap_system_clients
-bootstrap_system_clients()
+    # Bootstrap system API clients + migrate env keys into api_client_keys
+    from app.services.api_clients import bootstrap_system_clients
+    bootstrap_system_clients()
 
-# Seed the prompt-cache advisor alert on-by-default (one-time infra nudge, not a
-# high-volume heartbeat). Stays toggleable in the Alerts UI; never overrides a
-# later admin choice. See app/services/cache_advisor.py.
-from app.services.alerts import ensure_pref_default
-ensure_pref_default("prompt_cache_warranted", enabled=True)
-# Album Charger: alert the admin by email whenever someone charges an album.
-# On by default (the admin asked for it); toggleable in the Alerts UI.
-ensure_pref_default("album_charged", enabled=True)
-# General inquiry / contact form: alert the admin on each submission.
-ensure_pref_default("general_inquiry", enabled=True)
-# Faultline: a fault marked critical, or a resolved fault that recurred. Both
-# on by default -- a critical or a regression should never sit unseen.
-ensure_pref_default("faultline_new_critical", enabled=True)
-ensure_pref_default("faultline_regression", enabled=True)
+    # Seed the prompt-cache advisor alert on-by-default (one-time infra nudge, not
+    # a high-volume heartbeat). Stays toggleable in the Alerts UI; never overrides
+    # a later admin choice. See app/services/cache_advisor.py.
+    from app.services.alerts import ensure_pref_default
+    ensure_pref_default("prompt_cache_warranted", enabled=True)
+    # Album Charger: alert the admin by email whenever someone charges an album.
+    # On by default (the admin asked for it); toggleable in the Alerts UI.
+    ensure_pref_default("album_charged", enabled=True)
+    # General inquiry / contact form: alert the admin on each submission.
+    ensure_pref_default("general_inquiry", enabled=True)
+    # Faultline: a fault marked critical, or a resolved fault that recurred. Both
+    # on by default -- a critical or a regression should never sit unseen.
+    ensure_pref_default("faultline_new_critical", enabled=True)
+    ensure_pref_default("faultline_regression", enabled=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan — startup cleanup only.
+    """App lifespan — schema init + startup cleanup.
 
     On Postgres there is no embedded replica to warm and no Hrana stream to
     keep alive, so the old warmup() + keepalive watchdog are gone. last_used_at
     and lc_events now write inline (throttled), so their background threads are
     gone too. Backups are triggered externally by cron on le-projects-01.
     """
+    _init_database()
     _cleanup_orphan_drafts()
 
     # Backfill Console: any job left in `running` from a prior process
