@@ -60,10 +60,12 @@ def write_event(
     user_agent: str | None,
     referrer: str | None,
     payload: dict[str, Any] | None = None,
-    submission_id: int | None = None,
+    song_id: int | None = None,
 ) -> None:
     """Write one lc_events row. Swallows all errors — telemetry failures must
-    never mask the outcome of the endpoint that called us."""
+    never mask the outcome of the endpoint that called us. `song_id` links the
+    event to the atomic songs.id (Phase 5d: replaced the legacy submission_id
+    FK into the dropped submitted_songs table)."""
     try:
         payload_json = json.dumps(payload, default=str) if payload else None
         db = SessionLocal()
@@ -74,7 +76,7 @@ def write_event(
                 user_agent=user_agent,
                 referrer=referrer,
                 payload_json=payload_json,
-                submission_id=submission_id,
+                song_id=song_id,
             ))
             db.commit()
         finally:

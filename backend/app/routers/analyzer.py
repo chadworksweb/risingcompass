@@ -172,12 +172,12 @@ async def _verify_turnstile(token: str, remote_ip: str | None) -> bool:
 
 
 def _log_error_event(event_type: str, request: Request, payload: dict | None = None,
-                     submission_id: int | None = None) -> None:
+                     song_id: int | None = None) -> None:
     """Synchronous event write for HTTPException paths (FastAPI drops BackgroundTasks
     on HTTPException, so error events must be persisted inline)."""
     meta = extract_request_meta(request)
     write_event(event_type, meta["ip"], meta["user_agent"], meta["referrer"],
-                payload=payload, submission_id=submission_id)
+                payload=payload, song_id=song_id)
 
 
 async def _check_bot_protection(
@@ -807,7 +807,7 @@ async def calibrate_lyrics_endpoint(
                                         "tier": color, "charge": calibration.get("charge_value"),
                                         "contaminated": calibration.get("contaminated", False),
                                         "confidence": calibration.get("confidence")},
-                               submission_id=submitted_id)
+                               song_id=submitted_id)
 
             return LyricsCalibrateOut(
                 status="scored",
@@ -1075,7 +1075,7 @@ async def calibrate_search(
                                         "tier": color, "charge": calibration.get("charge_value"),
                                         "contaminated": calibration.get("contaminated", False),
                                         "confidence": calibration.get("confidence")},
-                               submission_id=submitted_id)
+                               song_id=submitted_id)
 
             return LyricsCalibrateOut(
                 status="scored",

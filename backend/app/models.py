@@ -6,43 +6,12 @@ from datetime import datetime
 from app.database import Base
 
 
-class CompassSong(Base):
-    __tablename__ = "compass_songs"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(Text, nullable=False)
-    artist = Column(Text, nullable=False)
-    year = Column(Integer, nullable=False)
-    decade = Column(Text, nullable=False)
-    chart_position = Column(Integer, nullable=False)
-    rubric_color = Column(Text, nullable=False)
-    charge_value = Column(Integer)  # -100 to +100 per-song charge
-    contaminated = Column(Boolean, default=False)
-    contamination_note = Column(Text)
-    dogma_referenced = Column(Boolean, default=False)
-    dogma_note = Column(Text)
-    charge_summary = Column(Text)
-    chart_source = Column(Text, default="billboard_hot_100")
-    instrumental = Column(Boolean, default=False)
-    effects_prose = Column(Text)  # 3-paragraph per-song description of what the song transmits
-    societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
-    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
-    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
-    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
-    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
-    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
-    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
-    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
-    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
-    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
-    created_at = Column(DateTime, default=datetime.utcnow)
-    chart_position_letter = Column(Text)  # migration 052: tie-break suffix within a chart year
-    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
-    activations = Column(Text)  # JSON: rubric activations
-    calibration_failed = Column(Boolean, default=False)
-    message_analysis = Column(Text)
-    expression_analysis = Column(Text)
-    intention_analysis = Column(Text)
+# Phase 5d (2026-06-05): the four legacy song tables -- compass_songs,
+# library_songs, submitted_songs, cl_stream_songs -- and their model classes
+# (CompassSong / LibrarySong / SubmittedSong / StreamSong) were removed. The
+# unified `songs` table (class Song, below) is the sole song entity; all data
+# was folded into it in Phase 2. Removing the classes is required so
+# create_all() does not recreate the dropped tables. Migration 088 drops them.
 
 
 class DailyReading(Base):
@@ -64,8 +33,7 @@ class ReadingSong(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     reading_id = Column(Integer, ForeignKey("daily_readings.id"), nullable=False)
-    compass_song_id = Column(Integer, ForeignKey("compass_songs.id", ondelete="SET NULL"), nullable=True)
-    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
+    # Unified renovation: the atomic songs.id (legacy compass_song_id dropped in 5d).
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
@@ -73,7 +41,6 @@ class ReadingSong(Base):
     chart_source = Column(Text, default="spotify")
 
     reading = relationship("DailyReading", back_populates="songs")
-    compass_song = relationship("CompassSong", foreign_keys=[compass_song_id])
     song = relationship("Song", foreign_keys=[song_id])  # unified renovation
 
 
@@ -141,7 +108,6 @@ class AlbumDeepDive(Base):
     summary = Column(Text)
 
     tracks = relationship("AlbumTrack", back_populates="album", cascade="all, delete-orphan")
-    library_songs = relationship("LibrarySong", back_populates="album", cascade="all, delete-orphan")
 
 
 class AlbumTrack(Base):
@@ -155,49 +121,6 @@ class AlbumTrack(Base):
     assessment = Column(Text)
 
     album = relationship("AlbumDeepDive", back_populates="tracks")
-
-
-class LibrarySong(Base):
-    """Non-chart songs: manual entries, agent-scanned case studies, album deep dive tracks.
-
-    Completely separate from the compass_songs table (which feeds compass/drift).
-    The library frontend can read from both tables, but songs only gets fed by the agent pipeline.
-    """
-    __tablename__ = "library_songs"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(Text, nullable=False)
-    artist = Column(Text, nullable=False)
-    rubric_color = Column(Text, nullable=False)
-    charge_value = Column(Integer)  # -100 to +100
-    contaminated = Column(Boolean, default=False)
-    contamination_note = Column(Text)
-    dogma_referenced = Column(Boolean, default=False)
-    dogma_note = Column(Text)
-    charge_summary = Column(Text)
-    album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=True)
-    track_number = Column(Integer, nullable=True)  # position within album
-    source = Column(String(20), default="manual")  # manual / agent
-    effects_prose = Column(Text)  # 3-paragraph per-song description
-    societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
-    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
-    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
-    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
-    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
-    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
-    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
-    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
-    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
-    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
-    created_at = Column(DateTime, default=datetime.utcnow)
-    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
-    activations = Column(Text)
-    calibration_failed = Column(Boolean, default=False)
-    message_analysis = Column(Text)
-    expression_analysis = Column(Text)
-    intention_analysis = Column(Text)
-
-    album = relationship("AlbumDeepDive", back_populates="library_songs")
 
 
 class AgentDraft(Base):
@@ -231,8 +154,7 @@ class AgentDraftSong(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     draft_id = Column(Integer, ForeignKey("agent_drafts.id"), nullable=False)
-    compass_song_id = Column(Integer, ForeignKey("compass_songs.id", ondelete="SET NULL"), nullable=True)
-    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
+    # Unified renovation: the atomic songs.id (legacy compass_song_id dropped in 5d).
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
@@ -255,45 +177,6 @@ class AgentDraftSong(Base):
     intention_analysis = Column(Text)
 
     draft = relationship("AgentDraft", back_populates="songs")
-    compass_song = relationship("CompassSong")
-
-
-class SubmittedSong(Base):
-    """Crowd-submitted song calibrations from Lyrical Charger.
-
-    Separate from compass_songs (chart data) and library_songs (editorial).
-    This is the public contribution layer — building the world's lyrical charge database.
-    """
-    __tablename__ = "submitted_songs"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(Text, nullable=True)  # optional — paste-lyrics may not have metadata
-    artist = Column(Text, nullable=True)
-    rubric_color = Column(Text, nullable=False)
-    charge_value = Column(Integer)
-    contaminated = Column(Boolean, default=False)
-    contamination_note = Column(Text)
-    dogma_referenced = Column(Boolean, default=False)
-    dogma_note = Column(Text)
-    charge_summary = Column(Text)
-    confidence = Column(Float)
-    source = Column(String(20), default="paste_lyrics")  # paste_lyrics | search
-    ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6, for abuse detection
-    effects_prose = Column(Text)  # 3-paragraph per-song description
-    societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
-    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
-    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
-    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
-    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
-    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
-    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
-    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
-    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
-    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
-    submitted_at = Column(DateTime, default=datetime.utcnow)
-    # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
-    activations = Column(Text)
-    calibration_failed = Column(Boolean, default=False)
 
 
 class UserCalibration(Base):
@@ -371,7 +254,9 @@ class LcEvent(Base):
     user_agent = Column(String(512))
     referrer = Column(String(512))
     payload_json = Column(Text)
-    submission_id = Column(Integer, ForeignKey("submitted_songs.id", ondelete="SET NULL"))
+    # Unified renovation: optional link to the atomic songs.id (legacy
+    # submission_id FK to submitted_songs dropped in 5d).
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
 
 
 class AlbumCalibration(Base):
@@ -424,46 +309,6 @@ class MisreadSubmission(Base):
     # Atomic song ref (unified renovation 5c-2), nullable, set by the slug
     # matcher when the submitted (title, artist) resolves cleanly.
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
-
-
-class StreamSong(Base):
-    """CL Stream — personal feed of songs encountered in the wild.
-
-    The point is the *why* — why this song caught your ear, why it matters.
-    Songs land here first, get auto-calibrated, then can be promoted to
-    library_songs (official non-chart archive).
-    """
-    # Table renamed stream_songs -> cl_stream_songs (migration 079). The Python
-    # class stays StreamSong, and the provenance published label stays
-    # "stream_songs" for on-chain anchor continuity (see provenance_anchor.py).
-    __tablename__ = "cl_stream_songs"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(Text, nullable=False)
-    artist = Column(Text, nullable=False)
-    note = Column(Text)  # The why — optional
-    source_url = Column(Text)  # Tidal/Spotify/YouTube link
-    source_platform = Column(String(30))  # tidal / spotify / manual
-    rubric_color = Column(Text)
-    charge_value = Column(Integer)
-    contaminated = Column(Boolean, default=False)
-    contamination_note = Column(Text)
-    charge_summary = Column(Text)
-    confidence = Column(Float)
-    status = Column(String(20), default="calibrated")  # calibrated / promoted / failed
-    promoted_to = Column(String(20))  # library / compass — set on promotion
-    effects_prose = Column(Text)  # 3-paragraph per-song description
-    societal_effects_prose = Column(Text)  # what running this program at scale would do to a society
-    societal_prose_generated_at = Column(DateTime)  # sealed at societal-prose generation success (migration 075)
-    societal_prose_model = Column(Text)  # model that produced the societal prose (migration 075)
-    prior_effects_prose = Column(Text)  # migration 078: previous effects_prose before last regen
-    prior_societal_effects_prose = Column(Text)  # migration 078: previous societal prose
-    prior_societal_prose_generated_at = Column(DateTime)  # migration 078: seal of the prior version
-    prior_societal_prose_model = Column(Text)  # migration 078: model of the prior version
-    deadpan_line = Column(Text)  # Ether Art Chart: flat literal naming of the song
-    topics = Column(Text)  # Ether Art Chart: JSON array of taxonomy slugs, dominant-first
-    topic_audit = Column(Text)  # Ether Art Chart: JSON audit payload when no taxonomy match
-    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ProseProvenanceAnchor(Base):

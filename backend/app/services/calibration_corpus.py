@@ -26,20 +26,12 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models import (
-    CalibrationRun, CompassSong, LibrarySong, SubmittedSong, StreamSong,
-    SongRecalibration, Artist, SongArtist, Song,
+    CalibrationRun, SongRecalibration, Artist, SongArtist, Song,
 )
 from app.services.song_identity import compute_canonical_key
 
 logger = logging.getLogger(__name__)
 
-
-_SONG_TABLES = [
-    ("compass", CompassSong),
-    ("library", LibrarySong),
-    ("submitted", SubmittedSong),
-    ("stream", StreamSong),
-]
 
 # Unified song-entity renovation (Phase 5b): the corpus operates on the atomic
 # `songs` row. Calibration runs / recalibrations key off the unified song id

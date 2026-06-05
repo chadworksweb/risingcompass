@@ -5,7 +5,11 @@ FROZEN at commit a839df9. Do not modify. See v1_frozen/__init__.py.
 
 from sqlalchemy.orm import Session
 
-from app.models import CompassSong
+# Phase 5d: compass_songs was dropped; few-shot examples now come from the
+# unified `songs` table (Song). `songs` has no `decade` column, so the
+# decade-prioritization the frozen v1 used is no longer applied -- examples are
+# pulled per-tier from the Library superset.
+from app.models import Song
 from app.v1_frozen.rubric_builder import RUBRIC_DEFINITION
 
 
@@ -109,39 +113,19 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
     tiers = ["violet", "blue", "green", "orange", "red"]
     examples = []
 
-    target_decade = f"{(target_year // 10) * 10}s" if target_year else None
-
     for color in tiers:
-        songs = []
-        # Prioritize same-decade examples if target_year provided
-        if target_decade:
-            same_decade = (
-                db.query(CompassSong)
-                .filter(CompassSong.rubric_color == color)
-                .filter(CompassSong.charge_value.isnot(None))
-                .filter(CompassSong.charge_summary.isnot(None))
-                .filter(CompassSong.decade == target_decade)
-                .limit(5)
-                .all()
-            )
-            songs.extend(same_decade)
-        # Fill remaining slots with earlier/same-era examples only during backfill
-        if len(songs) < 5:
-            query = (
-                db.query(CompassSong)
-                .filter(CompassSong.rubric_color == color)
-                .filter(CompassSong.charge_value.isnot(None))
-                .filter(CompassSong.charge_summary.isnot(None))
-            )
-            # When backfilling historical years, only use same decade or earlier
-            # to prevent modern calibrations from biasing the agent
-            if target_year and target_year < 2020:
-                max_decade = f"{(target_year // 10) * 10}s"
-                query = query.filter(CompassSong.decade <= max_decade)
-            other = query.limit(5 - len(songs)).all()
-            # Avoid duplicates from same-decade query
-            seen = {(s.title, s.artist) for s in songs}
-            songs.extend(s for s in other if (s.title, s.artist) not in seen)
+        # Phase 5d: pull up to 5 calibrated examples per tier from the unified
+        # Library. `songs` carries no decade, so the prior decade-prioritization
+        # is dropped; `target_year` is accepted for signature compatibility but
+        # no longer filters.
+        songs = (
+            db.query(Song)
+            .filter(Song.rubric_color == color)
+            .filter(Song.charge_value.isnot(None))
+            .filter(Song.charge_summary.isnot(None))
+            .limit(5)
+            .all()
+        )
         for song in songs:
             entry = {
                 "title": song.title,
@@ -156,10 +140,10 @@ def build_few_shot_examples(db: Session, target_year: int = None) -> str:
 
     # Also grab a few contaminated examples across tiers
     contaminated = (
-        db.query(CompassSong)
-        .filter(CompassSong.contaminated.is_(True))
-        .filter(CompassSong.contamination_note.isnot(None))
-        .filter(CompassSong.charge_summary.isnot(None))
+        db.query(Song)
+        .filter(Song.contaminated.is_(True))
+        .filter(Song.contamination_note.isnot(None))
+        .filter(Song.charge_summary.isnot(None))
         .limit(3)
         .all()
     )

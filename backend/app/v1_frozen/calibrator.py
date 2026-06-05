@@ -12,7 +12,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import CompassSong
+# Phase 5d: compass_songs was dropped; v1's frozen lookup/examples now read the
+# unified `songs` table (Song), the superset that absorbed compass_songs.
+from app.models import Song
 from app.v1_frozen.contamination import enforce_contamination_rule
 from app.v1_frozen.compass_agent_rubric import (
     build_few_shot_examples,
@@ -34,10 +36,10 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
     Incomplete records (missing any of the three) return None so the song gets recalibrated.
     """
     existing = (
-        db.query(CompassSong)
-        .filter(func.lower(CompassSong.title) == title.lower())
-        .filter(func.lower(CompassSong.artist) == artist.lower())
-        .order_by(CompassSong.id.desc())
+        db.query(Song)
+        .filter(func.lower(Song.title) == title.lower())
+        .filter(func.lower(Song.artist) == artist.lower())
+        .order_by(Song.id.desc())
         .first()
     )
 
@@ -45,9 +47,9 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
     if not existing:
         stripped = re.sub(r"[^\w\s]", "", title.lower())
         candidates = (
-            db.query(CompassSong)
-            .filter(func.lower(CompassSong.artist) == artist.lower())
-            .order_by(CompassSong.id.desc())
+            db.query(Song)
+            .filter(func.lower(Song.artist) == artist.lower())
+            .order_by(Song.id.desc())
             .all()
         )
         for c in candidates:

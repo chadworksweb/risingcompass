@@ -24,7 +24,7 @@ def _serialize(evt: LcEvent) -> dict:
         "user_agent": evt.user_agent,
         "referrer": evt.referrer,
         "payload": json.loads(evt.payload_json) if evt.payload_json else None,
-        "submission_id": evt.submission_id,
+        "song_id": evt.song_id,
     }
 
 
