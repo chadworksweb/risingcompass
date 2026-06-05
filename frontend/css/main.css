@@ -64,14 +64,14 @@
 
 /* === Utility / Form Surface (high-contrast) ===
    Opt-in elevated palette for form- and data-dense utility surfaces (Dev
-   Ledger /dev/*, account onboarding, inquiry, misread, artist-claim). Mirrors
-   the status page (status.risingcompass.net) so utility surfaces read as one
-   family. Remaps the surface/border/text/accent tokens within scope, so every
-   existing --rc-* component inherits the lift with no per-component change.
-   Content/showcase pages (home, song, artist, library, tenets) deliberately
-   keep the standard palette -- do NOT add this class there. Apply with
-   <body class="rc-elevated">. See STYLE-GUIDE.md "Utility / Form Surface
-   Palette". Tier colors stay semantic (unchanged). */
+   Ledger /dev/*, account onboarding, inquiry, misread, artist-claim, Lyrical
+   Charger). Mirrors the status page (status.risingcompass.net) so utility
+   surfaces read as one family. Remaps the surface/border/text/accent tokens
+   within scope, so every existing --rc-* component inherits the lift with no
+   per-component change. Content/showcase pages (home, song, artist, library,
+   tenets) deliberately keep the standard palette -- do NOT add this class
+   there. Apply with <body class="rc-elevated">. See STYLE-GUIDE.md "Utility /
+   Form Surface Palette". Tier colors stay semantic (unchanged). */
 .rc-elevated {
   --rc-bg-dark: #08080f;
   --rc-bg-panel: #191930;
