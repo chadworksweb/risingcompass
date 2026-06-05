@@ -201,6 +201,8 @@ class TriageIn(BaseModel):
     admin_note: Optional[str] = None
     resolution: Optional[str] = None
     duplicate_of_id: Optional[int] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
 
 
 class ReleaseIn(BaseModel):
@@ -259,8 +261,23 @@ def admin_triage(
         severity=data.severity, area=data.area, is_public=data.is_public,
         admin_note=data.admin_note, resolution=data.resolution,
         duplicate_of_id=data.duplicate_of_id,
+        title=data.title, body=data.body,
     )
     return dl.item_to_dict(db, item, admin=True)
+
+
+@admin_router.delete("/{item_id}")
+def admin_delete(
+    item_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(verify_admin_key),
+):
+    """Hard-delete an item. Prefer unpublish to merely hide a public entry."""
+    item = db.query(DevLedgerItem).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Not found")
+    dl.delete_item(db, item)
+    return {"deleted": item_id}
 
 
 @admin_router.post("/release")

@@ -187,9 +187,23 @@ def triage(
     admin_note: Optional[str] = None,
     resolution: Optional[str] = None,
     duplicate_of_id: Optional[int] = None,
+    title: Optional[str] = None,
+    body: Optional[str] = None,
 ) -> DevLedgerItem:
-    """Apply admin triage edits. Sets published_at on first publish and
-    shipped_at on transition to 'shipped'."""
+    """Apply admin triage edits, including editing the public title/body. Sets
+    published_at on first publish and shipped_at on transition to 'shipped'."""
+    if title is not None:
+        title = title.strip()
+        if not (MIN_TITLE <= len(title) <= MAX_TITLE):
+            raise HTTPException(status_code=400, detail=f"Title must be {MIN_TITLE}-{MAX_TITLE} characters")
+        item.title = title
+
+    if body is not None:
+        body = body.strip()
+        if not (MIN_BODY <= len(body) <= MAX_BODY):
+            raise HTTPException(status_code=400, detail=f"Body must be {MIN_BODY}-{MAX_BODY} characters")
+        item.body = body
+
     if status is not None:
         if status not in ALL_STATUSES:
             raise HTTPException(status_code=400, detail="Invalid status")
@@ -237,6 +251,14 @@ def triage(
     db.commit()
     db.refresh(item)
     return item
+
+
+def delete_item(db: Session, item: DevLedgerItem) -> None:
+    """Hard-delete an item (and its votes via cascade). Use for removing a
+    mistaken or obsolete entry; prefer unpublish (is_public=False) to merely
+    hide one from the public board while keeping the record."""
+    db.delete(item)
+    db.commit()
 
 
 def cut_release(db: Session, *, item_ids: list[int], version: str, admin_id: int) -> list[DevLedgerItem]:

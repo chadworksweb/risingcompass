@@ -34,6 +34,9 @@
   .dl-controls select, .dl-controls input { padding: 0.25rem 0.4rem; font-size: 0.78rem; }
   .dl-controls button { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
   .dl-rel-check { transform: scale(1.15); margin-right: 0.2rem; }
+  .dl-editform { margin: 0.5rem 0; padding: 0.6rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 4px; }
+  .dl-editform input, .dl-editform textarea { width: 100%; padding: 0.35rem 0.5rem; font-size: 0.85rem; margin-bottom: 0.4rem; }
+  .dl-editform textarea { min-height: 5em; resize: vertical; }
   .dl-panel { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.8rem 1rem; margin-bottom: 1rem; }
   .dl-panel summary { cursor: pointer; font-weight: 700; color: var(--accent-strong); }
   .dl-panel .row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.6rem; }
@@ -201,6 +204,11 @@ function renderItem(i) {
       <div class="dl-title">${esc(i.title)}</div>
       <div class="dl-body" id="dlbody-${i.id}">${esc(i.body)}</div>
       <button class="dl-expand" onclick="toggleBody(${i.id})">Expand</button>
+      <div class="dl-editform" id="dledit-${i.id}" style="display:none;">
+        <input type="text" class="dl-edit-title" value="${esc(i.title)}" maxlength="200" placeholder="Title">
+        <textarea class="dl-edit-body" maxlength="5000" placeholder="Body">${esc(i.body)}</textarea>
+        <div><button onclick="saveEdit(${i.id})">Save text</button> <button onclick="cancelEdit(${i.id})">Cancel</button></div>
+      </div>
       ${resolutionBlock}
       <div class="dl-controls">
         <select onchange="patchField(${i.id}, 'status', this.value)">${opts(statusList, i.status)}</select>
@@ -209,7 +217,9 @@ function renderItem(i) {
         <input type="text" placeholder="version" value="${esc(i.version || '')}" size="11" onchange="patchField(${i.id}, 'version', this.value)">
         <button onclick="togglePublic(${i.id}, ${i.is_public ? 'false' : 'true'})">${i.is_public ? 'Unpublish' : 'Publish'}</button>
         <button onclick="setResolution(${i.id})">Resolution</button>
+        <button onclick="editItem(${i.id})">Edit text</button>
         ${i.item_type !== 'change' ? `<button class="btn-danger" onclick="decline(${i.id})">Decline</button>` : ''}
+        <button class="btn-danger" onclick="deleteItem(${i.id})">Delete</button>
       </div>
     </div>
   `;
@@ -221,6 +231,40 @@ function toggleBody(id) {
   const expanded = el.classList.toggle('expanded');
   const btn = el.nextElementSibling;
   if (btn) btn.textContent = expanded ? 'Collapse' : 'Expand';
+}
+
+function editItem(id) {
+  const el = document.getElementById(`dledit-${id}`);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function cancelEdit(id) {
+  const el = document.getElementById(`dledit-${id}`);
+  if (el) el.style.display = 'none';
+}
+
+function saveEdit(id) {
+  const box = document.getElementById(`dledit-${id}`);
+  if (!box) return;
+  const title = box.querySelector('.dl-edit-title').value.trim();
+  const body = box.querySelector('.dl-edit-body').value.trim();
+  patchItem(id, { title, body }, `Saved text on #${id}.`);
+}
+
+async function deleteItem(id) {
+  if (!window.confirm(`Delete #${id} permanently? (Unpublish instead to just hide a public entry.)`)) return;
+  const statusEl = document.getElementById('dlStatus');
+  try {
+    const resp = await fetch(`/api/admin/dev-ledger/${id}`, {
+      method: 'DELETE', headers: adminHeaders(), credentials: 'include',
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.detail || resp.statusText);
+    showMsg(statusEl, `Deleted #${id}.`, 'success');
+    loadQueue();
+  } catch (err) {
+    showMsg(statusEl, err.message || String(err), 'error');
+  }
 }
 
 async function patchItem(id, payload, msg) {
