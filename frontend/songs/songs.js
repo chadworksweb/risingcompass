@@ -778,6 +778,88 @@
     section.hidden = false;
   }
 
+  // A small floating status toast for the charge-card download. Lazily created,
+  // reused across clicks. Plain text only (we control every message).
+  function showCardToast(message, opts) {
+    opts = opts || {};
+    let toast = document.getElementById('charge-card-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'charge-card-toast';
+      toast.className = 'charge-card-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toast);
+    }
+    toast.classList.toggle('charge-card-toast--error', !!opts.error);
+    toast.innerHTML = '';
+    if (opts.spinner) {
+      const sp = document.createElement('span');
+      sp.className = 'charge-card-toast-spinner';
+      sp.setAttribute('aria-hidden', 'true');
+      toast.appendChild(sp);
+    }
+    const txt = document.createElement('span');
+    txt.textContent = message;
+    toast.appendChild(txt);
+    // Force reflow so the transition runs even on a reused node.
+    void toast.offsetWidth;
+    toast.classList.add('is-visible');
+    clearTimeout(toast._hideTimer);
+    if (opts.autohideMs) {
+      toast._hideTimer = setTimeout(() => toast.classList.remove('is-visible'), opts.autohideMs);
+    }
+  }
+
+  // Wire the "Get Charge Card" button. Renders the same 1080x1080 share card
+  // the Lyrical Charger produces (window.LCShareCard) from this song's
+  // calibration -- compass-branded (no Lyrical Charger verbiage) -- and
+  // downloads it as a PNG, with a smooth status toast on desktop + mobile.
+  function wireChargeCard(song, isUncalibrated, color, tierLabel) {
+    const btn = document.getElementById('charge-card-btn');
+    if (!btn) return;
+    if (isUncalibrated || !window.LCShareCard) {
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+
+    // Map the song-detail shape onto the card's expected data shape. The card
+    // keys off `tier` (rubric_color) and `charge` (charge_value).
+    const cardData = {
+      tier: song.rubric_color,
+      tier_label: song.tier_label || tierLabel,
+      charge: song.charge_value,
+      charge_summary: song.charge_summary || '',
+      deadpan_line: song.deadpan_line || '',
+      title: song.title || '',
+      artist: song.artist || '',
+      topics: Array.isArray(song.topics) ? song.topics : [],
+    };
+
+    btn.onclick = async () => {
+      const canvas = document.getElementById('charge-card-canvas');
+      if (!canvas) return;
+      btn.disabled = true;
+      showCardToast('Downloading now…', { spinner: true });
+      const startedAt = Date.now();
+      try {
+        const cardOpts = { brand: 'compass' };
+        await window.LCShareCard.render(cardData, canvas, cardOpts);
+        await window.LCShareCard.shareOrDownload(canvas, cardData, true, cardOpts);
+        // Hold the "Downloading now" state briefly so it doesn't flash past on
+        // fast machines, then confirm.
+        const elapsed = Date.now() - startedAt;
+        if (elapsed < 650) await new Promise(r => setTimeout(r, 650 - elapsed));
+        showCardToast('Check your downloads', { autohideMs: 4000 });
+        announce('Charge card downloaded — check your downloads');
+      } catch (_) {
+        showCardToast('Couldn’t make the card — try again', { error: true, autohideMs: 4000 });
+      }
+      btn.disabled = false;
+    };
+  }
+
   function renderSong(song) {
     const isUncalibrated = !!song.uncalibrated || song.charge_value == null;
     const color = COLOR_HEX[song.rubric_color] || '#999';
@@ -875,6 +957,11 @@
         `;
       }
     }
+
+    // Shareable charge card — same card the Lyrical Charger offers after a
+    // reading, made available on every calibrated song's page. Hidden for
+    // uncalibrated songs (no charge to render).
+    wireChargeCard(song, isUncalibrated, color, tierLabel);
 
     // Section 2: Song-specific summary
     const summarySection = document.getElementById('section-summary');

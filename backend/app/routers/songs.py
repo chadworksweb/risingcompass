@@ -480,6 +480,11 @@ def _resolve_song(unified_id: int, db) -> dict | None:
 
     # A reset song keeps its row but has charge_value=NULL and rubric_color="".
     is_uncalibrated = row.charge_value is None
+    import json as _json
+    try:
+        topics = _json.loads(row.topics) if row.topics else None
+    except (ValueError, TypeError):
+        topics = None
     return {
         "title": row.title,
         "artist": row.artist,
@@ -492,6 +497,9 @@ def _resolve_song(unified_id: int, db) -> dict | None:
         "dogma_referenced": row.dogma_referenced or False,
         "dogma_note": row.dogma_note,
         "charge_summary": row.charge_summary,
+        # Ether Art Chart fields -- feed the shareable charge card on the song page.
+        "deadpan_line": row.deadpan_line,
+        "topics": topics,
         "effects_prose": row.effects_prose,
         "societal_effects_prose": row.societal_effects_prose,
         "uncalibrated": is_uncalibrated,

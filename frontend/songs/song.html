@@ -489,6 +489,10 @@
           <p id="recal-stamp" class="recal-stamp" hidden>
             <button type="button" id="recal-stamp-btn" class="recal-stamp-btn"></button>
           </p>
+          <button type="button" id="charge-card-btn" class="charge-card-btn" hidden>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Get Charge Card</span>
+          </button>
         </div>
       </section>
 
@@ -705,11 +709,15 @@
 
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
+  <!-- Offscreen canvas the charge card is rendered into before download. -->
+  <canvas id="charge-card-canvas" width="1080" height="1080" style="display:none"></canvas>
+
   <script src="../artists/artists-api.js"></script>
   <script src="/js/compass.js"></script>
   <script src="/js/charge.js"></script>
   <script src="/js/auth.js" defer></script>
   <script src="/js/comments.js" defer></script>
+  <script src="/lyrical-charger/share-card.js"></script>
   <script src="/songs/songs.js"></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">

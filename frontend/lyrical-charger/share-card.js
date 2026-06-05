@@ -184,7 +184,11 @@
   }
 
   // Draw the card into `canvas` (sized to 1080). Returns the canvas.
-  async function render(data, canvas) {
+  // opts.brand: 'lyrical-charger' (default) draws the Lyrical Charger wordmark;
+  // 'compass' draws just THE RISING COMPASS (used on song pages, where the card
+  // is the compass's own and the Lyrical Charger verbiage doesn't belong).
+  async function render(data, canvas, opts) {
+    var brand = (opts && opts.brand) || 'lyrical-charger';
     await ensureFonts();
     var chargeNum = (data.charge != null) ? data.charge : 0;
     var compass = await loadCompass(chargeToRot(chargeNum)); // needle points at the charge
@@ -269,7 +273,19 @@
 
     // ----- Left 4/5 column: title, artist, deadpan -- stacked from the top -----
     var colW = tileX - leftX - 30;
-    var tFit = fitText(ctx, v.title || 'Untitled', '"Inter"', '700', colW, 4, 100, 52);
+    // The title sits level with the badge, so it gets extra right padding (a
+    // wider gap than the column below) to force a line break before it ever
+    // butts up against the compass gauge.
+    var titleColW = tileX - leftX - 78;
+    // Length-aware title sizing: longer titles start smaller so they never
+    // dominate the hero. We cap the starting size by character count, then
+    // fitText shrinks further to fit the column width within maxLines.
+    var titleText = v.title || 'Untitled';
+    var titleStart = 100;
+    if (titleText.length > 22) {
+      titleStart = Math.max(52, Math.round(100 - (titleText.length - 22) * 1.6));
+    }
+    var tFit = fitText(ctx, titleText, '"Inter"', '700', titleColW, 3, titleStart, 44);
     var ty = P + tFit.size;
     ctx.fillStyle = '#f4f4fa';
     ctx.font = '700 ' + tFit.size + 'px "Inter"';
@@ -316,40 +332,54 @@
     }
 
     // ===== BOTTOM (left-aligned, extra padding from the base) =====
-    // Topics
+    // The brand wordmark baseline. Topics sit equidistant above it as the URL
+    // sits below it (both 44px from this line), so the bottom block reads as
+    // three evenly-spaced rows: #topics / wordmark / url.
+    var fy = SIZE - P - 44;
+
+    // Topics -- 44px above the wordmark line.
     if (v.topics.length) {
       ctx.fillStyle = hexToRgba(v.hex, 0.9);
       ctx.font = '400 26px "JetBrains Mono"';
       var tline = v.topics.map(function (t) { return '#' + String(t).replace(/^#/, ''); }).join('   ');
-      ctx.fillText(tline, leftX, SIZE - P - 114);
+      ctx.fillText(tline, leftX, fy - 44);
     }
 
-    // Brand tagline: LYRICAL CHARGER, powered by the RISING COMPASS.
-    // Both brand names share one style; the connective is the dim link.
-    var fy = SIZE - P - 44;
+    // Brand wordmark. Default: LYRICAL CHARGER, powered by the RISING COMPASS.
+    // brand==='compass' (song pages): just THE RISING COMPASS.
     var markSize = 32;
     if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
     ctx.textBaseline = 'middle';
     var tx = leftX + markSize + 14;
-    ctx.fillStyle = '#c8c8d8';
-    ctx.font = '700 22px "JetBrains Mono"';
-    setLS(ctx, 2);
-    ctx.fillText('LYRICAL CHARGER', tx, fy + 1);
-    tx += ctx.measureText('LYRICAL CHARGER').width + 6;
-    setLS(ctx, 0);
-    ctx.fillStyle = '#6a6a82';
-    ctx.font = '400 18px "JetBrains Mono"';
-    ctx.fillText(', powered by the ', tx, fy + 1);
-    tx += ctx.measureText(', powered by the ').width + 4;
-    ctx.fillStyle = '#c8c8d8';
-    ctx.font = '700 22px "JetBrains Mono"';
-    setLS(ctx, 2);
-    ctx.fillText('RISING COMPASS', tx, fy + 1);
-    setLS(ctx, 0);
+    if (brand === 'compass') {
+      ctx.fillStyle = '#c8c8d8';
+      ctx.font = '700 22px "JetBrains Mono"';
+      setLS(ctx, 2);
+      ctx.fillText('THE RISING COMPASS', tx, fy + 1);
+      setLS(ctx, 0);
+    } else {
+      // Both brand names share one style; the connective is the dim link.
+      ctx.fillStyle = '#c8c8d8';
+      ctx.font = '700 22px "JetBrains Mono"';
+      setLS(ctx, 2);
+      ctx.fillText('LYRICAL CHARGER', tx, fy + 1);
+      tx += ctx.measureText('LYRICAL CHARGER').width + 6;
+      setLS(ctx, 0);
+      ctx.fillStyle = '#6a6a82';
+      ctx.font = '400 18px "JetBrains Mono"';
+      ctx.fillText(', powered by the ', tx, fy + 1);
+      tx += ctx.measureText(', powered by the ').width + 4;
+      ctx.fillStyle = '#c8c8d8';
+      ctx.font = '700 22px "JetBrains Mono"';
+      setLS(ctx, 2);
+      ctx.fillText('RISING COMPASS', tx, fy + 1);
+      setLS(ctx, 0);
+    }
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#6a6a82';
     ctx.font = '400 20px "JetBrains Mono"';
-    ctx.fillText('risingcompass.net/lyrical-charger', leftX, SIZE - P);
+    ctx.fillText(brand === 'compass' ? 'risingcompass.net' : 'risingcompass.net/lyrical-charger',
+      leftX, SIZE - P);
 
     return canvas;
   }
@@ -367,13 +397,19 @@
 
   // Share via the native sheet when possible (mobile -> Instagram/Stories);
   // otherwise download the PNG.
-  async function shareOrDownload(canvas, data, forceDownload) {
+  async function shareOrDownload(canvas, data, forceDownload, opts) {
+    var brand = (opts && opts.brand) || 'lyrical-charger';
+    var isCompass = brand === 'compass';
     var v = pick(data);
     var blob = await canvasToBlob(canvas);
-    var fname = 'lyrical-charge-' + slugify(data.title || v.label) + '.png';
+    var fname = (isCompass ? 'charge-card-' : 'lyrical-charge-') +
+      slugify(data.title || v.label) + '.png';
     var text = (data.title ? '"' + data.title + '" ' : '') + 'charged ' + v.chargeStr +
-      ' (' + (data.tier_label || v.label) + ') on the Lyrical Charger.';
-    var shareUrl = 'https://risingcompass.net/lyrical-charger/';
+      ' (' + (data.tier_label || v.label) + ')' +
+      (isCompass ? ' by The Rising Compass.' : ' on the Lyrical Charger.');
+    var shareUrl = isCompass
+      ? 'https://risingcompass.net/'
+      : 'https://risingcompass.net/lyrical-charger/';
 
     if (!forceDownload) {
       try {
