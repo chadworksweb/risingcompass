@@ -163,6 +163,21 @@
 .dl-col[data-stage=next] .dl-col-head { color: var(--rc-blue); }
 .dl-col[data-stage=later] .dl-col-head { color: var(--rc-text-dim); }
 
+/* --- completed grid (below the roadmap board) --- */
+.dl-completed-head { color: var(--rc-text-bright); font-size: 1.1rem; margin: 2.5rem 0 0.2rem; }
+.dl-completed-sub { color: var(--rc-text-dim); font-size: 0.85rem; margin: 0 0 1rem; }
+.dl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.7rem; }
+.dl-done-tile {
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-left: 3px solid var(--rc-green);
+  border-radius: var(--rc-radius-md);
+  padding: 0.7rem 0.85rem;
+}
+.dl-done-title { color: var(--rc-text-bright); font-weight: 600; font-size: 0.9rem; line-height: 1.35; }
+.dl-done-check { color: var(--rc-green); margin-right: 0.35rem; font-weight: 700; }
+.dl-done-body { color: var(--rc-text-dim); font-size: 0.82rem; line-height: 1.45; margin-top: 0.3rem; }
+
 /* --- feedback / cards --- */
 .dl-card {
   display: flex;

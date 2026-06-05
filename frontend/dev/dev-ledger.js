@@ -114,26 +114,46 @@
       ['later', 'Later', 'On the horizon'],
     ];
     const total = cols.reduce((n, [k]) => n + ((data[k] || []).length), 0);
-    if (!total) { el.innerHTML = '<p class="dl-empty">The roadmap is being drawn up. Check back soon.</p>'; return; }
+    if (!total) {
+      el.innerHTML = '<p class="dl-empty">The roadmap is being drawn up. Check back soon.</p>';
+    } else {
+      el.innerHTML = cols.map(([key, label, blurb]) => {
+        const items = data[key] || [];
+        const body = items.length
+          ? items.map((i) => `
+              <div class="dl-entry ${esc(i.item_type)}">
+                <div class="dl-entry-head">
+                  <span class="dl-entry-title">${esc(i.title)}</span>
+                  ${i.vote_count ? `<span class="dl-meta">&#9650; ${i.vote_count}</span>` : ''}
+                </div>
+                <div class="dl-entry-body">${esc(i.body)}</div>
+              </div>`).join('')
+          : '<p class="dl-empty" style="font-size:0.85rem;">Nothing here yet.</p>';
+        return `
+          <div class="dl-col" data-stage="${key}">
+            <div class="dl-col-head">${esc(label)}</div>
+            ${body}
+          </div>`;
+      }).join('');
+    }
 
-    el.innerHTML = cols.map(([key, label, blurb]) => {
-      const items = data[key] || [];
-      const body = items.length
-        ? items.map((i) => `
-            <div class="dl-entry ${esc(i.item_type)}">
-              <div class="dl-entry-head">
-                <span class="dl-entry-title">${esc(i.title)}</span>
-                ${i.vote_count ? `<span class="dl-meta">&#9650; ${i.vote_count}</span>` : ''}
-              </div>
-              <div class="dl-entry-body">${esc(i.body)}</div>
-            </div>`).join('')
-        : '<p class="dl-empty" style="font-size:0.85rem;">Nothing here yet.</p>';
-      return `
-        <div class="dl-col" data-stage="${key}">
-          <div class="dl-col-head">${esc(label)}</div>
-          ${body}
-        </div>`;
-    }).join('');
+    renderCompleted(data.completed || []);
+  }
+
+  function renderCompleted(items) {
+    const section = document.getElementById('dlCompletedSection');
+    const grid = document.getElementById('dlCompleted');
+    if (!section || !grid) return;
+    if (!items.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    grid.innerHTML = items.map((i) => `
+      <div class="dl-done-tile">
+        <div class="dl-done-title">
+          <span class="dl-done-check">&#10003;</span>${esc(i.title)}
+          ${i.area ? `<span class="dl-badge area">${esc(i.area)}</span>` : ''}
+        </div>
+        <div class="dl-done-body">${esc(i.body)}</div>
+      </div>`).join('');
   }
 
   // ---------------------------------------------------------------- feedback

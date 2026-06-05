@@ -44,7 +44,7 @@ FEATURE_BUG_STATUSES = {
 CHANGE_STATUSES = {"planned", "in_progress", "shipped"}
 ALL_STATUSES = FEATURE_BUG_STATUSES | CHANGE_STATUSES
 
-STAGES = {"now", "next", "later"}
+STAGES = {"now", "next", "later", "done"}  # 'done' renders in the Completed grid
 SEVERITIES = {"low", "med", "high", "critical"}
 
 # Field limits

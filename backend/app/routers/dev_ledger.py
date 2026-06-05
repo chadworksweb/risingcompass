@@ -80,20 +80,21 @@ def get_changelog(
 
 @router.get("/roadmap")
 def get_roadmap(db: Session = Depends(get_db)):
-    """Public, not-yet-shipped items that carry a stage, grouped now/next/later
-    and ordered by vote_count within each bucket."""
+    """Public roadmap. now/next/later are planned (not-yet-shipped) items;
+    'completed' holds delivered roadmap features (stage='done')."""
     rows = (
         db.query(DevLedgerItem)
         .filter(
             DevLedgerItem.is_public.is_(True),
-            DevLedgerItem.status != "shipped",
             DevLedgerItem.stage.isnot(None),
         )
         .all()
     )
-    buckets: dict = {"now": [], "next": [], "later": []}
+    buckets: dict = {"now": [], "next": [], "later": [], "completed": []}
     for r in sorted(rows, key=lambda x: (-(x.vote_count or 0), x.id)):
-        if r.stage in buckets:
+        if r.stage == "done":
+            buckets["completed"].append(dl.item_to_dict(db, r))
+        elif r.stage in ("now", "next", "later") and r.status != "shipped":
             buckets[r.stage].append(dl.item_to_dict(db, r))
     return buckets
 
