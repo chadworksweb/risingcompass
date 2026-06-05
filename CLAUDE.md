@@ -530,3 +530,56 @@ Essential (always on) + Analytics (PostHog + GA). Choice stored in the
 - **Ops:** mmdb mounted `/root/geoip:/geoip:ro`, path `GEOIP_DB_PATH`. Fetch /
   refresh with `deploy/refresh_geoip.sh` (needs `MAXMIND_LICENSE_KEY`; cron it
   weekly, restart backend after). `geoip2` is in `requirements.txt`.
+
+## Logging + Faultline (error ledger, LIVE 2026-06-05)
+
+**Durable logging (read this before adding any `except: logger.exception`).**
+The app used to rely on uvicorn's console only -- no `FileHandler` -- so a real
+prod failure once left ZERO durable trace (full analysis +standards in
+`plans and docs/RISING-COMPASS-ERROR-CONSOLE-POSTMORTEM.md`; read it). Now
+`app/logging_config.py::configure_logging()` runs at the TOP of `main.py` and
+attaches a rotating file handler (`backend/logs/backend.log`, gitignored) to the
+root logger. Every `logger.exception` survives to disk.
+
+**Faultline** is the queryable layer above that file -- an internal error ledger
++ agent-driven triage. Self-contained subsystem; spec in
+`plans and docs/RISING-COMPASS-FAULTLINE-SCOPE.md`.
+
+- **Capture (decoupled, fail-safe).** An `ErrorLedgerHandler` (in
+  `services/faultline.py`, attached in `logging_config.py`) on the root logger
+  turns every ERROR record into a deduplicated fault. ZERO business-code
+  coupling -- it rides Python's logging contract, nothing imports it from app
+  logic. Fingerprint = `sha256(exc_type + innermost frames)`; one
+  `error_signatures` row, many `error_occurrences`. Non-blocking (bounded queue +
+  daemon writer thread, own session), drop-on-overflow, never raises. Every fault
+  is tagged `environment` (`prod` | `local`) -- **local dev shares the prod DB via
+  the tunnel, so always filter the panel by env.**
+- **Tables (migration 085):** `error_signatures` (the issue, keyed by
+  `fingerprint`), `error_occurrences` (hits, retention-pruned), `error_actions`
+  (the phase-mgmt audit log). Models in `models.py`.
+- **Lifecycle (shared service `services/faultline_triage.py`):** `new -> triaged
+  -> investigating -> fix_proposed -> fix_applied -> verifying -> resolved`, plus
+  `wont_fix|duplicate`, `muted` (orthogonal), and auto-`regressed` (a new hit on a
+  resolved fault). Both the admin panel and the agent API drive faults through
+  this one module -- identical rules.
+- **Admin panel:** Site Admin > System > **Faultline** (`admin/faultline.html`,
+  router `routers/faultline.py`). List/filter/detail (traceback + occurrence
+  timeline + action log) + triage controls + Promote to Dev Ledger + prune.
+- **Agent API (`routers/faultline_agent.py`, `/api/agent/faultline/*`).** Key lane
+  `X-Error-Agent-Key` == `RC_ERROR_AGENT_KEY`. **Ships dark: 503 on every endpoint
+  until the key is set.** Queue (ranked), detail + parsed `code_pointers`,
+  claim/heartbeat/release (leasing), actions/triage/status/promote/prune -- all
+  idempotent. Runner harness `scripts/faultline_agent.py` (swap `diagnose()` for a
+  real agent: `claude -p` or the Agent SDK). Works fully manually without any
+  agent -- the agent is an optional accelerant.
+- **Seams (only two, deliberate):** inbound = the logging handler; outbound =
+  one-way promote to a Dev Ledger `bug` (`dev_ledger.create_internal_bug`, sets
+  `error_signatures.dev_ledger_item_id`). Walled from `lc_events`, `api_call_log`,
+  Status Page, Misread. Alerts `faultline_new_critical` + `faultline_regression`
+  (default-on, fail-safe) reuse the existing alerts system.
+- **Flag/env:** `system_flags` `faultline.enabled` (fail-OPEN kill switch);
+  `RC_ERROR_AGENT_KEY`, `FAULTLINE_CAPTURE_LEVEL` (ERROR), `FAULTLINE_OCCURRENCE_RETENTION`
+  (50), `ENVIRONMENT` (defaults `prod` in docker-compose). All in `docker-compose.yml`.
+- **Retention:** `prune_occurrences` keeps N/signature, never deletes signatures;
+  admin `POST /api/admin/faultline/prune` or agent `/api/agent/faultline/prune`
+  (cron-able). Not yet cronned.
