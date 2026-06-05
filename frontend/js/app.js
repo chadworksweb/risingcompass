@@ -73,6 +73,25 @@ const App = (() => {
     initNav();
     initEraTabs();
     initCalendarPicker();
+    // The trajectory Expand toggle (js/trajectory-expand.js) fires this after it
+    // changes the panel width, so the daily chart re-renders at the new width
+    // (recomputed viewBox = undistorted) instead of being stretched by CSS.
+    window.addEventListener('rc:trajectory-resized', () => {
+      const daily = document.getElementById('daily-chart-container');
+      const hist = document.getElementById('trajectory-container');
+      const locked = document.getElementById('trajectory-panel')?.classList.contains('traj-chart-locked');
+      if (locked) {
+        // Expanded / mid-animation: re-render only the visible tab (cheap per frame).
+        const histActive = document.getElementById('era-historical')?.classList.contains('active');
+        if (histActive) { if (hist && chartData.length) applyZoomChartOnly(hist); }
+        else { if (daily && dailyChartLoaded) applyDailyZoomChartOnly(daily); }
+      } else {
+        // Collapsed: reset BOTH charts to the default width so the hidden tab
+        // doesn't keep a stale expanded viewBox (would render squished next view).
+        if (daily && dailyChartLoaded) applyDailyZoomChartOnly(daily);
+        if (hist && chartData.length) applyZoomChartOnly(hist);
+      }
+    });
     await loadCurrent();
     loadDailyChart();
     loadTrajectory();
@@ -360,7 +379,16 @@ const App = (() => {
     if (!data.length) return;
     chartData = data;
 
-    const W = 320, H = 120;
+    const H = 120;
+    // Same as the daily chart: when the panel is expanded the chart box is much
+    // wider but height-locked, so match the viewBox width to the box's pixel
+    // aspect to scale horizontally only (no xy stretch). See renderDailyChart.
+    let W = 320;
+    const lockArea = container.querySelector('.traj-chart-area');
+    if (lockArea && container.closest('.traj-chart-locked')) {
+      const pxW = lockArea.clientWidth, pxH = lockArea.clientHeight;
+      if (pxW > 0 && pxH > 0) W = Math.max(320, Math.round(H * pxW / pxH));
+    }
     const padL = 30, padR = 16, padT = 10, padB = 22;
     const chartW = W - padL - padR;
     const chartH = H - padT - padB;
@@ -468,13 +496,7 @@ const App = (() => {
     const wrap = chartEl.querySelector('.traj-wrap');
     const svgEl = chartEl.querySelector('.trajectory-svg');
 
-    // Hide stale tooltip on new touch so it doesn't flash at old position
-    wrap.addEventListener('touchstart', () => {
-      const t = document.getElementById('traj-tooltip');
-      if (t) t.style.display = 'none';
-    }, { passive: true });
-
-    wrap.addEventListener('mousemove', (e) => {
+    function showHoverAt(clientX) {
       if (tmPlaying) return;
       const hoverLine = document.getElementById('traj-hover-line');
       const hoverDot = document.getElementById('traj-hover-dot');
@@ -482,7 +504,7 @@ const App = (() => {
       if (!hoverLine) return;
 
       const rect = svgEl.getBoundingClientRect();
-      const relX = (e.clientX - rect.left) / rect.width;
+      const relX = (clientX - rect.left) / rect.width;
       const svgX = relX * W;
 
       let nearest = 0, minDist = Infinity;
@@ -506,22 +528,55 @@ const App = (() => {
       const yearLabel = p.isYTD ? `${d.year} YTD` : String(d.year);
       const songsMeta = p.isYTD ? `${d.chart_song_count} songs \u00B7 updated daily` : `${d.chart_song_count} charting songs`;
       const wrapRect = wrap.getBoundingClientRect();
-      const pixelX = e.clientX - wrapRect.left;
+      const pixelX = clientX - wrapRect.left;
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
       tooltip.innerHTML = `<strong>${yearLabel}</strong> <span style="color:${hex}">${degreeToScore(p.degree)}</span> ${CHARGE_LABELS[p.color]}<br><span class="traj-tooltip-sub">${songsMeta}</span>`;
       tooltip.style.display = 'block';
-    });
-
-    wrap.addEventListener('mouseleave', () => {
+    }
+    function hideHover() {
       const hoverLine = document.getElementById('traj-hover-line');
       const hoverDot = document.getElementById('traj-hover-dot');
       const tooltip = document.getElementById('traj-tooltip');
       if (hoverLine) hoverLine.style.display = 'none';
       if (hoverDot) hoverDot.style.display = 'none';
       if (tooltip) tooltip.style.display = 'none';
-    });
+    }
+
+    wrap.addEventListener('mousemove', (e) => showHoverAt(e.clientX));
+    wrap.addEventListener('mouseleave', hideHover);
+
+    // Touch: single-finger drag on the chart body scrubs the tooltip across the
+    // points (read values), no tap-lift-tap. stopPropagation keeps the body's
+    // pan handler (.traj-chart-area) from firing -- pan/zoom stays on the overview
+    // mini-map + two-finger pinch. A tap (no move -> no preventDefault) still
+    // falls through to the click handler to set the compass.
+    let scrubHideTO = null, scrubbing = false;
+    // Only start a scrub when the finger lands on the PLOT area, not the x-axis
+    // label row (months/years) below it -- so the labels stay scroll-safe.
+    const inPlot = (clientY) => {
+      const rct = svgEl.getBoundingClientRect();
+      const top = rct.top + (padT / H) * rct.height;
+      const bot = rct.top + ((padT + chartH) / H) * rct.height;
+      return clientY >= top && clientY <= bot;
+    };
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1 || !inPlot(e.touches[0].clientY)) { scrubbing = false; return; }
+      scrubbing = true;
+      e.stopPropagation();
+      clearTimeout(scrubHideTO);
+      showHoverAt(e.touches[0].clientX);
+    }, { passive: true });
+    wrap.addEventListener('touchmove', (e) => {
+      if (!scrubbing || e.touches.length !== 1) return;
+      e.stopPropagation();
+      e.preventDefault();
+      showHoverAt(e.touches[0].clientX);
+    }, { passive: false });
+    const endScrub = () => { if (!scrubbing) return; scrubbing = false; clearTimeout(scrubHideTO); scrubHideTO = setTimeout(hideHover, 1500); };
+    wrap.addEventListener('touchend', endScrub);
+    wrap.addEventListener('touchcancel', endScrub);
 
     // Click: move compass + charge bar to clicked year, load songs
     wrap.addEventListener('click', (e) => {
@@ -1895,7 +1950,24 @@ const App = (() => {
     if (!data.length) return;
     data = interpolateSkippedDegrees(data);
 
-    const W = 320, H = 120;
+    const H = 120;
+    // Default viewBox width keeps the established 320x120 (2.667:1) shape, which
+    // scales uniformly in its normal column (height is auto there). When the
+    // trajectory panel is EXPANDED its chart box is much wider but height-locked,
+    // so a fixed 320 width would force preserveAspectRatio="none" to stretch the
+    // chart non-uniformly (oval dots, smeared labels -- see the distortion bug).
+    // Match the viewBox width to the box's real pixel aspect ratio so scaling
+    // stays uniform: the chart gains genuine horizontal resolution, not distortion.
+    let W = 320;
+    const area = container.querySelector('.traj-chart-area');
+    // While expanded (or mid-animation either direction) the panel carries
+    // .traj-chart-locked and the chart area is height-locked (CSS var). Match the
+    // viewBox width to the box's live pixel aspect so the chart re-renders
+    // undistorted at the current width -- wider, never xy-stretched.
+    if (area && container.closest('.traj-chart-locked')) {
+      const pxW = area.clientWidth, pxH = area.clientHeight;
+      if (pxW > 0 && pxH > 0) W = Math.max(320, Math.round(H * pxW / pxH));
+    }
     const padL = 30, padR = 16, padT = 10, padB = 22;
     const chartW = W - padL - padR;
     const chartH = H - padT - padB;
@@ -2007,12 +2079,7 @@ const App = (() => {
     const wrap = chartEl.querySelector('.traj-wrap');
     const svgEl = chartEl.querySelector('.trajectory-svg');
 
-    wrap.addEventListener('touchstart', () => {
-      const t = document.getElementById('daily-tooltip');
-      if (t) t.style.display = 'none';
-    }, { passive: true });
-
-    wrap.addEventListener('mousemove', (e) => {
+    function showHoverAt(clientX) {
       if (dtmPlaying) return;
       const hoverLine = document.getElementById('daily-hover-line');
       const hoverDot = document.getElementById('daily-hover-dot');
@@ -2020,7 +2087,7 @@ const App = (() => {
       if (!hoverLine) return;
 
       const rect = svgEl.getBoundingClientRect();
-      const relX = (e.clientX - rect.left) / rect.width;
+      const relX = (clientX - rect.left) / rect.width;
       const svgX = relX * W;
 
       let nearest = 0, minDist = Infinity;
@@ -2043,7 +2110,7 @@ const App = (() => {
 
       const fdate = formatDate(d.date);
       const wrapRect = wrap.getBoundingClientRect();
-      const pixelX = e.clientX - wrapRect.left;
+      const pixelX = clientX - wrapRect.left;
       const wrapW = wrapRect.width;
       tooltip.style.left = pixelX + 'px';
       tooltip.style.transform = pixelX > wrapW * 0.7 ? 'translateX(-100%)' : pixelX < wrapW * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
@@ -2054,16 +2121,49 @@ const App = (() => {
       }
       tooltip.innerHTML = tipHtml;
       tooltip.style.display = 'block';
-    });
-
-    wrap.addEventListener('mouseleave', () => {
+    }
+    function hideHover() {
       const hoverLine = document.getElementById('daily-hover-line');
       const hoverDot = document.getElementById('daily-hover-dot');
       const tooltip = document.getElementById('daily-tooltip');
       if (hoverLine) hoverLine.style.display = 'none';
       if (hoverDot) hoverDot.style.display = 'none';
       if (tooltip) tooltip.style.display = 'none';
-    });
+    }
+
+    wrap.addEventListener('mousemove', (e) => showHoverAt(e.clientX));
+    wrap.addEventListener('mouseleave', hideHover);
+
+    // Touch: single-finger drag on the chart body scrubs the tooltip across the
+    // points (read values), no tap-lift-tap. stopPropagation keeps the body's
+    // pan handler (.traj-chart-area) from firing -- pan/zoom stays on the overview
+    // mini-map + two-finger pinch. A tap (no move -> no preventDefault) still
+    // falls through to the click handler to load that day's reading.
+    let scrubHideTO = null, scrubbing = false;
+    // Only start a scrub when the finger lands on the PLOT area, not the x-axis
+    // label row (months/years) below it -- so the labels stay scroll-safe.
+    const inPlot = (clientY) => {
+      const rct = svgEl.getBoundingClientRect();
+      const top = rct.top + (padT / H) * rct.height;
+      const bot = rct.top + ((padT + chartH) / H) * rct.height;
+      return clientY >= top && clientY <= bot;
+    };
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1 || !inPlot(e.touches[0].clientY)) { scrubbing = false; return; }
+      scrubbing = true;
+      e.stopPropagation();
+      clearTimeout(scrubHideTO);
+      showHoverAt(e.touches[0].clientX);
+    }, { passive: true });
+    wrap.addEventListener('touchmove', (e) => {
+      if (!scrubbing || e.touches.length !== 1) return;
+      e.stopPropagation();
+      e.preventDefault();
+      showHoverAt(e.touches[0].clientX);
+    }, { passive: false });
+    const endScrub = () => { if (!scrubbing) return; scrubbing = false; clearTimeout(scrubHideTO); scrubHideTO = setTimeout(hideHover, 1500); };
+    wrap.addEventListener('touchend', endScrub);
+    wrap.addEventListener('touchcancel', endScrub);
 
     // Click: move compass + needle + charge bar, load full reading
     wrap.addEventListener('click', (e) => {

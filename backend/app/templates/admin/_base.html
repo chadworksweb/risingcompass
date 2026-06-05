@@ -453,6 +453,12 @@
       <a class="admin-nav-item {% if active == 'claude-usage' %}active{% endif %}" href="/api/admin/dashboard/claude-usage">Claude Usage</a>
       <a class="admin-nav-item {% if active == 'provenance' %}active{% endif %}" href="/api/admin/dashboard/provenance">Provenance</a>
       <a class="admin-nav-item {% if active == 'chart-anomalies' %}active{% endif %}" href="/api/admin/dashboard/chart-anomalies">Chart Anomalies</a>
+      <a class="admin-nav-item {% if active == 'faultline' %}active{% endif %}" href="/api/admin/dashboard/faultline">Faultline</a>
+    </div>
+
+    <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Dev</div>
+      <a class="admin-nav-item {% if active == 'dev-ledger' %}active{% endif %}" href="/api/admin/dashboard/dev-ledger">Dev Ledger</a>
     </div>
 
     <div class="admin-nav-group">
@@ -494,6 +500,7 @@
       'motions': 'Motions',
       'provenance': 'Prose Provenance',
       'chart-anomalies': 'Chart Anomalies',
+      'faultline': 'Faultline',
     } %}
     <h1>{{ section_titles.get(active|default(''), 'Admin') }}</h1>
     {# Optional sub-tab bar between H1 and content. Templates override

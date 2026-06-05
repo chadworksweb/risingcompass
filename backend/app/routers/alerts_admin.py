@@ -13,12 +13,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app.auth import require_admin_session
 from app.config import settings
-from app.database import get_db
-from app.models import AdminAlertPref, User
+from app.models import User
 from app.services import alerts as alerts_svc
 
 logger = logging.getLogger(__name__)
@@ -30,7 +28,8 @@ router = APIRouter(prefix="/api/admin/alerts", tags=["alerts-admin"])
 # so the UI's coming-soon placeholders can't accidentally persist a fake
 # preference.
 WIRED_ALERT_KEYS = {"comment_created", "prompt_cache_warranted", "album_charged",
-                    "general_inquiry", "provenance_health", "provenance_integrity"}
+                    "general_inquiry", "provenance_health", "provenance_integrity",
+                    "faultline_new_critical", "faultline_regression"}
 
 
 class PrefOut(BaseModel):

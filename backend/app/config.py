@@ -162,6 +162,20 @@ class Settings(BaseSettings):
     do_spaces_prefix: str = "rising-compass/daily"
     backup_retention_days: int = 30
 
+    # Faultline -- internal error ledger + agent-driven triage. Self-contained
+    # reliability subsystem (see RISING-COMPASS-FAULTLINE-SCOPE.md). Capture is
+    # fail-safe and never blocks a request; these only tune it.
+    # - environment: tags every captured fault (local vs prod) so local-dev
+    #   noise stays filterable out of prod triage -- critical because local dev
+    #   shares the prod Postgres via the tunnel.
+    # - rc_error_agent_key: dedicated auth lane for the agent API
+    #   (/api/agent/faultline/*), distinct from admin session + other cron keys
+    #   so a leak stays scoped to error triage.
+    environment: str = "local"  # local | prod
+    rc_error_agent_key: str = ""
+    faultline_capture_level: str = "ERROR"  # min log level captured (ERROR | WARNING)
+    faultline_occurrence_retention: int = 50  # per-signature occurrence cap (pruned later)
+
     @model_validator(mode="after")
     def _validate_required_secrets(self):
         if not self.rc_admin_key or self.rc_admin_key == "change-me":

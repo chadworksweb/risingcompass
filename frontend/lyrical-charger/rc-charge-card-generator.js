@@ -1,8 +1,10 @@
 /* ============================================================
-   Lyrical Charger -- Shareable Charge Card
-   Client-side canvas renderer. Draws a 1080x1080 card from a
-   calibrate result and hands it to the native share sheet (or a
-   download fallback). No backend, no dependency.
+   Rising Compass -- Charge Card Generator (rc-charge-card-generator)
+   The mechanism that builds the rc-charge-card. Client-side canvas
+   renderer: draws a 1080x1080 card from a calibrate result and hands
+   it to the native share sheet (or a download fallback). Shared by the
+   song detail page (rc-charge-card) and the Lyrical Charger
+   (rc-lc-charge-card). No backend, no dependency.
 
    Composition: "deadpan quip is hero" --
      - deadpan_line set large as the statement
@@ -39,11 +41,15 @@
   function compassSVG(rotDeg) {
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">' +
       '<rect width="32" height="32" rx="6" fill="#0a0a14"/>' +
-      '<path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6"/>' +
-      '<path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6"/>' +
-      '<path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6"/>' +
-      '<path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6"/>' +
-      '<path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6"/>' +
+      // Five tier bands sized to the true tier geometry (BOUNDS 0/22.5/67.5/
+      // 112.5/157.5/180 in dial degrees; here theta = 180 - degree on a r=11
+      // arc centered at (16,20)). Ascended/Corrupted are the narrow 22.5deg
+      // poles, middle three 45deg. Mirrors js/compass.js + charge_calc.py.
+      '<path d="M 5,20 A 11,11 0 0,1 5.84,15.79" fill="none" stroke="#9933ff" stroke-width="6"/>' +
+      '<path d="M 5.84,15.79 A 11,11 0 0,1 11.79,9.84" fill="none" stroke="#3388ff" stroke-width="6"/>' +
+      '<path d="M 11.79,9.84 A 11,11 0 0,1 20.21,9.84" fill="none" stroke="#33cc55" stroke-width="6"/>' +
+      '<path d="M 20.21,9.84 A 11,11 0 0,1 26.16,15.79" fill="none" stroke="#ffbb33" stroke-width="6"/>' +
+      '<path d="M 26.16,15.79 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6"/>' +
       '<g transform="rotate(' + rotDeg + ' 16 20)">' +
       '<polygon points="16,8 13.9,20 18.1,20" fill="#eeeef4"/>' +
       '</g>' +
@@ -52,10 +58,12 @@
   }
 
   // Map a charge (-100..100) to an SVG needle rotation. Negative degrees rotate
-  // counter-clockwise (toward violet/left); positive toward red/right.
+  // counter-clockwise (toward violet/left); positive toward red/right. The 90deg
+  // span matches the site dial (rotation = -score*90/100), so the needle lands in
+  // the same reproportioned band as the live compass instead of a compressed arc.
   function chargeToRot(charge) {
     var c = Math.max(-100, Math.min(100, charge || 0));
-    return -(c / 100) * 78;
+    return -(c / 100) * 90;
   }
 
   var _compassCache = {};
@@ -402,7 +410,7 @@
     var isCompass = brand === 'compass';
     var v = pick(data);
     var blob = await canvasToBlob(canvas);
-    var fname = (isCompass ? 'charge-card-' : 'lyrical-charge-') +
+    var fname = (isCompass ? 'rc-charge-card-' : 'rc-lc-charge-card-') +
       slugify(data.title || v.label) + '.png';
     var text = (data.title ? '"' + data.title + '" ' : '') + 'charged ' + v.chargeStr +
       ' (' + (data.tier_label || v.label) + ')' +
@@ -435,5 +443,5 @@
     return 'downloaded';
   }
 
-  window.LCShareCard = { render: render, shareOrDownload: shareOrDownload, _pick: pick };
+  window.RCChargeCard = { render: render, shareOrDownload: shareOrDownload, _pick: pick };
 })();

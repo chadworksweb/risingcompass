@@ -380,3 +380,49 @@ def emit_prompt_cache_warranted(*, stats: dict, window_days: int) -> None:
         subject="Prompt caching is now worth turning on",
         html_body=html,
     )
+
+
+def _faultline_alert_html(intro: str, *, sig_id: int, title: str, component: Optional[str],
+                          environment: str, occurrence_count: int) -> str:
+    site = settings.site_url.rstrip("/")
+    return f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 12px;font-size:14px;color:#333;">{intro}</p>
+      <table style="border-collapse:collapse;font-size:14px;color:#333;margin:0 0 16px;">
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Fault</td><td><strong>{escape(title)}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Component</td><td>{escape(component or 'unknown')}</td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Environment</td><td><strong>{escape(environment)}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Occurrences</td><td><strong>{occurrence_count}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Signature</td><td>#{sig_id}</td></tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard/faultline" style="color:#008f72;">Open Faultline</a>
+      </p>
+    </div>
+    """
+
+
+def emit_faultline_new_critical(*, sig_id: int, title: str, component: Optional[str],
+                                environment: str, occurrence_count: int) -> None:
+    """A fault was triaged to CRITICAL severity. Default-on so a critical never
+    sits unseen."""
+    html = _faultline_alert_html(
+        "A fault was marked <strong>critical</strong>.",
+        sig_id=sig_id, title=title, component=component,
+        environment=environment, occurrence_count=occurrence_count,
+    )
+    send_alert(category="activity", alert_key="faultline_new_critical",
+               subject=f"Critical fault: {title}", html_body=html)
+
+
+def emit_faultline_regression(*, sig_id: int, title: str, component: Optional[str],
+                              environment: str, occurrence_count: int) -> None:
+    """A resolved fault recurred (status flipped to regressed). Default-on -- a
+    fix that didn't hold is worth knowing about immediately."""
+    html = _faultline_alert_html(
+        "A <strong>resolved</strong> fault just recurred (regression).",
+        sig_id=sig_id, title=title, component=component,
+        environment=environment, occurrence_count=occurrence_count,
+    )
+    send_alert(category="activity", alert_key="faultline_regression",
+               subject=f"Fault regressed: {title}", html_body=html)

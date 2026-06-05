@@ -399,6 +399,11 @@
   </div>
 
   <main class="main-dashboard">
+    <!-- ROW 1: compass (left) + trajectory (right), wrapped so the trajectory
+         panel can expand left over the compass to a full-width view. The wrapper
+         re-creates the dashboard's 42%/1fr columns; Row 2 stays direct children
+         of .main-dashboard so its columns are unaffected. -->
+    <div class="dash-row1">
     <!-- ROW 1 LEFT: Compass -->
     <div class="card" id="compass-panel" style="position:relative;">
       <div class="card-header">Today's Charge</div>
@@ -428,6 +433,11 @@
 
     <!-- ROW 1 RIGHT: Historical Charge Index -->
     <div class="card" id="trajectory-panel">
+      <button class="trajectory-expand-btn" id="trajectory-expand-btn" type="button"
+              aria-expanded="false" aria-controls="trajectory-panel" title="Expand panel">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 3H3v6M15 21h6v-6M21 3l-7 7M3 21l7-7"/></svg>
+        <span class="trajectory-expand-lbl">Expand</span>
+      </button>
       <div class="era-tabs">
         <button class="era-tab active" data-era="daily">
           <span class="era-tab-title">Daily Charge</span>
@@ -465,6 +475,8 @@
         <div id="trajectory-container"></div>
       </div>
     </div>
+    </div>
+    <!-- /ROW 1 (.dash-row1) -->
 
     <!-- ROW 2 LEFT: Daily Top 20 Songs -->
     <!-- ROW 2 RIGHT: The Ether Art Chart — same 20 songs, deadpan + topic lens -->
@@ -666,7 +678,7 @@
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
-  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/fair-use.html">Fair Use</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sponsors/">Sponsors</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a> &nbsp;|&nbsp; <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a></p>
+  <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/fair-use.html">Fair Use</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sponsors/">Sponsors</a> &nbsp;|&nbsp; <a href="/dev/">Dev Ledger</a> &nbsp;|&nbsp; <a href="https://status.risingcompass.net/">Status</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a> &nbsp;|&nbsp; <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a></p>
 </footer>
 <script defer src="/js/consent.js"></script>
 <!-- /INCLUDE:footer -->
@@ -677,6 +689,7 @@
   <script src="js/contamination.js"></script>
   <script src="js/ether-art-chart.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/trajectory-expand.js" defer></script>
   <script src="calibration-log/calibration-log.js"></script>
 
 </body>

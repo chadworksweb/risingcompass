@@ -1780,3 +1780,146 @@ class SongIdMap(Base):
     old_id = Column(Integer, primary_key=True)
     new_song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
     canonical_key = Column(Text, nullable=False)
+
+
+class DevLedgerItem(Base):
+    """Dev Ledger -- the "dev side, exposed". One pipeline drives changelog,
+    roadmap, feature requests, and bug reports; CalVer is the spine.
+
+    item_type: 'feature' (request) | 'bug' (report) | 'change' (admin-authored
+    roadmap/changelog work item).
+
+    Walled from Motion Desk / Misread Reports / Deliberation Chamber: those are
+    the tenet/framework layer; this is the product/engineering layer. See
+    RISING-COMPASS-DEV-LEDGER-SCOPE.md.
+    """
+    __tablename__ = "dev_ledger_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    item_type = Column(String(20), nullable=False)  # feature | bug | change
+    title = Column(Text, nullable=False)
+    body = Column(Text, nullable=False)  # markdown, public-safe prose
+    # feature/bug: submitted->triaging->accepted->in_progress->shipped | declined | duplicate
+    # change: planned->in_progress->shipped
+    status = Column(String(20), nullable=False, default="submitted")
+    stage = Column(String(20))  # roadmap bucket: now | next | later
+    version = Column(String(20))  # CalVer release id, set when shipped
+    severity = Column(String(10))  # bugs only: low | med | high | critical
+    area = Column(String(40))  # charts | calibration | billing | account | site ...
+    submitted_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    vote_count = Column(Integer, nullable=False, default=0)  # denormalized rollup of dev_ledger_votes
+    is_public = Column(Boolean, nullable=False, default=False)  # gate: hidden until admin publishes
+    admin_note = Column(Text)  # internal triage note, never served publicly
+    resolution = Column(Text)  # public "why closed / how shipped"
+    duplicate_of_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    published_at = Column(DateTime)  # when is_public first set true
+    shipped_at = Column(DateTime)  # when status -> shipped
+    resolved_by_admin_id = Column(Integer)
+
+    submitted_by = relationship("User", foreign_keys=[submitted_by_user_id])
+
+
+class DevLedgerVote(Base):
+    """One vote per Clerk user per Dev Ledger item (feature/bug). The parent
+    item's vote_count is the denormalized rollup, kept in sync in the service
+    layer."""
+    __tablename__ = "dev_ledger_votes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    item_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("item_id", "user_id", name="uq_dev_ledger_vote_item_user"),)
+
+
+# ---------------------------------------------------------------------------
+# Faultline -- internal error ledger + agent-driven triage.
+#
+# Self-contained reliability subsystem. NO foreign keys INTO business tables;
+# the single out-reference is the nullable dev_ledger_item_id (the one-way
+# "promote a confirmed fault to a public Dev Ledger bug" seam). Capture is
+# decoupled from all app logic -- faults arrive via a logging.Handler on the
+# root logger, not via imports. See RISING-COMPASS-FAULTLINE-SCOPE.md.
+# JSON-bearing columns are Text holding a JSON string (house style, matches
+# lc_events.payload_json) -- not jsonb.
+# ---------------------------------------------------------------------------
+
+class ErrorSignature(Base):
+    """One row per DISTINCT fault, keyed by `fingerprint` (a normalized hash of
+    exception type + innermost stack frames). Repeats of the same code fault
+    collapse here and bump occurrence_count rather than spawning new rows --
+    this is what turns an error flood into a finite worklist."""
+    __tablename__ = "error_signatures"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    fingerprint = Column(String(64), nullable=False, unique=True)
+    exc_type = Column(String(120))                      # e.g. ResponseValidationError
+    title = Column(Text, nullable=False)                # normalized one-liner
+    component = Column(String(160))                     # logger name, e.g. app.routers.analyzer
+    route = Column(Text)                                # best-effort request route
+    severity = Column(String(10), nullable=False, default="medium")  # low|medium|high|critical
+    area = Column(String(40))                           # set on triage: calibration|billing|...
+    status = Column(String(20), nullable=False, default="new")       # lifecycle (see scope S5)
+    environment = Column(String(10), nullable=False, default="local")  # local|prod
+    first_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    occurrence_count = Column(Integer, nullable=False, default=0)
+    last_traceback = Column(Text)                       # freshest full traceback
+    last_context = Column(Text)                         # JSON: path, method, actor, ids...
+    assigned_to = Column(String(120))                   # agent id or admin handle
+    claimed_by = Column(String(120))                    # lease holder (agent worker id)
+    claim_expires_at = Column(DateTime)                 # lease TTL
+    dev_ledger_item_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="SET NULL"), nullable=True)
+    resolution = Column(Text)
+    resolved_at = Column(DateTime)
+    resolved_by = Column(String(120))
+    muted = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        Index("idx_error_sig_status_sev_seen", "status", "severity", "last_seen_at"),
+        Index("idx_error_sig_env_status", "environment", "status"),
+    )
+
+
+class ErrorOccurrence(Base):
+    """One row per individual hit of a signature. Retention-pruned (a later
+    phase) to the most recent N per signature. Carries the per-event context an
+    agent needs to reproduce."""
+    __tablename__ = "error_occurrences"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    signature_id = Column(Integer, ForeignKey("error_signatures.id", ondelete="CASCADE"), nullable=False)
+    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    traceback = Column(Text)
+    context = Column(Text)                               # JSON blob
+    environment = Column(String(10), nullable=False, default="local")
+
+    __table_args__ = (
+        Index("idx_error_occ_sig_time", "signature_id", "occurred_at"),
+    )
+
+
+class ErrorAction(Base):
+    """The phase-management timeline: every triage/status/diagnosis/fix move on
+    a signature, by an agent or a human. This table IS the audit trail an agent
+    builds as it works a fault."""
+    __tablename__ = "error_actions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    signature_id = Column(Integer, ForeignKey("error_signatures.id", ondelete="CASCADE"), nullable=False)
+    action_type = Column(String(24), nullable=False)    # claim|release|triage|status_change|diagnosis|proposed_fix|applied_fix|verification|comment|promote|resolve|reopen
+    actor_type = Column(String(10), nullable=False)     # agent|admin|system
+    actor_ref = Column(String(120))                     # agent_model or admin handle
+    from_status = Column(String(20))
+    to_status = Column(String(20))
+    note = Column(Text)
+    payload = Column(Text)                               # JSON blob
+    idempotency_key = Column(String(80))                # dedupe re-fired agent calls
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_error_action_sig_time", "signature_id", "created_at"),
+        UniqueConstraint("signature_id", "idempotency_key", name="uq_error_action_idem"),
+    )

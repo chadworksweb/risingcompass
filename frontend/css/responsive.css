@@ -13,6 +13,21 @@
     overflow-x: hidden;
   }
 
+  /* Row 1 wrapper stacks to a single column on phones; the cards are already
+     full width, so the Expand toggle is hidden and the panel never overlays. */
+  .dash-row1 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .trajectory-expand-btn {
+    display: none;
+  }
+
+  #trajectory-panel .era-tabs {
+    padding-right: 0;
+  }
+
   #reading-panel,
   #ether-art-chart-panel,
   #album-reading-panel,
@@ -32,7 +47,17 @@
   }
 
   .compass-svg {
-    max-width: 280px;
+    /* Fill the stacked card on mobile (was capped at 280) so the reproportioned
+       bands + curved labels get the most room. Paired with the trimmed compass
+       card padding below to push the dial wider. */
+    max-width: none;
+  }
+
+  /* Trim the compass card's horizontal padding on mobile so the dial gets the
+     full card width (the dial, not the padding, is what matters here). */
+  #compass-panel {
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
   }
 
   .card {

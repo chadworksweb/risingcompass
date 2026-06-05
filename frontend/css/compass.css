@@ -14,7 +14,10 @@
 
 .compass-svg {
   width: 100%;
-  max-width: 360px;
+  /* Fill the 42% column (reclaim the old ~360px slack). viewBox keeps the
+     aspect ratio; the dashboard column ratio is unchanged. Mobile recaps this
+     at 280px in responsive.css. */
+  max-width: 460px;
   max-height: 100%;
   overflow: visible;
 }
@@ -22,9 +25,11 @@
 /* Arc bands */
 .compass-arc {
   fill: none;
-  stroke-width: 18;
+  stroke-width: 34;
   stroke-linecap: butt;
   opacity: 1;
+  cursor: pointer;
+  transition: filter 0.3s ease-out, stroke-width 0.3s ease-out;
 }
 
 .compass-arc.violet { stroke: var(--rc-violet); }
@@ -33,15 +38,21 @@
 .compass-arc.orange { stroke: var(--rc-orange); }
 .compass-arc.red { stroke: var(--rc-red); }
 
-/* Tick marks */
-.compass-tick {
-  stroke: rgba(255, 255, 255, 0.15);
-  stroke-width: 1;
-}
+/* Hovered/focused band: brightens + glows (glow color set inline per tier) and
+   the stroke widens slightly. */
+.compass-arc.hot { stroke-width: 39; }
+.compass-arc:focus { outline: none; }
+.compass-arc:focus-visible { stroke-width: 39; }
 
-.compass-tick-major {
-  stroke: rgba(255, 255, 255, 0.3);
-  stroke-width: 1.5;
+/* Non-interactive SVG layers never intercept band hover. */
+.compass-needle,
+.needle-line,
+.needle-cap,
+.compass-ghost-trail,
+.compass-score-text,
+.compass-label-text,
+.compass-date-text {
+  pointer-events: none;
 }
 
 /* Needle */
@@ -95,13 +106,88 @@
   font-weight: 700;
 }
 
-/* Tier labels curved along arcs */
+/* Tier labels curved along arcs. Shrunk + tightened so the worst case
+   ("CORRUPTED", 9 chars) fits on the narrow 22.5deg pole arc; uniform size
+   across all five. Legibility comes from the enlarged dial, not a bigger font. */
 .compass-tier-label {
   font-family: var(--rc-font);
-  font-size: 0.6rem;
+  font-size: 8.5px;
+  font-weight: 600;
   fill: var(--rc-text-dim);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  pointer-events: none;
+  transition: fill 0.3s ease-out;
+}
+
+/* Highlighted label for the hovered/focused band. */
+.compass-tier-label.hot {
+  fill: var(--rc-text-bright);
+}
+
+/* Band hover/focus tooltip — HTML overlay parented to the compass card so it
+   escapes #compass-container's overflow. Positioned by compass.js. */
+.compass-tip {
+  position: absolute;
+  z-index: 20;
+  width: 230px;
+  pointer-events: none;
+  left: 0;
+  top: 0;
+  background: var(--rc-bg-card, #181828);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: translate(-50%, -8px) scale(0.96);
+  transform-origin: bottom center;
+  transition: opacity 0.22s ease-out, transform 0.22s ease-out;
+}
+.compass-tip.show {
+  opacity: 1;
+  transform: translate(-50%, -100%) scale(1);
+}
+.compass-tip-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px 8px;
+}
+.compass-tip-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 10px currentColor;
+}
+.compass-tip-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--rc-text-bright);
+}
+.compass-tip-range {
+  margin-left: auto;
+  font-family: var(--rc-font-mono);
+  font-size: 11px;
+  color: var(--rc-text-dim);
+}
+.compass-tip-body {
+  padding: 0 13px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--rc-text);
+}
+.compass-tip-tail {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: var(--rc-bg-card, #181828);
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  transform: translateX(-50%) rotate(45deg);
 }
 
 /* Date below compass */

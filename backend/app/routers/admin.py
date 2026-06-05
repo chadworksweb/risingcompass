@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 from urllib.parse import quote
 import os
-import shutil
 import tempfile
 
 from app.auth import (
@@ -15,7 +14,6 @@ from app.auth import (
     verify_backup_key,
 )
 from app.database import get_db
-from app.config import settings
 from app.models import (
     Song, Artist, User, GeneralInquiry, Motion,
 )
@@ -205,9 +203,11 @@ _ADMIN_SECTIONS = {
     "alerts": "admin/alerts.html",
     "users": "admin/users.html",
     "motions": "admin/motions.html",
+    "dev-ledger": "admin/dev_ledger.html",
     "inquiries": "admin/inquiries.html",
     "provenance": "admin/provenance.html",
     "chart-anomalies": "admin/anomalies.html",
+    "faultline": "admin/faultline.html",
 }
 
 

@@ -10,9 +10,31 @@ const Compass = (() => {
     red: '#ff3333',
   };
 
-  // SVG geometry: half-circle, center at (180, 170), radius 130
-  const CX = 180, CY = 170, R = 130;
-  const ARC_WIDTH = 18;
+  // Tier band boundaries in degrees (0 = Ascended/left .. 180 = Corrupted/right).
+  // Mirrors backend/app/services/charge_calc.py CHARGE_TIERS thresholds
+  // (22.5 / 67.5 / 112.5 / 157.5). SINGLE SOURCE OF TRUTH lives there — keep these
+  // in lockstep, do not fork a second set of cutoffs. Ascended/Corrupted are the
+  // narrow 22.5deg poles; the middle three are 45deg each.
+  const BOUNDS = [0, 22.5, 67.5, 112.5, 157.5, 180];
+  const TIER_LABELS = ['Ascended', 'Elevated', 'Decent', 'Degraded', 'Corrupted'];
+  const TIER_RANGE = ['+75 to +100', '+25 to +75', '-25 to +25', '-75 to -25', '-100 to -75'];
+  const TIER_DESC = [
+    'Collective consciousness. Expands the listener.',
+    'Processes life with dignity. Lifts.',
+    'Neutral baseline. Pleasant, does no harm.',
+    'Agitates, wallows, or diminishes.',
+    'Ego black-hole. The deepest negative.',
+  ];
+
+  // SVG geometry: half-circle, center at (180, 170). The band's inner edge stays
+  // at radius 122; its outer edge is stretched out to the tick tops (radius 156).
+  // Ticks + labels are anchored to a FIXED ring (TICK_RING) so stretching the
+  // band doesn't move them. "CORRUPTED" fits the 22.5deg pole at the label arc.
+  const CX = 180, CY = 170, R = 139;
+  const ARC_WIDTH = 34;
+  // Fixed reference ring the curved labels sit just beyond (independent of band
+  // thickness). Was also the tick ring before the ticks were removed.
+  const TICK_RING = 148;
 
   function degToRad(deg) {
     // 0° = left (Ascended), 180° = right (Corrupted)
@@ -43,42 +65,29 @@ const Compass = (() => {
     // Build SVG — expanded viewBox for outer labels + date text
     let svg = `<svg class="compass-svg" viewBox="0 -10 360 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Compass gauge showing current charge level">`;
 
-    const arcSpan = 36; // 180/5
-    const TIER_LABELS = ['Ascended', 'Elevated', 'Decent', 'Degraded', 'Corrupted'];
-    const labelR = R + ARC_WIDTH / 2 + 11;
+    const labelR = TICK_RING + 17;
 
-    // Defs: arc paths for curved text labels
+    // Defs: arc paths for curved text labels — one per tier band (uneven widths)
     svg += '<defs>';
-    TIER_LABELS.forEach((label, i) => {
-      const startDeg = i * arcSpan;
-      const endDeg = startDeg + arcSpan;
-      const s = polarToCart(startDeg, labelR);
-      const e = polarToCart(endDeg, labelR);
+    for (let i = 0; i < BOUNDS.length - 1; i++) {
+      const s = polarToCart(BOUNDS[i], labelR);
+      const e = polarToCart(BOUNDS[i + 1], labelR);
       svg += `<path id="tier-path-${i}" d="M ${s.x} ${s.y} A ${labelR} ${labelR} 0 0 1 ${e.x} ${e.y}" fill="none" />`;
-    });
+    }
     svg += '</defs>';
 
-    // Draw 5 color arcs
+    // Five color arcs sized to the true tier bands (BOUNDS). Each is hover-
+    // targetable (id + data-tier) and keyboard-focusable for the tooltip.
     COLORS.forEach((color, i) => {
-      const startDeg = i * arcSpan;
-      const endDeg = startDeg + arcSpan;
-      const path = arcPath(startDeg, endDeg, R);
-      svg += `<path class="compass-arc ${color}" data-color="${color}" d="${path}" />`;
+      const path = arcPath(BOUNDS[i], BOUNDS[i + 1], R);
+      svg += `<path class="compass-arc ${color}" id="compass-arc-${i}" data-tier="${i}" data-color="${color}" tabindex="0" role="button" aria-label="${TIER_LABELS[i]}, charge ${TIER_RANGE[i]}" d="${path}" />`;
     });
 
-    // Tick marks every 18°
-    for (let deg = 0; deg <= 180; deg += 18) {
-      const isMajor = deg % 36 === 0;
-      const outerR = R + (ARC_WIDTH / 2) + 4;
-      const innerR = R + (ARC_WIDTH / 2) + (isMajor ? 12 : 8);
-      const o = polarToCart(deg, outerR);
-      const inner = polarToCart(deg, innerR);
-      svg += `<line class="${isMajor ? 'compass-tick-major' : 'compass-tick'}" x1="${o.x}" y1="${o.y}" x2="${inner.x}" y2="${inner.y}" />`;
-    }
+    // (Tick marks removed by design — the band's outer rim is the reference edge.)
 
     // Curved tier labels following the arcs
     TIER_LABELS.forEach((label, i) => {
-      svg += `<text class="compass-tier-label"><textPath href="#tier-path-${i}" startOffset="50%" text-anchor="middle">${label}</textPath></text>`;
+      svg += `<text class="compass-tier-label" id="compass-tier-label-${i}"><textPath href="#tier-path-${i}" startOffset="50%" text-anchor="middle">${label}</textPath></text>`;
     });
 
     // Ghost trail layer (past 30 days — light trails)
@@ -87,7 +96,7 @@ const Compass = (() => {
     // Needle group — starts at 90° (straight up)
     svg += `<g class="compass-needle" id="compass-needle">`;
     // Needle: thin triangle pointing up from center
-    svg += `<polygon class="needle-line" points="${CX},${CY - R + 15} ${CX - 4},${CY} ${CX + 4},${CY}" />`;
+    svg += `<polygon class="needle-line" points="${CX},${CY - (R - ARC_WIDTH / 2 - 8)} ${CX - 4},${CY} ${CX + 4},${CY}" />`;
     svg += `<circle class="needle-cap" cx="${CX}" cy="${CY}" r="8" />`;
     svg += `</g>`;
 
@@ -102,6 +111,97 @@ const Compass = (() => {
 
     svg += `</svg>`;
     container.innerHTML = svg;
+
+    _wireHover(container);
+  }
+
+  // ---- Band hover / focus tooltip ------------------------------------------
+  // The tooltip is an HTML overlay (not SVG), parented to the compass CARD so it
+  // can escape #compass-container's overflow:hidden and sit above the dial.
+  function _ensureTooltip(host) {
+    if (!host) return null;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    let tip = host.querySelector('#compass-tip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'compass-tip';
+      tip.className = 'compass-tip';
+      tip.setAttribute('role', 'tooltip');
+      tip.innerHTML =
+        '<div class="compass-tip-head">' +
+          '<span class="compass-tip-dot"></span>' +
+          '<span class="compass-tip-name"></span>' +
+          '<span class="compass-tip-range"></span>' +
+        '</div>' +
+        '<div class="compass-tip-body"></div>' +
+        '<div class="compass-tip-tail"></div>';
+      host.appendChild(tip);
+    }
+    return tip;
+  }
+
+  let _hotTier = -1;
+  function _wireHover(container) {
+    const host = container.closest('.card') || container.parentElement;
+    const tip = _ensureTooltip(host);
+    if (!tip || !host) return;
+    const svgEl = container.querySelector('.compass-svg');
+    if (!svgEl) return;
+
+    function hide(i) {
+      const arc = document.getElementById('compass-arc-' + i);
+      const lbl = document.getElementById('compass-tier-label-' + i);
+      if (arc) { arc.classList.remove('hot'); arc.style.filter = ''; }
+      if (lbl) lbl.classList.remove('hot');
+      tip.classList.remove('show');
+      if (_hotTier === i) _hotTier = -1;
+    }
+
+    function show(i) {
+      if (_hotTier === i) return;
+      if (_hotTier >= 0) hide(_hotTier); // only one band hot at a time
+      _hotTier = i;
+      const hex = COLOR_HEX[COLORS[i]];
+      const arc = document.getElementById('compass-arc-' + i);
+      const lbl = document.getElementById('compass-tier-label-' + i);
+      if (arc) { arc.classList.add('hot'); arc.style.filter = `brightness(1.5) drop-shadow(0 0 8px ${hex})`; }
+      if (lbl) lbl.classList.add('hot');
+      tip.querySelector('.compass-tip-dot').style.cssText = `background:${hex};color:${hex};`;
+      tip.querySelector('.compass-tip-name').textContent = TIER_LABELS[i];
+      tip.querySelector('.compass-tip-range').textContent = TIER_RANGE[i];
+      tip.querySelector('.compass-tip-body').textContent = TIER_DESC[i];
+      // Anchor above the band's mid-angle point. Map SVG viewBox coords
+      // (0 -10 360 300) to host pixel coords via the rendered svg rect.
+      const midDeg = (BOUNDS[i] + BOUNDS[i + 1]) / 2;
+      const p = polarToCart(midDeg, R + ARC_WIDTH / 2 + 6);
+      const box = svgEl.getBoundingClientRect();
+      const hb = host.getBoundingClientRect();
+      const sx = box.width / 360;
+      const sy = box.height / 300;
+      const anchorX = p.x * sx + (box.left - hb.left);
+      // Clamp the (center-anchored) tooltip inside the card so the pole bands'
+      // tooltips don't overflow the edge; keep the tail pointed at the band.
+      const half = (tip.offsetWidth || 230) / 2;
+      const margin = 8;
+      const centerX = Math.max(half + margin, Math.min(hb.width - half - margin, anchorX));
+      tip.style.left = centerX + 'px';
+      tip.style.top = ((p.y - (-10)) * sy + (box.top - hb.top)) + 'px';
+      const tail = tip.querySelector('.compass-tip-tail');
+      if (tail) {
+        const dx = Math.max(-half + 16, Math.min(half - 16, anchorX - centerX));
+        tail.style.left = `calc(50% + ${dx.toFixed(1)}px)`;
+      }
+      tip.classList.add('show');
+    }
+
+    COLORS.forEach((color, i) => {
+      const arc = document.getElementById('compass-arc-' + i);
+      if (!arc) return;
+      arc.addEventListener('mouseenter', () => show(i));
+      arc.addEventListener('mouseleave', () => hide(i));
+      arc.addEventListener('focus', () => show(i));
+      arc.addEventListener('blur', () => hide(i));
+    });
   }
 
   function setDegree(degree, chargeLevel) {
@@ -203,7 +303,7 @@ const Compass = (() => {
 
       // Ghost needle: thin triangle like the real needle but thinner
       const rad = degToRad(r.compass_degree);
-      const tipR = R - 15;
+      const tipR = R - ARC_WIDTH / 2 - 8;
       const tipX = CX + tipR * Math.cos(rad);
       const tipY = CY - tipR * Math.sin(rad);
 

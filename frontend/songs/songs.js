@@ -811,14 +811,14 @@
     }
   }
 
-  // Wire the "Get Charge Card" button. Renders the same 1080x1080 share card
-  // the Lyrical Charger produces (window.LCShareCard) from this song's
+  // Wire the "Get Charge Card" button. Renders the rc-charge-card via the
+  // shared charge card generator (window.RCChargeCard) from this song's
   // calibration -- compass-branded (no Lyrical Charger verbiage) -- and
   // downloads it as a PNG, with a smooth status toast on desktop + mobile.
   function wireChargeCard(song, isUncalibrated, color, tierLabel) {
     const btn = document.getElementById('charge-card-btn');
     if (!btn) return;
-    if (isUncalibrated || !window.LCShareCard) {
+    if (isUncalibrated || !window.RCChargeCard) {
       btn.hidden = true;
       return;
     }
@@ -845,8 +845,8 @@
       const startedAt = Date.now();
       try {
         const cardOpts = { brand: 'compass' };
-        await window.LCShareCard.render(cardData, canvas, cardOpts);
-        await window.LCShareCard.shareOrDownload(canvas, cardData, true, cardOpts);
+        await window.RCChargeCard.render(cardData, canvas, cardOpts);
+        await window.RCChargeCard.shareOrDownload(canvas, cardData, true, cardOpts);
         // Hold the "Downloading now" state briefly so it doesn't flash past on
         // fast machines, then confirm.
         const elapsed = Date.now() - startedAt;
@@ -958,7 +958,7 @@
       }
     }
 
-    // Shareable charge card — same card the Lyrical Charger offers after a
+    // rc-charge-card — same charge card the Lyrical Charger offers after a
     // reading, made available on every calibrated song's page. Hidden for
     // uncalibrated songs (no charge to render).
     wireChargeCard(song, isUncalibrated, color, tierLabel);

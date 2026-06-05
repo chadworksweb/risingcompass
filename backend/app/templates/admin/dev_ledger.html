@@ -1,0 +1,353 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'dev-ledger' %}
+{% block title %}Dev Ledger -- Admin{% endblock %}
+
+{% block content %}
+<style>
+  .dl-card { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.9rem 1rem; margin-bottom: 0.85rem; border-left: 3px solid var(--border); }
+  .dl-card.t-feature { border-left-color: var(--tier-blue); }
+  .dl-card.t-bug { border-left-color: var(--red); }
+  .dl-card.t-change { border-left-color: var(--tier-green); }
+  .dl-card.is-private { background: repeating-linear-gradient(45deg, var(--panel), var(--panel) 10px, rgba(0,0,0,0.015) 10px, rgba(0,0,0,0.015) 20px); }
+  .dl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+  .dl-type { font-family: monospace; font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .dl-type.t-feature { background: #e2eaf5; color: var(--tier-blue); }
+  .dl-type.t-bug { background: #fbe0e0; color: var(--red); }
+  .dl-type.t-change { background: #d9efde; color: var(--tier-green); }
+  .dl-status { font-size: 0.68rem; padding: 0.1rem 0.5rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; background: var(--panel-strong); color: var(--text-dim); }
+  .dl-badge { font-size: 0.66rem; padding: 0.05rem 0.4rem; border-radius: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .dl-badge.priv { background: var(--text-hint); color: #fff; }
+  .dl-badge.pub { background: var(--accent); color: #fff; }
+  .dl-badge.ver { background: #ece2f5; color: var(--tier-violet); font-family: monospace; text-transform: none; }
+  .dl-badge.stage { background: #fff0d0; color: var(--tier-orange); }
+  .dl-badge.sev { background: #fbe0e0; color: var(--red); }
+  .dl-submitter { font-family: monospace; font-size: 0.78rem; color: var(--text); font-weight: 600; }
+  .dl-meta { font-size: 0.78rem; color: var(--text-dim); }
+  .dl-title { font-weight: 700; color: var(--text); font-size: 0.96rem; margin: 0.35rem 0; line-height: 1.4; }
+  .dl-body { font-size: 0.88rem; color: var(--text); line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; margin: 0.35rem 0 0.5rem; max-height: 9em; overflow: hidden; }
+  .dl-body.expanded { max-height: none; }
+  .dl-expand { background: none; border: none; color: var(--accent); font-size: 0.78rem; font-weight: 600; cursor: pointer; padding: 0.15rem 0; }
+  .dl-votes { font-size: 0.8rem; color: var(--text-dim); font-weight: 600; }
+  .dl-resolution { margin-top: 0.5rem; padding: 0.45rem 0.6rem; background: #fff; border-left: 2px solid var(--accent); font-size: 0.83rem; color: var(--text); border-radius: 0 4px 4px 0; }
+  .dl-resolution .label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 700; margin-bottom: 0.15rem; }
+  .dl-controls { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; margin-top: 0.55rem; }
+  .dl-controls select, .dl-controls input { padding: 0.25rem 0.4rem; font-size: 0.78rem; }
+  .dl-controls button { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+  .dl-rel-check { transform: scale(1.15); margin-right: 0.2rem; }
+  .dl-editform { margin: 0.5rem 0; padding: 0.6rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 4px; }
+  .dl-editform input, .dl-editform textarea { width: 100%; padding: 0.35rem 0.5rem; font-size: 0.85rem; margin-bottom: 0.4rem; }
+  .dl-editform textarea { min-height: 5em; resize: vertical; }
+  .dl-panel { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.8rem 1rem; margin-bottom: 1rem; }
+  .dl-panel summary { cursor: pointer; font-weight: 700; color: var(--accent-strong); }
+  .dl-panel .row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.6rem; }
+  .dl-panel input[type=text], .dl-panel textarea, .dl-panel select { width: 100%; padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+  .dl-panel textarea { min-height: 4em; resize: vertical; }
+  .dl-panel .col { flex: 1 1 160px; }
+  .dl-release-bar { position: sticky; top: 0.5rem; z-index: 5; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; background: #ece2f5; border: 1px solid var(--tier-violet); border-radius: 6px; padding: 0.55rem 0.8rem; margin-bottom: 1rem; }
+  .dl-release-bar input { padding: 0.3rem 0.5rem; font-size: 0.82rem; font-family: monospace; }
+  .dl-release-bar .hint { font-size: 0.78rem; color: var(--text-dim); }
+</style>
+
+<details class="dl-panel">
+  <summary>+ New roadmap / changelog item</summary>
+  <div class="row">
+    <div class="col" style="flex-basis:100%;"><input type="text" id="ncTitle" placeholder="Title" maxlength="200"></div>
+  </div>
+  <div class="row">
+    <div class="col" style="flex-basis:100%;"><textarea id="ncBody" placeholder="Public-safe description (markdown ok)"></textarea></div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <select id="ncStage">
+        <option value="">No stage (changelog/backlog)</option>
+        <option value="now">Roadmap: Now</option>
+        <option value="next">Roadmap: Next</option>
+        <option value="later">Roadmap: Later</option>
+      </select>
+    </div>
+    <div class="col"><input type="text" id="ncArea" placeholder="Area (charts, billing, site...)" maxlength="40"></div>
+    <div class="col"><button onclick="createChange()">Create</button></div>
+  </div>
+  <div class="status-msg" id="ncStatus"></div>
+</details>
+
+<div class="dl-release-bar">
+  <strong style="color:var(--tier-violet);">Cut release</strong>
+  <input type="text" id="relVersion" placeholder="2026.06.05" size="12">
+  <button onclick="cutRelease()">Ship checked &rarr; changelog</button>
+  <span class="hint">Stamps checked items with this CalVer version, marks them shipped + public.</span>
+</div>
+
+<div class="filter-bar" id="dlStatusFilters">
+  <button class="filter-btn active" data-status="inbox">Inbox</button>
+  <button class="filter-btn" data-status="submitted">Submitted</button>
+  <button class="filter-btn" data-status="triaging">Triaging</button>
+  <button class="filter-btn" data-status="accepted">Accepted</button>
+  <button class="filter-btn" data-status="in_progress">In progress</button>
+  <button class="filter-btn" data-status="planned">Planned</button>
+  <button class="filter-btn" data-status="shipped">Shipped</button>
+  <button class="filter-btn" data-status="declined">Declined</button>
+  <button class="filter-btn" data-status="all">All</button>
+</div>
+
+<div class="filter-bar" id="dlTypeFilters">
+  <button class="filter-btn active" data-type="all">All types</button>
+  <button class="filter-btn" data-type="feature">Feature requests</button>
+  <button class="filter-btn" data-type="bug">Bug reports</button>
+  <button class="filter-btn" data-type="change">Changes</button>
+</div>
+
+<h2 class="section-title">Queue</h2>
+<div id="dlList"><p style="color:#666;">Loading...</p></div>
+<div class="status-msg" id="dlStatus"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let dlStatus = 'inbox';
+let dlType = 'all';
+
+const FB_STATUSES = ['submitted', 'triaging', 'accepted', 'in_progress', 'shipped', 'declined', 'duplicate'];
+const CHANGE_STATUSES = ['planned', 'in_progress', 'shipped'];
+const STAGES = ['', 'now', 'next', 'later', 'done'];
+const SEVERITIES = ['', 'low', 'med', 'high', 'critical'];
+
+function onAdminReady() {
+  document.querySelectorAll('#dlStatusFilters .filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      dlStatus = b.dataset.status;
+      document.querySelectorAll('#dlStatusFilters .filter-btn').forEach((x) => x.classList.toggle('active', x === b));
+      loadQueue();
+    });
+  });
+  document.querySelectorAll('#dlTypeFilters .filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      dlType = b.dataset.type;
+      document.querySelectorAll('#dlTypeFilters .filter-btn').forEach((x) => x.classList.toggle('active', x === b));
+      loadQueue();
+    });
+  });
+  loadQueue();
+}
+
+async function loadQueue() {
+  const listEl = document.getElementById('dlList');
+  listEl.innerHTML = '<p style="color:#666;">Loading...</p>';
+  const params = new URLSearchParams();
+  // "inbox" = new private submissions awaiting triage.
+  if (dlStatus === 'inbox') {
+    params.set('public', 'false');
+  } else if (dlStatus !== 'all') {
+    params.set('status', dlStatus);
+  }
+  if (dlType !== 'all') params.set('item_type', dlType);
+  try {
+    const resp = await adminFetch(`/api/admin/dev-ledger?${params.toString()}`);
+    if (!resp.ok) throw new Error(await resp.text());
+    let items = await resp.json();
+    if (dlStatus === 'inbox') {
+      items = items.filter((i) => i.item_type !== 'change' && i.status === 'submitted');
+    }
+    renderQueue(items);
+  } catch (err) {
+    listEl.innerHTML = `<p style="color:var(--red);">${esc(err.message || 'Failed to load.')}</p>`;
+  }
+}
+
+function renderQueue(items) {
+  const el = document.getElementById('dlList');
+  if (!items || !items.length) {
+    el.innerHTML = '<p style="color:#666;">No items match this filter.</p>';
+    return;
+  }
+  el.innerHTML = items.map(renderItem).join('');
+}
+
+function opts(values, selected) {
+  return values.map((v) => `<option value="${esc(v)}"${v === (selected || '') ? ' selected' : ''}>${esc(v || '--')}</option>`).join('');
+}
+
+function renderItem(i) {
+  const submitter = i.submitted_by_handle ? `@${esc(i.submitted_by_handle)}`
+    : (i.submitted_by_anon_id ? esc(i.submitted_by_anon_id) : 'admin');
+  const created = i.created_at ? new Date(i.created_at).toLocaleString() : '';
+  const statusList = i.item_type === 'change' ? CHANGE_STATUSES : FB_STATUSES;
+
+  const badges = [];
+  badges.push(i.is_public ? '<span class="dl-badge pub">public</span>' : '<span class="dl-badge priv">private</span>');
+  if (i.version) badges.push(`<span class="dl-badge ver">${esc(i.version)}</span>`);
+  if (i.stage) badges.push(`<span class="dl-badge stage">${esc(i.stage)}</span>`);
+  if (i.severity) badges.push(`<span class="dl-badge sev">${esc(i.severity)}</span>`);
+
+  const votes = (i.item_type !== 'change') ? `<span class="dl-votes">&#9650; ${i.vote_count || 0}</span>` : '';
+
+  const resolutionBlock = i.resolution
+    ? `<div class="dl-resolution"><div class="label">Resolution</div><div>${esc(i.resolution)}</div></div>` : '';
+
+  const showRelCheck = (i.status === 'in_progress' || i.status === 'accepted' || i.status === 'planned');
+  const relCheck = showRelCheck
+    ? `<label title="Include in release"><input type="checkbox" class="dl-rel-check" data-id="${i.id}"></label>` : '';
+
+  return `
+    <div class="dl-card t-${esc(i.item_type)} ${i.is_public ? '' : 'is-private'}">
+      <div class="dl-head">
+        ${relCheck}
+        <span class="dl-type t-${esc(i.item_type)}">${esc(i.item_type)}</span>
+        <span class="dl-status">${esc((i.status || '').replace('_', ' '))}</span>
+        ${badges.join('')}
+        ${votes}
+        <span class="dl-submitter">${submitter}</span>
+        <span class="dl-meta">&middot; ${created}</span>
+        <span class="dl-meta" style="color:var(--text-hint);">#${i.id}${i.area ? ' &middot; ' + esc(i.area) : ''}</span>
+      </div>
+      <div class="dl-title">${esc(i.title)}</div>
+      <div class="dl-body" id="dlbody-${i.id}">${esc(i.body)}</div>
+      <button class="dl-expand" onclick="toggleBody(${i.id})">Expand</button>
+      <div class="dl-editform" id="dledit-${i.id}" style="display:none;">
+        <input type="text" class="dl-edit-title" value="${esc(i.title)}" maxlength="200" placeholder="Title">
+        <textarea class="dl-edit-body" maxlength="5000" placeholder="Body">${esc(i.body)}</textarea>
+        <div><button onclick="saveEdit(${i.id})">Save text</button> <button onclick="cancelEdit(${i.id})">Cancel</button></div>
+      </div>
+      ${resolutionBlock}
+      <div class="dl-controls">
+        <select onchange="patchField(${i.id}, 'status', this.value)">${opts(statusList, i.status)}</select>
+        <select onchange="patchField(${i.id}, 'stage', this.value)">${opts(STAGES, i.stage)}</select>
+        ${i.item_type === 'bug' ? `<select onchange="patchField(${i.id}, 'severity', this.value)">${opts(SEVERITIES, i.severity)}</select>` : ''}
+        <input type="text" placeholder="version" value="${esc(i.version || '')}" size="11" onchange="patchField(${i.id}, 'version', this.value)">
+        <button onclick="togglePublic(${i.id}, ${i.is_public ? 'false' : 'true'})">${i.is_public ? 'Unpublish' : 'Publish'}</button>
+        <button onclick="setResolution(${i.id})">Resolution</button>
+        <button onclick="editItem(${i.id})">Edit text</button>
+        ${i.item_type !== 'change' ? `<button class="btn-danger" onclick="decline(${i.id})">Decline</button>` : ''}
+        <button class="btn-danger" onclick="deleteItem(${i.id})">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleBody(id) {
+  const el = document.getElementById(`dlbody-${id}`);
+  if (!el) return;
+  const expanded = el.classList.toggle('expanded');
+  const btn = el.nextElementSibling;
+  if (btn) btn.textContent = expanded ? 'Collapse' : 'Expand';
+}
+
+function editItem(id) {
+  const el = document.getElementById(`dledit-${id}`);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function cancelEdit(id) {
+  const el = document.getElementById(`dledit-${id}`);
+  if (el) el.style.display = 'none';
+}
+
+function saveEdit(id) {
+  const box = document.getElementById(`dledit-${id}`);
+  if (!box) return;
+  const title = box.querySelector('.dl-edit-title').value.trim();
+  const body = box.querySelector('.dl-edit-body').value.trim();
+  patchItem(id, { title, body }, `Saved text on #${id}.`);
+}
+
+async function deleteItem(id) {
+  if (!window.confirm(`Delete #${id} permanently? (Unpublish instead to just hide a public entry.)`)) return;
+  const statusEl = document.getElementById('dlStatus');
+  try {
+    const resp = await fetch(`/api/admin/dev-ledger/${id}`, {
+      method: 'DELETE', headers: adminHeaders(), credentials: 'include',
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.detail || resp.statusText);
+    showMsg(statusEl, `Deleted #${id}.`, 'success');
+    loadQueue();
+  } catch (err) {
+    showMsg(statusEl, err.message || String(err), 'error');
+  }
+}
+
+async function patchItem(id, payload, msg) {
+  const statusEl = document.getElementById('dlStatus');
+  try {
+    const resp = await fetch(`/api/admin/dev-ledger/${id}`, {
+      method: 'PATCH', headers: adminHeaders(), credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.detail || resp.statusText);
+    showMsg(statusEl, msg || `Updated #${id}.`, 'success');
+    loadQueue();
+  } catch (err) {
+    showMsg(statusEl, err.message || String(err), 'error');
+  }
+}
+
+function patchField(id, field, value) {
+  patchItem(id, { [field]: value || null }, `Set ${field} on #${id}.`);
+}
+
+function togglePublic(id, makePublic) {
+  patchItem(id, { is_public: makePublic }, makePublic ? `Published #${id}.` : `Unpublished #${id}.`);
+}
+
+function setResolution(id) {
+  const v = window.prompt('Public resolution note (why closed / how shipped):');
+  if (v == null) return;
+  patchItem(id, { resolution: v.trim() }, `Resolution set on #${id}.`);
+}
+
+function decline(id) {
+  const v = window.prompt('Decline this item. Public reason:');
+  if (v == null) return;
+  patchItem(id, { status: 'declined', resolution: v.trim(), is_public: true }, `Declined #${id}.`);
+}
+
+async function createChange() {
+  const statusEl = document.getElementById('ncStatus');
+  const title = document.getElementById('ncTitle').value.trim();
+  const bodyTxt = document.getElementById('ncBody').value.trim();
+  if (!title || !bodyTxt) { showMsg(statusEl, 'Title and body required.', 'error'); return; }
+  try {
+    const resp = await fetch('/api/admin/dev-ledger', {
+      method: 'POST', headers: adminHeaders(), credentials: 'include',
+      body: JSON.stringify({
+        title, body: bodyTxt,
+        stage: document.getElementById('ncStage').value || null,
+        area: document.getElementById('ncArea').value.trim() || null,
+      }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.detail || resp.statusText);
+    showMsg(statusEl, `Created change item #${body.id}. Publish it to show on the roadmap.`, 'success');
+    document.getElementById('ncTitle').value = '';
+    document.getElementById('ncBody').value = '';
+    loadQueue();
+  } catch (err) {
+    showMsg(statusEl, err.message || String(err), 'error');
+  }
+}
+
+async function cutRelease() {
+  const statusEl = document.getElementById('dlStatus');
+  const version = document.getElementById('relVersion').value.trim();
+  const ids = Array.from(document.querySelectorAll('.dl-rel-check:checked')).map((c) => parseInt(c.dataset.id, 10));
+  if (!version) { showMsg(statusEl, 'Enter a CalVer version (e.g. 2026.06.05).', 'error'); return; }
+  if (!ids.length) { showMsg(statusEl, 'Check at least one item to ship.', 'error'); return; }
+  if (!window.confirm(`Ship ${ids.length} item(s) as ${version}? They will become public on the changelog.`)) return;
+  try {
+    const resp = await fetch('/api/admin/dev-ledger/release', {
+      method: 'POST', headers: adminHeaders(), credentials: 'include',
+      body: JSON.stringify({ item_ids: ids, version }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.detail || resp.statusText);
+    showMsg(statusEl, `Released ${body.count} item(s) as ${version}.`, 'success');
+    document.getElementById('relVersion').value = '';
+    loadQueue();
+  } catch (err) {
+    showMsg(statusEl, err.message || String(err), 'error');
+  }
+}
+</script>
+{% endblock %}

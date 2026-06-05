@@ -1932,7 +1932,7 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
 .album-track-limit-note.hidden { display: none; }
 
 /* ============================================================
-   Share card -- button + modal
+   Charge card (rc-lc-charge-card) -- button + modal
    ============================================================ */
 .result-cta-buttons {
   display: flex;
@@ -1942,7 +1942,7 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
   align-items: center;
 }
 
-.share-modal {
+.charge-card-modal {
   position: fixed;
   inset: 0;
   z-index: 3000;
@@ -1953,9 +1953,9 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
   background: rgba(3, 3, 8, 0.86);
   backdrop-filter: blur(4px);
 }
-.share-modal.open { display: flex; }
+.charge-card-modal.open { display: flex; }
 
-.share-modal__inner {
+.charge-card-modal__inner {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1964,7 +1964,7 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
   max-width: 92vw;
 }
 
-.share-modal__canvas {
+.charge-card-modal__canvas {
   width: min(86vw, 460px);
   height: auto;
   aspect-ratio: 1 / 1;
@@ -1972,14 +1972,14 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
-.share-modal__actions {
+.charge-card-modal__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: center;
 }
 
-.share-modal__close {
+.charge-card-modal__close {
   position: absolute;
   top: -0.9rem;
   right: -0.9rem;
@@ -1994,4 +1994,4 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
   cursor: pointer;
   transition: border-color var(--rc-ease), color var(--rc-ease);
 }
-.share-modal__close:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
+.charge-card-modal__close:hover { border-color: var(--rc-accent); color: var(--rc-accent); }

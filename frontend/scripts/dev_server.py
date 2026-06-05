@@ -107,6 +107,12 @@ class RewritingHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    # Dev only: never let the browser cache, so phone/LAN reloads always get the
+    # latest edited files without a hard refresh.
+    def end_headers(self):  # noqa: N802 -- http.server contract
+        self.send_header("Cache-Control", "no-store, must-revalidate")
+        super().end_headers()
+
     # --- Static (GET/HEAD) ------------------------------------------------
     def do_GET(self):  # noqa: N802 -- http.server contract
         path = urlsplit(self.path).path

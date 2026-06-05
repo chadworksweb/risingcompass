@@ -215,3 +215,26 @@ def set_launch_locked_message(db: Session, message: str | None) -> None:
     else:
         db.add(SystemFlag(key=LAUNCH_LOCKED_MESSAGE_KEY, value=message))
     db.commit()
+
+
+# --- Faultline (internal error ledger) kill switch -------------------------
+# Gates Faultline capture writes. Capture is fail-safe regardless -- this is a
+# deliberate off switch for the writes/noise, not a safety mechanism. Fails
+# OPEN (absent flag = enabled): a fresh install captures by default, matching
+# the "durable by default" intent. Toggle from Site Admin (a later phase).
+
+FAULTLINE_ENABLED_KEY = "faultline.enabled"
+
+
+def is_faultline_enabled(db: Session) -> bool:
+    # Absent flag -> enabled (fail open). Only an explicit "false" disables it.
+    return (_get_flag(db, FAULTLINE_ENABLED_KEY) or "true").lower() == "true"
+
+
+def set_faultline_enabled(db: Session, enabled: bool) -> None:
+    row = db.query(SystemFlag).filter(SystemFlag.key == FAULTLINE_ENABLED_KEY).first()
+    if row:
+        row.value = "true" if enabled else "false"
+    else:
+        db.add(SystemFlag(key=FAULTLINE_ENABLED_KEY, value="true" if enabled else "false"))
+    db.commit()

@@ -75,8 +75,8 @@ const resultDogma = $('#result-dogma');
 const resultMisread = $('#result-misread');
 const btnAgain = $('#btn-again');
 const btnShare = $('#btn-share');
-const shareModal = $('#share-modal');
-const shareCanvas = $('#share-canvas');
+const chargeCardModal = $('#charge-card-modal');
+const chargeCardCanvas = $('#charge-card-canvas');
 const btnShareNative = $('#btn-share-native');
 const btnShareDownload = $('#btn-share-download');
 const btnShareClose = $('#btn-share-close');
@@ -85,7 +85,7 @@ const btnShareClose = $('#btn-share-close');
 let activeTab = 'paste';
 let selectedTrack = null;  // { track_id, title, artist }
 let turnstileWidgetId = null;
-let lastResult = null;     // last calibration payload, for the share card
+let lastResult = null;     // last calibration payload, for the charge card
 
 // --- Auth (optional) ---
 // When a user is signed in (Clerk via /js/auth.js), we attach their bearer
@@ -1237,26 +1237,26 @@ btnAgain.addEventListener('click', () => {
 });
 
 // ============================================================
-// Share card (renders the last reading to a downloadable/shareable image)
+// Charge card (renders the last reading to a downloadable/shareable image)
 // ============================================================
-function closeShareModal() {
-  if (!shareModal) return;
-  shareModal.classList.remove('open');
-  shareModal.setAttribute('aria-hidden', 'true');
+function closeChargeCardModal() {
+  if (!chargeCardModal) return;
+  chargeCardModal.classList.remove('open');
+  chargeCardModal.setAttribute('aria-hidden', 'true');
 }
 
 if (btnShare) {
   btnShare.addEventListener('click', async () => {
-    if (!lastResult || !window.LCShareCard) return;
+    if (!lastResult || !window.RCChargeCard) return;
     btnShare.disabled = true;
     try {
-      await window.LCShareCard.render(lastResult, shareCanvas);
+      await window.RCChargeCard.render(lastResult, chargeCardCanvas);
       if (btnShareNative) {
         const canNative = !!(navigator.canShare && window.File);
         btnShareNative.style.display = canNative ? '' : 'none';
       }
-      shareModal.classList.add('open');
-      shareModal.setAttribute('aria-hidden', 'false');
+      chargeCardModal.classList.add('open');
+      chargeCardModal.setAttribute('aria-hidden', 'false');
     } catch (_) {
       /* render failure: leave the modal closed */
     } finally {
@@ -1265,18 +1265,18 @@ if (btnShare) {
   });
 }
 
-if (btnShareClose) btnShareClose.addEventListener('click', closeShareModal);
-if (shareModal) {
-  shareModal.addEventListener('click', (e) => { if (e.target === shareModal) closeShareModal(); });
+if (btnShareClose) btnShareClose.addEventListener('click', closeChargeCardModal);
+if (chargeCardModal) {
+  chargeCardModal.addEventListener('click', (e) => { if (e.target === chargeCardModal) closeChargeCardModal(); });
 }
 if (btnShareNative) {
   btnShareNative.addEventListener('click', () => {
-    if (window.LCShareCard && lastResult) window.LCShareCard.shareOrDownload(shareCanvas, lastResult, false);
+    if (window.RCChargeCard && lastResult) window.RCChargeCard.shareOrDownload(chargeCardCanvas, lastResult, false);
   });
 }
 if (btnShareDownload) {
   btnShareDownload.addEventListener('click', () => {
-    if (window.LCShareCard && lastResult) window.LCShareCard.shareOrDownload(shareCanvas, lastResult, true);
+    if (window.RCChargeCard && lastResult) window.RCChargeCard.shareOrDownload(chargeCardCanvas, lastResult, true);
   });
 }
 

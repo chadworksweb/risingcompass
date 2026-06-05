@@ -14,7 +14,12 @@ from fastapi import Depends
 from app.auth import verify_api_key, verify_api_or_service_key
 from app.config import settings
 from app.database import engine, Base, SessionLocal
+from app.logging_config import configure_logging
 from app.migrate import run_migrations
+
+# Attach the durable rotating file handler before anything else logs, so
+# startup, migrations, and every swallowed "non-fatal" exception persist.
+configure_logging()
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ApiCallLog
 from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber, prose_admin
 
@@ -71,6 +76,10 @@ ensure_pref_default("prompt_cache_warranted", enabled=True)
 ensure_pref_default("album_charged", enabled=True)
 # General inquiry / contact form: alert the admin on each submission.
 ensure_pref_default("general_inquiry", enabled=True)
+# Faultline: a fault marked critical, or a resolved fault that recurred. Both
+# on by default -- a critical or a regression should never sit unseen.
+ensure_pref_default("faultline_new_critical", enabled=True)
+ensure_pref_default("faultline_regression", enabled=True)
 
 
 @asynccontextmanager
@@ -244,6 +253,14 @@ app.include_router(motions_admin.router)
 # /api/motions/{id}/arguments.
 app.include_router(chamber.router)
 
+# Dev Ledger -- the "dev side, exposed" (changelog / roadmap / feature requests
+# / bug reports, CalVer-versioned). Reads are public; submit + vote require
+# require_clerk_user (Tier 1). No X-Api-Key gate -- the JWT authorizes writes,
+# mirroring Motion Desk. Walled from the tenet/framework surfaces above; this is
+# the product/engineering layer. See RISING-COMPASS-DEV-LEDGER-SCOPE.md.
+from app.routers import dev_ledger
+app.include_router(dev_ledger.router)
+
 # Stripe Identity webhook (Phase 3.1). Distinct from the donation webhook
 # (/api/stripe-webhook) -- different signing secret so a leak on one
 # stream can't forge events on the other.
@@ -259,6 +276,7 @@ app.include_router(admin_auth.router)
 # require_admin_session, so X-Admin-Key headers are no longer accepted.
 app.include_router(admin.router)
 app.include_router(misread.admin_router)
+app.include_router(dev_ledger.admin_router)
 app.include_router(artist_verification.admin_router)
 app.include_router(inquiries.admin_router)
 app.include_router(chart_anomalies.admin_router)
@@ -273,6 +291,10 @@ from app.routers import launch_admin
 app.include_router(launch_admin.router)
 from app.routers import provenance
 app.include_router(provenance.router)
+from app.routers import faultline as faultline_router
+app.include_router(faultline_router.router)
+from app.routers import faultline_agent
+app.include_router(faultline_agent.router)
 from app.routers import donate
 app.include_router(donate.router)
 # Billing -- subscription/pack Checkout, wallet, estimate, billing webhook.

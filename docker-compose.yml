@@ -36,6 +36,14 @@ services:
       - RC_READING_CRON_KEY=${RC_READING_CRON_KEY}
       - RC_LYRICS_SUPPLY_KEY=${RC_LYRICS_SUPPLY_KEY}
       - RC_PROVENANCE_CRON_KEY=${RC_PROVENANCE_CRON_KEY}
+      # Faultline (internal error ledger). ENVIRONMENT tags captured faults
+      # prod-vs-local (local dev shares this DB via the tunnel, so the tag is
+      # what keeps prod triage legible). RC_ERROR_AGENT_KEY arms the agent lane
+      # (ships dark / 503 until set). Capture itself is always on + fail-safe.
+      - ENVIRONMENT=${ENVIRONMENT:-prod}
+      - RC_ERROR_AGENT_KEY=${RC_ERROR_AGENT_KEY}
+      - FAULTLINE_CAPTURE_LEVEL=${FAULTLINE_CAPTURE_LEVEL:-ERROR}
+      - FAULTLINE_OCCURRENCE_RETENTION=${FAULTLINE_OCCURRENCE_RETENTION:-50}
       # Prose provenance anchoring. Ships DARK (PROVENANCE_ENABLED unset/false).
       # When enabled, PROVENANCE_REPO_PATH must be a volume-mounted, write-
       # authenticated git clone of the public anchor repo, and the image must

@@ -1,0 +1,287 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'faultline' %}
+{% block title %}Faultline -- Admin{% endblock %}
+
+{% block content %}
+<style>
+  .fl-sev { display:inline-block; padding:1px 7px; border-radius:10px; font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.02em; }
+  .fl-sev.low      { background:#eef0f3; color:#5a6270; }
+  .fl-sev.medium   { background:#fdf3e0; color:#b9770e; }
+  .fl-sev.high     { background:#fbe6e6; color:#c0392b; }
+  .fl-sev.critical { background:#c0392b; color:#fff; }
+  .fl-status { display:inline-block; padding:1px 7px; border-radius:10px; font-size:0.72rem; font-weight:600; background:#eef0f3; color:#3a4250; }
+  .fl-status.resolved { background:#e3f5ea; color:#1c7c47; }
+  .fl-status.regressed { background:#fbe6e6; color:#c0392b; }
+  .fl-status.new { background:#e6eefb; color:#2456b0; }
+  .fl-env { font-size:0.7rem; color:var(--text-hint); border:1px solid var(--border); border-radius:4px; padding:0 5px; }
+  .fl-env.prod { color:#c0392b; border-color:#e8b4b0; }
+  .fl-filters { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; margin:0 0 1rem; }
+  .fl-filters select, .fl-filters input { font-size:0.85rem; padding:4px 8px; border:1px solid var(--border); border-radius:5px; background:#fff; }
+  table.fl-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+  table.fl-table th { text-align:left; color:var(--text-dim); font-weight:600; font-size:0.74rem; text-transform:uppercase; letter-spacing:0.03em; padding:6px 10px; border-bottom:1px solid var(--border); }
+  table.fl-table td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  table.fl-table tr.fl-row { cursor:pointer; }
+  table.fl-table tr.fl-row:hover { background:rgba(0,143,114,0.05); }
+  .fl-title { font-weight:600; color:var(--text); }
+  .fl-comp { color:var(--text-hint); font-size:0.78rem; font-family:ui-monospace,Menlo,monospace; }
+  .fl-num { text-align:right; font-variant-numeric:tabular-nums; }
+  .fl-drawer { position:fixed; top:0; right:0; width:min(720px,92vw); height:100vh; background:#fff; border-left:1px solid var(--border); box-shadow:-8px 0 28px rgba(0,0,0,0.12); transform:translateX(100%); transition:transform 0.18s ease; overflow-y:auto; z-index:60; }
+  .fl-drawer.open { transform:translateX(0); }
+  .fl-drawer-head { position:sticky; top:0; background:#fff; border-bottom:1px solid var(--border); padding:1rem 1.2rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
+  .fl-drawer-body { padding:1.1rem 1.2rem 4rem; }
+  .fl-close { cursor:pointer; border:none; background:none; font-size:1.3rem; line-height:1; color:var(--text-hint); }
+  .fl-tb { background:#0f1115; color:#e6e6e6; border-radius:6px; padding:0.9rem; font-family:ui-monospace,Menlo,monospace; font-size:0.76rem; white-space:pre-wrap; overflow-x:auto; max-height:340px; }
+  .fl-kv { font-size:0.82rem; }
+  .fl-kv div { padding:2px 0; }
+  .fl-kv .k { color:var(--text-dim); display:inline-block; min-width:120px; }
+  .fl-mono { font-family:ui-monospace,Menlo,monospace; font-size:0.78rem; }
+  .fl-section-h { font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim); font-weight:700; margin:1.3rem 0 0.5rem; }
+  .fl-occ { border:1px solid var(--border); border-radius:6px; padding:0.5rem 0.7rem; margin-bottom:0.5rem; font-size:0.8rem; }
+  .fl-empty { color:var(--text-hint); padding:2rem; text-align:center; }
+  .fl-phase-note { font-size:0.8rem; color:var(--text-hint); background:#f7f8fa; border:1px solid var(--border); border-radius:6px; padding:0.6rem 0.8rem; margin:0 0 1rem; }
+  .fl-ctl { display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center; margin:0 0 0.6rem; }
+  .fl-ctl label { font-size:0.78rem; color:var(--text-dim); display:flex; flex-direction:column; gap:2px; }
+  .fl-ctl select, .fl-ctl input { font-size:0.84rem; padding:4px 8px; border:1px solid var(--border); border-radius:5px; background:#fff; }
+  .fl-btn { font-size:0.82rem; padding:6px 12px; border:1px solid var(--border); border-radius:5px; background:#fff; cursor:pointer; align-self:flex-end; }
+  .fl-btn:hover { background:rgba(0,143,114,0.06); }
+  .fl-btn-go { background:#008f72; color:#fff; border-color:#008f72; }
+  .fl-btn-go:hover { background:#017a62; }
+</style>
+
+<p class="fl-phase-note">
+  Read-only error ledger. Every runtime exception the app logs is captured here,
+  deduplicated by code signature. Triage controls + the agent API land in the
+  next phases. Local-dev faults are tagged <span class="fl-env">local</span>;
+  filter to <span class="fl-env prod">prod</span> for production.
+</p>
+
+<div class="stats-grid" style="margin-bottom:1rem;">
+  <div class="stat-card"><div class="val" id="flOpen">&mdash;</div><div class="label">Open</div></div>
+  <div class="stat-card"><div class="val" id="flCrit">&mdash;</div><div class="label">Critical (active)</div></div>
+  <div class="stat-card"><div class="val" id="flResolved">&mdash;</div><div class="label">Resolved</div></div>
+  <div class="stat-card"><div class="val" id="flTotal">&mdash;</div><div class="label">Total signatures</div></div>
+</div>
+
+<div class="fl-filters">
+  <select id="flStatus">
+    <option value="">All statuses</option>
+    <option value="__active">Active only</option>
+    <option value="new">New</option>
+    <option value="triaged">Triaged</option>
+    <option value="investigating">Investigating</option>
+    <option value="fix_proposed">Fix proposed</option>
+    <option value="fix_applied">Fix applied</option>
+    <option value="verifying">Verifying</option>
+    <option value="regressed">Regressed</option>
+    <option value="resolved">Resolved</option>
+  </select>
+  <select id="flSeverity">
+    <option value="">All severities</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <select id="flEnv">
+    <option value="">All envs</option>
+    <option value="prod">prod</option>
+    <option value="local">local</option>
+  </select>
+  <label style="font-size:0.82rem;color:var(--text-dim);"><input type="checkbox" id="flMuted"> show muted</label>
+  <input type="text" id="flQ" placeholder="search title / component" style="flex:1;min-width:180px;">
+</div>
+
+<div id="flTableWrap"></div>
+
+<div class="fl-drawer" id="flDrawer">
+  <div class="fl-drawer-head">
+    <div><div class="fl-title" id="flDetTitle" style="font-size:1rem;"></div><div class="fl-comp" id="flDetComp"></div></div>
+    <button class="fl-close" id="flClose" aria-label="Close">&times;</button>
+  </div>
+  <div class="fl-drawer-body" id="flDetBody"></div>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => (s == null ? '' : String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])));
+  let currentSig = null;
+
+  async function api(path) {
+    const r = await fetch('/api/admin/faultline' + path, { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function loadStats() {
+    try {
+      const s = await api('/stats');
+      $('flOpen').textContent = s.open;
+      $('flCrit').textContent = (s.by_severity && s.by_severity.critical) || 0;
+      $('flResolved').textContent = s.resolved;
+      $('flTotal').textContent = s.total;
+    } catch (e) { /* leave dashes */ }
+  }
+
+  function rowHtml(s) {
+    return `<tr class="fl-row" data-id="${s.id}">
+      <td><span class="fl-sev ${esc(s.severity)}">${esc(s.severity)}</span></td>
+      <td><span class="fl-status ${esc(s.status)}">${esc(s.status)}</span></td>
+      <td><div class="fl-title">${esc(s.title)}</div><div class="fl-comp">${esc(s.component || '')}</div></td>
+      <td class="fl-num">${s.occurrence_count}</td>
+      <td>${esc(fmtTime(s.last_seen_at))}</td>
+      <td><span class="fl-env ${esc(s.environment)}">${esc(s.environment)}</span></td>
+    </tr>`;
+  }
+
+  async function loadList() {
+    const params = new URLSearchParams();
+    const st = $('flStatus').value;
+    if (st === '__active') params.set('active_only', 'true');
+    else if (st) params.set('status', st);
+    if ($('flSeverity').value) params.set('severity', $('flSeverity').value);
+    if ($('flEnv').value) params.set('environment', $('flEnv').value);
+    if ($('flMuted').checked) params.set('include_muted', 'true');
+    if ($('flQ').value.trim()) params.set('q', $('flQ').value.trim());
+
+    try {
+      const data = await api('/signatures?' + params.toString());
+      const rows = data.signatures || [];
+      if (!rows.length) {
+        $('flTableWrap').innerHTML = '<div class="fl-empty">No faults captured for these filters. (A clean board is a good board.)</div>';
+        return;
+      }
+      $('flTableWrap').innerHTML = `<table class="fl-table">
+        <thead><tr><th>Sev</th><th>Status</th><th>Fault</th><th class="fl-num">Count</th><th>Last seen</th><th>Env</th></tr></thead>
+        <tbody>${rows.map(rowHtml).join('')}</tbody></table>`;
+      document.querySelectorAll('.fl-row').forEach(tr =>
+        tr.addEventListener('click', () => openDetail(tr.dataset.id)));
+    } catch (e) {
+      $('flTableWrap').innerHTML = '<div class="fl-empty">Failed to load (' + esc(e.message) + ').</div>';
+    }
+  }
+
+  function kv(k, v) { return v == null || v === '' ? '' : `<div><span class="k">${esc(k)}</span> <span class="fl-mono">${esc(v)}</span></div>`; }
+
+  async function openDetail(id) {
+    const d = await api('/signatures/' + id);
+    $('flDetTitle').textContent = d.title;
+    $('flDetComp').textContent = (d.exc_type ? d.exc_type + '  ' : '') + (d.component || '');
+    const ctx = d.last_context ? JSON.stringify(d.last_context, null, 2) : '';
+    const occ = (d.occurrences || []).map(o =>
+      `<div class="fl-occ"><strong>${esc(fmtTime(o.occurred_at))}</strong> <span class="fl-env ${esc(o.environment)}">${esc(o.environment)}</span>
+       ${o.context ? '<div class="fl-mono" style="color:var(--text-hint);margin-top:3px;">' + esc(JSON.stringify(o.context)) + '</div>' : ''}</div>`).join('');
+    const acts = (d.actions || []).length
+      ? d.actions.map(a => `<div class="fl-occ"><strong>${esc(a.action_type)}</strong> ${esc(a.actor_type)}${a.actor_ref ? '/' + esc(a.actor_ref) : ''}
+         ${a.from_status ? '<span class="fl-mono">' + esc(a.from_status) + ' -> ' + esc(a.to_status) + '</span>' : ''}
+         <span style="float:right;color:var(--text-hint);">${esc(fmtTime(a.created_at))}</span>
+         ${a.note ? '<div style="margin-top:3px;">' + esc(a.note) + '</div>' : ''}</div>`).join('')
+      : '<div style="color:var(--text-hint);font-size:0.82rem;">No actions yet. Triage + agent work logs land here in the next phases.</div>';
+
+    currentSig = d;
+    const statusOpts = ['new','triaged','investigating','fix_proposed','fix_applied','verifying','resolved','wont_fix','duplicate','regressed']
+      .map(s => `<option value="${s}" ${s===d.status?'selected':''}>${s}</option>`).join('');
+    const sevOpts = ['low','medium','high','critical']
+      .map(s => `<option value="${s}" ${s===d.severity?'selected':''}>${s}</option>`).join('');
+    const areaList = ['calibration','billing','album','charts','account','admin','api','infra','frontend','other'];
+    const areaOpts = '<option value=""></option>' + areaList
+      .map(a => `<option value="${a}" ${a===d.area?'selected':''}>${a}</option>`).join('');
+
+    $('flDetBody').innerHTML = `
+      <div class="fl-kv">
+        ${kv('Environment', d.environment)}${kv('Occurrences', d.occurrence_count)}
+        ${kv('First seen', fmtTime(d.first_seen_at))}${kv('Last seen', fmtTime(d.last_seen_at))}
+        ${kv('Claimed by', d.claimed_by)}${kv('Dev Ledger item', d.dev_ledger_item_id)}
+        ${kv('Resolved by', d.resolved_by)}${kv('Resolution', d.resolution)}
+        ${kv('Fingerprint', d.fingerprint)}
+      </div>
+      <div class="fl-section-h">Triage</div>
+      <div class="fl-ctl">
+        <label>Status <select id="ctlStatus">${statusOpts}</select></label>
+        <label>Severity <select id="ctlSev">${sevOpts}</select></label>
+        <label>Area <select id="ctlArea">${areaOpts}</select></label>
+        <label>Assignee <input id="ctlAssignee" value="${esc(d.assigned_to || '')}" placeholder="handle / agent"></label>
+        <button id="ctlSaveTriage" class="fl-btn">Save triage</button>
+        <button id="ctlMute" class="fl-btn">${d.muted ? 'Unmute' : 'Mute'}</button>
+        <button id="ctlResolve" class="fl-btn fl-btn-go">Resolve</button>
+      </div>
+      <div class="fl-ctl">
+        <select id="ctlNoteType">
+          <option value="comment">comment</option>
+          <option value="diagnosis">diagnosis</option>
+          <option value="proposed_fix">proposed_fix</option>
+          <option value="applied_fix">applied_fix</option>
+          <option value="verification">verification</option>
+        </select>
+        <input id="ctlNote" placeholder="Add a note / diagnosis to the log..." style="flex:1;min-width:220px;">
+        <button id="ctlAddNote" class="fl-btn">Add</button>
+      </div>
+      <div class="fl-section-h">Latest traceback</div>
+      <div class="fl-tb">${esc(d.last_traceback || '(none captured)')}</div>
+      ${ctx ? '<div class="fl-section-h">Last context</div><div class="fl-tb">' + esc(ctx) + '</div>' : ''}
+      <div class="fl-section-h">Recent occurrences (${(d.occurrences || []).length})</div>
+      ${occ || '<div style="color:var(--text-hint);font-size:0.82rem;">None.</div>'}
+      <div class="fl-section-h">Action log</div>
+      ${acts}`;
+
+    // Wire the controls (drawer body is rebuilt each open, so attach fresh).
+    $('ctlStatus').addEventListener('change', e =>
+      post(`/signatures/${d.id}/status`, { to_status: e.target.value }));
+    $('ctlSaveTriage').addEventListener('click', () =>
+      post(`/signatures/${d.id}/triage`, {
+        severity: $('ctlSev').value, area: $('ctlArea').value,
+        assigned_to: $('ctlAssignee').value,
+      }));
+    $('ctlMute').addEventListener('click', () =>
+      post(`/signatures/${d.id}/mute`, { muted: !d.muted }));
+    $('ctlResolve').addEventListener('click', () => {
+      const r = window.prompt('Resolution note (how it was fixed):', d.resolution || '');
+      if (r === null) return;
+      post(`/signatures/${d.id}/resolve`, { resolution: r });
+    });
+    $('ctlAddNote').addEventListener('click', () => {
+      const n = $('ctlNote').value.trim();
+      if (!n) return;
+      post(`/signatures/${d.id}/comment`, { note: n, action_type: $('ctlNoteType').value });
+    });
+
+    $('flDrawer').classList.add('open');
+  }
+
+  async function post(path, body) {
+    try {
+      const r = await fetch('/api/admin/faultline' + path, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        let msg = 'HTTP ' + r.status;
+        try { const j = await r.json(); if (j.detail) msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch (_) {}
+        alert('Rejected: ' + msg);
+      }
+    } catch (e) {
+      alert('Failed: ' + e.message);
+    }
+    // Always refresh -- reflects the new state (or reverts an invalid move).
+    if (currentSig) await openDetail(currentSig.id);
+    loadList();
+    loadStats();
+  }
+
+  $('flClose').addEventListener('click', () => $('flDrawer').classList.remove('open'));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('flDrawer').classList.remove('open'); });
+  ['flStatus', 'flSeverity', 'flEnv', 'flMuted'].forEach(id => $(id).addEventListener('change', loadList));
+  let qt; $('flQ').addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(loadList, 250); });
+
+  loadStats();
+  loadList();
+})();
+</script>
+{% endblock %}
