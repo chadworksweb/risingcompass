@@ -25,6 +25,21 @@
   </div>
 </div>
 
+<h2 class="section-title">Album Charger</h2>
+<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;">
+  <p style="font-size:0.88rem;color:var(--text-dim);margin:0 0 0.8rem;">
+    Independent kill switch for the <strong>Album Charger</strong> tab only. When closed, the Album
+    Charger tab is hidden on the public page and the album endpoints return 503. The single-song
+    <strong>Song Charger</strong> is unaffected. Takes effect within ~30s.
+  </p>
+  <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+    <span>Status: <strong id="lcsAlbumState">—</strong></span>
+    <button id="lcsBtnAlbumDisable" class="btn btn-primary" onclick="lcsAlbumToggle(true)">Close Album Charger</button>
+    <button id="lcsBtnAlbumEnable" class="btn btn-primary" onclick="lcsAlbumToggle(false)">Open Album Charger</button>
+    <span id="lcsAlbumNote" style="font-size:0.82rem;color:var(--text-dim);"></span>
+  </div>
+</div>
+
 <h2 class="section-title">Daily rate limits</h2>
 <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;">
   <p style="font-size:0.88rem;color:var(--text-dim);margin:0 0 0.8rem;">
@@ -123,8 +138,35 @@ async function loadStatus() {
     document.getElementById('lcsNotifyNote').textContent =
       s.disabled ? '(toggle LC online first)'
       : (s.subscribers_unnotified === 0 ? '(no unnotified subscribers)' : '');
+
+    const albumState = document.getElementById('lcsAlbumState');
+    albumState.textContent = s.album_disabled ? 'CLOSED' : 'open';
+    albumState.style.color = s.album_disabled ? '#cc3333' : '#33aa55';
+    const albEnable = document.getElementById('lcsBtnAlbumEnable');
+    const albDisable = document.getElementById('lcsBtnAlbumDisable');
+    albEnable.disabled = !s.album_disabled;
+    albDisable.disabled = s.album_disabled;
+    albEnable.style.opacity = s.album_disabled ? '1' : '0.5';
+    albDisable.style.opacity = s.album_disabled ? '0.5' : '1';
   } catch (e) {
     document.getElementById('lcsState').textContent = 'error';
+  }
+}
+
+async function lcsAlbumToggle(disabled) {
+  const note = document.getElementById('lcsAlbumNote');
+  note.textContent = 'Saving...';
+  try {
+    const resp = await adminFetch('/api/admin/lc-status/album-toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({disabled}),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    note.textContent = disabled ? 'Album Charger is now CLOSED.' : 'Album Charger is open.';
+    await loadStatus();
+  } catch (e) {
+    note.textContent = 'Toggle failed: ' + e.message;
   }
 }
 

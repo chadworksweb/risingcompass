@@ -77,6 +77,7 @@ from app.services.alerts import emit_album_charged
 from app.routers.analyzer import (
     limiter,
     _check_lc_available_or_503,
+    _check_album_available_or_503,
     _check_bot_protection,
     _validate_lyrics,
     _resolve_source,
@@ -124,6 +125,7 @@ async def search_albums_endpoint(
     """Search albums via Musixmatch. Returns the gated message when the
     Musixmatch key is not configured (the whole Search Album tab ships dark)."""
     _check_lc_available_or_503()
+    _check_album_available_or_503()
     request.state.call_context = {
         "query": (body.query or "")[:200],
         "artist": (body.artist or "")[:200],
@@ -150,6 +152,7 @@ async def album_tracklist_endpoint(
 ):
     """Fetch an album's tracklist from Musixmatch. Gated like /search."""
     _check_lc_available_or_503()
+    _check_album_available_or_503()
     if not musixmatch.is_configured():
         return AlbumTracklistOut(message=_GATED_MSG)
     tracks = await musixmatch.get_album_tracks(body.album_id)
@@ -618,6 +621,7 @@ async def calibrate_album(
 
     if is_public:
         _check_lc_available_or_503()
+        _check_album_available_or_503()
         await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 
     source = _resolve_source(tier, body.source)

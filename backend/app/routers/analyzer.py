@@ -22,6 +22,7 @@ from app.models import LyricalChargerSubscriber, UserCalibration, User
 from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
     lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
+    is_album_charger_disabled, album_charger_disabled_message,
 )
 from app.constants import COLOR_LABELS
 from app.services.agents.calibrator import (
@@ -71,6 +72,30 @@ def _lc_daily_limits() -> tuple[int, int]:
     return (_LC_LIMIT_CACHE["anon"], _LC_LIMIT_CACHE["user"])
 
 
+# Admin-comped (unlimited Charger) user IDs. Cached in-process so the limit
+# provider doesn't hit the DB on every calibrate request; a comp toggle
+# propagates within _COMP_TTL seconds (same pattern as _LC_LIMIT_CACHE).
+_COMP_CACHE: dict = {"ids": frozenset(), "ts": 0.0}
+_COMP_TTL = 30.0
+
+
+def _comp_unlimited_ids() -> frozenset:
+    """Set of user IDs carrying the unlimited-Charger comp. Cached, fail-soft
+    to the last-known set (empty on first failure)."""
+    now = time.monotonic()
+    if now - _COMP_CACHE["ts"] > _COMP_TTL:
+        try:
+            db = SessionLocal()
+            try:
+                rows = db.query(User.id).filter(User.comp_unlimited.is_(True)).all()
+            finally:
+                db.close()
+            _COMP_CACHE.update(ids=frozenset(r[0] for r in rows), ts=now)
+        except Exception:
+            logger.exception("Failed to read comp_unlimited ids; using cached set")
+    return _COMP_CACHE["ids"]
+
+
 def _calibrate_daily_limit(key: str) -> str:
     """Dynamic per-request daily limit for the calibrate-* endpoints (M5).
 
@@ -89,6 +114,14 @@ def _calibrate_daily_limit(key: str) -> str:
     """
     anon, user = _lc_daily_limits()
     if isinstance(key, str) and key.startswith("user:"):
+        # Admin-comped users get an effectively unlimited daily cap -- the
+        # comp lifts the per-user backstop, not just the credit gate.
+        try:
+            uid = int(key.split(":", 1)[1])
+            if uid in _comp_unlimited_ids():
+                return "1000000/day"
+        except (ValueError, IndexError):
+            pass
         return f"{user}/day"
     return f"{anon}/day"
 
@@ -174,14 +207,23 @@ async def _check_bot_protection(
 @router.get("/config")
 async def analyzer_config():
     """Public config for the LC frontend (which bot protection to render, which
-    Musixmatch-gated search surfaces to enable, etc.)."""
+    Musixmatch-gated search surfaces to enable, whether the Album Charger tab is
+    open, etc.)."""
     search_enabled = musixmatch.is_configured()
+    db = SessionLocal()
+    try:
+        album_enabled = not is_album_charger_disabled(db)
+    finally:
+        db.close()
     return {
         "turnstile_site_key": settings.turnstile_site_key,
         # Musixmatch-gated surfaces. Both the song "Search by Song" tab and the
         # album "Search Album" sub-tab ship dark until the key is configured.
         "song_search_enabled": search_enabled,
         "album_search_enabled": search_enabled,
+        # Album Charger kill switch (its own flag; fails closed). When false the
+        # frontend hides the whole Album Charger top-tab.
+        "album_charger_enabled": album_enabled,
     }
 
 
@@ -215,6 +257,23 @@ def _check_lc_available_or_503() -> None:
                 detail={
                     "available": False,
                     "message": lyrical_charger_disabled_message(db),
+                },
+            )
+    finally:
+        db.close()
+
+
+def _check_album_available_or_503() -> None:
+    """Raise 503 when the Album Charger is closed (its own kill switch,
+    independent of the whole-LC gate above). Single-song stays open."""
+    db = SessionLocal()
+    try:
+        if is_album_charger_disabled(db):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "available": False,
+                    "message": album_charger_disabled_message(db),
                 },
             )
     finally:

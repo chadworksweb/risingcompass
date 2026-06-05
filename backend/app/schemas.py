@@ -1185,6 +1185,9 @@ class LCStatusOut(BaseModel):
     anon_daily_limit: int
     user_daily_limit: int
     free_daily_charges: int
+    # Album Charger kill switch (independent of the whole-LC `disabled` flag).
+    album_disabled: bool = True
+    album_message: str = ""
 
 
 class LCToggleIn(BaseModel):

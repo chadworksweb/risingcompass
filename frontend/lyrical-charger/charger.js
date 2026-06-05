@@ -1373,6 +1373,10 @@ function hideError() {
   // --- Top-level mode tabs (Song Charger / Album Charger) ---
   const topTabBar = $('#top-tab-bar');
   const topTabs = $$('.top-tab');
+  // Album Charger kill switch (resolved from /config below). Fail-closed:
+  // until config resolves the Album tab + bar stay hidden, so a closed album
+  // never flashes. Song Charger is always available.
+  let albumChargerEnabled = false;
 
   // Album entry refs
   const albumTitleInput = $('#album-input-title');
@@ -1452,8 +1456,23 @@ function hideError() {
   const _baseShowScreen = showScreen;
   showScreen = function (id) {
     _baseShowScreen(id);
-    if (topTabBar) topTabBar.classList.toggle('hidden', CHROME_HIDDEN_SCREENS.has(id));
+    // Hide the mode-tab bar on chrome-hidden screens, OR whenever the Album
+    // Charger is closed (then only the Song Charger exists -- no bar at all).
+    if (topTabBar) topTabBar.classList.toggle('hidden', !albumChargerEnabled || CHROME_HIDDEN_SCREENS.has(id));
   };
+
+  // Apply the Album Charger kill switch: show/hide the Album top-tab + bar.
+  function applyAlbumChargerGate() {
+    topTabs.forEach((t) => {
+      if (t.dataset.charger === 'album') t.classList.toggle('hidden', !albumChargerEnabled);
+    });
+    if (!albumChargerEnabled) {
+      if (topTabBar) topTabBar.classList.add('hidden');
+      setMode('song');  // never leave the user stranded on a closed album tab
+    } else if (topTabBar) {
+      topTabBar.classList.remove('hidden');  // config resolved open while on entry
+    }
+  }
 
   function setMode(mode) {
     topTabs.forEach((t) => {
@@ -2100,8 +2119,9 @@ function hideError() {
     showScreen('screen-album-entry');
   });
 
-  // Resolve the Musixmatch gate for the Search Album tab.
-  (async function resolveAlbumSearchGate() {
+  // Resolve the Musixmatch gate for the Search Album sub-tab AND the Album
+  // Charger kill switch for the whole Album top-tab.
+  (async function resolveAlbumGates() {
     try {
       const headers = {};
       if (API_KEY) headers['X-Api-Key'] = API_KEY;
@@ -2109,8 +2129,10 @@ function hideError() {
       if (resp.ok) {
         const cfg = await resp.json();
         albumSearchEnabled = !!cfg.album_search_enabled;
+        albumChargerEnabled = !!cfg.album_charger_enabled;
       }
-    } catch { /* default: gated */ }
+    } catch { /* default: both gated (fail closed) */ }
+    applyAlbumChargerGate();
     applyAlbumSearchGate();
   })();
 

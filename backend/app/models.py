@@ -1538,6 +1538,12 @@ class User(Base):
     subscription_period_end = Column(DateTime)
     allowance_credits = Column(Integer, nullable=False, default=0)
     purchased_credits = Column(Integer, nullable=False, default=0)
+    # Admin-granted unlimited Lyrical Charger comp (migration 083). Orthogonal
+    # to subscription_tier: a comped user keeps tier='free' / no Stripe sub.
+    # When true, billing treats every Charger run as zero-cost and the
+    # calibrate rate-limiter lifts the per-user daily backstop. Charger-only;
+    # Library entitlement is unaffected.
+    comp_unlimited = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow

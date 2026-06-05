@@ -72,6 +72,18 @@
   .ud-led .pos { color: var(--accent-strong); }
   .ud-led .neg { color: var(--red); }
   .ud-subhead { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 1rem 0 0.5rem; }
+
+  /* Admin billing actions */
+  .ud-comp-row, .ud-grant-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 0.7rem 0; border-bottom: 1px solid var(--border-soft); }
+  .ud-grant-row { border-bottom: none; }
+  .ud-grant-controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .ud-input { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--text); font-size: 0.85rem; }
+  .ud-input { width: 110px; }
+  .ud-input-note { width: 180px; }
+  .ud-btn { padding: 0.4rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: rgba(0,143,114,0.08); color: var(--accent-strong); font-weight: 700; font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+  .ud-btn:hover { background: rgba(0,143,114,0.16); }
+  .ud-btn:disabled { opacity: 0.5; cursor: default; }
+  .ud-bill-note { font-size: 0.8rem; color: var(--text-dim); margin: 0.6rem 0 0; min-height: 1.1em; }
 </style>
 
 <div id="ud-panel-profile" style="display:none;"></div>
@@ -204,6 +216,7 @@ function renderProfile(data) {
         <div><dt>Status</dt><dd>${statusBlock}</dd></div>
         <div><dt>Subscription</dt><dd>${esc(u.subscription_tier || 'free')}${u.subscription_status ? ' (' + esc(u.subscription_status) + ')' : ''}</dd></div>
         <div><dt>Credits</dt><dd>${u.allowance_credits} allowance / ${u.purchased_credits} purchased</dd></div>
+        <div><dt>Unlimited Charger</dt><dd>${u.comp_unlimited ? '<strong style="color:var(--accent-strong);">ON</strong>' : 'off'}</dd></div>
         <div><dt>Comments</dt><dd>${u.comment_count}</dd></div>
         <div><dt>Calibrations</dt><dd>${u.calibration_count}</dd></div>
         <div><dt>Misreads</dt><dd>${u.misread_count}</dd></div>
@@ -336,6 +349,7 @@ async function loadPayments() {
             <td style="color:var(--text-hint);">${dt(r.created_at)}</td>
           </tr>`).join('')
       : `<tr><td colspan="5" style="color:var(--text-hint);">No ledger entries.</td></tr>`;
+    const comp = !!d.comp_unlimited;
     el.innerHTML = `
       <div class="ud-card">
         <dl class="ud-meta-grid">
@@ -343,9 +357,32 @@ async function loadPayments() {
           <div><dt>Renews / ends</dt><dd>${dt(d.subscription_period_end)}</dd></div>
           <div><dt>Allowance credits</dt><dd>${d.allowance_credits}</dd></div>
           <div><dt>Purchased credits</dt><dd>${d.purchased_credits}</dd></div>
-          <div><dt>Free charges today</dt><dd>${d.daily_free_eligible ? `${d.daily_free_used} / ${d.daily_free_limit} used (${d.daily_free_remaining} left)` : 'n/a (paid tier)'}</dd></div>
+          <div><dt>Unlimited Charger</dt><dd>${comp ? '<strong style="color:var(--accent-strong);">ON (comped)</strong>' : 'off'}</dd></div>
+          <div><dt>Free charges today</dt><dd>${comp ? 'n/a (unlimited)' : (d.daily_free_eligible ? `${d.daily_free_used} / ${d.daily_free_limit} used (${d.daily_free_remaining} left)` : 'n/a (paid tier)')}</dd></div>
           <div><dt>Stripe customer</dt><dd>${d.has_stripe_customer ? 'yes' : 'no'}</dd></div>
         </dl>
+      </div>
+      <div class="ud-card">
+        <h2 class="section-title" style="margin-top:0;">Admin actions</h2>
+        <div class="ud-comp-row">
+          <div>
+            <strong>Unlimited Lyrical Charger</strong>
+            <p style="color:var(--text-dim);font-size:0.8rem;margin:0.2rem 0 0;">Zero-cost single-song + album charges, no daily cap. Library access is unchanged.</p>
+          </div>
+          <button id="udCompBtn" class="ud-btn">${comp ? 'Revoke comp' : 'Grant unlimited'}</button>
+        </div>
+        <div class="ud-grant-row">
+          <div>
+            <strong>Grant / deduct credits</strong>
+            <p style="color:var(--text-dim);font-size:0.8rem;margin:0.2rem 0 0;">Adjusts the permanent purchased bucket. Use a negative amount to deduct.</p>
+          </div>
+          <div class="ud-grant-controls">
+            <input id="udGrantAmt" type="number" step="1" placeholder="amount" class="ud-input" />
+            <input id="udGrantNote" type="text" placeholder="note (optional)" class="ud-input ud-input-note" />
+            <button id="udGrantBtn" class="ud-btn">Apply</button>
+          </div>
+        </div>
+        <p id="udBillNote" class="ud-bill-note"></p>
       </div>
       <div class="ud-card">
         <h2 class="section-title" style="margin-top:0;">Credit ledger (${d.ledger_total})</h2>
@@ -355,7 +392,60 @@ async function loadPayments() {
         </table>
       </div>`;
     el.dataset.loaded = '1';
+    document.getElementById('udCompBtn').addEventListener('click', () => toggleComp(!comp));
+    document.getElementById('udGrantBtn').addEventListener('click', grantCredits);
   } catch (err) { fail(el, err); }
+}
+
+async function toggleComp(unlimited) {
+  const note = document.getElementById('udBillNote');
+  const btn = document.getElementById('udCompBtn');
+  if (unlimited === false && !confirm('Revoke unlimited Charger comp for this user?')) return;
+  btn.disabled = true;
+  note.textContent = 'Saving...';
+  try {
+    const resp = await adminFetch(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/comp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unlimited }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    note.textContent = unlimited ? 'Unlimited Charger granted.' : 'Comp revoked.';
+    document.getElementById('ud-panel-payments').dataset.loaded = '';
+    document.getElementById('ud-panel-profile').dataset.loaded = '';
+    loadPayments();
+  } catch (e) {
+    note.textContent = 'Failed: ' + ((e && e.message) || 'error');
+    btn.disabled = false;
+  }
+}
+
+async function grantCredits() {
+  const note = document.getElementById('udBillNote');
+  const amt = parseInt(document.getElementById('udGrantAmt').value, 10);
+  const text = (document.getElementById('udGrantNote').value || '').trim();
+  if (!Number.isInteger(amt) || amt === 0) {
+    note.textContent = 'Enter a non-zero whole number.';
+    return;
+  }
+  const verb = amt > 0 ? `Grant ${amt}` : `Deduct ${-amt}`;
+  if (!confirm(`${verb} credits for this user?`)) return;
+  note.textContent = 'Saving...';
+  try {
+    const resp = await adminFetch(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/grant-credits`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: amt, note: text || null }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const r = await resp.json();
+    note.textContent = `Done. Balance now ${r.total_credits} (${r.allowance_credits} allowance / ${r.purchased_credits} purchased).`;
+    document.getElementById('ud-panel-payments').dataset.loaded = '';
+    document.getElementById('ud-panel-profile').dataset.loaded = '';
+    loadPayments();
+  } catch (e) {
+    note.textContent = 'Failed: ' + ((e && e.message) || 'error');
+  }
 }
 
 // ---------- Comments ----------

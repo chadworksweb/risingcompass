@@ -22,6 +22,7 @@ Moderation actions still live on individual comments via
 
 import logging
 import os
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -86,6 +87,7 @@ class UserAdminOut(BaseModel):
     subscription_period_end: Optional[str] = None
     allowance_credits: int = 0
     purchased_credits: int = 0
+    comp_unlimited: bool = False
     has_stripe_customer: bool = False
     posthog_person_url: Optional[str] = None
 
@@ -267,6 +269,7 @@ def get_user_detail(
             subscription_period_end=(u.subscription_period_end.isoformat() + "Z") if u.subscription_period_end else None,
             allowance_credits=u.allowance_credits or 0,
             purchased_credits=u.purchased_credits or 0,
+            comp_unlimited=bool(u.comp_unlimited),
             has_stripe_customer=bool(u.stripe_customer_id),
             posthog_person_url=_posthog_person_url(u.clerk_user_id),
         ),
@@ -564,6 +567,7 @@ class UserPaymentsOut(BaseModel):
     subscription_period_end: Optional[str]
     allowance_credits: int
     purchased_credits: int
+    comp_unlimited: bool
     has_stripe_customer: bool
     # Free-tier daily-charge allotment (eligible only when tier is free).
     daily_free_eligible: bool
@@ -598,6 +602,7 @@ def get_user_payments(
         subscription_period_end=(u.subscription_period_end.isoformat() + "Z") if u.subscription_period_end else None,
         allowance_credits=u.allowance_credits or 0,
         purchased_credits=u.purchased_credits or 0,
+        comp_unlimited=bool(u.comp_unlimited),
         has_stripe_customer=bool(u.stripe_customer_id),
         daily_free_eligible=df_eligible,
         daily_free_limit=df_limit,
@@ -617,6 +622,82 @@ def get_user_payments(
         ],
         ledger_total=ledger_total,
     )
+
+
+# ---------- admin credit grant / deduct + comp toggle ----------
+
+class GrantCreditsIn(BaseModel):
+    amount: int  # >0 grants, <0 deducts (purchased bucket first, then allowance)
+    note: Optional[str] = None
+
+
+class CompToggleIn(BaseModel):
+    unlimited: bool
+    note: Optional[str] = None
+
+
+class CreditAdjustOut(BaseModel):
+    granted: int = 0
+    deducted: int = 0
+    allowance_credits: int
+    purchased_credits: int
+    total_credits: int
+
+
+@router.post("/{anon_id}/grant-credits", response_model=CreditAdjustOut)
+def grant_user_credits(
+    anon_id: str,
+    body: GrantCreditsIn,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin_session),
+):
+    """A-la-carte credit grant (+) or deduct (-) on the permanent purchased
+    bucket. Every adjustment is recorded in credit_ledger (reason
+    'admin_grant' / 'admin_deduct')."""
+    if body.amount == 0:
+        raise HTTPException(status_code=400, detail="amount must be non-zero")
+    u = _resolve_user(db, anon_id)
+    res = billing_svc.admin_adjust_credits(
+        u.id, body.amount,
+        ref_id=f"admin:{uuid.uuid4().hex}",
+        note=(body.note or None),
+        actor=getattr(_admin, "username", None),
+    )
+    db.refresh(u)
+    logger.info(
+        "admin credit adjust user=%s amount=%s by=%s",
+        u.id, body.amount, getattr(_admin, "username", "?"),
+    )
+    return CreditAdjustOut(
+        granted=res.get("granted", 0),
+        deducted=res.get("deducted", 0),
+        allowance_credits=u.allowance_credits or 0,
+        purchased_credits=u.purchased_credits or 0,
+        total_credits=(u.allowance_credits or 0) + (u.purchased_credits or 0),
+    )
+
+
+@router.post("/{anon_id}/comp", response_model=UserPaymentsOut)
+def set_user_comp(
+    anon_id: str,
+    body: CompToggleIn,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin_session),
+):
+    """Grant or revoke unlimited Lyrical Charger comp for a user. Charger-only:
+    zero-cost runs + lifted per-user daily cap. Library entitlement unchanged."""
+    u = _resolve_user(db, anon_id)
+    billing_svc.set_comp_unlimited(
+        u.id, body.unlimited,
+        note=(body.note or None),
+        actor=getattr(_admin, "username", None),
+    )
+    logger.info(
+        "admin comp_unlimited=%s user=%s by=%s",
+        body.unlimited, u.id, getattr(_admin, "username", "?"),
+    )
+    # Return the refreshed payments view so the UI can re-render in one round trip.
+    return get_user_payments(anon_id, limit=200, offset=0, db=db, _admin=_admin)
 
 
 # ---------- unified activity timeline ----------

@@ -46,6 +46,39 @@ logger = logging.getLogger(__name__)
 DAILY_FREE_BUCKET = "daily_free"
 DAILY_FREE_REASON = "daily_free"
 
+# Comped (admin unlimited) Charger runs are recorded as delta=0 rows in this
+# bucket/reason -- same delta=0 family as 'daily_free'/'rejected'/'settlement',
+# so the balance == signed-ledger-sum invariant is preserved while keeping the
+# run auditable. A comped user is never gated by credits or daily-free passes.
+COMP_BUCKET = "comp"
+COMP_REASON = "comp_unlimited"
+
+
+def is_unlimited(user: User) -> bool:
+    """True if the user carries the admin-granted unlimited Charger comp."""
+    return bool(getattr(user, "comp_unlimited", False))
+
+
+def _record_comp_run(
+    db,
+    user_id: int,
+    *,
+    ref_type: str,
+    ref_id: Optional[str],
+    context: Optional[dict],
+) -> None:
+    """Write the delta=0 'comp' audit row for a comped (free) Charger run.
+    Idempotent on (reason, ref_id, bucket) like every other ledger write."""
+    db.add(CreditLedger(
+        user_id=user_id, delta=0, bucket=COMP_BUCKET,
+        reason=COMP_REASON, ref_type=ref_type, ref_id=ref_id,
+        context_json=json.dumps(context) if context else None,
+    ))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+
 
 # --- Free-tier daily allotment -------------------------------------------
 
@@ -115,6 +148,7 @@ def wallet_snapshot(user: User) -> dict:
         "allowance_credits": user.allowance_credits or 0,
         "purchased_credits": user.purchased_credits or 0,
         "total_credits": total_credits(user),
+        "comp_unlimited": is_unlimited(user),
     }
 
 
@@ -145,6 +179,10 @@ def check_credits(
         u = db.query(User).filter(User.id == user_id).first()
         if not u:
             raise HTTPException(status_code=401, detail="User not found")
+        if is_unlimited(u):
+            # Comped: never gated by balance. The post-success charge_song /
+            # charge_credits writes the delta=0 audit row.
+            return
         if allow_daily_free and _daily_free_eligible(u):
             if daily_free_used_today(db, user_id) < _free_daily_limit(db):
                 return
@@ -202,6 +240,23 @@ def charge_credits(
         )
         if not u:
             raise HTTPException(status_code=401, detail="User not found")
+
+        if is_unlimited(u):
+            # Comped: no debit. Release the row lock, then write the delta=0
+            # audit row (ref_id keeps it idempotent against same-song replays).
+            db.rollback()
+            cdb = SessionLocal()
+            try:
+                _record_comp_run(
+                    cdb, user_id, ref_type=ref_type, ref_id=ref_id, context=context,
+                )
+            finally:
+                cdb.close()
+            return {
+                "allowance_spent": 0, "purchased_spent": 0,
+                "new_balance": (u.allowance_credits or 0) + (u.purchased_credits or 0),
+                "comped": True,
+            }
 
         allowance = u.allowance_credits or 0
         purchased = u.purchased_credits or 0
@@ -293,6 +348,14 @@ def charge_song(
         )
         if not u:
             raise HTTPException(status_code=401, detail="User not found")
+        if is_unlimited(u):
+            # Comped: zero-cost run. Skip the daily-free machinery entirely so
+            # comped runs never consume a daily pass; record the audit row.
+            _record_comp_run(
+                db, user_id, ref_type=ref_type, ref_id=ref_id, context=context,
+            )
+            return {"source": "comp", "allowance_spent": 0,
+                    "purchased_spent": 0, "new_balance": None}
         if _daily_free_eligible(u):
             limit = _free_daily_limit(db)
             used = daily_free_used_today(db, user_id)
@@ -441,6 +504,118 @@ def grant_credits(
             reason, ref_id, bucket,
         )
         return False
+    finally:
+        db.close()
+
+
+# --- Admin a-la-carte adjustment -----------------------------------------
+
+def admin_adjust_credits(
+    user_id: int,
+    amount: int,
+    *,
+    ref_id: str,
+    note: Optional[str] = None,
+    actor: Optional[str] = None,
+) -> dict:
+    """Admin grant (+) or deduct (-) on the PURCHASED bucket.
+
+    amount > 0: grant `amount` permanent credits (reason='admin_grant').
+    amount < 0: deduct up to `|amount|`, purchased first then allowance,
+                clamped so neither bucket goes negative (reason='admin_deduct').
+
+    ref_id must be unique per click (the caller passes a uuid) so repeated
+    grants don't collide on the (reason, ref_id, bucket) idempotency index.
+    Signed ledger rows keep the balance == ledger-sum invariant intact.
+
+    Returns {granted, deducted, new_balance}.
+    """
+    if amount == 0:
+        raise ValueError("admin_adjust_credits amount must be non-zero")
+
+    ctx = {"note": note, "actor": actor}
+
+    if amount > 0:
+        grant_credits(
+            user_id, amount, bucket="purchased", reason="admin_grant",
+            ref_type="admin", ref_id=ref_id, context=ctx,
+        )
+        db = SessionLocal()
+        try:
+            u = db.query(User).filter(User.id == user_id).first()
+            bal = total_credits(u) if u else 0
+        finally:
+            db.close()
+        return {"granted": amount, "deducted": 0, "new_balance": bal}
+
+    # Deduct: purchased first, then allowance, never below zero.
+    want = -amount
+    db = SessionLocal()
+    try:
+        u = (
+            db.query(User).filter(User.id == user_id).with_for_update().first()
+        )
+        if not u:
+            raise HTTPException(status_code=404, detail="User not found")
+        purchased = u.purchased_credits or 0
+        allowance = u.allowance_credits or 0
+        from_purchased = min(purchased, want)
+        from_allowance = min(allowance, want - from_purchased)
+        actually = from_purchased + from_allowance
+
+        u.purchased_credits = purchased - from_purchased
+        u.allowance_credits = allowance - from_allowance
+        if from_purchased > 0:
+            db.add(CreditLedger(
+                user_id=user_id, delta=-from_purchased, bucket="purchased",
+                reason="admin_deduct", ref_type="admin", ref_id=f"{ref_id}:purchased",
+                context_json=json.dumps(ctx),
+            ))
+        if from_allowance > 0:
+            db.add(CreditLedger(
+                user_id=user_id, delta=-from_allowance, bucket="allowance",
+                reason="admin_deduct", ref_type="admin", ref_id=f"{ref_id}:allowance",
+                context_json=json.dumps(ctx),
+            ))
+        db.commit()
+        return {
+            "granted": 0, "deducted": actually,
+            "new_balance": (u.allowance_credits or 0) + (u.purchased_credits or 0),
+        }
+    except IntegrityError:
+        db.rollback()
+        logger.info("admin_adjust_credits deduct replay ignored: ref_id=%s", ref_id)
+        return {"granted": 0, "deducted": 0, "new_balance": None, "replayed": True}
+    finally:
+        db.close()
+
+
+def set_comp_unlimited(
+    user_id: int,
+    unlimited: bool,
+    *,
+    note: Optional[str] = None,
+    actor: Optional[str] = None,
+) -> bool:
+    """Toggle the admin unlimited-Charger comp on a user. Writes a delta=0
+    'comp' audit row (reason 'comp_grant'/'comp_revoke') so the change shows in
+    the ledger + activity timeline. Returns the new flag value."""
+    db = SessionLocal()
+    try:
+        u = (
+            db.query(User).filter(User.id == user_id).with_for_update().first()
+        )
+        if not u:
+            raise HTTPException(status_code=404, detail="User not found")
+        u.comp_unlimited = bool(unlimited)
+        db.add(CreditLedger(
+            user_id=user_id, delta=0, bucket=COMP_BUCKET,
+            reason=("comp_grant" if unlimited else "comp_revoke"),
+            ref_type="admin", ref_id=None,
+            context_json=json.dumps({"note": note, "actor": actor}),
+        ))
+        db.commit()
+        return bool(u.comp_unlimited)
     finally:
         db.close()
 
