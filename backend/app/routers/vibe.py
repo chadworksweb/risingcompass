@@ -30,7 +30,7 @@ router = APIRouter(tags=["audience-vibe"])
 # Clerk bearer — so these live on a separate router included without that dep.
 user_router = APIRouter(tags=["audience-vibe"])
 
-VALID_SOURCES = {"compass", "library", "submitted"}
+VALID_SOURCES = {"songs", "compass", "library", "submitted"}
 VALID_CASE_STATUSES = {"open", "acknowledged", "recalibrated", "dismissed"}
 
 

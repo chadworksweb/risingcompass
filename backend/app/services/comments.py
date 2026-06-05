@@ -45,7 +45,7 @@ MAX_CONTENT_LENGTH = 5000
 MIN_CONTENT_LENGTH = 1
 
 VALID_TARGET_TYPES = {"song", "artist", "release"}
-VALID_TARGET_SOURCES = {"compass", "library", "submitted"}
+VALID_TARGET_SOURCES = {"songs", "compass", "library", "submitted"}
 VALID_REPORT_REASONS = {
     "spam", "harassment", "off_topic", "misinformation", "other",
 }
@@ -120,7 +120,7 @@ def validate_target(target_type: str, target_source: Optional[str]) -> None:
         if target_source not in VALID_TARGET_SOURCES:
             raise HTTPException(
                 status_code=422,
-                detail="Songs require target_source = compass | library | submitted",
+                detail="Songs require target_source = songs | compass | library | submitted",
             )
     elif target_source is not None:
         raise HTTPException(
