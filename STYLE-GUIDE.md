@@ -15,12 +15,22 @@ namespace and its own job; the visual separation is the point.
 | **Dashboard / Compass** | `--rc-*` | Inter + JetBrains Mono | Dark instrument | `/`, `/library/`, `/songs/<slug>`, `/artists/<slug>` |
 | **Tenets** | `--tn-*` (in `tenets/tenets.css`) | Cardo + Cormorant SC | Dark literary (the constitution) | `/tenets/` |
 | **Deliberation Venue** | `--md-*` (motion-desk), `--am-*` (amendments) | Cardo + Cormorant SC | Cream literary (the chamber) | `/motion-desk/`, `/amendments/`, future `/chamber/` |
+| **Utility / Form surface** | `--rc-*` remapped via `.rc-elevated` | Inter + JetBrains Mono | Dark instrument, lifted for contrast | `/dev/*` (Dev Ledger), form/utility pages (account onboarding, inquiry, misread, artist-claim) |
 
 The deliberation venue and tenets are paired on purpose: same serifs,
 same gravitas, opposite palettes. The framework stays dark; the room
 where the framework gets argued over is cream. Walking from `/tenets/`
 to `/motion-desk/` should feel like walking from the vault into the
 hall, not changing websites.
+
+The **Utility / Form surface** is not a separate room -- it is the same
+dark dashboard palette with the surface, border, and text tokens lifted
+for contrast, so forms and dev/utility info read clearly. It mirrors the
+status page (`status.risingcompass.net`). Content/showcase pages (home,
+`/songs/<slug>`, `/artists/<slug>`, `/library/`, `/tenets/`) deliberately
+keep the standard (lower-contrast) dashboard palette -- the lift is only
+for input- and data-dense utility surfaces. See **Utility / Form Surface
+Palette** below.
 
 ---
 
@@ -131,6 +141,54 @@ text on gold bg loses contrast on cream). Pattern:
   border-color: var(--md-ink-bright);
 }
 ```
+
+---
+
+## Utility / Form Surface Palette (high-contrast dark)
+
+The dark dashboard palette, lifted for contrast on form- and data-dense
+utility surfaces. Same `--rc-*` tokens, remapped within a `.rc-elevated`
+scope so existing components inherit the lift automatically -- no
+per-component restyling. Mirrors the status page so the dev/utility
+surfaces read as one family.
+
+**Where it applies:** `/dev/*` (Dev Ledger), and form/utility pages
+(account onboarding, `/inquiry`, misread submission, artist-claim).
+**Where it does NOT:** content/showcase pages (home, `/songs/<slug>`,
+`/artists/<slug>`, `/library/`, `/tenets/`, methodology, calibration log)
+keep the standard palette; the deliberation venue keeps its cream palette.
+
+### Token remap (`.rc-elevated` scope)
+
+| Token | Standard | Elevated | Why |
+|-------|----------|----------|-----|
+| `--rc-bg-dark` | `#0a0a14` | `#08080f` | deeper page floor |
+| `--rc-bg-panel` | `#12121e` | `#191930` | lifted |
+| `--rc-bg-card` | `#181828` | `#1f1f38` | clear card/page separation |
+| `--rc-border` | `#2a2a3e` | `#3d3d5c` | brighter, defined edges |
+| `--rc-text` | `#c8c8d8` | `#d2d2e0` | brighter body copy |
+| `--rc-text-dim` | `#c0c0ca` | `#9c9cb6` | a true dim (standard was ~= body) |
+| `--rc-text-bright` | `#eeeef4` | `#f4f4fa` | brighter headings |
+| `--rc-accent` | `#00d4aa` | `#00e6b8` | more vivid teal |
+
+Tier colors (green / blue / red) are unchanged -- they are semantic, not
+surface chrome. One extra token ships with the scope:
+`--rc-elevated-shadow: 0 1px 6px rgba(0,0,0,.35)` for lifting cards off
+the page.
+
+### Mechanism
+
+Defined in `frontend/css/main.css`. Apply by adding `rc-elevated` to the
+page `<body>`:
+
+```html
+<body class="rc-elevated">
+```
+
+Every descendant resolving `var(--rc-bg-card)`, `var(--rc-border)`, etc.
+adopts the lifted value -- so the Dev Ledger and other utility pages get
+the contrast without touching their component CSS. To pull a page out of
+the treatment, drop the class; nothing else changes.
 
 ---
 
