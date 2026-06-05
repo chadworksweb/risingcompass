@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <defs>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&family=JetBrains+Mono:wght@400&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&amp;family=JetBrains+Mono:wght@400&amp;display=swap');
       .title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 66px; letter-spacing: 2px; fill: #f4f4fa; }
       .tag { font-family: 'JetBrains Mono', monospace; font-weight: 400; font-size: 24px; letter-spacing: 5px; fill: #ffffff; }
     </style>
@@ -58,11 +58,11 @@
   <g filter="url(#dialGlow)">
     <svg x="415" y="60" width="370" height="236" viewBox="1.5 5.5 29 18.5" overflow="visible">
       <g fill="none" stroke-width="6">
-        <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" stroke="#9933ff"/>
-        <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" stroke="#3388ff"/>
-        <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" stroke="#33cc55"/>
-        <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" stroke="#ffbb33"/>
-        <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" stroke="#ff3333"/>
+        <path d="M 5,20 A 11,11 0 0,1 5.84,15.79" stroke="#9933ff"/>
+        <path d="M 5.84,15.79 A 11,11 0 0,1 11.79,9.84" stroke="#3388ff"/>
+        <path d="M 11.79,9.84 A 11,11 0 0,1 20.21,9.84" stroke="#33cc55"/>
+        <path d="M 20.21,9.84 A 11,11 0 0,1 26.16,15.79" stroke="#ffbb33"/>
+        <path d="M 26.16,15.79 A 11,11 0 0,1 27,20" stroke="#ff3333"/>
       </g>
       <polygon points="16,8 13.9,20 18.1,20" fill="#eeeef4"/>
       <circle cx="16" cy="20" r="3.2" fill="#00d4aa"/>

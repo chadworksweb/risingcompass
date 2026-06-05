@@ -3,16 +3,16 @@
 
   <!-- Chunky half-circle gauge: 5 thick color arcs -->
   <!-- CX=16, CY=20, R=11, stroke-width=6 -->
-  <!-- Ascended (violet): 180° to 144° -->
-  <path d="M 5,20 A 11,11 0 0,1 7.6,13.1" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
-  <!-- Elevated (blue): 144° to 108° -->
-  <path d="M 7.6,13.1 A 11,11 0 0,1 12.6,9.6" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
-  <!-- Decent (green): 108° to 72° -->
-  <path d="M 12.6,9.6 A 11,11 0 0,1 19.4,9.6" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
-  <!-- Degraded (orange): 72° to 36° -->
-  <path d="M 19.4,9.6 A 11,11 0 0,1 24.4,13.1" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
-  <!-- Corrupted (red): 36° to 0° -->
-  <path d="M 24.4,13.1 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Ascended (violet): 180° to 157.5° -->
+  <path d="M 5,20 A 11,11 0 0,1 5.84,15.79" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Elevated (blue): 157.5° to 112.5° -->
+  <path d="M 5.84,15.79 A 11,11 0 0,1 11.79,9.84" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Decent (green): 112.5° to 67.5° -->
+  <path d="M 11.79,9.84 A 11,11 0 0,1 20.21,9.84" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Degraded (orange): 67.5° to 22.5° -->
+  <path d="M 20.21,9.84 A 11,11 0 0,1 26.16,15.79" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Corrupted (red): 22.5° to 0° -->
+  <path d="M 26.16,15.79 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
 
   <!-- Bold needle pointing up (Decent/neutral) -->
   <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
