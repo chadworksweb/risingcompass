@@ -205,6 +205,7 @@ _ADMIN_SECTIONS = {
     "alerts": "admin/alerts.html",
     "users": "admin/users.html",
     "motions": "admin/motions.html",
+    "dev-ledger": "admin/dev_ledger.html",
     "inquiries": "admin/inquiries.html",
     "provenance": "admin/provenance.html",
     "chart-anomalies": "admin/anomalies.html",

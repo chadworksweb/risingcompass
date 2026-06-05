@@ -456,6 +456,11 @@
     </div>
 
     <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Dev</div>
+      <a class="admin-nav-item {% if active == 'dev-ledger' %}active{% endif %}" href="/api/admin/dashboard/dev-ledger">Dev Ledger</a>
+    </div>
+
+    <div class="admin-nav-group">
       <div class="admin-nav-group-label">API Admin</div>
       <a class="admin-nav-item admin-nav-cross" href="{{ api_admin_url }}">API Monitor &#8599;</a>
     </div>

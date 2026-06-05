@@ -72,20 +72,27 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Search — The Rising Compass</title>
-  <meta name="description" content="Search any artist or song and see its lyrical charge calibration. The Rising Compass calibrates music by what the lyrics transmit, not genre or popularity.">
-  <meta property="og:title" content="Search — The Rising Compass">
-  <meta property="og:description" content="Search any artist or song and see its lyrical charge calibration.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/search/">
+  <title>Feedback -- The Rising Compass</title>
+  <meta name="description" content="Request a feature or report a software bug for The Rising Compass, and vote on what others have asked for.">
+  <link rel="canonical" href="https://risingcompass.net/dev/feedback/">
+
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/dev/feedback/">
+  <meta property="og:title" content="Feedback -- The Rising Compass">
+  <meta property="og:description" content="Request a feature or report a bug, and vote on what others want.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta name="twitter:card" content="summary_large_image">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/artists/artists.css">
+  <link rel="stylesheet" href="/dev/dev-ledger.css">
 </head>
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
@@ -162,45 +169,92 @@
   <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
-  <h1 class="artists-title" style="padding:1rem 1.5rem 0;margin:0;">Search</h1>
 
-  <main id="main">
-    <div class="search-container">
-      <input
-        type="search"
-        id="search-input"
-        class="search-input"
-        placeholder="Search artists or songs..."
-        autocomplete="off"
-        autofocus
-      >
+  <main id="main" class="dl-main">
+
+    <section class="dl-hero">
+      <p class="dl-eyebrow"><a href="/dev/">Dev Ledger</a></p>
+      <h1 class="dl-title">Feedback</h1>
+      <p class="dl-kicker">Ask for a feature. Report a bug. Vote on the rest.</p>
+    </section>
+
+    <nav class="dl-tabbar" aria-label="Dev Ledger sections">
+      <a class="dl-tab" href="/dev/changelog/">Changelog</a>
+      <a class="dl-tab" href="/dev/roadmap/">Roadmap</a>
+      <a class="dl-tab active" href="/dev/feedback/" aria-current="page">Feedback</a>
+    </nav>
+
+    <details class="dl-submit">
+      <summary>Request a feature or report a bug</summary>
+
+      <div class="dl-signpost">
+        Right desk? This is for the <strong>software and the product</strong>.
+        &bull; A song read the wrong way? File a <strong>misread report</strong> from that song's page.
+        &bull; Want to change the framework itself -- a tenet, a rule, the method? That is a
+        <a href="/motion-desk/file-a-motion/">Motion</a>.
+        &bull; A bug here means the <em>app</em> broke: a dead button, an error, a wrong total.
+      </div>
+
+      <form id="dlSubmitForm">
+        <div class="dl-submit-row">
+          <div>
+            <label for="dlSubType">Type</label>
+            <select id="dlSubType">
+              <option value="feature">Feature request</option>
+              <option value="bug">Bug report</option>
+            </select>
+          </div>
+          <div id="dlSubSeverityWrap" style="display:none;">
+            <label for="dlSubSeverity">Severity</label>
+            <select id="dlSubSeverity">
+              <option value="">--</option>
+              <option value="low">Low</option>
+              <option value="med">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div>
+            <label for="dlSubArea">Area (optional)</label>
+            <input type="text" id="dlSubArea" maxlength="40" placeholder="charts, billing, account...">
+          </div>
+        </div>
+
+        <label for="dlSubTitle">Title</label>
+        <input type="text" id="dlSubTitle" maxlength="200" placeholder="One line: what do you want, or what broke?">
+
+        <label for="dlSubBody">Details</label>
+        <textarea id="dlSubBody" maxlength="5000" placeholder="For a bug: what you did, what happened, what you expected. For a feature: what it would do and why it helps."></textarea>
+
+        <button type="submit" class="dl-btn">Submit</button>
+        <p class="dl-note" id="dlSubNote">You will need a signed-in account to submit.</p>
+      </form>
+    </details>
+
+    <div class="dl-filter-row">
+      <button class="dl-filter active" data-fb-type="all" type="button">All</button>
+      <button class="dl-filter" data-fb-type="feature" type="button">Feature requests</button>
+      <button class="dl-filter" data-fb-type="bug" type="button">Bug reports</button>
+    </div>
+    <div class="dl-filter-row">
+      <button class="dl-filter active" data-fb-sort="top" type="button">Top</button>
+      <button class="dl-filter" data-fb-sort="new" type="button">New</button>
     </div>
 
-    <div id="searching-state" class="searching-state" role="status" aria-live="polite" hidden>
-      <span class="searching-dot"></span>
-      <span class="searching-dot"></span>
-      <span class="searching-dot"></span>
-      <span class="searching-label">Searching&hellip;</span>
-    </div>
+    <div id="dlFeedback"><p class="dl-empty">Loading...</p></div>
 
-    <div id="results-container" class="results-container">
-      <!-- Populated by JS -->
-    </div>
+    <footer class="dl-footer">
+      <p class="footer-note">
+        Submissions are reviewed before they appear here. See what has shipped on the
+        <a href="/dev/changelog/">Changelog</a>.
+      </p>
+    </footer>
 
-    <div id="empty-state" class="empty-state" hidden>
-      <p class="empty-message">No results found.</p>
-      <p class="empty-cta">Help build the database. <a href="/lyrical-charger/">Submit lyrics via Lyrical Charger</a>.</p>
-    </div>
-
-    <div id="initial-state" class="initial-state">
-      <p>Search for any artist to see their lyrical charge trajectory, or search for a song to see its effects label.</p>
-    </div>
   </main>
 
-  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-
-  <script src="/artists/artists-api.js"></script>
-  <script src="/artists/artists.js"></script>
+  <script src="/js/api.js" defer></script>
+  <script src="/js/auth.js" defer></script>
+  <script src="/dev/dev-ledger.js" defer></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/fair-use.html">Fair Use</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sponsors/">Sponsors</a> &nbsp;|&nbsp; <a href="/dev/">Dev Ledger</a> &nbsp;|&nbsp; <a href="https://status.risingcompass.net/">Status</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a> &nbsp;|&nbsp; <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a></p>

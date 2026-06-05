@@ -1780,3 +1780,55 @@ class SongIdMap(Base):
     old_id = Column(Integer, primary_key=True)
     new_song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
     canonical_key = Column(Text, nullable=False)
+
+
+class DevLedgerItem(Base):
+    """Dev Ledger -- the "dev side, exposed". One pipeline drives changelog,
+    roadmap, feature requests, and bug reports; CalVer is the spine.
+
+    item_type: 'feature' (request) | 'bug' (report) | 'change' (admin-authored
+    roadmap/changelog work item).
+
+    Walled from Motion Desk / Misread Reports / Deliberation Chamber: those are
+    the tenet/framework layer; this is the product/engineering layer. See
+    RISING-COMPASS-DEV-LEDGER-SCOPE.md.
+    """
+    __tablename__ = "dev_ledger_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    item_type = Column(String(20), nullable=False)  # feature | bug | change
+    title = Column(Text, nullable=False)
+    body = Column(Text, nullable=False)  # markdown, public-safe prose
+    # feature/bug: submitted->triaging->accepted->in_progress->shipped | declined | duplicate
+    # change: planned->in_progress->shipped
+    status = Column(String(20), nullable=False, default="submitted")
+    stage = Column(String(20))  # roadmap bucket: now | next | later
+    version = Column(String(20))  # CalVer release id, set when shipped
+    severity = Column(String(10))  # bugs only: low | med | high | critical
+    area = Column(String(40))  # charts | calibration | billing | account | site ...
+    submitted_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    vote_count = Column(Integer, nullable=False, default=0)  # denormalized rollup of dev_ledger_votes
+    is_public = Column(Boolean, nullable=False, default=False)  # gate: hidden until admin publishes
+    admin_note = Column(Text)  # internal triage note, never served publicly
+    resolution = Column(Text)  # public "why closed / how shipped"
+    duplicate_of_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    published_at = Column(DateTime)  # when is_public first set true
+    shipped_at = Column(DateTime)  # when status -> shipped
+    resolved_by_admin_id = Column(Integer)
+
+    submitted_by = relationship("User", foreign_keys=[submitted_by_user_id])
+
+
+class DevLedgerVote(Base):
+    """One vote per Clerk user per Dev Ledger item (feature/bug). The parent
+    item's vote_count is the denormalized rollup, kept in sync in the service
+    layer."""
+    __tablename__ = "dev_ledger_votes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    item_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("item_id", "user_id", name="uq_dev_ledger_vote_item_user"),)

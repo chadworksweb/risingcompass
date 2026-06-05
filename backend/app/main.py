@@ -244,6 +244,14 @@ app.include_router(motions_admin.router)
 # /api/motions/{id}/arguments.
 app.include_router(chamber.router)
 
+# Dev Ledger -- the "dev side, exposed" (changelog / roadmap / feature requests
+# / bug reports, CalVer-versioned). Reads are public; submit + vote require
+# require_clerk_user (Tier 1). No X-Api-Key gate -- the JWT authorizes writes,
+# mirroring Motion Desk. Walled from the tenet/framework surfaces above; this is
+# the product/engineering layer. See RISING-COMPASS-DEV-LEDGER-SCOPE.md.
+from app.routers import dev_ledger
+app.include_router(dev_ledger.router)
+
 # Stripe Identity webhook (Phase 3.1). Distinct from the donation webhook
 # (/api/stripe-webhook) -- different signing secret so a leak on one
 # stream can't forge events on the other.
@@ -259,6 +267,7 @@ app.include_router(admin_auth.router)
 # require_admin_session, so X-Admin-Key headers are no longer accepted.
 app.include_router(admin.router)
 app.include_router(misread.admin_router)
+app.include_router(dev_ledger.admin_router)
 app.include_router(artist_verification.admin_router)
 app.include_router(inquiries.admin_router)
 app.include_router(chart_anomalies.admin_router)

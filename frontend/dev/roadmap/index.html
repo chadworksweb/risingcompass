@@ -72,20 +72,27 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Search — The Rising Compass</title>
-  <meta name="description" content="Search any artist or song and see its lyrical charge calibration. The Rising Compass calibrates music by what the lyrics transmit, not genre or popularity.">
-  <meta property="og:title" content="Search — The Rising Compass">
-  <meta property="og:description" content="Search any artist or song and see its lyrical charge calibration.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/search/">
+  <title>Roadmap -- The Rising Compass</title>
+  <meta name="description" content="What is in progress now, what is up next, and what is on the horizon for The Rising Compass. Honest about order, not about dates.">
+  <link rel="canonical" href="https://risingcompass.net/dev/roadmap/">
+
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/dev/roadmap/">
+  <meta property="og:title" content="Roadmap -- The Rising Compass">
+  <meta property="og:description" content="In progress, up next, and on the horizon.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta name="twitter:card" content="summary_large_image">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/artists/artists.css">
+  <link rel="stylesheet" href="/dev/dev-ledger.css">
 </head>
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
@@ -162,45 +169,40 @@
   <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
-  <h1 class="artists-title" style="padding:1rem 1.5rem 0;margin:0;">Search</h1>
 
-  <main id="main">
-    <div class="search-container">
-      <input
-        type="search"
-        id="search-input"
-        class="search-input"
-        placeholder="Search artists or songs..."
-        autocomplete="off"
-        autofocus
-      >
-    </div>
+  <main id="main" class="dl-main">
 
-    <div id="searching-state" class="searching-state" role="status" aria-live="polite" hidden>
-      <span class="searching-dot"></span>
-      <span class="searching-dot"></span>
-      <span class="searching-dot"></span>
-      <span class="searching-label">Searching&hellip;</span>
-    </div>
+    <section class="dl-hero">
+      <p class="dl-eyebrow"><a href="/dev/">Dev Ledger</a></p>
+      <h1 class="dl-title">Roadmap</h1>
+      <p class="dl-kicker">Now, next, and on the horizon.</p>
+      <p class="dl-preamble">
+        Ordered by intent, not promised by date. Things move between columns as
+        priorities shift. Want to nudge something up? Vote for it on
+        <a href="/dev/feedback/">Feedback</a>.
+      </p>
+    </section>
 
-    <div id="results-container" class="results-container">
-      <!-- Populated by JS -->
-    </div>
+    <nav class="dl-tabbar" aria-label="Dev Ledger sections">
+      <a class="dl-tab" href="/dev/changelog/">Changelog</a>
+      <a class="dl-tab active" href="/dev/roadmap/" aria-current="page">Roadmap</a>
+      <a class="dl-tab" href="/dev/feedback/">Feedback</a>
+    </nav>
 
-    <div id="empty-state" class="empty-state" hidden>
-      <p class="empty-message">No results found.</p>
-      <p class="empty-cta">Help build the database. <a href="/lyrical-charger/">Submit lyrics via Lyrical Charger</a>.</p>
-    </div>
+    <div class="dl-board" id="dlRoadmap"><p class="dl-empty">Loading...</p></div>
 
-    <div id="initial-state" class="initial-state">
-      <p>Search for any artist to see their lyrical charge trajectory, or search for a song to see its effects label.</p>
-    </div>
+    <footer class="dl-footer">
+      <p class="footer-note">
+        This is product and engineering work. Proposals to change the framework
+        itself live at the <a href="/motion-desk/">Motion Desk</a>.
+      </p>
+    </footer>
+
   </main>
 
-  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-
-  <script src="/artists/artists-api.js"></script>
-  <script src="/artists/artists.js"></script>
+  <script src="/js/api.js" defer></script>
+  <script src="/js/auth.js" defer></script>
+  <script src="/dev/dev-ledger.js" defer></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <p>&copy; 2026 The Rising Compass. All rights reserved. &nbsp;|&nbsp; <a href="/privacy.html">Privacy Policy</a> &nbsp;|&nbsp; <a href="/terms.html">Terms</a> &nbsp;|&nbsp; <a href="/fair-use.html">Fair Use</a> &nbsp;|&nbsp; <a href="/calendar/">Calendar</a> &nbsp;|&nbsp; <a href="/search/">Search</a> &nbsp;|&nbsp; <a href="/library/">Library</a> &nbsp;|&nbsp; <a href="/methodology/">Methodology</a> &nbsp;|&nbsp; <a href="/#calibration-log">Calibration Log</a> &nbsp;|&nbsp; <a href="/tenets/">Tenets</a> &nbsp;|&nbsp; <a href="/sponsors/">Sponsors</a> &nbsp;|&nbsp; <a href="/dev/">Dev Ledger</a> &nbsp;|&nbsp; <a href="https://status.risingcompass.net/">Status</a> &nbsp;|&nbsp; <a href="/sitemap.xml">Sitemap</a> &nbsp;|&nbsp; <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a></p>
