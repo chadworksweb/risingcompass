@@ -130,7 +130,7 @@
   margin-bottom: 0.9rem;
 }
 .dl-release-ver { font-family: var(--rc-font-mono); font-size: 1.1rem; color: var(--rc-violet); font-weight: 700; }
-.dl-release-date { font-size: 0.82rem; color: var(--rc-text-dim); }
+.dl-release-date { font-size: 0.82rem; color: var(--rc-text-dim); transform: translateY(50%); }
 .dl-entry {
   background: var(--rc-bg-card);
   border: 1px solid var(--rc-border);
