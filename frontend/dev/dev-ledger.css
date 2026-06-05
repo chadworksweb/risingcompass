@@ -126,7 +126,6 @@
   display: flex;
   align-items: baseline;
   gap: 0.8rem;
-  border-bottom: 1px solid var(--rc-border);
   padding-bottom: 0.4rem;
   margin-bottom: 0.9rem;
 }
