@@ -241,6 +241,18 @@ A second top-level tab in the Lyrical Charger frontend (`frontend/lyrical-charge
 `Song Charger` default + `Album Charger`). Charges a whole album by calibrating
 each track and aggregating.
 
+- **Kill switch (`album_charger.disabled`, 2026-06-04).** An independent
+  `system_flags` gate that closes ONLY the Album Charger while the single-song
+  Song Charger stays open. **Fail-closed** (absent flag = disabled), so a fresh
+  deploy ships with album charging CLOSED until an admin opens it. When closed:
+  `/config` returns `album_charger_enabled: false` (frontend hides the whole
+  Album Charger top-tab via `charger.js`), and the album endpoints
+  (`/calibrate`, `/search`, `/search-tracks`) 503 via
+  `_check_album_available_or_503()`. Toggle from **Site Admin -> LC Status ->
+  Album Charger** (`POST /api/admin/lc-status/album-toggle {"disabled": false}`,
+  `lc_status_admin.py`) -- no redeploy, ~30s propagation. Accessors in
+  `feature_flags.py`; mirrors the `lyrical_charger.disabled` whole-LC pattern.
+
 - **Async job model.** A full album is minutes of sequential Opus work, too long
   to hold an HTTP connection open for, so charging is a background job + polling
   (table `album_charge_jobs`, migration 071). Router `app/routers/album_charger.py`,
@@ -364,6 +376,26 @@ denormalised fast read.
   Stripe). Open it with `POST /api/admin/launch-lock/toggle {"locked": false}`
   (admin session, `launch_admin.py`) -- no redeploy. Mirrors the
   `lyrical_charger.disabled` kill-switch pattern.
+
+- **Admin a-la-carte credits + unlimited comp (2026-06-04).** Two admin
+  abilities on the user detail Payments tab (`users_admin.py` +
+  `templates/admin/user_detail.html`):
+  - **Credit grant/deduct.** `POST /api/admin/users/{ident}/grant-credits
+    {amount}` -- positive grants to the permanent **purchased** bucket
+    (`admin_grant`), negative deducts purchased-first-then-allowance, clamped at
+    zero (`admin_deduct`). `billing.admin_adjust_credits`; signed ledger rows
+    keep the balance == ledger-sum invariant. ref_id is a per-click uuid.
+  - **Unlimited Lyrical Charger comp.** `users.comp_unlimited` boolean
+    (migration 083), orthogonal to `subscription_tier` (a comped user stays
+    `free` / no Stripe sub). `POST /api/admin/users/{ident}/comp {unlimited}`.
+    When true: `billing.is_unlimited` short-circuits `check_credits` /
+    `charge_credits` / `charge_song` to zero-cost (writes a `delta=0` `comp`
+    ledger row, `comp_unlimited` reason, so runs stay auditable), the album
+    hold/settle path no-ops (settle finds no hold rows -> harmless marker), and
+    `analyzer._calibrate_daily_limit` lifts the per-user daily backstop (cached
+    comp-id set, ~30s TTL). **Charger-only** -- Library entitlement
+    (`is_paid_user`) is unchanged. Comp grant/revoke writes a `comp_grant` /
+    `comp_revoke` audit row.
 
 ### Required env (M2, both local and prod)
 
