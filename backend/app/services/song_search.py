@@ -83,8 +83,8 @@ def _attach_slugs(items: list[dict], db: Session) -> None:
     slug_map: dict[int, str] = {}
     if ids:
         rows = (
-            db.query(SongSlug.unified_song_id, SongSlug.slug)
-            .filter(SongSlug.unified_song_id.in_(ids))
+            db.query(SongSlug.song_id, SongSlug.slug)
+            .filter(SongSlug.song_id.in_(ids))
             .order_by(SongSlug.id.asc())
             .all()
         )

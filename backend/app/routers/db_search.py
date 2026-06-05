@@ -376,9 +376,7 @@ def reset_song(table: str, song_id: int, data: SongResetIn, db: Session = Depend
         raise HTTPException(404, f"{table} id={song_id} not found")
 
     reset_row = SongReset(
-        song_source=polymorphic,
         song_id=song_id,
-        unified_song_id=song_id,
         before_charge=getattr(row, "charge_value", None),
         before_color=getattr(row, "rubric_color", None),
         before_summary=getattr(row, "charge_summary", None),
@@ -462,7 +460,7 @@ def _capture_and_delete_song_cascade(polymorphic: str, song_id: int, db: Session
         col_map = {c.name: c for c in sa_inspect(Model).columns}
         rows = (
             db.query(Model)
-            .filter(Model.unified_song_id == song_id)
+            .filter(Model.song_id == song_id)
             .all()
         )
         if rows:
@@ -600,7 +598,7 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
         name = Model.__tablename__
         rows = (
             db.query(Model)
-            .filter(Model.unified_song_id == data.source_id)
+            .filter(Model.song_id == data.source_id)
             .all()
         )
         moved = 0
@@ -608,7 +606,7 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
         for r in rows:
             if has_unique and unique_cols is not None:
                 # Does a target-side row already satisfy the same unique?
-                q = db.query(Model).filter(Model.unified_song_id == data.target_id)
+                q = db.query(Model).filter(Model.song_id == data.target_id)
                 for col in unique_cols:
                     q = q.filter(getattr(Model, col) == getattr(r, col))
                 conflict = q.first()
@@ -616,8 +614,6 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
                     db.delete(r)
                     dropped += 1
                     continue
-            r.unified_song_id = data.target_id
-            r.song_source = "songs"
             r.song_id = data.target_id
             moved += 1
         if moved:
@@ -653,7 +649,7 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
     # Source slugs: delete rather than move — target keeps its own slugs
     slug_rows = (
         db.query(SongSlug)
-        .filter(SongSlug.unified_song_id == data.source_id)
+        .filter(SongSlug.song_id == data.source_id)
         .all()
     )
     for s in slug_rows:

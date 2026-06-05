@@ -127,7 +127,7 @@ def list_review_cases(
     for c in rows:
         entry = {
             "id": c.id,
-            "song_source": c.song_source,
+            "song_source": "songs",
             "song_id": c.song_id,
             "compass_charge": c.compass_charge,
             "compass_color": c.compass_color,
@@ -139,7 +139,7 @@ def list_review_cases(
             "resolved_at": c.resolved_at.isoformat() if c.resolved_at else None,
         }
         try:
-            song = _resolve_song(db, c.song_source, c.song_id)
+            song = _resolve_song(db, "songs", c.song_id)
             entry["song_title"] = song.title
             entry["song_artist"] = getattr(song, "artist", None)
         except VibeError:

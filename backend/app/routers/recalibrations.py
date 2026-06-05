@@ -116,7 +116,7 @@ def _flag_counts_for_song(db: Session, unified_id: int, title: str, artist: str)
             func.lower(MisreadSubmission.song_title) == title_l,
             func.lower(MisreadSubmission.song_artist) == artist_l,
         ),
-        MisreadSubmission.unified_song_id == unified_id,
+        MisreadSubmission.song_id == unified_id,
     )
 
     def _count(report_type: str) -> int:
@@ -168,7 +168,7 @@ def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
         "id": p.id,
         "lens": p.lens,
         "pipeline": p.pipeline,
-        "song_source": p.song_source,
+        "song_source": "songs",
         "song_id": p.song_id,
         "trigger_ref_id": p.trigger_ref_id,
         "original_charge": p.original_charge,
@@ -186,7 +186,7 @@ def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
         "resolved_at": p.resolved_at,
     }
     try:
-        song = _resolve_song(db, p.song_source, p.song_id)
+        song = _resolve_song(db, "songs", p.song_id)
         base["song_title"] = song.title
         base["song_artist"] = getattr(song, "artist", None)
     except HTTPException:
@@ -277,9 +277,7 @@ def start_recalibration(
 
     proposal = SongRecalibrationProposal(
         lens=data.lens,
-        song_source="songs",
         song_id=unified_id,
-        unified_song_id=unified_id,
         pipeline=data.pipeline,
         trigger_ref_id=data.trigger_ref_id,
         original_charge=original_charge,
@@ -373,7 +371,7 @@ def pending_satirical_flags(limit: int = 50, db: Session = Depends(get_db)):
             "id": r.id,
             "song_title": r.song_title,
             "song_artist": r.song_artist,
-            "song_source": r.song_source,
+            "song_source": "songs" if r.song_id else None,
             "song_id": r.song_id,
             "song_color": getattr(r, "song_color", None),
             "first_name": getattr(r, "first_name", None),
@@ -436,7 +434,7 @@ def accept_proposal(
     if p.proposed_charge is None or not p.proposed_color:
         raise HTTPException(400, "Proposal has no proposed values to apply")
 
-    song = _resolve_song(db, p.song_source, p.song_id)
+    song = _resolve_song(db, "songs", p.song_id)
     unified_id = song.id
 
     # Snapshot the public state at the moment of recalibration.
@@ -452,9 +450,7 @@ def accept_proposal(
 
     audit = SongRecalibration(
         lens=p.lens,
-        song_source="songs",
         song_id=unified_id,
-        unified_song_id=unified_id,
         proposal_id=p.id,
         pipeline=p.pipeline,
         trigger_ref_id=p.trigger_ref_id,
@@ -510,7 +506,7 @@ def accept_proposal(
     slug = p.rubric_change_slug or p.pipeline
     prior = (
         db.query(CalibrationRun)
-        .filter(CalibrationRun.unified_song_id == unified_id)
+        .filter(CalibrationRun.song_id == unified_id)
         .filter(CalibrationRun.superseded.is_(False))
         .all()
     )
@@ -532,9 +528,7 @@ def accept_proposal(
             "confidence": 1.0,
         },
         triggered_by=p.pipeline,
-        song_source="songs",
         song_id=unified_id,
-        unified_song_id=unified_id,
         lyrics_hash=None,
         agent_model=p.ai_model,
     )
@@ -555,7 +549,7 @@ def accept_proposal(
 
     slug_row = (
         db.query(SongSlug)
-        .filter(SongSlug.unified_song_id == unified_id)
+        .filter(SongSlug.song_id == unified_id)
         .order_by(SongSlug.id.desc())
         .first()
     )

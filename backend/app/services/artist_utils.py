@@ -88,7 +88,7 @@ def count_songs_by_artist(artist_name: str, db) -> int:
         .first()
     )
     # Unified: distinct calibrated songs credited to the artist via string match
-    # OR a song_artists credit (joined on unified_song_id).
+    # OR a song_artists credit (joined on song_id).
     ids = {
         sid for (sid,) in (
             db.query(Song.id)
@@ -101,7 +101,7 @@ def count_songs_by_artist(artist_name: str, db) -> int:
         ids |= {
             sid for (sid,) in (
                 db.query(Song.id)
-                .join(SongArtist, SongArtist.unified_song_id == Song.id)
+                .join(SongArtist, SongArtist.song_id == Song.id)
                 .filter(SongArtist.artist_id == artist_row.id)
                 .filter(Song.charge_value.isnot(None))
                 .all()
@@ -297,9 +297,7 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
                 continue
             db.add(ReleaseSong(
                 release_id=release.id,
-                song_source="songs",
                 song_id=matched["id"],
-                unified_song_id=matched["id"],
                 track_number=track.get("position"),
             ))
             linked_keys.add(key)
@@ -429,8 +427,7 @@ def _apply_catch_all(artist: Artist, all_songs: list[dict], db) -> int:
     charges: list[int] = []
     contam = 0
     for s in unlinked:
-        db.add(ReleaseSong(release_id=catch_all.id, song_source="songs",
-                           song_id=s["id"], unified_song_id=s["id"]))
+        db.add(ReleaseSong(release_id=catch_all.id, song_id=s["id"]))
         if s["charge"] is not None:
             charges.append(s["charge"])
         if s["contaminated"]:
@@ -477,8 +474,8 @@ def _get_linked_song_keys(artist: Artist, db) -> set[int]:
     keys = set()
     for release in artist.releases:
         for link in release.songs:
-            if link.unified_song_id is not None:
-                keys.add(link.unified_song_id)
+            if link.song_id is not None:
+                keys.add(link.song_id)
     return keys
 
 

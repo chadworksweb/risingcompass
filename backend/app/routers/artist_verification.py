@@ -28,7 +28,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import case, func
+from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -59,6 +59,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["artist-verification"])
 admin_router = APIRouter(tags=["artist-verification-admin"])
+
+
+def _resolve_unified_song_id(db: Session, source, sid):
+    """Resolve an incoming (source, id) to the atomic songs.id (unified
+    renovation 5c-2). source='songs' is the id directly; a legacy pair maps via
+    song_id_map. Returns None if unresolvable."""
+    if not sid:
+        return None
+    if source == "songs":
+        return sid
+    return db.execute(
+        text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+        {"s": source, "i": sid},
+    ).scalar()
 
 VALID_STAGES = {"lead", "contacted", "in_conversation", "active"}
 VALID_METHODS = {"in_person", "video_call", "audio_call", "prior_relationship"}
@@ -179,8 +193,8 @@ def _send_admin_notification_email(inquiry: ArtistVerificationInquiry) -> bool:
             f"<p><strong>Proof links:</strong><br><span style='white-space:pre-wrap;'>{escape(inquiry.proof_links)}</span></p>"
         )
     song_ref = ""
-    if inquiry.song_source and inquiry.song_id:
-        song_ref = f" [{escape(inquiry.song_source)}/{inquiry.song_id}]"
+    if inquiry.song_id:
+        song_ref = f" [songs/{inquiry.song_id}]"
 
     html = f"""
     <div style="font-family:'Inter',-apple-system,sans-serif;max-width:600px;color:#1a1a2e;">
@@ -242,8 +256,7 @@ async def submit_inquiry(
     inquiry = ArtistVerificationInquiry(
         song_title=data.song_title,
         song_artist=data.song_artist,
-        song_source=data.song_source,
-        song_id=data.song_id,
+        song_id=_resolve_unified_song_id(db, data.song_source, data.song_id),
         song_color=data.song_color,
         song_position=data.song_position,
         claimant_name=data.claimant_name,
@@ -275,12 +288,14 @@ def get_published_block(
     If multiple verified artists each published a block on the same song
     (collab), the most recently published wins for v1.
     """
+    unified_id = _resolve_unified_song_id(db, song_source, song_id)
+    if not unified_id:
+        return None
     row = (
         db.query(ArtistVerificationBlock, Artist)
         .join(Artist, Artist.id == ArtistVerificationBlock.artist_id)
         .filter(
-            ArtistVerificationBlock.song_source == song_source,
-            ArtistVerificationBlock.song_id == song_id,
+            ArtistVerificationBlock.song_id == unified_id,
             ArtistVerificationBlock.published == True,  # noqa: E712
         )
         .order_by(ArtistVerificationBlock.published_at.desc())
@@ -543,12 +558,12 @@ def create_block(
         if not _gate_passes(v):
             raise HTTPException(400, "Cannot publish: deepfake gate not satisfied.")
 
+    unified_id = _resolve_unified_song_id(db, data.song_source, data.song_id)
     existing = (
         db.query(ArtistVerificationBlock)
         .filter(
             ArtistVerificationBlock.artist_id == artist_id,
-            ArtistVerificationBlock.song_source == data.song_source,
-            ArtistVerificationBlock.song_id == data.song_id,
+            ArtistVerificationBlock.song_id == unified_id,
         )
         .first()
     )
@@ -561,8 +576,7 @@ def create_block(
 
     block = ArtistVerificationBlock(
         artist_id=artist_id,
-        song_source=data.song_source,
-        song_id=data.song_id,
+        song_id=unified_id,
         block_text=data.block_text,
         video_url=data.video_url,
         audio_url=data.audio_url,

@@ -248,7 +248,7 @@ def _song_charges_for_artist(artist_id: int, db) -> list[int]:
     once with UNION ALL to pull their charge_values.
     """
     # Unified: distinct songs credited to the artist (via the repointed
-    # unified_song_id on release_songs + song_artists), each charge counted ONCE
+    # song_id on release_songs + song_artists), each charge counted ONCE
     # -- so cross-year / cross-table duplicates no longer double-weight the mean.
     sql = text(
         """
@@ -256,14 +256,14 @@ def _song_charges_for_artist(artist_id: int, db) -> list[int]:
           FROM songs s
          WHERE s.charge_value IS NOT NULL
            AND s.id IN (
-                SELECT rs.unified_song_id
+                SELECT rs.song_id
                   FROM release_songs rs
                   JOIN releases r ON r.id = rs.release_id
-                 WHERE r.artist_id = :aid AND rs.unified_song_id IS NOT NULL
+                 WHERE r.artist_id = :aid AND rs.song_id IS NOT NULL
                 UNION
-                SELECT sa.unified_song_id
+                SELECT sa.song_id
                   FROM song_artists sa
-                 WHERE sa.artist_id = :aid AND sa.unified_song_id IS NOT NULL
+                 WHERE sa.artist_id = :aid AND sa.song_id IS NOT NULL
            )
         """
     )
@@ -500,8 +500,8 @@ def artist_top_songs(
             raise HTTPException(404, "Artist not found")
 
         # Unified: distinct atomic songs credited to this artist -- on a release
-        # they own (release_songs.unified_song_id) OR directly credited
-        # (song_artists.unified_song_id). One row per song; cross-year/cross-table
+        # they own (release_songs.song_id) OR directly credited
+        # (song_artists.song_id). One row per song; cross-year/cross-table
         # duplicates already collapsed into the unified entity.
         rows = db.execute(text(
             """
@@ -509,14 +509,14 @@ def artist_top_songs(
               FROM songs s
              WHERE s.charge_value IS NOT NULL
                AND s.id IN (
-                    SELECT rs.unified_song_id
+                    SELECT rs.song_id
                       FROM release_songs rs
                       JOIN releases r ON r.id = rs.release_id
-                     WHERE r.artist_id = :aid AND rs.unified_song_id IS NOT NULL
+                     WHERE r.artist_id = :aid AND rs.song_id IS NOT NULL
                     UNION
-                    SELECT sa.unified_song_id
+                    SELECT sa.song_id
                       FROM song_artists sa
-                     WHERE sa.artist_id = :aid AND sa.unified_song_id IS NOT NULL
+                     WHERE sa.artist_id = :aid AND sa.song_id IS NOT NULL
                )
             """
         ), {"aid": artist.id}).all()
@@ -546,8 +546,8 @@ def artist_top_songs(
             ids = [it["song_id"] for it in page]
             slug_map: dict[int, str] = {}
             for sid, slug_value in (
-                db.query(SongSlug.unified_song_id, SongSlug.slug)
-                .filter(SongSlug.unified_song_id.in_(ids))
+                db.query(SongSlug.song_id, SongSlug.slug)
+                .filter(SongSlug.song_id.in_(ids))
                 .all()
             ):
                 slug_map.setdefault(sid, slug_value)
@@ -668,7 +668,7 @@ def artist_songs(
 
         items = []
         for link in links:
-            song_data = _resolve_song(link.unified_song_id, db)
+            song_data = _resolve_song(link.song_id, db)
             if song_data:
                 song_data["release_id"] = link.release_id
                 song_data["track_number"] = link.track_number
@@ -685,7 +685,7 @@ def _get_release_song_charges(release: Release, db) -> list[int]:
     """Get all individual song charge values for a release."""
     charges = []
     for link in release.songs:
-        song = _resolve_song_row(link.unified_song_id, db)
+        song = _resolve_song_row(link.song_id, db)
         if song and song.charge_value is not None:
             charges.append(song.charge_value)
     return charges

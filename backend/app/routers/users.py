@@ -175,7 +175,7 @@ def get_my_calibrations(
     )
     items = [
         CalibrationItemOut(
-            song_source=r.song_source,
+            song_source="songs",
             song_id=r.song_id,
             song_slug=r.song_slug,
             title=r.title,

@@ -152,9 +152,9 @@ def refresh_release_aggregates(
             charges: list[int] = []
             contam = 0
             for link in links:
-                if link.unified_song_id is None:
+                if link.song_id is None:
                     continue
-                row = db.query(Song).get(link.unified_song_id)
+                row = db.query(Song).get(link.song_id)
                 if row is None:
                     continue
                 if row.charge_value is not None:
@@ -344,7 +344,7 @@ def merge_artist(
         #    canonical_key for any same-title song already under the target
         #    ("Sweet Caroline" under both "Neil Diamond" and "Neil Diamonds").
         #    For each such pair, repoint the source song's references onto the
-        #    target song (keyed by unified_song_id), then drop the source song.
+        #    target song (keyed by song_id), then drop the source song.
         dup_song_rows_merged = 0
         dup_release_song_links_migrated = 0
         dup_release_song_links_dropped = 0
@@ -367,17 +367,14 @@ def merge_artist(
             # release; move the rest from src -> tgt.
             cur = conn.execute(
                 text(
-                    "DELETE FROM release_songs WHERE unified_song_id = :src"
-                    "   AND release_id IN (SELECT release_id FROM release_songs WHERE unified_song_id = :tgt)"
+                    "DELETE FROM release_songs WHERE song_id = :src"
+                    "   AND release_id IN (SELECT release_id FROM release_songs WHERE song_id = :tgt)"
                 ),
                 {"src": src_sid, "tgt": tgt_sid},
             )
             dup_release_song_links_dropped += cur.rowcount or 0
             cur = conn.execute(
-                text(
-                    "UPDATE release_songs SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
-                    " WHERE unified_song_id = :src"
-                ),
+                text("UPDATE release_songs SET song_id = :tgt WHERE song_id = :src"),
                 {"tgt": tgt_sid, "src": src_sid},
             )
             dup_release_song_links_migrated += cur.rowcount or 0
@@ -385,40 +382,34 @@ def merge_artist(
             # song_artists: dedupe on artist_id, then move.
             cur = conn.execute(
                 text(
-                    "DELETE FROM song_artists WHERE unified_song_id = :src"
-                    "   AND artist_id IN (SELECT artist_id FROM song_artists WHERE unified_song_id = :tgt)"
+                    "DELETE FROM song_artists WHERE song_id = :src"
+                    "   AND artist_id IN (SELECT artist_id FROM song_artists WHERE song_id = :tgt)"
                 ),
                 {"src": src_sid, "tgt": tgt_sid},
             )
             dup_song_artist_links_dropped += cur.rowcount or 0
             cur = conn.execute(
-                text(
-                    "UPDATE song_artists SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
-                    " WHERE unified_song_id = :src"
-                ),
+                text("UPDATE song_artists SET song_id = :tgt WHERE song_id = :src"),
                 {"tgt": tgt_sid, "src": src_sid},
             )
             dup_song_artist_links_migrated += cur.rowcount or 0
 
             # song_slugs: target's are canonical; drop the source's.
             cur = conn.execute(
-                text("DELETE FROM song_slugs WHERE unified_song_id = :src"), {"src": src_sid}
+                text("DELETE FROM song_slugs WHERE song_id = :src"), {"src": src_sid}
             )
             dup_song_slugs_dropped += cur.rowcount or 0
 
             # user_calibrations: dedupe on user_id, then move (UNIQUE user+song).
             conn.execute(
                 text(
-                    "DELETE FROM user_calibrations WHERE unified_song_id = :src"
-                    "   AND user_id IN (SELECT user_id FROM user_calibrations WHERE unified_song_id = :tgt)"
+                    "DELETE FROM user_calibrations WHERE song_id = :src"
+                    "   AND user_id IN (SELECT user_id FROM user_calibrations WHERE song_id = :tgt)"
                 ),
                 {"src": src_sid, "tgt": tgt_sid},
             )
             conn.execute(
-                text(
-                    "UPDATE user_calibrations SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
-                    " WHERE unified_song_id = :src"
-                ),
+                text("UPDATE user_calibrations SET song_id = :tgt WHERE song_id = :src"),
                 {"tgt": tgt_sid, "src": src_sid},
             )
 
@@ -426,13 +417,12 @@ def merge_artist(
             for t in ("calibration_runs", "song_recalibrations", "song_recalibration_proposals",
                       "song_resets", "misread_submissions"):
                 conn.execute(
-                    text(f"UPDATE {t} SET unified_song_id = :tgt, song_source = 'songs', song_id = :tgt"
-                         f" WHERE unified_song_id = :src"),
+                    text(f"UPDATE {t} SET song_id = :tgt WHERE song_id = :src"),
                     {"tgt": tgt_sid, "src": src_sid},
                 )
             # Audience vibe (per-song unique): keep the target's, drop the source's.
             for t in ("audience_vibe_needles", "audience_vibe_pushes", "audience_vibe_review_cases"):
-                conn.execute(text(f"DELETE FROM {t} WHERE unified_song_id = :src"), {"src": src_sid})
+                conn.execute(text(f"DELETE FROM {t} WHERE song_id = :src"), {"src": src_sid})
             # Unified hard-FK refs + the id map.
             conn.execute(text("UPDATE reading_songs SET song_id = :tgt WHERE song_id = :src"), {"tgt": tgt_sid, "src": src_sid})
             conn.execute(text("UPDATE agent_draft_songs SET song_id = :tgt WHERE song_id = :src"), {"tgt": tgt_sid, "src": src_sid})
@@ -454,8 +444,8 @@ def merge_artist(
             text(
                 "DELETE FROM song_artists"
                 " WHERE artist_id = :source_id"
-                "   AND (song_source, song_id) IN ("
-                "       SELECT song_source, song_id FROM song_artists WHERE artist_id = :target_id"
+                "   AND song_id IN ("
+                "       SELECT song_id FROM song_artists WHERE artist_id = :target_id"
                 "   )"
             ),
             {"source_id": source_id, "target_id": target_id},
@@ -486,16 +476,16 @@ def merge_artist(
             if src_title in target_title_to_id:
                 to_rel_id = target_title_to_id[src_title]
                 existing = {
-                    (s, i) for s, i in conn.execute(
-                        text("SELECT song_source, song_id FROM release_songs WHERE release_id = :rid"),
+                    i for (i,) in conn.execute(
+                        text("SELECT song_id FROM release_songs WHERE release_id = :rid"),
                         {"rid": to_rel_id},
                     ).fetchall()
                 }
-                for link_id, ssrc, sid in conn.execute(
-                    text("SELECT id, song_source, song_id FROM release_songs WHERE release_id = :rid"),
+                for link_id, sid in conn.execute(
+                    text("SELECT id, song_id FROM release_songs WHERE release_id = :rid"),
                     {"rid": src_rel_id},
                 ).fetchall():
-                    if (ssrc, sid) in existing:
+                    if sid in existing:
                         conn.execute(text("DELETE FROM release_songs WHERE id = :lid"), {"lid": link_id})
                         release_songs_dropped_as_dup += 1
                     else:
@@ -503,7 +493,7 @@ def merge_artist(
                             text("UPDATE release_songs SET release_id = :to_rid WHERE id = :lid"),
                             {"to_rid": to_rel_id, "lid": link_id},
                         )
-                        existing.add((ssrc, sid))
+                        existing.add(sid)
                         release_songs_moved += 1
                 conn.execute(text("DELETE FROM releases WHERE id = :rid"), {"rid": src_rel_id})
                 releases_merged += 1

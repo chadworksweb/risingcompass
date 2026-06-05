@@ -80,7 +80,7 @@ def resolve_unified_song(
 def _find_song_via_credits(db: Session, title: str, artist: str) -> Song | None:
     """Credit-path fallback: split the credit string, look the artists up, and
     find a unified song with the same title carrying ANY of them via
-    song_artists.unified_song_id. Catches reordered/abbreviated credits."""
+    song_artists.song_id. Catches reordered/abbreviated credits."""
     from app.services.artist_linker import parse_artist_string
     t_lower = title.strip().lower()
     artist_ids: list[int] = []
@@ -95,9 +95,9 @@ def _find_song_via_credits(db: Session, title: str, artist: str) -> Song | None:
         return None
     candidate_ids = {
         sid for (sid,) in (
-            db.query(SongArtist.unified_song_id)
+            db.query(SongArtist.song_id)
             .filter(SongArtist.artist_id.in_(artist_ids))
-            .filter(SongArtist.unified_song_id.isnot(None))
+            .filter(SongArtist.song_id.isnot(None))
             .distinct()
             .all()
         )
@@ -194,7 +194,7 @@ def _seed_initial_run_if_missing(source: str, song, db: Session):
         return
     existing_count = (
         db.query(func.count(CalibrationRun.id))
-        .filter(CalibrationRun.unified_song_id == unified.id)
+        .filter(CalibrationRun.song_id == unified.id)
         .scalar()
     )
     if existing_count > 0:
@@ -203,9 +203,7 @@ def _seed_initial_run_if_missing(source: str, song, db: Session):
         # Song is uncalibrated (or was reset) — nothing to seed
         return
     seed = CalibrationRun(
-        song_source="songs",
         song_id=unified.id,
-        unified_song_id=unified.id,
         title=getattr(song, "title", None),
         artist=getattr(song, "artist", None),
         rubric_color=getattr(song, "rubric_color", None) or None,
@@ -231,20 +229,16 @@ def log_run(
     artist: str | None,
     calibration: dict,
     triggered_by: str,
-    song_source: str | None = None,
     song_id: int | None = None,
-    unified_song_id: int | None = None,
     lyrics_hash: str | None = None,
     lyrics_fingerprint: bytes | None = None,
     agent_model: str | None = None,
 ) -> CalibrationRun:
     """Record one agent run. Always writes. The caller has already committed
-    the song row (or decided no song row is appropriate). `unified_song_id`
-    keys the run to the atomic song for consensus aggregation."""
+    the song row (or decided no song row is appropriate). `song_id` is the
+    atomic songs.id and keys the run to the song for consensus aggregation."""
     run = CalibrationRun(
-        song_source=song_source,
         song_id=song_id,
-        unified_song_id=unified_song_id,
         title=title,
         artist=artist,
         rubric_color=calibration.get("rubric_color"),
@@ -281,7 +275,7 @@ def fetch_run_fingerprints(
         return []
     rows = (
         db.query(CalibrationRun.lyrics_fingerprint)
-        .filter(CalibrationRun.unified_song_id == unified.id)
+        .filter(CalibrationRun.song_id == unified.id)
         .filter(CalibrationRun.superseded.is_(False))
         .filter(CalibrationRun.lyrics_fingerprint.isnot(None))
         .all()
@@ -304,7 +298,7 @@ def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
         return None
     runs = (
         db.query(CalibrationRun)
-        .filter(CalibrationRun.unified_song_id == unified.id)
+        .filter(CalibrationRun.song_id == unified.id)
         .filter(CalibrationRun.charge_value.isnot(None))
         .filter(CalibrationRun.superseded.is_(False))
         .all()
@@ -372,9 +366,7 @@ def apply_consensus_to_song(
     if tier_flip:
         recal = SongRecalibration(
             lens="standard",
-            song_source="songs",
             song_id=song.id,
-            unified_song_id=song.id,
             pipeline="consensus_drift",
             trigger_ref_id=None,
             before_charge=before_charge,
@@ -451,9 +443,7 @@ def record_and_reconcile(
         artist=artist,
         calibration=calibration,
         triggered_by=triggered_by,
-        song_source=source,
         song_id=song.id if song else None,
-        unified_song_id=song.id if song else None,
         lyrics_hash=lyrics_hash,
         lyrics_fingerprint=lyrics_fingerprint,
         agent_model=agent_model,

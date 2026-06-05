@@ -131,8 +131,7 @@ def update_library_song(song_id: int, data: LibrarySongUpdate, db: Session = Dep
     db.refresh(song)
     # Re-link artist credits onto the unified id.
     link_song_artists(
-        db, song_source="songs", song_id=song.id,
-        unified_song_id=song.id, entries=parse_artist_string(song.artist or ""),
+        db, song_id=song.id, entries=parse_artist_string(song.artist or ""),
     )
     db.commit()
     return _library_out(db, song.id)
@@ -156,13 +155,13 @@ def delete_library_song(song_id: int, db: Session = Depends(get_db)):
         not db.execute(text("SELECT 1 FROM song_ingestions WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
         and not db.execute(text("SELECT 1 FROM chart_appearances WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
         and not db.execute(text("SELECT 1 FROM reading_songs WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
-        and not db.execute(text("SELECT 1 FROM release_songs WHERE unified_song_id = :s LIMIT 1"), {"s": song_id}).scalar()
+        and not db.execute(text("SELECT 1 FROM release_songs WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
         and not db.execute(text("SELECT 1 FROM agent_draft_songs WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
     )
     if orphan:
         for t in ("song_artists", "song_slugs", "user_calibrations", "calibration_runs",
                   "misread_submissions"):
-            db.execute(text(f"DELETE FROM {t} WHERE unified_song_id = :s"), {"s": song_id})
+            db.execute(text(f"DELETE FROM {t} WHERE song_id = :s"), {"s": song_id})
         db.execute(text("DELETE FROM song_id_map WHERE new_song_id = :s"), {"s": song_id})
         db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": song_id})
     db.commit()

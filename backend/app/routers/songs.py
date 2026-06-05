@@ -25,19 +25,10 @@ router = APIRouter(prefix="/api/songs", tags=["songs"])
 
 
 def _slug_unified_id(db, slug_row) -> int | None:
-    """The unified songs.id a slug points at. Prefer the slug's unified_song_id;
-    fall back to song_source='songs' (native slug) or song_id_map for any legacy
-    straggler whose unified_song_id wasn't backfilled."""
-    if slug_row.unified_song_id:
-        return slug_row.unified_song_id
-    if slug_row.song_source == "songs":
-        return slug_row.song_id
-    if slug_row.song_source and slug_row.song_id:
-        return db.execute(
-            text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
-            {"s": slug_row.song_source, "i": slug_row.song_id},
-        ).scalar()
-    return None
+    """The unified songs.id a slug points at -- the renamed `song_id` column
+    (unified renovation 5c-2; migration 087 backfilled it for every resolvable
+    slug before the legacy poly columns were dropped)."""
+    return slug_row.song_id
 
 
 @router.get("/{slug}/flag-counts")
@@ -73,7 +64,7 @@ def song_flag_counts(slug: str):
             func.lower(MisreadSubmission.song_artist) == artist_l,
         )]
         if unified_id:
-            match_clauses.append(MisreadSubmission.unified_song_id == unified_id)
+            match_clauses.append(MisreadSubmission.song_id == unified_id)
         match = or_(*match_clauses)
 
         def _count_distinct_devices(report_type: str) -> int:
@@ -118,7 +109,7 @@ def song_history(slug: str, admin_user=Depends(optional_admin_session)):
 
         q = (
             db.query(SongRecalibration)
-            .filter(SongRecalibration.unified_song_id == unified_id)
+            .filter(SongRecalibration.song_id == unified_id)
         )
         # All recalibrations are auto-promoted (2026-04-23); gate retired.
         rows = q.order_by(SongRecalibration.applied_at.desc()).all()
@@ -153,7 +144,7 @@ def song_history(slug: str, admin_user=Depends(optional_admin_session)):
 
         reset_rows = (
             db.query(SongReset)
-            .filter(SongReset.unified_song_id == unified_id)
+            .filter(SongReset.song_id == unified_id)
             .order_by(SongReset.reset_at.desc())
             .all()
         )
@@ -243,7 +234,7 @@ def song_calibration_runs(slug: str, limit: int = 50):
 
         rows = (
             db.query(CalibrationRun)
-            .filter(CalibrationRun.unified_song_id == unified_id)
+            .filter(CalibrationRun.song_id == unified_id)
             .order_by(CalibrationRun.run_at.desc())
             .limit(max(1, min(limit, 500)))
             .all()
@@ -512,7 +503,7 @@ def _enrich_with_release_context(song: dict, unified_id: int, db):
     """Add release + artist context to a song dict if available."""
     link = (
         db.query(ReleaseSong)
-        .filter(ReleaseSong.unified_song_id == unified_id)
+        .filter(ReleaseSong.song_id == unified_id)
         .first()
     )
     if link:
@@ -555,8 +546,8 @@ def _find_by_generated_slug(slug: str, db) -> dict | None:
 
 def _get_or_create_slug(title: str, artist: str, source: str, song_id: int, db) -> str:
     """Get existing slug or create one for a song. Native callers pass
-    source='songs' with the unified id; the unified_song_id pointer is set so
-    the unified read paths (and song_search._attach_slugs) resolve it."""
+    source='songs' with the unified id; the slug's song_id is set to the unified
+    id so the read paths (and song_search._attach_slugs) resolve it."""
     # Resolve the unified id for the pointer (source='songs' -> the id directly,
     # any legacy pair via song_id_map).
     if source == "songs":
@@ -567,17 +558,10 @@ def _get_or_create_slug(title: str, artist: str, source: str, song_id: int, db) 
             {"s": source, "i": song_id},
         ).scalar()
 
-    # Check if this song already has a slug (by unified id, else legacy pair).
+    # Check if this song already has a slug (by unified id).
     existing = None
     if unified_id:
-        existing = db.query(SongSlug).filter(SongSlug.unified_song_id == unified_id).first()
-    if existing is None:
-        existing = (
-            db.query(SongSlug)
-            .filter(SongSlug.song_source == source)
-            .filter(SongSlug.song_id == song_id)
-            .first()
-        )
+        existing = db.query(SongSlug).filter(SongSlug.song_id == unified_id).first()
     if existing:
         return existing.slug
 
@@ -594,9 +578,7 @@ def _get_or_create_slug(title: str, artist: str, source: str, song_id: int, db) 
         slug=slug,
         title=title,
         artist=artist,
-        song_source=source,
-        song_id=song_id,
-        unified_song_id=unified_id,
+        song_id=unified_id,
     )
     db.add(entry)
     db.commit()

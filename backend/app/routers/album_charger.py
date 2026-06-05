@@ -445,7 +445,7 @@ async def _run_album_charge(
                 if current_user_id is not None:
                     _record_user_calibration(
                         write_db, user_id=current_user_id,
-                        song_source=canonical_source, song_id=canonical_id,
+                        song_id=canonical_id,
                         song_slug=slug, title=track_title, artist=track_artist,
                         calibration=calibration,
                     )
@@ -509,9 +509,8 @@ async def _run_album_charge(
                 if c_id is None:
                     continue
                 write_db.add(ReleaseSong(
-                    release_id=release.id, song_source=c_source,
-                    song_id=c_id, track_number=w["track_number"],
-                    unified_song_id=c_id,
+                    release_id=release.id, song_id=c_id,
+                    track_number=w["track_number"],
                 ))
             write_db.commit()
             release_id = release.id

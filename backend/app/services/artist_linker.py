@@ -107,17 +107,12 @@ def upsert_artist(db, name: str) -> Artist:
 def link_song_artists(
     db,
     *,
-    song_source: str,
     song_id: int,
     entries: list[dict],
-    unified_song_id: int | None = None,
 ) -> None:
-    """Upsert song_artists rows. No release linkage — releases require
-    real release metadata (title, date, type) which we don't invent here.
-
-    `unified_song_id` is set on the credit row so it survives the Phase-5 drop
-    (renamed to song_id in 5c). Native callers pass song_source='songs' with the
-    unified id as both song_id and unified_song_id."""
+    """Upsert song_artists rows keyed on the atomic songs.id (unified
+    renovation 5c-2). No release linkage -- releases require real release
+    metadata (title, date, type) which we don't invent here."""
     if not entries:
         return
 
@@ -134,35 +129,29 @@ def link_song_artists(
 
         existing = (
             db.query(SongArtist)
-            .filter(SongArtist.song_source == song_source)
             .filter(SongArtist.song_id == song_id)
             .filter(SongArtist.artist_id == artist.id)
             .first()
         )
-        if existing:
-            if unified_song_id is not None and existing.unified_song_id is None:
-                existing.unified_song_id = unified_song_id
-        else:
+        if not existing:
             db.add(SongArtist(
-                song_source=song_source,
                 song_id=song_id,
                 artist_id=artist.id,
                 role=role,
                 position=position,
-                unified_song_id=unified_song_id,
             ))
 
 
 def try_link_song(
     title: str | None,
     artist_name: str | None,
-    song_source: str,
     song_id: int,
     db,
     *,
     structured: list[dict] | None = None,
 ):
     """Link a newly calibrated song to one or more artists via song_artists.
+    `song_id` is the atomic songs.id.
 
     If `structured` is provided (LC form submits structured artist rows),
     it overrides parsing. Otherwise `artist_name` is parsed by
@@ -175,15 +164,10 @@ def try_link_song(
         return
 
     try:
-        link_song_artists(
-            db,
-            song_source=song_source,
-            song_id=song_id,
-            entries=entries,
-        )
+        link_song_artists(db, song_id=song_id, entries=entries)
         db.commit()
         names = ", ".join(f"{e['name']}({e['role']})" for e in entries)
-        logger.info("Linked '%s' (%s:%d) to [%s]", title, song_source, song_id, names)
+        logger.info("Linked '%s' (songs:%s) to [%s]", title, song_id, names)
     except Exception:
         db.rollback()
         logger.exception("Auto-link failed for '%s' by '%s'", title, artist_name)

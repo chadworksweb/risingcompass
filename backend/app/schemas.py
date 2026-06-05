@@ -1026,8 +1026,8 @@ class ArtistVerificationBlockUpdate(BaseModel):
 class ArtistVerificationBlockOut(BaseModel):
     id: int
     artist_id: int
-    song_source: str
-    song_id: int
+    song_source: Optional[str] = "songs"  # unified renovation 5c-2: always the atomic songs table
+    song_id: Optional[int] = None
     block_text: Optional[str] = None
     video_url: Optional[str] = None
     audio_url: Optional[str] = None

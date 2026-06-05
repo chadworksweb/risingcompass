@@ -132,20 +132,6 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
             "VALUES (:s, :m, :ip, :d)"
         ), {"s": song_id, "m": method, "ip": row.get("ip_address"), "d": json.dumps(detail)})
 
-    # repoint this song's references -- transition-only; keyed by the legacy
-    # (source, id). Post-drop the references already carry the unified song_id
-    # (renamed from unified_song_id in Phase 5c), so this no-ops out.
-    if legacy_id:
-        for t in ("song_artists", "song_slugs", "release_songs", "user_calibrations",
-                  "calibration_runs", "misread_submissions"):
-            db.execute(text(
-                f"UPDATE {t} SET unified_song_id = :n WHERE song_source = :s AND song_id = :i"
-            ), {"n": song_id, "s": source, "i": legacy_id})
-        if source == "compass":
-            db.execute(text("UPDATE reading_songs SET song_id = :n WHERE compass_song_id = :i"),
-                       {"n": song_id, "i": legacy_id})
-            db.execute(text("UPDATE agent_draft_songs SET song_id = :n WHERE compass_song_id = :i"),
-                       {"n": song_id, "i": legacy_id})
     return song_id
 
 
@@ -213,8 +199,5 @@ def store_calibrated_song(
                                   only_set_present=True)
     if song_id and artist_entries:
         from app.services.artist_linker import link_song_artists
-        link_song_artists(
-            db, song_source="songs", song_id=song_id,
-            unified_song_id=song_id, entries=artist_entries,
-        )
+        link_song_artists(db, song_id=song_id, entries=artist_entries)
     return song_id, (not existed)

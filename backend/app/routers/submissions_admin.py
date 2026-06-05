@@ -201,12 +201,12 @@ def delete_submission(submission_id: int, db: Session = Depends(get_db)):
         and not db.execute(text("SELECT 1 FROM chart_appearances WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
         and not db.execute(text("SELECT 1 FROM reading_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
         and not db.execute(text("SELECT 1 FROM agent_draft_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM release_songs WHERE unified_song_id = :s LIMIT 1"), {"s": sid}).scalar()
+        and not db.execute(text("SELECT 1 FROM release_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
     )
     if orphan:
         for t in ("song_artists", "song_slugs", "user_calibrations", "calibration_runs",
                   "misread_submissions"):
-            db.execute(text(f"DELETE FROM {t} WHERE unified_song_id = :s"), {"s": sid})
+            db.execute(text(f"DELETE FROM {t} WHERE song_id = :s"), {"s": sid})
         db.execute(text("DELETE FROM song_id_map WHERE new_song_id = :s"), {"s": sid})
         db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": sid})
     db.commit()

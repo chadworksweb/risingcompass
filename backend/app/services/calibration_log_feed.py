@@ -62,7 +62,7 @@ def _lookup_song_anchor(
     if slug is None:
         slug_row = (
             db.query(SongSlug)
-            .filter(SongSlug.unified_song_id == unified_id)
+            .filter(SongSlug.song_id == unified_id)
             .first()
         )
         slug = slug_row.slug if slug_row else generate_song_slug(row.title, row.artist)
@@ -145,7 +145,7 @@ def _recalibration_to_entry(
     slug_cache: dict,
 ) -> dict:
     """Adapter: song_recalibrations row → normalized feed entry."""
-    anchor = _lookup_song_anchor(db, row.unified_song_id, slug_cache)
+    anchor = _lookup_song_anchor(db, row.song_id, slug_cache)
     if anchor:
         title = f"{anchor['title']} - {anchor['artist']}"
     else:
@@ -232,7 +232,7 @@ def list_feed_entries(
     if not types or "recalibration" in types:
         q = db.query(SongRecalibration)
         if song_filter:
-            q = q.filter(SongRecalibration.unified_song_id == filter_unified_id) \
+            q = q.filter(SongRecalibration.song_id == filter_unified_id) \
                 if filter_unified_id else q.filter(False)
         for row in q.all():
             entries.append(_recalibration_to_entry(row, db, slug_cache))

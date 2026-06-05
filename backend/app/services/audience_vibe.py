@@ -92,13 +92,13 @@ def _consensus_value(compass: Optional[int], up: int, agree: int, down: int) -> 
 def _get_or_create_needle(db: Session, unified_id: int, song: Song) -> AudienceVibeNeedle:
     needle = (
         db.query(AudienceVibeNeedle)
-        .filter(AudienceVibeNeedle.unified_song_id == unified_id)
+        .filter(AudienceVibeNeedle.song_id == unified_id)
         .first()
     )
     if needle:
         return needle
     needle = AudienceVibeNeedle(
-        song_source="songs", song_id=unified_id, unified_song_id=unified_id,
+        song_id=unified_id,
         current_value=_initial_needle_value(song),
         pushes_up_total=0, pushes_down_total=0, pushes_agree_total=0,
     )
@@ -113,7 +113,7 @@ def _check_eligibility(db: Session, unified_id: int, device_id: str, year: int) 
         return False
     existing = (
         db.query(AudienceVibePush.id)
-        .filter(AudienceVibePush.unified_song_id == unified_id)
+        .filter(AudienceVibePush.song_id == unified_id)
         .filter(AudienceVibePush.device_id == device_id)
         .filter(AudienceVibePush.push_year == year)
         .first()
@@ -125,7 +125,7 @@ def _year_directional_split(db: Session, unified_id: int, year: int) -> dict:
     """Counts of pushes in the current year, by direction."""
     rows = (
         db.query(AudienceVibePush.direction, func.count(AudienceVibePush.id))
-        .filter(AudienceVibePush.unified_song_id == unified_id)
+        .filter(AudienceVibePush.song_id == unified_id)
         .filter(AudienceVibePush.push_year == year)
         .group_by(AudienceVibePush.direction)
         .all()
@@ -154,7 +154,7 @@ def _maybe_open_review_case(
 
     existing = (
         db.query(AudienceVibeReviewCase)
-        .filter(AudienceVibeReviewCase.unified_song_id == unified_id)
+        .filter(AudienceVibeReviewCase.song_id == unified_id)
         .filter(AudienceVibeReviewCase.status == "open")
         .first()
     )
@@ -166,7 +166,7 @@ def _maybe_open_review_case(
         return existing
 
     case = AudienceVibeReviewCase(
-        song_source="songs", song_id=unified_id, unified_song_id=unified_id,
+        song_id=unified_id,
         compass_charge=compass_charge, compass_color=compass_color,
         vibe_value=vibe_value, gap=gap, status="open",
     )
@@ -180,7 +180,7 @@ def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) 
     unified_id = song.id
     needle = (
         db.query(AudienceVibeNeedle)
-        .filter(AudienceVibeNeedle.unified_song_id == unified_id)
+        .filter(AudienceVibeNeedle.song_id == unified_id)
         .first()
     )
     year = datetime.utcnow().year
@@ -245,7 +245,7 @@ def apply_push(
     needle = _get_or_create_needle(db, unified_id, song)
 
     push = AudienceVibePush(
-        song_source="songs", song_id=unified_id, unified_song_id=unified_id,
+        song_id=unified_id,
         direction=direction,
         device_id=device_id, ip_address=ip_address, push_year=year,
         user_id=user_id,
@@ -323,7 +323,7 @@ def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
         if unified_id not in needle_cache:
             needle = (
                 db.query(AudienceVibeNeedle)
-                .filter(AudienceVibeNeedle.unified_song_id == unified_id)
+                .filter(AudienceVibeNeedle.song_id == unified_id)
                 .first()
             )
             needle_cache[unified_id] = needle.current_value if needle else None
@@ -334,7 +334,7 @@ def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
         if unified_id not in slug_cache:
             row = (
                 db.query(SongSlug)
-                .filter(SongSlug.unified_song_id == unified_id)
+                .filter(SongSlug.song_id == unified_id)
                 .first()
             )
             slug_cache[unified_id] = row.slug if row else None
@@ -347,7 +347,7 @@ def get_user_activity(db: Session, user_id: int, limit: int = 100) -> dict:
 
     items = []
     for p in pushes:
-        unified_id = p.unified_song_id
+        unified_id = p.song_id
         entry = {
             "song_source": "songs",
             "song_id": unified_id,

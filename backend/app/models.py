@@ -317,14 +317,12 @@ class UserCalibration(Base):
     """
     __tablename__ = "user_calibrations"
     __table_args__ = (
-        UniqueConstraint("user_id", "song_source", "song_id", name="uq_user_calibration_song"),
+        UniqueConstraint("song_id", "user_id", name="uq_user_calibration_song_uid"),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, index=True)
-    song_source = Column(String(20), nullable=False)  # compass | library | submitted
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     song_slug = Column(Text)  # denormalized for the account-page link
     title = Column(Text)
     artist = Column(Text)
@@ -423,11 +421,9 @@ class MisreadSubmission(Base):
     status = Column(String(20), default="pending")  # pending / reviewed / accepted / rejected / flagged
     report_type = Column(String(20), nullable=False, default="misread")  # misread / satirical
     proof_context = Column(Text)  # required when report_type='satirical'
-    # Polymorphic ref into the three song tables; nullable, set by the slug
+    # Atomic song ref (unified renovation 5c-2), nullable, set by the slug
     # matcher when the submitted (title, artist) resolves cleanly.
-    song_source = Column(String(20))  # compass / library / submitted
-    song_id = Column(Integer)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
 
 
 class StreamSong(Base):
@@ -558,23 +554,21 @@ class SongArtist(Base):
     """Song → artist attribution (N:M). Makes multi-artist songs representable
     across collabs (primary & primary) and features (primary + featured).
 
-    Polymorphic via (song_source, song_id). Role enum stays small on purpose:
-    primary | featured. Position is display-order within the credit string.
+    Keyed on the atomic songs.id (unified renovation 5c-2). Role enum stays
+    small on purpose: primary | featured. Position is display-order within the
+    credit string.
     """
     __tablename__ = "song_artists"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    song_source = Column(String(20), nullable=False)
-    song_id = Column(Integer, nullable=False)
-    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
     artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(20), nullable=False, default="primary")
     position = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("song_source", "song_id", "artist_id", name="uq_song_artists_song_artist"),
+        UniqueConstraint("song_id", "artist_id", name="uq_song_artists_uid_artist"),
     )
 
     artist = relationship("Artist")
@@ -617,10 +611,8 @@ class ReleaseSong(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     release_id = Column(Integer, ForeignKey("releases.id"), nullable=False)
-    song_source = Column(String(20), nullable=False)  # compass / library / submitted
-    song_id = Column(Integer, nullable=False)
-    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    # Unified renovation (5c-2): the atomic songs.id.
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
     track_number = Column(Integer)
 
     release = relationship("Release", back_populates="songs")
@@ -634,10 +626,8 @@ class SongSlug(Base):
     slug = Column(String(300), unique=True, nullable=False)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
-    song_source = Column(String(20))  # compass / library / submitted
-    song_id = Column(Integer)
-    # Unified renovation (migration 082): repointed to songs.id in Phase 2.
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    # Unified renovation (5c-2): the atomic songs.id.
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -702,9 +692,7 @@ class SongRecalibrationProposal(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     lens = Column(String(20), nullable=False)  # standard | satire  (how the agent re-reads)
-    song_source = Column(String(20), nullable=False)
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     pipeline = Column(String(40))  # manual | rubric_update | satirical_flag | vibe_gap | consensus_drift
     trigger_ref_id = Column(Integer)  # FK-shaped pointer back to the triggering row (flag id, etc.)
     original_charge = Column(Integer)
@@ -739,9 +727,7 @@ class SongRecalibration(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     lens = Column(String(20), nullable=False)  # standard | satire
-    song_source = Column(String(20), nullable=False)
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     proposal_id = Column(Integer, ForeignKey("song_recalibration_proposals.id", ondelete="SET NULL"))
     pipeline = Column(String(40))  # manual | rubric_update | satirical_flag | vibe_gap | consensus_drift
     trigger_ref_id = Column(Integer)
@@ -815,9 +801,7 @@ class AudienceVibeNeedle(Base):
     __tablename__ = "audience_vibe_needles"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    song_source = Column(String(20), nullable=False)
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     current_value = Column(Integer, nullable=False, default=0)  # -100..+100
     pushes_up_total = Column(Integer, nullable=False, default=0)
     pushes_down_total = Column(Integer, nullable=False, default=0)
@@ -827,7 +811,7 @@ class AudienceVibeNeedle(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("song_source", "song_id", name="uq_vibe_needles_song"),
+        UniqueConstraint("song_id", name="uq_vibe_needles_uid"),
     )
 
 
@@ -843,9 +827,7 @@ class AudienceVibePush(Base):
     __tablename__ = "audience_vibe_pushes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    song_source = Column(String(20), nullable=False)
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     direction = Column(Integer, nullable=False)  # +1 (higher), 0 (agree), -1 (lower)
     user_id = Column(Integer)  # nullable — placeholder for future auth
     device_id = Column(Text)
@@ -855,8 +837,8 @@ class AudienceVibePush(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "song_source", "song_id", "device_id", "push_year",
-            name="uq_vibe_pushes_device_year",
+            "song_id", "device_id", "push_year",
+            name="uq_vibe_pushes_uid_device_year",
         ),
     )
 
@@ -870,9 +852,7 @@ class AudienceVibeReviewCase(Base):
     __tablename__ = "audience_vibe_review_cases"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    song_source = Column(String(20), nullable=False)
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     compass_charge = Column(Integer)
     compass_color = Column(String(20))
     vibe_value = Column(Integer, nullable=False)
@@ -920,9 +900,7 @@ class CalibrationRun(Base):
     __tablename__ = "calibration_runs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    song_source = Column(String(20))
-    song_id = Column(Integer)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     title = Column(Text)
     artist = Column(Text)
     rubric_color = Column(String(20))
@@ -950,17 +928,16 @@ class CalibrationRun(Base):
 class SongReset(Base):
     """Append-only audit log of resets: calibrations returned to the null state.
 
-    Polymorphic (song_source, song_id). Carries a full before-snapshot so the
-    public history timeline can render what was wiped. Distinct from
-    SongRecalibration, which always writes a new charge (satire / public-
-    interest re-reads). Resets go the other direction — back to uncalibrated.
+    Keyed on the atomic songs.id (unified renovation 5c-2). Carries a full
+    before-snapshot so the public history timeline can render what was wiped.
+    Distinct from SongRecalibration, which always writes a new charge (satire /
+    public-interest re-reads). Resets go the other direction -- back to
+    uncalibrated.
     """
     __tablename__ = "song_resets"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    song_source = Column(String(20), nullable=False)
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     before_charge = Column(Integer)
     before_color = Column(String(20))
     before_summary = Column(Text)
@@ -1072,9 +1049,7 @@ class ArtistVerificationBlock(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
-    song_source = Column(String(20), nullable=False)  # compass | library | submitted
-    song_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     block_text = Column(Text)
     video_url = Column(Text)
     audio_url = Column(Text)
@@ -1085,7 +1060,7 @@ class ArtistVerificationBlock(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        UniqueConstraint("artist_id", "song_source", "song_id", name="uq_av_blocks_artist_song"),
+        UniqueConstraint("artist_id", "song_id", name="uq_av_blocks_artist_uid"),
     )
 
     artist = relationship("Artist")
@@ -1104,9 +1079,7 @@ class ArtistVerificationInquiry(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     song_title = Column(Text, nullable=False)
     song_artist = Column(Text, nullable=False)
-    song_source = Column(String(20))
-    song_id = Column(Integer)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     song_color = Column(String(20))
     song_position = Column(Integer)
     claimant_name = Column(Text, nullable=False)
@@ -1234,9 +1207,9 @@ class BackfillJobRow(Base):
     status = Column(String(20), nullable=False, default="queued")
     error = Column(Text)
     # Result hand-off — which song row was created/updated
-    result_song_source = Column(String(20))  # 'compass' | 'library'
-    result_song_id = Column(Integer)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082)
+    result_song_source = Column(String(20))  # 'compass' | 'library' (legacy; drops in 5d)
+    result_song_id = Column(Integer)  # legacy; drops in 5d
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
     # Cached calibrator + tagger output for quick UI display
     rubric_color = Column(Text)
     charge_value = Column(Integer)
@@ -1301,7 +1274,7 @@ class Comment(Base):
     target_type = Column(Text, nullable=False)
     target_source = Column(Text)
     target_id = Column(Integer, nullable=False)
-    unified_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (migration 082; target_type='song' only)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2; target_type='song' only)
     # Self-referential FKs are DEFERRABLE INITIALLY DEFERRED: a top-level
     # comment sets thread_root_id to its own (not-yet-assigned) id, so the
     # check must happen at commit, not at the INSERT flush. (On SQLite this

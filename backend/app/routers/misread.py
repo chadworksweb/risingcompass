@@ -294,9 +294,7 @@ def submit_misread(
         ip_address=ip,
         report_type=data.report_type,
         proof_context=proof,
-        song_source="songs" if unified_song_id else None,
         song_id=unified_song_id,
-        unified_song_id=unified_song_id,
     )
     db.add(submission)
     db.commit()
@@ -329,7 +327,7 @@ def _serialize_for_out(submission: MisreadSubmission, user: Optional[User]) -> d
         "status": submission.status,
         "report_type": submission.report_type,
         "proof_context": submission.proof_context,
-        "song_source": submission.song_source,
+        "song_source": "songs" if submission.song_id else None,
         "song_id": submission.song_id,
     }
 

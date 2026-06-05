@@ -406,7 +406,7 @@ def get_user_calibrations(
         items=[
             UserCalibrationOut(
                 id=r.id,
-                song_source=r.song_source,
+                song_source="songs",
                 song_id=r.song_id,
                 song_slug=r.song_slug,
                 title=r.title,
@@ -466,7 +466,7 @@ def get_user_submissions(
                 song_title=r.song_title,
                 song_artist=r.song_artist,
                 song_color=r.song_color,
-                song_source=r.song_source,
+                song_source="songs" if r.song_id else None,
                 song_id=r.song_id,
                 message=r.message,
                 status=r.status,

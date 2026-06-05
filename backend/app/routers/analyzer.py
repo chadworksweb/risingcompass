@@ -461,10 +461,11 @@ def _song_persist_fields(calibration: dict) -> dict:
 
 
 def _record_user_calibration(
-    db, *, user_id: int, song_source: str, song_id: int,
+    db, *, user_id: int, song_id: int,
     song_slug: str | None, title: str, artist: str, calibration: dict,
 ) -> None:
     """Upsert the "songs you've calibrated" row for a signed-in LC user.
+    `song_id` is the atomic songs.id (unified renovation 5c-2).
 
     One row per (user, canonical song); re-running refreshes the snapshot +
     calibrated_at. Fails soft -- a logging tool reading shouldn't 500 because
@@ -475,7 +476,6 @@ def _record_user_calibration(
             db.query(UserCalibration)
             .filter(
                 UserCalibration.user_id == user_id,
-                UserCalibration.song_source == song_source,
                 UserCalibration.song_id == song_id,
             )
             .first()
@@ -493,7 +493,6 @@ def _record_user_calibration(
         else:
             db.add(UserCalibration(
                 user_id=user_id,
-                song_source=song_source,
                 song_id=song_id,
                 song_slug=song_slug,
                 title=title,
@@ -760,7 +759,7 @@ async def calibrate_lyrics_endpoint(
             if current_user is not None:
                 _record_user_calibration(
                     write_db, user_id=current_user.id,
-                    song_source=canonical_source, song_id=canonical_id,
+                    song_id=canonical_id,
                     song_slug=song_slug, title=title, artist=artist,
                     calibration=calibration,
                 )
@@ -1033,7 +1032,7 @@ async def calibrate_search(
             if current_user is not None:
                 _record_user_calibration(
                     write_db, user_id=current_user.id,
-                    song_source=canonical_source, song_id=canonical_id,
+                    song_id=canonical_id,
                     song_slug=song_slug, title=title, artist=artist,
                     calibration=calibration,
                 )

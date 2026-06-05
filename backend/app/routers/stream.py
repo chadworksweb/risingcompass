@@ -324,7 +324,7 @@ def delete_stream_song(song_id: int, db: Session = Depends(get_db)):
     if orphan:
         for t in ("song_artists", "song_slugs", "user_calibrations", "calibration_runs",
                   "misread_submissions"):
-            db.execute(text(f"DELETE FROM {t} WHERE unified_song_id = :s"), {"s": sid})
+            db.execute(text(f"DELETE FROM {t} WHERE song_id = :s"), {"s": sid})
         db.execute(text("DELETE FROM song_id_map WHERE new_song_id = :s"), {"s": sid})
         db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": sid})
     db.commit()

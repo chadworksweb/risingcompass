@@ -16,7 +16,7 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models import Artist, Comment, CommentNotification, SongSlug, User
@@ -96,12 +96,22 @@ def _resolve_link(db: Session, comment: Optional[Comment]) -> Optional[str]:
         return None
     anchor = f"#comment-{comment.id}"
     if comment.target_type == "song":
-        ss = (
-            db.query(SongSlug)
-            .filter(SongSlug.song_source == comment.target_source)
-            .filter(SongSlug.song_id == comment.target_id)
-            .first()
-        )
+        # Resolve the comment's target to the atomic songs.id, then look up the
+        # slug by song_id (unified renovation 5c-2). Native song comments carry
+        # target_source='songs' + the unified id; legacy targets map via
+        # song_id_map.
+        if comment.target_source == "songs":
+            uid = comment.target_id
+        elif comment.target_source and comment.target_id:
+            uid = db.execute(
+                text("SELECT new_song_id FROM song_id_map WHERE old_source = :s AND old_id = :i"),
+                {"s": comment.target_source, "i": comment.target_id},
+            ).scalar()
+        else:
+            uid = None
+        if not uid:
+            return None
+        ss = db.query(SongSlug).filter(SongSlug.song_id == uid).first()
         return f"/songs/{ss.slug}{anchor}" if ss else None
     if comment.target_type == "artist":
         a = db.query(Artist).filter(Artist.id == comment.target_id).first()
