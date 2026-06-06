@@ -1,0 +1,213 @@
+/* === Charger Activity — three-feed board ===
+ * Reuses the site's existing vocabulary: the album-track-result row (tier dot +
+ * contam/dogma badges + charge), the calibration-log filter pill (toggle) and
+ * load-more button. All --rc-* tokens; page constrained to the site width. */
+
+.ca-page-main {
+  max-width: var(--rc-max-width);
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 4rem;
+  font-family: var(--rc-font-sans, 'Inter', system-ui, sans-serif);
+}
+
+/* --- Page header --- */
+.ca-head { margin: 0 0 2rem; }
+.ca-eyebrow {
+  margin: 0 0 0.5rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ca-eyebrow a { color: var(--rc-accent); text-decoration: none; }
+.ca-eyebrow a:hover { text-decoration: underline; }
+.ca-title {
+  margin: 0 0 0.6rem;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  letter-spacing: -0.01em;
+}
+.ca-intro {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--rc-text-dim);
+  line-height: 1.6;
+  font-size: 0.98rem;
+}
+
+/* --- Board --- */
+.ca-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.ca-column {
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+  padding: 1.1rem 1.1rem 1.25rem;
+  min-width: 0;
+}
+
+.ca-col-head { margin-bottom: 0.9rem; }
+.ca-col-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.26rem;  /* +20% over 1.05rem */
+  font-weight: 700;
+  color: var(--rc-text-bright);
+}
+.ca-col-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--rc-text-dim);
+  line-height: 1.45;
+}
+
+/* --- Window toggle: the calibration-log filter pill --- */
+.ca-toggle { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.8rem; }
+.ca-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--rc-border);
+  color: var(--rc-text-dim);
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--rc-font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  transition: all var(--rc-ease-fast);
+}
+.ca-toggle-btn:hover { color: var(--rc-text-bright); border-color: var(--rc-border-ui); }
+.ca-toggle-active,
+.ca-toggle-active:hover {
+  color: var(--rc-bg-dark);
+  background: var(--rc-accent);
+  border-color: var(--rc-accent);
+}
+
+/* --- Feed list of song cards --- */
+.ca-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* Each song is a distinct elevated card on the panel — clear border + hover. */
+.ca-card { margin: 0; }
+.ca-card-link {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--rc-elevated-shadow, none);
+  transition: border-color var(--rc-ease-fast), transform var(--rc-ease-fast);
+}
+a.ca-card-link:hover { border-color: var(--rc-accent); }
+a.ca-card-link:active { transform: translateY(1px); }
+
+/* Top line: rank? + tier dot + title + contam/dogma + charge */
+.ca-line {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ca-line.has-rank { grid-template-columns: 1.5rem auto 1fr auto; }
+
+.ca-rank {
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--rc-text-dim);
+  text-align: right;
+}
+
+/* Tier dot — verbatim .atr-dot */
+.ca-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ca-song {
+  font-family: var(--rc-font-mono);
+  color: var(--rc-text-bright);
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.ca-song-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Contamination uses the homepage .contam-icon (radioactive glyph, main.css).
+   Dogma is its inline sibling — the scroll glyph, carrying its own color. */
+.ca-dogma {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+/* Charge — mono, colored by tier (parity with the library charge cell) */
+.ca-charge {
+  font-family: var(--rc-font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: right;
+}
+.ca-charge.color-violet { color: var(--rc-violet); }
+.ca-charge.color-blue   { color: var(--rc-blue); }
+.ca-charge.color-green  { color: var(--rc-green); }
+.ca-charge.color-orange { color: var(--rc-orange); }
+.ca-charge.color-red    { color: var(--rc-red); }
+
+/* Bottom line: artist + the feed's metric */
+.ca-sub {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+  padding-left: 1.2rem;  /* align under the title past the dot */
+}
+.ca-artist {
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ca-metric {
+  flex: 0 0 auto;
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  color: var(--rc-text-dim);
+  white-space: nowrap;
+}
+
+/* --- States --- */
+.ca-loading, .ca-empty {
+  list-style: none;
+  padding: 0.9rem 0.2rem;
+  color: var(--rc-text-dim);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.ca-empty a { color: var(--rc-accent); }
+.ca-err { color: var(--rc-orange); }
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .ca-board { grid-template-columns: 1fr; gap: 1rem; }
+}

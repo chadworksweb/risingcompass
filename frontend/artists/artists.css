@@ -1,5 +1,13 @@
 /* === Artists & Songs Pages === */
 
+/* Smooth-scroll the A-Z letter-nav jumps (and any in-page anchors). Scoped to
+   artist pages by virtue of artists.css only loading there. Reduced-motion
+   users keep instant jumps. */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
 body {
   background: var(--rc-bg-dark);
   color: var(--rc-text);
@@ -195,7 +203,7 @@ body {
 
 /* --- Artists A–Z index page --- */
 .artists-index-main {
-  max-width: 900px;
+  max-width: var(--rc-max-width);
   margin: 1.5rem auto 4rem;
   padding: 0 1.5rem;
 }
@@ -203,6 +211,7 @@ body {
 .artists-letter-nav {
   display: flex;
   flex-wrap: wrap;
+  justify-content: space-between;
   gap: 0.25rem;
   margin-bottom: 1.5rem;
   padding-bottom: 0.75rem;
@@ -216,20 +225,22 @@ body {
 
 .artists-letter-nav-link {
   font-family: var(--rc-font-mono);
-  font-size: 0.72rem;
-  min-width: 1.6rem;
-  padding: 0.25rem 0.4rem;
+  font-size: 1.05rem;
+  min-width: 2.4rem;
+  padding: 0.4rem 0.6rem;
   text-align: center;
   color: var(--rc-text-dim);
   text-decoration: none;
-  border: 1px solid transparent;
-  border-radius: var(--rc-radius-xs);
-  transition: color var(--rc-ease), border-color var(--rc-ease);
+  border: 1px solid var(--rc-border);
+  background: var(--rc-bg-card);
+  border-radius: var(--rc-radius-sm);
+  transition: color var(--rc-ease), border-color var(--rc-ease), background var(--rc-ease);
 }
 .artists-letter-nav-link:hover,
 .artists-letter-nav-link:focus-visible {
-  color: var(--rc-text);
-  border-color: var(--rc-border-ui);
+  color: var(--rc-text-bright);
+  border-color: var(--rc-accent);
+  background: var(--rc-bg-panel);
 }
 
 .artists-index-loading {
@@ -249,13 +260,17 @@ body {
 .artists-index-empty[hidden] { display: none; }
 
 .artists-index-group {
-  margin-bottom: 1.75rem;
-  scroll-margin-top: 4rem;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+  padding: 1.25rem 1.5rem 1rem;
+  margin-bottom: 1rem;
+  scroll-margin-top: 5rem;
 }
 
 .artists-index-letter {
   font-family: var(--rc-font-mono);
-  font-size: 0.85rem;
+  font-size: 1.7rem;  /* 2x the prior 0.85rem */
   color: var(--rc-text-dim);
   letter-spacing: 0.1em;
   margin: 0 0 0.5rem;
@@ -267,9 +282,11 @@ body {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  /* Flow names into responsive columns so the site-width container reads as
+     a real index rather than one far-left column of names. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.1rem 1.5rem;
 }
 
 .artists-index-link {

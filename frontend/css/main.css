@@ -2920,11 +2920,10 @@ td.yo-charge {
 
 /* === Footer === */
 .site-footer {
-  text-align: center;
-  padding: var(--rc-gap-dashboard) 1rem;
+  padding: 2.75rem 1.5rem 1.5rem;
   border-top: 1px solid var(--rc-border);
   margin-top: var(--rc-gap-dashboard);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--rc-text-dim);
   /* Sitewide footer mirrors the header treatment so the venue pages
      (cream body) and the dashboard (dark body) both render the
@@ -2933,9 +2932,87 @@ td.yo-charge {
   background: var(--rc-bg-panel);
 }
 
-.site-footer a {
-  color: var(--rc-accent);
+/* Grouped link columns + brand block, capped to the site content width. */
+.footer-grid {
+  max-width: var(--rc-max-width);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.4fr repeat(5, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+}
+
+.footer-brand { max-width: 28ch; }
+.footer-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--rc-text-bright);
+  font-weight: 700;
+  font-size: 0.95rem;
   text-decoration: none;
+}
+.footer-logo svg { flex: 0 0 auto; }
+.footer-tagline {
+  margin: 0.7rem 0 0;
+  color: var(--rc-text-dim);
+  line-height: 1.5;
+  font-size: 0.78rem;
+}
+
+.footer-head {
+  margin: 0 0 0.85rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-text);
+}
+.footer-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.footer-links a,
+.footer-legal a {
+  color: var(--rc-text-dim);
+  text-decoration: none;
+  transition: color var(--rc-ease-fast);
+}
+.footer-links a:hover,
+.footer-legal a:hover { color: var(--rc-accent); }
+
+.footer-bottom {
+  max-width: var(--rc-max-width);
+  margin: 2.25rem auto 0;
+  padding-top: 1.3rem;
+  border-top: 1px solid var(--rc-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+}
+.footer-copy { margin: 0; font-size: 0.75rem; color: var(--rc-text-dim); }
+.footer-legal {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 880px) {
+  .footer-grid { grid-template-columns: 1fr 1fr; gap: 1.75rem; }
+  .footer-brand { grid-column: 1 / -1; max-width: none; }
+}
+@media (max-width: 520px) {
+  .footer-grid { grid-template-columns: 1fr; gap: 1.5rem; }
+  .footer-bottom { flex-direction: column; align-items: flex-start; }
 }
 
 /* === Lyrical Charger Promo === */

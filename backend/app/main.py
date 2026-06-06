@@ -21,7 +21,7 @@ from app.migrate import run_migrations
 # startup, migrations, and every swallowed "non-fatal" exception persist.
 configure_logging()
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ApiCallLog
-from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber, prose_admin
+from app.routers import compass, drift, albums, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber, prose_admin, charger_activity
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +326,7 @@ app.include_router(ether_audits.router)
 app.include_router(backfill_admin.router)
 app.include_router(calibration_log.router)
 app.include_router(calibration_log.public_router, dependencies=_api_key_dep)
+app.include_router(charger_activity.public_router, dependencies=_api_key_dep)
 app.include_router(chart_snapshots.admin_router)
 app.include_router(v1_test.router)
 

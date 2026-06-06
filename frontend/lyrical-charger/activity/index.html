@@ -72,33 +72,22 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Motion ledger -- The Rising Compass</title>
-  <meta name="description" content="Every motion ever filed on the Rising Compass framework -- proposed, deliberating, ratified, covered, rejected. Public reading, no sign-in required.">
-  <link rel="canonical" href="https://risingcompass.net/motion-desk/motion-ledger/">
-
+  <title>Charger Activity &mdash; The Rising Compass</title>
+  <meta name="description" content="What's moving through the Lyrical Charger: new songs entering the Library, the most recently calibrated tracks, and the songs run through the Charger most often.">
+  <meta property="og:title" content="Charger Activity &mdash; The Rising Compass">
+  <meta property="og:description" content="New additions, recently calibrated, and most calibrated songs from the Lyrical Charger.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/lyrical-charger/activity/">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
-
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/motion-desk/motion-ledger/">
-  <meta property="og:title" content="Motion ledger -- The Rising Compass">
-  <meta property="og:description" content="Every motion ever filed on the Rising Compass framework.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Motion ledger -- The Rising Compass">
-  <meta name="twitter:description" content="Every motion ever filed on the Rising Compass framework.">
-  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Cormorant+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/motion-desk/motion-desk.css">
+  <link rel="stylesheet" href="/lyrical-charger/activity/activity.css">
 </head>
-<body>
+<body class="rc-elevated">
   <a class="skip-nav" href="#main">Skip to content</a>
 
   <!-- INCLUDE:header -->
@@ -174,61 +163,55 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="main" class="md-main">
-
-    <section class="md-hero">
-      <p class="md-eyebrow"><a href="/motion-desk/">Motion Desk</a></p>
-      <h1 class="md-title">Motion ledger</h1>
-      <p class="md-kicker">Every motion ever filed, on the record.</p>
-    </section>
-
-    <nav class="md-tabbar md-tabbar-routed" aria-label="Motion Desk sections">
-      <a class="md-tab" href="/motion-desk/file-a-motion/">File a motion</a>
-      <a class="md-tab active" href="/motion-desk/motion-ledger/" aria-current="page">Motion ledger</a>
-    </nav>
-
-    <section class="md-record" aria-label="Public motion ledger">
-      <p class="md-record-help">
-        Every motion ever filed, public from the moment it lands.
-        Amendments to tenets also appear on the
-        <a href="/amendments/">amendment record</a>.
+  <main id="main" class="ca-page-main">
+    <header class="ca-head">
+      <p class="ca-eyebrow"><a href="/lyrical-charger/">Lyrical Charger</a></p>
+      <h1 class="ca-title">Charger Activity</h1>
+      <p class="ca-intro">
+        A live look at what the world is running through the Lyrical Charger. Songs enter
+        the Library the first time someone calibrates them.
       </p>
+    </header>
 
-      <div class="md-filter-row">
-        <button class="md-filter active" data-status="open" type="button">Open</button>
-        <button class="md-filter" data-status="filed" type="button">Filed</button>
-        <button class="md-filter" data-status="in_deliberation" type="button">In deliberation</button>
-        <button class="md-filter" data-status="ratified" type="button">Ratified</button>
-        <button class="md-filter" data-status="covered" type="button">Covered</button>
-        <button class="md-filter" data-status="rejected" type="button">Rejected</button>
-        <button class="md-filter" data-status="all" type="button">All</button>
-      </div>
-      <div class="md-filter-row" id="typeFilters">
-        <button class="md-filter active" data-type="all" type="button">All types</button>
-        <button class="md-filter" data-type="amend_tenet" type="button">Amend tenet</button>
-        <button class="md-filter" data-type="new_tenet" type="button">New tenet</button>
-        <button class="md-filter" data-type="remove_tenet" type="button">Remove tenet</button>
-        <button class="md-filter" data-type="amend_rule" type="button">Amend rule</button>
-        <button class="md-filter" data-type="new_rule" type="button">New rule</button>
-        <button class="md-filter" data-type="remove_rule" type="button">Remove rule</button>
-        <button class="md-filter" data-type="process" type="button">Process</button>
-      </div>
+    <div class="ca-board">
+      <section class="ca-column" aria-labelledby="ca-new-h">
+        <div class="ca-col-head">
+          <h2 class="ca-col-title" id="ca-new-h">New Additions</h2>
+          <p class="ca-col-sub">First-time calibrations &mdash; songs that just joined the Library.</p>
+        </div>
+        <ol class="ca-list" id="ca-new" aria-live="polite">
+          <li class="ca-loading">Loading&hellip;</li>
+        </ol>
+      </section>
 
-      <div class="md-record-list" id="recordList">
-        <p class="md-empty">Loading...</p>
-      </div>
-    </section>
+      <section class="ca-column" aria-labelledby="ca-recent-h">
+        <div class="ca-col-head">
+          <h2 class="ca-col-title" id="ca-recent-h">Recently Calibrated</h2>
+          <p class="ca-col-sub">The songs most recently run through the Lyrical Charger.</p>
+        </div>
+        <ol class="ca-list" id="ca-recent" aria-live="polite">
+          <li class="ca-loading">Loading&hellip;</li>
+        </ol>
+      </section>
 
-    <footer class="md-footer">
-      <p class="footer-note">
-        See also: <a href="/motion-desk/file-a-motion/">file a motion</a> &middot; <a href="/tenets/">the tenets</a> &middot; <a href="/amendments/">the amendment record</a>
-      </p>
-    </footer>
-
+      <section class="ca-column" aria-labelledby="ca-most-h">
+        <div class="ca-col-head">
+          <h2 class="ca-col-title" id="ca-most-h">Most Calibrated</h2>
+          <p class="ca-col-sub">The songs run through the Lyrical Charger most often.</p>
+          <div class="ca-toggle" role="group" aria-label="Time window">
+            <button class="ca-toggle-btn ca-toggle-active" data-window="all">All-time</button>
+            <button class="ca-toggle-btn" data-window="30d">Last 30 days</button>
+          </div>
+        </div>
+        <ol class="ca-list" id="ca-most" aria-live="polite">
+          <li class="ca-loading">Loading&hellip;</li>
+        </ol>
+      </section>
+    </div>
   </main>
 
-  <script src="/js/auth.js" defer></script>
-  <script src="/motion-desk/motion-desk.js" defer></script>
+  <script src="/js/api.js"></script>
+  <script src="/lyrical-charger/activity/activity.js"></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">
