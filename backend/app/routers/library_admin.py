@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import AlbumDeepDive, Song
+from app.models import Song
 from app.schemas import LibrarySongCreate, LibrarySongUpdate, LibrarySongOut
 from app.routers.admin import verify_admin_key
 from app.services.artist_linker import parse_artist_string, link_song_artists
@@ -78,11 +78,6 @@ def list_library_songs(
 @router.post("/songs", response_model=LibrarySongOut, dependencies=[Depends(verify_admin_key)])
 def create_library_song(data: LibrarySongCreate, db: Session = Depends(get_db)):
     """Add a song to the library (standalone or album-linked)."""
-    if data.album_id is not None:
-        album = db.query(AlbumDeepDive).filter(AlbumDeepDive.id == data.album_id).first()
-        if not album:
-            raise HTTPException(status_code=404, detail=f"Album ID {data.album_id} not found")
-
     title = data.title
     artist = data.artist
     key = compute_canonical_key(title, artist)

@@ -96,33 +96,6 @@ class WeeklyAlbumEntry(Base):
     reading = relationship("WeeklyAlbumReading", back_populates="albums")
 
 
-class AlbumDeepDive(Base):
-    __tablename__ = "album_deep_dives"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(Text, nullable=False)
-    artist = Column(Text, nullable=False)
-    slug = Column(String(200), unique=True, nullable=False)
-    release_year = Column(Integer)
-    overall_color = Column(Text)
-    summary = Column(Text)
-
-    tracks = relationship("AlbumTrack", back_populates="album", cascade="all, delete-orphan")
-
-
-class AlbumTrack(Base):
-    __tablename__ = "album_tracks"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=False)
-    track_number = Column(Integer, nullable=False)
-    name = Column(Text, nullable=False)
-    charge_color = Column(Text)
-    assessment = Column(Text)
-
-    album = relationship("AlbumDeepDive", back_populates="tracks")
-
-
 class AgentDraft(Base):
     __tablename__ = "agent_drafts"
     __table_args__ = (
@@ -262,7 +235,7 @@ class LcEvent(Base):
 class AlbumCalibration(Base):
     """Computed album-level calibration — mean of constituent song charges.
 
-    Not editorial (that's album_deep_dives). This is the badge-serving layer.
+    Not editorial. This is the badge-serving layer.
     """
     __tablename__ = "album_calibrations"
 
@@ -1530,8 +1503,9 @@ class Song(Base):
     message_analysis = Column(Text)
     expression_analysis = Column(Text)
     intention_analysis = Column(Text)
-    # --- library linkage (from library_songs) ---
-    album_id = Column(Integer, ForeignKey("album_deep_dives.id"), nullable=True)
+    # --- library linkage (from library_songs); album_id is now a plain
+    # nullable int -- the album_deep_dives editorial table was dropped (mig 089).
+    album_id = Column(Integer, nullable=True)
     track_number = Column(Integer)
     # method that owns the current canonical calibration -- gates overwrite rules
     # (authoritative chart_reading/editorial/terminal beats crowd lyrical_charger/stream)

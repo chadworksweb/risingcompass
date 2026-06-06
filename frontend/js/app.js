@@ -3255,89 +3255,6 @@ const App = (() => {
     }
   }
 
-  // --- Albums ---
-  let albumsLoaded = false;
-  async function loadAlbums() {
-    if (albumsLoaded) return;
-    const container = document.getElementById('albums-content');
-    if (!container) return;
-
-    try {
-      const albums = await API.getAlbums();
-      albumsLoaded = true;
-
-      if (albums.length === 0) {
-        container.innerHTML = '<p style="color:var(--rc-text-dim);">No album deep dives yet.</p>';
-        return;
-      }
-
-      let html = '<div id="album-list-view" class="album-grid">';
-      albums.forEach(a => {
-        const colorDot = a.overall_color ? `<span class="song-dot ${a.overall_color}" style="display:inline-block;margin-right:0.4rem;"></span>` : '';
-        html += `
-          <div class="album-card" onclick="App.showAlbum('${a.slug}')">
-            <div class="album-card-title">${colorDot}${escapeHtml(a.title)}</div>
-            <div class="album-card-artist">${artistHtml(a.artist, a.artist_slug, 'album-card-artist-link')}</div>
-            ${a.release_year ? `<div class="album-card-year">${a.release_year}</div>` : ''}
-          </div>
-        `;
-      });
-      html += '</div>';
-      html += '<div id="album-detail-view" class="album-detail"></div>';
-
-      container.innerHTML = html;
-    } catch (err) {
-      container.innerHTML = '<div class="error-msg">Could not load albums.</div>';
-    }
-  }
-
-  async function showAlbum(slug) {
-    const listView = document.getElementById('album-list-view');
-    const detailView = document.getElementById('album-detail-view');
-    if (!listView || !detailView) return;
-
-    try {
-      const album = await API.getAlbum(slug);
-      listView.style.display = 'none';
-      detailView.classList.add('active');
-
-      let html = `<button class="album-back" onclick="App.backToAlbums()">&larr; Back to albums</button>`;
-      html += `<h3 style="color:var(--rc-text-bright);margin-bottom:0.2rem;">${escapeHtml(album.title)}</h3>`;
-      html += `<p style="color:var(--rc-text-dim);margin-bottom:1rem;">${artistHtml(album.artist, album.artist_slug, 'album-detail-artist')} ${album.release_year ? `(${album.release_year})` : ''}</p>`;
-
-      if (album.summary) {
-        html += `<p style="font-size:0.9rem;margin-bottom:1.5rem;line-height:1.6;">${escapeHtml(album.summary)}</p>`;
-      }
-
-      html += '<ul class="track-list">';
-      album.tracks.forEach(t => {
-        html += `
-          <li class="track-item">
-            <span class="track-num">${t.track_number}</span>
-            <span class="song-dot ${t.charge_color || 'orange'}"></span>
-            <span>${escapeHtml(t.name)}</span>
-            ${t.assessment ? `<span class="track-assessment">${escapeHtml(t.assessment)}</span>` : ''}
-          </li>
-        `;
-      });
-      html += '</ul>';
-
-      detailView.innerHTML = html;
-    } catch (err) {
-      detailView.innerHTML = '<div class="error-msg">Could not load album.</div>';
-    }
-  }
-
-  function backToAlbums() {
-    const listView = document.getElementById('album-list-view');
-    const detailView = document.getElementById('album-detail-view');
-    if (listView) listView.style.display = '';
-    if (detailView) {
-      detailView.classList.remove('active');
-      detailView.innerHTML = '';
-    }
-  }
-
   // --- Archive ---
   let archivePage = 1;
   let archiveLoaded = false;
@@ -3451,8 +3368,6 @@ const App = (() => {
   // --- Public ---
   return {
     init,
-    showAlbum,
-    backToAlbums,
     loadArchivePage,
     viewArchiveReading,
   };

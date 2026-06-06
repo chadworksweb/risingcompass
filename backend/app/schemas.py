@@ -185,42 +185,6 @@ class YearAggregate(BaseModel):
         return _degree_to_score(self.compass_degree)
 
 
-# --- Albums ---
-class AlbumTrackOut(BaseModel):
-    track_number: int
-    name: str
-    charge_color: Optional[str] = None
-    assessment: Optional[str] = None
-
-    model_config = {"from_attributes": True}
-
-
-class AlbumOut(BaseModel):
-    id: int
-    title: str
-    artist: str
-    slug: str
-    release_year: Optional[int] = None
-    overall_color: Optional[str] = None
-    summary: Optional[str] = None
-    tracks: list[AlbumTrackOut] = []
-    artist_slug: Optional[str] = None
-
-    model_config = {"from_attributes": True}
-
-
-class AlbumSummary(BaseModel):
-    id: int
-    title: str
-    artist: str
-    slug: str
-    release_year: Optional[int] = None
-    overall_color: Optional[str] = None
-    artist_slug: Optional[str] = None
-
-    model_config = {"from_attributes": True}
-
-
 # --- Paginated ---
 class PaginatedReadings(BaseModel):
     items: list[DailyReadingSummary]
