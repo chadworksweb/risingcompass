@@ -2920,7 +2920,11 @@ td.yo-charge {
 
 /* === Footer === */
 .site-footer {
-  padding: 2.75rem 1.5rem 1.5rem;
+  /* Horizontal padding lives on the INNER max-width boxes (.footer-grid /
+     .footer-bottom), exactly like .rc-header-inner, so footer content aligns
+     with the rest of the site. Putting it here would push content 1.5rem
+     outside the site content edge on wide screens. Vertical padding only. */
+  padding: 2.75rem 0 1.5rem;
   border-top: 1px solid var(--rc-border);
   margin-top: var(--rc-gap-dashboard);
   font-size: 0.8rem;
@@ -2932,10 +2936,13 @@ td.yo-charge {
   background: var(--rc-bg-panel);
 }
 
-/* Grouped link columns + brand block, capped to the site content width. */
+/* Grouped link columns + brand block. Same container pattern as
+   .rc-header-inner: max-width + auto margins + internal 1.5rem padding, so
+   footer content lines up exactly with the header and page content. */
 .footer-grid {
   max-width: var(--rc-max-width);
   margin: 0 auto;
+  padding: 0 1.5rem;
   display: grid;
   grid-template-columns: 1.4fr repeat(5, 1fr);
   gap: 1.75rem;
@@ -2989,7 +2996,7 @@ td.yo-charge {
 .footer-bottom {
   max-width: var(--rc-max-width);
   margin: 2.25rem auto 0;
-  padding-top: 1.3rem;
+  padding: 1.3rem 1.5rem 0;
   border-top: 1px solid var(--rc-border);
   display: flex;
   flex-wrap: wrap;
