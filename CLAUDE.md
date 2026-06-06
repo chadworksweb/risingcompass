@@ -315,6 +315,51 @@ each track and aggregating.
   page (counts + recent charged albums). Email alert `album_charged` (Activity,
   default-on, toggleable) via `alerts.emit_album_charged`.
 
+## Charger Activity (public feeds page, LIVE 2026-06-06)
+
+Public page at `/lyrical-charger/activity/` showing what's moving through the
+Lyrical Charger. Three feeds, all derived from existing tables -- **no schema
+change**:
+
+- **New Additions** (first-time calibration): songs whose *earliest*
+  `song_ingestions` row is `method='lyrical_charger'` (a non-LC ingestion that
+  predates it disqualifies -- excludes chart songs later re-run through LC).
+  Ordered by that ingestion `created_at` desc. NOTE: historical ingestion rows
+  predate the `created_at` default, so `first_calibrated_at` is often NULL on
+  legacy songs (blank "Added ..." label); the column populates going forward.
+- **Recently Calibrated**: distinct songs by `MAX(occurred_at)` of
+  `lc_events` rows with `event_type='submission_success'` AND `song_id` set
+  (counts ALL runs -- anon + signed-in, since that event is written for both).
+- **Most Calibrated**: same `lc_events` source, `COUNT(*)` per song, all-time or
+  trailing-30-day window (the worker filters `occurred_at >= utcnow()-30d` in
+  Python, so it's PG/SQLite-portable).
+
+Backend: `app/routers/charger_activity.py` (`public_router`, prefix
+`/api/charger-activity`, registered with `_api_key_dep` like the calibration-log
+public router). Endpoints: `/overview` (all three at once for first paint),
+`/new-additions`, `/recent`, `/most-run?window=all|30d`. Each row is shaped like
+`song_search` (reuses `song_search._attach_slugs` / `_attach_artist_slugs`) plus
+a feed metric; rows with NULL `rubric_color` are dropped so a tier always
+renders. No prose (public summary fields only -- no entitlement logic).
+
+Frontend: `frontend/lyrical-charger/activity/` (`index.html` + `activity.css` +
+`activity.js`), `<body class="rc-elevated">`. Cards reuse the album-track-result
+vocabulary: tier dot, the homepage radioactive contam icon (`.contam-icon`,
+U+2622), dogma glyph, tier-colored charge. Linked from the LC page (above + below
+the tool), the footer (Lyrical Charger group), and `sitemap.xml`.
+
+Possible follow-up if a feed query gets slow: a `(event_type, song_id,
+occurred_at)` index on `lc_events` (not added -- current volume is fine).
+
+### Sitewide footer (grouped, rebuilt 2026-06-06)
+
+`partials/footer.html` is now a grouped footer (brand block + columns: Explore /
+Lyrical Charger / Concept / Framework / Participate, plus a bottom account+legal
+menu). Styles live in `css/main.css` under `.footer-grid` / `.footer-*`. Edit the
+partial then run `scripts/build_partials.py` to bake into all pages. The
+`/artists/` A-Z index was also aligned to `--rc-max-width` (was a stray 900px
+centered column) with button-style letter nav, group cards, and smooth scroll.
+
 ## General Inquiry form
 
 Reusable account-free contact form (`frontend/inquiry.html`). First caller is the
