@@ -341,9 +341,9 @@ Per-release detail pages + Cover Art Archive artwork. Full spec:
   candidates). Admin verify email either way (`alerts.emit_album_mb_match`, key
   `album_mb_match`, default-on). Attaching the MBID is what gives the album cover art.
 - **Routing:** dev_server proxies `^/artists/[^/.]+/[^/.]+/?$` to the backend. **Prod
-  nginx needs the matching `location ~ ^/artists/[^/.]+/[^/.]+$` proxy rule added in
-  `/root/proxy/nginx/conf.d/risingcompass.conf`** -- until then release pages 404 on
-  prod (thumbnails + endpoints still work).
+  nginx needs NO change** -- the existing `location /artists/ { try_files $uri $uri/
+  @artist_detail; }` already falls multi-segment paths through to the backend, where
+  `ssr_release` handles them (verified live on deploy 2026-06-06).
 
 ## Charger Activity (public feeds page, LIVE 2026-06-06)
 
