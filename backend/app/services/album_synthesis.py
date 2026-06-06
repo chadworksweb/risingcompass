@@ -8,7 +8,11 @@ album-level reading:
   charge_summary  -- one paragraph: what the album, taken whole, transmits.
   arc_prose       -- how the album moves across its running order: where it
                      opens, where it peaks or sinks, where it lands.
+  effects_prose   -- what the whole album does to a LISTENER (album-scale parallel
+                     of a song's listener reading).
   societal_prose  -- what running this album at scale does to a society.
+  deadpan_line / topics / topic_audit -- the album's Ether Art Chart entry
+                     (flat naming + 0-3 taxonomy slugs), parallel to a song's.
 
 Mirrors effects_prose.py: synchronous, runs on Opus through tracked_create,
 fails soft. On any failure the caller stores NULL and the album page falls
@@ -30,6 +34,7 @@ from anthropic import Anthropic
 
 from app.config import settings
 from app.services.claude_meter import tracked_create
+from app.services.ether_taxonomy import VALID_SLUGS, taxonomy_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +57,15 @@ You are given, per track: its tier and charge, its one-line calibration summary,
 
 ## What you produce
 
-You output ONLY a JSON object with exactly three string keys: "charge_summary", "arc_prose", "societal_prose". No preamble, no markdown fences, no commentary outside the JSON.
+You output ONLY a JSON object with these keys: "charge_summary", "arc_prose", "effects_prose", "societal_prose", "deadpan_line", "topics", "topic_audit". No preamble, no markdown fences, no commentary outside the JSON.
 
 - charge_summary: ONE paragraph, 2 to 4 sentences. What the album, taken whole, transmits, drawn from the common threads across the individual listener readings. The dominant posture. Name it plainly.
 - arc_prose: ONE paragraph, 3 to 5 sentences. How the album moves across its running order, as the per-song readings carry it. Where it opens, where it climbs or sinks, where it lands. Reference track positions by what they do, not by reciting titles in order. If the readings sit in the same register throughout, say the album is flat honestly instead of inventing a journey.
+- effects_prose: ONE to TWO paragraphs. What taking in this WHOLE album does to a LISTENER, compiled from the individual listener readings. The dominant pulls a person absorbs across the running order, what repeat listening reinforces in them. Address the listener plainly. This is the album-scale parallel of each song's listener reading (distinct from societal_prose, which is the population-scale read).
 - societal_prose: ONE paragraph, 2 to 4 sentences. What happens when many people take this whole album in, on repeat, synthesized from the individual societal readings. What gets reinforced at scale. Speak to possibility, not prophecy.
+- deadpan_line: a FLAT, literal naming of the WHOLE album, about as long as the artist and title together. Museum-placard register: naming, not commenting, no verdict, no period, no articles if droppable. Name the album's content, never the artist. Descriptive adjectives are allowed ("defiant", "wounded", "carnal"); evaluative ones are forbidden ("shallow", "vapid", "pathetic"). If the read lands flat and the gap between the album's image and its content shows, that is the instrument working, not a joke.
+- topics: 0 to 3 tags from the closed taxonomy listed in the user message, ordered most-dominant-first by share of the album's content. The topic that captures the album's center of gravity comes first; the more specific topic wins ties. Cap at 3. If no honest taxonomy match exists, return [] and fill topic_audit.
+- topic_audit: null when topics is non-empty. When topics is empty, an object with keys "reason", "proposed_tag", "rationale". Exactly one of (topics non-empty, topic_audit non-null) is true.
 
 ## The compass voice
 
@@ -154,6 +163,9 @@ def generate_album_synthesis(
             lines.append(f"   Societal reading: {societal}")
 
     lines.append("")
+    lines.append("Ether Art Chart taxonomy (for the album's deadpan_line + topics, dominant-first):")
+    lines.append(taxonomy_for_prompt())
+    lines.append("")
     lines.append("Write the JSON object now, compiled from the song readings above.")
     user_prompt = "\n".join(lines)
 
@@ -192,8 +204,36 @@ def generate_album_synthesis(
         return {}
 
     out = {}
-    for key in ("charge_summary", "arc_prose", "societal_prose"):
+    for key in ("charge_summary", "arc_prose", "effects_prose", "societal_prose"):
         cleaned = _clean_paragraph(parsed.get(key))
         if cleaned:
             out[key] = cleaned
+
+    # Album-level Ether Art Chart entry: deadpan_line + topics (+ topic_audit),
+    # validated against the closed taxonomy exactly like the per-song ether tagger.
+    deadpan = (parsed.get("deadpan_line") or "").strip().strip('"').strip()
+    if deadpan:
+        out["deadpan_line"] = deadpan
+
+    raw_topics = parsed.get("topics")
+    valid = [t for t in raw_topics if isinstance(t, str) and t in VALID_SLUGS][:3] \
+        if isinstance(raw_topics, list) else []
+    audit = parsed.get("topic_audit")
+    if not isinstance(audit, dict):
+        audit = None
+    # Enforce topics-XOR-audit: topics win; otherwise keep/synthesize an audit so
+    # an unmatched album still surfaces for human eyes.
+    if valid:
+        out["topics"] = valid
+        out["topic_audit"] = None
+    elif audit:
+        out["topics"] = []
+        out["topic_audit"] = audit
+    else:
+        out["topics"] = []
+        out["topic_audit"] = {
+            "reason": "Album synthesis returned no taxonomy-valid topics and no audit payload.",
+            "proposed_tag": "",
+            "rationale": "",
+        }
     return out
