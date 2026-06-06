@@ -90,9 +90,13 @@ def schedule_event(
     event_type: str,
     request: Request,
     payload: dict[str, Any] | None = None,
-    submission_id: int | None = None,
+    song_id: int | None = None,
 ) -> None:
-    """Kept for call-site compatibility; `background_tasks` is unused."""
+    """Kept for call-site compatibility; `background_tasks` is unused. `song_id`
+    links the event to the atomic songs.id (Phase 5d rename; the param was left
+    as `submission_id` here while write_event + the call sites moved to
+    `song_id`, which 500'd every public calibrate -- the 2026-06-06 Charger
+    Activity regression)."""
     meta = extract_request_meta(request)
     write_event(
         event_type,
@@ -100,5 +104,5 @@ def schedule_event(
         meta["user_agent"],
         meta["referrer"],
         payload,
-        submission_id,
+        song_id,
     )
