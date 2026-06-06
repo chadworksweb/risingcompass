@@ -442,6 +442,24 @@ class ReleaseSong(Base):
     release = relationship("Release", back_populates="songs")
 
 
+class MbCoverArt(Base):
+    """Cover Art Archive lookup cache, keyed by the MusicBrainz release-group
+    MBID -- NOT by releases.id, which churns whenever an artist's releases are
+    rebuilt. Keying on the stable MBID means the cache survives rebuilds and
+    each release-group is fetched from CAA exactly once, ever.
+
+    Display URLs are derived from the MBID (see services/coverart.coverart_urls);
+    only existence + freshness are stored. has_art=False is a recorded
+    "checked, CAA had none" -- the read path renders the tier dot in that case
+    and never re-queries.
+    """
+    __tablename__ = "mb_cover_art"
+
+    musicbrainz_id = Column(Text, primary_key=True)  # release-group MBID
+    has_art = Column(Boolean, nullable=False, default=False)
+    checked_at = Column(DateTime, default=datetime.utcnow)
+
+
 class SongSlug(Base):
     """Lookup table mapping URL slugs to songs across the three song tables."""
     __tablename__ = "song_slugs"

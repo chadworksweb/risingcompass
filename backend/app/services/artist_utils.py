@@ -194,6 +194,17 @@ async def resolve_artist_releases(artist_id: int) -> dict:
     finally:
         db.close()
 
+    # Cover art (best-effort, after the write): cache CAA existence for every
+    # release-group MBID we just wrote, keyed by MBID so it survives rebuilds.
+    # Rate-limited and fail-soft -- never blocks or breaks the resolve.
+    if mb_data:
+        try:
+            from app.services import coverart
+            mbids = [r["mbid"] for r in mb_data.get("releases", []) if r.get("mbid")]
+            await coverart.ensure_cover_art(mbids)
+        except Exception:
+            logger.info("Cover-art ensure failed after resolve", exc_info=True)
+
     return stats
 
 
