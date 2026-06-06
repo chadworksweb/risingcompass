@@ -58,7 +58,8 @@
   <div class="rc-search" id="rcSearch">
     <input type="search" id="rcSearchInput" class="rc-search-input"
       placeholder="Search artists or songs..." autocomplete="off"
-      aria-label="Search artists or songs">
+      aria-label="Search artists or songs" role="combobox"
+      aria-expanded="false" aria-controls="rcSearchPanel" aria-autocomplete="list">
     <div class="rc-search-panel" id="rcSearchPanel" role="listbox" hidden></div>
   </div>
   <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">
@@ -66,6 +67,48 @@
     <span class="rc-account-label">Sign in</span>
   </a>
   </div>
+  <script>
+    (function(){
+      function sync() {
+        try {
+          var link = document.getElementById('rc-account-link');
+          if (!link) return;
+          var label = link.querySelector('.rc-account-label');
+          var authed = localStorage.getItem('rc_authed') === '1';
+          if (authed) {
+            if (label) label.textContent = 'Account';
+            link.setAttribute('data-state', 'in');
+            link.href = '/account/';
+          } else {
+            if (label) label.textContent = 'Sign in';
+            link.setAttribute('data-state', 'out');
+            // Preserve where the user came from so /account/ can route
+            // them back after sign-in / sign-up. Only path + query +
+            // hash; never an absolute URL.
+            var ret = window.location.pathname + window.location.search + window.location.hash;
+            if (ret && !ret.startsWith('/account/')) {
+              link.href = '/account/?returnTo=' + encodeURIComponent(ret);
+            } else {
+              link.href = '/account/';
+            }
+          }
+        } catch (_) {}
+      }
+      sync();
+      // bfcache restore: pages cached by back/forward don't re-execute
+      // scripts, but pageshow fires. Re-read localStorage so a sign-out
+      // in another tab / on /account/ is reflected when the user
+      // navigates back here.
+      window.addEventListener('pageshow', sync);
+      // Cross-tab sync: storage events fire in OTHER tabs when one tab
+      // writes to localStorage. Catches the case where the user signs
+      // out in one tab and switches to a tab that still says Account.
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'rc_authed' || e.key === null) sync();
+      });
+    })();
+  </script>
+  <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
 
@@ -187,6 +230,7 @@
       </a>
       <p class="footer-tagline">Visualizing the vibrational charge of the songs that dominate popular culture.</p>
     </div>
+
     <nav class="footer-col" aria-label="Explore">
       <h2 class="footer-head">Explore</h2>
       <ul class="footer-links">
@@ -197,11 +241,55 @@
         <li><a href="/calendar/">Calendar</a></li>
       </ul>
     </nav>
+
+    <nav class="footer-col" aria-label="Lyrical Charger">
+      <h2 class="footer-head">Lyrical Charger</h2>
+      <ul class="footer-links">
+        <li><a href="/lyrical-charger/">Lyrical Charger</a></li>
+        <li><a href="/lyrical-charger/activity/">Charger Activity</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Concept">
+      <h2 class="footer-head">Concept</h2>
+      <ul class="footer-links">
+        <li><a href="/methodology/">Methodology</a></li>
+        <li><a href="/tenets/">Tenets</a></li>
+        <li><a href="/amendments/">Amendments</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Framework">
+      <h2 class="footer-head">Framework</h2>
+      <ul class="footer-links">
+        <li><a href="/calibration-log/">Calibration Log</a></li>
+        <li><a href="/dev/">Dev Ledger</a></li>
+        <li><a href="https://status.risingcompass.net/">Status</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Participate">
+      <h2 class="footer-head">Participate</h2>
+      <ul class="footer-links">
+        <li><a href="/account/">Account</a></li>
+        <li><a href="/motion-desk/">Motion Desk</a></li>
+      </ul>
+    </nav>
   </div>
+
   <div class="footer-bottom">
     <p class="footer-copy">&copy; 2026 The Rising Compass. All rights reserved.</p>
+    <nav class="footer-legal" aria-label="Site and legal">
+      <a href="/sponsors/">Sponsors</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="/terms.html">Terms</a>
+      <a href="/fair-use.html">Fair Use</a>
+      <a href="/sitemap.xml">Sitemap</a>
+      <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a>
+    </nav>
   </div>
 </footer>
+<script defer src="/js/consent.js"></script>
 <!-- /INCLUDE:footer -->
   <script src="/js/compass.js"></script>
   <script>
