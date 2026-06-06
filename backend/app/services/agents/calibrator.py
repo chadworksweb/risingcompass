@@ -17,6 +17,11 @@ from app.services.agents.compass_agent_rubric import (
     build_few_shot_examples,
     build_calibration_prompt,
 )
+from app.services.agents.summary_guard import (
+    CORRECTIVE_NUDGE as _SUMMARY_NUDGE,
+    summary_from_json_text,
+    summary_has_absence_framing,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -239,12 +244,15 @@ async def calibrate_song_async(
         title, artist, lyrics=lyrics, examples=examples
     )
 
-    # Mandatory CONTAMINATION CHECK guard. The structured format requires an
-    # explicit "Contamination:" line before the VERDICT, run every song and
-    # independent of charge_value. If the response omits it, the model skipped
-    # the step -- retry once with a corrective nudge, then proceed with a loud
-    # warning. Only enforced when lyrics are present (the no-lyrics path returns
-    # a null calibration and produces no reasoning).
+    # Mandatory output guards, both run every song when lyrics are present:
+    #   1. CONTAMINATION CHECK -- the structured format requires an explicit
+    #      "Contamination:" line before the VERDICT, independent of charge_value.
+    #   2. charge_summary absence/verdict framing -- the summary must be pure
+    #      positive description (the rule that lived prompt-only since c940c57;
+    #      see summary_guard.py).
+    # If either trips, the model drifted -- retry once with a corrective nudge,
+    # then proceed with a loud warning. The no-lyrics path returns a null
+    # calibration and produces no reasoning, so guards are skipped there.
     messages = [{"role": "user", "content": user_prompt}]
     raw = ""
     reasoning = ""
@@ -272,22 +280,36 @@ async def calibrate_song_async(
             reasoning = raw[:brace_idx].strip()
             json_str = raw[brace_idx:]
 
-        if not lyrics or _CONTAM_LINE_RE.search(reasoning):
+        contam_ok = (not lyrics) or bool(_CONTAM_LINE_RE.search(reasoning))
+        summary_ok = (not lyrics) or not summary_has_absence_framing(
+            summary_from_json_text(json_str)
+        )
+        if not lyrics or (contam_ok and summary_ok):
             break
 
+        problems = []
+        if not contam_ok:
+            problems.append("omitted the mandatory 'Contamination:' line")
+        if not summary_ok:
+            problems.append("used absence/verdict framing in charge_summary")
         logger.warning(
-            "calibrator omitted the mandatory 'Contamination:' line for '%s' by %s (attempt %d/%d)",
-            title, artist, attempt, attempts,
+            "calibrator output guard tripped for '%s' by %s (attempt %d/%d): %s",
+            title, artist, attempt, attempts, "; ".join(problems),
         )
         if attempt < attempts:
+            corrective = "Your response had these problems: " + "; ".join(problems) + ". "
+            if not contam_ok:
+                corrective += (
+                    "Re-run the full structured format with an explicit "
+                    "'Contamination: none' or 'Contamination: <artifact>' line before the "
+                    "VERDICT. "
+                )
+            if not summary_ok:
+                corrective += _SUMMARY_NUDGE
             messages = [
                 {"role": "user", "content": user_prompt},
                 {"role": "assistant", "content": raw},
-                {"role": "user", "content": (
-                    "Your response omitted the required CONTAMINATION CHECK step. Re-run the "
-                    "full structured format and include an explicit 'Contamination: none' or "
-                    "'Contamination: <artifact>' line before the VERDICT, then the JSON."
-                )},
+                {"role": "user", "content": corrective},
             ]
 
     if reasoning:
@@ -327,6 +349,15 @@ async def calibrate_song_async(
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
     }
+
+    # If the summary STILL carries absence/verdict framing after the retry, ship
+    # it (a false-positive must never blank a valid summary) but log loudly so the
+    # drift is visible. Mirrors the proceed-with-warning posture of the guards.
+    if lyrics and summary_has_absence_framing(calibration["charge_summary"]):
+        logger.warning(
+            "charge_summary retained absence/verdict framing after retry for '%s' by %s: %r",
+            title, artist, calibration["charge_summary"],
+        )
 
     # Verbatim-lyric backstop on the calibrator's quote-prone short fields, both of
     # which render on the public song page. The rubric now asks for paraphrase; if a

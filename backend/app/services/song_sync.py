@@ -182,6 +182,18 @@ def store_calibrated_song(
     commit."""
     if calibration.get("rubric_color") is None:
         return None, False
+    # charge_summary absence/verdict-framing guard at the write chokepoint -- the
+    # last net before persistence. Covers every writer (calibrator API path,
+    # terminal-supplied backfill, Album Charger, library/manual admin). Non-
+    # blocking: a false positive must never block a legit write, but real drift
+    # gets a loud, operator-visible log. See summary_guard.py.
+    from app.services.agents.summary_guard import summary_has_absence_framing
+    if summary_has_absence_framing(calibration.get("charge_summary")):
+        logger.warning(
+            "store_calibrated_song: charge_summary carries absence/verdict framing "
+            "for '%s' by %s (source=%s): %r",
+            title, artist, source, calibration.get("charge_summary"),
+        )
     key = compute_canonical_key(title, artist)
     existed = db.execute(
         text("SELECT 1 FROM songs WHERE canonical_key = :k LIMIT 1"), {"k": key}
