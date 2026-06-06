@@ -6,12 +6,18 @@ Three read-only feeds, all derived from existing tables (no schema change):
   `song_ingestions` row is `method='lyrical_charger'` (chart songs later re-run
   through LC are excluded). Newest first.
 - Recently Calibrated: distinct songs by the most recent successful LC run.
-- Most Calibrated: distinct songs by count of successful LC runs, with an
+- Most Calibrated: distinct songs by count of calibration runs, with an
   all-time / trailing-30-day window.
 
-"A successful LC run" == an `lc_events` row with event_type='submission_success'
-and song_id set (written for anon and signed-in alike, analyzer.py). So the
-recent/most feeds count ALL public runs, not just signed-in attributions.
+"A successful LC run" (Recently Calibrated) == an `lc_events` row with
+event_type='submission_success' and song_id set (written for anon and signed-in
+alike, analyzer.py).
+
+Most Calibrated counts `calibration_runs` -- the actual run ledger -- NOT
+lc_events. lc_events is a best-effort, is_public-gated background write, so it
+diverges from how many times a song was truly calibrated (a song can have 3 runs
+but 1 event, or a cache-hit event with 0 new runs). calibration_runs is the
+canonical per-run record, so the "most calibrated" count is accurate against it.
 
 Public surface only: cards carry the already-public summary fields (tier, charge,
 summary, contamination) -- never the paywalled prose. Backs
@@ -25,7 +31,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import aliased
 
 from app.database import SessionLocal
-from app.models import Song, SongIngestion, LcEvent
+from app.models import Song, SongIngestion, LcEvent, CalibrationRun
 from app.services.song_search import _attach_slugs, _attach_artist_slugs
 
 public_router = APIRouter(prefix="/api/charger-activity", tags=["charger-activity"])
@@ -141,26 +147,28 @@ def _recent(db, limit: int, offset: int):
 # --- Most Calibrated -----------------------------------------------------
 
 def _most_run(db, window: str, limit: int, offset: int):
+    # Count calibration_runs (the true run ledger), not lc_events. Every logged
+    # run -- including superseded ones -- represents a real calibration pass, so
+    # all rows count toward "most calibrated".
     base = (
         db.query(
-            LcEvent.song_id,
+            CalibrationRun.song_id,
             func.count().label("cnt"),
-            func.max(LcEvent.occurred_at).label("last_at"),
+            func.max(CalibrationRun.run_at).label("last_at"),
         )
-        .join(Song, Song.id == LcEvent.song_id)
+        .join(Song, Song.id == CalibrationRun.song_id)
         .filter(
-            LcEvent.event_type == SUCCESS_EVENT,
-            LcEvent.song_id.isnot(None),
+            CalibrationRun.song_id.isnot(None),
             Song.rubric_color.isnot(None),
         )
     )
     if window == "30d":
         cutoff = datetime.utcnow() - timedelta(days=30)
-        base = base.filter(LcEvent.occurred_at >= cutoff)
-    base = base.group_by(LcEvent.song_id)
+        base = base.filter(CalibrationRun.run_at >= cutoff)
+    base = base.group_by(CalibrationRun.song_id)
     total = base.order_by(None).count()
     rows = (
-        base.order_by(func.count().desc(), func.max(LcEvent.occurred_at).desc())
+        base.order_by(func.count().desc(), func.max(CalibrationRun.run_at).desc())
         .limit(limit).offset(offset).all()
     )
     # row = (song_id, cnt, last_at) -- metric is the count.

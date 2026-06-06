@@ -256,9 +256,9 @@ function onAdminReady() {
 }
 
 function fmtDate(iso) {
+  // <time data-utc data-tz-date> -> date in the admin's chosen zone, hot-reloads.
   if (!iso) return '';
-  const d = new Date(iso);
-  return isNaN(d) ? '' : d.toLocaleDateString();
+  return `<time data-utc="${escHtml(iso)}" data-tz-date></time>`;
 }
 
 // --- Inquiries ---
@@ -312,7 +312,7 @@ function renderInquiries(list) {
             <span class="av-card-name">${esc(inq.claimant_name)}</span>${role}
             <span class="av-badge-status ${inq.status}">${esc(STATUS_LABELS[inq.status] || inq.status)}</span>
           </div>
-          <div class="av-card-meta">${esc(fmtDate(inq.created_at))}</div>
+          <div class="av-card-meta">${fmtDate(inq.created_at)}</div>
         </div>
         <div class="av-card-meta">
           <strong>${esc(inq.song_title)}</strong> &mdash; ${esc(inq.song_artist)} ${songRef}

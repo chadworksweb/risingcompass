@@ -425,6 +425,74 @@ def record_unbilled_overrun(
         db.close()
 
 
+def refund_song(
+    user_id: int,
+    charge_result: dict,
+    *,
+    ref_id: str,
+    context: Optional[dict] = None,
+) -> bool:
+    """Reverse a single-song charge by crediting back exactly what was debited.
+
+    Used only when a run was charged but failed to produce a saved song (see
+    analyzer.py). With the current ordering the charge happens AFTER the song is
+    committed, so a charge implies delivery -- this is the defensive safety net
+    that keeps "charged but undelivered" impossible by construction (and guards
+    any future reordering). The live recovery path is the salvage card, not this.
+
+    Reverses the (allowance/purchased) split from `charge_result` with positive
+    ledger rows into the same buckets and bumps the denormalised user counts. A
+    comp / daily_free / free charge moved no credits (delta=0), so this no-ops.
+    Idempotent via the `:refund` ref_id suffix against the partial unique index.
+    Returns True if credits were returned, False on no-op. Never raises.
+    """
+    allowance_back = int((charge_result or {}).get("allowance_spent") or 0)
+    purchased_back = int((charge_result or {}).get("purchased_spent") or 0)
+    if allowance_back <= 0 and purchased_back <= 0:
+        return False
+
+    refund_ref = f"{ref_id}:refund"
+    ctx_json = json.dumps(context) if context else None
+    db = SessionLocal()
+    try:
+        u = (
+            db.query(User)
+            .filter(User.id == user_id)
+            .with_for_update()
+            .first()
+        )
+        if not u:
+            return False
+        if allowance_back > 0:
+            u.allowance_credits = (u.allowance_credits or 0) + allowance_back
+            db.add(CreditLedger(
+                user_id=user_id, delta=allowance_back, bucket="allowance",
+                reason="song_refund", ref_type="submitted_song",
+                ref_id=refund_ref, context_json=ctx_json,
+            ))
+        if purchased_back > 0:
+            u.purchased_credits = (u.purchased_credits or 0) + purchased_back
+            db.add(CreditLedger(
+                user_id=user_id, delta=purchased_back, bucket="purchased",
+                reason="song_refund", ref_type="submitted_song",
+                ref_id=refund_ref, context_json=ctx_json,
+            ))
+        try:
+            db.commit()
+        except IntegrityError:
+            # Already refunded this charge (replay) -- the unique index collides.
+            db.rollback()
+            logger.info("refund_song replay ignored: ref_id=%s", refund_ref)
+            return False
+        return True
+    except Exception:
+        db.rollback()
+        logger.exception("refund_song failed user=%s ref_id=%s", user_id, ref_id)
+        return False
+    finally:
+        db.close()
+
+
 # --- Grants (Stripe webhook + signup) ------------------------------------
 
 def grant_credits(

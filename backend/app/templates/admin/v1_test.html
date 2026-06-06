@@ -130,7 +130,7 @@ async function loadV1Tests() {
       const hex = r.rubric_color ? V1_TIER_HEX[r.rubric_color] : '#666';
       const tier = r.rubric_color ? V1_TIER_LABELS[r.rubric_color] : '—';
       const charge = (r.charge_value === null || r.charge_value === undefined) ? '—' : r.charge_value;
-      const when = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+      const when = r.created_at ? `<time data-utc="${escHtml(r.created_at)}"></time>` : '';
       const errBadge = r.error ? ` <span style="color:var(--rc-red,#cc3333);font-size:0.7rem;">ERROR</span>` : '';
       return `
         <div style="padding:0.5rem 0.8rem;border-bottom:1px solid var(--border);display:flex;gap:1rem;align-items:baseline;">

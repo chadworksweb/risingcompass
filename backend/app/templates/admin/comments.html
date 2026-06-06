@@ -109,7 +109,7 @@ function renderItem(item) {
          ${item.reports.map((r) => `
            <div class="cmt-report-row">
              <span class="reason">${esc(r.reason)}</span>
-             <span style="color:var(--text-dim);">${esc(r.reporter_anon_id)} &middot; ${new Date(r.created_at).toLocaleString()} &middot; ${esc(r.status)}</span>
+             <span style="color:var(--text-dim);">${esc(r.reporter_anon_id)} &middot; <time data-utc="${escHtml(r.created_at)}"></time> &middot; ${esc(r.status)}</span>
              ${r.notes ? `<div style="color:var(--text-dim);margin-top:0.15rem;">${esc(r.notes)}</div>` : ''}
            </div>
          `).join('')}
@@ -137,7 +137,7 @@ function renderItem(item) {
         ${handle}
         ${authorStatusBadge}
         <span class="cmt-target">${esc(targetLink(item))}</span>
-        <span style="color:var(--text-dim);">${new Date(item.created_at).toLocaleString()}</span>
+        <span style="color:var(--text-dim);"><time data-utc="${escHtml(item.created_at)}"></time></span>
         <span style="color:var(--text-hint);">#${item.id}</span>
       </div>
       ${hiddenBanner}

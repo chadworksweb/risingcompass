@@ -678,6 +678,24 @@ main {
   margin-top: 1rem;
 }
 
+/* Recovery card: the run completed and was saved, but the result couldn't be
+   shown inline. Reads as success, not error -- offers a link to the song page. */
+.error-bar.saved {
+  background: rgba(0, 212, 170, 0.08);
+  border-color: rgba(0, 212, 170, 0.3);
+  color: var(--rc-text);
+  padding: 0.85rem 1rem;
+  line-height: 1.5;
+}
+.error-bar.saved a {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--rc-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.error-bar.saved a:hover { opacity: 0.7; }
+
 /* Buttons */
 .btn {
   display: inline-flex;

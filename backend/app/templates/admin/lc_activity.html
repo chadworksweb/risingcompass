@@ -87,7 +87,7 @@ async function loadAlbumActivity() {
     }
     const typeLabels = { album: 'Album', ep: 'EP', single: 'Single' };
     el.innerHTML = d.recent.map(a => {
-      const when = a.submitted_at ? a.submitted_at.replace('T', ' ').slice(0, 19) : '—';
+      const when = a.submitted_at ? `<time data-utc="${escHtml(a.submitted_at)}"></time>` : '—';
       const charge = a.charge_value != null ? (a.charge_value >= 0 ? '+' : '') + a.charge_value : '—';
       const tier = a.tier_label || '';
       const typeLabel = typeLabels[a.release_type] || 'Album';

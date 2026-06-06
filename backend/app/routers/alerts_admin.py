@@ -29,7 +29,8 @@ router = APIRouter(prefix="/api/admin/alerts", tags=["alerts-admin"])
 # preference.
 WIRED_ALERT_KEYS = {"comment_created", "prompt_cache_warranted", "album_charged",
                     "general_inquiry", "provenance_health", "provenance_integrity",
-                    "faultline_new_critical", "faultline_regression"}
+                    "faultline_new_critical", "faultline_regression",
+                    "faultline_new_signature"}
 
 
 class PrefOut(BaseModel):

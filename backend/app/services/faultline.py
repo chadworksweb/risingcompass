@@ -166,6 +166,7 @@ def _persist(payload: dict) -> None:
 
     db = SessionLocal()
     regressed = False
+    is_new = False
     try:
         now = datetime.utcnow()
         ctx_json = json.dumps(payload["context"], default=str)
@@ -191,6 +192,7 @@ def _persist(payload: dict) -> None:
             )
             db.add(sig)
             db.flush()  # need sig.id for the occurrence
+            is_new = True
         else:
             sig.occurrence_count = (sig.occurrence_count or 0) + 1
             sig.last_seen_at = now
@@ -212,7 +214,19 @@ def _persist(payload: dict) -> None:
 
         # Alert seam (after commit so it reflects persisted state). Fail-safe --
         # the alert must never break capture; send_alert is fire-and-forget.
-        if regressed:
+        # Prod-gated: local dev shares the prod DB via the tunnel, so local
+        # faults must NOT email. (The panel still records them, env-tagged.)
+        env_is_prod = (payload.get("environment") == "prod")
+        if is_new and env_is_prod:
+            try:
+                from app.services.alerts import emit_faultline_new_signature
+                emit_faultline_new_signature(
+                    sig_id=sig.id, title=sig.title, component=sig.component,
+                    environment=sig.environment, occurrence_count=sig.occurrence_count or 1,
+                )
+            except Exception:
+                logger.warning("faultline_new_signature alert failed (non-fatal)", exc_info=True)
+        if regressed and env_is_prod:
             try:
                 from app.services.alerts import emit_faultline_regression
                 emit_faultline_regression(

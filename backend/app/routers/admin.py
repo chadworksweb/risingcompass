@@ -208,6 +208,7 @@ _ADMIN_SECTIONS = {
     "provenance": "admin/provenance.html",
     "chart-anomalies": "admin/anomalies.html",
     "faultline": "admin/faultline.html",
+    "runs": "admin/runs.html",
 }
 
 

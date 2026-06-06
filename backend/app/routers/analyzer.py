@@ -31,7 +31,7 @@ from app.services.agents.calibrator import (
 from app.services import musixmatch
 from app.services.calibration_corpus import (
     record_and_reconcile, hash_lyrics, find_canonical_song,
-    fetch_run_fingerprints,
+    fetch_run_fingerprints, live_run_count, PUBLIC_RUN_CAP,
 )
 from app.services.lyrics_fingerprint import (
     compute_fingerprint, max_jaccard, DIVERGENCE_THRESHOLD,
@@ -434,6 +434,29 @@ def _resolve_source(tier: str, requested: str | None) -> str:
     return ((requested or "service").strip() or "service")[:30]
 
 
+def _run_capped_response(db, *, source: str, song_id: int, title: str,
+                         artist: str, run_count: int) -> "LyricsCalibrateOut":
+    """Build the public 'run_capped' response for a song that has hit
+    PUBLIC_RUN_CAP. Resolves the existing slug (read-only -- the song has many
+    prior runs, so a slug already exists) so the UI can link to its page."""
+    slug = None
+    try:
+        slug = _get_or_create_slug(title, artist, source, song_id, db)
+    except Exception:
+        logger.exception("capped-slug resolution failed for %s/%s", source, song_id)
+    return LyricsCalibrateOut(
+        status="run_capped",
+        title=title, artist=artist,
+        run_count=run_count, run_cap=PUBLIC_RUN_CAP,
+        song_slug=slug,
+        block_reason=(
+            f"This song has been calibrated {run_count} times and reached its "
+            f"{PUBLIC_RUN_CAP}-run public limit. Its reading is settled -- open "
+            "the song page to see the current calibration."
+        ),
+    )
+
+
 def _song_persist_fields(calibration: dict) -> dict:
     """Map a complete calibration object to the SubmittedSong columns that
     carry the calibration path's full output -- rubric + prose + ether tags.
@@ -584,6 +607,13 @@ async def calibrate_lyrics_endpoint(
     artist = body.artist.strip()
     fingerprint = compute_fingerprint(body.lyrics)
 
+    # Hoisted so the exception handler can tell a SAVED run (song committed ->
+    # salvage, never refund) from a pre-save failure (refund any charge made).
+    submitted_id = None
+    song_slug = None
+    charge_result = None
+    charge_ref_id = None
+
     try:
         # Phase 1: read-only session. Gather everything needed before the
         # Opus calls, then close it, so no pooled connection sits idle in a
@@ -594,6 +624,23 @@ async def calibrate_lyrics_endpoint(
             pre_canonical_info = (
                 (pre_canonical[0], pre_canonical[1].id) if pre_canonical else None
             )
+
+            # Public run cap: once a song has PUBLIC_RUN_CAP live runs, its
+            # reading is settled and public callers can no longer run it (admin/
+            # terminal only). Counted before the Opus call so a maxed song never
+            # burns a run; service/terminal tiers (is_public False) bypass.
+            if is_public and pre_canonical:
+                _rc = live_run_count(read_db, pre_canonical[1].id)
+                if _rc >= PUBLIC_RUN_CAP:
+                    _log_error_event(
+                        "submission_run_capped", request,
+                        payload={"title": title, "artist": artist, "source": source,
+                                 "run_count": _rc, "run_cap": PUBLIC_RUN_CAP},
+                    )
+                    return _run_capped_response(
+                        read_db, source=pre_canonical[0], song_id=pre_canonical[1].id,
+                        title=title, artist=artist, run_count=_rc,
+                    )
 
             if pre_canonical and fingerprint:
                 prior_fps = fetch_run_fingerprints(
@@ -712,7 +759,7 @@ async def calibrate_lyrics_endpoint(
             # artists onto the unified id. No legacy submitted_songs row.
             from app.services.song_sync import store_calibrated_song
             from app.services.artist_linker import parse_artist_string
-            submitted_id, _created = store_calibrated_song(
+            new_song_id, _created = store_calibrated_song(
                 write_db, source="submitted",
                 title=title, artist=artist, calibration=calibration,
                 ip_address=get_remote_address(request),
@@ -720,6 +767,10 @@ async def calibrate_lyrics_endpoint(
                 artist_entries=(structured or parse_artist_string(artist or "")),
             )
             write_db.commit()
+            # Mark the run "saved" only AFTER the commit succeeds, so the
+            # exception handler never offers a song-page link (or skips a
+            # refund) for a row that rolled back on a failed commit.
+            submitted_id = new_song_id
 
             consensus_info = None
             try:
@@ -778,11 +829,12 @@ async def calibrate_lyrics_endpoint(
                     else billing_config.COST_SONG_MISS
                 )
                 if cost > 0:
+                    charge_ref_id = str(submitted_id)
                     try:
-                        billing_svc.charge_song(
+                        charge_result = billing_svc.charge_song(
                             current_user.id, cost,
                             reason=("song_cache_hit" if cached_calibration else "song_miss"),
-                            ref_type="submitted_song", ref_id=str(submitted_id),
+                            ref_type="submitted_song", ref_id=charge_ref_id,
                             context={"title": title[:80], "artist": artist[:80]},
                         )
                     except HTTPException:
@@ -802,12 +854,16 @@ async def calibrate_lyrics_endpoint(
                         )
 
             if is_public:
-                schedule_event(background_tasks, "submission_success", request,
-                               payload={"title": title, "artist": artist, "source": source,
-                                        "tier": color, "charge": calibration.get("charge_value"),
-                                        "contaminated": calibration.get("contaminated", False),
-                                        "confidence": calibration.get("confidence")},
-                               song_id=submitted_id)
+                # Optional telemetry -- must never fail a saved, scored run.
+                try:
+                    schedule_event(background_tasks, "submission_success", request,
+                                   payload={"title": title, "artist": artist, "source": source,
+                                            "tier": color, "charge": calibration.get("charge_value"),
+                                            "contaminated": calibration.get("contaminated", False),
+                                            "confidence": calibration.get("confidence")},
+                                   song_id=submitted_id)
+                except Exception:
+                    logger.exception("submission_success event failed (non-fatal)")
 
             return LyricsCalibrateOut(
                 status="scored",
@@ -836,6 +892,37 @@ async def calibrate_lyrics_endpoint(
         raise
     except Exception:
         logger.exception("Calibration failed for submitted lyrics")
+        if submitted_id is not None and is_public:
+            # The song was committed before this failure -- the reading is
+            # durable on its song page. For the public charger we don't 500 or
+            # refund (it was delivered): hand back a link to the saved result.
+            # Machine API/service callers (is_public False) keep the 500 below
+            # so their contract is unchanged -- their retry hits the cache.
+            try:
+                schedule_event(background_tasks, "submission_success", request,
+                               payload={"title": title, "artist": artist,
+                                        "source": source, "recovered": True},
+                               song_id=submitted_id)
+            except Exception:
+                pass
+            return LyricsCalibrateOut(
+                status="saved_view_on_page",
+                title=title, artist=artist, song_slug=song_slug,
+                block_reason=(
+                    "Your reading finished and was saved, but we hit a snag "
+                    "showing it here. It's safe on its song page."
+                ),
+            )
+        # No saved song (or a machine caller) -- refund any charge made this
+        # request (defensive: with the current ordering a charge implies a saved
+        # song, so this is the belt-and-suspenders guarantee against a future
+        # reordering).
+        if charge_result is not None and charge_ref_id is not None and current_user is not None:
+            billing_svc.refund_song(
+                current_user.id, charge_result, ref_id=charge_ref_id,
+                context={"title": title[:80], "artist": artist[:80],
+                         "reason": "calibration_failed_no_save"},
+            )
         if is_public:
             _log_error_event("submission_other_error", request,
                              payload={"reason": "calibrator_exception", "title": title,
@@ -925,11 +1012,34 @@ async def calibrate_search(
     # compare against (Layer 2 cross-path).
     fingerprint = compute_fingerprint(lyrics)
 
+    # Hoisted so the exception handler can tell a SAVED run (song committed ->
+    # salvage, never refund) from a pre-save failure (refund any charge made).
+    submitted_id = None
+    song_slug = None
+    charge_result = None
+    charge_ref_id = None
+
     try:
         # Phase 1: read-only session for the cache lookup, closed before the
         # Opus call so no pooled connection is held idle through it.
         read_db = SessionLocal()
         try:
+            # Public run cap (see calibrate-lyrics): a maxed song is admin/
+            # terminal-only. Counted before the Opus call; service tiers bypass.
+            if is_public:
+                _pc = find_canonical_song(title, artist, read_db)
+                if _pc:
+                    _rc = live_run_count(read_db, _pc[1].id)
+                    if _rc >= PUBLIC_RUN_CAP:
+                        _log_error_event(
+                            "submission_run_capped", request,
+                            payload={"title": title, "artist": artist, "source": source,
+                                     "run_count": _rc, "run_cap": PUBLIC_RUN_CAP},
+                        )
+                        return _run_capped_response(
+                            read_db, source=_pc[0], song_id=_pc[1].id,
+                            title=title, artist=artist, run_count=_rc,
+                        )
             cached_calibration = lookup_calibrated(title, artist, read_db)
         finally:
             read_db.close()
@@ -988,7 +1098,7 @@ async def calibrate_search(
             # tells us whether this was the song's first appearance (seed vs not).
             from app.services.song_sync import store_calibrated_song
             from app.services.artist_linker import parse_artist_string
-            submitted_id, created = store_calibrated_song(
+            new_song_id, created = store_calibrated_song(
                 write_db, source="submitted",
                 title=title, artist=artist, calibration=calibration,
                 ip_address=get_remote_address(request),
@@ -996,6 +1106,10 @@ async def calibrate_search(
                 artist_entries=(structured or parse_artist_string(artist or "")),
             )
             write_db.commit()
+            # Mark the run "saved" only AFTER the commit succeeds, so the
+            # exception handler never offers a song-page link (or skips a
+            # refund) for a row that rolled back on a failed commit.
+            submitted_id = new_song_id
 
             # The submission reconciles against the one atomic unified song.
             canonical_source, canonical_id = "songs", submitted_id
@@ -1045,11 +1159,12 @@ async def calibrate_search(
                     else billing_config.COST_SONG_MISS
                 )
                 if cost > 0:
+                    charge_ref_id = str(submitted_id)
                     try:
-                        billing_svc.charge_song(
+                        charge_result = billing_svc.charge_song(
                             current_user.id, cost,
                             reason=("song_cache_hit" if cached_calibration else "song_miss"),
-                            ref_type="submitted_song", ref_id=str(submitted_id),
+                            ref_type="submitted_song", ref_id=charge_ref_id,
                             context={"title": title[:80], "artist": artist[:80],
                                      "track_id": body.track_id},
                         )
@@ -1070,12 +1185,16 @@ async def calibrate_search(
                         )
 
             if is_public:
-                schedule_event(background_tasks, "submission_success", request,
-                               payload={"title": title, "artist": artist, "source": source,
-                                        "tier": color, "charge": calibration.get("charge_value"),
-                                        "contaminated": calibration.get("contaminated", False),
-                                        "confidence": calibration.get("confidence")},
-                               song_id=submitted_id)
+                # Optional telemetry -- must never fail a saved, scored run.
+                try:
+                    schedule_event(background_tasks, "submission_success", request,
+                                   payload={"title": title, "artist": artist, "source": source,
+                                            "tier": color, "charge": calibration.get("charge_value"),
+                                            "contaminated": calibration.get("contaminated", False),
+                                            "confidence": calibration.get("confidence")},
+                                   song_id=submitted_id)
+                except Exception:
+                    logger.exception("submission_success event failed (non-fatal)")
 
             return LyricsCalibrateOut(
                 status="scored",
@@ -1102,6 +1221,37 @@ async def calibrate_search(
         raise
     except Exception:
         logger.exception("Calibration failed for search track %d", body.track_id)
+        if submitted_id is not None and is_public:
+            # The song was committed before this failure -- the reading is
+            # durable on its song page. For the public charger we don't 500 or
+            # refund (it was delivered): hand back a link to the saved result.
+            # Machine API/service callers (is_public False) keep the 500 below
+            # so their contract is unchanged -- their retry hits the cache.
+            try:
+                schedule_event(background_tasks, "submission_success", request,
+                               payload={"title": title, "artist": artist,
+                                        "source": source, "recovered": True},
+                               song_id=submitted_id)
+            except Exception:
+                pass
+            return LyricsCalibrateOut(
+                status="saved_view_on_page",
+                title=title, artist=artist, song_slug=song_slug,
+                block_reason=(
+                    "Your reading finished and was saved, but we hit a snag "
+                    "showing it here. It's safe on its song page."
+                ),
+            )
+        # No saved song (or a machine caller) -- refund any charge made this
+        # request (defensive: with the current ordering a charge implies a saved
+        # song, so this is the belt-and-suspenders guarantee against a future
+        # reordering).
+        if charge_result is not None and charge_ref_id is not None and current_user is not None:
+            billing_svc.refund_song(
+                current_user.id, charge_result, ref_id=charge_ref_id,
+                context={"title": title[:80], "artist": artist[:80],
+                         "reason": "calibration_failed_no_save"},
+            )
         if is_public:
             _log_error_event("submission_other_error", request,
                              payload={"reason": "calibrator_exception", "title": title,

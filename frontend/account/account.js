@@ -444,9 +444,19 @@
       const used = snap.daily_free_used || 0;
       const limit = snap.daily_free_limit;
       const remaining = snap.daily_free_remaining != null ? snap.daily_free_remaining : Math.max(0, limit - used);
+      // Show the reset moment in the viewer's local timezone (public UI =
+      // user-based time). The boundary itself stays UTC server-side; we just
+      // translate the instant for display.
+      let resetsPhrase = 'at midnight UTC';
+      if (snap.daily_free_resets_at) {
+        const r = new Date(snap.daily_free_resets_at);
+        if (!Number.isNaN(r.getTime())) {
+          resetsPhrase = r.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+        }
+      }
       dailyFreeEl.textContent = remaining > 0
-        ? `Free charges today: ${used} of ${limit} used (${remaining} left). Resets at midnight UTC.`
-        : `Free charges today: ${used} of ${limit} used. You're out of free charges until midnight UTC -- pick up a credit pack or subscribe to keep going.`;
+        ? `Free charges today: ${used} of ${limit} used (${remaining} left). Resets ${resetsPhrase}.`
+        : `Free charges today: ${used} of ${limit} used. You're out of free charges until ${resetsPhrase} -- pick up a credit pack or subscribe to keep going.`;
       dailyFreeEl.hidden = false;
     }
     stateEl.hidden = true;

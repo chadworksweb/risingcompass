@@ -70,7 +70,7 @@ async function loadInquiries() {
 }
 
 function renderInquiry(r) {
-  const when = r.created_at ? r.created_at.replace('T', ' ').slice(0, 19) : '—';
+  const when = r.created_at ? `<time data-utc="${escHtml(r.created_at)}"></time>` : '—';
   const statusColor = r.status === 'new' ? 'var(--accent)' : (r.status === 'closed' ? '#777' : '#aa8');
   const contact = r.email ? `<a href="mailto:${escHtml(r.email)}" style="color:var(--accent);">${escHtml(r.email)}</a>` : '(no email)';
   const src = r.source ? ` &nbsp;|&nbsp; from <code>${escHtml(r.source)}</code>` : '';

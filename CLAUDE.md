@@ -230,6 +230,35 @@ SC). Tenets stays dark on purpose -- "the constitution and the room
 where the constitution is argued over should not look the same."
 Tokens documented in `STYLE-GUIDE.md` "Deliberation Venue Palette".
 
+## Calibration Runs admin (Site Admin -> Calibration -> Runs, 2026-06-06)
+
+Read-only window onto `calibration_runs` (the run ledger behind each song's
+consensus calibration). `routers/runs_admin.py`, template `admin/runs.html`,
+section `runs`. Two views: **All Runs** (flat reverse-chron list, filter by
+song/trigger/window/superseded) and **By Song** (songs ranked by run count,
+most-calibrated first). `run_at` is surfaced as "Created". Endpoints (cookie
+auth): `GET /api/admin/runs` (flat, paginated, returns distinct `triggers`) and
+`GET /api/admin/runs/by-song`. Song titles link to the public song page; the
+public per-song timeline is `GET /api/songs/{slug}/calibration-runs`.
+
+**Public run cap (`PUBLIC_RUN_CAP = 10`, in `calibration_corpus.py`).** Once a
+song has 10 **live** (non-superseded) `calibration_runs`, the public Lyrical
+Charger refuses new runs: its reading is considered settled. Counted via
+`live_run_count()` (excludes superseded), so a `rubric_update` or admin
+recalibration -- which supersedes the prior runs -- resets the budget and
+**reopens** the song to the public ("the measuring stick moved, read it fresh").
+- Single song: the two public calibrate endpoints (`/api/analyzer/calibrate-lyrics`,
+  `/calibrate-search`) resolve the canonical song BEFORE the Opus call and
+  short-circuit with `status="run_capped"` (+ `run_count`/`run_cap`/`song_slug`/
+  `block_reason`); `charger.js` renders `showCappedCard`.
+- Album Charger: a maxed track is **skipped** in Phase A (`status="skipped"`,
+  run-limit reason) -- the album won't re-run it; checked regardless of cache
+  state because even a cache hit logs a run via `record_and_reconcile`.
+Only `tier=='public'` is gated -- service/terminal callers (RC_SERVICE_KEY,
+`calibrate_song.py`/`correct_song.py`) bypass, so admin/terminal can still run a
+maxed song. The admin Runs "By Song" view badges maxed songs (`capped` =
+`live_count >= cap`). Capped attempts log an `lc_events` `submission_run_capped`.
+
 ## Artist admin endpoints
 
 Authed via the admin session cookie (above). Merge/rename run as one atomic
@@ -360,9 +389,12 @@ change**:
 - **Recently Calibrated**: distinct songs by `MAX(occurred_at)` of
   `lc_events` rows with `event_type='submission_success'` AND `song_id` set
   (counts ALL runs -- anon + signed-in, since that event is written for both).
-- **Most Calibrated**: same `lc_events` source, `COUNT(*)` per song, all-time or
-  trailing-30-day window (the worker filters `occurred_at >= utcnow()-30d` in
-  Python, so it's PG/SQLite-portable).
+- **Most Calibrated**: `COUNT(*)` of `calibration_runs` per song (the true run
+  ledger -- one row per calibration pass, incl. superseded), all-time or
+  trailing-30-day window. NOT `lc_events`: that event is is_public-gated +
+  best-effort background-written, so it diverges from the real run count (a song
+  can have 3 runs / 1 event, or a cache-hit event / 0 new runs). Recently
+  Calibrated still uses `lc_events` (most-recent successful public run).
 
 Backend: `app/routers/charger_activity.py` (`public_router`, prefix
 `/api/charger-activity`, registered with `_api_key_dep` like the calibration-log
@@ -661,11 +693,64 @@ root logger. Every `logger.exception` survives to disk.
 - **Seams (only two, deliberate):** inbound = the logging handler; outbound =
   one-way promote to a Dev Ledger `bug` (`dev_ledger.create_internal_bug`, sets
   `error_signatures.dev_ledger_item_id`). Walled from `lc_events`, `api_call_log`,
-  Status Page, Misread. Alerts `faultline_new_critical` + `faultline_regression`
-  (default-on, fail-safe) reuse the existing alerts system.
+  Status Page, Misread. Alerts `faultline_new_signature` (every brand-new fault,
+  deduped per fingerprint), `faultline_new_critical`, and `faultline_regression`
+  (all default-on, fail-safe) reuse the existing alerts system. **All three are
+  prod-gated** in `faultline._persist` (`environment == "prod"`): local-dev faults
+  on the shared tunnel DB are captured but never email. The new-signature alert
+  (added 2026-06-06) closes the gap where a brand-new prod-down fault stayed
+  silent until a human triaged it to critical.
 - **Flag/env:** `system_flags` `faultline.enabled` (fail-OPEN kill switch);
   `RC_ERROR_AGENT_KEY`, `FAULTLINE_CAPTURE_LEVEL` (ERROR), `FAULTLINE_OCCURRENCE_RETENTION`
   (50), `ENVIRONMENT` (defaults `prod` in docker-compose). All in `docker-compose.yml`.
 - **Retention:** `prune_occurrences` keeps N/signature, never deletes signatures;
   admin `POST /api/admin/faultline/prune` or agent `/api/agent/faultline/prune`
   (cron-able). Not yet cronned.
+
+## Charger reliability: salvage + refund (2026-06-06)
+
+Both single-song calibrate endpoints (`analyzer.py` `calibrate_lyrics_endpoint`
++ `calibrate_search`) commit the song BEFORE charging, so a charge implies a
+durable, delivered reading. The blanket `except` was turning any post-save hiccup
+(today's `schedule_event` regression) into a user-facing 500 on a saved+charged
+run. Now:
+- `submitted_id` is set only AFTER `write_db.commit()` succeeds (so "saved" is
+  truthful even on a failed commit), and the optional `schedule_event` tail is
+  wrapped so telemetry can never fail a saved run.
+- **Salvage (public charger only):** if the song was saved but a later step
+  threw, the public endpoints return `status="saved_view_on_page"` + `song_slug`
+  (no 500, no refund -- it was delivered). The frontend (`charger.js`) shows a
+  "Your song was completed and saved -- view your reading" card linking to
+  `/songs/{slug}` (their choice to click, not a redirect). Machine API/service
+  callers (`is_public` False) keep the 500 -- contract unchanged, their retry
+  hits the cache.
+- **Refund net:** `billing.refund_song(user_id, charge_result, ref_id=...)`
+  reverses the exact allowance/purchased split, idempotent `:refund` ref_id, and
+  is called only when a charge was made WITHOUT a saved song. With the current
+  ordering that can't happen (charge is post-commit), so it's a defensive
+  guarantee, not a live path -- covered by `tests/test_refund_song.py` (fake
+  session, no DB) since nothing exercises it e2e. Album already refunds via
+  `settle_hold`. TOS clause: `frontend/terms.html` section 8.
+
+## Timezone model (2026-06-06)
+
+Standard "store UTC, convert at the edges," split by audience:
+- **Code + billing + crons: UTC (unchanged).** All `datetime.utcnow()` storage,
+  `billing._utc_day_start()` daily-free boundary, slowapi `/day` limits, the
+  Charger Activity 30-day window, and the server crons stay UTC. Zero billing
+  risk; no migration to day-boundary logic.
+- **Public UI: user-local.** The frontend already renders in the visitor's own
+  zone via `toLocaleString`; the two UTC-pinned outliers were fixed
+  (`calibration-log.js` dropped `getUTC*`; `account.js` daily-free reset now
+  shows the reset instant in the viewer's local time instead of "midnight UTC").
+- **Admin: per-admin selectable zone, default ET, hot-reload.**
+  `AdminUser.timezone` (migration 092, IANA name, default `America/New_York`),
+  set on `request.state.admin_timezone` in `auth.py`. A picker in
+  `templates/admin/_base.html` swaps `window.ADMIN_TZ` and reformats every
+  `<time data-utc="<iso>">` element in place (shared `adminFmt` +
+  `MutationObserver`) -- no page refresh -- persisting via
+  `POST /api/admin/auth/timezone` (validated against the IANA db with `zoneinfo`).
+  Admin templates emit `<time data-utc>` (add `data-tz-date` for date-only)
+  instead of pre-formatted strings. The one server-bucketed chart
+  (`claude_usage_admin.py` `date_trunc`) takes a `tz` param and the page refetches
+  on zone change via `onAdminTzChange`.

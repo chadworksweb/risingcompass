@@ -50,9 +50,10 @@
     if (!iso) return { day: '—', year: '' };
     const d = new Date(iso);
     if (isNaN(d)) return { day: '—', year: '' };
+    // Render in the viewer's local timezone (public UI = user-based time).
     return {
-      day: `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}`,
-      year: d.getUTCFullYear(),
+      day: `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`,
+      year: d.getFullYear(),
     };
   }
 

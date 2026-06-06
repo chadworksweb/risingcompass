@@ -162,7 +162,9 @@ function fail(el, err) {
 
 function loading(el) { el.innerHTML = '<p style="color:#666;">Loading...</p>'; }
 
-function dt(s) { return s ? new Date(s).toLocaleString() : '--'; }
+// Emit a <time data-utc> element so it renders in the admin's chosen zone and
+// hot-reloads when the timezone picker changes (see _base.html).
+function dt(s) { return s ? `<time data-utc="${escHtml(s)}"></time>` : '--'; }
 
 // ---------- Profile ----------
 async function loadProfile() {

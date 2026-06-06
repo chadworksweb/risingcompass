@@ -1,0 +1,257 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'runs' %}
+{% block title %}Calibration Runs — Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+  .runs-tabs { display: flex; gap: 0; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border); }
+  .runs-tab { padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; font-family: inherit; }
+  .runs-tab:hover { color: var(--text); }
+  .runs-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .runs-controls { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+  .runs-controls label { margin: 0 0.2rem 0 0; color: var(--text-hint); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .runs-controls select { width: auto; padding: 0.35rem 0.5rem; font-size: 0.82rem; }
+  .runs-controls .chk { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--text-dim); }
+  .runs-controls .chk input { width: auto; }
+  .runs-filter-pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; background: rgba(0,143,114,0.1); border: 1px solid var(--accent); border-radius: 20px; font-size: 0.78rem; color: var(--accent-strong); }
+  .runs-filter-pill button { background: none; border: none; color: var(--accent-strong); cursor: pointer; padding: 0; font-size: 1rem; line-height: 1; font-weight: 700; }
+  .runs-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+  table.runs-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .runs-table thead th { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 2px solid var(--border); background: var(--panel-strong); color: var(--text); font-weight: 700; white-space: nowrap; }
+  .runs-table td { padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  .runs-table tr:hover td { background: rgba(0,143,114,0.05); }
+  .runs-table .num { text-align: right; font-family: monospace; white-space: nowrap; }
+  .runs-table .charge { font-weight: 700; font-family: monospace; }
+  .runs-table .charge.pos { color: var(--tier-green); }
+  .runs-table .charge.neg { color: var(--tier-red); }
+  .runs-table .charge.zero { color: var(--text-hint); }
+  .runs-song-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .runs-song-link:hover { text-decoration: underline; }
+  .runs-song-by { color: var(--text-dim); }
+  .runs-superseded td { opacity: 0.6; }
+  .runs-supersede-tag { font-size: 0.68rem; background: var(--panel-strong); color: var(--text-dim); padding: 0.05rem 0.4rem; border-radius: 3px; margin-left: 0.3rem; }
+  .runs-trigger-tag { font-size: 0.72rem; font-family: monospace; color: var(--text-dim); }
+  .runs-summary { color: var(--text-dim); max-width: 360px; }
+  .runs-runcount { display: inline-block; min-width: 1.6rem; text-align: center; font-weight: 700; color: var(--accent); }
+  .runs-maxed-tag { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; background: #fce4dc; color: var(--red); padding: 0.05rem 0.4rem; border-radius: 3px; margin-left: 0.4rem; text-transform: uppercase; }
+  .runs-empty { text-align: center; color: var(--text-dim); padding: 1.5rem; }
+  .runs-link-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; padding: 0.2rem 0.6rem; font-size: 0.74rem; cursor: pointer; font-weight: 600; }
+  .runs-link-btn:hover { color: var(--accent); border-color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="runs-tabs">
+  <button class="runs-tab active" id="tabBtnAll" onclick="runsSwitch('all')">All Runs</button>
+  <button class="runs-tab" id="tabBtnBySong" onclick="runsSwitch('bysong')">By Song</button>
+</div>
+
+<div class="runs-controls">
+  <span><label>Window</label>
+    <select id="runsWindow" onchange="runsReload()">
+      <option value="all">All time</option>
+      <option value="24h">Last 24h</option>
+      <option value="7d">Last 7d</option>
+      <option value="30d">Last 30d</option>
+    </select>
+  </span>
+  <span id="ctlTrigger"><label>Trigger</label>
+    <select id="runsTrigger" onchange="runsReload()"><option value="">All</option></select>
+  </span>
+  <label class="chk" id="ctlSuperseded">
+    <input type="checkbox" id="runsInclSuperseded" checked onchange="runsReload()"> Include superseded
+  </label>
+  <span id="runsSongFilter"></span>
+</div>
+
+<div id="runsBody"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let runsView = 'all';
+let runsOffset = 0;
+const RUNS_LIMIT = 50;
+let runsSongId = null;          // active per-song filter (All Runs)
+let runsSongLabel = '';
+let runsTriggersLoaded = false;
+
+function onAdminReady() { runsReload(); }
+
+function runsSwitch(view) {
+  if (runsView === view) return;
+  runsView = view;
+  runsOffset = 0;
+  document.getElementById('tabBtnAll').classList.toggle('active', view === 'all');
+  document.getElementById('tabBtnBySong').classList.toggle('active', view === 'bysong');
+  // Trigger + superseded filters only apply to the flat All Runs list.
+  const flatOnly = view === 'all';
+  document.getElementById('ctlTrigger').style.display = flatOnly ? '' : 'none';
+  document.getElementById('ctlSuperseded').style.display = flatOnly ? '' : 'none';
+  runsRender();
+}
+
+function runsReload() { runsOffset = 0; runsRender(); }
+
+function chargeClass(v) { return v > 0 ? 'pos' : (v < 0 ? 'neg' : 'zero'); }
+
+function dot(color) {
+  return color ? `<span class="color-dot ${escHtml(color)}"></span>` : '';
+}
+
+function songCell(r) {
+  const title = escHtml(r.title || '(untitled)');
+  const link = r.slug
+    ? `<a class="runs-song-link" href="/songs/${encodeURIComponent(r.slug)}" target="_blank" rel="noopener">${title}</a>`
+    : `<span class="runs-song-link" style="color:var(--text);">${title}</span>`;
+  const by = r.artist ? ` <span class="runs-song-by">— ${escHtml(r.artist)}</span>` : '';
+  return link + by;
+}
+
+function setSongFilter(songId, label) {
+  runsSongId = songId;
+  runsSongLabel = label || ('song #' + songId);
+  runsView = 'all';
+  runsOffset = 0;
+  document.getElementById('tabBtnAll').classList.add('active');
+  document.getElementById('tabBtnBySong').classList.remove('active');
+  document.getElementById('ctlTrigger').style.display = '';
+  document.getElementById('ctlSuperseded').style.display = '';
+  renderSongFilterPill();
+  runsRender();
+}
+
+function clearSongFilter() {
+  runsSongId = null; runsSongLabel = '';
+  renderSongFilterPill();
+  runsReload();
+}
+
+function renderSongFilterPill() {
+  const el = document.getElementById('runsSongFilter');
+  el.innerHTML = runsSongId
+    ? `<span class="runs-filter-pill">Song: ${escHtml(runsSongLabel)} <button onclick="clearSongFilter()" title="Clear">&times;</button></span>`
+    : '';
+}
+
+async function runsRender() {
+  const body = document.getElementById('runsBody');
+  body.innerHTML = '<p style="color:#666;padding:1rem;">Loading…</p>';
+  try {
+    if (runsView === 'bysong') return await renderBySong(body);
+    return await renderAllRuns(body);
+  } catch (e) {
+    console.error(e);
+    body.innerHTML = '<p class="runs-empty">Failed to load runs.</p>';
+  }
+}
+
+async function renderAllRuns(body) {
+  const win = document.getElementById('runsWindow').value;
+  const trig = document.getElementById('runsTrigger').value;
+  const inclSup = document.getElementById('runsInclSuperseded').checked;
+  const qs = [`limit=${RUNS_LIMIT}`, `offset=${runsOffset}`, `include_superseded=${inclSup}`];
+  if (win && win !== 'all') qs.push('window=' + encodeURIComponent(win));
+  if (trig) qs.push('triggered_by=' + encodeURIComponent(trig));
+  if (runsSongId) qs.push('song_id=' + encodeURIComponent(runsSongId));
+
+  const resp = await adminFetch('/api/admin/runs?' + qs.join('&'), { headers: adminHeaders() });
+  if (!resp.ok) { body.innerHTML = '<p class="runs-empty">Failed to load.</p>'; return; }
+  const data = await resp.json();
+
+  if (!runsTriggersLoaded && data.triggers) {
+    const sel = document.getElementById('runsTrigger');
+    data.triggers.forEach(t => {
+      const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o);
+    });
+    runsTriggersLoaded = true;
+  }
+
+  if (!data.runs.length) { body.innerHTML = '<p class="runs-empty">No runs match.</p>'; return; }
+
+  const rows = data.runs.map(r => {
+    const charge = (r.charge_value === null || r.charge_value === undefined) ? '—' : r.charge_value;
+    const conf = (r.confidence === null || r.confidence === undefined) ? '—' : r.confidence.toFixed(2);
+    const supTag = r.superseded
+      ? `<span class="runs-supersede-tag" title="${escHtml(r.superseded_reason || '')}">superseded</span>` : '';
+    const failTag = r.calibration_failed ? `<span class="runs-supersede-tag" style="color:var(--red);">failed</span>` : '';
+    return `<tr class="${r.superseded ? 'runs-superseded' : ''}">
+      <td><time data-utc="${escHtml(r.created_at || '')}"></time></td>
+      <td>${songCell(r)}${supTag}${failTag}</td>
+      <td>${dot(r.rubric_color)}${escHtml(r.tier_label || r.rubric_color || '—')}</td>
+      <td class="num charge ${chargeClass(r.charge_value)}">${charge}</td>
+      <td class="num">${conf}</td>
+      <td><span class="runs-trigger-tag">${escHtml(r.triggered_by || '—')}</span></td>
+      <td><span class="runs-trigger-tag">${escHtml(r.agent_model || '—')}</span></td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="runs-table-wrap">
+      <table class="runs-table">
+        <thead><tr>
+          <th>Created</th><th>Song</th><th>Tier</th><th>Charge</th><th>Conf</th><th>Trigger</th><th>Model</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${paginationHtml(data.total)}`;
+  applyAdminTz(body);
+}
+
+async function renderBySong(body) {
+  const win = document.getElementById('runsWindow').value;
+  const qs = [`limit=${RUNS_LIMIT}`, `offset=${runsOffset}`];
+  if (win && win !== 'all') qs.push('window=' + encodeURIComponent(win));
+
+  const resp = await adminFetch('/api/admin/runs/by-song?' + qs.join('&'), { headers: adminHeaders() });
+  if (!resp.ok) { body.innerHTML = '<p class="runs-empty">Failed to load.</p>'; return; }
+  const data = await resp.json();
+  if (!data.songs.length) { body.innerHTML = '<p class="runs-empty">No songs with runs.</p>'; return; }
+
+  const rows = data.songs.map(s => {
+    const charge = (s.charge_value === null || s.charge_value === undefined) ? '—' : s.charge_value;
+    const sup = s.superseded_count ? ` <span class="runs-supersede-tag">${s.superseded_count} superseded</span>` : '';
+    const maxed = s.capped ? ` <span class="runs-maxed-tag" title="At the public run cap — admin/terminal only">maxed</span>` : '';
+    const label = (s.title || '(untitled)') + (s.artist ? ' — ' + s.artist : '');
+    return `<tr>
+      <td class="num"><span class="runs-runcount">${s.run_count}</span>${maxed}${sup}</td>
+      <td>${songCell(s)}</td>
+      <td>${dot(s.rubric_color)}${escHtml(s.tier_label || s.rubric_color || '—')}</td>
+      <td class="num charge ${chargeClass(s.charge_value)}">${charge}</td>
+      <td><time data-utc="${escHtml(s.last_at || '')}"></time></td>
+      <td><button class="runs-link-btn" onclick="setSongFilter(${s.song_id}, ${JSON.stringify(label).replace(/"/g,'&quot;')})">View runs</button></td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="runs-table-wrap">
+      <table class="runs-table">
+        <thead><tr>
+          <th>Runs</th><th>Song</th><th>Tier</th><th>Charge</th><th>Last run</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${paginationHtml(data.total)}`;
+  applyAdminTz(body);
+}
+
+function paginationHtml(total) {
+  const start = runsOffset + 1;
+  const end = Math.min(runsOffset + RUNS_LIMIT, total);
+  const prevDis = runsOffset <= 0 ? 'disabled' : '';
+  const nextDis = end >= total ? 'disabled' : '';
+  return `<div class="pagination">
+    <button onclick="runsPage(-1)" ${prevDis}>&larr; Prev</button>
+    <span class="page-info">${total ? `${start}–${end} of ${total}` : '0'}</span>
+    <button onclick="runsPage(1)" ${nextDis}>Next &rarr;</button>
+  </div>`;
+}
+
+function runsPage(dir) {
+  runsOffset = Math.max(0, runsOffset + dir * RUNS_LIMIT);
+  runsRender();
+}
+</script>
+{% endblock %}

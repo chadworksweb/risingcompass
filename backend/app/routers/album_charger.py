@@ -66,7 +66,10 @@ from app.services.artist_linker import (
 from app.services.artist_utils import compute_release_charge, normalize_artist_name, slugify
 from app.services import musicbrainz, coverart
 from app.services.album_synthesis import generate_album_synthesis
-from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
+from app.services.calibration_corpus import (
+    record_and_reconcile, hash_lyrics, find_canonical_song,
+    live_run_count, PUBLIC_RUN_CAP,
+)
 from app.services.song_sync import store_calibrated_song
 from app.services.lyrics_fingerprint import compute_fingerprint
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
@@ -345,6 +348,23 @@ async def _run_album_charge(
 
             read_db = SessionLocal()
             try:
+                # Public run cap: a track whose song already has PUBLIC_RUN_CAP
+                # live runs is settled -- skip it (the album won't re-run a maxed
+                # song). Even a cache hit logs a run via record_and_reconcile
+                # below, so the cap is checked regardless of cache state.
+                # Service/internal album charging (is_public False) bypasses.
+                if is_public:
+                    _pc = find_canonical_song(track_title, track_artist, read_db)
+                    if _pc and live_run_count(read_db, _pc[1].id) >= PUBLIC_RUN_CAP:
+                        track_results.append(AlbumTrackResult(
+                            track_number=track_number, title=track_title,
+                            artist=track_artist, status="skipped",
+                            skip_reason=(
+                                f"This song reached its {PUBLIC_RUN_CAP}-run public "
+                                "limit; its reading is settled."
+                            ),
+                        ))
+                        continue
                 cached = lookup_calibrated(track_title, track_artist, read_db)
             finally:
                 read_db.close()

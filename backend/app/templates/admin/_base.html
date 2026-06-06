@@ -257,6 +257,13 @@
   /* Logout button */
   .logout-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; background: #ffffff; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; z-index: 100; font-weight: 600; }
   .logout-btn:hover { border-color: var(--red); color: var(--red); }
+  .tz-picker { position: fixed; top: 1rem; right: 6.2rem; padding: 0.3rem 0.5rem; font-size: 0.72rem; background: #ffffff; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; z-index: 100; font-weight: 600; max-width: 11rem; width: auto; }
+  .tz-picker:hover { border-color: var(--accent, #008f72); }
+  /* Narrow screens: shrink so the picker + Sign out fit the top band without
+     crowding (the toggle is top-LEFT, so no conflict there). */
+  @media (max-width: 560px) {
+    .tz-picker { right: 5.4rem; max-width: 7.5rem; font-size: 0.66rem; padding: 0.28rem 0.35rem; }
+  }
   /* DB Explorer */
   .db-sub-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; }
   .db-sub-tab { padding: 0.4rem 0.9rem; font-size: 0.78rem; background: #ffffff; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; font-weight: 600; font-family: monospace; }
@@ -384,6 +391,21 @@
     <line x1="3" y1="12" x2="13" y2="12"/>
   </svg>
 </button>
+<select class="tz-picker" id="adminTzPicker" aria-label="Admin display timezone"
+        title="Admin display timezone" onchange="setAdminTz(this.value)">
+  <option value="America/New_York">Eastern (New York)</option>
+  <option value="America/Chicago">Central (Chicago)</option>
+  <option value="America/Denver">Mountain (Denver)</option>
+  <option value="America/Phoenix">Arizona (Phoenix)</option>
+  <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+  <option value="America/Anchorage">Alaska (Anchorage)</option>
+  <option value="Pacific/Honolulu">Hawaii (Honolulu)</option>
+  <option value="UTC">UTC</option>
+  <option value="Europe/London">London</option>
+  <option value="Europe/Paris">Paris (CET)</option>
+  <option value="Asia/Tokyo">Tokyo</option>
+  <option value="Australia/Sydney">Sydney</option>
+</select>
 <button class="logout-btn" onclick="doLogout()">Sign out</button>
 
 <div class="admin-panel visible" id="adminPanel">
@@ -423,6 +445,7 @@
     {% else %}
     <div class="admin-nav-group">
       <div class="admin-nav-group-label">Calibration</div>
+      <a class="admin-nav-item {% if active == 'runs' %}active{% endif %}" href="/api/admin/dashboard/runs">Runs</a>
       <a class="admin-nav-item {% if active == 'recalibrate' %}active{% endif %}" href="/api/admin/recalibrate">Recalibrate</a>
       <a class="admin-nav-item {% if active == 'misread' %}active{% endif %}" href="/api/admin/dashboard/misread">Misread Reports</a>
       <a class="admin-nav-item {% if active == 'ether-audits' %}active{% endif %}" href="/api/admin/ether-audits">Ether Audits</a>
@@ -488,6 +511,7 @@
        the active_section key is missing. #}
     {% set section_titles = {
       'db': 'Database',
+      'runs': 'Calibration Runs',
       'misread': 'Misread Reports',
       'lobby-mod': 'Moderation',
       'artist-verified': 'Artist Verified',
@@ -578,6 +602,86 @@ function escHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// --- Admin timezone display ------------------------------------------------
+// Admin area renders times in the admin's chosen zone (default ET). Data stays
+// stored in UTC; this is display only (public UI = user-local, billing = UTC).
+// Emit timestamps as <time data-utc="<iso>"></time> (add data-tz-date for a
+// date-only field) OR call adminFmt(iso) directly. The picker hot-reloads the
+// whole page in place -- no refresh.
+window.ADMIN_TZ = "{{ request.state.admin_timezone if (request and request.state and request.state.admin_timezone) else 'America/New_York' }}";
+
+function adminFmt(iso, opts) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const o = opts || { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+  try {
+    return new Intl.DateTimeFormat(undefined, Object.assign({ timeZone: window.ADMIN_TZ }, o)).format(d);
+  } catch (e) {
+    return new Intl.DateTimeFormat(undefined, Object.assign({ timeZone: 'UTC' }, o)).format(d);
+  }
+}
+
+const _ADMIN_TZ_DATE_OPTS = { year: 'numeric', month: 'short', day: 'numeric' };
+
+function _fmtTimeEl(el) {
+  el.textContent = adminFmt(el.getAttribute('data-utc'),
+    el.hasAttribute('data-tz-date') ? _ADMIN_TZ_DATE_OPTS : null);
+}
+
+// Format every <time data-utc> within root (or the whole document).
+function applyAdminTz(root) {
+  (root || document).querySelectorAll('time[data-utc]').forEach(_fmtTimeEl);
+}
+
+// Auto-format dynamically-rendered rows so per-page code only needs to emit the
+// <time data-utc> element -- no explicit applyAdminTz() call required.
+(function () {
+  try {
+    const obs = new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (n.nodeType !== 1) continue;
+          if (n.matches && n.matches('time[data-utc]')) _fmtTimeEl(n);
+          else if (n.querySelectorAll) applyAdminTz(n);
+        }
+      }
+    });
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) { /* no observer -> pages can still call applyAdminTz() */ }
+  document.addEventListener('DOMContentLoaded', () => {
+    applyAdminTz();
+    const picker = document.getElementById('adminTzPicker');
+    if (picker) {
+      // Reflect the saved zone; add it as an option if it's not in the curated list.
+      if (![...picker.options].some(o => o.value === window.ADMIN_TZ)) {
+        const opt = document.createElement('option');
+        opt.value = window.ADMIN_TZ; opt.textContent = window.ADMIN_TZ;
+        picker.insertBefore(opt, picker.firstChild);
+      }
+      picker.value = window.ADMIN_TZ;
+    }
+  });
+})();
+
+// Pages with server-side day-bucketed data (e.g. Claude Usage) register a
+// callback here to refetch when the zone changes -- plain <time> elements
+// reformat on their own via applyAdminTz().
+window._adminTzListeners = window._adminTzListeners || [];
+function onAdminTzChange(fn) { window._adminTzListeners.push(fn); }
+
+// Persist + hot-reload when the picker changes.
+async function setAdminTz(tz) {
+  window.ADMIN_TZ = tz;
+  applyAdminTz();
+  window._adminTzListeners.forEach((fn) => { try { fn(tz); } catch (e) {} });
+  try {
+    await adminFetch('/api/admin/auth/timezone', {
+      method: 'POST', headers: adminHeaders(), body: JSON.stringify({ timezone: tz }),
+    });
+  } catch (e) { /* best-effort; the page already reformatted */ }
+}
+
 const colors = ['violet','blue','green','orange','red'];
 const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','orange':'Degraded','red':'Corrupted'};
 
@@ -633,6 +737,7 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
   const NAV = [
     // --- Pages (sections) ---
     { g: 'page', label: 'Dashboard', url: '/api/admin/dashboard', kw: 'home overview' },
+    { g: 'page', label: 'Calibration Runs', url: '/api/admin/dashboard/runs', kw: 'runs corpus consensus log per song all runs created' },
     { g: 'page', label: 'Recalibrate', url: '/api/admin/recalibrate', kw: 'calibration recalc song' },
     { g: 'page', label: 'Misread Reports', url: '/api/admin/dashboard/misread', kw: 'wrong queue calibration flag' },
     { g: 'page', label: 'Ether Audits', url: '/api/admin/ether-audits', kw: 'taxonomy topics tags' },

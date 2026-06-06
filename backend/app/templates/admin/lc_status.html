@@ -106,9 +106,9 @@ function onAdminReady() {
 }
 
 function fmtDate(iso) {
+  // <time data-utc> -> renders in the admin's chosen zone, hot-reloads (see _base.html).
   if (!iso) return '<span style="color:var(--text-dim);">—</span>';
-  const d = new Date(iso);
-  return d.toLocaleString();
+  return `<time data-utc="${escHtml(iso)}"></time>`;
 }
 
 async function loadStatus() {

@@ -322,6 +322,29 @@ def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
     }
 
 
+# Public re-run cap: once a song has this many LIVE (non-superseded) calibration
+# runs, the public Lyrical Charger stops running it -- the reading is considered
+# settled. Further runs are admin/terminal-only (only tier=='public' is gated;
+# service and terminal callers bypass). Counts NON-SUPERSEDED runs, so a
+# rubric_update or admin recalibration (which supersedes the prior runs) resets
+# the budget and reopens the song to the public -- "the measuring stick moved,
+# read it fresh." Superseded runs stay in the ledger / Runs view but don't count
+# toward the cap.
+PUBLIC_RUN_CAP = 10
+
+
+def live_run_count(db: Session, song_id: int) -> int:
+    """Non-superseded calibration runs for a song -- the live corpus that the
+    public run cap counts against. Superseded runs (post rubric_update /
+    recalibration) are excluded so the cap reopens after a deliberate reset."""
+    return (
+        db.query(func.count(CalibrationRun.id))
+        .filter(CalibrationRun.song_id == song_id)
+        .filter(CalibrationRun.superseded.is_(False))
+        .scalar()
+    ) or 0
+
+
 def apply_consensus_to_song(
     db: Session,
     *,

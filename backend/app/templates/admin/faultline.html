@@ -114,9 +114,10 @@
   }
 
   function fmtTime(iso) {
+    // Emit a <time data-utc> element so it renders in the admin's chosen zone
+    // and hot-reloads when the timezone picker changes (see _base.html).
     if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return `<time data-utc="${escHtml(iso)}"></time>`;
   }
 
   async function loadStats() {

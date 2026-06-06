@@ -136,6 +136,7 @@ def require_admin_session(
     request.state.admin_user_id = user.id
     request.state.admin_username = user.username
     request.state.admin_role = user.role
+    request.state.admin_timezone = getattr(user, "timezone", None) or "America/New_York"
     return user
 
 
@@ -159,6 +160,7 @@ def optional_admin_session(
     request.state.admin_user_id = user.id
     request.state.admin_username = user.username
     request.state.admin_role = user.role
+    request.state.admin_timezone = getattr(user, "timezone", None) or "America/New_York"
     return user
 
 
@@ -330,4 +332,5 @@ def verify_admin_or_lyrics_key(
     request.state.admin_user_id = user.id
     request.state.admin_username = user.username
     request.state.admin_role = user.role
+    request.state.admin_timezone = getattr(user, "timezone", None) or "America/New_York"
     return user

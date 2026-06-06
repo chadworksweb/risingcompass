@@ -951,6 +951,9 @@ class AdminUser(Base):
     password_hash = Column(Text, nullable=False)
     role = Column(String(20), nullable=False, default="admin")
     is_active = Column(Boolean, nullable=False, default=True)
+    # Display timezone for the admin area (IANA name). Times are stored in UTC;
+    # this is purely the per-admin render zone. Default America/New_York (ET).
+    timezone = Column(String(64), nullable=False, default="America/New_York")
     failed_login_count = Column(Integer, nullable=False, default=0)
     locked_until = Column(DateTime)
     last_login_at = Column(DateTime)

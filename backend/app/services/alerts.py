@@ -474,3 +474,18 @@ def emit_faultline_regression(*, sig_id: int, title: str, component: Optional[st
     )
     send_alert(category="activity", alert_key="faultline_regression",
                subject=f"Fault regressed: {title}", html_body=html)
+
+
+def emit_faultline_new_signature(*, sig_id: int, title: str, component: Optional[str],
+                                 environment: str, occurrence_count: int) -> None:
+    """A brand-new fault signature was just captured. Default-on, deduped per
+    fingerprint (the caller fires this ONLY when a new error_signatures row is
+    created, so a burst collapses to one email). This closes the gap where a new
+    prod-down fault stayed silent until manually triaged to critical."""
+    html = _faultline_alert_html(
+        "A <strong>new</strong> fault was just captured.",
+        sig_id=sig_id, title=title, component=component,
+        environment=environment, occurrence_count=occurrence_count,
+    )
+    send_alert(category="activity", alert_key="faultline_new_signature",
+               subject=f"New fault: {title}", html_body=html)

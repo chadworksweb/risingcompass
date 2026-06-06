@@ -509,6 +509,11 @@ class ConsensusOut(BaseModel):
 
 class LyricsCalibrateOut(BaseModel):
     # "scored"                    — calibration succeeded, full payload below
+    # "saved_view_on_page"        -- completed and saved, but a post-save step
+    #                               failed before the full result could be
+    #                               returned. The reading is durable; the client
+    #                               links to the song page (song_slug). Delivered,
+    #                               so never refunded.
     # "error"                     — calibrator returned no color (rare; legacy)
     # "lyrics_mismatch"           — Layer 1 (identity guard, Opus): the lyrics
     #                               clearly belong to a different song than the
@@ -518,6 +523,11 @@ class LyricsCalibrateOut(BaseModel):
     #                               had radically different lyrics. Refusing to
     #                               fold this run into consensus. Nothing
     #                               recorded.
+    # "run_capped"                — the song already hit the public run cap
+    #                               (PUBLIC_RUN_CAP). Its reading is settled;
+    #                               public callers can no longer run it (admin/
+    #                               terminal only). Nothing recorded. run_count
+    #                               / run_cap carry the numbers for the UI.
     status: str
     tier: Optional[str] = None
     tier_label: Optional[str] = None
@@ -530,6 +540,9 @@ class LyricsCalibrateOut(BaseModel):
     artist: Optional[str] = None
     # Set on rejection statuses — short user-facing reason for the block.
     block_reason: Optional[str] = None
+    # Set on "run_capped": how many runs the song has vs the public cap.
+    run_count: Optional[int] = None
+    run_cap: Optional[int] = None
     # Consensus across all prior runs when the song already existed. Null
     # when this is the first run on this (title, artist) pair.
     consensus: Optional[ConsensusOut] = None

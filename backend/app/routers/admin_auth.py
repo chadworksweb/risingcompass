@@ -215,6 +215,40 @@ def whoami(
     return {
         "username": user.username,
         "role": user.role,
+        "timezone": getattr(user, "timezone", None) or "America/New_York",
         "session_expires_at": sess.expires_at.isoformat() + "Z",
         "session_absolute_expires_at": sess.absolute_expires_at.isoformat() + "Z",
     }
+
+
+class TimezoneIn(BaseModel):
+    timezone: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/api/admin/auth/timezone")
+def set_timezone(
+    payload: TimezoneIn,
+    rc_admin_session: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    """Persist the admin's display timezone (IANA name). Admin display only --
+    times stay stored in UTC; the admin UI reformats client-side to this zone."""
+    if not rc_admin_session:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = auth_svc.lookup_session(db, rc_admin_session)
+    if not result:
+        raise HTTPException(status_code=401, detail="Session invalid or expired")
+    sess, user = result
+    auth_svc.touch_session(db, sess)
+
+    tz = payload.timezone.strip()
+    # Validate against the real IANA database so we never store a bad zone.
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    try:
+        ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError, KeyError):
+        raise HTTPException(status_code=422, detail="Unknown timezone")
+
+    user.timezone = tz
+    db.commit()
+    return {"timezone": tz}

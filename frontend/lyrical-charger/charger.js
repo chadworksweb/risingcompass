@@ -882,9 +882,25 @@ async function submitLyrics() {
       return;
     }
 
+    if (data.status === 'run_capped') {
+      stopProgress();
+      showCappedCard(data);
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
     if (data.status === 'error') {
       stopProgress();
       showError('Could not calibrate these lyrics. Try different lyrics or check formatting.');
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    if (data.status === 'saved_view_on_page') {
+      stopProgress();
+      showSavedCard(data);
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -1062,9 +1078,25 @@ async function submitSearch() {
 
     const data = await resp.json();
 
+    if (data.status === 'run_capped') {
+      stopProgress();
+      showCappedCard(data);
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
     if (data.status === 'error') {
       stopProgress();
       showError('Could not calibrate this song. Try a different one.');
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    if (data.status === 'saved_view_on_page') {
+      stopProgress();
+      showSavedCard(data);
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
@@ -1358,7 +1390,51 @@ function showError(msg, appealUrl) {
 
 function hideError() {
   errorMessage.classList.add('hidden');
+  errorMessage.classList.remove('saved');
   errorMessage.textContent = '';
+}
+
+// Recovery card: the calibration completed and the song was saved, but a
+// post-save step failed before the full result could be shown. We don't error
+// out -- we tell the user it's done and offer a link to the saved reading
+// (their choice to click; not an auto-redirect).
+function showSavedCard(data) {
+  errorMessage.textContent = '';
+  errorMessage.classList.add('saved');
+  errorMessage.appendChild(document.createTextNode(
+    'Your song was completed and saved.'));
+  if (data && data.song_slug) {
+    errorMessage.appendChild(document.createElement('br'));
+    const a = document.createElement('a');
+    a.href = '/songs/' + data.song_slug;
+    a.textContent = 'View your reading ->';
+    errorMessage.appendChild(a);
+  } else {
+    errorMessage.appendChild(document.createTextNode(
+      ' Find it in the Library or via search.'));
+  }
+  errorMessage.classList.remove('hidden');
+}
+
+// Run-capped card: the song has hit its public run limit. Its reading is
+// settled -- no new public run is made. Inform (not an error) and link to the
+// song page so the user can see the current calibration.
+function showCappedCard(data) {
+  const cap = data && data.run_cap ? data.run_cap : 10;
+  const count = data && data.run_count ? data.run_count : cap;
+  errorMessage.textContent = '';
+  errorMessage.classList.add('saved');
+  errorMessage.appendChild(document.createTextNode(
+    `This song has reached its ${cap}-run limit (calibrated ${count} times). ` +
+    `Its reading is settled, so it's no longer open to public runs.`));
+  if (data && data.song_slug) {
+    errorMessage.appendChild(document.createElement('br'));
+    const a = document.createElement('a');
+    a.href = '/songs/' + data.song_slug;
+    a.textContent = 'View its calibration ->';
+    errorMessage.appendChild(a);
+  }
+  errorMessage.classList.remove('hidden');
 }
 
 /* ============================================================

@@ -89,8 +89,10 @@ def _init_database():
     ensure_pref_default("album_mb_match", enabled=True)
     # General inquiry / contact form: alert the admin on each submission.
     ensure_pref_default("general_inquiry", enabled=True)
-    # Faultline: a fault marked critical, or a resolved fault that recurred. Both
-    # on by default -- a critical or a regression should never sit unseen.
+    # Faultline: a brand-new fault, a fault marked critical, or a resolved fault
+    # that recurred. All on by default -- a new prod fault, a critical, or a
+    # regression should never sit unseen (prod-gated in faultline._persist).
+    ensure_pref_default("faultline_new_signature", enabled=True)
     ensure_pref_default("faultline_new_critical", enabled=True)
     ensure_pref_default("faultline_regression", enabled=True)
 
@@ -293,6 +295,8 @@ app.include_router(dev_ledger.admin_router)
 app.include_router(artist_verification.admin_router)
 app.include_router(inquiries.admin_router)
 app.include_router(chart_anomalies.admin_router)
+from app.routers import runs_admin
+app.include_router(runs_admin.router)
 app.include_router(agent.router)
 app.include_router(library_admin.router)
 app.include_router(submissions_admin.router)

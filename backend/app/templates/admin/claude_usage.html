@@ -255,6 +255,9 @@ function cuWindowLabel(days) {
 function onAdminReady() {
   cuLoad();
   caLoad();
+  // Day buckets are computed server-side, so refetch when the admin's timezone
+  // changes (plain timestamps reformat on their own).
+  onAdminTzChange(() => cuLoad());
 }
 
 // --- Prompt cache advisor ---------------------------------------------------
@@ -361,7 +364,8 @@ async function caReset() {
 async function cuLoad() {
   const days = document.getElementById('cuDays').value;
   try {
-    const resp = await adminFetch(`/api/admin/claude-usage/summary?days=${days}`);
+    const tz = encodeURIComponent(window.ADMIN_TZ || 'America/New_York');
+    const resp = await adminFetch(`/api/admin/claude-usage/summary?days=${days}&tz=${tz}`);
     if (!resp.ok) return;
     const data = await resp.json();
     cuAssignSiteColors(data.by_call_site || []);

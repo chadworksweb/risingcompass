@@ -23,8 +23,26 @@ def _resolve_since(days: int) -> datetime:
     return datetime.utcnow() - timedelta(days=days)
 
 
+def _day_expr(tz: str | None):
+    """Day-bucket expression for ClaudeApiUsage.ts. With a valid IANA tz, bucket
+    by that zone's calendar day (ts is naive UTC -> interpret as UTC, convert to
+    the zone, then take the date); otherwise bucket by UTC day. PG-specific
+    (AT TIME ZONE via func.timezone); local dev is also Postgres."""
+    if tz:
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo(tz)  # validate; raises on a bad zone
+            local_ts = func.timezone(tz, func.timezone("UTC", ClaudeApiUsage.ts))
+            return func.date(local_ts)
+        except Exception:
+            pass
+    return func.date(ClaudeApiUsage.ts)
+
+
 @router.get("/summary", dependencies=[Depends(verify_admin_key)])
-def usage_summary(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
+def usage_summary(days: int = Query(30, ge=1, le=365),
+                  tz: str = Query(None, max_length=64),
+                  db: Session = Depends(get_db)):
     """Aggregate spend over the trailing N days.
 
     Returns:
@@ -35,6 +53,7 @@ def usage_summary(days: int = Query(30, ge=1, le=365), db: Session = Depends(get
       - all_time_cost_usd: sum across the full table (cheap; one row count)
     """
     since = _resolve_since(days)
+    day_expr = _day_expr(tz)
 
     totals_row = (
         db.query(
@@ -79,7 +98,7 @@ def usage_summary(days: int = Query(30, ge=1, le=365), db: Session = Depends(get
 
     daily_rows = (
         db.query(
-            func.date(ClaudeApiUsage.ts).label("day"),
+            day_expr.label("day"),
             func.count(ClaudeApiUsage.id).label("calls"),
             func.coalesce(func.sum(ClaudeApiUsage.total_cost_usd), 0.0).label("cost_usd"),
         )
@@ -91,7 +110,7 @@ def usage_summary(days: int = Query(30, ge=1, le=365), db: Session = Depends(get
 
     daily_site_rows = (
         db.query(
-            func.date(ClaudeApiUsage.ts).label("day"),
+            day_expr.label("day"),
             ClaudeApiUsage.call_site,
             func.coalesce(func.sum(ClaudeApiUsage.total_cost_usd), 0.0).label("cost_usd"),
         )
