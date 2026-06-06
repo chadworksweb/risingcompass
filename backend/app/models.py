@@ -354,7 +354,13 @@ class Release(Base):
     # Album Charger.
     charge_summary = Column(Text)  # one-paragraph album-level summary
     arc_prose = Column(Text)  # how the album moves across its tracks
+    effects_prose = Column(Text)  # what the album does to a listener (mig 090)
     societal_prose = Column(Text)  # what running this album at scale does to a society
+    # Album-level Ether Art Chart entry (mig 090): the album as a first-class
+    # ether subject, parallel to a song's deadpan_line/topics/topic_audit.
+    deadpan_line = Column(Text)
+    topics = Column(Text)       # JSON-encoded list of taxonomy slugs
+    topic_audit = Column(Text)  # JSON-encoded audit dict, or NULL when topics present
     source = Column(String(30))  # 'album_charger' for user-charged albums; else NULL
     submitted_at = Column(DateTime)  # when charged via the Album Charger
     created_at = Column(DateTime, default=datetime.utcnow)

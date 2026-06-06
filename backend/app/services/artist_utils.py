@@ -147,10 +147,10 @@ def resolve_artist_slugs(names, db) -> dict[str, str]:
 
 
 async def resolve_artist_releases(artist_id: int) -> dict:
-    """Resolve release metadata for an artist via MB (primary) or Spotify (fallback).
+    """Resolve release metadata for an artist via MusicBrainz.
 
-    Fetches MB/Spotify data into memory *without* holding a DB session, then
-    opens a fresh session for writes. MB is rate-limited to 1 req/sec, so a
+    Fetches MB data into memory *without* holding a DB session, then opens a
+    fresh session for writes. MB is rate-limited to 1 req/sec, so a
     Beatles-sized catalog is minutes of calls; separating the phases avoids
     holding a pooled connection idle across that window.
 
@@ -174,11 +174,8 @@ async def resolve_artist_releases(artist_id: int) -> dict:
     if not all_songs:
         return stats
 
-    # Phase 2 — no DB: fetch MB (and Spotify fallback) into memory
+    # Phase 2 — no DB: fetch MB release data into memory
     mb_data = await _fetch_musicbrainz_data(artist_name)
-    sp_data = None
-    if not mb_data:
-        sp_data = await _fetch_spotify_data(artist_name)
 
     # Phase 3 — fresh session: apply all writes in one burst, commit
     db = SessionLocal()
@@ -191,10 +188,6 @@ async def resolve_artist_releases(artist_id: int) -> dict:
             stats["source"] = "musicbrainz"
             stats["releases_created"] = mb_stats["releases_created"]
             stats["songs_linked"] = mb_stats["songs_linked"]
-        elif sp_data:
-            sp_stats = _apply_spotify_data(artist, sp_data, db)
-            stats["source"] = "spotify"
-            stats["releases_created"] = sp_stats["releases_created"]
 
         stats["songs_linked"] += _apply_catch_all(artist, all_songs, db)
         db.commit()
@@ -249,7 +242,15 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
     artist.musicbrainz_id = mb_data["mbid"]
     stats = {"releases_created": 0, "songs_linked": 0}
 
-    linked_keys = _get_linked_song_keys(artist, db)
+    # Tracklist identity: a Rising Compass release is the first official issue
+    # of a DISTINCT set of songs. A song is one entity that may populate many
+    # releases (its single AND its album), so we no longer stop after a song's
+    # first link. We only collapse a later release-group that carries the
+    # IDENTICAL song-set as one already created this pass (a reissue / repressing
+    # under a new MBID) — a different B-side is a different tracklisting, hence a
+    # different release, and is kept. Dedup is within a single resolve pass; the
+    # existing-MBID guard below stops a prior pass's groups from re-adding.
+    seen_track_sets: set[frozenset] = set()
 
     # Preload existing releases once. Disambiguating per-release via DB queries
     # costs hundreds of round-trips on catalogs like the Beatles'; resolve it
@@ -264,6 +265,17 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
 
     for mb_rel in mb_data.get("releases", []):
         if mb_rel["mbid"] in existing_mbids:
+            continue
+
+        # Tracklist-identity dedup: collapse a later group with the identical
+        # song-set (a reissue under a new MBID). Built from the full MB track
+        # titles, independent of which tracks match a calibrated song.
+        track_set = frozenset(
+            re.sub(r"[^a-z0-9]", "", (t.get("title") or "").lower())
+            for t in mb_rel.get("tracks", [])
+            if (t.get("title") or "").strip()
+        )
+        if track_set and track_set in seen_track_sets:
             continue
 
         title = _pick_unique_title(mb_rel, existing_titles)
@@ -282,25 +294,28 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
         db.flush()
         existing_titles.add(title.lower())
         existing_mbids.add(mb_rel["mbid"])
+        if track_set:
+            seen_track_sets.add(track_set)
         stats["releases_created"] += 1
 
         charges: list[int] = []
         contam = 0
         calibrated = 0
+        seen_in_release: set[int] = set()  # guard a song appearing twice on one release
 
         for track in mb_rel.get("tracks", []):
             matched = _match_track_in_memory(track["title"], all_songs)
             if not matched:
                 continue
             key = matched["id"]  # unified songs.id
-            if key in linked_keys:
+            if key in seen_in_release:
                 continue
             db.add(ReleaseSong(
                 release_id=release.id,
                 song_id=matched["id"],
                 track_number=track.get("position"),
             ))
-            linked_keys.add(key)
+            seen_in_release.add(key)
             stats["songs_linked"] += 1
             if matched["charge"] is not None:
                 charges.append(matched["charge"])
@@ -316,86 +331,6 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
             if result:
                 release.charge_value = result[0]
                 release.rubric_color = result[1]
-
-    return stats
-
-
-async def _fetch_spotify_data(artist_name: str) -> dict | None:
-    """Fetch Spotify artist + albums into memory. No DB access."""
-    from app.config import settings
-
-    if not settings.spotify_client_id or not settings.spotify_client_secret:
-        return None
-
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=10) as client:
-            token_resp = await client.post(
-                "https://accounts.spotify.com/api/token",
-                data={"grant_type": "client_credentials"},
-                auth=(settings.spotify_client_id, settings.spotify_client_secret),
-            )
-            token_resp.raise_for_status()
-            token = token_resp.json()["access_token"]
-
-            search_resp = await client.get(
-                "https://api.spotify.com/v1/search",
-                params={"q": artist_name, "type": "artist", "limit": 1},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            search_resp.raise_for_status()
-            artists_data = search_resp.json()["artists"]["items"]
-            if not artists_data:
-                return None
-            sp_artist = artists_data[0]
-
-            albums_resp = await client.get(
-                f"https://api.spotify.com/v1/artists/{sp_artist['id']}/albums",
-                params={"include_groups": "album,single", "limit": 50},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            albums_resp.raise_for_status()
-            sp_albums = albums_resp.json()["items"]
-
-        return {"spotify_id": sp_artist["id"], "albums": sp_albums}
-    except Exception:
-        logger.exception("Spotify fetch failed for '%s'", artist_name)
-        return None
-
-
-def _apply_spotify_data(artist: Artist, sp_data: dict, db) -> dict:
-    """Write fetched Spotify data to the DB. Synchronous."""
-    from app.services.musicbrainz import _parse_mb_date
-
-    artist.spotify_id = sp_data["spotify_id"]
-    stats = {"releases_created": 0}
-
-    for sp_album in sp_data.get("albums", []):
-        existing = (
-            db.query(Release)
-            .filter(Release.artist_id == artist.id)
-            .filter(func.lower(Release.title) == sp_album["name"].lower())
-            .first()
-        )
-        if existing:
-            continue
-
-        sp_type = sp_album.get("album_type", "single").lower()
-        release_type = {"album": "album", "single": "single", "compilation": "album"}.get(sp_type, "single")
-        release_date, release_year = _parse_mb_date(sp_album.get("release_date", ""))
-
-        release = Release(
-            artist_id=artist.id,
-            title=sp_album["name"],
-            release_type=release_type,
-            release_date=release_date,
-            release_year=release_year,
-            spotify_id=sp_album["id"],
-            track_count=sp_album.get("total_tracks", 0),
-        )
-        db.add(release)
-        db.flush()
-        stats["releases_created"] += 1
 
     return stats
 

@@ -18,11 +18,18 @@ BASE_URL = "https://musicbrainz.org/ws/2"
 USER_AGENT = "RisingCompass/1.0 (https://risingcompass.net)"
 
 # Release-group secondary types we never want in an artist's Releases.
-# MB uses lowercase "soundtrack", "demo", "mixtape/street", "audio drama",
-# "audiobook", "interview", "spokenword" — all noise for a calibration site.
+# MB uses lowercase "demo", "mixtape/street", "audio drama", "audiobook",
+# "interview", "spokenword", "field recording" — all noise for a calibration
+# site. NOTE: "soundtrack" is deliberately NOT here. A studio album that
+# doubled as a film soundtrack (the Beatles' "A Hard Day's Night" / "Help!")
+# carries only a "soundtrack" secondary tag and is a genuine first-appearance
+# release that must survive. A soundtrack that's ALSO a compilation/live/etc.
+# still gets dropped by the matching tag below; and a various-artists soundtrack
+# comp is filed under "Various Artists", not under this artist, so it never
+# reaches get_artist_releases in the first place.
 SKIP_SECONDARY_TYPES = {
     "compilation", "live", "remix", "dj-mix",
-    "soundtrack", "demo", "mixtape/street", "mixtape",
+    "demo", "mixtape/street", "mixtape", "field recording",
     "audio drama", "audiobook", "interview", "spokenword",
 }
 
@@ -36,6 +43,29 @@ SKIP_TITLE_SUBSTRINGS = (
 
 # Outtake pattern: "(take 1)", "(take 17)", "take 3)" at end of title, etc.
 OUTTAKE_RE = re.compile(r"\(take\s+\d+\)|take\s+\d+\)\s*$", re.IGNORECASE)
+
+# Derivative-edition markers. A Rising Compass release is the FIRST official
+# issue of a tracklisting; a remaster / deluxe / anniversary / reissue re-issues
+# an existing (or padded) tracklisting under an edition name, so the original
+# already covers every song's first appearance. These re-releases are dropped.
+DERIVATIVE_EDITION_RE = re.compile(
+    r"\bremaster(ed)?\b|\bdeluxe\b|\banniversary\b|\bexpanded\b"
+    r"|\breissue\b|\bre-?issue\b|\brepack(age|aged)?\b|\breprint\b"
+    r"|\bre-?record(ed|ing)?s?\b|\bacoustic\b|\bcollector'?s?\b"
+    r"|\bspecial\s+edition\b|\blimited\s+edition\b|\bbonus\s+track"
+    r"|\(mono\)|\(stereo\)|\bin\s+mono\b|\bin\s+stereo\b",
+    re.IGNORECASE,
+)
+
+# Greatest-hits / compilation title markers, for comps MusicBrainz failed to
+# tag with a "compilation" secondary type (e.g. the Beatles' "The Beatles'
+# Hits"). Title-based, so it carries some false-positive risk on a legitimately
+# named release — flagged here so a bad drop is easy to trace back.
+HITS_COMPILATION_RE = re.compile(
+    r"\bgreatest\s+hits\b|\bbest\s+of\b|\bvery\s+best\b|\bhits\b"
+    r"|\banthology\b|\bcollection\b|\bfavou?rites\b|\bessential\b",
+    re.IGNORECASE,
+)
 
 # Simple rate limiter — track last request time
 _last_request_time: float = 0
@@ -139,6 +169,15 @@ async def get_artist_releases(
                 if any(p in title_lower for p in SKIP_TITLE_SUBSTRINGS):
                     continue
                 if OUTTAKE_RE.search(title_lower):
+                    continue
+                # Derivative-edition exclusion (remaster / deluxe / anniversary /
+                # reissue / acoustic / mono-stereo redux) — re-releases of an
+                # existing tracklisting, never a first appearance.
+                if DERIVATIVE_EDITION_RE.search(title):
+                    continue
+                # Greatest-hits / comp exclusion for groups MB never tagged
+                # "compilation" (e.g. "The Beatles' Hits").
+                if HITS_COMPILATION_RE.search(title):
                     continue
 
                 # Map primary type to our release_type. Unknown primaries

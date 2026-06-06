@@ -64,10 +64,6 @@ class Settings(BaseSettings):
     # Site URL for approval links in emails
     site_url: str = "http://localhost:8000"
 
-    # Spotify API (for Lyrical Charger playlist resolution)
-    spotify_client_id: str = ""
-    spotify_client_secret: str = ""
-
     # Musixmatch API (song search + lyrics for Lyrical Charger)
     musixmatch_api_key: str = ""
 

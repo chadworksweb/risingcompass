@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, text
 
@@ -194,11 +194,15 @@ def refresh_release_aggregates(
 async def resolve_metadata(
     slug: str,
 ):
-    """Resolve release metadata for an artist via MusicBrainz/Spotify.
+    """Resolve release metadata for an artist via MusicBrainz.
 
-    Creates proper Release rows with dates, types, and track listings.
-    Links existing calibrated songs to the correct releases.
-    Unmatched songs stay in "Singles & Uncategorized".
+    Creates proper Release rows with dates, types, and track listings under the
+    first-appearance rule (RISING-COMPASS-ARTIST-RELEASES.md). Links existing
+    calibrated songs to every release they appear on. Unmatched songs stay in
+    "Singles & Uncategorized".
+
+    Additive: existing releases are kept (skipped by MBID). To re-apply the rule
+    to an artist whose releases predate it, use rebuild-releases below.
     """
 
     db = SessionLocal()
@@ -219,11 +223,105 @@ async def resolve_metadata(
             "artist": artist.name,
             "slug": artist.slug,
             "musicbrainz_id": artist.musicbrainz_id,
-            "spotify_id": artist.spotify_id,
             **stats,
         }
     finally:
         db.close()
+
+
+class RebuildReleasesRequest(BaseModel):
+    notes: Optional[str] = None
+
+
+@router.post("/{slug}/rebuild-releases")
+async def rebuild_releases(
+    slug: str,
+    req: RebuildReleasesRequest = Body(default=None),
+):
+    """Purge the artist's MusicBrainz-derived releases, then re-resolve under the
+    current first-appearance rule (RISING-COMPASS-ARTIST-RELEASES.md).
+
+    resolve-metadata is additive (it never deletes), so it can't retroactively
+    apply a tightened filter to releases already in the DB. This action does:
+
+    1. Delete every Release for the artist that is MB-sourced
+       (musicbrainz_id IS NOT NULL) OR the "Singles & Uncategorized" catch-all,
+       plus their release_songs links. Album-Charger releases
+       (source='album_charger') are left untouched.
+    2. Re-run the standard resolve, which re-creates the MB releases under the
+       codified type/edition/hits/bootleg filters + tracklist dedup and re-links
+       each song to every release it appears on.
+
+    Idempotent and re-runnable. Audited as event_type 'rebuild_releases'.
+    """
+    catchall = "Singles & Uncategorized"
+
+    # Phase 1 -- look up artist.
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+        artist_id, artist_name, artist_slug = artist.id, artist.name, artist.slug
+    finally:
+        db.close()
+
+    # Phase 2 -- purge MB-sourced releases + catch-all atomically; keep
+    # album_charger. Delete links first to respect the FK.
+    where = (
+        " WHERE artist_id = :aid"
+        "   AND source IS DISTINCT FROM 'album_charger'"
+        "   AND (musicbrainz_id IS NOT NULL OR title = :catchall)"
+    )
+    params = {"aid": artist_id, "catchall": catchall}
+    conn = engine.connect()
+    try:
+        deleted_links = conn.execute(
+            text("DELETE FROM release_songs WHERE release_id IN (SELECT id FROM releases" + where + ")"),
+            params,
+        ).rowcount or 0
+        deleted_releases = conn.execute(
+            text("DELETE FROM releases" + where),
+            params,
+        ).rowcount or 0
+        conn.commit()
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        logger.exception("rebuild-releases purge failed for %s", slug)
+        raise HTTPException(500, "Rebuild failed during purge -- nothing committed.")
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    # Phase 3 -- re-resolve under the current rule (own sessions; MB is
+    # rate-limited, so a large catalog is minutes of calls).
+    stats = await resolve_artist_releases(artist_id)
+
+    # Phase 4 -- audit + return.
+    summary = {
+        "deleted_releases": deleted_releases,
+        "deleted_release_songs": deleted_links,
+        **stats,
+    }
+    db = SessionLocal()
+    try:
+        db.add(ArtistAdminEvent(
+            event_type="rebuild_releases",
+            actor="admin",
+            artist_id=artist_id,
+            artist_name_before=artist_name,
+            artist_slug_before=artist_slug,
+            rewrites_json=json.dumps(summary),
+            notes=(req.notes if req else None),
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    _invalidate_artist_caches()
+
+    return {"artist": artist_name, "slug": artist_slug, **summary}
 
 
 def _get_distinct_artist_names(db, min_songs: int) -> list[str]:
