@@ -41,6 +41,12 @@ EXCLUDED_FILE_NAMES = {
     "sitemap.xml", "robots.txt", "_headers",
 }
 
+# Curated nested pages worth indexing that the top-level scan won't find
+# (the scan never recurses). Add nested page paths here as they ship.
+EXTRA_PAGES = [
+    "/lyrical-charger/activity/",
+]
+
 
 def _top_level_pages() -> list[str]:
     """Return sorted URL paths to include in the sitemap."""
@@ -62,6 +68,10 @@ def _top_level_pages() -> list[str]:
             if entry.suffix.lower() == ".html":
                 urls.append(f"/{entry.name}")
 
+    for extra in EXTRA_PAGES:
+        if extra not in urls:
+            urls.append(extra)
+
     return urls
 
 
@@ -81,7 +91,8 @@ def _changefreq_for(path: str) -> str:
     utility pages monthly."""
     if path == "/":
         return "daily"
-    if path in {"/calibration-log/", "/artists/", "/search/", "/library/", "/calendar/"}:
+    if path in {"/calibration-log/", "/artists/", "/search/", "/library/",
+                "/calendar/", "/lyrical-charger/activity/"}:
         return "daily"
     if path in {"/privacy.html", "/tenets/", "/misread-submission.html", "/amendments/"}:
         return "monthly"
