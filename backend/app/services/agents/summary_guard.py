@@ -43,8 +43,11 @@ _SUMMARY_ABSENCE_RE = re.compile(
     r"(?:does\s+not|doesn[’']?t|do\s+not|don[’']?t|didn[’']?t|never|"
     r"fails?\s+to|without(?:\s+ever|\s+any|\s+real)?|won[’']?t|can[’']?t)"
     r"\W+(?:\w+\W+){0,3}?(?:" + _QUALITY + r")"
-    # standalone high-signal tells
-    r"|reach(?:es|ing)?\s+for\b"
+    # standalone high-signal tells. NOTE: a bare "reach(es|ing) for" was removed
+    # after it false-positived on legitimate positive description ("reaching for
+    # unconditional love" = what the song DOES, not absence-framing). The prompt
+    # SUMMARY CHECK still warns against the "reaches for X but ..." shape; the
+    # quality-anchored negations above carry the real enforcement.
     r"|no\s+real\s+(?:\w+\W+){0,2}?(?:" + _QUALITY + r")"
     r"|\blacks?\b"
     r"|(?:falls?|stops?)\s+short\b"
