@@ -104,10 +104,18 @@ def _generate_draft_label(db: Session, reading_date: date, draft_type: str = "co
 
 def _store_calibration(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
-                          db: Session, *, lyrics: str | None = None) -> int | None:
-    """Store or update a calibration in the CompassSong table for future reuse.
+                          db: Session, *, lyrics: str | None = None,
+                          year: int | None = None,
+                          chart_position_letter: str = "") -> int | None:
+    """Store or update a calibration on the unified `songs` row + a
+    chart_appearance for this (chart, year, position).
 
-    Returns the compass_songs.id for the stored/updated row, or None if skipped.
+    Returns the unified `songs.id` for the stored/updated row, or None if skipped.
+
+    `year` defaults to the CURRENT year (the live daily-reading path). Historical
+    backfill of a not-yet-done year MUST pass the chart year explicitly so the
+    chart_appearance lands on the right year (e.g. `year=1977`); pass
+    `chart_position_letter` for double-A-side splits.
 
     Connection hygiene: this function does only fast DB work — compass_songs
     upsert + corpus record_and_reconcile (also DB-only). The multi-second
@@ -156,15 +164,16 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     # nulls prose/analysis fields the calibration object doesn't carry.
     from app.services.song_sync import store_calibrated_song
     from app.services.artist_linker import parse_artist_string
-    current_year = date.today().year
+    appearance_year = year if year is not None else date.today().year
     song_id, created = store_calibrated_song(
         db,
         source="compass",
         title=title, artist=artist,
         calibration=result,
         chart_source=chart_source,
-        year=current_year,
+        year=appearance_year,
         chart_position=chart_position,
+        chart_position_letter=chart_position_letter,
         artist_entries=parse_artist_string(artist or ""),
     )
     if song_id is None:
