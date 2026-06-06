@@ -39,6 +39,17 @@ Script auto-detects what changed (backend vs frontend):
 
 ## Database
 
+**Song entity (renovation COMPLETE 2026-06-05, schema_version 88).** `songs` is
+the ONE atomic song table = the entire Library (superset of all calibrated
+songs). "Charting" is a derived role via `chart_appearances`; ingestion is logged
+in `song_ingestions`. The old four-table model (`compass_songs` / `library_songs`
+/ `submitted_songs` / `cl_stream_songs`) and the polymorphic `(song_source,
+song_id)` pointer are GONE — every reference table now carries a single `song_id`
+FK to `songs(id)`. Full record: `plans and docs/RISING-COMPASS-SONG-ENTITY-
+RENOVATION.md`. **Migrations run only on app startup (lifespan), never on bare
+import** — do NOT validate by importing `app.main` against a prod-pointed
+`DATABASE_URL`.
+
 DigitalOcean Managed Postgres (NYC3), reached through DO's PgBouncer pool
 (transaction mode). Migrated off Turso/libSQL 2026-05-24; the full pre-migration
 implementation is tagged `pre-postgres-turso` in git, and the migration plan +
@@ -116,10 +127,10 @@ the Site Admin host.
   Terminal scripts that use this:
   - `backend/scripts/calibrate_song.py` — fresh calibration, sends lyrics +
     Claude-Code-supplied calibration object. Server skips every Anthropic
-    call. Use this for any song with no prior `compass_songs` row.
+    call. Use this for any song with no prior `songs` row.
   - `backend/scripts/correct_song.py` — override of an already-calibrated
-    song. Only mirrors to `compass_songs` if `agent_draft_songs.compass_song_id`
-    is already set; do not use for fresh songs.
+    song. Writes through to the unified `songs` row via the draft's
+    `agent_draft_songs.song_id`; do not use for fresh songs.
   - `backend/scripts/supply_lyrics.py` — legacy server-side Anthropic
     calibrator path; do not run from terminal (API boundary lockdown).
   If env-listed in `docker-compose.yml`, must also be added there for the
@@ -450,11 +461,11 @@ Tamper-evident provenance for `societal_effects_prose`. Three layers; full spec
 in `Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-PROSE-PROVENANCE.md`.
 
 - **Seal (always on).** Every `societal_effects_prose` write also stamps
-  `societal_prose_generated_at` + `societal_prose_model`, in lockstep, across the
-  4 prose tables (`compass_songs`, `library_songs`, `submitted_songs`,
-  `stream_songs`; `agent_draft_songs` excluded). Centralised via the shared
-  mappers (`analyzer._song_persist_fields`, `backfill/engine._apply_generated_fields`)
-  + the direct sites. **Terminal-supplied prose** (Claude-Code via
+  `societal_prose_generated_at` + `societal_prose_model`, in lockstep, on the
+  unified `songs` row (post song-entity renovation; the former 4 prose tables
+  compass/library/submitted/stream were dropped in Phase 5d). Centralised via the
+  shared mappers (`analyzer._song_persist_fields`,
+  `backfill/engine._apply_generated_fields`) + the direct sites. **Terminal-supplied prose** (Claude-Code via
   `compass_agent._store_calibration`) carries no server seal, so a **write-time
   floor** stamps `model='terminal_supplied'` + `utcnow()` (parallels the
   migration-075 `legacy_unknown` proxy). Migration 075.
