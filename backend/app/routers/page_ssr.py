@@ -206,6 +206,57 @@ def ssr_song(slug: str):
     return HTMLResponse(html)
 
 
+@router.get("/artists/{slug}/{release_slug}", response_class=HTMLResponse)
+def ssr_release(slug: str, release_slug: str):
+    tpl = _load_template("artists/release.html")
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    from app.routers.artists import release_detail
+    from fastapi import HTTPException
+    try:
+        rel = release_detail(slug, release_slug)
+    except HTTPException:
+        return HTMLResponse(tpl)  # generic meta; JS shows "Release not found"
+
+    title = rel.get("title") or "this release"
+    artist = (rel.get("artist") or {}).get("name")
+    rtype = rel.get("release_type")
+    type_word = "album" if rtype == "album" else "EP" if rtype == "ep" else "release"
+    tagline = f'"{title}" by {artist}' if artist else f'"{title}"'
+    question = f"What is the {type_word} {tagline} about?"
+    summary = rel.get("charge_summary")
+    answer = (
+        f"{question} {summary}" if summary
+        else f"This page reads {tagline} as a whole - its lyrical charge across the "
+             f"tracklist, calibrated by The Rising Compass."
+    )
+    description = (
+        f"What {tagline} is about as a whole - its charge across the tracklist. {summary}"
+        if summary else
+        f"What {tagline} is about as a whole - its charge across the tracklist, "
+        f"calibrated by The Rising Compass."
+    )
+    canonical = f"{_SITE}/artists/{slug}/{release_slug}"
+
+    html = _inject(
+        tpl,
+        title=f"{question} - The Rising Compass",
+        description=description,
+        canonical=canonical,
+        json_ld=_faq_ld(question, answer, canonical),
+    )
+    # Bake the hero panel's spectrum border + glow into first paint.
+    style = _hero_style(rel.get("charge_value"))
+    if style:
+        html = html.replace(
+            '<section class="song-section song-section--hero" id="release-hero"',
+            f'<section class="song-section song-section--hero" id="release-hero" style="{style}"',
+            1,
+        )
+    return HTMLResponse(html)
+
+
 @router.get("/artists/{slug}", response_class=HTMLResponse)
 def ssr_artist(slug: str):
     tpl = _load_template("artists/artist.html")

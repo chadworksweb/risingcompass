@@ -48,6 +48,7 @@ from app.schemas import (
     AlbumCalibrateIn, AlbumCalibrateOut, AlbumTrackResult,
     AlbumChargeJobOut, AlbumChargeStatusOut,
     AlbumSearchIn, AlbumSearchOut, AlbumTracklistIn, AlbumTracklistOut,
+    MbCandidate, AlbumChooseReleaseIn, AlbumChooseReleaseOut,
 )
 from app.models import Release, ReleaseSong, User, AlbumChargeJob
 from app.constants import COLOR_LABELS
@@ -62,13 +63,14 @@ from app.services.agents.calibrator import (
 from app.services.artist_linker import (
     upsert_artist, parse_artist_string, format_artist_string,
 )
-from app.services.artist_utils import compute_release_charge, normalize_artist_name
+from app.services.artist_utils import compute_release_charge, normalize_artist_name, slugify
+from app.services import musicbrainz, coverart
 from app.services.album_synthesis import generate_album_synthesis
 from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
 from app.services.song_sync import store_calibrated_song
 from app.services.lyrics_fingerprint import compute_fingerprint
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
-from app.services.alerts import emit_album_charged
+from app.services.alerts import emit_album_charged, emit_album_mb_match
 
 # Reuse the single-song endpoints' shared helpers verbatim -- one source of
 # truth for bot protection, availability gating, lyric validation, source
@@ -176,6 +178,59 @@ def _primary_artist_name(artist: str, structured: list[dict] | None) -> str:
         if e.get("role") == "primary" and e.get("name"):
             return e["name"].strip()
     return normalize_artist_name(artist) or artist.strip()
+
+
+# --- MusicBrainz match (cover art) ----------------------------------------
+# Auto-attach a release-group MBID only when the top hit is a strong,
+# unambiguous title match; otherwise hand the candidates to the frontend
+# picker (the user decides). Admin gets a verify email either way.
+_MB_MIN_SCORE = 92
+_MB_MARGIN = 12
+
+
+def _pick_mb_match(submitted_title: str, candidates: list[dict]):
+    """Return (chosen_mbid, needs_pick, top_candidates).
+
+    chosen + not needs_pick -> confident auto-attach.
+    none   + needs_pick     -> ambiguous; show the picker.
+    none   + not needs_pick -> no candidates at all (no cover).
+    """
+    if not candidates:
+        return (None, False, [])
+    top = candidates[0]
+    tslug = slugify(submitted_title)
+    title_match = bool(tslug) and slugify(top.get("title", "")) == tslug
+    margin_ok = len(candidates) == 1 or (top["score"] - candidates[1]["score"]) >= _MB_MARGIN
+    if top["score"] >= _MB_MIN_SCORE and title_match and margin_ok:
+        return (top["mbid"], False, candidates[:6])
+    return (None, True, candidates[:6])
+
+
+def _attach_release_mbid(release_id: int, mbid: str) -> None:
+    """Set releases.musicbrainz_id (only if unset) in a short transaction."""
+    db = SessionLocal()
+    try:
+        rel = db.get(Release, release_id)
+        if rel and not rel.musicbrainz_id:
+            rel.musicbrainz_id = mbid
+            db.commit()
+    finally:
+        db.close()
+
+
+def _mb_candidates_out(candidates: list[dict]) -> list[MbCandidate]:
+    """Shape MB hits for the picker, with a (best-effort) CAA thumb URL."""
+    return [
+        MbCandidate(
+            musicbrainz_id=c["mbid"], title=c["title"],
+            primary_type=c.get("primary_type") or None,
+            first_release_date=c.get("first_release_date") or None,
+            artist_credit=c.get("artist_credit") or None,
+            score=c.get("score", 0),
+            thumb_url=coverart.coverart_urls(c["mbid"])["thumb_url"],
+        )
+        for c in candidates
+    ]
 
 
 def _update_job(token: str, **fields) -> None:
@@ -499,7 +554,11 @@ async def _run_album_charge(
             release.contamination_count = contamination_count
             release.charge_summary = synthesis.get("charge_summary")
             release.arc_prose = synthesis.get("arc_prose")
+            release.effects_prose = synthesis.get("effects_prose")
             release.societal_prose = synthesis.get("societal_prose")
+            release.deadpan_line = synthesis.get("deadpan_line")
+            release.topics = json.dumps(synthesis["topics"]) if synthesis.get("topics") else None
+            release.topic_audit = json.dumps(synthesis["topic_audit"]) if synthesis.get("topic_audit") else None
             release.source = "album_charger"
             release.submitted_at = now
             write_db.flush()
@@ -516,6 +575,29 @@ async def _run_album_charge(
             release_id = release.id
         finally:
             write_db.close()
+
+        # --- MusicBrainz match + cover art (fail-soft: never breaks a charge) ---
+        # User-charged albums carry no MBID by default, so they'd never get
+        # cover art. Search MB by artist + title: auto-attach when confident
+        # (-> cover art + verify email), else hand candidates to the picker.
+        mb_chosen = None
+        mb_needs_pick = False
+        mb_candidates_out: list[MbCandidate] = []
+        try:
+            cands = await musicbrainz.search_release_group(primary_name, album_title)
+            mb_chosen, mb_needs_pick, top = _pick_mb_match(album_title, cands)
+            if mb_chosen and release_id is not None:
+                _attach_release_mbid(release_id, mb_chosen)
+                await coverart.ensure_cover_art([mb_chosen])
+                emit_album_mb_match(
+                    album_title=album_title, artist=artist, artist_slug=artist_slug,
+                    release_slug=slugify(album_title), musicbrainz_id=mb_chosen,
+                    auto=True, alternatives=cands[1:6],
+                )
+            elif mb_needs_pick:
+                mb_candidates_out = _mb_candidates_out(top)
+        except Exception:
+            logger.info("Album MB match failed (non-fatal) for '%s'", album_title, exc_info=True)
 
         _event("album_success",
                {"album": album_title, "artist": artist, "source": source,
@@ -558,14 +640,21 @@ async def _run_album_charge(
         track_results.sort(key=lambda r: (r.track_number is None, r.track_number or 0))
         _store_result(token, AlbumCalibrateOut(
             status="scored", album_title=album_title, artist=artist,
-            artist_slug=artist_slug, release_id=release_id, release_type=body.release_type,
+            artist_slug=artist_slug, release_id=release_id,
+            release_slug=slugify(album_title), release_type=body.release_type,
             tier=agg_color, tier_label=COLOR_LABELS.get(agg_color) if agg_color else None,
             charge=agg_charge, track_count=len(body.tracks), calibrated_count=len(scored),
             contamination_count=contamination_count,
             charge_summary=synthesis.get("charge_summary"),
             arc_prose=synthesis.get("arc_prose"),
+            effects_prose=synthesis.get("effects_prose"),
             societal_prose=synthesis.get("societal_prose"),
+            deadpan_line=synthesis.get("deadpan_line"),
+            topics=synthesis.get("topics"),
             tracks=track_results,
+            musicbrainz_id=mb_chosen,
+            mb_needs_pick=mb_needs_pick,
+            mb_candidates=mb_candidates_out,
         ))
     except Exception:
         logger.exception("Album charge job %s failed", token)
@@ -722,3 +811,67 @@ async def album_status(job_token: str, request: Request, db: Session = Depends(g
         total_tracks=job.total_tracks or 0, calibrated_tracks=job.calibrated_tracks or 0,
         result=result, error=job.error_message,
     )
+
+
+@router.post("/choose-release/{job_token}", response_model=AlbumChooseReleaseOut)
+@limiter.limit("30/hour")
+async def choose_release(
+    job_token: str,
+    body: AlbumChooseReleaseIn,
+    request: Request,
+    tier: str = Depends(verify_api_or_service_key),
+):
+    """Confirm which MusicBrainz release-group a charged album is -- the
+    ambiguous path's picker. Attaches the MBID to the release, fetches cover
+    art, and emails the admin to verify. Only MBIDs that were offered as
+    candidates for this job are accepted (no arbitrary-MBID injection)."""
+    db = SessionLocal()
+    try:
+        job = db.query(AlbumChargeJob).filter(AlbumChargeJob.job_token == job_token).first()
+        if not job or job.status != "done" or not job.result_json:
+            raise HTTPException(404, "Unknown or unfinished album job.")
+        try:
+            result = json.loads(job.result_json)
+        except Exception:
+            raise HTTPException(404, "Album result unavailable.")
+    finally:
+        db.close()
+
+    chosen = body.musicbrainz_id.strip()
+    candidates = result.get("mb_candidates") or []
+    allowed = {c.get("musicbrainz_id") for c in candidates}
+    if chosen not in allowed:
+        raise HTTPException(422, "That release is not one of the offered candidates.")
+
+    release_id = result.get("release_id")
+    if not release_id:
+        raise HTTPException(409, "This album has no release to attach cover art to.")
+
+    _attach_release_mbid(release_id, chosen)
+    await coverart.ensure_cover_art([chosen])
+
+    album_title = result.get("album_title") or ""
+    emit_album_mb_match(
+        album_title=album_title, artist=result.get("artist") or "",
+        artist_slug=result.get("artist_slug"),
+        release_slug=slugify(album_title), musicbrainz_id=chosen,
+        auto=False,
+        alternatives=[c for c in candidates if c.get("musicbrainz_id") != chosen],
+    )
+
+    # Return the thumb only if CAA actually had art for the chosen group.
+    thumb = None
+    cdb = SessionLocal()
+    try:
+        from app.models import MbCoverArt
+        row = (
+            cdb.query(MbCoverArt)
+            .filter(MbCoverArt.musicbrainz_id == chosen, MbCoverArt.has_art.is_(True))
+            .first()
+        )
+        if row:
+            thumb = coverart.coverart_urls(chosen)["thumb_url"]
+    finally:
+        cdb.close()
+
+    return AlbumChooseReleaseOut(ok=True, musicbrainz_id=chosen, cover_thumb_url=thumb)

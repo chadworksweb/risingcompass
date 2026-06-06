@@ -114,6 +114,47 @@ async def search_artist(name: str, limit: int = 5) -> list[dict]:
         return []
 
 
+async def search_release_group(artist: str, title: str, limit: int = 8) -> list[dict]:
+    """Search release-groups matching a title + artist, best score first.
+
+    Used by the Album Charger to attach a release-group MBID to a user-charged
+    album (which is what unlocks Cover Art Archive art for it). Returns dicts:
+      mbid, title, primary_type, first_release_date, artist_credit, score.
+    """
+    await _rate_limit()
+    query = f'releasegroup:"{title}" AND artist:"{artist}"'
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{BASE_URL}/release-group",
+                params={"query": query, "fmt": "json", "limit": limit},
+                headers={"User-Agent": USER_AGENT},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        results = []
+        for rg in data.get("release-groups", []):
+            credit_parts = []
+            for c in (rg.get("artist-credit") or []):
+                if isinstance(c, dict):
+                    credit_parts.append((c.get("name") or "") + (c.get("joinphrase") or ""))
+            results.append({
+                "mbid": rg["id"],
+                "title": rg.get("title", ""),
+                "primary_type": (rg.get("primary-type") or "").lower(),
+                "first_release_date": rg.get("first-release-date") or "",
+                "artist_credit": "".join(credit_parts).strip(),
+                "score": int(rg.get("score", 0) or 0),
+            })
+        results.sort(key=lambda r: r["score"], reverse=True)
+        return results
+
+    except Exception:
+        logger.exception("MusicBrainz release-group search failed: '%s' / '%s'", artist, title)
+        return []
+
+
 async def get_artist_releases(
     mbid: str,
     release_types: Optional[list[str]] = None,

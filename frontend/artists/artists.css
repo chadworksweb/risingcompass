@@ -887,6 +887,64 @@ body {
   list-style: none;
 }
 
+/* Release-list thumbnail (CAA front-250) -- replaces the tier dot when art
+   exists. Same footprint family as a dot row so layout stays stable. */
+.release-thumb {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 5px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #000;
+  border: 1px solid var(--rc-border);
+}
+
+/* Whole release row is a link (artist page -> release page); still reads as a
+   list row, just hoverable. */
+a.release-compact-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 6px;
+}
+a.release-compact-link:hover { background: rgba(255, 255, 255, 0.03); }
+a.release-compact-link:hover .release-compact-title { color: var(--rc-accent); }
+
+/* --- Release detail page --- */
+/* Cover art (CAA front-500) sits in the summary head's left 1/4, beside the
+   H1 + Summary H2; the summary prose runs full width below this grid. */
+.rel-summary-head {
+  display: grid;
+  grid-template-columns: 1fr 3fr;
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+.rel-summary-head .song-question { margin: 0 0 0.4rem; }
+.rel-summary-head h2 { margin: 0; }
+.rel-art-wrap { width: 100%; }
+.rel-art {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--rc-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  display: block;
+}
+.release-summary--empty { color: var(--rc-text-dim); font-size: 1.05rem; }
+/* Tracklist on the release page is the full list -- no scroll cap. */
+.release-compact-list--full { max-height: none; }
+
+@media (max-width: 768px) {
+  .rel-summary-head { grid-template-columns: 1fr; }
+  .rel-summary-head .rel-art-wrap { max-width: 140px; }
+}
+
 /* --- Responsive --- */
 @media (max-width: 900px) {
   .artist-row-1-2,

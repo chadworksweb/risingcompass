@@ -315,6 +315,36 @@ each track and aggregating.
   page (counts + recent charged albums). Email alert `album_charged` (Activity,
   default-on, toggleable) via `alerts.emit_album_charged`.
 
+## Release pages + cover art (2026-06-06)
+
+Per-release detail pages + Cover Art Archive artwork. Full spec:
+`Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-ARTIST-RELEASES.md`
+(Release Pages + Cover Art).
+
+- **URL: `/artists/{artist}/{release}`**, release resolved by `slugify(title)`
+  within the artist -- **rebuild-stable** (never keys on `releases.id`, which churns
+  on re-resolve). SSR via `page_ssr.ssr_release` (meta + JSON-LD + baked hero glow);
+  endpoint `GET /api/artists/{slug}/releases/{release_slug}` (`release_detail`).
+  Page reuses the song-page shell (`release.html`/`release.js`).
+- **Cover art (`mb_cover_art`, migration 091, schema_version 91):** cache keyed by
+  the **release-group MBID** (matches `releases.musicbrainz_id`), NOT `releases.id`.
+  `has_art` true/false (false = checked-none -> tier dot). URLs **derived** from the
+  MBID (`coverartarchive.org/release-group/{mbid}/front-250|500`), **hotlinked**
+  (referrer, not host -- legal posture on the Fair Use page). `services/coverart.py`;
+  populated by `resolve_artist_releases` + `scripts/backfill_cover_art.py` (~1/sec).
+  List endpoint adds `cover_thumb_url`; thumbnail replaces the tier dot on the
+  artist page and every release row links to its page.
+- **Album Charger MB match:** user-charged albums have no MBID, so the worker now
+  searches MusicBrainz and **auto-attaches when confident** (score >=92, title-slug
+  match, margin >=12) else returns candidates for a **picker**
+  (`POST /api/analyzer/album/choose-release/{job_token}`, validates against offered
+  candidates). Admin verify email either way (`alerts.emit_album_mb_match`, key
+  `album_mb_match`, default-on). Attaching the MBID is what gives the album cover art.
+- **Routing:** dev_server proxies `^/artists/[^/.]+/[^/.]+/?$` to the backend. **Prod
+  nginx needs the matching `location ~ ^/artists/[^/.]+/[^/.]+$` proxy rule added in
+  `/root/proxy/nginx/conf.d/risingcompass.conf`** -- until then release pages 404 on
+  prod (thumbnails + endpoints still work).
+
 ## Charger Activity (public feeds page, LIVE 2026-06-06)
 
 Public page at `/lyrical-charger/activity/` showing what's moving through the

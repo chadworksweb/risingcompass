@@ -1995,3 +1995,54 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
   transition: border-color var(--rc-ease), color var(--rc-ease);
 }
 .charge-card-modal__close:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
+
+/* --- Album cover-art match picker (ambiguous MusicBrainz match) --- */
+.album-cover-pick {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md, 10px);
+  background: rgba(255, 255, 255, 0.02);
+}
+.album-cover-pick.hidden { display: none; }
+.cover-pick-prompt { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--rc-text); }
+.cover-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.cover-pick-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  text-align: left;
+  background: var(--rc-bg-card, #1b1e26);
+  border: 1px solid var(--rc-border);
+  border-radius: 8px;
+  cursor: pointer;
+  color: inherit;
+  transition: border-color var(--rc-ease, 0.15s);
+}
+.cover-pick-card:hover { border-color: var(--rc-accent); }
+.cover-pick-thumb {
+  width: 2.6rem;
+  height: 2.6rem;
+  flex-shrink: 0;
+  border-radius: 5px;
+  object-fit: cover;
+  background: #000;
+  border: 1px solid var(--rc-border);
+}
+.cover-pick-thumb--none { background: rgba(255, 255, 255, 0.05); }
+.cover-pick-info { display: flex; flex-direction: column; min-width: 0; }
+.cover-pick-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cover-pick-meta { font-size: 0.72rem; color: var(--rc-text-dim); }
+.cover-pick-status { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--rc-text-dim); }

@@ -236,6 +236,54 @@ def emit_album_charged(*, album_title: str, artist: str, artist_slug: Optional[s
     )
 
 
+def emit_album_mb_match(*, album_title: str, artist: str, artist_slug: Optional[str],
+                        release_slug: Optional[str], musicbrainz_id: str,
+                        auto: bool, alternatives: Optional[list] = None) -> None:
+    """Verify-me alert -- an album was matched to a MusicBrainz release-group
+    (auto when confident, or user-confirmed when ambiguous). The admin should
+    eyeball the match, since a wrong release-group attaches the wrong cover art.
+    """
+    site = settings.site_url.rstrip("/")
+    how = "auto-matched (high confidence)" if auto else "user-confirmed (was ambiguous)"
+    mb_link = f"https://musicbrainz.org/release-group/{escape(musicbrainz_id)}"
+    rel_link = (
+        f'<a href="{site}/artists/{escape(artist_slug)}/{escape(release_slug)}" style="color:#008f72;">{escape(album_title)}</a>'
+        if artist_slug and release_slug else escape(album_title)
+    )
+    alts_html = ""
+    if alternatives:
+        rows = "".join(
+            f'<li>{escape(a.get("title", ""))} '
+            f'<span style="color:#888;">({escape(str(a.get("primary_type") or ""))}, '
+            f'score {escape(str(a.get("score", "")))})</span> '
+            f'&middot; <a href="https://musicbrainz.org/release-group/{escape(a.get("mbid") or a.get("musicbrainz_id") or "")}" '
+            f'style="color:#008f72;">MB</a></li>'
+            for a in alternatives[:5]
+        )
+        alts_html = f'<p style="margin:12px 0 4px;font-size:13px;color:#555;">Other candidates:</p><ul style="margin:0;font-size:13px;color:#555;">{rows}</ul>'
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 12px;font-size:14px;color:#333;">
+        Cover-art match to <strong>verify</strong>: {rel_link} by {escape(artist)}
+      </p>
+      <table style="border-collapse:collapse;font-size:14px;color:#333;margin:0 0 8px;">
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">How</td><td><strong>{how}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#555;">Release-group</td><td><a href="{mb_link}" style="color:#008f72;">{escape(musicbrainz_id)}</a></td></tr>
+      </table>
+      {alts_html}
+      <p style="margin:12px 0 0;font-size:13px;color:#555;">
+        If wrong, clear/replace <code>releases.musicbrainz_id</code> for this release.
+      </p>
+    </div>
+    """
+    send_alert(
+        category="moderation",
+        alert_key="album_mb_match",
+        subject=f"Verify cover-art match: {album_title} by {artist}",
+        html_body=html,
+    )
+
+
 def emit_general_inquiry(*, inquiry_id: int, name: Optional[str], email: Optional[str],
                          topic: str, subject: Optional[str], message: str,
                          source: Optional[str]) -> None:

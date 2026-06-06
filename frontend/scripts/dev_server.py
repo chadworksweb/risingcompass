@@ -94,6 +94,9 @@ def _should_proxy(path: str) -> bool:
 SSR_PROXY_PATTERNS = [
     re.compile(r"^/songs/[^/.]+/?$"),
     re.compile(r"^/artists/[^/.]+/?$"),
+    # Release detail: /artists/<artist>/<release> -> backend SSR (release.html
+    # + injected meta). Two dotless segments, so it never catches asset files.
+    re.compile(r"^/artists/[^/.]+/[^/.]+/?$"),
 ]
 
 

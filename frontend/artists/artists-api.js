@@ -26,6 +26,8 @@ const ArtistsAPI = (() => {
       get(`/api/artists/${slug}/releases?offset=${offset}&limit=${limit}&order=${order}&status=${status}`),
     getArtistTopSongs: (slug, offset = 0, limit = 20) =>
       get(`/api/artists/${slug}/top-songs?offset=${offset}&limit=${limit}`),
+    getRelease: (artistSlug, releaseSlug) =>
+      get(`/api/artists/${encodeURIComponent(artistSlug)}/releases/${encodeURIComponent(releaseSlug)}`),
     getArtistSongs: (slug, releaseId, offset = 0, limit = 20) => {
       let path = `/api/artists/${slug}/songs?offset=${offset}&limit=${limit}`;
       if (releaseId != null) path += `&release_id=${releaseId}`;

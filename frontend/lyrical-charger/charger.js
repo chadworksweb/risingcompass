@@ -1417,6 +1417,7 @@ function hideError() {
   const albumResultSocietalBody = $('#album-result-societal-body');
   const albumResultTracks = $('#album-result-tracks');
   const albumResultArtistLink = $('#album-result-artist-link');
+  const albumResultCoverPick = $('#album-result-cover-pick');
   const albumBtnAgain = $('#album-btn-again');
   const albumDonateLink = $('#album-donate-link');
 
@@ -1975,7 +1976,7 @@ function hideError() {
         }
         completeProgress();
         await new Promise((r) => setTimeout(r, 500));
-        renderAlbumResults(result);
+        renderAlbumResults(result, token);
         showScreen('screen-album-results');
         return;
       }
@@ -1996,7 +1997,7 @@ function hideError() {
   }
 
   // ----- Results -----
-  function renderAlbumResults(data) {
+  function renderAlbumResults(data, token) {
     stopAlbumPoll();
 
     // Identity
@@ -2042,13 +2043,76 @@ function hideError() {
         ${tracks.map((t) => renderTrackResult(t)).join('')}
       </ul>`;
 
-    // Artist link
-    if (data.artist_slug) {
-      albumResultArtistLink.innerHTML =
-        `<a href="/artists/${encodeURIComponent(data.artist_slug)}" class="details-cta">See ${esc(data.artist)} on the artist page -&gt;</a>`;
-    } else {
-      albumResultArtistLink.innerHTML = '';
+    // Links: prefer the new release page when we have its slug, plus the
+    // artist page.
+    const links = [];
+    if (data.artist_slug && data.release_slug) {
+      links.push(`<a href="/artists/${encodeURIComponent(data.artist_slug)}/${encodeURIComponent(data.release_slug)}" class="details-cta">See this release -&gt;</a>`);
     }
+    if (data.artist_slug) {
+      links.push(`<a href="/artists/${encodeURIComponent(data.artist_slug)}" class="details-cta">See ${esc(data.artist)} on the artist page -&gt;</a>`);
+    }
+    albumResultArtistLink.innerHTML = links.join('<br>');
+
+    // Cover-art match picker (ambiguous matches only; auto-matched albums
+    // already have their cover attached + an admin verify email sent).
+    renderCoverPick(data, token);
+  }
+
+  function renderCoverPick(data, token) {
+    if (!albumResultCoverPick) return;
+    if (!data.mb_needs_pick || !(data.mb_candidates && data.mb_candidates.length) || !token) {
+      albumResultCoverPick.classList.add('hidden');
+      albumResultCoverPick.innerHTML = '';
+      return;
+    }
+    const cards = data.mb_candidates.map((c, i) => {
+      const meta = [c.primary_type, (c.first_release_date || '').slice(0, 4)]
+        .filter(Boolean).join(' &middot; ');
+      const thumb = c.thumb_url
+        ? `<img class="cover-pick-thumb" src="${encodeURI(c.thumb_url)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
+        : `<span class="cover-pick-thumb cover-pick-thumb--none"></span>`;
+      return `
+        <button type="button" class="cover-pick-card" data-mbid="${esc(c.musicbrainz_id)}">
+          ${thumb}
+          <span class="cover-pick-info">
+            <span class="cover-pick-title">${esc(c.title)}</span>
+            ${meta ? `<span class="cover-pick-meta">${meta}</span>` : ''}
+          </span>
+        </button>`;
+    }).join('');
+    albumResultCoverPick.innerHTML = `
+      <p class="cover-pick-prompt">Which release is this? Pick one to add its cover art (or skip).</p>
+      <div class="cover-pick-grid">${cards}</div>
+      <p class="cover-pick-status" id="cover-pick-status" hidden></p>
+      <button type="button" class="btn btn-text" id="cover-pick-skip">None of these</button>`;
+    albumResultCoverPick.classList.remove('hidden');
+
+    const statusEl = albumResultCoverPick.querySelector('#cover-pick-status');
+    const finish = (msg) => {
+      albumResultCoverPick.querySelector('.cover-pick-grid').style.display = 'none';
+      const skip = albumResultCoverPick.querySelector('#cover-pick-skip');
+      if (skip) skip.style.display = 'none';
+      albumResultCoverPick.querySelector('.cover-pick-prompt').textContent = msg;
+    };
+    albumResultCoverPick.querySelectorAll('.cover-pick-card').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const mbid = btn.getAttribute('data-mbid');
+        if (statusEl) { statusEl.hidden = false; statusEl.textContent = 'Adding cover art...'; }
+        try {
+          const headers = await calibrateHeaders();
+          const resp = await fetch(`${API_BASE}/album/choose-release/${encodeURIComponent(token)}`, {
+            method: 'POST', headers, body: JSON.stringify({ musicbrainz_id: mbid }),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          finish('Cover art added. Thanks -- our team will double-check the match.');
+        } catch (e) {
+          if (statusEl) statusEl.textContent = 'Could not add cover art. Please try again.';
+        }
+      });
+    });
+    const skipBtn = albumResultCoverPick.querySelector('#cover-pick-skip');
+    if (skipBtn) skipBtn.addEventListener('click', () => finish('No cover art added.'));
   }
 
   function renderTrackResult(t) {

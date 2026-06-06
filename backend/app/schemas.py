@@ -631,6 +631,17 @@ class AlbumTrackResult(BaseModel):
     skip_reason: Optional[str] = None
 
 
+class MbCandidate(BaseModel):
+    """A MusicBrainz release-group candidate for an Album-Charger match."""
+    musicbrainz_id: str
+    title: str
+    primary_type: Optional[str] = None
+    first_release_date: Optional[str] = None
+    artist_credit: Optional[str] = None
+    score: int = 0
+    thumb_url: Optional[str] = None  # CAA front-250 (may 404; UI falls back)
+
+
 class AlbumCalibrateOut(BaseModel):
     # "scored"      — at least one track calibrated; album aggregate produced
     # "no_tracks"   — every track was skipped; no album reading
@@ -640,6 +651,7 @@ class AlbumCalibrateOut(BaseModel):
     artist: Optional[str] = None
     artist_slug: Optional[str] = None
     release_id: Optional[int] = None
+    release_slug: Optional[str] = None  # slugify(title); links to the release page
     release_type: Optional[str] = None
     # Album-level aggregate (mean of scored track charges).
     tier: Optional[str] = None
@@ -652,10 +664,33 @@ class AlbumCalibrateOut(BaseModel):
     # soft failure; the frontend falls back gracefully.
     charge_summary: Optional[str] = None
     arc_prose: Optional[str] = None
+    effects_prose: Optional[str] = None
     societal_prose: Optional[str] = None
+    # Album-level Ether Art Chart entry, mirroring LyricsCalibrateOut. topic_audit
+    # is persisted on the Release but withheld from the public result.
+    deadpan_line: Optional[str] = None
+    topics: Optional[list] = None
     tracks: list[AlbumTrackResult] = []
     # Set on rejection — short user-facing reason.
     block_reason: Optional[str] = None
+    # MusicBrainz match (Album Charger). When confident, musicbrainz_id is
+    # attached automatically and mb_needs_pick is False. When ambiguous,
+    # musicbrainz_id is null, mb_needs_pick is True, and mb_candidates holds the
+    # options for the frontend picker.
+    musicbrainz_id: Optional[str] = None
+    mb_needs_pick: bool = False
+    mb_candidates: list[MbCandidate] = []
+
+
+class AlbumChooseReleaseIn(BaseModel):
+    """Body for confirming which MusicBrainz release-group a charged album is."""
+    musicbrainz_id: str = Field(..., min_length=1, max_length=64)
+
+
+class AlbumChooseReleaseOut(BaseModel):
+    ok: bool
+    musicbrainz_id: Optional[str] = None
+    cover_thumb_url: Optional[str] = None
 
 
 class AlbumChargeJobOut(BaseModel):

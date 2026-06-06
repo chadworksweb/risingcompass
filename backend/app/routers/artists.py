@@ -10,12 +10,13 @@ from sqlalchemy import func, text
 
 from app.database import SessionLocal
 from app.models import (
-    Artist, Release, ReleaseSong, Song, SongSlug,
+    Artist, Release, ReleaseSong, Song, SongSlug, MbCoverArt,
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import (
-    count_songs_by_artist, derive_tier, generate_song_slug,
+    count_songs_by_artist, derive_tier, generate_song_slug, slugify,
 )
+from app.services import coverart
 from app.services.compass_calc import charge_to_degree
 from app.services.charge_calc import degree_to_charge
 
@@ -401,6 +402,20 @@ def artist_trajectory_points(slug: str):
         db.close()
 
 
+def _cover_thumbs_for(musicbrainz_ids, db) -> dict:
+    """Map release-group MBID -> CAA thumbnail URL, for the ones CAA confirmed
+    have art. MBIDs with no art (or not yet checked) are absent from the map."""
+    mbids = [m for m in dict.fromkeys(musicbrainz_ids) if m]
+    if not mbids:
+        return {}
+    rows = (
+        db.query(MbCoverArt.musicbrainz_id)
+        .filter(MbCoverArt.musicbrainz_id.in_(mbids), MbCoverArt.has_art.is_(True))
+        .all()
+    )
+    return {mbid: coverart.coverart_urls(mbid)["thumb_url"] for (mbid,) in rows}
+
+
 @router.get("/{slug}/releases")
 def artist_releases(
     slug: str,
@@ -452,9 +467,17 @@ def artist_releases(
 
         rows = base.offset(offset).limit(limit).all()
 
+        # Cover-art thumbnails: one lookup for the page, keyed by release-group
+        # MBID. Only release-groups CAA confirmed art for (has_art) get a URL;
+        # the rest fall back to the tier dot on the frontend.
+        thumb_by_mbid = _cover_thumbs_for(
+            [r.musicbrainz_id for r in rows if r.musicbrainz_id], db
+        )
+
         items = [
             {
                 "id": r.id,
+                "slug": slugify(r.title),
                 "title": r.title,
                 "release_type": r.release_type,
                 "release_date": r.release_date.isoformat() if r.release_date else None,
@@ -466,10 +489,106 @@ def artist_releases(
                 "track_count": r.track_count,
                 "calibrated_count": r.calibrated_count,
                 "contamination_count": r.contamination_count,
+                "cover_thumb_url": thumb_by_mbid.get(r.musicbrainz_id),
             }
             for r in rows
         ]
         payload = {"items": items, "total": total, "offset": offset, "limit": limit}
+        _artist_cache_set(cache_key, payload)
+        return payload
+    finally:
+        db.close()
+
+
+@router.get("/{slug}/releases/{release_slug}")
+def release_detail(slug: str, release_slug: str):
+    """A single release's reading page: hero charge + cover + summary / arc /
+    listener / societal prose + tracklist.
+
+    The release is resolved by slugify(title) within the artist, so the URL
+    stays stable across release-row rebuilds. Keying the URL on releases.id
+    would break every rebuild (the PK churns); the title slug does not.
+    """
+    cache_key = ("release", slug, release_slug)
+    cached = _artist_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+
+        release = None
+        for r in db.query(Release).filter(Release.artist_id == artist.id).all():
+            if slugify(r.title) == release_slug:
+                release = r
+                break
+        if not release:
+            raise HTTPException(404, "Release not found")
+
+        # Tracklist, ordered by track number (nulls last), then resolved title.
+        tracks = []
+        for link in sorted(
+            release.songs,
+            key=lambda l: (l.track_number is None, l.track_number or 0),
+        ):
+            song = _resolve_song(link.song_id, db)
+            if not song:
+                continue
+            song["track_number"] = link.track_number
+            tracks.append(song)
+
+        # Attach song-page slugs in one lookup so tracks can link out.
+        ids = [t["song_id"] for t in tracks if t.get("song_id")]
+        if ids:
+            slug_map: dict[int, str] = {}
+            for sid, sv in (
+                db.query(SongSlug.song_id, SongSlug.slug)
+                .filter(SongSlug.song_id.in_(ids))
+                .all()
+            ):
+                slug_map.setdefault(sid, sv)
+            for t in tracks:
+                t["slug"] = slug_map.get(t["song_id"])
+
+        # Hero cover (front-500), only when CAA confirmed art for this group.
+        cover_url = None
+        if release.musicbrainz_id:
+            has_art = (
+                db.query(MbCoverArt)
+                .filter(
+                    MbCoverArt.musicbrainz_id == release.musicbrainz_id,
+                    MbCoverArt.has_art.is_(True),
+                )
+                .first()
+            )
+            if has_art:
+                cover_url = coverart.coverart_urls(release.musicbrainz_id)["cover_url"]
+
+        payload = {
+            "id": release.id,
+            "slug": release_slug,
+            "title": release.title,
+            "release_type": release.release_type,
+            "release_date": release.release_date.isoformat() if release.release_date else None,
+            "release_year": release.release_year,
+            "charge_value": release.charge_value,
+            "rubric_color": release.rubric_color,
+            "tier_label": COLOR_LABELS.get(release.rubric_color, ""),
+            "tier_hex": COLOR_HEX.get(release.rubric_color, "#999"),
+            "track_count": release.track_count,
+            "calibrated_count": release.calibrated_count,
+            "contamination_count": release.contamination_count,
+            "charge_summary": release.charge_summary,
+            "arc_prose": release.arc_prose,
+            "effects_prose": release.effects_prose,
+            "societal_prose": release.societal_prose,
+            "cover_url": cover_url,
+            "artist": {"name": artist.name, "slug": artist.slug},
+            "tracks": tracks,
+        }
         _artist_cache_set(cache_key, payload)
         return payload
     finally:

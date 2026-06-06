@@ -510,9 +510,17 @@
     const typeLabel = r.release_type === 'album' ? 'Album'
       : r.release_type === 'ep' ? 'EP' : 'Single';
     const dateDisplay = r.release_date || (r.release_year ? String(r.release_year) : '');
-    return `
-      <li class="release-compact-item">
-        <span class="release-dot" style="background:${color}"></span>
+    // CAA thumbnail when art exists; otherwise the tier dot (the recorded
+    // "no art" fallback). Whole row links to the release page.
+    const lead = r.cover_thumb_url
+      ? `<img class="release-thumb" src="${encodeURI(r.cover_thumb_url)}" alt="" loading="lazy" onerror="this.outerHTML='&lt;span class=\\'release-dot\\' style=\\'background:${color}\\'&gt;&lt;/span&gt;'">`
+      : `<span class="release-dot" style="background:${color}"></span>`;
+    const artistSlug = artistPageState.slug;
+    const href = (artistSlug && r.slug)
+      ? `/artists/${encodeURIComponent(artistSlug)}/${encodeURIComponent(r.slug)}`
+      : null;
+    const inner = `
+        ${lead}
         <div class="release-compact-main">
           <span class="release-compact-title">${escapeHtml(r.title)}</span>
           <span class="release-compact-meta">
@@ -522,9 +530,11 @@
         </div>
         <span class="release-compact-charge" style="color:${color}" aria-label="${escapeHtml(r.tier_label || '')}">
           ${charge || '·'}
-        </span>
-      </li>
-    `;
+        </span>`;
+    const body = href
+      ? `<a class="release-compact-link" href="${href}">${inner}</a>`
+      : inner;
+    return `<li class="release-compact-item">${body}</li>`;
   }
 
   /* ========== TRAJECTORY CHART + TIME MACHINE ==========
