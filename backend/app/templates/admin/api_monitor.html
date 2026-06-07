@@ -69,7 +69,7 @@ async function loadApiClients() {
     const el = document.getElementById('apiClientsList');
     if (!clients.length) { el.innerHTML = '<p style="color:#666;">No clients yet.</p>'; return; }
     el.innerHTML = clients.map(c => {
-      const last = c.last_activity ? new Date(c.last_activity).toLocaleString() : '—';
+      const last = c.last_activity ? adminFmt(c.last_activity) : '—';
       const statusColor = c.status === 'active' ? '#1a8f3a' : (c.status === 'suspended' ? '#b87300' : '#c02020');
       return `<div style="display:grid;grid-template-columns:2fr 1fr 100px 90px 90px 120px 100px 90px;gap:0.5rem;align-items:center;padding:0.7rem 0.8rem;background:var(--panel);border-radius:4px;margin-bottom:0.4rem;font-size:0.85rem;cursor:pointer;" onclick="openClient(${c.id})">
         <div><strong style="color:var(--accent);">${escHtml(c.slug)}</strong><br><span style="color:#555;font-size:0.78rem;">${escHtml(c.name)}</span></div>
@@ -139,7 +139,7 @@ function renderClientDetail(det, callsData) {
   const keysHtml = keys.length
     ? keys.map(k => {
         const revoked = k.revoked_at;
-        const lastUsed = k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never';
+        const lastUsed = k.last_used_at ? adminFmt(k.last_used_at) : 'never';
         return `<div style="display:grid;grid-template-columns:120px 1fr 160px 80px;gap:0.5rem;align-items:center;padding:0.5rem 0.6rem;background:#f3f3f9;border:1px solid #d2d2dc;border-radius:4px;margin-bottom:0.3rem;font-size:0.82rem;${revoked ? 'opacity:0.5;' : ''}">
           <span style="font-family:JetBrains Mono,monospace;color:var(--accent);">${escHtml(k.key_prefix)}…</span>
           <span>${escHtml(k.label || '(no label)')}${revoked ? ' <span style="color:#ff3333;font-size:0.72rem;">REVOKED</span>' : ''}</span>
@@ -151,7 +151,7 @@ function renderClientDetail(det, callsData) {
 
   const callsHtml = (callsData.calls || []).length
     ? callsData.calls.map(r => {
-        const when = r.ts ? new Date(r.ts).toLocaleString() : '—';
+        const when = r.ts ? adminFmt(r.ts) : '—';
         const statusColor = r.status >= 500 ? '#ff3333' : (r.status >= 400 ? '#ffbb33' : '#33cc55');
         let ctxLine = '';
         if (r.context && typeof r.context === 'object') {

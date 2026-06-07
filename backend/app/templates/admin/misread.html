@@ -145,7 +145,7 @@ function renderBans(list) {
       <div>
         ${b.device_id ? `Device: ${esc(b.device_id.slice(0, 8))}...` : ''}
         ${b.ip_address ? ` IP: ${esc(b.ip_address)}` : ''}
-        <span class="meta">${b.reason ? esc(b.reason) : ''} &middot; ${new Date(b.created_at).toLocaleDateString()}</span>
+        <span class="meta">${b.reason ? esc(b.reason) : ''} &middot; ${adminFmt(b.created_at, {year:'numeric',month:'short',day:'numeric'})}</span>
       </div>
       <button class="btn-sm btn-danger" onclick="removeBan(${b.id})">Unban</button>
     </div>

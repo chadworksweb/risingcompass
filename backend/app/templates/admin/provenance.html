@@ -137,7 +137,7 @@ function onAdminReady() { loadProvenance(); }
 
 function fmtDate(iso) {
   if (!iso) return '<span style="color:var(--text-dim);">never</span>';
-  return new Date(iso).toLocaleString();
+  return adminFmt(iso);
 }
 function ageHours(iso) {
   if (!iso) return null;

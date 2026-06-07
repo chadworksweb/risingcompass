@@ -12,7 +12,7 @@ from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ClaudeApiUsage
+from app.models import ClaudeApiUsage, Song, SongSlug, SongArtist, Artist
 from app.routers.admin import verify_admin_key
 
 router = APIRouter(prefix="/api/admin/claude-usage", tags=["claude-usage-admin"])
@@ -37,6 +37,49 @@ def _day_expr(tz: str | None):
         except Exception:
             pass
     return func.date(ClaudeApiUsage.ts)
+
+
+def _attach_song_links(calls, db):
+    """Resolve song-page + artist-page slugs for calls whose context names a
+    (title, artist), so the admin call list can deep-link. Batched: one query
+    each for songs, slugs, and primary-artist. Calls that don't resolve are
+    left without slug keys and render as plain text."""
+    from app.services.song_identity import compute_canonical_key
+    key_to_idxs = {}
+    for i, c in enumerate(calls):
+        ctx = c.get("context")
+        if isinstance(ctx, dict) and ctx.get("title"):
+            try:
+                k = compute_canonical_key(ctx.get("title"), ctx.get("artist") or "")
+            except Exception:
+                k = None
+            if k:
+                key_to_idxs.setdefault(k, []).append(i)
+    if not key_to_idxs:
+        return
+    key_to_song = {ck: sid for sid, ck in
+                   db.query(Song.id, Song.canonical_key)
+                     .filter(Song.canonical_key.in_(list(key_to_idxs))).all()}
+    ids = list(key_to_song.values())
+    if not ids:
+        return
+    slug_by_id = {}
+    for sid, slug in (db.query(SongSlug.song_id, SongSlug.slug)
+                        .filter(SongSlug.song_id.in_(ids)).all()):
+        slug_by_id.setdefault(sid, slug)
+    artist_by_id = {}
+    for sid, aslug in (db.query(SongArtist.song_id, Artist.slug)
+                         .join(Artist, Artist.id == SongArtist.artist_id)
+                         .filter(SongArtist.song_id.in_(ids))
+                         .order_by(SongArtist.song_id, SongArtist.position).all()):
+        artist_by_id.setdefault(sid, aslug)
+    for k, idxs in key_to_idxs.items():
+        sid = key_to_song.get(k)
+        if not sid:
+            continue
+        for i in idxs:
+            calls[i]["song_slug"] = slug_by_id.get(sid)
+            calls[i]["artist_slug"] = artist_by_id.get(sid)
 
 
 @router.get("/summary", dependencies=[Depends(verify_admin_key)])
@@ -263,9 +306,11 @@ def list_calls(
             "context": ctx,
         }
 
+    calls = [_row(r) for r in rows]
+    _attach_song_links(calls, db)
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
-        "calls": [_row(r) for r in rows],
+        "calls": calls,
     }

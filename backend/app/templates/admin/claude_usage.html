@@ -78,6 +78,18 @@
   .cu-call-context { padding-left: 140px; padding-top: 0.25rem; font-size: 0.76rem; color: var(--text-dim); }
   .cu-call-context strong { color: var(--text); font-weight: 600; }
   .cu-call-error { padding-left: 140px; padding-top: 0.25rem; font-size: 0.76rem; color: var(--red); font-family: 'JetBrains Mono', monospace; }
+  /* Recent calls table (restructured columns) */
+  .cu-calls-table td { vertical-align: top; font-size: 0.8rem; }
+  .cu-calls-table th { white-space: nowrap; }
+  .cu-c-when div, .cu-c-io div { line-height: 1.4; }
+  .cu-c-io { font-family: 'JetBrains Mono', monospace; }
+  .cu-ctx-dim { color: var(--text-dim); }
+  .cu-c-song { min-width: 180px; }
+  .cu-song-artist { font-weight: 600; color: var(--text); line-height: 1.4; }
+  .cu-song-title { color: var(--text-dim); line-height: 1.4; }
+  .cu-link { color: var(--accent-strong); text-decoration: none; }
+  .cu-link:hover { text-decoration: underline; }
+  .cu-calls-table .cu-call-cost-bar { margin-top: 0.3rem; }
 
   .cu-pill { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--panel-strong); color: var(--text-dim); font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
   .cu-pill.ok { background: #dff3e8; color: var(--tier-green); }
@@ -287,7 +299,7 @@ function caRender(s) {
   if (s.would_fire && s.notified) {
     badge.className = 'ca-badge sent';
     badge.textContent = 'worth it · notified';
-    const when = s.notified_at ? new Date(s.notified_at).toLocaleString() : 'recently';
+    const when = s.notified_at ? adminFmt(s.notified_at) : 'recently';
     verdict.innerHTML = `Caching is <strong>worth turning on</strong>. Admin was notified ${escHtml(when)}. ` +
       `Re-arm below if you want the nudge to fire again.`;
   } else if (s.would_fire) {
@@ -552,6 +564,10 @@ async function cuLoadCalls(offset) {
   }
 }
 
+function cuCallLink(href, text) {
+  return `<a class="cu-link" href="${href}" target="_blank" rel="noopener">${escHtml(text)}</a>`;
+}
+
 function cuRenderCalls(calls) {
   const el = document.getElementById('cuCalls');
   if (!calls.length) {
@@ -559,37 +575,57 @@ function cuRenderCalls(calls) {
     return;
   }
   const maxCost = Math.max(...calls.map(c => c.total_cost_usd || 0)) || 0.000001;
-  el.innerHTML = calls.map(c => {
-    const when = c.ts ? new Date(c.ts).toLocaleString() : '—';
-    const pill = c.ok ? '<span class="cu-pill ok">ok</span>' : '<span class="cu-pill err">error</span>';
-    let ctxLine = '';
-    if (c.context && typeof c.context === 'object') {
-      const parts = [];
-      if (c.context.title) parts.push(`<strong>${escHtml(c.context.title)}</strong>`);
-      if (c.context.artist) parts.push(`— ${escHtml(c.context.artist)}`);
-      if (!parts.length) {
-        const keys = Object.keys(c.context).slice(0, 4);
-        keys.forEach(k => parts.push(`${k}=${escHtml(String(c.context[k] ?? ''))}`));
-      }
-      if (parts.length) ctxLine = `<div class="cu-call-context">${parts.join(' ')}</div>`;
+  const DATE_OPTS = { year: 'numeric', month: 'short', day: 'numeric' };
+  const TIME_OPTS = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+  const body = calls.map(c => {
+    const dateStr = c.ts ? adminFmt(c.ts, DATE_OPTS) : '\u2014';
+    const timeStr = c.ts ? adminFmt(c.ts, TIME_OPTS) : '';
+    const ctx = (c.context && typeof c.context === 'object') ? c.context : null;
+    let songCell;
+    if (ctx && (ctx.title || ctx.artist)) {
+      const artistHtml = ctx.artist
+        ? (c.artist_slug ? cuCallLink(`/artists/${encodeURIComponent(c.artist_slug)}`, ctx.artist) : escHtml(ctx.artist))
+        : '';
+      const songHtml = ctx.title
+        ? (c.song_slug ? cuCallLink(`/songs/${encodeURIComponent(c.song_slug)}`, ctx.title) : escHtml(ctx.title))
+        : '';
+      songCell = `<div class="cu-song-artist">${artistHtml}</div><div class="cu-song-title">${songHtml}</div>`;
+    } else if (ctx) {
+      const keys = Object.keys(ctx).slice(0, 3);
+      songCell = `<span class="cu-ctx-dim">${keys.map(k => `${escHtml(k)}=${escHtml(String(ctx[k] ?? ''))}`).join(' \u00b7 ')}</span>`;
+    } else {
+      songCell = '<span class="cu-ctx-dim">\u2014</span>';
     }
     const errLine = c.error ? `<div class="cu-call-error">${escHtml(c.error)}</div>` : '';
+    const pill = c.ok ? '<span class="cu-pill ok">ok</span>' : '<span class="cu-pill err">error</span>';
     const costPct = ((c.total_cost_usd || 0) / maxCost) * 100;
-    return `<div class="cu-call-row">
-      <div class="cu-call-head">
-        <span style="color:var(--text-dim);">${when}</span>
-        <span><strong>${escHtml(c.call_site)}</strong> <span style="color:var(--text-dim);">${escHtml(c.model)}</span> ${pill}</span>
-        <span style="color:var(--text-dim);">in ${cuFmtTokens(c.input_tokens)} · out ${cuFmtTokens(c.output_tokens)}</span>
-        <span style="color:var(--text-dim);">${c.duration_ms || 0}ms</span>
-        <span class="cu-call-cost-cell">
-          <span class="cu-call-cost-amount">${cuFmtUsd(c.total_cost_usd)}</span>
-          <span class="cu-call-cost-bar"><span class="fill" style="width:${costPct}%;"></span></span>
-        </span>
-      </div>
-      ${ctxLine}
-      ${errLine}
-    </div>`;
+    return `<tr>
+      <td class="cu-c-when"><div>${dateStr}</div><div class="cu-ctx-dim">${timeStr}</div></td>
+      <td class="t"><strong>${escHtml(c.call_site)}</strong></td>
+      <td class="t">${escHtml(c.model || '')}</td>
+      <td class="cu-c-song">${songCell}${errLine}</td>
+      <td class="cu-c-io"><div>in ${cuFmtTokens(c.input_tokens)}</div><div>out ${cuFmtTokens(c.output_tokens)}</div></td>
+      <td>${c.duration_ms || 0}ms</td>
+      <td class="cu-cost-cell">
+        <span class="cu-call-cost-amount">${cuFmtUsd(c.total_cost_usd)}</span>
+        <span class="cu-call-cost-bar"><span class="fill" style="width:${costPct}%;"></span></span>
+      </td>
+      <td>${pill}</td>
+    </tr>`;
   }).join('');
+  el.innerHTML = `<table class="cu-table cu-calls-table">
+    <thead><tr>
+      <th>Date / Time</th>
+      <th>Pipeline step</th>
+      <th>Model</th>
+      <th>Song</th>
+      <th>Tokens</th>
+      <th>Duration</th>
+      <th class="cu-cost-cell">Cost</th>
+      <th>Status</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
 }
 
 function cuUpdatePagination() {

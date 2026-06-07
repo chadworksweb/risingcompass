@@ -141,14 +141,14 @@ function renderRow(u) {
   if (u.status === 'banned') {
     statusCell = `<span class="u-status-banned">Banned</span><br><span class="u-verification">${esc(u.banned_reason || '')}</span>`;
   } else if (u.status === 'suspended') {
-    statusCell = `<span class="u-status-suspended">Suspended</span><br><span class="u-verification">until ${u.suspended_until ? new Date(u.suspended_until).toLocaleString() : '?'}</span>`;
+    statusCell = `<span class="u-status-suspended">Suspended</span><br><span class="u-verification">until ${u.suspended_until ? adminFmt(u.suspended_until) : '?'}</span>`;
   } else {
     statusCell = `<span class="u-status-active">Active</span>`;
   }
 
   let verCell;
   if (u.last_verification_status === 'verified' && u.last_verified_at) {
-    verCell = `<span class="u-verification-verified">Verified</span><br><span class="u-verification">${esc(u.last_verification_provider || '')} &middot; ${new Date(u.last_verified_at).toLocaleDateString()}</span>`;
+    verCell = `<span class="u-verification-verified">Verified</span><br><span class="u-verification">${esc(u.last_verification_provider || '')} &middot; ${adminFmt(u.last_verified_at, {year:'numeric',month:'short',day:'numeric'})}</span>`;
   } else if (u.last_verification_status) {
     verCell = `<span class="u-verification">${esc(u.last_verification_status)}</span><br><span class="u-verification">${esc(u.last_verification_provider || '')}</span>`;
   } else {
@@ -164,7 +164,7 @@ function renderRow(u) {
       <td>${verCell}</td>
       <td class="u-counts"><a href="${detailUrl}#comments">${u.comment_count}</a></td>
       <td class="u-counts">${u.misread_count}</td>
-      <td class="u-verification">${new Date(u.created_at).toLocaleDateString()}</td>
+      <td class="u-verification">${adminFmt(u.created_at, {year:'numeric',month:'short',day:'numeric'})}</td>
     </tr>
   `;
 }

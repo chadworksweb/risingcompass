@@ -485,11 +485,6 @@
     </div>
 
     <div class="admin-nav-group">
-      <div class="admin-nav-group-label">Dev</div>
-      <a class="admin-nav-item {% if active == 'dev-ledger' %}active{% endif %}" href="/api/admin/dashboard/dev-ledger">Dev Ledger</a>
-    </div>
-
-    <div class="admin-nav-group">
       <div class="admin-nav-group-label">API Admin</div>
       <a class="admin-nav-item admin-nav-cross" href="{{ api_admin_url }}">API Monitor &#8599;</a>
     </div>
@@ -610,9 +605,20 @@ function escHtml(s) {
 // whole page in place -- no refresh.
 window.ADMIN_TZ = "{{ request.state.admin_timezone if (request and request.state and request.state.admin_timezone) else 'America/New_York' }}";
 
+function parseUtc(iso) {
+  // Backend timestamps are naive UTC (datetime.utcnow().isoformat() has no Z/offset).
+  // new Date() parses a designator-less datetime as browser-LOCAL, mis-anchoring the
+  // instant. Append 'Z' so a zone-less datetime parses as UTC; leave already-aware
+  // strings (Z or +/-hh:mm) and date-only strings (spec parses those as UTC) untouched.
+  if (typeof iso !== 'string') return new Date(iso);
+  var hasZone = /[zZ]$|[+-]\d\d:?\d\d$/.test(iso);
+  var hasTime = /\d{2}:\d{2}/.test(iso);
+  return (hasZone || !hasTime) ? new Date(iso) : new Date(iso.replace(' ', 'T') + 'Z');
+}
+
 function adminFmt(iso, opts) {
   if (!iso) return '';
-  const d = new Date(iso);
+  const d = parseUtc(iso);
   if (isNaN(d.getTime())) return '';
   const o = opts || { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
   try {

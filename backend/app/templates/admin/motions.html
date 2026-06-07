@@ -132,7 +132,7 @@ function renderQueue(items) {
 function renderItem(m) {
   const filerLabel = m.filed_by_handle ? `@${esc(m.filed_by_handle)}` : esc(m.filed_by_anon_id || 'unknown');
   const verifiedBadge = m.filed_by_verified ? `<span class="mo-verified-badge">verified</span>` : '';
-  const filed = m.filed_at ? new Date(m.filed_at).toLocaleString() : '';
+  const filed = m.filed_at ? adminFmt(m.filed_at) : '';
 
   let targetBlock = '';
   if (m.target_kind && m.target_ref) {
@@ -163,7 +163,7 @@ function renderItem(m) {
 
   const resolutionBlock = m.resolution_summary
     ? `<div class="mo-resolution">
-         <div class="label">Resolution &middot; ${m.resolved_at ? new Date(m.resolved_at).toLocaleString() : ''}</div>
+         <div class="label">Resolution &middot; ${m.resolved_at ? adminFmt(m.resolved_at) : ''}</div>
          <div>${esc(m.resolution_summary)}</div>
        </div>`
     : '';
