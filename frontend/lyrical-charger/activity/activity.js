@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const OVERVIEW = 12;      // rows per column
+  const OVERVIEW = 10;      // rows per column (feeds are capped at 10 each)
 
   const cols = {
     'new-additions': { el: document.getElementById('ca-new'),    metric: 'first_calibrated_at' },

@@ -183,7 +183,7 @@ def _feed_out(items, total, limit, offset):
 
 
 @public_router.get("/overview")
-def overview(limit: int = Query(default=12, ge=1, le=50)):
+def overview(limit: int = Query(default=10, ge=1, le=10)):
     """One call for the initial page render: all three feeds (most_run all-time)."""
     db = SessionLocal()
     try:
@@ -202,7 +202,7 @@ def overview(limit: int = Query(default=12, ge=1, le=50)):
 
 @public_router.get("/new-additions")
 def new_additions(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=10, ge=1, le=10),
     offset: int = Query(default=0, ge=0),
 ):
     db = SessionLocal()
@@ -215,7 +215,7 @@ def new_additions(
 
 @public_router.get("/recent")
 def recent(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=10, ge=1, le=10),
     offset: int = Query(default=0, ge=0),
 ):
     db = SessionLocal()
@@ -229,7 +229,7 @@ def recent(
 @public_router.get("/most-run")
 def most_run(
     window: str = Query(default="all", pattern="^(all|30d)$"),
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=10, ge=1, le=10),
     offset: int = Query(default=0, ge=0),
 ):
     db = SessionLocal()

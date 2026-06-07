@@ -1,0 +1,262 @@
+/* ============================================================
+   Lyrical Charger INTRO CINEMATIC + splash gating.
+
+   Phase 1 (cinematic): personal-listening objects -- headphones,
+   earbuds, music notes, equalizer, waveforms, lyric scrawl -- fly
+   out of the viewer and rush INTO the screen in 3D (depth of field:
+   they shrink + blur as they recede), converging into a charging
+   ball of energy that builds and flashes.
+   Phase 2 (splash): the flash becomes the neon LYRICAL CHARGER; the
+   plugs slide into the L and R (the plug visuals live in charger.css)
+   and the sign ignites.
+   Phase 3 (reveal): the splash rises to the top and the page reveals;
+   then the plugs unplug and retreat.
+
+   Orchestrated by the inline script in index.html via body classes:
+   lc-playing -> lc-phase-cine -> lc-phase-splash -> (reveal/unplug).
+   Returning visitors, logged-in users, and reduced-motion skip it.
+   ============================================================ */
+
+/* ---- Page content hidden while the intro plays, revealed on teardown ---- */
+.rc-header,
+main,
+.site-footer { transition: opacity 0.7s ease; }
+
+body.lc-playing { overflow: hidden; }
+body.lc-playing .rc-header,
+body.lc-playing main,
+body.lc-playing .site-footer { opacity: 0; pointer-events: none; }
+
+/* Hold the sign in the viewport center for the splash; the inline script
+   FLIP-animates it up to its flow position on reveal. */
+body.lc-playing .lc-title-wrap {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(600px, 92vw);
+  margin: 0;
+  z-index: 60;
+}
+/* Sign stays dark behind the cinematic until the splash phase. */
+body.lc-playing .lc-title { opacity: 0; }
+body.lc-phase-splash .lc-title {
+  animation: lc-power-on 2.2s ease both,
+             lc-glitch-idle 7s 2.4s ease-in-out infinite;
+}
+
+/* Compass-color wipe (Netflix-intro style): hard-edged SEGMENTS of the Rising
+   Compass tier colors, clipped to a copy of the words (.lc-title::before), wipe
+   LEFT-TO-RIGHT across the letters as the plugs connect -- crisp vertical color
+   bars sliding through, not a blended gradient -- then fade to reveal the
+   resting white/yellow sign beneath. */
+.lc-title::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: linear-gradient(90deg,
+    #b76bff 0 16.66%, #57a0ff 16.66% 33.33%, #4ed98a 33.33% 50%,
+    #ff9a4d 50% 66.66%, #ff5d5d 66.66% 83.33%, #ffe07a 83.33% 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 150% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+body.lc-phase-splash .lc-title::before {
+  animation: lc-wave-sweep 2.1s linear both;
+}
+@keyframes lc-wave-sweep {
+  0%   { opacity: 0; background-position: 150% 0; }
+  12%  { opacity: 1; }
+  82%  { opacity: 1; background-position: -50% 0; }   /* segments wipe across the word */
+  100% { opacity: 0; background-position: -50% 0; }    /* fade -> resting white/yellow */
+}
+
+/* ---- Cinematic overlay ---- */
+.lc-cine {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: radial-gradient(circle at 50% 50%, #0b0b1a 0%, #050509 68%);
+  perspective: 900px;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.45s ease, visibility 0s linear 0.45s;
+}
+body.lc-playing .lc-cine { opacity: 1; visibility: visible; transition: opacity 0.4s ease; }
+/* Fade the cinematic out as the splash takes over. */
+body.lc-phase-splash .lc-cine { opacity: 0; }
+
+.lc-stage { position: absolute; inset: 0; transform-style: preserve-3d; }
+
+/* Flying objects. Each carries its own start vector + delay via inline custom
+   props (--sx,--sy,--r0,--r1,--d). Paused until the intro is playing. */
+.lc-obj {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  color: #00e6b8;
+  opacity: 0;
+  will-change: transform, opacity, filter;
+  animation: lc-fly 2.6s var(--d, 0s) cubic-bezier(.4, .05, .6, 1) both;
+  animation-play-state: paused;
+}
+.lc-obj svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 6px currentColor); }
+.lc-obj.tint-a { color: #00e6b8; }
+.lc-obj.tint-b { color: #3b8bff; }
+.lc-obj.tint-c { color: #ffd60a; }
+.lc-obj.tint-d { color: #9b6bff; }
+
+body.lc-playing .lc-obj,
+body.lc-playing .lc-core { animation-play-state: running; }
+
+@keyframes lc-fly {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--sx, 0), var(--sy, 0), 760px) scale(1) rotate(var(--r0, 0deg));
+    filter: blur(8px);
+  }
+  14% { opacity: 1; filter: blur(2px); }
+  64% { opacity: 1; filter: blur(0.4px); }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, -280px) scale(0.3) rotate(var(--r1, 0deg));
+    filter: blur(3px);
+  }
+}
+
+/* The charging ball of energy at center: builds, peaks, then flashes. */
+.lc-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 200px;
+  height: 200px;
+  margin: -100px 0 0 -100px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%,
+    #ffffff 0%, #fff0a6 13%, #ffd000 30%, rgba(255, 150, 0, 0.5) 54%, rgba(255, 90, 0, 0) 72%);
+  filter: blur(2px);
+  opacity: 0;
+  animation: lc-core 3.2s 0s ease-in both;
+  animation-play-state: paused;
+}
+
+@keyframes lc-core {
+  0%   { opacity: 0; transform: scale(0.15); }
+  34%  { opacity: 0.5; transform: scale(0.5); }
+  72%  { opacity: 0.95; transform: scale(1); }
+  86%  { opacity: 1; transform: scale(1.18); filter: blur(1px) brightness(1.2); }   /* charge peak */
+  94%  { opacity: 1; transform: scale(2.5); filter: blur(0) brightness(2.5); }       /* flash */
+  100% { opacity: 0; transform: scale(3.4); filter: brightness(3); }
+}
+
+/* ---- Skip button (shown during the intro) ---- */
+.lc-skip {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 80;
+  display: none;
+  padding: 0.42rem 0.95rem;
+  font: 600 0.72rem/1 var(--rc-font, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.lc-skip:hover { color: #fff; border-color: #ffd60a; background: rgba(255, 214, 10, 0.12); }
+body.lc-playing .lc-skip { display: inline-block; }
+
+@keyframes lc-power-on {
+  0%, 20%  { opacity: 0; }      /* dark until the plugs seat (~0.5s) */
+  23%      { opacity: 1; }      /* ignite */
+  25%      { opacity: 0.2; }
+  28%      { opacity: 1; }
+  31%      { opacity: 0.4; }
+  34%      { opacity: 1; }
+  37%      { opacity: 0.12; }
+  40%      { opacity: 1; }
+  47%      { opacity: 0.6; }
+  50%      { opacity: 1; }
+  100%     { opacity: 1; }
+}
+
+/* ---- Plugs: snake in from different angles, jolt into the letters on
+   contact, hold while plugged, then stutter out like they were yanked. The
+   outer span tumbles (translate + rotate) along a curved path; the inner svg
+   keeps its prong-direction rotation, so it settles pointing into the L/R. ---- */
+body.lc-plugged .lc-plug-l { animation: lc-snake-l 0.95s cubic-bezier(.32, .9, .35, 1) both; }
+body.lc-plugged .lc-plug-r { animation: lc-snake-r 0.95s cubic-bezier(.32, .9, .35, 1) both; }
+body.lc-unplugging .lc-plug-l { animation: lc-yank-l 0.85s cubic-bezier(.5, .05, .5, 1) forwards; }
+body.lc-unplugging .lc-plug-r { animation: lc-yank-r 0.85s cubic-bezier(.5, .05, .5, 1) forwards; }
+
+/* Left plug: swings in from the lower-left along a smooth arc, then a single
+   gentle overshoot as it seats (the jolt) -- no micro-bouncing. */
+@keyframes lc-snake-l {
+  0%   { opacity: 0; transform: translate(-300px, 120px) rotate(-48deg) scale(0.85); }
+  22%  { opacity: 1; }
+  50%  { transform: translate(-150px, -30px) rotate(15deg) scale(1.03); }   /* arc up + over */
+  76%  { transform: translate(-40px, 12px) rotate(-7deg) scale(1); }        /* easing in */
+  90%  { transform: translate(6px, -2px) rotate(2deg); }                    /* overshoot = jolt */
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg); }             /* settle */
+}
+/* Right plug: swings in from the upper-right (a different angle/path). */
+@keyframes lc-snake-r {
+  0%   { opacity: 0; transform: translate(300px, -120px) rotate(48deg) scale(0.85); }
+  22%  { opacity: 1; }
+  50%  { transform: translate(150px, 30px) rotate(-15deg) scale(1.03); }
+  76%  { transform: translate(40px, -12px) rotate(7deg) scale(1); }
+  90%  { transform: translate(-6px, 2px) rotate(-2deg); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+}
+
+/* Stutter-out: load, a forceful yank, one catch (the stutter), then it tears
+   away. Smoother than a multi-bounce -- the single catch reads as the jerk. */
+@keyframes lc-yank-l {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  16%  { transform: translate(9px, -1px) rotate(3deg); }     /* load (push in) */
+  38%  { transform: translate(-30px, 6px) rotate(-9deg); }   /* yank */
+  52%  { transform: translate(-18px, 3px) rotate(-5deg); }   /* catch / stutter */
+  70%  { opacity: 1; transform: translate(-92px, 22px) rotate(-24deg); }   /* tear away */
+  100% { opacity: 0; transform: translate(-340px, 98px) rotate(-60deg); }
+}
+@keyframes lc-yank-r {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  16%  { transform: translate(-9px, -1px) rotate(-3deg); }
+  38%  { transform: translate(30px, 6px) rotate(9deg); }
+  52%  { transform: translate(18px, 3px) rotate(5deg); }
+  70%  { opacity: 1; transform: translate(92px, 22px) rotate(24deg); }
+  100% { opacity: 0; transform: translate(340px, 98px) rotate(60deg); }
+}
+
+/* Reduced-motion: no cinematic at all (the script also bails). Show the page
+   with the sign lit at rest. */
+@media (prefers-reduced-motion: reduce) {
+  .lc-cine, .lc-skip { display: none !important; }
+  body.lc-playing { overflow: visible; }
+  body.lc-playing .rc-header,
+  body.lc-playing main,
+  body.lc-playing .site-footer { opacity: 1; pointer-events: auto; }
+  body.lc-playing .lc-title-wrap {
+    position: relative; left: auto; top: auto; transform: none;
+    width: auto; margin: 2rem auto 0.6rem;
+  }
+  body.lc-playing .lc-title { opacity: 1; }
+}

@@ -86,16 +86,108 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="charger.css">
+  <link rel="stylesheet" href="lc-intro.css">
 </head>
 <body class="rc-elevated">
 
-  <!-- CRT monitor bezel — a fixed frame around the whole viewport, visual only -->
-  <div class="crt-frame" aria-hidden="true">
-    <div class="crt-controls">
-      <div class="crt-power-light"></div>
-      <span class="crt-brand">LYRICAL CHARGER</span>
+  <!-- ======================== INTRO CINEMATIC ========================
+       Personal-listening objects fly out of the viewer and rush into the
+       screen (3D depth of field), converging into a charging ball of energy
+       that flashes into the neon splash; the plugs seat into the L and R, the
+       sign rises to reveal the page, then the plugs unplug. The orchestrator
+       script (below, runs at body start so the page never flashes first)
+       drives the phases and skips the whole thing for returning visitors,
+       logged-in users, and reduced-motion. -->
+  <div class="lc-cine" aria-hidden="true">
+    <div class="lc-stage">
+      <span class="lc-obj tint-a" style="--sx:-44vw;--sy:-26vh;--r0:-40deg;--r1:28deg;--d:0s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></svg></span>
+      <span class="lc-obj tint-c" style="--sx:42vw;--sy:-30vh;--r0:35deg;--r1:-22deg;--d:.12s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/></svg></span>
+      <span class="lc-obj tint-b" style="--sx:-48vw;--sy:16vh;--r0:-18deg;--r1:16deg;--d:.24s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0"/><path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 1 0 4"/></svg></span>
+      <span class="lc-obj tint-a" style="--sx:46vw;--sy:20vh;--r0:22deg;--r1:-28deg;--d:.36s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/></svg></span>
+      <span class="lc-obj tint-d" style="--sx:-16vw;--sy:-40vh;--r0:-12deg;--r1:18deg;--d:.48s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg></span>
+      <span class="lc-obj tint-c" style="--sx:22vw;--sy:38vh;--r0:28deg;--r1:-18deg;--d:.6s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/></svg></span>
+      <span class="lc-obj tint-b" style="--sx:-34vw;--sy:34vh;--r0:-28deg;--r1:24deg;--d:.7s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></span>
+      <span class="lc-obj tint-a" style="--sx:34vw;--sy:-12vh;--r0:16deg;--r1:-20deg;--d:.8s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14c2-4 3 4 5 0s3 4 5 0 3 4 5 0 3 3 5 1"/></svg></span>
+      <span class="lc-obj tint-c" style="--sx:-10vw;--sy:30vh;--r0:-20deg;--r1:26deg;--d:.85s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/></svg></span>
+      <div class="lc-core"></div>
     </div>
   </div>
+  <button type="button" class="lc-skip" aria-label="Skip intro">Skip intro</button>
+
+  <script>
+    /* Intro orchestrator. Runs at body start so the page is hidden before it
+       paints. Phases via body classes; FLIP "rise" on reveal. Returning
+       visitors, logged-in users, and reduced-motion skip straight to the page. */
+    (function () {
+      var b = document.body;
+      function q(s) { return document.querySelector(s); }
+      try {
+        // Always play the intro; the Skip button lets repeat / returning
+        // visitors bail. Only prefers-reduced-motion suppresses it (a11y).
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce) return;
+
+        b.classList.add('lc-playing', 'lc-phase-cine');
+
+        var timers = [];
+        function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+        function clearAll() { timers.forEach(clearTimeout); timers = []; }
+
+        function reveal() {
+          var wrap = q('.lc-title-wrap');
+          if (!wrap) { finish(); return; }
+          var first = wrap.getBoundingClientRect();
+          b.classList.remove('lc-playing', 'lc-phase-cine');   // page reveals; sign returns to flow
+          var last = wrap.getBoundingClientRect();
+          var dx = first.left - last.left, dy = first.top - last.top;
+          wrap.style.transition = 'none';
+          wrap.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+          void wrap.offsetWidth;
+          requestAnimationFrame(function () {
+            wrap.style.transition = 'transform 0.9s cubic-bezier(.2,.7,.2,1)';
+            wrap.style.transform = 'translate(0,0)';
+          });
+          wrap.addEventListener('transitionend', function te() {
+            wrap.style.transition = ''; wrap.style.transform = '';
+            wrap.removeEventListener('transitionend', te);
+          });
+        }
+
+        function finish() {   // skip -> jump straight to the resting page
+          clearAll();
+          b.classList.remove('lc-playing', 'lc-phase-cine', 'lc-phase-splash', 'lc-plugged', 'lc-unplugging');
+          var wrap = q('.lc-title-wrap');
+          if (wrap) { wrap.style.transition = ''; wrap.style.transform = ''; }
+        }
+
+        // Seat the plugs at the ACTUAL L/R glyph edges (the glyph gap changes
+        // with the responsive font size, so a fixed offset drifts on phone/
+        // tablet). Measured at splash; works on any width.
+        function positionPlugs() {
+          var wrap = q('.lc-title-wrap'), t = q('.lc-title');
+          var pl = q('.lc-plug-l'), pr = q('.lc-plug-r');
+          if (!wrap || !t || !t.firstChild || !pl || !pr) return;
+          var r = document.createRange(); r.selectNodeContents(t.firstChild);
+          var g = r.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+          var pw = pl.offsetWidth || 45;
+          var overlap = Math.min(12, pw * 0.28);   // prong depth into the letter
+          pl.style.left = Math.max(2, (g.left - w.left) - pw + overlap) + 'px';
+          pr.style.right = Math.max(2, (w.right - g.right) - pw + overlap) + 'px';
+        }
+
+        at(3000, function () { positionPlugs(); b.classList.add('lc-phase-splash', 'lc-plugged'); }); // orb flash -> splash + plugs snake in
+        at(5000, reveal);                                                                          // rise + reveal the page
+        at(6100, function () { b.classList.remove('lc-plugged'); b.classList.add('lc-unplugging'); }); // yank/stutter out (after the rise)
+        at(7050, function () { b.classList.remove('lc-phase-splash', 'lc-unplugging'); });          // hand off to the resting idle
+
+        var skip = q('.lc-skip');
+        if (skip) skip.addEventListener('click', finish);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') finish(); });
+      } catch (e) {
+        try { b.classList.remove('lc-playing', 'lc-phase-cine', 'lc-phase-splash', 'lc-plugged'); } catch (_) {}
+      }
+    })();
+  </script>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -169,10 +261,24 @@
   <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
-  <h1 class="wordmark" style="text-align:center;margin:1.5rem 0 0;">Lyrical Charger</h1>
-  <p style="text-align:center;margin:0.4rem 0 0;font-size:0.85rem;">
-    <a href="/lyrical-charger/activity/" style="color:var(--rc-accent);text-decoration:none;">See Charger Activity &rarr;</a>
-  </p>
+  <div class="lc-title-wrap">
+    <!-- Plug icon (Lucide "plug", ISC). The left plug snakes into the L, the
+         right into the R; each trails a wire (.lc-wire) off to the viewport
+         edge so it reads as connected to something offscreen. -->
+    <span class="lc-plug lc-plug-l" aria-hidden="true">
+      <i class="lc-wire"></i>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/>
+      </svg>
+    </span>
+    <h1 class="lc-title" data-text="Lyrical Charger">Lyrical Charger</h1>
+    <span class="lc-plug lc-plug-r" aria-hidden="true">
+      <i class="lc-wire"></i>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/>
+      </svg>
+    </span>
+  </div>
 
   <main>
 
@@ -274,10 +380,9 @@
       </div>
 
       <div class="input-section">
-        <div class="tab-bar">
-          <button class="tab active" data-tab="paste">Paste Lyrics</button>
-          <button class="tab" data-tab="search">Search by Song</button>
-        </div>
+        <!-- Paste is the only mode (no lyric scraping / Search by Song). The
+             header search up top covers finding existing songs. The Search panel
+             markup is left below but is unreachable (no tab activates it). -->
 
         <!-- Paste Lyrics -->
         <div id="tab-paste" class="tab-panel active">
@@ -298,7 +403,6 @@
             help keep our data clean.
           </p>
           <textarea id="lyrics-input" placeholder="Paste the full lyrics here..." rows="12" spellcheck="false"></textarea>
-          <p class="input-hint">Paste the complete lyrics. The more complete they are, the more accurate the reading.</p>
         </div>
 
         <!-- Search by Song -->

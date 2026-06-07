@@ -56,89 +56,6 @@ body {
   min-height: 100vh;
 }
 
-/* ============================================================
-   CRT MONITOR BEZEL — fixed frame around the whole viewport,
-   using the original bezel visuals. The body is padded by the
-   same ring thickness so content starts inside the frame rather
-   than being overlapped by it. Visual only.
-   ============================================================ */
-body {
-  padding: 20px 20px 50px;
-}
-
-.crt-frame {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-  pointer-events: none;
-  padding: 20px 20px 50px;   /* ring thickness, matches body padding */
-  border-radius: 20px;
-  background: linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 50%, #0f0f0f 100%);
-  box-shadow:
-    inset 0 0 0 2px #333,
-    inset 0 2px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.3);
-  /* Punch out the center so only the bezel ring is painted; the
-     page content shows through the transparent middle. */
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-          mask-composite: exclude;
-}
-
-/* Bezel vent grilles */
-.crt-frame::before,
-.crt-frame::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 8px;
-  height: 120px;
-  background: repeating-linear-gradient(
-    180deg,
-    #1a1a1a 0px,
-    #1a1a1a 4px,
-    #0d0d0d 4px,
-    #0d0d0d 8px
-  );
-  border-radius: 2px;
-}
-.crt-frame::before { left: 6px; }
-.crt-frame::after { right: 6px; }
-
-/* Chin controls — fill the bottom bezel and center within it */
-.crt-controls {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 15px;
-}
-.crt-power-light {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--rc-accent);
-  box-shadow: 0 0 6px var(--rc-accent), 0 0 12px var(--rc-accent-glow);
-}
-.crt-brand {
-  font-family: var(--rc-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: #555;
-  text-transform: uppercase;
-}
-
 /* ---- Focus states ---- */
 :focus-visible {
   outline: 2px solid var(--rc-accent);
@@ -153,7 +70,7 @@ body {
 /* ---- Layout ---- */
 main {
   max-width: 600px;
-  margin: 0 auto;
+  margin: -25px auto 0;   /* pulled up ~25px under the title */
   padding: 0 1.5rem;
 }
 
@@ -173,13 +90,144 @@ main {
   border-bottom: 1px solid var(--rc-border);
 }
 
-.wordmark {
+/* ============================================================
+   LYRICAL CHARGER title -- the resting neon sign.
+   White words, yellow neon glow, with a perpetual subtle glitch.
+   The one-time intro cinematic, power-on, and plug-in (centered
+   splash -> page reveal -> unplug) live in lc-intro.css + the inline
+   orchestrator in index.html. This block only defines how the sign
+   LOOKS at rest, plus the plug in/out states the intro toggles.
+   ============================================================ */
+.lc-title-wrap {
+  position: relative;
+  isolation: isolate;
+  text-align: center;
+  max-width: 600px;
+  margin: 2rem auto 0.6rem;
+  padding: 0.8rem 0;
+}
+
+/* Soft yellow neon backdrop haze. */
+.lc-title-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -10% 10%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 198, 0, 0.18), transparent 76%);
+  filter: blur(8px);
+  opacity: 0.6;
+}
+
+.lc-title {
+  position: relative;
+  z-index: 2;
+  margin: 0;
   font-family: var(--rc-font);
-  font-size: 1.3rem;
-  font-weight: 300;
-  letter-spacing: 0.15em;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--rc-text-bright);
+  color: #ffffff;                 /* words stay white */
+  text-shadow:                    /* glow is yellow neon */
+    0 0 4px rgba(255, 255, 255, 0.6),
+    0 0 12px #ffe24d,
+    0 0 24px #ffc400,
+    0 0 44px #ff9500;
+  animation: lc-glitch-idle 7s 1s ease-in-out infinite;
+}
+
+/* Glitch layer: a clipped white duplicate that snaps sideways now and then. */
+.lc-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  color: #ffffff;
+  text-shadow: 0 0 8px #ffd60a, 0 0 18px #ff9500;
+  clip-path: inset(100% 0 0 0);
+  opacity: 0;
+  pointer-events: none;
+  animation: lc-glitch-slice 7s 1s infinite;
+}
+
+/* The plugs -- used only by the intro (lc-intro.js adds body.lc-plugged to
+   snake them into the L and R, body.lc-unplugging to yank them out). Hidden at
+   rest. They sit BEHIND the glyphs (z-index 1 < title's 2) so the prongs vanish
+   into the letters when seated; only the plug body + trailing wire show. The
+   prong rotation is on the inner svg; the wire trails off to the viewport edge. */
+.lc-plug {
+  position: absolute;
+  top: 50%;
+  margin-top: -22px;
+  width: 45px;            /* 1.5x */
+  height: 45px;
+  z-index: 1;
+  /* Cool cyan -- a deliberately different shade from the yellow neon so the
+     plugs read clearly instead of getting lost in the glow. */
+  color: #dff5ff;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px #3be0ff) drop-shadow(0 0 13px #00b8d4);
+}
+.lc-plug svg { position: relative; z-index: 1; width: 100%; height: 100%; display: block; }
+/* Seated deep enough (prong region ~11px) that the prongs tuck behind the
+   glyph; the body stays just outside the letter. */
+.lc-plug-l { left: 54px; }
+.lc-plug-l svg { transform: rotate(90deg); }   /* prongs point right, into the L */
+.lc-plug-r { right: 54px; }
+.lc-plug-r svg { transform: rotate(-90deg); }  /* prongs point left, into the R */
+
+/* Wire/cord trailing from the plug back out to the viewport edge -- present the
+   whole time so the plug reads as connected to something offscreen. It's a
+   child of the plug, so it swings along the snake path and holds taut when
+   seated. Sits behind the plug body. */
+/* Straight wire/cord trailing from the plug out to the viewport edge -- present
+   the whole time so the plug reads as connected to something offscreen. It's a
+   child of the plug, so it swings in from the side with the plug. */
+.lc-wire {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  margin-top: -2px;
+  width: 100vw;
+  border-radius: 2px;
+  background: linear-gradient(var(--wdir, to left), #9aa6ad 0%, #4a525a 55%, #343a40 100%);
+  box-shadow: 0 0 5px rgba(59, 224, 255, 0.22);
+  pointer-events: none;
+  z-index: 0;
+}
+.lc-plug-l .lc-wire { right: 46%; --wdir: to left; }
+.lc-plug-r .lc-wire { left: 46%; --wdir: to right; }
+
+/* Smaller plugs on phones so they fit the smaller wordmark; the intro's
+   positionPlugs() reads the width and seats them at the L/R glyph edges. */
+@media (max-width: 560px) {
+  .lc-plug { width: 34px; height: 34px; margin-top: -17px; }
+}
+
+@keyframes lc-glitch-idle {       /* stays lit; rare brief flickers */
+  0%, 100% { opacity: 1; }
+  29%      { opacity: 1; }
+  30%      { opacity: 0.6; }
+  31%      { opacity: 1; }
+  71%      { opacity: 1; }
+  72%      { opacity: 0.78; }
+  73%      { opacity: 1; }
+}
+
+@keyframes lc-glitch-slice {
+  0%, 18%, 22%, 58%, 62%, 100% { clip-path: inset(100% 0 0 0); opacity: 0; transform: translate(0, 0); }
+  19%   { clip-path: inset(18% 0 56% 0); transform: translate(-4px, 0); opacity: 0.9; }
+  20.5% { clip-path: inset(58% 0 16% 0); transform: translate(4px, 0); opacity: 0.9; }
+  59%   { clip-path: inset(44% 0 34% 0); transform: translate(3px, 0); opacity: 0.9; }
+  60.5% { clip-path: inset(8% 0 72% 0); transform: translate(-3px, 0); opacity: 0.9; }
+}
+
+/* Reduced-motion: hold the sign steady, no glitch. */
+@media (prefers-reduced-motion: reduce) {
+  .lc-title { animation: none; opacity: 1; }
+  .lc-title::after { display: none; }
 }
 
 .powered-by-link {
@@ -1199,24 +1247,10 @@ main {
   color: var(--rc-text-dim);
 }
 
-/* Site footer */
-.site-footer {
-  text-align: center;
-  padding: 2rem 1rem;
-  border-top: 1px solid var(--rc-border);
-  margin-top: 1rem;
-  font-size: 0.7rem;
-  color: var(--rc-text-dim);
-}
-
-.site-footer a {
-  color: var(--rc-accent);
-  text-decoration: none;
-}
-
-.site-footer a:hover {
-  color: var(--rc-text-bright);
-}
+/* Site footer: use the standard global grouped footer from main.css
+   (.site-footer / .footer-grid / .footer-bottom). No page-local override --
+   the charger's old centered/small restyle was removed so this page matches
+   the rest of the site. */
 
 /* ---- Utilities ---- */
 .hidden {
@@ -1258,10 +1292,6 @@ main {
 @media (max-width: 480px) {
   .meta-fields {
     grid-template-columns: 1fr;
-  }
-
-  .wordmark {
-    font-size: 1.1rem;
   }
 
   .hero-headline {
