@@ -135,7 +135,7 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
         "topics": _parse_json(row.topics),
         "topic_audit": _parse_json(row.topic_audit),
         # --- Prose / analysis ---
-        "effects_prose": row.effects_prose,
+        "listener_effects_prose": row.listener_effects_prose,
         "societal_effects_prose": row.societal_effects_prose,
         "message_analysis": row.message_analysis,
         "expression_analysis": row.expression_analysis,
@@ -176,7 +176,7 @@ def badge_lookup(
 
     Returns the complete per-song payload: classification (tier / charge /
     charge_summary / contamination / dogma / confidence), Ether Art Chart
-    (deadpan_line / topics / topic_audit), prose + analysis (effects_prose /
+    (deadpan_line / topics / topic_audit), prose + analysis (listener_effects_prose /
     societal_effects_prose / message|expression|intention_analysis /
     activations), and chart/catalog context. Does not calibrate — lookup only.
     """

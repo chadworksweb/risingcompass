@@ -18,7 +18,7 @@ Usage:
         --summary "Witness's lament for..." \\
         [--contaminated --contam-note "..."] \\
         [--dogma --dogma-note "..."] \\
-        [--effects-prose-file path/to/prose.txt] \\
+        [--listener-effects-prose-file path/to/prose.txt] \\
         [--societal-prose-file path/to/societal.txt] \\
         [--deadpan "Doomed-romance lament"] \\
         [--topic breakup --topic longing] \\
@@ -69,7 +69,7 @@ def main() -> int:
     p.add_argument("--dogma", action="store_true")
     p.add_argument("--dogma-note", default=None)
     p.add_argument("--confidence", type=float, default=1.0)
-    p.add_argument("--effects-prose-file", default=None, help="Path to a UTF-8 text file with the two-paragraph effects prose.")
+    p.add_argument("--listener-effects-prose-file", default=None, help="Path to a UTF-8 text file with the two-paragraph effects prose.")
     p.add_argument("--societal-prose-file", default=None, help="Path to a UTF-8 text file with the societal effects prose.")
     p.add_argument("--deadpan", default=None, help="Ether Art Chart deadpan_line: flat literal naming of the song (no period, ~len(artist)+len(title) chars).")
     p.add_argument("--topic", action="append", dest="topics", default=None, help="Ether taxonomy slug, dominant-first. Repeatable, max 3. Mutually exclusive with --topic-audit-*.")
@@ -102,8 +102,8 @@ def main() -> int:
         "dogma_note": args.dogma_note,
         "confidence": args.confidence,
     }
-    if args.effects_prose_file:
-        calibration["effects_prose"] = Path(args.effects_prose_file).read_text(encoding="utf-8").strip()
+    if args.listener_effects_prose_file:
+        calibration["listener_effects_prose"] = Path(args.listener_effects_prose_file).read_text(encoding="utf-8").strip()
     if args.societal_prose_file:
         calibration["societal_effects_prose"] = Path(args.societal_prose_file).read_text(encoding="utf-8").strip()
 

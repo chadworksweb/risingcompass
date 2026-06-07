@@ -1,8 +1,8 @@
-"""One-shot: populate effects_prose for every calibrated song missing it.
+"""One-shot: populate listener_effects_prose for every calibrated song missing it.
 
 Iterates compass_songs + library_songs + submitted_songs + cl_stream_songs.
-For each row with charge_value IS NOT NULL AND effects_prose IS NULL,
-calls the effects-prose agent and writes the result.
+For each row with charge_value IS NOT NULL AND listener_effects_prose IS NULL,
+calls the listener-effects-prose agent and writes the result.
 
 Direct libsql connection against Turso primary — same pattern as
 backfill_song_slugs.py. Idempotent; re-running only touches NULL rows.
@@ -13,9 +13,9 @@ tier-generic copy when it's NULL.
 
 Usage:
     cd backend
-    .venv/Scripts/python.exe scripts/backfill_effects_prose.py
-    .venv/Scripts/python.exe scripts/backfill_effects_prose.py --limit 50
-    .venv/Scripts/python.exe scripts/backfill_effects_prose.py --source compass
+    .venv/Scripts/python.exe scripts/backfill_listener_effects_prose.py
+    .venv/Scripts/python.exe scripts/backfill_listener_effects_prose.py --limit 50
+    .venv/Scripts/python.exe scripts/backfill_listener_effects_prose.py --source compass
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from dotenv import load_dotenv  # noqa: E402
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from app.services.effects_prose import generate_effects_prose  # noqa: E402
+from app.services.listener_effects_prose import generate_listener_effects_prose  # noqa: E402
 
 
 TABLES = [
@@ -75,7 +75,7 @@ def main() -> int:
             f"WHERE charge_value IS NOT NULL "
             f"  AND rubric_color IS NOT NULL "
             f"  AND charge_summary IS NOT NULL "
-            f"  AND (effects_prose IS NULL OR effects_prose = '') "
+            f"  AND (listener_effects_prose IS NULL OR listener_effects_prose = '') "
             f"ORDER BY id"
         ).fetchall()
 
@@ -93,7 +93,7 @@ def main() -> int:
 
             total_processed += 1
             try:
-                prose: Optional[str] = generate_effects_prose(
+                prose: Optional[str] = generate_listener_effects_prose(
                     title=title or "",
                     artist=artist or "",
                     rubric_color=color,
@@ -113,7 +113,7 @@ def main() -> int:
                 continue
 
             conn.execute(
-                f"UPDATE {table} SET effects_prose = ? WHERE id = ?",
+                f"UPDATE {table} SET listener_effects_prose = ? WHERE id = ?",
                 (prose, sid),
             )
             conn.commit()

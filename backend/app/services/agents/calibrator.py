@@ -89,7 +89,7 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
         "dogma_note": getattr(existing, "dogma_note", None),
         "charge_summary": existing.charge_summary,
         "confidence": 1.0,
-        "effects_prose": getattr(existing, "effects_prose", None),
+        "listener_effects_prose": getattr(existing, "listener_effects_prose", None),
         "societal_effects_prose": getattr(existing, "societal_effects_prose", None),
         # Carry the cached row's sealed provenance forward so a cache-hit
         # re-persist (e.g. into a new submitted/stream row) keeps the original
@@ -136,11 +136,11 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
         return
 
     # 1. Effects prose -- what the words may do to a listener.
-    if not calib.get("effects_prose"):
+    if not calib.get("listener_effects_prose"):
         try:
-            from app.services.effects_prose import generate_effects_prose
-            calib["effects_prose"] = await asyncio.to_thread(
-                generate_effects_prose,
+            from app.services.listener_effects_prose import generate_listener_effects_prose
+            calib["listener_effects_prose"] = await asyncio.to_thread(
+                generate_listener_effects_prose,
                 title=title, artist=artist, rubric_color=color,
                 charge_value=calib.get("charge_value"),
                 charge_summary=calib.get("charge_summary"),
@@ -149,7 +149,7 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
                 lyrics=lyrics,
             )
         except Exception:
-            logger.exception("effects_prose step failed for %s / %s", title, artist)
+            logger.exception("listener_effects_prose step failed for %s / %s", title, artist)
 
     # 2. Ether tagging -- names what the song IS: deadpan_line + topic tags.
     if not calib.get("deadpan_line"):
@@ -160,7 +160,7 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
                 title=title, artist=artist, lyrics=lyrics,
                 rubric_color=color, charge_value=calib.get("charge_value"),
                 charge_summary=calib.get("charge_summary"),
-                effects_prose=calib.get("effects_prose"),
+                listener_effects_prose=calib.get("listener_effects_prose"),
             )
             if ether:
                 calib["deadpan_line"] = ether.get("deadpan_line")
@@ -184,7 +184,7 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
                 lyrics=lyrics,
                 deadpan_line=calib.get("deadpan_line"),
                 topics=calib.get("topics"),
-                effects_prose=calib.get("effects_prose"),
+                listener_effects_prose=calib.get("listener_effects_prose"),
             )
             # Carry the sealed provenance alongside the prose so every persist
             # site can write generated_at + model in lockstep. Fail-soft: on

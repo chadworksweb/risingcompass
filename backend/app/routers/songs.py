@@ -491,7 +491,7 @@ def _resolve_song(unified_id: int, db) -> dict | None:
         # Ether Art Chart fields -- feed the shareable charge card on the song page.
         "deadpan_line": row.deadpan_line,
         "topics": topics,
-        "effects_prose": row.effects_prose,
+        "listener_effects_prose": row.listener_effects_prose,
         "societal_effects_prose": row.societal_effects_prose,
         "uncalibrated": is_uncalibrated,
         "song_source": "songs",

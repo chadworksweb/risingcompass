@@ -65,8 +65,8 @@ const procSubsteps = $('#proc-substeps');
 const resultIdentity = $('#result-identity');
 const resultCalibration = $('#result-calibration');
 const resultSummary = $('#result-summary');
-const resultEffects = $('#result-effects');
-const resultEffectsBody = $('#result-effects-body');
+const resultEffects = $('#result-listener-effects');
+const resultEffectsBody = $('#result-listener-effects-body');
 const resultSocietal = $('#result-societal');
 const resultSocietalBody = $('#result-societal-body');
 const resultConsensus = $('#result-consensus');
@@ -1177,10 +1177,10 @@ function renderResults(data) {
   // song_slug to route to, fall back to the full prose so the user isn't
   // left with a truncated teaser and nowhere to read the rest.
   if (data.song_slug) {
-    renderProseExcerpt(resultEffects, resultEffectsBody, data.effects_prose);
+    renderProseExcerpt(resultEffects, resultEffectsBody, data.listener_effects_prose);
     renderProseExcerpt(resultSocietal, resultSocietalBody, data.societal_effects_prose);
   } else {
-    renderProse(resultEffects, resultEffectsBody, data.effects_prose);
+    renderProse(resultEffects, resultEffectsBody, data.listener_effects_prose);
     renderProse(resultSocietal, resultSocietalBody, data.societal_effects_prose);
   }
 
@@ -2109,7 +2109,7 @@ function showCappedCard(data) {
 
     // Arc + societal prose (full, not teased -- there's no album detail page yet)
     renderProse(albumResultArc, albumResultArcBody, data.arc_prose);
-    renderProse(albumResultSocietal, albumResultSocietalBody, data.societal_prose);
+    renderProse(albumResultSocietal, albumResultSocietalBody, data.societal_effects_prose);
 
     // Per-track breakdown
     const tracks = (data.tracks || []).slice();

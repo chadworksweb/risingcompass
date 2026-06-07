@@ -486,11 +486,11 @@ def record_and_reconcile(
         cur_color = getattr(song, "rubric_color", None)
         cur_summary = getattr(song, "charge_summary", None)
         tier_or_summary_changed = (prior_color != cur_color) or (prior_summary != cur_summary)
-        prose_missing = not getattr(song, "effects_prose", None)
+        prose_missing = not getattr(song, "listener_effects_prose", None)
         if cur_color and cur_summary and (prose_missing or tier_or_summary_changed):
             try:
-                from app.services.effects_prose import generate_effects_prose
-                prose = generate_effects_prose(
+                from app.services.listener_effects_prose import generate_listener_effects_prose
+                prose = generate_listener_effects_prose(
                     title=getattr(song, "title", None) or title or "",
                     artist=getattr(song, "artist", None) or artist or "",
                     rubric_color=cur_color,
@@ -500,9 +500,9 @@ def record_and_reconcile(
                     contamination_note=getattr(song, "contamination_note", None),
                 )
                 if prose:
-                    song.effects_prose = prose
+                    song.listener_effects_prose = prose
             except Exception:
-                logger.exception("effects_prose hook failed for %s/%s", source, song.id)
+                logger.exception("listener_effects_prose hook failed for %s/%s", source, song.id)
 
         # Societal effects prose hook. Fires when (a) the listener prose just
         # generated/regenerated AND (b) the row has ether tags to ground the
@@ -526,7 +526,7 @@ def record_and_reconcile(
                     contamination_note=getattr(song, "contamination_note", None),
                     deadpan_line=getattr(song, "deadpan_line", None),
                     topics=getattr(song, "topics", None),
-                    effects_prose=getattr(song, "effects_prose", None),
+                    listener_effects_prose=getattr(song, "listener_effects_prose", None),
                 )
                 if soc:
                     song.societal_effects_prose = soc.prose

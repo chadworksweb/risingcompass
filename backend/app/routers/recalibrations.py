@@ -483,7 +483,7 @@ def accept_proposal(
     #
     # Recalibration runs exist to compound and fine-tune the charge (and the
     # tier it derives). The lyrics never change between runs, so charge_summary,
-    # effects_prose, and societal_effects_prose stay accurate to the lyrics and
+    # listener_effects_prose, and societal_effects_prose stay accurate to the lyrics and
     # are deliberately NOT rewritten here. That keeps prose from piling up
     # iteration-on-iteration and -- critically -- keeps the provenance seal on
     # societal prose stable: rewriting would re-stamp generated_at/model and

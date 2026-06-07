@@ -1,6 +1,6 @@
 """Dedicated prose-regeneration endpoint.
 
-Rewrites effects_prose + societal_effects_prose for a single song, re-stamps
+Rewrites listener_effects_prose + societal_effects_prose for a single song, re-stamps
 the provenance seal, and archives the previous prose on the row before
 overwriting. The prior_* columns let you inspect what was replaced without
 relying on provenance_anchor records or git history.
@@ -65,12 +65,12 @@ class RegenResult(BaseModel):
     song_id: int
     title: str
     artist: str
-    effects_prose: Optional[str]
+    listener_effects_prose: Optional[str]
     societal_effects_prose: Optional[str]
     societal_prose_model: Optional[str]
-    prior_effects_prose: Optional[str]
+    prior_listener_effects_prose: Optional[str]
     prior_societal_effects_prose: Optional[str]
-    effects_prose_changed: bool
+    listener_effects_prose_changed: bool
     societal_prose_changed: bool
 
 
@@ -79,7 +79,7 @@ async def regenerate_prose(
     body: RegenRequest,
     _auth=Depends(verify_admin_or_lyrics_key),
 ):
-    """Regenerate effects_prose + societal_effects_prose for one song.
+    """Regenerate listener_effects_prose + societal_effects_prose for one song.
 
     Archives the previous prose to prior_* columns before overwriting.
     Re-stamps societal_prose_generated_at + societal_prose_model so the
@@ -129,7 +129,7 @@ async def regenerate_prose(
         }
 
         # Snapshot what we're about to replace.
-        old_effects_prose = song.effects_prose
+        old_listener_effects_prose = song.listener_effects_prose
         old_societal_effects_prose = song.societal_effects_prose
         old_societal_prose_generated_at = song.societal_prose_generated_at
         old_societal_prose_model = song.societal_prose_model
@@ -140,10 +140,10 @@ async def regenerate_prose(
     from app.services.agents.calibrator import ensure_full_calibration
     await ensure_full_calibration(title, artist, lyrics, calibration)
 
-    new_effects_prose = calibration.get("effects_prose")
-    new_societal_prose = calibration.get("societal_effects_prose")
+    new_listener_effects_prose = calibration.get("listener_effects_prose")
+    new_societal_effects_prose = calibration.get("societal_effects_prose")
 
-    if not new_effects_prose and not new_societal_prose:
+    if not new_listener_effects_prose and not new_societal_effects_prose:
         raise HTTPException(
             status_code=502,
             detail="Both generation steps failed -- no prose produced. Check logs.",
@@ -157,16 +157,16 @@ async def regenerate_prose(
             raise HTTPException(status_code=404, detail=f"{source} song {song_id} disappeared between reads")
 
         # Archive previous prose (overwrite any existing prior_ snapshot).
-        song.prior_effects_prose = old_effects_prose
+        song.prior_listener_effects_prose = old_listener_effects_prose
         song.prior_societal_effects_prose = old_societal_effects_prose
         song.prior_societal_prose_generated_at = old_societal_prose_generated_at
         song.prior_societal_prose_model = old_societal_prose_model
 
         # Write new prose + new seal in lockstep.
-        if new_effects_prose:
-            song.effects_prose = new_effects_prose
-        if new_societal_prose:
-            song.societal_effects_prose = new_societal_prose
+        if new_listener_effects_prose:
+            song.listener_effects_prose = new_listener_effects_prose
+        if new_societal_effects_prose:
+            song.societal_effects_prose = new_societal_effects_prose
             song.societal_prose_generated_at = calibration.get("societal_prose_generated_at")
             song.societal_prose_model = calibration.get("societal_prose_model")
 
@@ -175,8 +175,8 @@ async def regenerate_prose(
         logger.info(
             "prose_regen: %s/%s %s/%s -- effects=%s societal=%s",
             source, song_id, title, artist,
-            "ok" if new_effects_prose else "skipped",
-            "ok" if new_societal_prose else "skipped",
+            "ok" if new_listener_effects_prose else "skipped",
+            "ok" if new_societal_effects_prose else "skipped",
         )
 
         return RegenResult(
@@ -184,13 +184,13 @@ async def regenerate_prose(
             song_id=song_id,
             title=title,
             artist=artist,
-            effects_prose=song.effects_prose,
+            listener_effects_prose=song.listener_effects_prose,
             societal_effects_prose=song.societal_effects_prose,
             societal_prose_model=song.societal_prose_model,
-            prior_effects_prose=old_effects_prose,
+            prior_listener_effects_prose=old_listener_effects_prose,
             prior_societal_effects_prose=old_societal_effects_prose,
-            effects_prose_changed=new_effects_prose is not None,
-            societal_prose_changed=new_societal_prose is not None,
+            listener_effects_prose_changed=new_listener_effects_prose is not None,
+            societal_prose_changed=new_societal_effects_prose is not None,
         )
     except HTTPException:
         db_write.rollback()

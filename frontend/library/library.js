@@ -34,7 +34,7 @@
     { name: 'charge',                 type: 'integer', synthetic: true },
     { name: 'contaminated',           type: 'boolean', kind: 'contam' },
     { name: 'charge_summary',         type: 'text', kind: 'hover_pop' },
-    { name: 'effects_prose',          type: 'text', kind: 'locked' },
+    { name: 'listener_effects_prose',          type: 'text', kind: 'locked' },
     { name: 'societal_effects_prose', type: 'text', kind: 'locked' },
     { name: 'year',                   type: 'integer' },
     { name: 'created_at',             type: 'datetime' },
@@ -231,7 +231,7 @@
       // tip revealed on :hover / :focus-within of the wrap.
       const labels = {
         charge_summary: 'summary',
-        effects_prose: 'effects',
+        listener_effects_prose: 'effects',
         societal_effects_prose: 'societal',
       };
       const labelText = labels[col.name] || col.name;
@@ -248,7 +248,7 @@
 
     if (col.kind === 'locked') {
       const labels = {
-        effects_prose: 'effects',
+        listener_effects_prose: 'effects',
         societal_effects_prose: 'societal',
       };
       const labelText = labels[col.name] || col.name;

@@ -153,8 +153,8 @@
 
     // Prose blocks (hidden unless present; mostly Album-Charger releases).
     fillProse('release-arc-section', 'release-arc', rel.arc_prose);
-    fillProse('release-effects-section', 'release-effects', rel.effects_prose);
-    fillProse('release-societal-section', 'release-societal', rel.societal_prose);
+    fillProse('release-listener-effects-section', 'release-listener-effects', rel.listener_effects_prose);
+    fillProse('release-societal-section', 'release-societal', rel.societal_effects_prose);
 
     // Tracklist
     const list = document.getElementById('release-tracks');

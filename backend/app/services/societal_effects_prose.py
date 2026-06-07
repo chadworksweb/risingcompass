@@ -1,7 +1,7 @@
 """Per-song societal effects prose generator.
 
 Produces a 2-paragraph (optionally 3) description of what a society running
-this song's program at scale would manifest. Parallel to effects_prose, but
+this song's program at scale would manifest. Parallel to listener_effects_prose, but
 the unit of analysis is the collective, not the individual listener.
 
 Grounded in lyrics + calibration + the Ether Art Chart fields (deadpan_line +
@@ -125,7 +125,7 @@ def generate_societal_effects_prose(
     lyrics: str | None = None,
     deadpan_line: str | None = None,
     topics: str | list | None = None,
-    effects_prose: str | None = None,
+    listener_effects_prose: str | None = None,
 ) -> Optional[SocietalProseResult]:
     """Run the societal-effects agent. Returns a SocietalProseResult (prose +
     sealed generation provenance) or None on failure.
@@ -172,10 +172,10 @@ def generate_societal_effects_prose(
         user_parts.append(f"Deadpan naming (Ether Art Chart): {deadpan_line}")
     if topics_str:
         user_parts.append(f"Dominant topics (Ether Art Chart, dominant first): {topics_str}")
-    if effects_prose:
+    if listener_effects_prose:
         user_parts.append(
             "Per-listener effects prose (for reference, do not repeat — your job is the "
-            f"society scale):\n{effects_prose}"
+            f"society scale):\n{listener_effects_prose}"
         )
     if lyrics:
         trimmed = lyrics.strip()

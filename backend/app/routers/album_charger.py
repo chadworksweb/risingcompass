@@ -461,8 +461,8 @@ async def _run_album_charge(
                 "charge": w["calibration"].get("charge_value"),
                 "charge_summary": w["calibration"].get("charge_summary"),
                 "contaminated": w["calibration"].get("contaminated", False),
-                "effects_prose": w["calibration"].get("effects_prose"),
-                "societal_prose": w["calibration"].get("societal_effects_prose"),
+                "listener_effects_prose": w["calibration"].get("listener_effects_prose"),
+                "societal_effects_prose": w["calibration"].get("societal_effects_prose"),
             } for w in scored],
         )
 
@@ -574,8 +574,8 @@ async def _run_album_charge(
             release.contamination_count = contamination_count
             release.charge_summary = synthesis.get("charge_summary")
             release.arc_prose = synthesis.get("arc_prose")
-            release.effects_prose = synthesis.get("effects_prose")
-            release.societal_prose = synthesis.get("societal_prose")
+            release.listener_effects_prose = synthesis.get("listener_effects_prose")
+            release.societal_effects_prose = synthesis.get("societal_effects_prose")
             release.deadpan_line = synthesis.get("deadpan_line")
             release.topics = json.dumps(synthesis["topics"]) if synthesis.get("topics") else None
             release.topic_audit = json.dumps(synthesis["topic_audit"]) if synthesis.get("topic_audit") else None
@@ -667,8 +667,8 @@ async def _run_album_charge(
             contamination_count=contamination_count,
             charge_summary=synthesis.get("charge_summary"),
             arc_prose=synthesis.get("arc_prose"),
-            effects_prose=synthesis.get("effects_prose"),
-            societal_prose=synthesis.get("societal_prose"),
+            listener_effects_prose=synthesis.get("listener_effects_prose"),
+            societal_effects_prose=synthesis.get("societal_effects_prose"),
             deadpan_line=synthesis.get("deadpan_line"),
             topics=synthesis.get("topics"),
             tracks=track_results,

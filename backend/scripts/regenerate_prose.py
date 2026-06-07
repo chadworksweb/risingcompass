@@ -1,4 +1,4 @@
-"""Regenerate effects_prose + societal_effects_prose for one song from the terminal.
+"""Regenerate listener_effects_prose + societal_effects_prose for one song from the terminal.
 
 Archives the previous prose to the prior_* columns before overwriting.
 Re-stamps the provenance seal so the 16:00 UTC sweep re-anchors the new version.
@@ -97,12 +97,12 @@ def main() -> int:
     print(f"title:   {result['title']}")
     print(f"artist:  {result['artist']}")
     print()
-    if result.get("effects_prose_changed"):
-        print("[effects_prose] regenerated")
-        if result.get("effects_prose"):
-            print(result["effects_prose"][:300] + "..." if len(result["effects_prose"]) > 300 else result["effects_prose"])
+    if result.get("listener_effects_prose_changed"):
+        print("[listener_effects_prose] regenerated")
+        if result.get("listener_effects_prose"):
+            print(result["listener_effects_prose"][:300] + "..." if len(result["listener_effects_prose"]) > 300 else result["listener_effects_prose"])
     else:
-        print("[effects_prose] skipped (generation failed -- check logs)")
+        print("[listener_effects_prose] skipped (generation failed -- check logs)")
     print()
     if result.get("societal_prose_changed"):
         print(f"[societal_effects_prose] regenerated  model={result.get('societal_prose_model')}")
@@ -112,11 +112,11 @@ def main() -> int:
     else:
         print("[societal_effects_prose] skipped (generation failed -- check logs)")
     print()
-    if result.get("prior_effects_prose"):
-        print("[prior_effects_prose] archived (first 120 chars):")
-        print(result["prior_effects_prose"][:120] + "...")
+    if result.get("prior_listener_effects_prose"):
+        print("[prior_listener_effects_prose] archived (first 120 chars):")
+        print(result["prior_listener_effects_prose"][:120] + "...")
     else:
-        print("[prior_effects_prose] was NULL -- nothing to archive")
+        print("[prior_listener_effects_prose] was NULL -- nothing to archive")
     return 0
 
 

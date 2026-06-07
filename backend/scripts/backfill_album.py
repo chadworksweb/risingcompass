@@ -12,12 +12,12 @@ backend's key; this tool never imports the Anthropic client.
 What it writes, in one transaction:
   - each track -> a `songs` row via store_calibrated_song(source="library" ->
     editorial ingestion, authoritative), carrying rubric_color/charge_value/
-    charge_summary/contaminated/dogma + effects_prose + societal_effects_prose +
+    charge_summary/contaminated/dogma + listener_effects_prose + societal_effects_prose +
     deadpan_line + topics(+topic_audit). societal prose is provenance-sealed
     model="terminal_supplied".
   - a Release(release_type) for the album: aggregate via compute_release_charge,
     track/calibrated/contamination counts, the FULL album reading
-    (charge_summary/arc_prose/effects_prose/societal_prose/deadpan_line/topics/
+    (charge_summary/arc_prose/listener_effects_prose/societal_effects_prose/deadpan_line/topics/
     topic_audit), source, release_year/date, and one ReleaseSong per track.
   Existing songs (by canonical_key) UPDATE in place and get linked -- a track
   that also charted is ONE atomic song with both a chart_appearance and this
@@ -37,7 +37,7 @@ Payload (JSON):
     "source": "album_backfill",                  # default "album_backfill"
     "reading": {                                 # the album-level reading
       "charge_summary": "...", "arc_prose": "...",
-      "effects_prose": "...", "societal_prose": "...",
+      "listener_effects_prose": "...", "societal_effects_prose": "...",
       "deadpan_line": "...", "topics": ["slug", ...], "topic_audit": null
     }
   },
@@ -48,7 +48,7 @@ Payload (JSON):
         "rubric_color": "green", "charge_value": 12, "charge_summary": "...",
         "contaminated": false, "contamination_note": null,
         "dogma_referenced": false, "dogma_note": null, "confidence": 0.9,
-        "effects_prose": "...", "societal_effects_prose": "...",
+        "listener_effects_prose": "...", "societal_effects_prose": "...",
         "deadpan_line": "...", "topics": ["slug", ...], "topic_audit": null
       },
       "artist_entries": [{"name": "...", "role": "primary", "position": 0}]
@@ -254,8 +254,8 @@ def main() -> int:
         rel.contamination_count = contamination_count
         rel.charge_summary = reading.get("charge_summary")
         rel.arc_prose = reading.get("arc_prose")
-        rel.effects_prose = reading.get("effects_prose")
-        rel.societal_prose = reading.get("societal_prose")
+        rel.listener_effects_prose = reading.get("listener_effects_prose")
+        rel.societal_effects_prose = reading.get("societal_effects_prose")
         rel.deadpan_line = reading.get("deadpan_line")
         rel.topics = json.dumps(reading["topics"]) if reading.get("topics") else None
         rel.topic_audit = json.dumps(reading["topic_audit"]) if reading.get("topic_audit") else None

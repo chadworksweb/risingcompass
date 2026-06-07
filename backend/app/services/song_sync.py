@@ -33,8 +33,8 @@ _METHOD = {
 _CALIB = [
     "rubric_color", "charge_value", "charge_summary", "contaminated",
     "contamination_note", "dogma_referenced", "dogma_note", "instrumental",
-    "confidence", "effects_prose", "societal_effects_prose",
-    "societal_prose_generated_at", "societal_prose_model", "prior_effects_prose",
+    "confidence", "listener_effects_prose", "societal_effects_prose",
+    "societal_prose_generated_at", "societal_prose_model", "prior_listener_effects_prose",
     "prior_societal_effects_prose", "prior_societal_prose_generated_at",
     "prior_societal_prose_model", "deadpan_line", "topics", "topic_audit",
     "activations", "calibration_failed", "message_analysis",
@@ -142,7 +142,7 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
 # analyzer._song_persist_fields so every native writer maps identically.
 _PASSTHROUGH = [
     "rubric_color", "charge_value", "charge_summary", "contamination_note",
-    "dogma_note", "confidence", "effects_prose", "societal_effects_prose",
+    "dogma_note", "confidence", "listener_effects_prose", "societal_effects_prose",
     "societal_prose_generated_at", "societal_prose_model", "deadpan_line",
     "activations", "message_analysis", "expression_analysis", "intention_analysis",
 ]

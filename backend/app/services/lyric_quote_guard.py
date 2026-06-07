@@ -1,6 +1,6 @@
 """Verbatim-lyric guard for generated prose.
 
-Rising Compass's original commentary (effects_prose, societal_effects_prose) must
+Rising Compass's original commentary (listener_effects_prose, societal_effects_prose) must
 describe and paraphrase the lyrics it analyzes -- never reproduce them. The prompts
 instruct against quoting, but LLMs occasionally quote anyway, so this is the
 deterministic LOCK in the calibration path: after generation, any run of >= MIN_RUN
@@ -46,7 +46,7 @@ def has_verbatim_overlap(prose: str, lyrics: str, min_run: int = MIN_RUN) -> boo
     )
 
 
-PROSE_FIELDS = ("effects_prose", "societal_effects_prose")
+PROSE_FIELDS = ("listener_effects_prose", "societal_effects_prose")
 NOTE_FIELDS = ("contamination_note", "dogma_note")
 
 

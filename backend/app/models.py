@@ -354,8 +354,8 @@ class Release(Base):
     # Album Charger.
     charge_summary = Column(Text)  # one-paragraph album-level summary
     arc_prose = Column(Text)  # how the album moves across its tracks
-    effects_prose = Column(Text)  # what the album does to a listener (mig 090)
-    societal_prose = Column(Text)  # what running this album at scale does to a society
+    listener_effects_prose = Column(Text)  # what the album does to a listener (mig 090)
+    societal_effects_prose = Column(Text)  # what running this album at scale does to a society
     # Album-level Ether Art Chart entry (mig 090): the album as a first-class
     # ether subject, parallel to a song's deadpan_line/topics/topic_audit.
     deadpan_line = Column(Text)
@@ -1514,11 +1514,11 @@ class Song(Base):
     dogma_note = Column(Text)
     instrumental = Column(Boolean, default=False)
     confidence = Column(Float)
-    effects_prose = Column(Text)
+    listener_effects_prose = Column(Text)
     societal_effects_prose = Column(Text)
     societal_prose_generated_at = Column(DateTime)
     societal_prose_model = Column(Text)
-    prior_effects_prose = Column(Text)
+    prior_listener_effects_prose = Column(Text)
     prior_societal_effects_prose = Column(Text)
     prior_societal_prose_generated_at = Column(DateTime)
     prior_societal_prose_model = Column(Text)

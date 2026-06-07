@@ -352,7 +352,7 @@ class TerminalCalibrationIn(BaseModel):
     dogma_referenced: bool = False
     dogma_note: Optional[str] = None
     confidence: float = 1.0
-    effects_prose: Optional[str] = None
+    listener_effects_prose: Optional[str] = None
     societal_effects_prose: Optional[str] = None
     # Ether Art Chart fields, also Claude-Code-supplied so the server skips the
     # ether_tagger Anthropic call. deadpan_line is a flat literal naming of the
@@ -550,10 +550,10 @@ class LyricsCalibrateOut(BaseModel):
     # Set on "scored". None on rejection/error statuses.
     song_slug: Optional[str] = None
     # Per-song prose, generated inline on every reading (lyrics-grounded).
-    # effects_prose -- what the words may do to a listener.
+    # listener_effects_prose -- what the words may do to a listener.
     # societal_effects_prose -- what running this program at scale does to a society.
     # Either may be null if generation failed soft.
-    effects_prose: Optional[str] = None
+    listener_effects_prose: Optional[str] = None
     societal_effects_prose: Optional[str] = None
     # Ether tagging -- names what the song IS. deadpan_line is a flat literal
     # naming; topics are 0-3 taxonomy slugs, dominant-first. Both null if the
@@ -677,8 +677,8 @@ class AlbumCalibrateOut(BaseModel):
     # soft failure; the frontend falls back gracefully.
     charge_summary: Optional[str] = None
     arc_prose: Optional[str] = None
-    effects_prose: Optional[str] = None
-    societal_prose: Optional[str] = None
+    listener_effects_prose: Optional[str] = None
+    societal_effects_prose: Optional[str] = None
     # Album-level Ether Art Chart entry, mirroring LyricsCalibrateOut. topic_audit
     # is persisted on the Release but withheld from the public result.
     deadpan_line: Optional[str] = None

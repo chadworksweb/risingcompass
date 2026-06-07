@@ -315,7 +315,7 @@ def retag_audit(
         rubric_color=song.rubric_color,
         charge_value=song.charge_value,
         charge_summary=song.charge_summary,
-        effects_prose=song.effects_prose,
+        listener_effects_prose=song.listener_effects_prose,
     )
     if not ether:
         raise HTTPException(502, "Ether tagger returned no result; check server logs")

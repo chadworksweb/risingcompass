@@ -4,7 +4,7 @@ Long-running async task per job. One row at a time, sleeps 1s between
 Opus calls (per build pack §10 — "polite to the API"). Each row runs
 through the one calibration path, which produces the whole object:
 
-    rubric calibration → effects_prose → ether tagging → societal_prose
+    rubric calibration → listener_effects_prose → ether tagging → societal_effects_prose
 
 Native (Phase 5b): both targets land on the unified `songs` table via
 store_calibrated_song -- compass = chart_reading method (the 'backfill_console'
@@ -336,7 +336,7 @@ def _run_tagger(ctx: _RowCtx, source: str, song_id: int) -> Optional[dict]:
     """Synchronous wrapper that the engine awaits via asyncio.to_thread."""
     from app.services.agents.ether_tagger import tag_song
 
-    # Pull current calibration + effects_prose from the DB to ground the tagger.
+    # Pull current calibration + listener_effects_prose from the DB to ground the tagger.
     db: Session = SessionLocal()
     try:
         row = db.query(Song).filter(Song.id == song_id).first()
@@ -345,7 +345,7 @@ def _run_tagger(ctx: _RowCtx, source: str, song_id: int) -> Optional[dict]:
         rubric_color = row.rubric_color
         charge_value = row.charge_value
         charge_summary = row.charge_summary
-        effects_prose = getattr(row, "effects_prose", None)
+        listener_effects_prose = getattr(row, "listener_effects_prose", None)
     finally:
         db.close()
 
@@ -356,7 +356,7 @@ def _run_tagger(ctx: _RowCtx, source: str, song_id: int) -> Optional[dict]:
         rubric_color=rubric_color,
         charge_value=charge_value,
         charge_summary=charge_summary,
-        effects_prose=effects_prose,
+        listener_effects_prose=listener_effects_prose,
     )
 
 

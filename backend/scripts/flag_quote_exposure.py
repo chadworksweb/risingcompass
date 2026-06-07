@@ -8,7 +8,7 @@ Two classes of exposure:
   1. DEFINITE by construction: every non-null contamination_note / dogma_note was
      written under a rubric that told the model to QUOTE the contaminating line /
      lyric moment. Treat all of them as needing a quote-free rewrite.
-  2. PROBABLE: effects_prose / societal_effects_prose containing a double-quote
+  2. PROBABLE: listener_effects_prose / societal_effects_prose containing a double-quote
      character (the model wrapping an embedded lyric line in quotes).
 
 Limitation (honest): we no longer store the original lyrics, so we cannot diff
@@ -30,7 +30,7 @@ from app.database import SessionLocal  # noqa: E402
 from app.models import CompassSong, LibrarySong, SubmittedSong  # noqa: E402
 
 DOUBLE_QUOTE_CHARS = ('"', "“", "”")  # straight + curly double quotes
-PROSE_FIELDS = ("effects_prose", "societal_effects_prose")
+PROSE_FIELDS = ("listener_effects_prose", "societal_effects_prose")
 NOTE_FIELDS = ("contamination_note", "dogma_note")  # old rubric instructed quoting
 SAMPLE_LIMIT = 5
 

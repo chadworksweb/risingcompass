@@ -913,7 +913,7 @@
       if (h2) h2.textContent = text;
     };
     setH2('section-summary', `Summary of ${tagline}`);
-    setH2('section-effects', `What Might Listening to ${tagline} Do to the Listener?`);
+    setH2('section-listener-effects', `What Might Listening to ${tagline} Do to the Listener?`);
     setH2('section-societal-effects', `What Might Listening to ${tagline} Do to a Society?`);
     setH2('section-history', `Calibration Log for ${tagline}`);
     setH2('section-vibe', `Audience Vibe on ${tagline}`);
@@ -973,18 +973,18 @@
       : song.charge_summary || `${tagline} is calibrated as ${tierLabel} by The Rising Compass.`;
 
     // Section 3: Effects — per-song prose if available, else tier-generic fallback.
-    const effectsSection = document.getElementById('section-effects');
+    const effectsSection = document.getElementById('section-listener-effects');
     effectsSection.hidden = !isUncalibrated ? false : true;
     if (!isUncalibrated) {
-      const proseHtml = song.effects_prose
-        ? song.effects_prose
+      const proseHtml = song.listener_effects_prose
+        ? song.listener_effects_prose
             .split(/\n{2,}/)
             .map(p => p.trim())
             .filter(Boolean)
             .map(p => `<p>${escapeHtml(p)}</p>`)
             .join('')
         : `<p>${TIER_EFFECTS[song.rubric_color] || ''}</p>`;
-      const effectsEl = document.getElementById('effects-prose');
+      const effectsEl = document.getElementById('listener-effects-prose');
       effectsEl.classList.remove('is-loading');
       effectsEl.innerHTML = proseHtml;
     }

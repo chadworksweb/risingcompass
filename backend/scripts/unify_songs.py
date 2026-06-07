@@ -38,15 +38,15 @@ METHOD_BY_SOURCE = {
     "submitted": "lyrical_charger", "stream": "stream",
 }
 ENRICH_FIELDS = [
-    "charge_value", "charge_summary", "effects_prose", "societal_effects_prose",
+    "charge_value", "charge_summary", "listener_effects_prose", "societal_effects_prose",
     "topics", "deadpan_line", "message_analysis", "expression_analysis",
     "intention_analysis",
 ]
 CALIB_COLS = [
     "rubric_color", "charge_value", "charge_summary", "contaminated",
     "contamination_note", "dogma_referenced", "dogma_note", "instrumental",
-    "confidence", "effects_prose", "societal_effects_prose",
-    "societal_prose_generated_at", "societal_prose_model", "prior_effects_prose",
+    "confidence", "listener_effects_prose", "societal_effects_prose",
+    "societal_prose_generated_at", "societal_prose_model", "prior_listener_effects_prose",
     "prior_societal_effects_prose", "prior_societal_prose_generated_at",
     "prior_societal_prose_model", "deadpan_line", "topics", "topic_audit",
     "activations", "calibration_failed", "message_analysis",

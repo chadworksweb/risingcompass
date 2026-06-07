@@ -3,14 +3,14 @@
 Iterates compass_songs + library_songs + submitted_songs + cl_stream_songs.
 Requires the song to already have:
   - charge_value + rubric_color + charge_summary (calibration done)
-  - effects_prose (per-listener prose run; we reference it for context)
+  - listener_effects_prose (per-listener prose run; we reference it for context)
 
 Songs without ether tags (deadpan_line + topics) still get processed — the
 prompt degrades gracefully — but the read is sharper when topics are present,
 so prefer running this AFTER the ether tagger has caught up.
 
 Direct libsql connection against Turso primary, same pattern as
-backfill_effects_prose.py. Idempotent; re-running only touches NULL rows.
+backfill_listener_effects_prose.py. Idempotent; re-running only touches NULL rows.
 
 Ordering: --top-first sorts compass_songs by chart_position ASC so the daily
 top 20 (and top 100) get covered first. Other tables fall through in id order.
@@ -80,7 +80,7 @@ def main() -> int:
         rows = conn.execute(
             f"SELECT id, title, artist, rubric_color, charge_value, "
             f"       charge_summary, contaminated, contamination_note, "
-            f"       deadpan_line, topics, effects_prose "
+            f"       deadpan_line, topics, listener_effects_prose "
             f"FROM {table} "
             f"WHERE charge_value IS NOT NULL "
             f"  AND rubric_color IS NOT NULL "
@@ -113,7 +113,7 @@ def main() -> int:
                     contamination_note=contam_note,
                     deadpan_line=deadpan,
                     topics=topics,
-                    effects_prose=eff_prose,
+                    listener_effects_prose=eff_prose,
                 )
             except Exception as e:
                 total_failed += 1

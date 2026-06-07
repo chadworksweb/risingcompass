@@ -673,7 +673,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     editorial_input = None
     write_db = SessionLocal()
     try:
-        # Terminal-mode effects_prose / societal_effects_prose travel inside
+        # Terminal-mode listener_effects_prose / societal_effects_prose travel inside
         # `result` and are written by _store_calibration, which gates the
         # Anthropic prose-gen hook inside record_and_reconcile.
         cs_id = _store_calibration(

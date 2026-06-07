@@ -472,7 +472,7 @@ def _song_persist_fields(calibration: dict) -> dict:
         "dogma_note": calibration.get("dogma_note"),
         "charge_summary": calibration.get("charge_summary"),
         "confidence": calibration.get("confidence"),
-        "effects_prose": calibration.get("effects_prose"),
+        "listener_effects_prose": calibration.get("listener_effects_prose"),
         "societal_effects_prose": calibration.get("societal_effects_prose"),
         # Sealed generation provenance, kept in lockstep with the prose column.
         "societal_prose_generated_at": calibration.get("societal_prose_generated_at"),
@@ -741,8 +741,8 @@ async def calibrate_lyrics_endpoint(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        effects_prose = calibration.get("effects_prose")
-        societal_prose = calibration.get("societal_effects_prose")
+        listener_effects_prose = calibration.get("listener_effects_prose")
+        societal_effects_prose = calibration.get("societal_effects_prose")
 
         # Phase 3: open a fresh write session now (after the Opus call) and
         # own the whole write transaction here. Kept separate from Phase 1 so
@@ -878,8 +878,8 @@ async def calibrate_lyrics_endpoint(
                 artist=artist,
                 consensus=consensus_info if consensus_info else None,
                 song_slug=song_slug,
-                effects_prose=effects_prose,
-                societal_effects_prose=societal_prose,
+                listener_effects_prose=listener_effects_prose,
+                societal_effects_prose=societal_effects_prose,
                 deadpan_line=calibration.get("deadpan_line"),
                 topics=calibration.get("topics"),
             )
@@ -1083,8 +1083,8 @@ async def calibrate_search(
                                         "title": title, "artist": artist, "source": source})
             return LyricsCalibrateOut(status="error", title=title, artist=artist)
 
-        effects_prose = calibration.get("effects_prose")
-        societal_prose = calibration.get("societal_effects_prose")
+        listener_effects_prose = calibration.get("listener_effects_prose")
+        societal_effects_prose = calibration.get("societal_effects_prose")
 
         # Phase 3: fresh write session opened after the Opus call (see
         # calibrate-lyrics) so no connection is held idle through Phase 2.
@@ -1209,8 +1209,8 @@ async def calibrate_search(
                 artist=artist,
                 consensus=consensus_info if consensus_info else None,
                 song_slug=song_slug,
-                effects_prose=effects_prose,
-                societal_effects_prose=societal_prose,
+                listener_effects_prose=listener_effects_prose,
+                societal_effects_prose=societal_effects_prose,
                 deadpan_line=calibration.get("deadpan_line"),
                 topics=calibration.get("topics"),
             )

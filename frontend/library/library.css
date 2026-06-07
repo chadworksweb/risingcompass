@@ -240,7 +240,7 @@
 /* Narrow columns stay on one line. Title and artist wrap so the table
  * never overflows the viewport. 10-column layout:
  * 1 title, 2 artist, 3 rubric_color, 4 charge, 5 contaminated,
- * 6 charge_summary, 7 effects_prose, 8 societal_effects_prose,
+ * 6 charge_summary, 7 listener_effects_prose, 8 societal_effects_prose,
  * 9 year, 10 created_at. */
 .lib-table td.lib-td:nth-child(3),  /* rubric_color label */
 .lib-table td.lib-td:nth-child(5),  /* contaminated */
@@ -270,7 +270,7 @@
   text-align: right;
 }
 
-/* Hover tooltips on charge_summary / effects_prose / societal_effects_prose.
+/* Hover tooltips on charge_summary / listener_effects_prose / societal_effects_prose.
  * Pure CSS: pill trigger in the cell, absolutely-positioned tip revealed on
  * :hover or :focus-within of the wrap. */
 .lib-hover-wrap {

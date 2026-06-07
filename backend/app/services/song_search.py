@@ -38,7 +38,7 @@ def normalize_for_search(s: str | None) -> str:
 
 
 _PII_FIELDS = {"ip_address", "device_id", "email", "confidence"}
-_PROSE_FIELDS = {"effects_prose", "societal_effects_prose"}
+_PROSE_FIELDS = {"listener_effects_prose", "societal_effects_prose"}
 
 # Legacy `source` filter value -> ingestion method, so the admin source filter
 # keeps working against the unified table.
@@ -66,7 +66,7 @@ def _serialize_song(song: Song, year, include_pii: bool, include_prose: bool) ->
         if isinstance(song.created_at, (datetime, date)) else song.created_at,
     }
     if include_prose:
-        out["effects_prose"] = song.effects_prose
+        out["listener_effects_prose"] = song.listener_effects_prose
         out["societal_effects_prose"] = song.societal_effects_prose
     if include_pii:
         out["confidence"] = song.confidence

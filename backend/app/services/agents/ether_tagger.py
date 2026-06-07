@@ -222,7 +222,7 @@ def _build_user_prompt(
     rubric_color: str | None,
     charge_value: int | None,
     charge_summary: str | None,
-    effects_prose: str | None,
+    listener_effects_prose: str | None,
 ) -> str:
     parts = [
         "Song to tag:",
@@ -237,9 +237,9 @@ def _build_user_prompt(
         parts.append(f"  charge_value:    {charge_value:+d}")
     if charge_summary:
         parts.append(f"  charge_summary:  {charge_summary}")
-    if effects_prose:
-        snippet = effects_prose.strip().split("\n\n", 1)[0]
-        parts.append(f"  effects_prose:   {snippet}")
+    if listener_effects_prose:
+        snippet = listener_effects_prose.strip().split("\n\n", 1)[0]
+        parts.append(f"  listener_effects_prose:   {snippet}")
 
     trimmed = lyrics.strip()
     if len(trimmed) > 4000:
@@ -360,12 +360,12 @@ def _call_model(
     rubric_color: str | None,
     charge_value: int | None,
     charge_summary: str | None,
-    effects_prose: str | None,
+    listener_effects_prose: str | None,
 ) -> str | None:
     user_prompt = _build_user_prompt(
         title=title, artist=artist, lyrics=lyrics,
         rubric_color=rubric_color, charge_value=charge_value,
-        charge_summary=charge_summary, effects_prose=effects_prose,
+        charge_summary=charge_summary, listener_effects_prose=listener_effects_prose,
     )
     try:
         response = tracked_create(
@@ -392,7 +392,7 @@ def tag_song(
     rubric_color: str | None = None,
     charge_value: int | None = None,
     charge_summary: str | None = None,
-    effects_prose: str | None = None,
+    listener_effects_prose: str | None = None,
 ) -> Optional[dict]:
     """Run the ether tagger on a single song.
 
@@ -412,7 +412,7 @@ def tag_song(
             client,
             title=title, artist=artist, lyrics=lyrics,
             rubric_color=rubric_color, charge_value=charge_value,
-            charge_summary=charge_summary, effects_prose=effects_prose,
+            charge_summary=charge_summary, listener_effects_prose=listener_effects_prose,
         )
         if raw is None:
             return None
