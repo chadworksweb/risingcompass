@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "ratified_at": "2026-05-31",
+  "ratified_at": "2026-06-08",
   "tiers": [
     {
       "slug": "violet",
@@ -665,6 +665,14 @@
       "status": "ratified",
       "version": "1.0",
       "ratified_at": "2026-05-31"
+    },
+    {
+      "id": "R14",
+      "title": "Load-bearing dogma raises the Ascended bar; doctrinal submission is not transcendence.",
+      "text": "When a song's dominant arc is load-bearing doctrine (the dogma_referenced conditions: proclaiming, worshipping inside, asserting the truth of, or instructing the listener in a specific framework), the presence of that doctrine RAISES the bar for Ascended rather than clearing it. The standard postures of doctrinal submission -- asserting one's own unworthiness (\"I don't deserve it,\" \"I couldn't earn it\"), crediting a framework for unmerited rescue, proclaiming the doctrine as normative -- are NOT in themselves ascension or internal work. Self-diminishment inside a hierarchy is doctrinal positioning, not the ego-less universal surrender violet-06 measures. Do not grant elevation on the cultural reflex that worship or devotional music is inherently transcendent; that is the reverence-halo mirror of the modern-bias error (R6/R12) -- a frame the culture supplies that the lyrics never earned. A doctrinal song earns Ascended only when it transmits a truth that survives the dogma-swap test (strip the specific framework and the central message stands) AND its surrender, gratitude, or love registers as universal rather than framework-contingent. Absent that, the song lands on its actual routes like any other: it must still demonstrate internal-work movement (R7/R9) or a collective-stance witness to reach Elevated, and proclaiming a doctrine is not witnessing injustice. Run the flag and the tier together: when dogma_referenced fires on the dominant arc, state explicitly why the song does or does not clear the raised bar.",
+      "status": "ratified",
+      "version": "1.0",
+      "ratified_at": "2026-06-08"
     }
   ]
 }
