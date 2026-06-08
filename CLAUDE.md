@@ -241,6 +241,33 @@ auth): `GET /api/admin/runs` (flat, paginated, returns distinct `triggers`) and
 `GET /api/admin/runs/by-song`. Song titles link to the public song page; the
 public per-song timeline is `GET /api/songs/{slug}/calibration-runs`.
 
+**Stored agent argument (`calibration_runs.reasoning`, 2026-06-08).** Each run
+now stores the agent's structured argument. The SINGLE write lock is
+`calibration_corpus.log_run -> _guard_reasoning`: it persists `reasoning` only
+after scrubbing any >=6-word verbatim lyric run (`lyric_quote_guard`) and
+**fails closed** (stores nothing) when no `lyrics` are passed to check against;
+lyrics are used for the check only, never persisted. `reasoning` rides in the
+`calibration` dict -- the server calibrator emits it, `record_and_reconcile`/
+`log_run` take `lyrics=`, and terminal supplies it via `calibrate_song.py
+--reasoning`/`--reasoning-file` (`TerminalCalibrationIn.reasoning`). Wired:
+daily compass, Lyrical Charger, terminal. NOT yet wired (store NULL):
+album-charger, stream, admin recal/correct. Surfaced in: `/api/admin/runs`
+(expandable **Argument** column in All Runs) and the DB explorer
+(`calibration_runs`).
+
+**Per-song admin detail page (2026-06-08).** `/api/admin/dashboard/song/{id}`
+(route in `admin.py`, template `admin/song_detail.html`, gated under `runs`),
+data from `GET /api/admin/songs/{id}/detail` (`runs_admin.song_detail`):
+canonical calibration + enrichment, chart appearances, ingestion history, and
+the full run timeline with each run's stored argument. Reachable from Runs ->
+By Song -> "Open page". This is the only per-song admin page (`library_admin.py`
+is API-only CRUD).
+
+**Rubric rule R14 (2026-06-08, `core.json`):** load-bearing dogma RAISES the
+Ascended bar -- doctrinal submission is not transcendence; run the
+`dogma_referenced` flag and the tier together. The reverence-halo mirror of
+R6/R12.
+
 **Public run cap (`PUBLIC_RUN_CAP = 10`, in `calibration_corpus.py`).** Once a
 song has 10 **live** (non-superseded) `calibration_runs`, the public Lyrical
 Charger refuses new runs: its reading is considered settled. Counted via
