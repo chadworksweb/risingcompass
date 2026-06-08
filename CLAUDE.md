@@ -466,6 +466,18 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
   fresh songs (`scripts/calibrate_song.py`, lyrics from `Dropbox/Debug/dd.txt`)
   -> click Approve in the email -> panel publishes. Labor = iTunes chart songs not
   already in the library (cache hits are free).
+- **Per-day aggregate + chart-agnostic Calendar (2026-06-08).** `chart_snapshots`
+  now stores `compass_degree` + `charge_level` (migration 095), stamped at approval
+  (`agent.approve_draft` chart branch), so the Calendar can paint any chart day.
+  The Calendar is **chart-agnostic** via a toggle: **Daily Listens** = the daily
+  reading (drift endpoints), **Daily Downloads** = this iTunes chart (new
+  `/api/compass/chart/{key}/years | years/{year}/dates | reading/{date}`). Front-
+  facing rebrand: daily reading = **Daily Listens**, iTunes = **Daily Downloads**
+  (internal table/`draft_type` names unchanged). Standalone pages
+  `/charts/daily-listens/` + `/charts/daily-downloads/` (`frontend/charts/`); footer
+  **Charts** column. Daily Downloads paints/show only from approved snapshots, so it
+  fills forward. Plan + source matrix:
+  `plans and docs/RISING-COMPASS-CONSUMPTION-METHODOLOGY.md`.
 
 ## General Inquiry form
 
