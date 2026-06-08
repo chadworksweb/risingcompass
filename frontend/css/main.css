@@ -2934,7 +2934,7 @@ td.yo-charge {
      .footer-bottom), exactly like .rc-header-inner, so footer content aligns
      with the rest of the site. Putting it here would push content 1.5rem
      outside the site content edge on wide screens. Vertical padding only. */
-  padding: 2.75rem 0 1.5rem;
+  padding: 2.75rem 0 0;
   border-top: 1px solid var(--rc-border);
   margin-top: var(--rc-gap-dashboard);
   font-size: 0.8rem;
@@ -2954,9 +2954,17 @@ td.yo-charge {
   margin: 0 auto;
   padding: 0 1.5rem;
   display: grid;
-  grid-template-columns: 1.4fr repeat(5, 1fr);
-  gap: 1.75rem;
+  /* Left 1/4 corporate branding, right 3/4 the menu columns. */
+  grid-template-columns: 1fr 3fr;
+  gap: 2.5rem;
   align-items: start;
+}
+/* Right 3/4: the six menu columns as 2 rows of three. */
+.footer-menus {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  /* Wider column gap -> narrower columns -> shorter title divider lines. */
+  gap: 1.75rem 3.5rem;
 }
 
 .footer-brand { max-width: 28ch; }
@@ -2978,13 +2986,17 @@ td.yo-charge {
 }
 
 .footer-head {
-  margin: 0 0 0.85rem;
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rc-border);
   font-family: var(--rc-font-mono);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--rc-text);
+  /* Brighter than the dimmed child links so the heading clearly reads as a
+     label, not another link. */
+  color: var(--rc-text-bright);
 }
 .footer-links {
   list-style: none;
@@ -2992,7 +3004,7 @@ td.yo-charge {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.3rem;
 }
 .footer-links a,
 .footer-legal a {
@@ -3004,10 +3016,16 @@ td.yo-charge {
 .footer-legal a:hover { color: var(--rc-accent); }
 
 .footer-bottom {
-  max-width: var(--rc-max-width);
-  margin: 2.25rem auto 0;
-  padding: 1.3rem 1.5rem 0;
+  margin-top: 2.25rem;
+  padding: 1.3rem 0 1.5rem;
   border-top: 1px solid var(--rc-border);
+  /* Slightly darker full-width strip behind the copyright row. */
+  background: rgba(0, 0, 0, 0.22);
+}
+.footer-bottom-inner {
+  max-width: var(--rc-max-width);
+  margin: 0 auto;
+  padding: 0 1.5rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -3024,12 +3042,13 @@ td.yo-charge {
 }
 
 @media (max-width: 880px) {
-  .footer-grid { grid-template-columns: 1fr 1fr; gap: 1.75rem; }
-  .footer-brand { grid-column: 1 / -1; max-width: none; }
+  /* Brand stacks above the menus; menus stay 2 rows of three. */
+  .footer-grid { grid-template-columns: 1fr; gap: 2rem; }
+  .footer-brand { max-width: none; }
 }
 @media (max-width: 520px) {
-  .footer-grid { grid-template-columns: 1fr; gap: 1.5rem; }
-  .footer-bottom { flex-direction: column; align-items: flex-start; }
+  .footer-menus { grid-template-columns: 1fr 1fr; }
+  .footer-bottom-inner { flex-direction: column; align-items: flex-start; }
 }
 
 /* === Lyrical Charger Promo === */
