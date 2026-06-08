@@ -37,6 +37,10 @@
   .runs-empty { text-align: center; color: var(--text-dim); padding: 1.5rem; }
   .runs-link-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; padding: 0.2rem 0.6rem; font-size: 0.74rem; cursor: pointer; font-weight: 600; }
   .runs-link-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .runs-arg-row td { background: var(--panel-strong); padding: 0.7rem 1rem; }
+  .runs-arg-summary { font-weight: 600; color: var(--text); margin-bottom: 0.45rem; }
+  .runs-arg-reasoning { white-space: pre-wrap; color: var(--text-dim); font-size: 0.8rem; line-height: 1.55; max-width: 78ch; }
+  .runs-arg-none { color: var(--text-hint); font-style: italic; font-size: 0.8rem; }
 </style>
 {% endblock %}
 
@@ -175,6 +179,14 @@ async function renderAllRuns(body) {
     const supTag = r.superseded
       ? `<span class="runs-supersede-tag" title="${escHtml(r.superseded_reason || '')}">superseded</span>` : '';
     const failTag = r.calibration_failed ? `<span class="runs-supersede-tag" style="color:var(--red);">failed</span>` : '';
+    const hasReason = r.reasoning && r.reasoning.trim().length;
+    const argBtn = hasReason
+      ? `<button class="runs-link-btn" onclick="toggleArg(${r.id})">argument</button>`
+      : `<span class="runs-song-by">—</span>`;
+    const detail = (r.charge_summary ? `<div class="runs-arg-summary">${escHtml(r.charge_summary)}</div>` : '')
+      + (hasReason
+          ? `<div class="runs-arg-reasoning">${escHtml(r.reasoning)}</div>`
+          : `<div class="runs-arg-none">No argument stored for this run.</div>`);
     return `<tr class="${r.superseded ? 'runs-superseded' : ''}">
       <td><time data-utc="${escHtml(r.created_at || '')}"></time></td>
       <td>${songCell(r)}${supTag}${failTag}</td>
@@ -183,20 +195,27 @@ async function renderAllRuns(body) {
       <td class="num">${conf}</td>
       <td><span class="runs-trigger-tag">${escHtml(r.triggered_by || '—')}</span></td>
       <td><span class="runs-trigger-tag">${escHtml(r.agent_model || '—')}</span></td>
-    </tr>`;
+      <td>${argBtn}</td>
+    </tr>
+    <tr id="arg-${r.id}" class="runs-arg-row" style="display:none;"><td colspan="8">${detail}</td></tr>`;
   }).join('');
 
   body.innerHTML = `
     <div class="runs-table-wrap">
       <table class="runs-table">
         <thead><tr>
-          <th>Created</th><th>Song</th><th>Tier</th><th>Charge</th><th>Conf</th><th>Trigger</th><th>Model</th>
+          <th>Created</th><th>Song</th><th>Tier</th><th>Charge</th><th>Conf</th><th>Trigger</th><th>Model</th><th>Argument</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
     ${paginationHtml(data.total)}`;
   applyAdminTz(body);
+}
+
+function toggleArg(id) {
+  const el = document.getElementById('arg-' + id);
+  if (el) el.style.display = (el.style.display === 'none' || !el.style.display) ? 'table-row' : 'none';
 }
 
 async function renderBySong(body) {

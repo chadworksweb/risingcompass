@@ -76,6 +76,9 @@ def _run_dict(r: CalibrationRun) -> dict:
         "triggered_by": r.triggered_by,
         "agent_model": r.agent_model,
         "charge_summary": r.charge_summary,
+        # The agent's structured argument (lyric-scrubbed at write time in
+        # log_run). NULL on legacy runs that predate reasoning capture.
+        "reasoning": r.reasoning,
         "superseded": bool(r.superseded) if r.superseded is not None else False,
         "superseded_reason": r.superseded_reason,
         "superseded_at": r.superseded_at.isoformat() if r.superseded_at else None,
