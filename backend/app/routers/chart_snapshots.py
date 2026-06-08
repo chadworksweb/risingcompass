@@ -117,9 +117,15 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
 
     chart_slug = entry["slug"]
 
+    # Published gate: only approved snapshots are public. Unpublished rows are
+    # written at fetch time but stay invisible until the chart draft is approved
+    # (agent.approve_draft flips published=True), mirroring the daily reading.
     most_recent_date = (
         db.query(func.max(ChartSnapshot.date))
-        .filter(ChartSnapshot.chart_source == chart_slug)
+        .filter(
+            ChartSnapshot.chart_source == chart_slug,
+            ChartSnapshot.published.is_(True),
+        )
         .scalar()
     )
     if not most_recent_date:
@@ -127,7 +133,11 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
 
     snaps = (
         db.query(ChartSnapshot)
-        .filter(ChartSnapshot.chart_source == chart_slug, ChartSnapshot.date == most_recent_date)
+        .filter(
+            ChartSnapshot.chart_source == chart_slug,
+            ChartSnapshot.date == most_recent_date,
+            ChartSnapshot.published.is_(True),
+        )
         .order_by(ChartSnapshot.position.asc())
         .all()
     )
@@ -189,6 +199,27 @@ async def refresh_snapshot(key: str):
     # Pin: skip the fetch entirely if a draft already exists for today.
     db: Session = SessionLocal()
     try:
+        # Already published today? Approval deletes the draft, so the draft pin
+        # below can't catch a post-approval re-trigger. Guard on the published
+        # snapshot so a same-day re-run doesn't wipe an approved chart back to
+        # unpublished (which would pull today's panel until re-approval).
+        already_published = (
+            db.query(ChartSnapshot.id)
+            .filter(
+                ChartSnapshot.chart_source == chart_slug,
+                ChartSnapshot.date == today,
+                ChartSnapshot.published.is_(True),
+            )
+            .first()
+        )
+        if already_published:
+            logger.info("Chart %s already published for %s; skipping refresh", chart_slug, today)
+            return {
+                "chart_source": chart_slug,
+                "date": today.isoformat(),
+                "note": "already published today; refresh skipped",
+            }
+
         existing_draft = (
             db.query(AgentDraft)
             .filter(AgentDraft.date == today, AgentDraft.draft_type == chart_slug)

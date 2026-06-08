@@ -141,10 +141,11 @@ const App = (() => {
         EtherArtChart.render();
       }
 
-      // Spotify Viral 50 panel — currently locked (under development).
-      // Same treatment as the album panel: blurred placeholder with
-      // "Under Development" overlay, no chart fetch.
-      renderLockedChartPanel('viral-reading-panel', 'viral-reading-content');
+      // Spotify Viral 50 panel — live weekly snapshot. The scraper feeds the
+      // song list; lyrics are supplied manually each week (weekly viral SOP),
+      // so the panel fills in as the chart's songs get calibrated. Stays
+      // hidden until the first snapshot is fed (404 = no run yet).
+      renderViralPanel();
 
     } catch (err) {
       console.error('Failed to load compass data:', err);
@@ -184,6 +185,78 @@ const App = (() => {
         </div>
       </div>
     `;
+  }
+
+  // Spotify Viral 50 — live snapshot panel. Reads the most-recent fed
+  // snapshot (/api/compass/chart/viral/current) and renders the same song-list
+  // markup as the daily reading. Hidden entirely until the first weekly run is
+  // fed (the endpoint 404s with no snapshot), so it only appears once populated.
+  // Chart snapshots carry no MEI fields, so the tooltip surfaces charge summary
+  // + contamination only. Uncalibrated chart rows render as neutral dots with
+  // no song-page link until their lyrics are supplied.
+  async function renderViralPanel() {
+    const panel = document.getElementById('viral-reading-panel');
+    const container = document.getElementById('viral-reading-content');
+    if (!panel || !container) return;
+
+    let data;
+    try {
+      data = await API.getChartSnapshot('viral');
+    } catch (err) {
+      panel.style.display = 'none';  // no snapshot fed yet — leave the panel out
+      return;
+    }
+
+    const songs = (data.songs || []).slice().sort((a, b) => a.position - b.position);
+    if (!songs.length) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+
+    const header = panel.querySelector('.card-header');
+    if (header && data.label) header.textContent = data.label;
+    const desc = panel.querySelector('.card-desc');
+    if (desc) desc.textContent = `Spotify's most-shared songs, read through the same compass. Updated ${formatDate(data.date)}.`;
+
+    let html = '<ul class="song-list">';
+    songs.forEach(song => {
+      const hasSummary = song.charge_summary || song.contamination_note;
+      let tooltipHtml = '';
+      if (hasSummary) {
+        const songHex = COLOR_HEX[song.rubric_color] || '#888';
+        const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
+        const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
+        let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
+        if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
+        if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
+        const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color || '', pos: song.position });
+        if (song.charge_summary) disputeParams.set('cs', song.charge_summary);
+        lines += `<div class="mei-dispute"><a href="/misread-submission.html?${disputeParams.toString()}">Did we get it wrong?</a></div>`;
+        tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
+      }
+      const instrClass = song.instrumental ? ' instrumental' : '';
+      // Only link to the song page once it's calibrated (the page exists then).
+      const songHref = (song.song_slug && song.rubric_color) ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
+      const titleHtml = songHref
+        ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
+        : escapeHtml(song.title);
+      html += `
+        <li class="song-item${hasSummary ? ' has-tooltip' : ''}${instrClass}">
+          <span class="song-pos">${song.position}</span>
+          <span class="song-dot ${song.instrumental ? '' : (song.rubric_color || '')}"></span>
+          <div class="song-info">
+            <div class="song-title">${titleHtml}</div>
+            <div class="song-artist">${artistHtml(song.artist, song.artist_slug, 'song-artist-name')}</div>
+          </div>
+          <div class="song-actions">
+            ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
+            ${hasSummary ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
+          </div>
+          ${tooltipHtml}
+        </li>
+      `;
+    });
+    html += '</ul>';
+
+    crossfade(container, html, () => initSongTooltips(container));
   }
 
   function renderReading(data) {

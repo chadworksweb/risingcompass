@@ -60,6 +60,12 @@ class ChartSnapshot(Base):
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Approval gate: rows are written unpublished by the scraper/refresh, then
+    # flipped to True when the chart draft is approved (agent.approve_draft).
+    # The public endpoint only serves published rows, so an unapproved or
+    # half-calibrated chart never leaks. Mirrors the daily reading's approve-
+    # before-public flow.
+    published = Column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     __table_args__ = (
         UniqueConstraint("date", "chart_source", "position", name="uq_chart_snapshots_date_source_pos"),

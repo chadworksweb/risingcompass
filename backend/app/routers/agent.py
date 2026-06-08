@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
 from sqlalchemy.orm import joinedload
-from app.models import AgentDraft, AgentDraftSong, DailyReading, ReadingSong, PrePublishCorrection, Song
+from app.models import AgentDraft, AgentDraftSong, ChartSnapshot, DailyReading, ReadingSong, PrePublishCorrection, Song
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
@@ -36,7 +36,7 @@ from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
 from app.services.contamination import count_contaminated, enforce_contamination_rule
-from app.constants import COLOR_LABELS, COLOR_HEX, draft_display_name, is_chart_draft_type
+from app.constants import COLOR_LABELS, COLOR_HEX, DRAFT_TYPE_DISPLAY_NAMES, draft_display_name, is_chart_draft_type
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
 
@@ -58,22 +58,72 @@ def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:
     return draft
 
 
+def _chart_slug_from_ref(draft_ref: str) -> str | None:
+    """If draft_ref is a chart-snapshot draft label (e.g.
+    spotify_viral50_usa_2026-06-07_draft), return its chart_source slug, else
+    None. Chart slugs are the registered is_chart draft types. Longest-first so
+    a longer slug can't be shadowed by a shorter prefix."""
+    chart_slugs = [dt for dt in DRAFT_TYPE_DISPLAY_NAMES if is_chart_draft_type(dt)]
+    for slug in sorted(chart_slugs, key=len, reverse=True):
+        if draft_ref.startswith(slug + "_"):
+            return slug
+    return None
+
+
+def _ref_date(draft_ref: str) -> date | None:
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", draft_ref)
+    if not m:
+        return None
+    try:
+        return date.fromisoformat(m.group(1))
+    except ValueError:
+        return None
+
+
 def _published_reading_for_ref(draft_ref: str, db: Session) -> DailyReading | None:
-    """If a draft was approved and then cleaned up, find the published reading.
+    """If a daily/manual draft was approved and then cleaned up, find the
+    published reading.
 
     Daily drafts are deleted by _cleanup_day_drafts immediately after approval,
     so a re-click on the email link would otherwise 404. The draft_ref label
     embeds the date (e.g. daily_2026-05-14_draft), which we use to locate the
     DailyReading row that the approval produced.
+
+    Chart drafts also embed a date but never produce a DailyReading, so a chart
+    ref must NOT resolve here (it would wrongly surface a same-date daily
+    reading) -- _published_chart_for_ref handles those.
     """
-    m = re.search(r"(\d{4}-\d{2}-\d{2})", draft_ref)
-    if not m:
+    if _chart_slug_from_ref(draft_ref):
         return None
-    try:
-        reading_date = date.fromisoformat(m.group(1))
-    except ValueError:
+    reading_date = _ref_date(draft_ref)
+    if reading_date is None:
         return None
     return db.query(DailyReading).filter(DailyReading.date == reading_date).first()
+
+
+def _published_chart_for_ref(draft_ref: str, db: Session) -> tuple[str, date, int] | None:
+    """Chart equivalent of _published_reading_for_ref. If a chart draft was
+    approved and cleaned up, a re-click 404s on the draft; this locates the
+    now-published snapshot from the ref's slug + date. Returns
+    (chart_slug, date, song_count) or None."""
+    slug = _chart_slug_from_ref(draft_ref)
+    if not slug:
+        return None
+    snap_date = _ref_date(draft_ref)
+    if snap_date is None:
+        return None
+    count = (
+        db.query(ChartSnapshot)
+        .filter(
+            ChartSnapshot.chart_source == slug,
+            ChartSnapshot.date == snap_date,
+            ChartSnapshot.published.is_(True),
+        )
+        .count()
+    )
+    if not count:
+        return None
+    return (slug, snap_date, count)
 
 
 def _build_already_published_html(reading: DailyReading) -> str:
@@ -128,6 +178,50 @@ def _build_already_published_html(reading: DailyReading) -> str:
     </div>
   </div>
   <div class="editorial">{reading.editorial_summary or ''}</div>
+</div>
+</body></html>"""
+
+
+def _build_chart_already_approved_html(chart_slug: str, snap_date: date, song_count: int) -> str:
+    """Page shown when a chart approval link is clicked after the chart was
+    approved (the draft is gone, but the snapshot is published). Chart parity
+    with _build_already_published_html."""
+    display = draft_display_name(chart_slug)
+    return f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{display} Already Approved - {snap_date}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:#0a0a14; color:#eeeef4; font-family:'Inter',-apple-system,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }}
+  .card {{ background:#1a1a2e; border-radius:12px; padding:48px; max-width:480px; width:90%; text-align:center; border:1px solid #2a2a4e; }}
+  .check {{ width:64px; height:64px; border-radius:50%; background:rgba(0,212,170,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 24px; }}
+  .check svg {{ width:32px; height:32px; color:#00d4aa; }}
+  h1 {{ font-size:22px; font-weight:600; margin-bottom:8px; }}
+  .date {{ font-size:14px; color:#88ccaa; margin-bottom:32px; }}
+  .metrics {{ display:flex; justify-content:center; gap:32px; margin-bottom:32px; }}
+  .metric {{ text-align:center; }}
+  .metric-label {{ font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:#666; margin-bottom:6px; }}
+  .metric-value {{ font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; }}
+  .note {{ font-size:13px; color:#888; }}
+</style>
+</head><body>
+<div class="card">
+  <div class="check">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+  </div>
+  <h1>{display} Already Approved</h1>
+  <div class="date">{snap_date}</div>
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Songs</div>
+      <div class="metric-value" style="color:#00d4aa;">{song_count}</div>
+    </div>
+  </div>
+  <div class="note">This chart was approved earlier and is live. Nothing to do.</div>
 </div>
 </body></html>"""
 
@@ -379,6 +473,9 @@ def approve_draft_confirm_page(draft_ref: str, token: str = Query(...), db: Sess
         draft = _resolve_draft(draft_ref, db)
     except HTTPException as e:
         if e.status_code == 404:
+            chart = _published_chart_for_ref(draft_ref, db)
+            if chart:
+                return HTMLResponse(_build_chart_already_approved_html(*chart))
             reading = _published_reading_for_ref(draft_ref, db)
             if reading:
                 return HTMLResponse(_build_already_published_html(reading))
@@ -444,6 +541,9 @@ def publish_draft_via_form(draft_ref: str, token: str = Query(...), db: Session 
         draft = approve_draft(draft_ref, db)
     except HTTPException as e:
         if e.status_code == 404:
+            chart = _published_chart_for_ref(draft_ref, db)
+            if chart:
+                return HTMLResponse(_build_chart_already_approved_html(*chart))
             reading = _published_reading_for_ref(draft_ref, db)
             if reading:
                 return HTMLResponse(_build_already_published_html(reading))
@@ -505,6 +605,29 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
                 chart_source=song.chart_source,
             )
             db.add(rs)
+    else:
+        # Chart-snapshot publish path (Viral 50, etc.). Rebuild the public
+        # snapshot FROM the approved draft songs (mirrors the daily path
+        # building ReadingSong from draft.songs), published=True -- so any admin
+        # edits to the draft are reflected and "published == approved" holds.
+        # draft.draft_type IS the chart_source slug (e.g. spotify_viral50_usa).
+        # Approval already blocked above if any song still needed lyrics, so
+        # every published row is guaranteed calibrated. The provisional,
+        # unpublished fetch-time rows for this (date, chart) are replaced here.
+        db.query(ChartSnapshot).filter(
+            ChartSnapshot.chart_source == draft.draft_type,
+            ChartSnapshot.date == draft.date,
+        ).delete(synchronize_session=False)
+        db.flush()
+        for song in sorted(draft.songs, key=lambda s: s.position):
+            db.add(ChartSnapshot(
+                date=draft.date,
+                chart_source=draft.draft_type,
+                position=song.position,
+                title=song.title,
+                artist=song.artist,
+                published=True,
+            ))
 
     draft.status = "approved"
     db.commit()
