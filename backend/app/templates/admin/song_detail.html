@@ -1,0 +1,205 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'runs' %}
+{% block title %}Song detail — Admin{% endblock %}
+
+{% block subtabs %}
+<nav class="admin-subtabs" aria-label="Song detail">
+  <a class="admin-subtab" href="/api/admin/dashboard/runs">&larr; All runs</a>
+</nav>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+  .sd-card { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
+  .sd-card h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0 0 0.7rem; }
+  .sd-headrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .sd-title { font-size: 1.4rem; font-weight: 700; color: var(--text); margin: 0; }
+  .sd-artist { color: var(--text-dim); font-size: 1rem; }
+  .sd-id { font-family: monospace; font-size: 0.72rem; color: var(--text-hint); }
+  .sd-links a { font-size: 0.78rem; font-weight: 700; text-decoration: none; padding: 0.3rem 0.65rem; border-radius: 6px; border: 1px solid var(--accent); color: var(--accent-strong); background: rgba(0,143,114,0.08); white-space: nowrap; }
+  .sd-links a:hover { background: rgba(0,143,114,0.16); }
+  .sd-tierline { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.7rem; flex-wrap: wrap; }
+  .sd-charge { font-family: monospace; font-weight: 700; font-size: 1.15rem; }
+  .sd-charge.pos { color: var(--tier-green); } .sd-charge.neg { color: var(--tier-red); } .sd-charge.zero { color: var(--text-hint); }
+  .sd-flag { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.1rem 0.5rem; border-radius: 12px; }
+  .sd-flag.contam { background: #fce4dc; color: var(--red); }
+  .sd-flag.dogma { background: #ede0ff; color: #6b34c9; }
+  .sd-flag.instr { background: var(--panel-strong); color: var(--text-dim); }
+  .sd-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 0.6rem 1.2rem; }
+  .sd-meta dt { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 700; }
+  .sd-meta dd { margin: 0.1rem 0 0; font-size: 0.88rem; color: var(--text); }
+  .sd-summary { font-size: 0.95rem; line-height: 1.55; color: var(--text); }
+  .sd-note { font-size: 0.86rem; line-height: 1.5; margin-top: 0.5rem; padding: 0.5rem 0.7rem; border-radius: 5px; border-left: 3px solid var(--border); background: var(--panel-strong); }
+  .sd-note.dogma { border-left-color: #6b34c9; }
+  .sd-note.contam { border-left-color: var(--red); }
+  .sd-prose { white-space: pre-wrap; font-size: 0.88rem; line-height: 1.6; color: var(--text-dim); }
+  .sd-prose-h { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text); margin: 0.8rem 0 0.3rem; }
+  .sd-seal { font-family: monospace; font-size: 0.7rem; color: var(--text-hint); margin-top: 0.3rem; }
+  .sd-list { list-style: none; padding: 0; margin: 0; font-size: 0.86rem; }
+  .sd-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--border-soft); display: flex; gap: 0.7rem; flex-wrap: wrap; }
+  .sd-list .mono { font-family: monospace; color: var(--text-dim); }
+  .sd-topics { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.3rem; }
+  .sd-topic { font-size: 0.72rem; background: var(--panel-strong); border: 1px solid var(--border); border-radius: 12px; padding: 0.1rem 0.55rem; color: var(--text-dim); }
+  /* Run timeline */
+  .sd-run { border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); border-radius: 6px; padding: 0.7rem 0.9rem; margin-bottom: 0.7rem; background: var(--panel); }
+  .sd-run.superseded { opacity: 0.6; border-left-color: var(--text-dim); }
+  .sd-run-head { display: flex; gap: 0.7rem; align-items: center; flex-wrap: wrap; font-size: 0.82rem; }
+  .sd-run-when { font-family: monospace; font-size: 0.74rem; color: var(--text-hint); }
+  .sd-run-trig { font-family: monospace; font-size: 0.74rem; color: var(--text-dim); }
+  .sd-run-tag { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.05rem 0.4rem; border-radius: 3px; background: var(--panel-strong); color: var(--text-dim); }
+  .sd-run-tag.sup { background: #f0e6d6; }
+  .sd-run-summary { font-size: 0.86rem; color: var(--text); margin: 0.45rem 0 0; font-weight: 600; }
+  .sd-run-reason { white-space: pre-wrap; font-size: 0.82rem; line-height: 1.55; color: var(--text-dim); margin-top: 0.4rem; max-width: 82ch; }
+  .sd-run-noreason { font-style: italic; color: var(--text-hint); font-size: 0.8rem; margin-top: 0.35rem; }
+  .sd-empty { color: var(--text-dim); padding: 0.8rem; font-size: 0.88rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="sdBody"><p class="sd-empty">Loading…</p></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SONG_ID = {{ song_id | tojson }};
+
+function onAdminReady() { loadSong(); }
+
+function chargeClass(v) { return (v > 0) ? 'pos' : (v < 0 ? 'neg' : 'zero'); }
+function dot(color) { return color ? `<span class="color-dot ${escHtml(color)}"></span>` : ''; }
+function fmtCharge(v) { return (v === null || v === undefined) ? '—' : (v > 0 ? '+' + v : '' + v); }
+
+async function loadSong() {
+  const body = document.getElementById('sdBody');
+  try {
+    const resp = await adminFetch(`/api/admin/songs/${encodeURIComponent(SONG_ID)}/detail`);
+    if (!resp.ok) { body.innerHTML = `<p class="sd-empty">Failed to load (${resp.status}).</p>`; return; }
+    const d = await resp.json();
+    render(d);
+    applyAdminTz(body);
+  } catch (e) {
+    console.error(e);
+    body.innerHTML = '<p class="sd-empty">Failed to load song.</p>';
+  }
+}
+
+function render(d) {
+  const s = d.song;
+  const flags = [
+    s.contaminated ? '<span class="sd-flag contam">contaminated</span>' : '',
+    s.dogma_referenced ? '<span class="sd-flag dogma">dogma</span>' : '',
+    s.instrumental ? '<span class="sd-flag instr">instrumental</span>' : '',
+  ].join('');
+  const publicLink = s.slug
+    ? `<a href="/songs/${encodeURIComponent(s.slug)}" target="_blank" rel="noopener">Public page ↗</a>` : '';
+
+  // Topics / audit
+  let topicsHtml = '';
+  if (Array.isArray(s.topics) && s.topics.length) {
+    topicsHtml = '<div class="sd-topics">' + s.topics.map(t => `<span class="sd-topic">${escHtml(t)}</span>`).join('') + '</div>';
+  } else if (s.topic_audit && typeof s.topic_audit === 'object') {
+    topicsHtml = `<div class="sd-note">Ether audit — proposed tag <strong>${escHtml(s.topic_audit.proposed_tag || '')}</strong>: ${escHtml(s.topic_audit.rationale || s.topic_audit.reason || '')}</div>`;
+  }
+
+  const dogmaNote = (s.dogma_referenced && s.dogma_note)
+    ? `<div class="sd-note dogma"><strong>Dogma:</strong> ${escHtml(s.dogma_note)}</div>` : '';
+  const contamNote = (s.contaminated && s.contamination_note)
+    ? `<div class="sd-note contam"><strong>Contamination:</strong> ${escHtml(s.contamination_note)}</div>` : '';
+
+  const appearances = d.appearances.length
+    ? '<ul class="sd-list">' + d.appearances.map(a =>
+        `<li><span class="mono">${escHtml(a.chart || a.chart_slug || '')}</span>
+         <span>${a.year ?? (a.period || '')}</span>
+         <span class="mono">#${a.position ?? '?'}${escHtml(a.position_letter || '')}</span></li>`).join('') + '</ul>'
+    : '<p class="sd-empty">No chart appearances.</p>';
+
+  const ingestions = d.ingestions.length
+    ? '<ul class="sd-list">' + d.ingestions.map(i =>
+        `<li><span class="mono">${escHtml(i.method || '')}</span>
+         <span class="sd-run-when"><time data-utc="${escHtml(i.created_at || '')}"></time></span></li>`).join('') + '</ul>'
+    : '<p class="sd-empty">No ingestion records.</p>';
+
+  const runs = d.runs.length
+    ? d.runs.map(r => {
+        const hasReason = r.reasoning && r.reasoning.trim().length;
+        const supTag = r.superseded
+          ? `<span class="sd-run-tag sup" title="${escHtml(r.superseded_reason || '')}">superseded${r.superseded_reason ? ': ' + escHtml(r.superseded_reason) : ''}</span>` : '';
+        return `<div class="sd-run ${r.superseded ? 'superseded' : ''}">
+          <div class="sd-run-head">
+            ${dot(r.rubric_color)}<strong>${escHtml(r.tier_label || r.rubric_color || '—')}</strong>
+            <span class="sd-charge ${chargeClass(r.charge_value)}">${fmtCharge(r.charge_value)}</span>
+            <span class="sd-run-when"><time data-utc="${escHtml(r.created_at || '')}"></time></span>
+            <span class="sd-run-trig">${escHtml(r.triggered_by || '—')}${r.agent_model ? ' · ' + escHtml(r.agent_model) : ''}</span>
+            ${supTag}
+          </div>
+          ${r.charge_summary ? `<p class="sd-run-summary">${escHtml(r.charge_summary)}</p>` : ''}
+          ${hasReason
+            ? `<div class="sd-run-reason">${escHtml(r.reasoning)}</div>`
+            : '<div class="sd-run-noreason">No argument stored for this run.</div>'}
+        </div>`;
+      }).join('')
+    : '<p class="sd-empty">No calibration runs logged.</p>';
+
+  const resets = d.resets.length
+    ? '<ul class="sd-list">' + d.resets.map(r =>
+        `<li><span class="sd-run-when"><time data-utc="${escHtml(r.reset_at || '')}"></time></span>
+         <span>was ${escHtml(r.before_color || '?')} ${fmtCharge(r.before_charge)}</span>
+         <span>${escHtml(r.reason || '')}</span></li>`).join('') + '</ul>'
+    : '';
+
+  document.getElementById('sdBody').innerHTML = `
+    <div class="sd-card">
+      <div class="sd-headrow">
+        <div>
+          <p class="sd-title">${escHtml(s.title || '(untitled)')}</p>
+          <div class="sd-artist">${escHtml(s.artist || '')}</div>
+          <div class="sd-id">songs.id ${s.id}${s.canonical_calibration_method ? ' · method ' + escHtml(s.canonical_calibration_method) : ''}</div>
+        </div>
+        <div class="sd-links">${publicLink}</div>
+      </div>
+      <div class="sd-tierline">
+        ${dot(s.rubric_color)}<strong>${escHtml(s.tier_label || s.rubric_color || 'uncalibrated')}</strong>
+        <span class="sd-charge ${chargeClass(s.charge_value)}">${fmtCharge(s.charge_value)}</span>
+        ${flags}
+        <span class="sd-run-trig">${d.live_run_count}/${d.run_cap} live runs</span>
+      </div>
+    </div>
+
+    <div class="sd-card">
+      <h2>Canonical calibration</h2>
+      ${s.charge_summary ? `<p class="sd-summary">${escHtml(s.charge_summary)}</p>` : '<p class="sd-empty">No summary.</p>'}
+      ${dogmaNote}
+      ${contamNote}
+      <div class="sd-meta" style="margin-top:0.8rem;">
+        <div><dt>Deadpan</dt><dd>${escHtml(s.deadpan_line || '—')}</dd></div>
+        <div><dt>Confidence</dt><dd>${s.confidence ?? '—'}</dd></div>
+        <div><dt>Created</dt><dd><time data-utc="${escHtml(s.created_at || '')}"></time></dd></div>
+      </div>
+      ${topicsHtml}
+    </div>
+
+    <div class="sd-card">
+      <h2>Effects prose</h2>
+      <div class="sd-prose-h">What it might do to a listener</div>
+      <div class="sd-prose">${s.listener_effects_prose ? escHtml(s.listener_effects_prose) : '—'}</div>
+      <div class="sd-prose-h">What it might do to a society</div>
+      <div class="sd-prose">${s.societal_effects_prose ? escHtml(s.societal_effects_prose) : '—'}</div>
+      ${s.societal_prose_model ? `<div class="sd-seal">societal prose: ${escHtml(s.societal_prose_model)}${s.societal_prose_generated_at ? ' · ' : ''}<time data-utc="${escHtml(s.societal_prose_generated_at || '')}"></time></div>` : ''}
+    </div>
+
+    <div class="sd-card">
+      <h2>Calibration runs (${d.runs.length})</h2>
+      ${runs}
+    </div>
+
+    ${resets ? `<div class="sd-card"><h2>Resets</h2>${resets}</div>` : ''}
+
+    <div class="sd-card">
+      <h2>Chart appearances</h2>
+      ${appearances}
+      <h2 style="margin-top:1rem;">Ingestion history</h2>
+      ${ingestions}
+    </div>`;
+}
+</script>
+{% endblock %}

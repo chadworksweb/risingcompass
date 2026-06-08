@@ -239,7 +239,10 @@ async function renderBySong(body) {
       <td>${dot(s.rubric_color)}${escHtml(s.tier_label || s.rubric_color || '—')}</td>
       <td class="num charge ${chargeClass(s.charge_value)}">${charge}</td>
       <td><time data-utc="${escHtml(s.last_at || '')}"></time></td>
-      <td><button class="runs-link-btn" onclick="setSongFilter(${s.song_id}, ${JSON.stringify(label).replace(/"/g,'&quot;')})">View runs</button></td>
+      <td style="white-space:nowrap;">
+        <a class="runs-link-btn" style="text-decoration:none;" href="/api/admin/dashboard/song/${s.song_id}">Open page</a>
+        <button class="runs-link-btn" onclick="setSongFilter(${s.song_id}, ${JSON.stringify(label).replace(/"/g,'&quot;')})">Runs</button>
+      </td>
     </tr>`;
   }).join('');
 

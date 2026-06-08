@@ -13,15 +13,18 @@ two ways:
 `run_at` IS each run's creation time; it is surfaced to the UI as "Created".
 Admin cookie auth only (verify_admin_key) -- never publicly exposed.
 """
+import json
 import logging
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import CalibrationRun, Song
+from app.models import (
+    CalibrationRun, Song, ChartAppearance, Chart, SongIngestion, SongReset,
+)
 from app.routers.admin import verify_admin_key
 from app.services.calibration_corpus import PUBLIC_RUN_CAP
 from app.services.song_search import _attach_slugs
@@ -189,3 +192,125 @@ def runs_by_song(
     _attach_song_slugs(items, db)
     return {"songs": items, "total": total, "limit": limit, "offset": offset,
             "run_cap": PUBLIC_RUN_CAP}
+
+
+def _maybe_json(v):
+    """topics / topic_audit are stored JSON-encoded; decode for the UI, but
+    tolerate a plain string (legacy / malformed) by returning it as-is."""
+    if not v:
+        return v
+    try:
+        return json.loads(v)
+    except (ValueError, TypeError):
+        return v
+
+
+@router.get("/api/admin/songs/{song_id}/detail", dependencies=[Depends(verify_admin_key)])
+def song_detail(song_id: int, db: Session = Depends(get_db)):
+    """Everything about one song on a single screen: canonical calibration +
+    enrichment, chart appearances, ingestion history, and the full calibration
+    run timeline with each run's stored (lyric-scrubbed) argument."""
+    s = db.get(Song, song_id)
+    if s is None:
+        raise HTTPException(status_code=404, detail=f"Song {song_id} not found")
+
+    slug_items = [{"id": s.id, "title": s.title or "", "artist": s.artist}]
+    _attach_slugs(slug_items, db)
+    slug = slug_items[0].get("slug")
+
+    song = {
+        "id": s.id,
+        "title": s.title,
+        "artist": s.artist,
+        "slug": slug,
+        "rubric_color": s.rubric_color,
+        "tier_label": COLOR_LABELS.get(s.rubric_color or "", ""),
+        "charge_value": s.charge_value,
+        "charge_summary": s.charge_summary,
+        "contaminated": bool(s.contaminated) if s.contaminated is not None else False,
+        "contamination_note": s.contamination_note,
+        "dogma_referenced": bool(s.dogma_referenced) if s.dogma_referenced is not None else False,
+        "dogma_note": s.dogma_note,
+        "instrumental": bool(s.instrumental) if s.instrumental is not None else False,
+        "confidence": s.confidence,
+        "deadpan_line": s.deadpan_line,
+        "topics": _maybe_json(s.topics),
+        "topic_audit": _maybe_json(s.topic_audit),
+        "listener_effects_prose": s.listener_effects_prose,
+        "societal_effects_prose": s.societal_effects_prose,
+        "societal_prose_model": s.societal_prose_model,
+        "societal_prose_generated_at": (
+            s.societal_prose_generated_at.isoformat() if s.societal_prose_generated_at else None
+        ),
+        "canonical_calibration_method": s.canonical_calibration_method,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+    appearances = [
+        {
+            "chart": c.label,
+            "chart_slug": c.slug,
+            "year": a.year,
+            "position": a.position,
+            "position_letter": a.position_letter or "",
+            "period": a.period.isoformat() if a.period else None,
+        }
+        for a, c in (
+            db.query(ChartAppearance, Chart)
+            .join(Chart, Chart.id == ChartAppearance.chart_id)
+            .filter(ChartAppearance.song_id == song_id)
+            .order_by(ChartAppearance.year.desc(), ChartAppearance.position.asc())
+            .all()
+        )
+    ]
+
+    ingestions = [
+        {
+            "method": i.method,
+            "detail": i.detail,
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+        }
+        for i in (
+            db.query(SongIngestion)
+            .filter(SongIngestion.song_id == song_id)
+            .order_by(SongIngestion.created_at.asc())
+            .all()
+        )
+    ]
+
+    runs = [
+        _run_dict(r)
+        for r in (
+            db.query(CalibrationRun)
+            .filter(CalibrationRun.song_id == song_id)
+            .order_by(CalibrationRun.run_at.desc())
+            .all()
+        )
+    ]
+
+    resets = [
+        {
+            "reason": r.reason,
+            "before_color": r.before_color,
+            "before_charge": r.before_charge,
+            "before_summary": r.before_summary,
+            "reset_at": r.reset_at.isoformat() if r.reset_at else None,
+        }
+        for r in (
+            db.query(SongReset)
+            .filter(SongReset.song_id == song_id)
+            .order_by(SongReset.reset_at.desc())
+            .all()
+        )
+    ]
+
+    live_runs = sum(1 for r in runs if not r["superseded"])
+    return {
+        "song": song,
+        "appearances": appearances,
+        "ingestions": ingestions,
+        "runs": runs,
+        "resets": resets,
+        "live_run_count": live_runs,
+        "run_cap": PUBLIC_RUN_CAP,
+    }

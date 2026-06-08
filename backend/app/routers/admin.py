@@ -269,6 +269,26 @@ def backfill_console(
     return templates.TemplateResponse(request=request, name="backfill_console.html")
 
 
+@router.get("/dashboard/song/{song_id}", response_class=HTMLResponse)
+def admin_song_detail(
+    song_id: int,
+    request: Request,
+    admin=Depends(optional_admin_session),
+):
+    """Per-song admin detail page: canonical calibration + enrichment, chart
+    appearances, ingestion history, and the full calibration-run timeline with
+    each run's stored argument. Data comes from /api/admin/songs/{id}/detail.
+    Gated under the Calibration Runs section."""
+    if admin is None:
+        raise HTTPException(status_code=404)
+    _gate_admin_section(request, "runs")
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/song_detail.html",
+        context={"song_id": song_id},
+    )
+
+
 @router.get("/dashboard/user/{anon_id}", response_class=HTMLResponse)
 def admin_user_detail(
     anon_id: str,
