@@ -365,7 +365,13 @@
       para = [];
     };
     const flushUl = () => { if (ul) { parent.appendChild(ul); ul = null; } };
-    (text || '').split('\n').forEach((raw) => {
+    // Single source: `body` is the verbatim agent-prompt block. The closing
+    // agent-output directive ("When `flag=true`, `flag_note` must ...") is
+    // calibrator plumbing, not public criteria -- cut it from the page render
+    // only. The agent still receives the full block.
+    const lines = (text || '').split('\n');
+    const cut = lines.findIndex((l) => /^When `\w+=true`/.test(l.trim()));
+    (cut >= 0 ? lines.slice(0, cut) : lines).forEach((raw) => {
       const line = raw.trim();
       if (!line) { flushPara(); flushUl(); return; }
       if (line.startsWith('## ')) {
