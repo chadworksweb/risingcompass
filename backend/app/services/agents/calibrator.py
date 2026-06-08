@@ -348,6 +348,10 @@ async def calibrate_song_async(
         "dogma_note": result.get("dogma_note"),
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
+        # The agent's structured argument (the prose before the JSON). Carried
+        # through to the calibration run, where log_run's _guard_reasoning
+        # scrubs any verbatim lyric runs before it is stored.
+        "reasoning": reasoning or None,
     }
 
     # If the summary STILL carries absence/verdict framing after the retry, ship

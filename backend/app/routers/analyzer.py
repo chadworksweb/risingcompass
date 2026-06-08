@@ -788,6 +788,7 @@ async def calibrate_lyrics_endpoint(
                     direct_song_source="songs",
                     direct_song_id=submitted_id,
                     is_new_row=(pre_canonical_info is None),
+                    lyrics=body.lyrics,
                 )
                 write_db.commit()
                 consensus_info = result.get("consensus")

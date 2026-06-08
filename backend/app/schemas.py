@@ -359,6 +359,10 @@ class TerminalCalibrationIn(BaseModel):
     confidence: float = 1.0
     listener_effects_prose: Optional[str] = None
     societal_effects_prose: Optional[str] = None
+    # The agent's structured argument for this calibration. Stored on the
+    # calibration run (not the song row) after log_run's _guard_reasoning scrubs
+    # any verbatim lyric runs against the supplied lyrics. Optional.
+    reasoning: Optional[str] = None
     # Ether Art Chart fields, also Claude-Code-supplied so the server skips the
     # ether_tagger Anthropic call. deadpan_line is a flat literal naming of the
     # song; topics are 0-3 slugs from the closed 25-topic taxonomy

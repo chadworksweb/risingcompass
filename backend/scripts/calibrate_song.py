@@ -77,6 +77,8 @@ def main() -> int:
     p.add_argument("--topic-audit-tag", default=None, help="Audit escape hatch: proposed new slug.")
     p.add_argument("--topic-audit-rationale", default=None, help="Audit escape hatch: one-sentence rationale for the proposed slug.")
     p.add_argument("--lyrics-file", default=None, help="Read lyrics from a file instead of stdin.")
+    p.add_argument("--reasoning", default=None, help="The structured calibration argument to store on the run. Scrubbed of verbatim lyrics server-side.")
+    p.add_argument("--reasoning-file", default=None, help="Read the calibration argument from a UTF-8 file instead of --reasoning.")
     args = p.parse_args()
 
     key = os.environ.get("RC_LYRICS_SUPPLY_KEY")
@@ -102,6 +104,10 @@ def main() -> int:
         "dogma_note": args.dogma_note,
         "confidence": args.confidence,
     }
+    if args.reasoning_file:
+        calibration["reasoning"] = Path(args.reasoning_file).read_text(encoding="utf-8").strip()
+    elif args.reasoning:
+        calibration["reasoning"] = args.reasoning
     if args.listener_effects_prose_file:
         calibration["listener_effects_prose"] = Path(args.listener_effects_prose_file).read_text(encoding="utf-8").strip()
     if args.societal_prose_file:

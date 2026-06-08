@@ -197,11 +197,13 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                     "dogma_referenced": bool(result.get("dogma_referenced", False)),
                     "dogma_note": result.get("dogma_note"),
                     "confidence": result.get("confidence"),
+                    "reasoning": result.get("reasoning"),
                 },
                 triggered_by="compass_daily",
                 direct_song_source="songs",
                 direct_song_id=song_id,
                 is_new_row=True,
+                lyrics=lyrics,
             )
             db.commit()
         except Exception:

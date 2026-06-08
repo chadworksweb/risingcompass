@@ -214,6 +214,39 @@ def _seed_initial_run_if_missing(source: str, song, db: Session):
     db.flush()
 
 
+def _guard_reasoning(
+    reasoning: str | None,
+    lyrics: str | None,
+    *,
+    title: str | None = None,
+    artist: str | None = None,
+) -> str | None:
+    """The single code-level lock on the stored agent argument: a run's
+    `reasoning` is persisted ONLY after passing the verbatim-lyric scrub.
+
+    Fail-closed: if reasoning is supplied but no lyrics are available to check
+    it against, nothing is stored (we never persist an unverified argument).
+    When lyrics ARE present, any sentence carrying a >= MIN_RUN verbatim lyric
+    run is stripped; if that guts the text, None is stored. The lyrics are used
+    transiently for comparison only and are NEVER persisted (the corpus stores
+    a hash, not the words -- see module docstring)."""
+    if not reasoning:
+        return None
+    if not lyrics:
+        logger.warning(
+            "reasoning supplied without lyrics for '%s' by %s; not stored "
+            "(cannot verify it carries no verbatim lyrics)", title, artist,
+        )
+        return None
+    from app.services.lyric_quote_guard import strip_verbatim_quotes
+    cleaned, stripped = strip_verbatim_quotes(reasoning, lyrics)
+    if stripped:
+        logger.warning(
+            "Stripped verbatim lyric quotes from reasoning for '%s' by %s", title, artist,
+        )
+    return cleaned or None
+
+
 def log_run(
     db: Session,
     *,
@@ -225,10 +258,16 @@ def log_run(
     lyrics_hash: str | None = None,
     lyrics_fingerprint: bytes | None = None,
     agent_model: str | None = None,
+    lyrics: str | None = None,
 ) -> CalibrationRun:
     """Record one agent run. Always writes. The caller has already committed
     the song row (or decided no song row is appropriate). `song_id` is the
-    atomic songs.id and keys the run to the song for consensus aggregation."""
+    atomic songs.id and keys the run to the song for consensus aggregation.
+
+    `calibration` may carry a "reasoning" key (the agent's structured argument).
+    It is stored ONLY through `_guard_reasoning`, which scrubs verbatim lyrics
+    against `lyrics` and fails closed without them. `lyrics` is used for that
+    check only and is never persisted."""
     run = CalibrationRun(
         song_id=song_id,
         title=title,
@@ -245,6 +284,9 @@ def log_run(
         triggered_by=triggered_by,
         lyrics_hash=lyrics_hash,
         lyrics_fingerprint=lyrics_fingerprint,
+        reasoning=_guard_reasoning(
+            calibration.get("reasoning"), lyrics, title=title, artist=artist,
+        ),
     )
     db.add(run)
     db.flush()
@@ -417,6 +459,7 @@ def record_and_reconcile(
     direct_song_source: str | None = None,
     direct_song_id: int | None = None,
     is_new_row: bool = False,
+    lyrics: str | None = None,
 ) -> dict:
     """Full consensus flow: log the run, seed prior state if needed, compute
     consensus, update the canonical row, audit tier flips.
@@ -462,6 +505,7 @@ def record_and_reconcile(
         lyrics_hash=lyrics_hash,
         lyrics_fingerprint=lyrics_fingerprint,
         agent_model=agent_model,
+        lyrics=lyrics,
     )
 
     consensus = None
