@@ -370,15 +370,6 @@ body {
 
 .procedural-block-body strong { color: var(--tn-ink-bright); font-weight: 700; }
 
-.procedural-flag-sub {
-  font-family: 'Cardo', serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 1.05rem;
-  color: var(--tn-ink-dim, var(--tn-ink));
-  margin: 0 0 12px;
-}
-
 .procedural-list {
   margin: 14px 0;
   padding: 0 0 0 24px;

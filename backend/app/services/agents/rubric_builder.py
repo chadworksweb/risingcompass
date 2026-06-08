@@ -144,11 +144,13 @@ def _render_rules(data: dict) -> str:
 
 
 def _render_dogma(data: dict) -> str:
-    """Render the dogma_referenced flag from core.json -- the single source of
-    truth shared with the public Tenets page. Returns the exact prompt block;
-    no dogma prose is hardcoded in this module anymore."""
+    """Render the dogma_referenced flag's full agent text from core.json -- the
+    single source for the calibrator (no dogma prose is hardcoded in this module
+    anymore). `prompt_block` is the agent text; the definition/body/examples/
+    closing fields are a separate public summary for the Tenets page, mirroring
+    how the contamination modifier's public blurb differs from agent internals."""
     flag = next(f for f in data.get("flags", []) if f["id"] == "dogma_referenced")
-    return flag["body"]
+    return flag["prompt_block"]
 
 
 def build_rubric_definition() -> str:

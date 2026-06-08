@@ -351,47 +351,6 @@
 
   // ─── procedural ─────────────────────────────────────────────────
 
-  // Render a flag's body (agent-prompt markdown) into procedural blocks:
-  // "## x" -> subheading, "- x" -> list item, blank-separated -> paragraphs.
-  // The flag body is the SAME core.json field the agent prompt renders, so the
-  // public page and the calibrator can never drift.
-  function renderFlagBody(parent, text) {
-    let para = [], ul = null;
-    const flushPara = () => {
-      if (!para.length) return;
-      const p = html('p', { class: 'procedural-block-body' });
-      p.appendChild(renderMarkdownInline(para.join(' ')));
-      parent.appendChild(p);
-      para = [];
-    };
-    const flushUl = () => { if (ul) { parent.appendChild(ul); ul = null; } };
-    // Single source: `body` is the verbatim agent-prompt block. The closing
-    // agent-output directive ("When `flag=true`, `flag_note` must ...") is
-    // calibrator plumbing, not public criteria -- cut it from the page render
-    // only. The agent still receives the full block.
-    const lines = (text || '').split('\n');
-    const cut = lines.findIndex((l) => /^When `\w+=true`/.test(l.trim()));
-    (cut >= 0 ? lines.slice(0, cut) : lines).forEach((raw) => {
-      const line = raw.trim();
-      if (!line) { flushPara(); flushUl(); return; }
-      if (line.startsWith('## ')) {
-        flushPara(); flushUl();
-        parent.appendChild(html('h4', { class: 'procedural-flag-sub' }, line.slice(3)));
-        return;
-      }
-      if (line.startsWith('- ')) {
-        flushPara();
-        if (!ul) ul = html('ul', { class: 'procedural-list' });
-        const li = html('li');
-        li.appendChild(renderMarkdownInline(line.slice(2)));
-        ul.appendChild(li);
-        return;
-      }
-      para.push(line);
-    });
-    flushPara(); flushUl();
-  }
-
   function renderProcedural(root, data) {
     root.replaceChildren();
 
@@ -432,10 +391,37 @@
       root.appendChild(block);
     });
 
+    // Flags (parallel tags, e.g. dogma_referenced) render exactly like a
+    // modifier from their public summary fields -- NOT prompt_block, which is
+    // the separate full agent text.
     (data.flags || []).forEach((flag) => {
       const block = html('section', { class: 'procedural-block', id: `flag-${flag.id}` });
       block.appendChild(html('h3', { class: 'procedural-block-title' }, (flag.label || flag.id).toUpperCase()));
-      renderFlagBody(block, flag.body || '');
+      if (flag.definition) {
+        const def = html('p', { class: 'procedural-block-body' });
+        def.appendChild(renderMarkdownInline(flag.definition));
+        block.appendChild(def);
+      }
+      if (flag.body) {
+        const body = html('p', { class: 'procedural-block-body' });
+        body.appendChild(renderMarkdownInline(flag.body));
+        block.appendChild(body);
+      }
+      if (Array.isArray(flag.examples) && flag.examples.length) {
+        block.appendChild(html('p', { class: 'procedural-block-body' }, 'Examples:'));
+        const ul = html('ul', { class: 'procedural-list' });
+        flag.examples.forEach((ex) => {
+          const li = html('li');
+          li.appendChild(renderMarkdownInline(ex));
+          ul.appendChild(li);
+        });
+        block.appendChild(ul);
+      }
+      if (flag.closing) {
+        const closing = html('p', { class: 'procedural-block-body' });
+        closing.appendChild(renderMarkdownInline(flag.closing));
+        block.appendChild(closing);
+      }
       root.appendChild(block);
     });
 
