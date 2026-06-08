@@ -26,6 +26,7 @@ from app.services.calibration_log_feed import (
     _correction_to_entry,
     _recalibration_to_entry,
     _rubric_change_to_entry,
+    linked_songs_by_slug,
 )
 
 router = APIRouter(prefix="/api/admin/calibration-log", tags=["calibration-log"])
@@ -106,7 +107,8 @@ def get_calibration_log_entry(
     if source_table == "pre_publish_corrections":
         data = _correction_to_entry(row, db, slug_cache)
     elif source_table == "rubric_changes":
-        data = _rubric_change_to_entry(row, db, slug_cache)
+        linked = linked_songs_by_slug(db, [row.change_slug], slug_cache).get(row.change_slug)
+        data = _rubric_change_to_entry(row, db, slug_cache, linked_songs=linked)
     else:
         data = _recalibration_to_entry(row, db, slug_cache)
     return FeedEntry.model_validate(data)

@@ -157,6 +157,22 @@
     `;
   }
 
+  function linkedSongsMarkup(entry) {
+    const songs = entry.linked_songs || [];
+    if (!songs.length) return '';
+    const links = songs.map(s => s.slug
+      ? `<a href="/songs/${encodeURIComponent(s.slug)}" onclick="event.stopPropagation();">${escapeHtml(s.title)}</a>`
+      : escapeHtml(s.title)
+    ).join(', ');
+    const n = entry.linked_song_count || songs.length;
+    return `
+      <div class="cl-linked-songs">
+        <span class="cl-linked-songs-label">Recalibrated ${n} song${n === 1 ? '' : 's'}</span>
+        ${links}
+      </div>
+    `;
+  }
+
   function rationaleMarkup(entry) {
     const prose = entry.human_rationale || entry.public_summary || '';
     if (!prose) return '';
@@ -223,6 +239,7 @@
           ${diffMarkup(entry)}
           ${rubricChangeMarkup(entry.rubric_change_note)}
           ${rationaleMarkup(entry)}
+          ${linkedSongsMarkup(entry)}
           ${tagsMarkup(entry.tags)}
         </div>
       </article>
@@ -241,7 +258,8 @@
     const changeBadge = entry.change_type
       ? `<span class="cl-badge">${escapeHtml(CHANGE_TYPE_LABELS[entry.change_type] || entry.change_type)}</span>`
       : '';
-    const hasDetails = !!(entry.rubric_change_note || entry.human_rationale || entry.public_summary || entry.tags || pipelineBadge || lensBadge || changeBadge);
+    const hasLinked = !!(entry.linked_songs && entry.linked_songs.length);
+    const hasDetails = !!(entry.rubric_change_note || entry.human_rationale || entry.public_summary || entry.tags || pipelineBadge || lensBadge || changeBadge || hasLinked);
 
     const detailsBody = hasDetails ? `
       <div class="cl-row-details">
@@ -249,6 +267,7 @@
           ${(pipelineBadge || lensBadge || changeBadge) ? `<div class="cl-row-details-badges">${pipelineBadge}${lensBadge}${changeBadge}</div>` : ''}
           ${rubricChangeMarkup(entry.rubric_change_note)}
           ${rationaleMarkup(entry)}
+          ${linkedSongsMarkup(entry)}
           ${tagsMarkup(entry.tags)}
         </div>
       </div>

@@ -122,7 +122,10 @@
         {
           "id": "violet-note-specifics",
           "title": "Specifics challenge Ascended, not grant it.",
-          "text": "A song framed as an anthem for a specific identifiable group \u2014 by identity, ideology, geography, subculture, faith, or tribe \u2014 does NOT auto-qualify for Ascended just because it calls for that group's protection, pride, or liberation. Ascended requires a frequency that transmits universally \u2014 one any listener, including those outside the named group, can be elevated by. If a song's elevation is contingent on the listener belonging to (or siding with) the group, its ceiling is Elevated, not Ascended. Test the rule: would a song with the same structure but a different named group \u2014 one the listener finds objectionable \u2014 still read as transmitting at the highest frequency? If not, it's Elevated. Universal-frequency songs (wisdom, gratitude, pure love, non-group-specific transcendence) still earn Ascended."
+          "text": "A song framed as an anthem for a specific identifiable group \u2014 by identity, ideology, geography, subculture, faith, or tribe \u2014 does NOT auto-qualify for Ascended just because it calls for that group's protection, pride, or liberation. Ascended requires a frequency that transmits universally \u2014 one any listener, including those outside the named group, can be elevated by. If a song's elevation is contingent on the listener belonging to (or siding with) the group, its ceiling is Elevated, not Ascended. Test the rule: would a song with the same structure but a different named group \u2014 one the listener finds objectionable \u2014 still read as transmitting at the highest frequency? If not, it's Elevated. Universal-frequency songs (wisdom, gratitude, pure love, non-group-specific transcendence) still earn Ascended.",
+          "version": "1.0",
+          "ratified_at": "2026-04-20",
+          "status": "ratified"
         }
       ]
     },
@@ -559,6 +562,17 @@
         "A green song about family with casual glorification of violence"
       ],
       "closing": "Contamination requires the presence of specific lyrical content that meets Degraded or Corrupted tenet criteria. A song that is simply not deep enough to be Elevated is NOT contaminated \u2014 it's just Decent."
+    }
+  ],
+  "flags": [
+    {
+      "id": "dogma_referenced",
+      "label": "Dogma referenced",
+      "version": "1.0",
+      "ratified_at": "2026-06-06",
+      "status": "ratified",
+      "definition": "Dogma referenced is a parallel tag, not a tier and not a score modifier -- it fires when a specific doctrinal framework is load-bearing to the song, and it never moves the charge. Its only job is to make doctrinal coverage visible over time.",
+      "body": "Evaluated against the DOMINANT ARC, never an isolated line. The test is not 'does a doctrinal reference appear?' but 'is the doctrine doing the song's work?' A passing scriptural allusion used to illustrate or ornament a message whose actual subject is secular does NOT fire. Decisive swap test: replace the doctrine-specific image with a cross-traditional one; if the song's central message survives intact, the doctrine was decoration and the flag does not fire. It fires only when the message collapses under the swap -- when the song exists to worship within, proclaim, convert to, or assert that doctrine as true and normative for the listener. Tightened 2026-06-06: the tag fires only when the doctrine is the dominant arc, not on any incidental reference."
     }
   ],
   "rules": [

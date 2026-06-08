@@ -315,6 +315,32 @@
   margin-right: 0.35rem;
 }
 
+.cl-linked-songs {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+  margin: 0.5rem 0 0.25rem;
+}
+
+.cl-linked-songs-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rc-violet);
+  margin-right: 0.45rem;
+}
+
+.cl-linked-songs a {
+  color: var(--rc-text-bright);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(170, 84, 255, 0.35);
+}
+
+.cl-linked-songs a:hover {
+  border-bottom-color: var(--rc-violet);
+}
+
 .cl-tags {
   display: flex;
   gap: 0.4rem;

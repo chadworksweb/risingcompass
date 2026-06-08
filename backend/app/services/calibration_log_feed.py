@@ -185,29 +185,63 @@ def _recalibration_to_entry(
 
 _KIND_LABELS = {
     "tenet": "Tenet",
+    "note": "Tenet note",
     "rule": "Rule",
     "modifier": "Modifier",
+    "flag": "Flag",
     "schema": "Schema",
     "tier": "Tier",
 }
 _CHANGE_VERBS = {"added": "added", "revised": "revised", "retired": "retired"}
 
 
+def linked_songs_by_slug(
+    db: Session,
+    change_slugs: Iterable[str],
+    slug_cache: dict,
+) -> dict:
+    """For a set of rubric-change `change_slug`s, return
+    {change_slug: [song_anchor, ...]} — the songs each change recalibrated, via
+    song_recalibrations.rubric_change_slug. Deduped by song_id, one batch query
+    (no N+1). The cause->effect side of the Calibration Log."""
+    slugs = [s for s in set(change_slugs) if s]
+    if not slugs:
+        return {}
+    rows = (
+        db.query(SongRecalibration.rubric_change_slug, SongRecalibration.song_id)
+        .filter(SongRecalibration.rubric_change_slug.in_(slugs))
+        .filter(SongRecalibration.song_id.isnot(None))
+        .all()
+    )
+    out: dict = {}
+    for slug, song_id in rows:
+        bucket = out.setdefault(slug, {})
+        if song_id in bucket:
+            continue
+        anchor = _lookup_song_anchor(db, song_id, slug_cache)
+        if anchor:
+            bucket[song_id] = anchor
+    return {slug: list(bucket.values()) for slug, bucket in out.items()}
+
+
 def _rubric_change_to_entry(
     row: RubricChange,
     db: Session = None,
     slug_cache: dict = None,
+    linked_songs: list = None,
 ) -> dict:
     """Adapter: rubric_changes row -> normalized feed entry.
 
     Instrument-level change, so there is no song_anchor and no charge/color
     before/after sides. The item text rides in rubric_change_note (reuses the
-    existing renderer); public_summary is the optional voice overlay. db /
-    slug_cache are accepted for a uniform adapter signature but unused."""
+    existing renderer); public_summary is the optional voice overlay.
+    linked_songs is the cause->effect list (songs this change recalibrated),
+    computed by the caller via linked_songs_by_slug."""
     kind_label = _KIND_LABELS.get(row.item_kind, "Rubric")
     verb = _CHANGE_VERBS.get(row.change_type, "changed")
     headline = row.title or row.item_id
     title = headline if row.item_kind == "schema" else f"{kind_label} {verb}: {headline}"
+    linked = linked_songs or []
     return {
         "event_id": row.id,
         "event_type": "rubric_change",
@@ -226,6 +260,8 @@ def _rubric_change_to_entry(
         "rubric_change_note": row.after_text or row.before_text,
         "item_kind": row.item_kind,
         "change_type": row.change_type,
+        "linked_song_count": len(linked),
+        "linked_songs": linked,
         "tags": None,
         "promoted_to_feed": bool(row.promoted_to_feed),
         "promoted_at": row.promoted_at,
@@ -289,8 +325,14 @@ def list_feed_entries(
     # Rubric changes (instrument-level). No song anchor, so excluded entirely
     # from a per-song filter. (Auto-promoted like the other capture tables.)
     if (not types or "rubric_change" in types) and not song_filter:
-        for row in db.query(RubricChange).all():
-            entries.append(_rubric_change_to_entry(row, db, slug_cache))
+        rc_rows = db.query(RubricChange).all()
+        linked_map = linked_songs_by_slug(
+            db, [r.change_slug for r in rc_rows], slug_cache
+        )
+        for row in rc_rows:
+            entries.append(_rubric_change_to_entry(
+                row, db, slug_cache, linked_songs=linked_map.get(row.change_slug),
+            ))
 
     entries.sort(key=lambda e: e["occurred_at"] or datetime.min, reverse=True)
 

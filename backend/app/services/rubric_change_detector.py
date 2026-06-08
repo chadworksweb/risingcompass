@@ -59,7 +59,7 @@ def _current_items(data: dict) -> list[dict]:
             "ratified_at": _parse_ratified(data.get("ratified_at")),
         })
 
-    # Tenets, grouped under their tier.
+    # Tenets + tier notes, grouped under their tier.
     for tier in data.get("tiers", []):
         label = tier.get("label") or tier.get("slug")
         for tenet in tier.get("tenets", []):
@@ -73,6 +73,20 @@ def _current_items(data: dict) -> list[dict]:
                 "text": tenet.get("text"),
                 "ratified_at": _parse_ratified(tenet.get("ratified_at")),
             })
+        # Tier notes (e.g. violet-note-specifics). Only versioned notes are
+        # tracked; an unversioned note is descriptive, not a logged change.
+        for note in tier.get("notes", []):
+            if not note.get("version"):
+                continue
+            items.append({
+                "item_kind": "note",
+                "item_id": note["id"],
+                "item_version": str(note["version"]),
+                "tier_slug": tier.get("slug"),
+                "title": note.get("title") or note["id"],
+                "text": note.get("text"),
+                "ratified_at": _parse_ratified(note.get("ratified_at")),
+            })
 
     # Contamination + any future modifiers.
     for mod in data.get("modifiers", []):
@@ -85,6 +99,21 @@ def _current_items(data: dict) -> list[dict]:
             "title": mod.get("label") or mod["id"],
             "text": body or None,
             "ratified_at": _parse_ratified(mod.get("ratified_at")),
+        })
+
+    # Parallel tags / flags (e.g. dogma_referenced). Modelled like modifiers
+    # but kept in their own array so they don't render on the public Tenets
+    # page or alter the agent prompt.
+    for flag in data.get("flags", []):
+        body = "\n\n".join(p for p in [flag.get("definition"), flag.get("body")] if p)
+        items.append({
+            "item_kind": "flag",
+            "item_id": flag["id"],
+            "item_version": str(flag.get("version", "1.0")),
+            "tier_slug": None,
+            "title": flag.get("label") or flag["id"],
+            "text": body or None,
+            "ratified_at": _parse_ratified(flag.get("ratified_at")),
         })
 
     # Procedural rules R1..Rn.

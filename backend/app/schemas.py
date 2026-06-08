@@ -924,8 +924,10 @@ class FeedEntry(BaseModel):
     ai_rationale: Optional[str] = None       # recalibrations only
     public_summary: Optional[str] = None     # recalibrations + rubric_change (optional)
     rubric_change_note: Optional[str] = None  # recalibrations + rubric_change (carries the rule text)
-    item_kind: Optional[str] = None          # rubric_change only: tenet|rule|modifier|schema|tier
+    item_kind: Optional[str] = None          # rubric_change only: tenet|note|rule|modifier|flag|schema|tier
     change_type: Optional[str] = None        # rubric_change only: added|revised|retired
+    linked_song_count: Optional[int] = None  # rubric_change only: songs this change recalibrated
+    linked_songs: Optional[list[FeedSongAnchor]] = None  # rubric_change only: the cause->effect list
     tags: Optional[str] = None
     promoted_to_feed: bool
     promoted_at: Optional[datetime.datetime] = None
