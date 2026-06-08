@@ -99,32 +99,6 @@ Every song starts at Decent (charge 0). This is not a judgment — it is the sta
 
 **The same applies to every topic** — struggle, partying, ambition, faith, heartbreak. The topic is neutral. The messaging on the page determines the tier.
 
-## Dogma Reference (parallel tag — does NOT affect the score)
-
-A song is tagged `dogma_referenced` when a specific doctrinal framework is **load-bearing** to the song — when proclaiming, worshipping inside, asserting the truth of, or instructing the listener in that doctrine is what the song is FOR. This is a metadata flag, parallel to contamination. It does not move the charge. Its purpose is to make the coverage of doctrinal content visible over time.
-
-Evaluate the flag against the DOMINANT ARC, never an isolated line — exactly as you do for charge and contamination. The question is not "does a doctrinal reference appear?" but "is the doctrine doing the song's work?" A passing allusion to a scriptural event, figure, or miracle used to illustrate, ornament, or lend authority to a message whose actual subject is secular does NOT fire the flag. The doctrine has to be the destination, not the decoration. Mentioning a religious reference is never sufficient on its own.
-
-Fires on (the doctrine is load-bearing):
-- **Christian dogma** — crucifixion, resurrection, salvation-by-grace, Jesus-as-only-way, "washed in the blood," sin/redemption mechanics, specific sacraments (baptism, communion) invoked as normative.
-- **Islamic dogma** — Allah-as-only-god, Mohammed as final prophet, five pillars invoked as normative, halal/haram as doctrinal rules.
-- **Karmic/Dharmic dogma** — karma invoked as a metaphysical mechanism (not a loose metaphor for "what goes around"), samsara, caste, dharma as normative rule, specific reincarnation doctrine.
-- **Institutional / ecclesiastical** — references to specific sects, denominations, clergy authority, membership requirements, salvation tied to a specific institution.
-
-Does NOT fire on:
-- Cross-traditional spiritual vocabulary used openly: god, universe, soul, spirit, divine, sacred, heaven, prayer, meditation, faith, grace, blessing, mercy. Naming these alone does not trigger the flag.
-- Metaphorical use of tradition-rooted words: "it's karma" as casual idiom, "crucified" as hyperbole for shame, "preach" as slang for agreement.
-- Generic devotional language without a specific doctrine attached.
-- **A scriptural allusion used as illustration inside a secular song.** A single reference to a doctrine-rooted event, figure, or miracle deployed as analogy, moral example, or rhetorical garnish — where the dominant arc is secular (a love song, a humanitarian appeal, social commentary, a party) — is decoration, not doctrine. The song is not asking the listener to accept or live inside the framework; it is borrowing one image from it. Citing a scriptural moment as an "example" of a virtue (provision, mercy, sacrifice) is exactly this borrowing, and on its own it does NOT fire.
-
-Test (decisive, run it before you fire): strip the doctrine-specific noun out and swap in a cross-traditional image — a named miracle of provision becomes "as nature feeds every creature," a named act of mercy becomes "as kindness is repaid." Does the song's central message survive intact? If yes, the doctrine was decoration and the flag does NOT fire. The flag fires only when the message collapses under the swap — when the song's whole rhetorical engine IS the specific framework because the song exists to worship within, proclaim, convert to, or assert that doctrine as true and normative for the listener.
-
-Worked contrast:
-- A worship anthem built to proclaim salvation by grace and call the listener to be washed in the blood → FIRES. The doctrine is the song; remove it and nothing is left.
-- A humanitarian anthem calling all people to feed the hungry that drops in one scriptural miracle as an example of provision → does NOT fire. The doctrine is one illustration inside a secular argument; remove it and the appeal stands whole.
-
-When `dogma_referenced=true`, `dogma_note` must name which framework (Christian / Islamic / Karmic / Dharmic / Institutional-<name>) and describe, in your own words, the lyric moment that triggered it. Do NOT quote or reproduce the lyric line; paraphrase it. One short sentence.
-
 """
 
 
@@ -169,6 +143,14 @@ def _render_rules(data: dict) -> str:
     return "\n".join(parts)
 
 
+def _render_dogma(data: dict) -> str:
+    """Render the dogma_referenced flag from core.json -- the single source of
+    truth shared with the public Tenets page. Returns the exact prompt block;
+    no dogma prose is hardcoded in this module anymore."""
+    flag = next(f for f in data.get("flags", []) if f["id"] == "dogma_referenced")
+    return flag["body"]
+
+
 def build_rubric_definition() -> str:
     """Assemble the full rubric string from the prelude/middle prose and the JSON tenets."""
     data = load_tenets()
@@ -177,6 +159,7 @@ def build_rubric_definition() -> str:
         + _render_five_tiers(data)
         + "\n\n"
         + _MIDDLE
+        + _render_dogma(data)
         + _render_contamination(data)
         + "\n\n"
         + _render_rules(data)

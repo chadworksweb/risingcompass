@@ -351,6 +351,41 @@
 
   // ─── procedural ─────────────────────────────────────────────────
 
+  // Render a flag's body (agent-prompt markdown) into procedural blocks:
+  // "## x" -> subheading, "- x" -> list item, blank-separated -> paragraphs.
+  // The flag body is the SAME core.json field the agent prompt renders, so the
+  // public page and the calibrator can never drift.
+  function renderFlagBody(parent, text) {
+    let para = [], ul = null;
+    const flushPara = () => {
+      if (!para.length) return;
+      const p = html('p', { class: 'procedural-block-body' });
+      p.appendChild(renderMarkdownInline(para.join(' ')));
+      parent.appendChild(p);
+      para = [];
+    };
+    const flushUl = () => { if (ul) { parent.appendChild(ul); ul = null; } };
+    (text || '').split('\n').forEach((raw) => {
+      const line = raw.trim();
+      if (!line) { flushPara(); flushUl(); return; }
+      if (line.startsWith('## ')) {
+        flushPara(); flushUl();
+        parent.appendChild(html('h4', { class: 'procedural-flag-sub' }, line.slice(3)));
+        return;
+      }
+      if (line.startsWith('- ')) {
+        flushPara();
+        if (!ul) ul = html('ul', { class: 'procedural-list' });
+        const li = html('li');
+        li.appendChild(renderMarkdownInline(line.slice(2)));
+        ul.appendChild(li);
+        return;
+      }
+      para.push(line);
+    });
+    flushPara(); flushUl();
+  }
+
   function renderProcedural(root, data) {
     root.replaceChildren();
 
@@ -388,6 +423,13 @@
         block.appendChild(closing);
       }
 
+      root.appendChild(block);
+    });
+
+    (data.flags || []).forEach((flag) => {
+      const block = html('section', { class: 'procedural-block', id: `flag-${flag.id}` });
+      block.appendChild(html('h3', { class: 'procedural-block-title' }, (flag.label || flag.id).toUpperCase()));
+      renderFlagBody(block, flag.body || '');
       root.appendChild(block);
     });
 
