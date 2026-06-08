@@ -30,7 +30,7 @@ from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.auth import verify_reading_cron_key
@@ -40,6 +40,7 @@ from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import fetch_itunes_songs, fetch_top_songs
 from app.services.agents.compass_agent import run_compass_agent
 from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
+from app.services.charge_calc import degree_to_charge
 from app.services.song_store import find_song_by_title_artist
 
 logger = logging.getLogger(__name__)
@@ -178,6 +179,139 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
         chart_source=chart_slug,
         label=entry["label"],
         date=most_recent_date,
+        songs=songs,
+    )
+
+
+# --- Calendar (chart-agnostic) read endpoints ----------------------------
+# The Calendar is chart-agnostic: it paints each day by that day's aggregate
+# compass_degree. For the daily reading that lives on daily_readings (served by
+# /api/drift/*); these three mirror that contract for any chart-snapshot chart
+# (key = CHART_REGISTRY key, e.g. "itunes"), reading the aggregate stamped on
+# the published snapshot rows at approval. Only published rows are served.
+
+
+class ChartReadingOut(BaseModel):
+    """One chart's snapshot for a single date -- shaped like the daily reading's
+    DailyReadingOut so the Calendar detail panel renders it unchanged."""
+    date: date
+    compass_degree: float | None
+    charge_level: str | None
+    contamination_count: int
+    editorial_summary: str | None = None
+    songs: list[ReadingSongOut]
+
+
+def _chart_slug_or_404(key: str) -> str:
+    entry = CHART_REGISTRY.get(key)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Unknown chart key")
+    return entry["slug"]
+
+
+@public_router.get("/{key}/years")
+def get_chart_years(key: str, db: Session = Depends(get_db)):
+    """Years with published snapshots for this chart, each with a year-mean
+    aggregate degree + charge. Mirrors /api/drift/years so the Calendar can size
+    its bounds and color the year/decade tiles."""
+    chart_slug = _chart_slug_or_404(key)
+    rows = (
+        db.query(
+            extract("year", ChartSnapshot.date).label("yr"),
+            func.avg(ChartSnapshot.compass_degree).label("avg_deg"),
+        )
+        .filter(
+            ChartSnapshot.chart_source == chart_slug,
+            ChartSnapshot.published.is_(True),
+            ChartSnapshot.compass_degree.isnot(None),
+        )
+        .group_by("yr")
+        .order_by("yr")
+        .all()
+    )
+    out = []
+    for yr, avg_deg in rows:
+        deg = round(float(avg_deg), 1)
+        out.append({
+            "year": int(yr),
+            "compass_degree": deg,
+            "charge_level": degree_to_charge(deg),
+        })
+    return out
+
+
+@public_router.get("/{key}/years/{year}/dates")
+def get_chart_year_dates(key: str, year: int, db: Session = Depends(get_db)):
+    """Per-day aggregates for one chart + year. Same shape as
+    /api/drift/years/{year}/dates so the Calendar swaps data sources cleanly.
+    The 20 rows per (date) carry an identical aggregate, so DISTINCT collapses
+    them to one reading per day."""
+    chart_slug = _chart_slug_or_404(key)
+    start = date(year, 1, 1)
+    end = date(year, 12, 31)
+    rows = (
+        db.query(
+            ChartSnapshot.date,
+            ChartSnapshot.compass_degree,
+            ChartSnapshot.charge_level,
+        )
+        .filter(
+            ChartSnapshot.chart_source == chart_slug,
+            ChartSnapshot.published.is_(True),
+            ChartSnapshot.compass_degree.isnot(None),
+            ChartSnapshot.date >= start,
+            ChartSnapshot.date <= end,
+        )
+        .distinct()
+        .order_by(ChartSnapshot.date)
+        .all()
+    )
+    return {
+        "dates": [r[0].isoformat() for r in rows],
+        "readings": [
+            {"date": r[0].isoformat(), "compass_degree": r[1], "charge_level": r[2]}
+            for r in rows
+        ],
+    }
+
+
+@public_router.get("/{key}/reading/{reading_date}", response_model=ChartReadingOut)
+def get_chart_reading(key: str, reading_date: date, db: Session = Depends(get_db)):
+    """Full published snapshot for one chart + date, with per-song colors looked
+    up live -- shaped like the daily reading detail so the Calendar panel reuses
+    its renderer. Charts carry no editorial; contamination is counted from the
+    looked-up songs."""
+    chart_slug = _chart_slug_or_404(key)
+    snaps = (
+        db.query(ChartSnapshot)
+        .filter(
+            ChartSnapshot.chart_source == chart_slug,
+            ChartSnapshot.date == reading_date,
+            ChartSnapshot.published.is_(True),
+        )
+        .order_by(ChartSnapshot.position.asc())
+        .all()
+    )
+    if not snaps:
+        raise HTTPException(status_code=404, detail="No published snapshot for this date")
+
+    slug_map = resolve_artist_slugs([snap.artist for snap in snaps], db)
+    songs = [
+        _build_song(
+            snap,
+            find_song_by_title_artist(db, snap.title, snap.artist),
+            slug_map.get(normalize_artist_name(snap.artist or "").lower()),
+        )
+        for snap in snaps
+    ]
+    contamination_count = sum(1 for s in songs if s.contaminated)
+
+    return ChartReadingOut(
+        date=reading_date,
+        compass_degree=snaps[0].compass_degree,
+        charge_level=snaps[0].charge_level,
+        contamination_count=contamination_count,
+        editorial_summary=None,
         songs=songs,
     )
 

@@ -619,6 +619,9 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
             ChartSnapshot.date == draft.date,
         ).delete(synchronize_session=False)
         db.flush()
+        # Stamp the snapshot aggregate (computed during lyrics-supply, same as
+        # the daily reading) onto every row so the chart-agnostic Calendar can
+        # paint each day its spectrum color without recomputing on read.
         for song in sorted(draft.songs, key=lambda s: s.position):
             db.add(ChartSnapshot(
                 date=draft.date,
@@ -626,6 +629,8 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
                 position=song.position,
                 title=song.title,
                 artist=song.artist,
+                compass_degree=draft.compass_degree,
+                charge_level=draft.charge_level,
                 published=True,
             ))
 

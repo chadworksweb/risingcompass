@@ -10,6 +10,32 @@
 
   var LIVE_CUTOFF = 2025; // years <= this have no daily readings (aggregate only)
 
+  // Charts the calendar can paint. 'daily' source reads the daily-reading drift
+  // endpoints; 'chart' source reads the chart-snapshot endpoints by registry
+  // key. Brand names are working names ("for now") -- centralised here so a
+  // rename is a single edit (label = the toggle button, sub = the source line).
+  var CHARTS = {
+    'daily-listens':   { label: 'Daily Listens',   sub: 'Spotify Top 50 - USA',   source: 'daily' },
+    'daily-downloads': { label: 'Daily Downloads', sub: 'iTunes Downloads - USA', source: 'chart', key: 'itunes' },
+  };
+  var DEFAULT_CHART = 'daily-listens';
+  var curChart = DEFAULT_CHART;
+  function chartCfg() { return CHARTS[curChart] || CHARTS[DEFAULT_CHART]; }
+
+  // --- Data-source adapter: same calendar, swappable chart behind it ---
+  function fetchYears() {
+    var c = chartCfg();
+    return c.source === 'chart' ? API.getChartYears(c.key) : API.getDriftYears();
+  }
+  function fetchYearDates(year) {
+    var c = chartCfg();
+    return c.source === 'chart' ? API.getChartYearDates(c.key, year) : API.getYearDates(year);
+  }
+  function fetchReading(date) {
+    var c = chartCfg();
+    return c.source === 'chart' ? API.getChartReading(c.key, date) : API.getReading(date);
+  }
+
   var MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
   var MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -58,7 +84,7 @@
   async function loadYears() {
     if (yearsList) return;
     try {
-      yearsList = await API.getDriftYears();
+      yearsList = await fetchYears();
     } catch (e) {
       yearsList = [];
     }
@@ -70,7 +96,7 @@
     if (yearReadings[year]) return;
     var map = {};
     try {
-      var resp = await API.getYearDates(year);
+      var resp = await fetchYearDates(year);
       (resp.readings || []).forEach(function (r) {
         map[r.date] = { degree: r.compass_degree, charge: r.charge_level };
       });
@@ -341,7 +367,7 @@
     }
     var reading;
     try {
-      reading = await API.getReading(date);
+      reading = await fetchReading(date);
     } catch (e) {
       detailBody.innerHTML = '<div class="cal-detail-loading">No reading found for this date.</div>';
       releaseBodyHeight();
@@ -461,8 +487,48 @@
     });
   }
 
+  // --- Chart switching ---
+  // The per-chart caches are all keyed by year only, so switching charts means
+  // wiping them and reloading from the new source. View/year/month are kept so
+  // the user stays where they were on the dial.
+  function resetForChart() {
+    yearReadings = {}; monthMeans = {}; yearsList = null; yearAgg = {};
+  }
+  function updateChartUI() {
+    var c = chartCfg();
+    document.querySelectorAll('.cal-chart-btn').forEach(function (btn) {
+      var on = btn.dataset.chart === curChart;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    var sub = document.getElementById('cal-chart-sub');
+    if (sub) sub.textContent = c.sub;
+  }
+  async function switchChart(key) {
+    if (!CHARTS[key] || key === curChart) return;
+    curChart = key;
+    closeDetail();
+    updateChartUI();
+    resetForChart();
+    // Reflect the chart in the URL so footer deep-links + refresh keep it.
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set('chart', key);
+      window.history.replaceState({}, '', u);
+    } catch (e) {}
+    board.innerHTML = loaderHtml('Loading ' + chartCfg().label, chartCfg().sub);
+    await loadYears();
+    var b = yearBounds();
+    if (curYear > b.max) curYear = b.max;
+    if (curYear < b.min) curYear = b.min;
+    await render();
+  }
+
   // --- Wiring ---
   function wire() {
+    document.querySelectorAll('.cal-chart-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { switchChart(btn.dataset.chart); });
+    });
     document.querySelectorAll('.cal-bar [data-action]').forEach(function (el) {
       el.addEventListener('click', function () { handleAction(el); });
     });
@@ -492,6 +558,12 @@
     layoutEl = document.querySelector('.cal-page-layout');
     if (!board) return;
 
+    // Initial chart from ?chart= (footer deep-links / refresh), else default.
+    try {
+      var qChart = new URLSearchParams(window.location.search).get('chart');
+      if (qChart && CHARTS[qChart]) curChart = qChart;
+    } catch (e) {}
+
     var d = new Date();
     curYear = d.getFullYear();
     curMonth = d.getMonth();
@@ -499,7 +571,8 @@
     view = 'day';
 
     wire();
-    board.innerHTML = loaderHtml('Loading calendar', 'tuning the dial...');
+    updateChartUI();
+    board.innerHTML = loaderHtml('Loading ' + chartCfg().label, chartCfg().sub);
     await loadYears();
     // If the calendar's "today" year has no live data yet, fall back to the
     // most recent year that does so the dial opens on something colored.

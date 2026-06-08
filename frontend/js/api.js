@@ -57,6 +57,11 @@ const API = (() => {
     getEtherYears: () => get('/api/ether-art-chart/years'),
     getEtherYear: (year) => get(`/api/ether-art-chart/year/${year}`),
     getChartSnapshot: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/current`),
+    // Chart-agnostic Calendar feeds: mirror the drift endpoints for any
+    // chart-snapshot chart (key = CHART_REGISTRY key, e.g. "itunes").
+    getChartYears: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/years`),
+    getChartYearDates: (key, year) => get(`/api/compass/chart/${encodeURIComponent(key)}/years/${year}/dates`),
+    getChartReading: (key, date) => get(`/api/compass/chart/${encodeURIComponent(key)}/reading/${date}`),
     // Charger Activity feeds (public). overview = all three at once for first paint.
     getChargerActivityOverview: (limit = 12) => get(`/api/charger-activity/overview?limit=${limit}`),
     getChargerActivityFeed: (feed, { window, limit = 20, offset = 0 } = {}) => {

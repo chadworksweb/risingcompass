@@ -85,7 +85,17 @@
     `;
   }
 
+  // An entry "changed the score" only if tier or charge actually moved. Rubric
+  // passes that re-affirm a song (e.g. dogma-framework tightening that leaves the
+  // number alone) carry an identical before/after and shouldn't show a score.
+  function scoreUnchanged(entry) {
+    const b = entry.before, a = entry.after;
+    if (!b || !a) return false;
+    return b.rubric_color === a.rubric_color && b.charge_value === a.charge_value;
+  }
+
   function diffMarkup(entry) {
+    if (scoreUnchanged(entry)) return '';
     const hasBefore = entry.before && (entry.before.rubric_color || entry.before.charge_value !== null);
     const hasAfter = entry.after && (entry.after.rubric_color || entry.after.charge_value !== null);
     if (!hasBefore && !hasAfter) return '';
@@ -107,6 +117,9 @@
   }
 
   function compactDiff(entry) {
+    // Keep an empty grid cell (the summary is a 5-col grid) so the caret stays
+    // right-aligned, but show no score when nothing moved.
+    if (scoreUnchanged(entry)) return '<span class="cl-row-diff-empty"></span>';
     const hasBefore = entry.before && (entry.before.rubric_color || entry.before.charge_value !== null);
     const hasAfter = entry.after && (entry.after.rubric_color || entry.after.charge_value !== null);
     if (!hasBefore && !hasAfter) return '<span class="cl-row-diff-empty">&mdash;</span>';

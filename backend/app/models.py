@@ -47,9 +47,12 @@ class ReadingSong(Base):
 class ChartSnapshot(Base):
     """Per-chart daily top-N snapshot. Independent of daily_readings.
 
-    Each (date, chart_source) is a self-contained list. Charge values are
-    looked up live against compass_songs at render time — this row stores
-    only the chart's own (title, artist, position).
+    Each (date, chart_source) is a self-contained list. Per-song charge values
+    are looked up live against the unified songs table at render time — the row
+    stores only the chart's own (title, artist, position). The aggregate
+    compass_degree / charge_level for the whole snapshot ARE stored (computed +
+    persisted at approval), so the chart-agnostic Calendar can paint each day
+    its spectrum color without recomputing the aggregate on every read.
     """
     __tablename__ = "chart_snapshots"
 
@@ -59,6 +62,11 @@ class ChartSnapshot(Base):
     position = Column(Integer, nullable=False)
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
+    # Aggregate for the whole (date, chart) snapshot, stamped on every row of the
+    # snapshot at approval (denormalised, equal across the day's rows). Nullable:
+    # fetch-time/unpublished rows have none until the chart draft is approved.
+    compass_degree = Column(Float, nullable=True)
+    charge_level = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     # Approval gate: rows are written unpublished by the scraper/refresh, then
     # flipped to True when the chart draft is approved (agent.approve_draft).

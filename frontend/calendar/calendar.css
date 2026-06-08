@@ -22,6 +22,42 @@
   line-height: 1.5;
 }
 
+/* --- Chart switch (Daily Listens / Daily Downloads / ...) --- */
+.cal-chart-switch {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  padding: 0.25rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+}
+.cal-chart-btn {
+  padding: 0.4rem 0.95rem;
+  border: 0;
+  border-radius: var(--rc-radius-sm, 6px);
+  background: transparent;
+  color: var(--rc-text-dim);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--rc-ease-fast), color var(--rc-ease-fast);
+}
+.cal-chart-btn:hover { color: var(--rc-text-bright); }
+.cal-chart-btn.is-active {
+  background: var(--rc-bg-panel);
+  color: var(--rc-text-bright);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.cal-chart-sub {
+  margin-top: 0.55rem;
+  color: var(--rc-text-dim);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 /* Layout: calendar stage + detail panel side by side; panel drops below on narrow */
 .cal-page-layout {
   display: grid;

@@ -1,0 +1,62 @@
+/* === Standalone chart pages (Daily Listens / Daily Downloads) === */
+
+.chart-page {
+  max-width: var(--rc-max-width);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.chart-page-intro {
+  margin-bottom: 1.5rem;
+}
+.chart-page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  letter-spacing: -0.01em;
+}
+.chart-page-source {
+  margin-top: 0.4rem;
+  color: var(--rc-text-dim);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.chart-page-links {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+.chart-page-links a { color: var(--rc-accent, #00d4aa); text-decoration: none; }
+.chart-page-links a:hover { text-decoration: underline; }
+
+/* Charge readout band -- the chart's aggregate today, colored by tier. */
+.chart-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--rc-radius-md);
+  border: 1px solid var(--rc-border);
+  background: var(--rc-bg-card);
+  border-left: 4px solid var(--c, #888);
+}
+.chart-readout-score {
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--c, #eee);
+}
+.chart-readout-label {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--rc-text-bright);
+}
+.chart-readout-date {
+  margin-left: auto;
+  color: var(--rc-text-dim);
+  font-size: 0.85rem;
+}

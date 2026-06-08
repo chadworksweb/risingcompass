@@ -73,19 +73,22 @@ HISTORICAL_DEGREES = {
 # truth for "what do we call this draft" in emails, approval pages, admin
 # UI. Add a new chart by registering it both here and in CHART_REGISTRY
 # (routers/chart_snapshots.py).
+# Branded names ("for now"). The daily reading (Spotify Top 50 stream chart) is
+# the Daily Listens chart; the iTunes download chart is Daily Downloads. Internal
+# draft_type keys + table names are unchanged -- this is display only.
 DRAFT_TYPE_DISPLAY_NAMES = {
-    "daily": "Daily Reading",
+    "daily": "Daily Listens",
     "manual": "Manual Reading",
-    "spotify_top50_usa": "Spotify Top 50 USA",
-    "itunes_download_usa": "iTunes Download Chart USA",
+    "spotify_top50_usa": "Daily Listens",
+    "itunes_download_usa": "Daily Downloads",
 }
 
 
 def draft_display_name(draft_type) -> str:
-    """Human label for a draft.draft_type. Falls back to 'Daily Reading' for
+    """Human label for a draft.draft_type. Falls back to 'Daily Listens' for
     legacy/null types and to the raw slug for unregistered charts."""
     if not draft_type:
-        return "Daily Reading"
+        return "Daily Listens"
     return DRAFT_TYPE_DISPLAY_NAMES.get(draft_type, draft_type)
 
 

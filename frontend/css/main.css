@@ -602,7 +602,12 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 }
 
 #trajectory-panel {
-  align-self: start;
+  /* Stretch to the compass card's height (grid default) so the collapsed pair
+     is equal-height -- matching what the expanded state already does via its
+     cover min-height. The expand JS captures geometry live and locks the chart
+     area's own height separately, so the taller box adds trailing space below
+     the chart rather than distorting it. */
+  align-self: stretch;
   position: relative;
 }
 
