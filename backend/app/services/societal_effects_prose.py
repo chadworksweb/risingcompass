@@ -1,8 +1,9 @@
 """Per-song societal effects prose generator.
 
-Produces a 2-paragraph (optionally 3) description of what a society running
-this song's program at scale would manifest. Parallel to listener_effects_prose, but
-the unit of analysis is the collective, not the individual listener.
+Produces a 3-paragraph description of what a society running this song's
+program at scale would manifest. Parallel to listener_effects_prose (same hard
+three-paragraph contract), but the unit of analysis is the collective, not the
+individual listener.
 
 Grounded in lyrics + calibration + the Ether Art Chart fields (deadpan_line +
 topics) when available, so the prose can speak directly to "if millions
@@ -55,7 +56,7 @@ TIER_LABELS = {
 }
 
 
-SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" section of a Rising Compass song page. Two short paragraphs (a third is permitted only if the song's lyrics carry sharply mixed signals — see ¶3 rule). The unit of analysis is the collective, not the individual listener. You have the lyrics, the calibration, and (sometimes) the Ether Art Chart fields: a deadpan literal naming of the song and its dominant topic tags. Treat the song as a piece of mass mental programming that millions ingest daily, and write what shows up in a population running that program.
+SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" section of a Rising Compass song page. Three short paragraphs. The unit of analysis is the collective, not the individual listener. You have the lyrics, the calibration, and (sometimes) the Ether Art Chart fields: a deadpan literal naming of the song and its dominant topic tags. Treat the song as a piece of mass mental programming that millions ingest daily, and write what shows up in a population running that program. This is NOT a summary of the song; it is a reading of what the words DO to a culture that takes them in at scale.
 
 ## What you are and are not writing about
 
@@ -96,9 +97,8 @@ SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" 
 
 ## Hard "always" list
 
-- Two paragraphs minimum, three maximum (third only when ¶3 rule fires).
-- One blank line between paragraphs.
-- Each paragraph 2 to 4 sentences. Total under 200 words.
+- Exactly three paragraphs, separated by one blank line. This is three small chunks, not two dense blocks.
+- Each paragraph 2 to 3 sentences. Total under 200 words.
 - Present tense.
 - Third person plural ("a population," "people," "a culture") when speaking about the society. Do NOT use "you" — this section is not addressing the individual reader, it is describing the collective.
 - Plain, direct sentences. Vary length naturally.
@@ -107,10 +107,10 @@ SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" 
 ## Paragraph structure
 
 - ¶1: Name the program at scale. What pattern of attention, what relational template, what civic or communicative default does this song install when millions run it daily? Write the program in operational terms — what people start expecting, what they stop noticing, what becomes the new normal in how they talk, partner, work, grieve, or organize. Ground in what the lyrics actually say. If topics are supplied, weave them in by what they DO socially, not by listing them.
-- ¶2: The symptoms that emerge. Concrete, observable things in a population running this program: which conversations become harder, which conflicts become routine, which kinds of trust erode, which kinds of longing or grievance get magnified, which capacities atrophy, which compensatory behaviors compound. Diagnostic. End flat, no wrap-up. If the calibration is Ascended or Elevated, the symptoms section describes what flourishes, not what rots. If Degraded or Corrupted, describe what rots. If Decent, describe what flatlines.
-- ¶3 (CONDITIONAL — only fire when the lyrics carry sharply mixed signals: tender devotion next to crass objectification, sincere repentance next to flexing, communion language next to contempt, etc.): Name the incoherence in plain language and what it produces at scale. The songwriter could not hold a single posture for three minutes. The listener absorbs that fracture. A culture absorbing fractured programs at scale produces populations who cannot hold a single posture in their own lives, conversations, or commitments. Keep this paragraph to 2 or 3 sentences. Do NOT fire ¶3 just because a song has emotional range; fire it only when the postures are in actual moral tension with each other and the song never resolves them.
+- ¶2: The symptoms that emerge. Concrete, observable things in a population running this program: which conversations become harder, which conflicts become routine, which kinds of trust erode, which kinds of longing or grievance get magnified, which capacities atrophy, which compensatory behaviors compound. Diagnostic. If the calibration is Ascended or Elevated, the symptoms section describes what flourishes, not what rots. If Degraded or Corrupted, describe what rots. If Decent, describe what flatlines.
+- ¶3: Where it lands. Which subpopulations, institutions, or generations absorb this program hardest, and which it leaves untouched. If the lyrics are contaminated, name what contaminates them in one plain clause and what that does at scale. If the lyrics carry sharply mixed signals (tender devotion next to crass objectification, sincere repentance next to flexing, communion language next to contempt), name the fracture a culture absorbs when it runs a program that cannot hold a single posture for three minutes: a population that cannot hold a single posture in its own conversations, partnerships, or commitments. When the postures are coherent, skip the fracture and stay on who absorbs it hardest and what compounds as the program runs across the population over time. End flat, no wrap-up.
 
-Output ONLY the paragraphs. No preamble, no sign-off, no quotes, no labels on the paragraphs."""
+Output ONLY the three paragraphs. No preamble, no sign-off, no quotes, no labels on the paragraphs."""
 
 
 def generate_societal_effects_prose(
@@ -182,7 +182,7 @@ def generate_societal_effects_prose(
         if len(trimmed) > 4000:
             trimmed = trimmed[:4000] + "\n... [truncated]"
         user_parts.append(f"\nLyrics:\n{trimmed}")
-    user_parts.append("\nWrite the paragraphs now.")
+    user_parts.append("\nWrite the three paragraphs now.")
 
     user_prompt = "\n".join(user_parts)
 
