@@ -41,17 +41,17 @@ CHART_SOURCE_TO_CHART_SLUG = {
     "billboard_yearend_2025": "billboard_yearend_hot100",
     "billboard_200": "billboard_200",
     "spotify_top50_usa": "spotify_top50_usa",
-    "spotify_viral50_usa": "spotify_viral50_usa",
+    "itunes_download_usa": "itunes_download_usa",
     "spotify_global_daily": "spotify_global_daily",
     "spotify": "spotify",
 }
 NON_CHART_SOURCES = {"manual", "backfill_console"}
 
 # Chart slugs whose appearances count toward the compass charge + year/decade
-# aggregates -- the unified-model equivalent of CHART_SOURCES. Mirrors the old
-# set: everything except the Spotify Viral 50 (a side snapshot chart, never part
-# of the main compass charge). Songs can still chart on viral50 (it's a real
-# chart) without polluting the aggregate.
+# aggregates -- the unified-model equivalent of CHART_SOURCES. Everything except
+# the secondary-panel snapshot chart (the iTunes Download Chart): a side
+# snapshot, never part of the main compass charge. Songs can still chart on it
+# (a real chart) without polluting the aggregate.
 AGGREGATING_CHART_SLUGS = {
     "billboard_yearend_hot100", "billboard_200", "spotify",
     "spotify_top50_usa", "spotify_global_daily",
@@ -77,7 +77,7 @@ DRAFT_TYPE_DISPLAY_NAMES = {
     "daily": "Daily Reading",
     "manual": "Manual Reading",
     "spotify_top50_usa": "Spotify Top 50 USA",
-    "spotify_viral50_usa": "Spotify Viral 50 USA",
+    "itunes_download_usa": "iTunes Download Chart USA",
 }
 
 
@@ -90,7 +90,7 @@ def draft_display_name(draft_type) -> str:
 
 
 def is_chart_draft_type(draft_type) -> bool:
-    """True if this draft_type names a chart-snapshot (Viral 50, etc.) rather
+    """True if this draft_type names a chart-snapshot (iTunes chart, etc.) rather
     than the canonical daily/manual reading. Used by every cleanup, approval,
     and naming branch that must not treat chart drafts the same as readings.
     """

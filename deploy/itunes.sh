@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# Weekly Spotify Viral 50 chart refresh -- runs Monday 09:00 UTC (after the
-# daily reading at 08:00, so the Top 50 overlap is already calibrated -> free
-# cache hits). Calls /api/admin/agent/cron/refresh-chart-snapshot/viral with
-# X-Reading-Cron-Key (same service token as the daily reading).
+# Daily secondary-chart refresh (iTunes Download Chart - USA, top 20) -- runs
+# daily after the 08:00 UTC daily reading, so any Spotify Top 50 overlap is
+# already calibrated -> free cache hits. Calls
+# /api/admin/agent/cron/refresh-chart-snapshot/itunes with X-Reading-Cron-Key
+# (same service token as the daily reading).
 #
-# Backend scrapes the Viral 50, writes an UNPUBLISHED snapshot, creates a draft,
-# auto-calibrates cache hits, and emails Chad the list of songs still awaiting
-# lyrics. Chad supplies lyrics manually (calibrate_song.py) then clicks Approve
-# in the email -- approval is what PUBLISHES the chart to the homepage panel.
-# Nothing goes public until then. The fetch is the only automated step.
+# Backend pulls the iTunes RSS feed, writes an UNPUBLISHED snapshot, creates a
+# draft, auto-calibrates cache hits, and emails Chad the list of songs still
+# awaiting lyrics. Chad supplies lyrics manually (calibrate_song.py) then clicks
+# Approve in the email -- approval is what PUBLISHES the chart to the homepage
+# panel. Nothing goes public until then. The fetch is the only automated step.
 #
-# Mirrors reading.sh: on success appends '[date] {response JSON}' to viral.log;
+# Mirrors reading.sh: on success appends '[date] {response JSON}' to itunes.log;
 # on failure appends '[date] FAILED ...' and fires the backup-config alert.
 set -o pipefail
 source /root/backup-config.sh
 
-PROJECT="Rising Compass Viral 50"
-ENDPOINT="http://rc-backend:8000/api/admin/agent/cron/refresh-chart-snapshot/viral"
+PROJECT="Rising Compass iTunes Download Chart"
+ENDPOINT="http://rc-backend:8000/api/admin/agent/cron/refresh-chart-snapshot/itunes"
 
 RC_READING_CRON_KEY=$(grep -E '^RC_READING_CRON_KEY=' /root/rising-compass/.env | cut -d= -f2-)
 if [ -z "$RC_READING_CRON_KEY" ]; then
@@ -27,8 +28,8 @@ fi
 
 # -w writes 'HTTP_STATUS:NNN' on its own line after the body so we can
 # split status from body even when curl --fail isn't used. 600s max-time:
-# the Playwright scrape can take 15-30s and the cache-hit calibration loop
-# adds more.
+# the RSS fetch is near-instant, but the cache-hit calibration loop can add
+# real time.
 RESPONSE=$(docker run --rm --network le-proxy curlimages/curl:8.10.1     -sS --max-time 600 -X POST     -H "X-Reading-Cron-Key: $RC_READING_CRON_KEY"     -w '\nHTTP_STATUS:%{http_code}\n'     "$ENDPOINT" 2>&1)
 CURL_EXIT=$?
 

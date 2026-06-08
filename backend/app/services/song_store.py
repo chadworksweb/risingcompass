@@ -2,8 +2,8 @@
 
 The single place the read paths reach the unified `songs` + `chart_appearances`
 model. "Charting" is a derived role: a song with >=1 appearance on an
-AGGREGATING chart (the CHART_SOURCES equivalent -- excludes the Viral 50 side
-snapshot, matching legacy behavior). The historical year/decade aggregates read
+AGGREGATING chart (the CHART_SOURCES equivalent -- excludes the iTunes Download
+Chart side snapshot, matching legacy behavior). The historical year/decade aggregates read
 appearances (one per former compass_songs charting row); the live-year path
 stays on DailyReading/ReadingSong but resolves the song via ReadingSong.song_id.
 

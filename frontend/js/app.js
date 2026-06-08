@@ -141,11 +141,11 @@ const App = (() => {
         EtherArtChart.render();
       }
 
-      // Spotify Viral 50 panel — live weekly snapshot. The scraper feeds the
-      // song list; lyrics are supplied manually each week (weekly viral SOP),
-      // so the panel fills in as the chart's songs get calibrated. Stays
-      // hidden until the first snapshot is fed (404 = no run yet).
-      renderViralPanel();
+      // iTunes Download Chart panel — live daily snapshot. The RSS feed supplies
+      // the song list; lyrics are supplied manually (secondary-chart SOP), so the
+      // panel fills in as the chart's songs get calibrated. Stays hidden until
+      // the first snapshot is fed (404 = no run yet).
+      renderItunesPanel();
 
     } catch (err) {
       console.error('Failed to load compass data:', err);
@@ -154,10 +154,10 @@ const App = (() => {
     }
   }
 
-  // Locked-chart placeholder used by both the album and viral panels while
-  // they're paused (no Musixmatch wiring → manual lyrics supply isn't
-  // sustainable). Renders a blurred 10-row song-list under an
-  // "Under Development" overlay. Container CSS supplies the 2-col grid.
+  // Locked-chart placeholder used by the album panel while it's paused (no
+  // Musixmatch wiring → manual lyrics supply isn't sustainable). Renders a
+  // blurred 10-row song-list under an "Under Development" overlay. Container
+  // CSS supplies the 2-col grid.
   function renderLockedChartPanel(panelId, contentId) {
     const panel = document.getElementById(panelId);
     const container = document.getElementById(contentId);
@@ -187,34 +187,83 @@ const App = (() => {
     `;
   }
 
-  // Spotify Viral 50 — live snapshot panel. Reads the most-recent fed
-  // snapshot (/api/compass/chart/viral/current) and renders the same song-list
-  // markup as the daily reading. Hidden entirely until the first weekly run is
-  // fed (the endpoint 404s with no snapshot), so it only appears once populated.
-  // Chart snapshots carry no MEI fields, so the tooltip surfaces charge summary
-  // + contamination only. Uncalibrated chart rows render as neutral dots with
-  // no song-page link until their lyrics are supplied.
-  async function renderViralPanel() {
-    const panel = document.getElementById('viral-reading-panel');
-    const container = document.getElementById('viral-reading-content');
+  // One ether/deadpan row for the iTunes right panel. Mirrors
+  // EtherArtChart.rowHtml line-for-line (same .ether-* markup + forward-only
+  // "untagged" fallback) so the iTunes deadpan chart reads identically to the
+  // Daily reading's Ether Art Chart. Calibrated rows carry deadpan_line +
+  // dominant_topic from the song row; uncalibrated rows fall back to the title.
+  function itunesEtherRow(item) {
+    const tierHex = COLOR_HEX[item.rubric_color] || 'transparent';
+    const tickStyle = `border-left:9px solid ${tierHex};`;
+    const songHref = (item.song_slug && item.rubric_color) ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
+
+    if (!item.deadpan_line) {
+      const titleHtml = songHref
+        ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
+        : `<span class="ether-title-link">${escapeHtml(item.title)}</span>`;
+      return `
+        <li class="ether-row ether-row--untagged" style="${tickStyle}">
+          <span class="ether-pos">${item.position}</span>
+          <div class="ether-text">
+            <div class="ether-deadpan">${titleHtml}</div>
+            <div class="ether-meta">${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')} <span class="ether-untagged-pill">untagged</span></div>
+          </div>
+        </li>`;
+    }
+
+    const titleHtml = songHref
+      ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
+      : escapeHtml(item.title);
+    const topicHtml = item.dominant_topic
+      ? `<span class="ether-meta-sep">·</span><span class="ether-chip">${escapeHtml(String(item.dominant_topic).replace(/-/g, ' '))}</span>`
+      : '';
+    return `
+      <li class="ether-row" style="${tickStyle}">
+        <span class="ether-pos">${item.position}</span>
+        <div class="ether-text">
+          <div class="ether-deadpan">${escapeHtml(item.deadpan_line)}</div>
+          <div class="ether-meta">
+            <span class="ether-meta-title">${titleHtml}</span>
+            <span class="ether-meta-sep">·</span>
+            ${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')}
+            ${topicHtml}
+          </div>
+        </div>
+      </li>`;
+  }
+
+  // iTunes Download Chart — live snapshot row (the secondary-chart slot),
+  // laid out exactly like the Daily reading row: the chart (left) + its Ether
+  // Art Chart deadpan/topic lens (right), both fed by one snapshot fetch
+  // (/api/compass/chart/itunes/current). Hidden entirely until the first daily
+  // run is fed (the endpoint 404s with no snapshot), so the pair only appears
+  // once populated. Uncalibrated rows render neutral / "untagged" until lyrics
+  // are supplied.
+  async function renderItunesPanel() {
+    const panel = document.getElementById('itunes-reading-panel');
+    const container = document.getElementById('itunes-reading-content');
+    const etherPanel = document.getElementById('itunes-ether-panel');
+    const etherContainer = document.getElementById('itunes-ether-content');
     if (!panel || !container) return;
+    const hideBoth = () => { panel.style.display = 'none'; if (etherPanel) etherPanel.style.display = 'none'; };
 
     let data;
     try {
-      data = await API.getChartSnapshot('viral');
+      data = await API.getChartSnapshot('itunes');
     } catch (err) {
-      panel.style.display = 'none';  // no snapshot fed yet — leave the panel out
+      hideBoth();  // no snapshot fed yet — leave the pair out
       return;
     }
 
     const songs = (data.songs || []).slice().sort((a, b) => a.position - b.position);
-    if (!songs.length) { panel.style.display = 'none'; return; }
+    if (!songs.length) { hideBoth(); return; }
     panel.style.display = '';
+    if (etherPanel) etherPanel.style.display = '';
 
     const header = panel.querySelector('.card-header');
     if (header && data.label) header.textContent = data.label;
     const desc = panel.querySelector('.card-desc');
-    if (desc) desc.textContent = `Spotify's most-shared songs, read through the same compass. Updated ${formatDate(data.date)}.`;
+    if (desc) desc.textContent = `iTunes' top-selling songs, read through the same compass. Updated ${formatDate(data.date)}.`;
 
     let html = '<ul class="song-list">';
     songs.forEach(song => {
@@ -257,6 +306,12 @@ const App = (() => {
     html += '</ul>';
 
     crossfade(container, html, () => initSongTooltips(container));
+
+    // Right panel: the same songs through the deadpan + topic lens.
+    if (etherPanel && etherContainer) {
+      const etherHtml = `<ol class="ether-list">${songs.map(itunesEtherRow).join('')}</ol>`;
+      crossfade(etherContainer, etherHtml);
+    }
   }
 
   function renderReading(data) {

@@ -40,6 +40,11 @@ class ReadingSongOut(BaseModel):
     instrumental: bool = False
     song_slug: Optional[str] = None
     artist_slug: Optional[str] = None
+    # Ether/deadpan lens (populated for chart-snapshot rows so the secondary
+    # panel can render the same deadpan + topic view as the Ether Art Chart;
+    # null for daily-reading rows, which carry their ether view via /api/ether).
+    deadpan_line: Optional[str] = None
+    dominant_topic: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

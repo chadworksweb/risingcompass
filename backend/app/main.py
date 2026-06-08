@@ -34,7 +34,7 @@ def _cleanup_orphan_drafts():
     orphan drafts can linger. This runs once at startup as a safety net.
 
     Filtered to daily/manual draft types only — chart-snapshot drafts
-    (Viral 50, etc.) live alongside the daily reading on the same date and
+    (iTunes chart, etc.) live alongside the daily reading on the same date and
     are not orphaned by the existence of a DailyReading.
     """
     db = SessionLocal()

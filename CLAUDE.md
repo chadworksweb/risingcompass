@@ -422,13 +422,16 @@ partial then run `scripts/build_partials.py` to bake into all pages. The
 `/artists/` A-Z index was also aligned to `--rc-max-width` (was a stray 900px
 centered column) with button-style letter nav, group cards, and smooth scroll.
 
-## Chart snapshots: Spotify Viral 50 (homepage panel, LIVE 2026-06-07)
+## Chart snapshots: iTunes Download Chart (homepage panel, LIVE 2026-06-07)
 
 A secondary chart panel on the homepage, separate from the daily reading.
-Mechanism in `routers/chart_snapshots.py` (`CHART_REGISTRY` -- `viral` +
-`top50`); fetchers in `services/agents/chart_source.py` (Playwright scrape of the
-Spotify playlist). **Lyrics are supplied manually each week** -- the only manual
-step; everything else mirrors the daily reading SOP.
+Originally the Spotify Viral 50, but Spotify retired its Viral 50 charts in May
+2026 (the playlist 404s), so the slot was reskinned to the **iTunes Download
+Chart - USA (top 20, daily)**. Mechanism in `routers/chart_snapshots.py`
+(`CHART_REGISTRY` -- `itunes` + `top50`); fetcher in
+`services/agents/chart_source.py` (`fetch_itunes_songs`, a plain HTTP GET against
+Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
+-- the only manual step; everything else mirrors the daily reading SOP.
 
 - **Approve-before-public gate (`chart_snapshots.published`, migration 094).**
   Snapshot rows are written UNPUBLISHED at fetch time. The public endpoint
@@ -445,22 +448,23 @@ step; everything else mirrors the daily reading SOP.
   `_chart_slug_from_ref`; `_published_reading_for_ref` guarded so a chart ref
   never mis-resolves to the same-date daily reading); `refresh_snapshot` no-ops
   if today's chart is already published (chart approval deletes the draft, so
-  draft-pinning alone couldn't guard a re-trigger from un-publishing). Viral 50
-  is excluded from the compass charge + drift aggregates (`AGGREGATING_CHART_SLUGS`
-  in `constants.py`) and never creates a `DailyReading`.
-- **Frontend:** `renderViralPanel()` in `frontend/js/app.js` renders the live
+  draft-pinning alone couldn't guard a re-trigger from un-publishing). The iTunes
+  Download Chart is excluded from the compass charge + drift aggregates
+  (`AGGREGATING_CHART_SLUGS` in `constants.py`) and never creates a `DailyReading`.
+- **Frontend:** `renderItunesPanel()` in `frontend/js/app.js` renders the live
   published snapshot (hidden on 404). Song-page links render only once a row is
   calibrated.
-- **Weekly fetch cron (server, le-projects-01):**
-  `/root/risingcompass-readings/viral.sh` (reference copy `deploy/viral.sh`) runs
-  **Monday 09:00 UTC** -- after the daily reading at 08:00, so Top 50 overlap is
-  already calibrated (free cache hits). Hits `POST /api/admin/agent/cron/
-  refresh-chart-snapshot/viral` with `X-Reading-Cron-Key` (same `RC_READING_CRON_KEY`
-  as the daily reading). Mirrors `reading.sh`: scrape -> unpublished snapshot +
-  draft -> auto-calibrate cache hits -> email Chad the awaiting-lyrics list.
-- **Weekly SOP:** cron fires (or trigger manually) -> Chad supplies lyrics for
+- **Daily fetch cron (server, le-projects-01):**
+  `/root/risingcompass-readings/itunes.sh` (reference copy `deploy/itunes.sh`)
+  runs **daily** after the daily reading at 08:00 UTC, so any Spotify Top 50
+  overlap is already calibrated (free cache hits). Hits `POST /api/admin/agent/
+  cron/refresh-chart-snapshot/itunes` with `X-Reading-Cron-Key` (same
+  `RC_READING_CRON_KEY` as the daily reading). Mirrors `reading.sh`: RSS fetch ->
+  unpublished snapshot + draft -> auto-calibrate cache hits -> email Chad the
+  awaiting-lyrics list.
+- **Daily SOP:** cron fires (or trigger manually) -> Chad supplies lyrics for
   fresh songs (`scripts/calibrate_song.py`, lyrics from `Dropbox/Debug/dd.txt`)
-  -> click Approve in the email -> panel publishes. Labor = Viral 50 songs not
+  -> click Approve in the email -> panel publishes. Labor = iTunes chart songs not
   already in the library (cache hits are free).
 
 ## General Inquiry form

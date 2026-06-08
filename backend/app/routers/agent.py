@@ -60,7 +60,7 @@ def _resolve_draft(draft_ref: str, db: Session) -> AgentDraft:
 
 def _chart_slug_from_ref(draft_ref: str) -> str | None:
     """If draft_ref is a chart-snapshot draft label (e.g.
-    spotify_viral50_usa_2026-06-07_draft), return its chart_source slug, else
+    itunes_download_usa_2026-06-07_draft), return its chart_source slug, else
     None. Chart slugs are the registered is_chart draft types. Longest-first so
     a longer slug can't be shadowed by a shorter prefix."""
     chart_slugs = [dt for dt in DRAFT_TYPE_DISPLAY_NAMES if is_chart_draft_type(dt)]
@@ -230,7 +230,7 @@ def _cleanup_day_drafts(reading_date, draft_type, db: Session) -> int:
     """Delete drafts of a given (date, draft_type) and their songs.
 
     Filtered by draft_type so approving the daily reading doesn't nuke a
-    same-day chart-snapshot draft (Viral 50, etc.) that's still being
+    same-day chart-snapshot draft (iTunes chart, etc.) that's still being
     worked on.
     """
     drafts = (
@@ -556,7 +556,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     """Approve a draft.
 
     Daily/manual drafts publish a DailyReading + ReadingSongs.
-    Chart-snapshot drafts (Viral 50, etc.) only mark the draft approved —
+    Chart-snapshot drafts (iTunes chart, etc.) only mark the draft approved —
     their user-visible payload (chart_snapshots row positions and
     compass_songs entries) is already written by the cron + supply-lyrics
     flow. The draft is just the email-and-lyrics-paste vehicle.
@@ -606,11 +606,11 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
             )
             db.add(rs)
     else:
-        # Chart-snapshot publish path (Viral 50, etc.). Rebuild the public
+        # Chart-snapshot publish path (iTunes chart, etc.). Rebuild the public
         # snapshot FROM the approved draft songs (mirrors the daily path
         # building ReadingSong from draft.songs), published=True -- so any admin
         # edits to the draft are reflected and "published == approved" holds.
-        # draft.draft_type IS the chart_source slug (e.g. spotify_viral50_usa).
+        # draft.draft_type IS the chart_source slug (e.g. itunes_download_usa).
         # Approval already blocked above if any song still needed lyrics, so
         # every published row is guaranteed calibrated. The provisional,
         # unpublished fetch-time rows for this (date, chart) are replaced here.
@@ -637,7 +637,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     response = DraftOut.model_validate(draft)
 
     # Cleanup: only nuke drafts of the SAME type so a daily approval
-    # doesn't kill a same-day Viral 50 draft and vice versa.
+    # doesn't kill a same-day iTunes chart draft and vice versa.
     _cleanup_day_drafts(draft.date, draft.draft_type, db)
 
     return response

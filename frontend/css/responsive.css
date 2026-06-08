@@ -31,15 +31,21 @@
   #reading-panel,
   #ether-art-chart-panel,
   #album-reading-panel,
-  #viral-reading-panel {
+  #itunes-reading-panel,
+  #itunes-ether-panel {
     grid-column: span 1 !important;
   }
 
-  /* Locked panels (album + viral): collapse the 2-col grid back to a
-     single column on phones. */
-  #album-reading-content .song-list,
-  #viral-reading-content .song-list {
+  /* Album panel: collapse its 2-col song grid back to a single column on
+     phones. */
+  #album-reading-content .song-list {
     grid-template-columns: 1fr;
+  }
+
+  /* Let the iTunes Ether Art Chart subtext wrap again on phones (desktop
+     pins it to one line). */
+  #itunes-ether-panel .card-desc {
+    white-space: normal;
   }
 
   .site-title {

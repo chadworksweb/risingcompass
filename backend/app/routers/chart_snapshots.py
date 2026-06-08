@@ -3,8 +3,8 @@
 The canonical daily reading flows through compass.py + agent.py and gets
 its own DailyReading record + approval flow. This router is the lighter
 "show today's chart top 20 as a panel" mechanism for secondary charts
-(Spotify Viral 50 today; Apple Music / Billboard / etc. later). Charge
-values come from compass_songs via case-insensitive lookup.
+(iTunes Download Chart today; Apple Music / Billboard / etc. later). Charge
+values come from the unified songs table via case-insensitive lookup.
 
 Adding a new chart = register one entry in CHART_REGISTRY plus a fetcher
 in services/agents/chart_source.py. No schema change.
@@ -23,6 +23,7 @@ visible work).
 """
 
 import asyncio
+import json
 import logging
 from datetime import date
 from typing import Callable
@@ -36,7 +37,7 @@ from app.auth import verify_reading_cron_key
 from app.database import SessionLocal, get_db
 from app.models import AgentDraft, ChartSnapshot, Song
 from app.schemas import ReadingSongOut
-from app.services.agents.chart_source import fetch_top_songs, fetch_viral_songs
+from app.services.agents.chart_source import fetch_itunes_songs, fetch_top_songs
 from app.services.agents.compass_agent import run_compass_agent
 from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
 from app.services.song_store import find_song_by_title_artist
@@ -45,10 +46,13 @@ logger = logging.getLogger(__name__)
 
 
 CHART_REGISTRY: dict[str, dict] = {
-    "viral": {
-        "slug": "spotify_viral50_usa",
-        "label": "Spotify Viral 50 — USA",
-        "fetcher": fetch_viral_songs,
+    # iTunes Download Chart - USA: the secondary homepage panel, refreshed daily.
+    # The key is the slot's wiring handle (cron URL, public endpoint key,
+    # frontend element ids).
+    "itunes": {
+        "slug": "itunes_download_usa",
+        "label": "iTunes Download Chart — USA",
+        "fetcher": fetch_itunes_songs,
     },
     "top50": {
         "slug": "spotify_top50_usa",
@@ -63,6 +67,22 @@ class ChartSnapshotOut(BaseModel):
     label: str
     date: date
     songs: list[ReadingSongOut]
+
+
+def _dominant_topic(song: Song | None) -> str | None:
+    """First taxonomy slug off the song's JSON-encoded topics list, mirroring
+    the Ether Art Chart's `topics[0]` rule."""
+    if not song or not song.topics:
+        return None
+    try:
+        parsed = json.loads(song.topics)
+    except (TypeError, ValueError):
+        return None
+    if isinstance(parsed, list):
+        for t in parsed:
+            if isinstance(t, str):
+                return t
+    return None
 
 
 def _build_song(snap: ChartSnapshot, song: Song | None, artist_slug: str | None = None) -> ReadingSongOut:
@@ -80,6 +100,8 @@ def _build_song(snap: ChartSnapshot, song: Song | None, artist_slug: str | None 
         instrumental=bool(song.instrumental) if song else False,
         song_slug=generate_song_slug(snap.title, snap.artist),
         artist_slug=artist_slug,
+        deadpan_line=song.deadpan_line if song else None,
+        dominant_topic=_dominant_topic(song),
     )
 
 

@@ -480,8 +480,8 @@
 
     <!-- ROW 2 LEFT: Daily Top 20 Songs -->
     <!-- ROW 2 RIGHT: The Ether Art Chart — same 20 songs, deadpan + topic lens -->
+    <!-- ROW 2.5 LEFT: iTunes Download Chart | RIGHT: its Ether Art Chart (deadpan + topic) -->
     <!-- ROW 3: Weekly Top 10 Albums (full width) -->
-    <!-- ROW 4: Spotify Viral 50 USA — second song panel (full width) -->
 
     <div class="card" id="reading-panel">
       <div class="card-header">Daily Top 20 Songs</div>
@@ -503,12 +503,7 @@
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
     </div>
-    <div class="card" id="album-reading-panel" style="display:none;">
-      <div class="card-header">Weekly Top 10 Albums</div>
-      <p class="card-desc">This week's most-heard albums, individually charged.</p>
-      <div id="album-reading-content"></div>
-    </div>
-    <!-- ROW 3.5: Support callout (full width) — between Albums and Viral -->
+    <!-- ROW 3 (full width) — between the Daily reading and the iTunes chart -->
     <!-- INCLUDE:support-callout -->
 <!-- Support callout - global, portable donation band.
      Drop into any page by adding an empty INCLUDE block named support-callout
@@ -566,11 +561,22 @@
 </section>
 <script defer src="/js/support.js"></script>
 <!-- /INCLUDE:support-callout -->
-
-    <div class="card" id="viral-reading-panel" style="display:none;">
-      <div class="card-header">Spotify Viral 50 — USA</div>
-      <p class="card-desc">Today's most-shared songs on Spotify, individually charged. A second source through the same compass.</p>
-      <div id="viral-reading-content"></div>
+    <!-- ROW 2.5 LEFT: iTunes Download Chart (mirrors the Daily reading layout) -->
+    <!-- ROW 2.5 RIGHT: The Ether Art Chart — same iTunes 20, deadpan + topic lens -->
+    <div class="card" id="itunes-reading-panel" style="display:none;">
+      <div class="card-header">iTunes Download Chart — USA</div>
+      <p class="card-desc">Today's top-selling songs on iTunes, individually charged. A second source through the same compass.</p>
+      <div id="itunes-reading-content"></div>
+    </div>
+    <div class="card" id="itunes-ether-panel" style="display:none;">
+      <div class="card-header">The Ether Art Chart</div>
+      <p class="card-desc">The same iTunes top 20, named for what the lyrics really say.</p>
+      <div id="itunes-ether-content"></div>
+    </div>
+    <div class="card" id="album-reading-panel" style="display:none;">
+      <div class="card-header">Weekly Top 10 Albums</div>
+      <p class="card-desc">This week's most-heard albums, individually charged.</p>
+      <div id="album-reading-content"></div>
     </div>
   </main>
 

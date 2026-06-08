@@ -1,20 +1,27 @@
-"""Spotify playlist scrapers via Playwright.
+"""Chart fetchers for the daily reading + the secondary homepage panel.
 
-Two charts in use:
-  - Top 50 - USA   → 37i9dQZEVXbLRQDuF5jeBp  (the canonical daily reading source)
-  - Viral 50 - USA → 37i9dQZEVXbKuaTI1Z1Afx  (TikTok-correlated proxy, second panel)
-
-Both share the same playlist DOM, so one parser handles both.
+Two sources, two mechanisms:
+  - Spotify Top 50 - USA (37i9dQZEVXbLRQDuF5jeBp) -- the canonical daily reading
+    source. Scraped from the playlist DOM via Playwright (fetch_top_songs).
+  - iTunes Download Chart - USA -- the secondary-panel source
+    (fetch_itunes_songs). Pulled from Apple's public RSS JSON feed (no browser,
+    no DOM, no key), so the secondary panel needs no Playwright at all.
 """
 
 import logging
 
+import httpx
 from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
 TOP50_USA_URL = "https://open.spotify.com/playlist/37i9dQZEVXbLRQDuF5jeBp"
-VIRAL50_USA_URL = "https://open.spotify.com/playlist/37i9dQZEVXbKuaTI1Z1Afx"
+
+# Apple's public download-chart RSS feed (Apple's path name for it is "topsongs").
+# {limit} is templated in. Returns JSON: feed.entry[] ordered by rank, each with
+# im:name / im:artist.
+ITUNES_DOWNLOAD_FEED = "https://itunes.apple.com/us/rss/topsongs/limit={limit}/json"
+USER_AGENT = "RisingCompass/1.0 (https://risingcompass.net)"
 
 
 def _parse_rows(rows, count: int, chart_source: str) -> list[dict]:
@@ -90,6 +97,54 @@ def fetch_top_songs(count: int = 20, _retries: int = 3) -> list[dict]:
     return _fetch_playlist(TOP50_USA_URL, "spotify_top50_usa", count, _retries)
 
 
-def fetch_viral_songs(count: int = 20, _retries: int = 3) -> list[dict]:
-    """Spotify Viral 50 - USA. Source for the second-panel snapshot."""
-    return _fetch_playlist(VIRAL50_USA_URL, "spotify_viral50_usa", count, _retries)
+def fetch_itunes_songs(count: int = 20, _retries: int = 3) -> list[dict]:
+    """iTunes Download Chart - USA. Source for the secondary homepage panel.
+    Reads Apple's public RSS JSON feed -- no browser, no key.
+
+    Rank is the feed order (the feed carries no explicit position field). Returns
+    up to `count` songs, or [] if every attempt fails (the caller 502s on empty).
+    """
+    chart_source = "itunes_download_usa"
+    url = ITUNES_DOWNLOAD_FEED.format(limit=count)
+    songs: list[dict] = []
+
+    for attempt in range(1, _retries + 1):
+        try:
+            resp = httpx.get(
+                url,
+                headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+                timeout=20,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            entries = (resp.json().get("feed") or {}).get("entry") or []
+            # Apple returns a bare object (not a list) when the feed has one entry.
+            if isinstance(entries, dict):
+                entries = [entries]
+
+            songs = []
+            for pos, entry in enumerate(entries[:count], start=1):
+                title = ((entry.get("im:name") or {}).get("label") or "").strip()
+                artist = ((entry.get("im:artist") or {}).get("label") or "Unknown").strip()
+                if not title:
+                    continue
+                songs.append({
+                    "title": title,
+                    "artist": artist or "Unknown",
+                    "position": pos,
+                    "chart_source": chart_source,
+                })
+
+            if songs:
+                logger.info("Fetched %d songs from %s", len(songs), chart_source)
+                return songs
+
+            logger.warning(
+                "Attempt %d/%d: %s feed returned no usable entries, retrying...",
+                attempt, _retries, chart_source,
+            )
+        except Exception:
+            logger.exception("Attempt %d/%d: %s fetch failed", attempt, _retries, chart_source)
+
+    logger.error("All %d attempts failed for %s (last got %d)", _retries, chart_source, len(songs))
+    return songs

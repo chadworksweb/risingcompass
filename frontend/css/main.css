@@ -404,16 +404,21 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 }
 
 /* Row 2 splits: Daily Top 20 Songs (left, 42%) | Ether Art Chart (right, 1fr).
-   Row 3 (albums) spans full width.
-   Row 4 (Spotify Viral 50 USA) spans full width. */
-#album-reading-panel,
-#viral-reading-panel {
+   Row 2.5 mirrors it: iTunes Download Chart (left, 42%) | its Ether Art Chart
+   (right, 1fr). Row 3 (albums) spans full width. */
+#album-reading-panel {
   grid-column: 1 / -1;
 }
 
-#ether-art-chart-panel {
+#ether-art-chart-panel,
+#itunes-ether-panel {
   display: flex;
   flex-direction: column;
+}
+/* Keep the iTunes Ether Art Chart subtext on a single line on desktop
+   (restored to wrapping on mobile in responsive.css). */
+#itunes-ether-panel .card-desc {
+  white-space: nowrap;
 }
 /* Content area grows to fill the panel so years with fewer than 20 songs
    (historical backfills like 1996 — 11 rows) leave breathing room before
@@ -570,11 +575,11 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   font-size: 0.86rem;
 }
 
-/* Locked-chart panels (album + viral) render a 2-column placeholder grid
-   under an "Under Development" overlay. Both share the same lockdown
-   styling so they read as a coherent paused-feature set. */
-#album-reading-content .song-list,
-#viral-reading-content .song-list {
+/* Two-column song grid: the album panel's locked placeholder lays its
+   song-list out in two columns (it spans full width). The iTunes chart now
+   sits in the narrow 42% left column, so it stays single-column like the
+   Daily Top 20. */
+#album-reading-content .song-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem 1rem;
@@ -3106,7 +3111,7 @@ td.yo-charge {
   }
 }
 
-/* === Support callout (homepage donation band, between Albums and Viral) === */
+/* === Support callout (homepage donation band, between Albums and iTunes chart) === */
 .support-callout {
   grid-column: 1 / -1;
   background:
