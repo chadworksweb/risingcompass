@@ -745,15 +745,22 @@
     if (!activeProposal) return;
     const summary = $('prop-public-summary').value.trim();
     const internal = $('prop-internal-notes').value.trim();
+    const lyrics = $('ru-lyrics').value.trim();
     if (summary.length < 20) return showErr('prop-error', 'A public-facing story is required (20+ chars).');
+    // Lyrics are needed to rewrite the listener + societal prose to the new
+    // reading. They should still be in the box from the run; if cleared, repaste.
+    if (lyrics.length < 20) return showErr('prop-error', 'Lyrics are required to rewrite prose on apply. Re-paste the lyrics above.');
 
     $('prop-error').style.display = 'none';
     $('prop-accept').disabled = true;
     $('prop-reject').disabled = true;
+    const acceptLabel = $('prop-accept').textContent;
+    $('prop-accept').textContent = 'Applying + rewriting prose (30-60s)...';
     try {
       const result = await api('POST', `/api/admin/recalibrations/${activeProposal.id}/accept`, {
         public_summary: summary,
         internal_notes: internal || null,
+        lyrics: lyrics,
       });
       const afterLabel = (TIER_LABELS[result.after.color] || result.after.color || '').toLowerCase();
       const chgStr = `${result.after.charge >= 0 ? '+' : ''}${result.after.charge}`;
@@ -761,7 +768,11 @@
       const linkHtml = slug
         ? ` <a href="https://risingcompass.net/songs/${encodeURIComponent(slug)}" target="_blank" rel="noopener" style="color:var(--accent-strong);font-weight:600;">View song &rarr;</a>`
         : '';
-      $('prop-success').innerHTML = `Applied. Audit row #${result.audit_id}. Song now ${afterLabel} (${chgStr}).${linkHtml}`;
+      const pr = result.prose_rewritten || {};
+      const proseNote = (pr.listener || pr.societal)
+        ? ` Prose rewritten (${[pr.listener && 'listener', pr.societal && 'societal'].filter(Boolean).join(' + ')}).`
+        : ' Note: prose was NOT rewritten — regenerate manually if needed.';
+      $('prop-success').innerHTML = `Applied. Audit row #${result.audit_id}. Song now ${afterLabel} (${chgStr}).${proseNote}${linkHtml}`;
       $('prop-success').style.display = '';
       // Proposal resolved — hide action buttons so they can't be re-clicked.
       $('prop-accept').style.display = 'none';
@@ -772,6 +783,7 @@
       showErr('prop-error', e.message);
       $('prop-accept').disabled = false;
       $('prop-reject').disabled = false;
+      $('prop-accept').textContent = acceptLabel;
     }
   });
 

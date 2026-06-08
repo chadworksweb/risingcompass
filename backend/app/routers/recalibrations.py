@@ -49,7 +49,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, and_
 
 from sqlalchemy import text
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import (
     SongRecalibration, SongRecalibrationProposal, Song,
     MisreadSubmission, CalibrationRun, SongSlug,
@@ -157,6 +157,10 @@ class StartRecalibrateIn(BaseModel):
 class AcceptIn(BaseModel):
     public_summary: str = Field(..., min_length=20, max_length=2000)
     internal_notes: Optional[str] = Field(None, max_length=4000)
+    # Lyrics are required to rewrite the listener + societal prose to the new
+    # reading. Never persisted -- used transiently for the generation call and
+    # discarded. The recalibrate UI forwards the same lyrics it ran against.
+    lyrics: Optional[str] = None
 
 
 class RejectIn(BaseModel):
@@ -414,6 +418,79 @@ def get_proposal(proposal_id: int, db: Session = Depends(get_db)):
     return _proposal_to_out(p, db)
 
 
+def _regenerate_song_prose(unified_id: int, title: str, artist: str, lyrics: str) -> dict:
+    """Rewrite listener + societal prose for a song after a recalibration.
+
+    Every accepted recalibration rewrites BOTH prose fields. A recalibration
+    (especially a satire-lens flip) changes how the lyrics are READ -- the
+    meaning inverts even though the words are unchanged -- so prose written
+    under the prior reading is now wrong. Mirrors the dedicated regeneration
+    path (prose_admin.regenerate_prose): archive the old prose to prior_*,
+    regenerate through the shared gap-fill, and re-stamp the provenance seal
+    (the next anchor sweep publishes the new hash). Ether tags (deadpan_line /
+    topics) are passed through, not regenerated -- only the two prose fields.
+
+    Read -> generate -> write across three short sessions so the pooled
+    connection is not held through the multi-second Opus calls. Returns
+    {"listener": bool, "societal": bool} -- which fields were rewritten.
+    """
+    import asyncio
+    from app.services.agents.calibrator import ensure_full_calibration
+
+    # Phase 1: read current calibration + snapshot the prose we will replace.
+    db = SessionLocal()
+    try:
+        song = db.get(Song, unified_id)
+        if not song or not song.rubric_color:
+            return {"listener": False, "societal": False}
+        calibration = {
+            "rubric_color": song.rubric_color,
+            "charge_value": song.charge_value,
+            "charge_summary": song.charge_summary,
+            "contaminated": bool(getattr(song, "contaminated", False)),
+            "contamination_note": getattr(song, "contamination_note", None),
+            "deadpan_line": getattr(song, "deadpan_line", None),
+            "topics": getattr(song, "topics", None),
+            "topic_audit": getattr(song, "topic_audit", None),
+            # Prose deliberately omitted -> the gap-fill regenerates both.
+        }
+        old_listener = song.listener_effects_prose
+        old_societal = song.societal_effects_prose
+        old_soc_at = song.societal_prose_generated_at
+        old_soc_model = song.societal_prose_model
+    finally:
+        db.close()
+
+    # Phase 2: generate (no DB session held during the Opus calls).
+    asyncio.run(ensure_full_calibration(title, artist, lyrics, calibration))
+    new_listener = calibration.get("listener_effects_prose")
+    new_societal = calibration.get("societal_effects_prose")
+    if not new_listener and not new_societal:
+        return {"listener": False, "societal": False}
+
+    # Phase 3: archive old, write new + reseal.
+    db = SessionLocal()
+    try:
+        song = db.get(Song, unified_id)
+        if not song:
+            return {"listener": False, "societal": False}
+        song.prior_listener_effects_prose = old_listener
+        song.prior_societal_effects_prose = old_societal
+        song.prior_societal_prose_generated_at = old_soc_at
+        song.prior_societal_prose_model = old_soc_model
+        if new_listener:
+            song.listener_effects_prose = new_listener
+        if new_societal:
+            song.societal_effects_prose = new_societal
+            song.societal_prose_generated_at = calibration.get("societal_prose_generated_at")
+            song.societal_prose_model = calibration.get("societal_prose_model")
+        db.commit()
+    finally:
+        db.close()
+
+    return {"listener": bool(new_listener), "societal": bool(new_societal)}
+
+
 @router.post("/{proposal_id}/accept")
 def accept_proposal(
     proposal_id: int,
@@ -479,20 +556,20 @@ def accept_proposal(
         except Exception:
             logger.exception("Failed to seed pre-rubric_update run for song %s", unified_id)
 
-    # Apply to the song -- CHARGE ONLY.
-    #
-    # Recalibration runs exist to compound and fine-tune the charge (and the
-    # tier it derives). The lyrics never change between runs, so charge_summary,
-    # listener_effects_prose, and societal_effects_prose stay accurate to the lyrics and
-    # are deliberately NOT rewritten here. That keeps prose from piling up
-    # iteration-on-iteration and -- critically -- keeps the provenance seal on
-    # societal prose stable: rewriting would re-stamp generated_at/model and
-    # force the next anchor sweep to publish a new hash for unchanged text.
-    # To intentionally rewrite prose, use the dedicated prose-regeneration path
-    # (clear the prose field -> re-run the calibrator gap-fill, which re-seals),
-    # never recalibration.
+    # Apply to the song: charge, tier, AND the new charge_summary. A
+    # recalibration changes how the lyrics are READ (a satire-lens flip inverts
+    # the meaning even though the words are unchanged), so the proposed summary
+    # is the new authoritative one-liner and replaces the prior literal one.
+    # The listener + societal prose are rewritten too -- after the commit below,
+    # via _regenerate_song_prose -- because prose written under the prior reading
+    # is wrong once the reading moves. The re-seal on societal prose is intended:
+    # the next anchor sweep publishes the new hash for the new text.
     song.rubric_color = p.proposed_color
     song.charge_value = p.proposed_charge
+    if p.proposed_summary:
+        song.charge_summary = p.proposed_summary
+    recal_title = song.title
+    recal_artist = song.artist or ""
 
     # Consensus restart on ANY accepted recalibration (2026-04-23): supersede
     # prior calibration_runs so the consensus engine starts fresh against the
@@ -555,6 +632,23 @@ def accept_proposal(
     )
     song_slug = slug_row.slug if slug_row else None
 
+    # Rewrite listener + societal prose to the new reading. Synchronous: the
+    # admin waits (~30-60s) so the song is fully correct on return. Fail-soft --
+    # the recalibration is already committed above, so any failure here leaves
+    # the new charge applied with the prior prose intact.
+    prose_rewritten = {"listener": False, "societal": False}
+    lyrics = (data.lyrics or "").strip()
+    if len(lyrics) >= 20:
+        try:
+            prose_rewritten = _regenerate_song_prose(unified_id, recal_title, recal_artist, lyrics)
+        except Exception:
+            logger.exception("post-recalibration prose rewrite failed for song %s", unified_id)
+    else:
+        logger.warning(
+            "accept proposal %s: no lyrics supplied; prose NOT rewritten for song %s",
+            p.id, unified_id,
+        )
+
     return {
         "applied": True,
         "audit_id": audit.id,
@@ -564,6 +658,7 @@ def accept_proposal(
         "before": {"charge": p.original_charge, "color": p.original_color},
         "after": {"charge": p.proposed_charge, "color": p.proposed_color},
         "flag_count_snapshot": flag_counts,
+        "prose_rewritten": prose_rewritten,
     }
 
 
