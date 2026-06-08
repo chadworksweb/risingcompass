@@ -19,6 +19,7 @@ api.risingcompass.net    → nginx → backend:8000
 
 - **8:00 UTC daily** — cron at `/root/risingcompass-readings/reading.sh` hits `POST /api/admin/agent/cron/calibrate-live` with `X-Reading-Cron-Key` (`RC_READING_CRON_KEY`) → agent calibrates today's top songs → creates draft reading → emails you for review. Service-token authed, not admin-session — distinct from the human admin login.
 - **You review** — click approve link in email (or reject/edit via admin dashboard)
+- **9:00 UTC Monday** — cron at `/root/risingcompass-readings/viral.sh` (reference copy `deploy/viral.sh`) hits `POST /api/admin/agent/cron/refresh-chart-snapshot/viral` with `X-Reading-Cron-Key` (same `RC_READING_CRON_KEY`) → scrapes the Spotify Viral 50, writes an UNPUBLISHED snapshot + draft, auto-calibrates cache hits, emails you the songs awaiting lyrics. Runs after the daily reading (08:00) so the Top 50 overlap is already calibrated. **You supply lyrics manually (`calibrate_song.py`) then click Approve — approval is what publishes the chart to the homepage panel.** Nothing public until then. Crontab line: `0 9 * * 1 /root/risingcompass-readings/viral.sh >> /root/risingcompass-readings/viral.log 2>&1`.
 - **3:00 UTC daily** — certbot checks if SSL certs need renewal
 - **4:17 UTC Monday** — cron refreshes the MaxMind GeoLite2-Country DB used by
   the cookie consent bar's geo-aware default (`/api/geo-country`). Reads

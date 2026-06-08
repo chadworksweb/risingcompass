@@ -422,6 +422,47 @@ partial then run `scripts/build_partials.py` to bake into all pages. The
 `/artists/` A-Z index was also aligned to `--rc-max-width` (was a stray 900px
 centered column) with button-style letter nav, group cards, and smooth scroll.
 
+## Chart snapshots: Spotify Viral 50 (homepage panel, LIVE 2026-06-07)
+
+A secondary chart panel on the homepage, separate from the daily reading.
+Mechanism in `routers/chart_snapshots.py` (`CHART_REGISTRY` -- `viral` +
+`top50`); fetchers in `services/agents/chart_source.py` (Playwright scrape of the
+Spotify playlist). **Lyrics are supplied manually each week** -- the only manual
+step; everything else mirrors the daily reading SOP.
+
+- **Approve-before-public gate (`chart_snapshots.published`, migration 094).**
+  Snapshot rows are written UNPUBLISHED at fetch time. The public endpoint
+  `GET /api/compass/chart/{key}/current` serves only `published=True` rows (404
+  otherwise -> the homepage panel stays hidden). **Approval is what publishes:**
+  the chart branch of `agent.approve_draft` rebuilds the snapshot FROM
+  `draft.songs` as published (mirrors the daily path building `ReadingSong` from
+  `draft.songs`, so admin edits are reflected and `published == approved`).
+  Approval already blocks while any song lacks lyrics, so a published chart is
+  guaranteed fully calibrated. Nothing goes public until Chad clicks Approve.
+- **Full daily-reading safeguard parity** (2026-06-07): HMAC approval token +
+  GET-confirm/POST-publish prefetch safety (shared); chart re-click after
+  approval shows an "Already Approved" page (`_published_chart_for_ref` +
+  `_chart_slug_from_ref`; `_published_reading_for_ref` guarded so a chart ref
+  never mis-resolves to the same-date daily reading); `refresh_snapshot` no-ops
+  if today's chart is already published (chart approval deletes the draft, so
+  draft-pinning alone couldn't guard a re-trigger from un-publishing). Viral 50
+  is excluded from the compass charge + drift aggregates (`AGGREGATING_CHART_SLUGS`
+  in `constants.py`) and never creates a `DailyReading`.
+- **Frontend:** `renderViralPanel()` in `frontend/js/app.js` renders the live
+  published snapshot (hidden on 404). Song-page links render only once a row is
+  calibrated.
+- **Weekly fetch cron (server, le-projects-01):**
+  `/root/risingcompass-readings/viral.sh` (reference copy `deploy/viral.sh`) runs
+  **Monday 09:00 UTC** -- after the daily reading at 08:00, so Top 50 overlap is
+  already calibrated (free cache hits). Hits `POST /api/admin/agent/cron/
+  refresh-chart-snapshot/viral` with `X-Reading-Cron-Key` (same `RC_READING_CRON_KEY`
+  as the daily reading). Mirrors `reading.sh`: scrape -> unpublished snapshot +
+  draft -> auto-calibrate cache hits -> email Chad the awaiting-lyrics list.
+- **Weekly SOP:** cron fires (or trigger manually) -> Chad supplies lyrics for
+  fresh songs (`scripts/calibrate_song.py`, lyrics from `Dropbox/Debug/dd.txt`)
+  -> click Approve in the email -> panel publishes. Labor = Viral 50 songs not
+  already in the library (cache hits are free).
+
 ## General Inquiry form
 
 Reusable account-free contact form (`frontend/inquiry.html`). First caller is the
