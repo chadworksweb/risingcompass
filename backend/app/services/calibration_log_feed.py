@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     Artist, Song, SongSlug,
-    PrePublishCorrection, SongRecalibration,
+    PrePublishCorrection, SongRecalibration, RubricChange,
 )
 from sqlalchemy import func, text
 from app.services.artist_utils import generate_song_slug, normalize_artist_name
@@ -183,6 +183,55 @@ def _recalibration_to_entry(
     }
 
 
+_KIND_LABELS = {
+    "tenet": "Tenet",
+    "rule": "Rule",
+    "modifier": "Modifier",
+    "schema": "Schema",
+    "tier": "Tier",
+}
+_CHANGE_VERBS = {"added": "added", "revised": "revised", "retired": "retired"}
+
+
+def _rubric_change_to_entry(
+    row: RubricChange,
+    db: Session = None,
+    slug_cache: dict = None,
+) -> dict:
+    """Adapter: rubric_changes row -> normalized feed entry.
+
+    Instrument-level change, so there is no song_anchor and no charge/color
+    before/after sides. The item text rides in rubric_change_note (reuses the
+    existing renderer); public_summary is the optional voice overlay. db /
+    slug_cache are accepted for a uniform adapter signature but unused."""
+    kind_label = _KIND_LABELS.get(row.item_kind, "Rubric")
+    verb = _CHANGE_VERBS.get(row.change_type, "changed")
+    headline = row.title or row.item_id
+    title = headline if row.item_kind == "schema" else f"{kind_label} {verb}: {headline}"
+    return {
+        "event_id": row.id,
+        "event_type": "rubric_change",
+        "source_table": "rubric_changes",
+        "pipeline": None,
+        "lens": None,
+        "occurred_at": row.ratified_at or row.detected_at,
+        "song_anchor": None,
+        "title": title,
+        "before": None,
+        "after": None,
+        "human_rationale": None,
+        "ai_rationale": None,
+        "public_summary": row.public_summary,
+        # The rule/tenet text itself -- shown via the existing rubric-change block.
+        "rubric_change_note": row.after_text or row.before_text,
+        "item_kind": row.item_kind,
+        "change_type": row.change_type,
+        "tags": None,
+        "promoted_to_feed": bool(row.promoted_to_feed),
+        "promoted_at": row.promoted_at,
+    }
+
+
 def list_feed_entries(
     db: Session,
     *,
@@ -236,6 +285,12 @@ def list_feed_entries(
                 if filter_unified_id else q.filter(False)
         for row in q.all():
             entries.append(_recalibration_to_entry(row, db, slug_cache))
+
+    # Rubric changes (instrument-level). No song anchor, so excluded entirely
+    # from a per-song filter. (Auto-promoted like the other capture tables.)
+    if (not types or "rubric_change" in types) and not song_filter:
+        for row in db.query(RubricChange).all():
+            entries.append(_rubric_change_to_entry(row, db, slug_cache))
 
     entries.sort(key=lambda e: e["occurred_at"] or datetime.min, reverse=True)
 

@@ -29,11 +29,19 @@
   const EVENT_TYPE_LABELS = {
     pre_publish_correction: 'Pre-publish',
     recalibration: 'Recalibration',
+    rubric_change: 'Rubric',
   };
 
   const EVENT_TYPE_LABELS_FULL = {
     pre_publish_correction: 'Pre-publish correction',
     recalibration: 'Recalibration',
+    rubric_change: 'Rubric change',
+  };
+
+  const CHANGE_TYPE_LABELS = {
+    added: 'Added',
+    revised: 'Revised',
+    retired: 'Retired',
   };
 
   const PIPELINE_LABELS = {
@@ -194,6 +202,9 @@
     const lensBadge = entry.lens && entry.lens !== 'standard'
       ? `<span class="cl-badge">Lens: ${escapeHtml(entry.lens)}</span>`
       : '';
+    const changeBadge = entry.change_type
+      ? `<span class="cl-badge">${escapeHtml(CHANGE_TYPE_LABELS[entry.change_type] || entry.change_type)}</span>`
+      : '';
 
     return `
       <article class="cl-entry">
@@ -206,6 +217,7 @@
             <span class="cl-badge cl-badge-type-${entry.event_type}">${escapeHtml(typeLabel)}</span>
             ${pipelineBadge}
             ${lensBadge}
+            ${changeBadge}
           </div>
           <h2 class="cl-entry-title">${titleHtml}</h2>
           ${diffMarkup(entry)}
@@ -226,12 +238,15 @@
     const lensBadge = entry.lens && entry.lens !== 'standard'
       ? `<span class="cl-badge">Lens: ${escapeHtml(entry.lens)}</span>`
       : '';
-    const hasDetails = !!(entry.rubric_change_note || entry.human_rationale || entry.public_summary || entry.tags || pipelineBadge || lensBadge);
+    const changeBadge = entry.change_type
+      ? `<span class="cl-badge">${escapeHtml(CHANGE_TYPE_LABELS[entry.change_type] || entry.change_type)}</span>`
+      : '';
+    const hasDetails = !!(entry.rubric_change_note || entry.human_rationale || entry.public_summary || entry.tags || pipelineBadge || lensBadge || changeBadge);
 
     const detailsBody = hasDetails ? `
       <div class="cl-row-details">
         <div class="cl-row-details-inner">
-          ${(pipelineBadge || lensBadge) ? `<div class="cl-row-details-badges">${pipelineBadge}${lensBadge}</div>` : ''}
+          ${(pipelineBadge || lensBadge || changeBadge) ? `<div class="cl-row-details-badges">${pipelineBadge}${lensBadge}${changeBadge}</div>` : ''}
           ${rubricChangeMarkup(entry.rubric_change_note)}
           ${rationaleMarkup(entry)}
           ${tagsMarkup(entry.tags)}

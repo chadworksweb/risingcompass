@@ -72,6 +72,20 @@ def _init_database():
     # Apply versioned migrations (handles ALTER TABLE on existing tables)
     run_migrations(engine)
 
+    # Calibration Log: detect instrument-level (rubric/tenet/rule/modifier)
+    # changes from tenets/core.json and log them as 'rubric_change' feed events.
+    # Runs after migrations so rubric_changes exists; fail-soft so a detector
+    # hiccup never blocks startup.
+    try:
+        from app.services.rubric_change_detector import detect_rubric_changes
+        db = SessionLocal()
+        try:
+            detect_rubric_changes(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("rubric_change_detector failed at startup (non-fatal)")
+
     # Bootstrap system API clients + migrate env keys into api_client_keys
     from app.services.api_clients import bootstrap_system_clients
     bootstrap_system_clients()

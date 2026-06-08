@@ -911,7 +911,7 @@ class FeedEntry(BaseModel):
     table in the Calibration Log. Maps directly to the feed contract in
     RISING-COMPASS-CALIBRATION-LOG.md."""
     event_id: int
-    event_type: str  # "pre_publish_correction" | "recalibration"
+    event_type: str  # "pre_publish_correction" | "recalibration" | "rubric_change"
     source_table: str
     pipeline: Optional[str] = None  # recalibrations only
     lens: Optional[str] = None      # recalibrations only
@@ -922,8 +922,10 @@ class FeedEntry(BaseModel):
     after: Optional[FeedEntryAfter] = None
     human_rationale: Optional[str] = None
     ai_rationale: Optional[str] = None       # recalibrations only
-    public_summary: Optional[str] = None     # recalibrations only
-    rubric_change_note: Optional[str] = None  # recalibrations only
+    public_summary: Optional[str] = None     # recalibrations + rubric_change (optional)
+    rubric_change_note: Optional[str] = None  # recalibrations + rubric_change (carries the rule text)
+    item_kind: Optional[str] = None          # rubric_change only: tenet|rule|modifier|schema|tier
+    change_type: Optional[str] = None        # rubric_change only: added|revised|retired
     tags: Optional[str] = None
     promoted_to_feed: bool
     promoted_at: Optional[datetime.datetime] = None
