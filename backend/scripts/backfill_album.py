@@ -59,6 +59,24 @@ Payload (JSON):
 Topics (per track AND album) must be slugs from the closed taxonomy
 (app/services/ether_taxonomy.VALID_SLUGS), dominant-first, max 3 -- or [] with a
 topic_audit object {reason, proposed_tag, rationale}.
+
+Multi-disc / double albums (codified 2026-06-09):
+  A multi-disc album is calibrated as N DISTINCT releases -- one per disc, each
+  with its OWN album-level reading. NEVER collapse a double album into a single
+  arc across all discs: disc 1 and disc 2 are different statements and read
+  separately. Run this script once per disc:
+    - One payload per disc. album.title = "<Album Title> (Disc N: <Disc Subtitle>)"
+      -- e.g. "HIStory: Past, Present and Future, Book I (Disc 1: HIStory Begins)".
+      Drop the subtitle when a disc has no name: "<Album Title> (Disc N)". The
+      UNIQUE(artist_id, title) constraint and the slug-keyed release page both
+      require distinct titles; the parenthetical keeps the discs grouped under
+      the parent album on the artist page.
+    - track_number restarts at 1 WITHIN each disc (per-disc numbering).
+    - album.reading is that disc's arc only, and the aggregate is over that
+      disc's tracks (the script already aggregates only the payload it is given).
+  A song that appears on more than one disc stays ONE song row (canonical_key);
+  it just gets a ReleaseSong under each disc's release. Single-disc albums are
+  unchanged -- one payload, one release, no "(Disc N)" suffix.
 """
 
 import argparse
