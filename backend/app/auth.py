@@ -15,6 +15,7 @@ from the human admin path so a leaked admin password doesn't grant
 service-tier access and vice versa.
 """
 
+import base64
 import hashlib
 import hmac
 import logging
@@ -112,6 +113,50 @@ def verify_approval_token(draft_ref: str, token: str) -> bool:
         hashlib.sha256,
     ).hexdigest()[:32]
     return hmac.compare_digest(sig, expected_sig)
+
+
+def create_admin_link_token(path: str, ttl: int = 604800) -> str:
+    """HMAC-sign an internal admin deep-link path (default 7d TTL).
+
+    Lets admin alert emails carry a link that resolves via `/api/admin/go`
+    WITHOUT embedding the secret obscured-login token: a scanner without a valid
+    signed token gets a 404, while a real email recipient is sent straight to the
+    target (logged in) or bounced through login with returnTo (logged out).
+    Format: {b64url(path)}:{expires}:{sig}."""
+    b64 = base64.urlsafe_b64encode(path.encode()).decode().rstrip("=")
+    expires = int(time.time()) + ttl
+    payload = f"{b64}:{expires}"
+    sig = hmac.new(
+        settings.rc_admin_key.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()[:32]
+    return f"{payload}:{sig}"
+
+
+def verify_admin_link_token(token: str) -> Optional[str]:
+    """Verify an admin deep-link token. Returns the internal path if the token is
+    valid, unexpired, and a same-origin `/api/admin/` path; else None."""
+    parts = (token or "").split(":")
+    if len(parts) != 3:
+        return None
+    b64, expires_str, sig = parts
+    try:
+        if int(expires_str) < time.time():
+            return None
+    except ValueError:
+        return None
+    expected_sig = hmac.new(
+        settings.rc_admin_key.encode(), f"{b64}:{expires_str}".encode(), hashlib.sha256
+    ).hexdigest()[:32]
+    if not hmac.compare_digest(sig, expected_sig):
+        return None
+    try:
+        path = base64.urlsafe_b64decode((b64 + "=" * (-len(b64) % 4)).encode()).decode()
+    except Exception:
+        return None
+    # Same-origin admin paths only (defense-in-depth vs open redirect).
+    if not path.startswith("/api/admin/") or path.startswith("//"):
+        return None
+    return path
 
 
 def require_admin_session(

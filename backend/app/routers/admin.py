@@ -12,7 +12,9 @@ from app.auth import (
     optional_admin_session,
     require_admin_session,
     verify_backup_key,
+    verify_admin_link_token,
 )
+from app.config import settings
 from app.database import get_db
 from app.models import (
     Song, Artist, User, GeneralInquiry, Motion,
@@ -212,6 +214,25 @@ _ADMIN_SECTIONS = {
     "clutter": "admin/clutter.html",
     "agents": "admin/agents.html",
 }
+
+
+@router.get("/go")
+def admin_go(request: Request, t: str = "", admin=Depends(optional_admin_session)):
+    """Resolve a signed admin deep-link from an alert email.
+
+    The email carries an HMAC-signed token (NOT the secret login URL). If the
+    token is invalid/expired -> 404 (a scanner learns nothing). If valid:
+    - logged in  -> redirect straight to the target admin page.
+    - logged out -> redirect to the obscured login URL with returnTo=<target>,
+      so login lands on the page. Revealing the login URL here is safe because
+      the caller proved possession of a valid signed token (a real email)."""
+    path = verify_admin_link_token(t)
+    if not path:
+        raise HTTPException(status_code=404)
+    if admin is not None:
+        return RedirectResponse(url=path, status_code=307)
+    login = f"/rc-admin-{settings.admin_login_url_token}"
+    return RedirectResponse(url=f"{login}?returnTo={quote(path, safe='')}", status_code=307)
 
 
 @router.get("/dashboard/{section}", response_class=HTMLResponse)

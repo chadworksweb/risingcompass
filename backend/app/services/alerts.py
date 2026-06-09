@@ -494,7 +494,15 @@ def emit_faultline_new_signature(*, sig_id: int, title: str, component: Optional
 def emit_leit_sweep_digest(*, scanned: int, findings: list) -> None:
     """LEIT daily clutter sweep flagged one or more songs for human audit.
     Moderation alert, default-on. `findings` is the sweep's per-song list."""
+    from app.auth import create_admin_link_token
     site = settings.site_url.rstrip("/")
+
+    def _go(path: str) -> str:
+        # Route through /api/admin/go with a signed token: works whether or not
+        # you're logged in (bounces through login with returnTo when logged out),
+        # without putting the secret login URL in the email.
+        return f"{site}/api/admin/go?t={create_admin_link_token(path)}"
+
     rows = []
     for f in findings[:50]:
         title = escape(str(f.get("title", "")))
@@ -506,14 +514,12 @@ def emit_leit_sweep_digest(*, scanned: int, findings: list) -> None:
         song_id = f.get("song_id")
         # Granular deep-links: the song title jumps to THIS audit row in the
         # queue (ready to resolve); "song" jumps to the per-song admin detail.
-        # Both 404 cryptically if you aren't logged into Site Admin in the same
-        # browser -- that's the admin obscurity posture, not a broken link.
         if audit_id is not None:
-            title_cell = (f"<a href='{site}/api/admin/dashboard/clutter?focus={audit_id}' "
+            title_cell = (f"<a href='{_go(f'/api/admin/dashboard/clutter?focus={audit_id}')}' "
                           f"style='color:#008f72;text-decoration:none;'><strong>{title}</strong></a>")
         else:
             title_cell = f"<strong>{title}</strong>"
-        song_link = (f" &middot; <a href='{site}/api/admin/dashboard/song/{song_id}' "
+        song_link = (f" &middot; <a href='{_go(f'/api/admin/dashboard/song/{song_id}')}' "
                      f"style='color:#777;font-size:11px;'>song</a>") if song_id else ""
         rows.append(
             f"<tr>"
@@ -542,7 +548,7 @@ def emit_leit_sweep_digest(*, scanned: int, findings: list) -> None:
         <tbody>{table}</tbody>
       </table>
       <p style="margin:0;font-size:13px;color:#555;">
-        <a href="{site}/api/admin/dashboard/clutter" style="color:#008f72;">Open the Audit Queue</a>
+        <a href="{_go('/api/admin/dashboard/clutter')}" style="color:#008f72;">Open the Audit Queue</a>
       </p>
     </div>
     """

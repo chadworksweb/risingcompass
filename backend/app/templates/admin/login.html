@@ -44,6 +44,15 @@
 <script>
 const LOGIN_PATH = {{ login_path | tojson }};
 
+// Deep-link from an admin email (/api/admin/go bounces here with returnTo when
+// logged out). Only honor same-origin /api/admin/ paths -- never an off-site or
+// protocol-relative URL (open-redirect guard).
+function safeReturnTo() {
+  const rt = new URLSearchParams(window.location.search).get('returnTo');
+  if (rt && rt.startsWith('/api/admin/') && !rt.startsWith('//')) return rt;
+  return null;
+}
+
 async function doLogin(ev) {
   ev.preventDefault();
   const btn = document.getElementById('submitBtn');
@@ -62,7 +71,7 @@ async function doLogin(ev) {
     });
     if (resp.ok) {
       const data = await resp.json();
-      window.location.href = data.redirect || '/api/admin/dashboard';
+      window.location.href = safeReturnTo() || data.redirect || '/api/admin/dashboard';
       return false;
     }
     if (resp.status === 429) {
