@@ -1796,3 +1796,81 @@ class ErrorAction(Base):
         Index("idx_error_action_sig_time", "signature_id", "created_at"),
         UniqueConstraint("signature_id", "idempotency_key", name="uq_error_action_idem"),
     )
+
+
+class ClutterAudit(Base):
+    """LEIT clutter-control audit queue -- the single human-review surface for
+    songs that shouldn't be in the Library/corpus as a commercially released
+    track. Two feeders, one queue:
+
+      - source='lc_push'     -- a Lyrical Charger submitter was warned the paste
+                                didn't look like a released song and pushed it
+                                through anyway (confirm_commercial=true).
+      - source='daily_sweep' -- the daily LEIT sweep agent flagged a song that
+                                already slipped in (gibberish, unknown non-artist,
+                                or content that belongs on Creative/Curio Charger).
+
+    Flag-only: a row here never changes the live site. An admin reviews and
+    resolves it (keep / remove / dismiss). Tagged `environment` like Faultline
+    because local dev shares the prod DB via the tunnel -- the admin queue MUST
+    filter by env so local test rows don't pollute the prod worklist.
+    """
+    __tablename__ = "clutter_audits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    source = Column(String(16), nullable=False)          # lc_push | daily_sweep
+    category = Column(String(24), nullable=False)        # non_commercial | gibberish | unknown_person | wrong_charger
+    suggested_action = Column(String(40))                # e.g. route_to_creative | route_to_curio | delete | review
+    reason = Column(Text)                                # the verdict/finding rationale
+    confidence = Column(Float)                            # nullable; sweep findings carry one
+    status = Column(String(16), nullable=False, default="open")  # open | kept | removed | dismissed
+    environment = Column(String(10), nullable=False, default="local")  # local | prod
+    payload_json = Column(Text)                          # title/artist/ip snapshot at detection
+    detected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    reviewed_at = Column(DateTime)
+    reviewed_by = Column(String(120))                    # admin handle
+    review_notes = Column(Text)
+
+    __table_args__ = (
+        Index("idx_clutter_env_status", "environment", "status"),
+        Index("idx_clutter_song", "song_id"),
+        # One OPEN finding per song -- a re-sweep or repeat push won't stack
+        # duplicate open rows; resolved rows (kept/removed/dismissed) are exempt
+        # so history accumulates.
+        Index("uq_clutter_open_song", "song_id", unique=True,
+              postgresql_where=text("status = 'open' AND song_id IS NOT NULL"),
+              sqlite_where=text("status = 'open' AND song_id IS NOT NULL")),
+    )
+
+
+class AgentRun(Base):
+    """One row per run of an in-house Rising Compass agent -- the operational
+    ledger behind the admin "Agents" mini-warehouse (Dusty the clutter sweep is
+    the first resident). This is the agent's OWN activity log: when it ran, by
+    what trigger, whether it succeeded, and how much it found -- kept separate
+    from what it FOUND (`clutter_audits` holds the findings). Generic + agent_id-
+    keyed so future RC agents share the same home.
+
+    Health on the admin page is derived from these rows (last run recency +
+    status), since these agents are cron-triggered, not long-running daemons.
+    Cost is derived separately from `claude_api_usage` by call_site. Env-tagged
+    like the other LEIT tables (local dev shares the prod DB via the tunnel)."""
+    __tablename__ = "agent_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agent_id = Column(String(40), nullable=False)         # e.g. 'custodian-001'
+    trigger = Column(String(16), nullable=False, default="cron")  # cron | admin
+    status = Column(String(16), nullable=False, default="running")  # running | ok | error
+    scanned = Column(Integer, nullable=False, default=0)
+    flagged = Column(Integer, nullable=False, default=0)
+    error = Column(Text)                                  # set on status='error'
+    environment = Column(String(10), nullable=False, default="local")
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    finished_at = Column(DateTime)
+    duration_ms = Column(Integer)
+
+    __table_args__ = (
+        Index("idx_agent_runs_agent_started", "agent_id", "started_at"),
+        Index("idx_agent_runs_env", "environment"),
+    )

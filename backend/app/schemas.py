@@ -506,6 +506,11 @@ class LyricsCalibrateIn(BaseModel):
     # origin (e.g. "chadlewine"). Ignored when the public API key is used —
     # those are forced to source="lyrical_charger".
     source: str | None = None
+    # LEIT clutter control: set true on the RESUBMIT after the user was warned
+    # the paste didn't look like a commercially released song and chose to push
+    # it through anyway. Skips the warning short-circuit and flags the run for
+    # human audit (writes a clutter_audits row). Public callers only.
+    confirm_commercial: bool = False
 
 
 class ConsensusOut(BaseModel):
@@ -537,6 +542,13 @@ class LyricsCalibrateOut(BaseModel):
     #                               public callers can no longer run it (admin/
     #                               terminal only). Nothing recorded. run_count
     #                               / run_cap carry the numbers for the UI.
+    # "not_commercial_warning"    — LEIT clutter control: the submission didn't
+    #                               look like a commercially released song. A
+    #                               soft warning, NOT a block -- nothing recorded,
+    #                               no charge. The client shows an "are you sure?"
+    #                               modal and may resubmit with
+    #                               confirm_commercial=true to push through.
+    #                               commercial_reason carries the why.
     status: str
     tier: Optional[str] = None
     tier_label: Optional[str] = None
@@ -549,6 +561,9 @@ class LyricsCalibrateOut(BaseModel):
     artist: Optional[str] = None
     # Set on rejection statuses — short user-facing reason for the block.
     block_reason: Optional[str] = None
+    # Set on "not_commercial_warning": the one-sentence reason the paste didn't
+    # look like a commercially released song (drives the confirm modal copy).
+    commercial_reason: Optional[str] = None
     # Set on "run_capped": how many runs the song has vs the public cap.
     run_count: Optional[int] = None
     run_cap: Optional[int] = None

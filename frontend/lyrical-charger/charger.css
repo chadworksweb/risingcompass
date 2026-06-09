@@ -2044,6 +2044,57 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
 }
 .charge-card-modal__close:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
 
+/* --- LEIT clutter control: non-commercial "are you sure?" warning modal --- */
+.cw-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(3, 3, 8, 0.86);
+  backdrop-filter: blur(4px);
+}
+.cw-modal.open { display: flex; }
+.cw-modal__inner {
+  width: min(92vw, 460px);
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border-ui);
+  border-radius: var(--rc-radius-md, 10px);
+  padding: 1.5rem 1.5rem 1.25rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.cw-modal__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  color: var(--rc-text-bright);
+}
+.cw-modal__reason {
+  margin: 0 0 0.85rem;
+  font-size: 0.92rem;
+  color: var(--rc-accent);
+  font-style: italic;
+}
+.cw-modal__body {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+}
+.cw-modal__confirm {
+  margin: 0 0 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--rc-text-dim, var(--rc-text));
+}
+.cw-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.cw-modal__actions .btn { flex: 1 1 auto; }
+
 /* --- Album cover-art match picker (ambiguous MusicBrainz match) --- */
 .album-cover-pick {
   margin: 1.25rem 0;

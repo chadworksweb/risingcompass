@@ -838,3 +838,71 @@ Standard "store UTC, convert at the edges," split by audience:
   instead of pre-formatted strings. The one server-bucketed chart
   (`claude_usage_admin.py` `date_trunc`) takes a `tz` param and the page refetches
   on zone change via `onAdminTzChange`.
+
+## LEIT clutter control (2026-06-09)
+
+Keeps non-music / clutter out of the Library/corpus. Two feeders, ONE human-audit
+queue (`clutter_audits`, migration 097, model `ClutterAudit`). Flag-only -- nothing
+auto-changes the live site; an admin resolves each finding. Rows are tagged
+`environment` (local|prod) like Faultline (local dev shares the prod DB via the
+tunnel), and the admin queue filters by env. Shared write helper:
+`services/clutter.py::record_clutter_finding` (deduped to ONE open row per song via
+partial unique `uq_clutter_open_song`; `db=None` = own fail-soft session for the LC
+hot path, `db=` = caller's txn for the sweep).
+
+- **Submit-time warning (Lyrical Charger).** The commercial-release verdict is
+  FOLDED INTO the existing identity-guard Opus call (`services/identity_guard.py`
+  now returns `commercial` + `commercial_reason` alongside `verdict`; one call, no
+  extra latency). In `analyzer.calibrate_lyrics_endpoint`, a confident
+  `commercial=="no"` on a public submission WITHOUT `confirm_commercial` short-
+  circuits `status="not_commercial_warning"` (+ `commercial_reason`, no save/charge);
+  `charger.js` shows the "Is this a released song?" modal (Creative/Curio shown as
+  coming soon). `unsure`/`yes` pass silently (niche/indie never nagged -- same
+  anti-false-reject stance as the identity verdict). On the resubmit with
+  `confirm_commercial=true` the run completes AND writes a `clutter_audits`
+  `source='lc_push'` row for human audit. Heuristic pre-filter
+  `analyzer.detect_noncommercial_signals` is logged as a signal only. The
+  Musixmatch-trusted `calibrate_search` path is intentionally NOT gated. New
+  `lc_events`: `submission_commercial_warned`, `submission_commercial_flagged`.
+- **Daily sweep agent.** `services/agents/leit_sweep.py::run_leit_sweep` scans
+  LC-BORN songs (earliest `song_ingestions` row is `lyrical_charger`; chart/terminal
+  trusted) new since a `system_flags` watermark (`leit_sweep.last_run_at`), excluding
+  any song already in `clutter_audits`, capped at 200/run, batched 20/Opus call.
+  **Classifies from METADATA ONLY (title/artist/charge_summary/prose/topics) -- LC
+  never stores lyrics.** Writes `source='daily_sweep'` findings + emails a digest
+  (`alerts.emit_leit_sweep_digest`, key `leit_sweep_digest`, default-on). Cron
+  endpoint `POST /api/admin/agent/cron/leit-sweep` (`routers/leit_sweep.py`, auth
+  `X-Reading-Cron-Key` -- reuses the daily-reading cron lane, no new secret). Host
+  script `deploy/leit-sweep.sh` (suggested `30 16 * * *`, after the reading/itunes
+  lane). Not yet added to the server crontab.
+- **Admin queue.** Site Admin -> Lyrical Charger -> **Audit Queue**
+  (`routers/clutter_admin.py`, `templates/admin/clutter.html`, section `clutter`).
+  List/stats/resolve (`keep` | `remove` | `dismiss`) + a "Run sweep now" trigger
+  (same orchestrator as cron). `remove` reuses `submissions_admin.delete_submission`
+  (orphan-aware song deletion). Env-filtered (default prod).
+
+## Agent mini-warehouse (2026-06-09)
+
+The external LEIT Agent Warehouse + Mickey were decommissioned, so RC's own
+autonomous agents get a home INSIDE RC admin: **Site Admin -> System -> Agents**.
+This is the agent's OWN identity + health + run history + cost -- separate from
+what it FINDS. **Dusty (`custodian-001`, "Custodian 001")** -- the daily clutter
+sweep -- is the first resident.
+
+- **Ledger:** `agent_runs` (migration 098, model `AgentRun`) -- one row per run,
+  agent_id-keyed + generic so future RC agents share it. `run_leit_sweep(trigger)`
+  opens a row at the start and closes it (ok/error + scanned/flagged/duration);
+  a crash is recorded as a failed run AND re-raised (Faultline + cron alert still
+  fire). Env-tagged.
+- **Registry + derivation:** `services/agents/warehouse.py` holds the static
+  `AGENTS` registry, the `start_run`/`finish_run` helpers, and the health/metrics
+  derivation. **Health = last-run recency + status** (these are cron agents, not
+  daemons -- no PM2/heartbeat to poll): healthy | overdue (no ok run in
+  `overdue_hours`=36) | error | stalled (running >2h) | never_run. **Cost** is
+  derived from `claude_api_usage` by the agent's `call_site` (`leit_sweep`).
+- **Admin:** `routers/agents_admin.py` (`GET /api/admin/agents`,
+  `/{id}`, `/{id}/runs`), page `templates/admin/agents.html` (section `agents`).
+  Cards show identity + health badge + metrics (runs/success/scanned/flagged) +
+  cost (all-time + 30d) + run-history table + a "Run now" button (Dusty's wired to
+  the clutter `run-sweep` trigger) and a "View findings" link to the audit queue.
+  Env-filtered (default prod).

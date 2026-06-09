@@ -37,6 +37,7 @@ from app.services.lyrics_fingerprint import (
     compute_fingerprint, max_jaccard, DIVERGENCE_THRESHOLD,
 )
 from app.services.identity_guard import check_lyrics_identity
+from app.services.clutter import record_clutter_finding
 from app.services.lc_events import schedule_event, write_event, extract_request_meta
 from app.routers.songs import _get_or_create_slug
 from app.auth import verify_api_or_service_key, optional_clerk_user
@@ -425,6 +426,32 @@ def detect_prose_like(text: str) -> str | None:
     return None
 
 
+def detect_noncommercial_signals(text: str, title: str, artist: str) -> str | None:
+    """Cheap heuristic pre-filter for the LEIT clutter warning: return a short
+    reason if the paste shows obvious signs of NOT being a commercially released
+    song, or None. This is only a signal -- the Opus commercial verdict (folded
+    into the identity guard) is authoritative; this is logged alongside it so the
+    heuristic can be tuned against real data, and it never blocks on its own.
+
+    Conservative on purpose (we only want strong signals here):
+      1. Tiny vocabulary (< 15 unique words) -- word-salad / one-line repeats.
+      2. A placeholder/non-artist name ("me", "test", "anonymous", "n/a", ...).
+    """
+    words = re.findall(r"[a-zA-Z']+", (text or "").lower())
+    if words and len(set(words)) < 15:
+        return "Very small vocabulary -- reads more like a fragment than a full released song."
+
+    a = (artist or "").strip().lower()
+    PLACEHOLDER_ARTISTS = {
+        "me", "myself", "test", "testing", "anonymous", "anon", "n/a", "na",
+        "none", "unknown", "self", "nobody", "asdf", "xxx", "tbd",
+    }
+    if a in PLACEHOLDER_ARTISTS:
+        return f"\"{artist}\" doesn't look like a real recording artist."
+
+    return None
+
+
 def _resolve_source(tier: str, requested: str | None) -> str:
     """Public callers always get 'lyrical_charger'. Service callers can self-tag
     (e.g. 'chadlewine'); falls back to 'service' if they don't supply one.
@@ -717,6 +744,34 @@ async def calibrate_lyrics_endpoint(
                 ),
             )
 
+        # LEIT clutter control: does this look like a commercially released
+        # song? The commercial verdict is folded into the identity-guard Opus
+        # call above (no extra call). A confident "no" WARNS (soft gate) -- the
+        # Lyrical Charger is for released music; personal/AI/non-song text
+        # belongs on the Creative/Curio Charger. "unsure" passes silently so
+        # niche/indie artists are never nagged (same anti-false-reject stance as
+        # the identity verdict). The heuristic pre-filter is logged as a signal.
+        commercial_verdict = identity.get("commercial", "unsure")
+        commercial_reason = (identity.get("commercial_reason") or "").strip()
+        heuristic_signal = detect_noncommercial_signals(body.lyrics, title, artist)
+        if commercial_verdict == "no" and is_public and not body.confirm_commercial:
+            schedule_event(background_tasks, "submission_commercial_warned", request,
+                           payload={"title": title[:100], "artist": artist[:100],
+                                    "source": source, "reason": commercial_reason,
+                                    "heuristic": heuristic_signal})
+            return LyricsCalibrateOut(
+                status="not_commercial_warning",
+                title=title, artist=artist,
+                commercial_reason=commercial_reason or (
+                    "This doesn't look like a commercially released song."
+                ),
+                block_reason=(
+                    "The Lyrical Charger reads commercially released music. This "
+                    "looks like it might be something else -- if it IS a released "
+                    "song, confirm to continue."
+                ),
+            )
+
         # Phase 2 still: run the one calibration path. A cache hit is completed
         # through the same generation step (ensure_full_calibration) so older
         # rows missing ether/prose get filled; a miss runs the full path. Either
@@ -865,6 +920,29 @@ async def calibrate_lyrics_endpoint(
                                    song_id=submitted_id)
                 except Exception:
                     logger.exception("submission_success event failed (non-fatal)")
+
+                # LEIT clutter control: the submitter was warned this didn't look
+                # like a released song and pushed through anyway -> queue it for
+                # human audit. Fail-soft (own session) so a queue hiccup can never
+                # fail this saved, delivered run.
+                if body.confirm_commercial and commercial_verdict == "no":
+                    try:
+                        record_clutter_finding(
+                            song_id=submitted_id,
+                            source="lc_push",
+                            category="non_commercial",
+                            reason=commercial_reason or "Pushed past the non-commercial warning.",
+                            suggested_action="review",
+                            payload={"title": title[:120], "artist": artist[:120],
+                                     "source": source, "heuristic": heuristic_signal,
+                                     "ip": get_remote_address(request)},
+                        )
+                        schedule_event(background_tasks, "submission_commercial_flagged", request,
+                                       payload={"title": title[:100], "artist": artist[:100],
+                                                "source": source, "reason": commercial_reason},
+                                       song_id=submitted_id)
+                    except Exception:
+                        logger.exception("clutter flag (lc_push) failed (non-fatal)")
 
             return LyricsCalibrateOut(
                 status="scored",

@@ -209,6 +209,8 @@ _ADMIN_SECTIONS = {
     "chart-anomalies": "admin/anomalies.html",
     "faultline": "admin/faultline.html",
     "runs": "admin/runs.html",
+    "clutter": "admin/clutter.html",
+    "agents": "admin/agents.html",
 }
 
 

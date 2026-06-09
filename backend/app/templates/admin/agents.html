@@ -1,0 +1,142 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'agents' %}
+{% block title %}Agents — Admin{% endblock %}
+
+{% block content %}
+<h2 class="section-title">Agent Warehouse</h2>
+<p style="color:#888;font-size:0.82rem;margin:-0.3rem 0 0.8rem;">
+  In-house autonomous agents: identity, health, run history, and cost. What each
+  agent <em>is</em> and has <em>done</em> — separate from what it <em>found</em>.
+</p>
+
+<div class="filter-bar" id="agEnvFilters" style="margin-bottom:0.8rem;">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">ENV:</span>
+  <button class="filter-btn active" onclick="agSetEnv('prod')">Prod</button>
+  <button class="filter-btn" onclick="agSetEnv('local')">Local</button>
+</div>
+
+<div id="agList"><p style="color:#666;">Loading…</p></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let agEnv = 'prod';
+
+function onAdminReady() { loadAgents(); }
+
+function agSetEnv(env) {
+  agEnv = env;
+  document.getElementById('agEnvFilters').querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadAgents();
+}
+
+const STATUS_COLOR = {
+  healthy: '#2faf6b', running: 'var(--accent)', overdue: '#d4a017',
+  error: '#c33', stalled: '#c33', never_run: '#888',
+};
+
+async function loadAgents() {
+  try {
+    const resp = await fetch('/api/admin/agents?environment=' + encodeURIComponent(agEnv), { headers: adminHeaders() });
+    if (!resp.ok) { document.getElementById('agList').innerHTML = '<p style="color:#c33;">Failed to load.</p>'; return; }
+    const data = await resp.json();
+    const agents = data.agents || [];
+    if (!agents.length) { document.getElementById('agList').innerHTML = '<p style="color:#666;">No agents registered.</p>'; return; }
+    document.getElementById('agList').innerHTML = agents.map(renderAgent).join('');
+    agents.forEach(a => loadRuns(a.id));
+  } catch (e) { console.error(e); }
+}
+
+function metric(label, val) {
+  return `<div class="agent-metric"><div class="agent-metric-label">${label}</div><div class="agent-metric-value">${val}</div></div>`;
+}
+
+function renderAgent(a) {
+  const h = a.health || {};
+  const m = a.metrics || {};
+  const c = a.cost || {};
+  const dot = STATUS_COLOR[h.status] || '#888';
+  const lastRun = h.last_run_at ? `<time data-utc="${escHtml(h.last_run_at)}"></time>` : '—';
+  const age = (h.age_hours != null) ? ` (${h.age_hours}h ago)` : '';
+  const success = (m.success_rate != null) ? `${m.success_rate}%` : '—';
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:1rem 1.1rem;margin-bottom:1rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:flex-start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <span style="width:10px;height:10px;border-radius:50%;background:${dot};display:inline-block;"></span>
+          <strong style="font-size:1.05rem;">${escHtml(a.nickname)}</strong>
+          <span style="background:rgba(255,255,255,0.06);color:#aaa;font-size:0.7rem;padding:1px 8px;border-radius:3px;">${escHtml(h.label || h.status || '—')}</span>
+        </div>
+        <div style="color:#888;font-size:0.78rem;margin-top:0.25rem;">
+          ${escHtml(a.codename)} · ${escHtml(a.id)} · ${escHtml(a.venture)} · Layer ${a.layer} · <code>${escHtml(a.model || '')}</code>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.4rem;">
+        <button onclick="runAgent('${escHtml(a.id)}', this)" style="padding:0.3rem 0.8rem;font-size:0.78rem;">Run now</button>
+        ${a.findings_url ? `<a href="${escHtml(a.findings_url)}" style="padding:0.3rem 0.8rem;font-size:0.78rem;align-self:center;color:var(--accent);">View findings &rarr;</a>` : ''}
+      </div>
+    </div>
+    <div style="color:#aaa;font-size:0.83rem;margin:0.6rem 0 0.2rem;">${escHtml(a.what || '')}</div>
+    <div style="color:#777;font-size:0.76rem;margin-bottom:0.7rem;">${escHtml(a.role || '')} · ${escHtml(a.schedule || '')} · last run: ${lastRun}${age}</div>
+    <div class="agent-metrics" style="display:flex;flex-wrap:wrap;gap:1.2rem;padding:0.7rem 0;border-top:1px solid var(--border);">
+      ${metric('Runs', m.runs_total ?? 0)}
+      ${metric('Success', success)}
+      ${metric('Errors', m.runs_error ?? 0)}
+      ${metric('Scanned', m.scanned_total ?? 0)}
+      ${metric('Flagged', m.flagged_total ?? 0)}
+      ${metric('Cost (all)', '$' + (c.cost_all_usd ?? 0))}
+      ${metric('Cost (30d)', '$' + (c.cost_30d_usd ?? 0))}
+    </div>
+    <div id="runs-${escHtml(a.id)}" style="margin-top:0.5rem;"></div>
+  </div>`;
+}
+
+async function loadRuns(agentId) {
+  try {
+    const resp = await fetch(`/api/admin/agents/${encodeURIComponent(agentId)}/runs?environment=${encodeURIComponent(agEnv)}&limit=20`, { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const runs = data.runs || [];
+    const el = document.getElementById('runs-' + agentId);
+    if (!el) return;
+    if (!runs.length) { el.innerHTML = '<div style="color:#666;font-size:0.78rem;">No runs recorded yet.</div>'; return; }
+    const rows = runs.map(r => {
+      const sc = STATUS_COLOR[r.status] || (r.status === 'ok' ? '#2faf6b' : '#888');
+      const when = r.started_at ? `<time data-utc="${escHtml(r.started_at)}"></time>` : '—';
+      const dur = (r.duration_ms != null) ? (Math.round(r.duration_ms / 100) / 10) + 's' : '—';
+      const err = r.error ? ` <span style="color:#c33;">${escHtml(r.error)}</span>` : '';
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:3px 8px;font-size:0.76rem;color:#888;">${when}</td>
+        <td style="padding:3px 8px;font-size:0.72rem;color:#999;">${escHtml(r.trigger)}</td>
+        <td style="padding:3px 8px;font-size:0.74rem;color:${sc};text-transform:uppercase;">${escHtml(r.status)}</td>
+        <td style="padding:3px 8px;font-size:0.78rem;color:#bbb;">${r.scanned}</td>
+        <td style="padding:3px 8px;font-size:0.78rem;color:#bbb;">${r.flagged}</td>
+        <td style="padding:3px 8px;font-size:0.76rem;color:#888;">${dur}${err}</td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="text-align:left;">
+        <th style="padding:3px 8px;font-size:0.68rem;color:#777;text-transform:uppercase;">Run</th>
+        <th style="padding:3px 8px;font-size:0.68rem;color:#777;text-transform:uppercase;">Trigger</th>
+        <th style="padding:3px 8px;font-size:0.68rem;color:#777;text-transform:uppercase;">Status</th>
+        <th style="padding:3px 8px;font-size:0.68rem;color:#777;text-transform:uppercase;">Scanned</th>
+        <th style="padding:3px 8px;font-size:0.68rem;color:#777;text-transform:uppercase;">Flagged</th>
+        <th style="padding:3px 8px;font-size:0.68rem;color:#777;text-transform:uppercase;">Duration</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+  } catch (e) { console.error(e); }
+}
+
+// Trigger an agent's work. Dusty (custodian-001) runs the clutter sweep.
+async function runAgent(agentId, btn) {
+  if (agentId !== 'custodian-001') { alert('No manual trigger wired for this agent.'); return; }
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Running…';
+  try {
+    const resp = await fetch('/api/admin/clutter-audits/run-sweep', { method: 'POST', headers: adminHeaders() });
+    if (resp.ok) { const s = await resp.json(); btn.textContent = `Scanned ${s.scanned}, flagged ${s.flagged}`; setTimeout(loadAgents, 1200); }
+    else { btn.textContent = 'Failed'; }
+  } catch (e) { btn.textContent = 'Error'; console.error(e); }
+  finally { setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 2500); }
+}
+</script>
+{% endblock %}

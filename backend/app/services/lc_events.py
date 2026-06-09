@@ -35,6 +35,9 @@ EVENT_TYPES = {
     "submission_honeypot",
     "submission_turnstile_failed",
     "submission_other_error",
+    # LEIT clutter control -- non-commercial warning at submit time
+    "submission_commercial_warned",   # warned: didn't look like a released song (no charge)
+    "submission_commercial_flagged",  # user confirmed + pushed past the warning -> human audit
     # Album Charger
     "album_search_query",
     "album_success",

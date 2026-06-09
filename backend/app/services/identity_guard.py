@@ -36,9 +36,11 @@ _MAX_LYRICS_CHARS = 6000
 
 _VALID_VERDICTS = {"yes", "no", "unsure"}
 
-_SYSTEM_PROMPT = """You verify whether submitted song lyrics plausibly belong to a specified song.
+_SYSTEM_PROMPT = """You verify whether submitted song lyrics plausibly belong to a specified song, AND whether the song looks like a commercially released recording.
 
-You will receive a song title, artist, and a block of lyrics. Decide one of:
+You will receive a song title, artist, and a block of lyrics. Return two judgments.
+
+JUDGMENT 1 -- identity ("verdict"): do these lyrics belong to this exact song by this exact artist?
 
 - "yes": the lyrics are clearly from this exact song by this exact artist.
 - "no": the lyrics are clearly from a different song or a different artist
@@ -48,7 +50,7 @@ You will receive a song title, artist, and a block of lyrics. Decide one of:
   you can't confidently rule the lyrics in or out. When in doubt, choose
   "unsure" — it is much better to be unsure than to guess "yes".
 
-Two important rules:
+Two important rules for JUDGMENT 1:
 
 1. Do not reject lyrics just because the artist is obscure to you. Niche or
    independent artists are common submissions; "I don't know this artist"
@@ -59,26 +61,46 @@ Two important rules:
    the other artist's lyrics. Same title, different recognizable lyrics,
    different known track.
 
+JUDGMENT 2 -- commercial release ("commercial"): is this plausibly a commercially released musical recording (single/album track/EP), as opposed to non-song text or a private/amateur upload?
+
+- "yes": clearly a real released song -- you recognize it, OR the title/artist
+  and the lyric structure (verses, chorus/hook, song shape) read as a genuine
+  released track even if you don't know it.
+- "no": clearly NOT a commercially released song. Use "no" ONLY when confident:
+  the text is gibberish or word-salad; it's an essay, message, email, note, or
+  other prose pasted as if it were lyrics; the "artist" is plainly not a
+  recording act (a personal name with no musical context, "me", "test",
+  "anonymous", random handles); or it reads as raw personal writing / a draft
+  rather than a finished released song.
+- "unsure": you don't recognize it but it has a plausible song shape, or the
+  artist is just obscure to you. STRONGLY prefer "unsure" over "no" for niche,
+  independent, or self-released artists -- they are legitimate submissions.
+  Being unsure is much better than wrongly calling a real indie song "no".
+
 Return JSON only, no prose around it:
 
-{"verdict": "yes" | "no" | "unsure", "reason": "<one short sentence>"}
+{"verdict": "yes" | "no" | "unsure", "reason": "<one short sentence>", "commercial": "yes" | "no" | "unsure", "commercial_reason": "<one short sentence>"}
 """
 
 
 async def check_lyrics_identity(
     *, title: str, artist: str, lyrics: str
 ) -> dict:
-    """Ask Opus whether `lyrics` belong to `title` by `artist`.
+    """Ask Opus whether `lyrics` belong to `title` by `artist`, and whether the
+    song looks commercially released.
 
-    Returns {"verdict": "yes"|"no"|"unsure", "reason": "..."}.
-    On any error (parse failure, API exception), defaults to verdict="unsure"
-    with the error captured in `reason`. Failing soft is the right move —
-    Layer 2 (divergence guard) catches what this misses, and we never want a
-    transient API blip to block legitimate submissions.
+    Returns {"verdict": "yes"|"no"|"unsure", "reason": "...",
+             "commercial": "yes"|"no"|"unsure", "commercial_reason": "..."}.
+    On any error (parse failure, API exception), defaults BOTH judgments to
+    "unsure" with the error captured in the reasons. Failing soft is the right
+    move — Layer 2 (divergence guard) catches identity misses, the commercial
+    verdict only ever WARNS (never hard-blocks), and we never want a transient
+    API blip to gate legitimate submissions.
     """
     snippet = (lyrics or "")[:_MAX_LYRICS_CHARS]
     if not snippet.strip():
-        return {"verdict": "unsure", "reason": "empty lyrics"}
+        return {"verdict": "unsure", "reason": "empty lyrics",
+                "commercial": "unsure", "commercial_reason": "empty lyrics"}
 
     user_prompt = (
         f"Title: {title}\n"
@@ -102,7 +124,8 @@ async def check_lyrics_identity(
         raw = response.content[0].text.strip()
     except Exception as exc:
         logger.exception("identity_guard API call failed")
-        return {"verdict": "unsure", "reason": f"api_error: {type(exc).__name__}"}
+        return {"verdict": "unsure", "reason": f"api_error: {type(exc).__name__}",
+                "commercial": "unsure", "commercial_reason": f"api_error: {type(exc).__name__}"}
 
     # Parse — strip code fences and any leading prose, then take the first {...}
     json_str = raw
@@ -117,12 +140,20 @@ async def check_lyrics_identity(
         parsed = json.loads(json_str)
     except json.JSONDecodeError:
         logger.warning("identity_guard could not parse response: %s", raw[:300])
-        return {"verdict": "unsure", "reason": "parse_failed"}
+        return {"verdict": "unsure", "reason": "parse_failed",
+                "commercial": "unsure", "commercial_reason": "parse_failed"}
 
     verdict = str(parsed.get("verdict", "unsure")).lower().strip()
     if verdict not in _VALID_VERDICTS:
         verdict = "unsure"
     reason = str(parsed.get("reason", "")).strip()[:300]
-    logger.info("identity_guard: %s/%s -> verdict=%s reason=%s",
-                title, artist, verdict, reason)
-    return {"verdict": verdict, "reason": reason}
+
+    commercial = str(parsed.get("commercial", "unsure")).lower().strip()
+    if commercial not in _VALID_VERDICTS:
+        commercial = "unsure"
+    commercial_reason = str(parsed.get("commercial_reason", "")).strip()[:300]
+
+    logger.info("identity_guard: %s/%s -> verdict=%s commercial=%s",
+                title, artist, verdict, commercial)
+    return {"verdict": verdict, "reason": reason,
+            "commercial": commercial, "commercial_reason": commercial_reason}

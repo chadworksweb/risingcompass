@@ -682,6 +682,28 @@
     </div>
   </div>
 
+  <!-- LEIT clutter control: non-commercial "are you sure?" warning modal -->
+  <div id="commercial-warning-modal" class="cw-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cw-title">
+    <div class="cw-modal__inner">
+      <h3 id="cw-title" class="cw-modal__title">Is this a released song?</h3>
+      <p id="cw-reason" class="cw-modal__reason"></p>
+      <p class="cw-modal__body">
+        The Lyrical Charger reads <strong>commercially released music</strong>. If this is
+        your own writing, or text you received (a message, email, or article), it belongs on
+        the <strong>Creative Charger</strong> or <strong>Curio Charger</strong> &mdash;
+        <em>both coming soon</em>.
+      </p>
+      <p class="cw-modal__confirm">
+        If this <em>is</em> a commercially released song, you can continue. Submissions pushed
+        past this point are reviewed.
+      </p>
+      <div class="cw-modal__actions">
+        <button id="cw-continue" class="btn btn-primary" type="button">It&rsquo;s a released song &mdash; continue</button>
+        <button id="cw-cancel" class="btn btn-secondary" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">

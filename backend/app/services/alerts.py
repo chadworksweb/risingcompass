@@ -489,3 +489,53 @@ def emit_faultline_new_signature(*, sig_id: int, title: str, component: Optional
     )
     send_alert(category="activity", alert_key="faultline_new_signature",
                subject=f"New fault: {title}", html_body=html)
+
+
+def emit_leit_sweep_digest(*, scanned: int, findings: list) -> None:
+    """LEIT daily clutter sweep flagged one or more songs for human audit.
+    Moderation alert, default-on. `findings` is the sweep's per-song list."""
+    site = settings.site_url.rstrip("/")
+    rows = []
+    for f in findings[:50]:
+        title = escape(str(f.get("title", "")))
+        artist = escape(str(f.get("artist", "")))
+        category = escape(str(f.get("category", "")))
+        reason = escape(str(f.get("reason", "")))
+        action = escape(str(f.get("suggested_action", "")))
+        rows.append(
+            f"<tr>"
+            f"<td style='padding:4px 8px;font-size:13px;color:#333;'><strong>{title}</strong><br>"
+            f"<span style='color:#777;'>{artist}</span></td>"
+            f"<td style='padding:4px 8px;font-size:12px;color:#a33;white-space:nowrap;'>{category}</td>"
+            f"<td style='padding:4px 8px;font-size:13px;color:#555;'>{reason}</td>"
+            f"<td style='padding:4px 8px;font-size:12px;color:#777;white-space:nowrap;'>{action}</td>"
+            f"</tr>"
+        )
+    table = "".join(rows)
+    n = len(findings)
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px;">
+      <p style="margin:0 0 6px;font-size:14px;color:#555;">
+        The daily LEIT clutter sweep flagged <strong>{n}</strong> song(s) for review
+        (scanned {scanned}).
+      </p>
+      <table style="border-collapse:collapse;width:100%;margin:8px 0 14px;">
+        <thead><tr style="text-align:left;border-bottom:1px solid #ddd;">
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Song</th>
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Category</th>
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Reason</th>
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Suggested</th>
+        </tr></thead>
+        <tbody>{table}</tbody>
+      </table>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard/clutter" style="color:#008f72;">Open the Audit Queue</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="moderation",
+        alert_key="leit_sweep_digest",
+        subject=f"LEIT clutter sweep: {n} flagged for review",
+        html_body=html,
+    )

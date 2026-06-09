@@ -764,6 +764,36 @@ function handleSubmit() {
   }
 }
 
+// LEIT clutter control: soft "are you sure?" gate when the backend judged the
+// paste not to look like a commercially released song. The user can confirm
+// (resubmit with confirm_commercial=true, which queues it for human audit) or
+// cancel. Creative/Curio Charger are shown as coming soon (no live routes yet).
+function closeCommercialWarning() {
+  const modal = document.getElementById('commercial-warning-modal');
+  if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden', 'true'); }
+}
+
+function showCommercialWarning(data) {
+  const modal = document.getElementById('commercial-warning-modal');
+  if (!modal) {
+    // Graceful fallback if the modal markup is absent.
+    const msg = (data && data.commercial_reason) || 'This may not be a commercially released song.';
+    if (window.confirm(msg + '\n\nContinue anyway? Flagged submissions are reviewed.')) submitLyrics(true);
+    return;
+  }
+  const reasonEl = document.getElementById('cw-reason');
+  if (reasonEl) reasonEl.textContent = (data && data.commercial_reason) || "This doesn't look like a commercially released song.";
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+(function wireCommercialWarning() {
+  const cont = document.getElementById('cw-continue');
+  const cancel = document.getElementById('cw-cancel');
+  if (cont) cont.addEventListener('click', () => { closeCommercialWarning(); submitLyrics(true); });
+  if (cancel) cancel.addEventListener('click', closeCommercialWarning);
+})();
+
 // Mirrors backend detect_prose_like. Returns reason string if prose-like.
 function detectProseLike(text) {
   const lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
@@ -783,7 +813,7 @@ function detectProseLike(text) {
   return null;
 }
 
-async function submitLyrics() {
+async function submitLyrics(confirmCommercial = false) {
   hideError();
   btnSubmit.disabled = true;
 
@@ -818,6 +848,7 @@ async function submitLyrics() {
         artists: artistEntries.map(e => ({ name: e.name, role: e.role })),
         hp_website: getHpValue(),
         turnstile_token: getTurnstileToken(),
+        confirm_commercial: confirmCommercial,
       }),
     });
 
@@ -885,6 +916,17 @@ async function submitLyrics() {
     if (data.status === 'run_capped') {
       stopProgress();
       showCappedCard(data);
+      showScreen('screen-entry');
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    if (data.status === 'not_commercial_warning') {
+      // LEIT clutter control: soft warning -- this didn't look like a
+      // commercially released song. Let the user confirm and push through
+      // (which queues it for human audit) or route to Creative/Curio.
+      stopProgress();
+      showCommercialWarning(data);
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;

@@ -1,0 +1,164 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'clutter' %}
+{% block title %}Audit Queue — Admin{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="clOpen">—</div><div class="label">Open</div></div>
+  <div class="stat-card"><div class="val" id="clPush">—</div><div class="label">LC push-throughs (open)</div></div>
+  <div class="stat-card"><div class="val" id="clSweep">—</div><div class="label">Sweep findings (open)</div></div>
+</div>
+
+<h2 class="section-title">Clutter Audit Queue</h2>
+<p style="color:#888;font-size:0.82rem;margin:-0.3rem 0 0.6rem;">
+  Songs flagged as possibly-not-commercially-released music: Lyrical Charger
+  push-throughs and the daily LEIT sweep. Review and resolve each one.
+</p>
+
+<div style="margin:0 0 0.6rem;">
+  <button id="clRunSweep" onclick="runSweep()" style="padding:0.35rem 0.9rem;font-size:0.8rem;">Run sweep now</button>
+  <span id="clSweepMsg" style="margin-left:0.6rem;font-size:0.8rem;color:#888;"></span>
+</div>
+
+<div class="filter-bar" id="clEnvFilters">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">ENV:</span>
+  <button class="filter-btn active" onclick="clFilter('environment','prod')">Prod</button>
+  <button class="filter-btn" onclick="clFilter('environment','local')">Local</button>
+</div>
+<div class="filter-bar" id="clStatusFilters">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">STATUS:</span>
+  <button class="filter-btn active" onclick="clFilter('status','open')">Open</button>
+  <button class="filter-btn" onclick="clFilter('status','kept')">Kept</button>
+  <button class="filter-btn" onclick="clFilter('status','removed')">Removed</button>
+  <button class="filter-btn" onclick="clFilter('status','dismissed')">Dismissed</button>
+  <button class="filter-btn" onclick="clFilter('status','')">All</button>
+</div>
+<div class="filter-bar" id="clSourceFilters">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">SOURCE:</span>
+  <button class="filter-btn active" onclick="clFilter('source','')">All</button>
+  <button class="filter-btn" onclick="clFilter('source','lc_push')">LC push</button>
+  <button class="filter-btn" onclick="clFilter('source','daily_sweep')">Sweep</button>
+</div>
+<div id="clList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let clEnv = 'prod';
+let clStatus = 'open';
+let clSource = '';
+
+function onAdminReady() { loadStats(); loadAudits(); }
+
+function clFilter(kind, val) {
+  if (kind === 'environment') clEnv = val;
+  else if (kind === 'status') clStatus = val;
+  else clSource = val;
+  const barId = kind === 'environment' ? 'clEnvFilters' : (kind === 'status' ? 'clStatusFilters' : 'clSourceFilters');
+  const bar = document.getElementById(barId);
+  bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadStats();
+  loadAudits();
+}
+
+async function loadStats() {
+  try {
+    const resp = await fetch('/api/admin/clutter-audits/stats?environment=' + encodeURIComponent(clEnv), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const s = await resp.json();
+    document.getElementById('clOpen').textContent = s.open || 0;
+    document.getElementById('clPush').textContent = (s.by_source && s.by_source.lc_push) || 0;
+    document.getElementById('clSweep').textContent = (s.by_source && s.by_source.daily_sweep) || 0;
+  } catch (e) { console.error(e); }
+}
+
+async function loadAudits() {
+  try {
+    const qs = ['environment=' + encodeURIComponent(clEnv)];
+    if (clStatus) qs.push('status=' + encodeURIComponent(clStatus));
+    if (clSource) qs.push('source=' + encodeURIComponent(clSource));
+    const resp = await fetch('/api/admin/clutter-audits?' + qs.join('&'), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const rows = data.items || [];
+    const el = document.getElementById('clList');
+    if (!rows.length) { el.innerHTML = '<p style="color:#666;">Nothing in the queue for this filter.</p>'; return; }
+    el.innerHTML = rows.map(renderAudit).join('');
+  } catch (e) { console.error(e); }
+}
+
+const CAT_LABEL = {
+  non_commercial: 'Not commercial', gibberish: 'Gibberish',
+  unknown_person: 'Unknown person', wrong_charger: 'Wrong charger',
+};
+
+function renderAudit(r) {
+  const when = r.detected_at ? `<time data-utc="${escHtml(r.detected_at)}"></time>` : '—';
+  const removed = !r.title;
+  const songLabel = removed
+    ? '<span style="color:#a55;font-style:italic;">(song removed)</span>'
+    : `<strong>${escHtml(r.title)}</strong> <span style="color:#777;">— ${escHtml(r.artist)}</span>`;
+  const songLink = (!removed && r.song_id)
+    ? ` &nbsp;<a href="/api/admin/dashboard/song/${r.song_id}" style="color:var(--accent);font-size:0.78rem;">admin</a>`
+    : '';
+  const conf = (r.confidence != null) ? ` &middot; conf ${(r.confidence).toFixed(2)}` : '';
+  const sugg = r.suggested_action ? ` &middot; suggested: <code>${escHtml(r.suggested_action)}</code>` : '';
+  const statusColor = r.status === 'open' ? 'var(--accent)' : '#888';
+  let actions = '';
+  if (r.status === 'open') {
+    actions = `
+      <button onclick="resolveAudit(${r.id},'keep')" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Keep</button>
+      <button onclick="resolveAudit(${r.id},'remove')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#c33;">Remove song</button>
+      <button onclick="resolveAudit(${r.id},'dismiss')" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Dismiss</button>`;
+  } else {
+    const by = r.reviewed_by ? ` by ${escHtml(r.reviewed_by)}` : '';
+    actions = `<span style="color:#888;font-size:0.75rem;">resolved${by}</span>`;
+  }
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <span style="color:${statusColor};font-weight:bold;text-transform:uppercase;font-size:0.7rem;">${escHtml(r.status)}</span>
+        <span style="background:rgba(170,51,51,0.12);color:#c55;font-size:0.7rem;padding:1px 7px;border-radius:3px;margin-left:0.4rem;">${escHtml(CAT_LABEL[r.category] || r.category)}</span>
+        <span style="color:#999;font-size:0.7rem;margin-left:0.4rem;">${escHtml(r.source)}</span>
+        <span style="margin-left:0.5rem;">${songLabel}${songLink}</span>
+      </div>
+      <div style="color:#666;font-size:0.78rem;">${when}</div>
+    </div>
+    <div style="color:#444;font-size:0.82rem;margin-top:0.4rem;">${escHtml(r.reason || '(no reason given)')}${conf}${sugg}</div>
+    <div style="margin-top:0.5rem;display:flex;gap:0.4rem;align-items:center;">${actions}</div>
+  </div>`;
+}
+
+async function resolveAudit(id, action) {
+  if (action === 'remove' && !confirm('Delete this song from the Library? This removes the submission and (if orphaned) the song row.')) return;
+  let notes = null;
+  try {
+    const resp = await fetch('/api/admin/clutter-audits/' + id + '/resolve', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ action, notes }),
+    });
+    if (resp.ok) { loadStats(); loadAudits(); }
+    else { const e = await resp.json().catch(() => ({})); alert('Failed: ' + (e.detail || resp.status)); }
+  } catch (e) { console.error(e); }
+}
+
+async function runSweep() {
+  const btn = document.getElementById('clRunSweep');
+  const msg = document.getElementById('clSweepMsg');
+  btn.disabled = true; msg.textContent = 'Sweeping…';
+  try {
+    const resp = await fetch('/api/admin/clutter-audits/run-sweep', { method: 'POST', headers: adminHeaders() });
+    if (resp.ok) {
+      const s = await resp.json();
+      msg.textContent = `Scanned ${s.scanned}, flagged ${s.flagged}.`;
+      loadStats(); loadAudits();
+    } else {
+      msg.textContent = 'Sweep failed (' + resp.status + ').';
+    }
+  } catch (e) { msg.textContent = 'Sweep error.'; console.error(e); }
+  finally { btn.disabled = false; }
+}
+</script>
+{% endblock %}

@@ -109,6 +109,9 @@ def _init_database():
     ensure_pref_default("faultline_new_signature", enabled=True)
     ensure_pref_default("faultline_new_critical", enabled=True)
     ensure_pref_default("faultline_regression", enabled=True)
+    # LEIT daily clutter sweep digest: emailed when the sweep flags songs for
+    # human audit. On by default; toggleable in the Alerts UI.
+    ensure_pref_default("leit_sweep_digest", enabled=True)
 
 
 @asynccontextmanager
@@ -326,6 +329,12 @@ from app.routers import faultline as faultline_router
 app.include_router(faultline_router.router)
 from app.routers import faultline_agent
 app.include_router(faultline_agent.router)
+from app.routers import leit_sweep
+app.include_router(leit_sweep.router)
+from app.routers import clutter_admin
+app.include_router(clutter_admin.router)
+from app.routers import agents_admin
+app.include_router(agents_admin.router)
 from app.routers import donate
 app.include_router(donate.router)
 # Billing -- subscription/pack Checkout, wallet, estimate, billing webhook.
