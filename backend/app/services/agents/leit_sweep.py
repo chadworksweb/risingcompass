@@ -281,6 +281,7 @@ async def _run_leit_sweep_inner() -> dict:
                 )
                 if new_id is not None:
                     flagged.append({
+                        "audit_id": new_id,
                         "song_id": song.id, "title": song.title, "artist": song.artist,
                         "category": category, "reason": reason,
                         "suggested_action": action, "confidence": confidence,

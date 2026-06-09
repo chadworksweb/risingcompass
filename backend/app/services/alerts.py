@@ -502,10 +502,23 @@ def emit_leit_sweep_digest(*, scanned: int, findings: list) -> None:
         category = escape(str(f.get("category", "")))
         reason = escape(str(f.get("reason", "")))
         action = escape(str(f.get("suggested_action", "")))
+        audit_id = f.get("audit_id")
+        song_id = f.get("song_id")
+        # Granular deep-links: the song title jumps to THIS audit row in the
+        # queue (ready to resolve); "song" jumps to the per-song admin detail.
+        # Both 404 cryptically if you aren't logged into Site Admin in the same
+        # browser -- that's the admin obscurity posture, not a broken link.
+        if audit_id is not None:
+            title_cell = (f"<a href='{site}/api/admin/dashboard/clutter?focus={audit_id}' "
+                          f"style='color:#008f72;text-decoration:none;'><strong>{title}</strong></a>")
+        else:
+            title_cell = f"<strong>{title}</strong>"
+        song_link = (f" &middot; <a href='{site}/api/admin/dashboard/song/{song_id}' "
+                     f"style='color:#777;font-size:11px;'>song</a>") if song_id else ""
         rows.append(
             f"<tr>"
-            f"<td style='padding:4px 8px;font-size:13px;color:#333;'><strong>{title}</strong><br>"
-            f"<span style='color:#777;'>{artist}</span></td>"
+            f"<td style='padding:4px 8px;font-size:13px;color:#333;'>{title_cell}<br>"
+            f"<span style='color:#777;'>{artist}</span>{song_link}</td>"
             f"<td style='padding:4px 8px;font-size:12px;color:#a33;white-space:nowrap;'>{category}</td>"
             f"<td style='padding:4px 8px;font-size:13px;color:#555;'>{reason}</td>"
             f"<td style='padding:4px 8px;font-size:12px;color:#777;white-space:nowrap;'>{action}</td>"

@@ -47,8 +47,19 @@
 let clEnv = 'prod';
 let clStatus = 'open';
 let clSource = '';
+// Deep-link from the digest email: ?focus=<audit_id> scrolls to + highlights
+// that row. Show all statuses so the row is found even if already resolved.
+const clFocus = new URLSearchParams(window.location.search).get('focus');
+if (clFocus) clStatus = '';
 
-function onAdminReady() { loadStats(); loadAudits(); }
+function onAdminReady() {
+  if (clFocus) {
+    // reflect the "All" status filter the focus mode forces
+    const bar = document.getElementById('clStatusFilters');
+    if (bar) { bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); const all = bar.querySelector('.filter-btn:last-child'); if (all) all.classList.add('active'); }
+  }
+  loadStats(); loadAudits();
+}
 
 function clFilter(kind, val) {
   if (kind === 'environment') clEnv = val;
@@ -85,6 +96,14 @@ async function loadAudits() {
     const el = document.getElementById('clList');
     if (!rows.length) { el.innerHTML = '<p style="color:#666;">Nothing in the queue for this filter.</p>'; return; }
     el.innerHTML = rows.map(renderAudit).join('');
+    if (clFocus) {
+      const target = document.getElementById('audit-' + clFocus);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.style.outline = '2px solid var(--accent)';
+        target.style.outlineOffset = '3px';
+      }
+    }
   } catch (e) { console.error(e); }
 }
 
@@ -115,7 +134,7 @@ function renderAudit(r) {
     const by = r.reviewed_by ? ` by ${escHtml(r.reviewed_by)}` : '';
     actions = `<span style="color:#888;font-size:0.75rem;">resolved${by}</span>`;
   }
-  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
+  return `<div id="audit-${r.id}" style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
     <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
       <div>
         <span style="color:${statusColor};font-weight:bold;text-transform:uppercase;font-size:0.7rem;">${escHtml(r.status)}</span>
