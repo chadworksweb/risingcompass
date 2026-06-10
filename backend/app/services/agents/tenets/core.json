@@ -40,6 +40,13 @@
       "target": "CALIBRATION_FORMAT:CHARGE_VALUE",
       "summary": "Add a Charge Anchors section: 15 anonymized reference archetypes (signature + charge) spanning +85 to -92, anchoring the charge_value scale so the number is placed relative to fixed exemplars instead of free-estimated inside a wide band. Cuts within-tier charge variance. Extremes (+95..+100, -95..-100) left unanchored by design. Anchors are content/structure signatures only (no song identity); they never override the anonymous read.",
       "source": "sonnet-arena charge-anchor work (anchored-rating-scale fix #2); negative-tier arena + Chad rulings; mid-blue +55 and the -65/-42 high-orange/self-directed split validated empirically"
+    },
+    {
+      "at": "2026-06-10",
+      "change": "amend",
+      "target": "CALIBRATION_FORMAT:CASE_FOR_MOVING_DOWN + CONTAMINATION_CHECK",
+      "summary": "Discrete-vs-pervasive gate, placed UPSTREAM in the tier-decision step (CASE FOR MOVING DOWN) plus a CONTAMINATION CHECK backstop: a recurring lower-tier payload (especially hook/refrain-carried) is part of the DOMINANT ARC and SETS the tier via R8 cumulative-pattern; it is not an outlier, not atmosphere, and not quarantined to contamination. Weigh co-occurring different down-signals cumulatively, not one-at-a-time-removable. Closes the one-directional sex/substance escape hatch. (v1 lived only in CONTAMINATION CHECK, which runs after the tier is set -> too late; LA CANCION regression stayed green. Moved upstream.)",
+      "source": "sonnet-arena flag 7 (LA CANCION, Cha Cha Cha, Titi Me Pregunto); v1 regression-failed, revised upstream"
     }
   ],
   "tiers": [
