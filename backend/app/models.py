@@ -1591,6 +1591,12 @@ class Song(Base):
     # method that owns the current canonical calibration -- gates overwrite rules
     # (authoritative chart_reading/editorial/terminal beats crowd lyrical_charger/stream)
     canonical_calibration_method = Column(Text)
+    # The chart a song FIRST surfaced on (the chart_source of its earliest
+    # chart_reading ingestion); stamped once, immutable, NULL for non-chart
+    # births (lyrical_charger / terminal / editorial). Build 7 -- the
+    # gutter-vs-mainstream origin signal (degraded music tends to surface via
+    # the social-discovery charts: Shazam, YouTube Trending).
+    origin_chart = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

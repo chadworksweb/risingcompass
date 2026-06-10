@@ -296,6 +296,26 @@ def run_compass_agent(
         if cached:
             enforce_contamination_rule(cached)
             logger.info("Cache hit: %s by %s", title, artist)
+            # Record the chart appearance even on a cache hit, so a song that
+            # first surfaces on a chart while already in the Library still gets
+            # its chart_reading ingestion + origin_chart stamp. The cache-hit
+            # branch skips the storage chokepoint, so without this the
+            # gutter-migration signal (an existing song newly appearing on
+            # Shazam/YouTube) would be invisible. Build 7. Fail-soft.
+            if not draft_only and cached.get("song_id"):
+                rec_db = SessionLocal()
+                try:
+                    from app.services.song_sync import record_chart_ingestion
+                    record_chart_ingestion(rec_db, cached["song_id"], chart_source)
+                    rec_db.commit()
+                except Exception:
+                    logger.exception("origin-chart record failed (cache hit): %s by %s", title, artist)
+                    try:
+                        rec_db.rollback()
+                    except Exception:
+                        pass
+                finally:
+                    rec_db.close()
             calibrated_songs.append({
                 "title": title,
                 "artist": artist,

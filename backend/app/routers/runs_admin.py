@@ -25,6 +25,7 @@ from app.database import get_db
 from app.models import (
     CalibrationRun, Song, ChartAppearance, Chart, SongIngestion, SongReset,
 )
+from app.constants import chart_source_label
 from app.routers.admin import verify_admin_key
 from app.services.calibration_corpus import PUBLIC_RUN_CAP
 from app.services.song_search import _attach_slugs
@@ -243,6 +244,8 @@ def song_detail(song_id: int, db: Session = Depends(get_db)):
             s.societal_prose_generated_at.isoformat() if s.societal_prose_generated_at else None
         ),
         "canonical_calibration_method": s.canonical_calibration_method,
+        "origin_chart": s.origin_chart,
+        "origin_chart_label": chart_source_label(s.origin_chart),
         "created_at": s.created_at.isoformat() if s.created_at else None,
     }
 

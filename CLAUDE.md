@@ -440,6 +440,32 @@ the tool), the footer (Lyrical Charger group), and `sitemap.xml`.
 Possible follow-up if a feed query gets slow: a `(event_type, song_id,
 occurred_at)` index on `lc_events` (not added -- current volume is fine).
 
+## Origin chart (`songs.origin_chart`, Build 7, 2026-06-10)
+
+The chart a song **first surfaced on** = the `chart_source` of its earliest
+`chart_reading` ingestion. Stamped once, **immutable** (`origin_chart IS NULL`
+guard), NULL for non-chart births (lyrical_charger / terminal / editorial).
+First-class queryable form of a fact that was previously only in
+`song_ingestions.detail` JSON -- and the ONLY provenance for Shazam / YouTube /
+iTunes, which create no `chart_appearance` (excluded from the charge aggregate).
+Instruments the thesis that degraded music surfaces via the social-discovery
+gutter (migration `101`, column on `Song`).
+
+- **Stamped** in `song_sync.upsert_unified_song` (chart_reading writes) AND via
+  `song_sync.record_chart_ingestion()` on the **cache-hit chart path**
+  (`compass_agent.run_compass_agent`): a cache hit skips the storage chokepoint,
+  so without the helper a song already in the Library that first surfaces on a
+  chart would log no chart_reading ingestion -- the gutter-migration signal would
+  be invisible. The helper is idempotent + fail-soft.
+- **Surfaced**: public song page ("First surfaced on ...", `songs._resolve_song`
+  -> `songs.js`) + admin song detail identity line (`runs_admin.song_detail`).
+  Label via `constants.chart_source_label()` (real chart names, NOT the Daily
+  Listens/Downloads rebrand). origin values: `spotify_top50_usa`,
+  `itunes_download_usa`, `shazam_top200_usa`, `youtube_trending_usa`, + legacy.
+- No regression: leit_sweep + charger-activity "New Additions" key on EARLIEST
+  ingestion, unaffected by a later chart_reading row.
+- Phase 2 (not built): tier/charge distribution by `origin_chart` over time.
+
 ### Sitewide footer (grouped, rebuilt 2026-06-06)
 
 `partials/footer.html` is now a grouped footer (brand block + columns: Explore /

@@ -115,7 +115,7 @@ function render(d) {
 
   const ingestions = d.ingestions.length
     ? '<ul class="sd-list">' + d.ingestions.map(i =>
-        `<li><span class="mono">${escHtml(i.method || '')}</span>
+        `<li><span class="mono">${escHtml(i.method || '')}</span>${i.detail ? ' <span class="mono sd-ingest-detail">' + escHtml(i.detail) + '</span>' : ''}
          <span class="sd-run-when"><time data-utc="${escHtml(i.created_at || '')}"></time></span></li>`).join('') + '</ul>'
     : '<p class="sd-empty">No ingestion records.</p>';
 
@@ -153,7 +153,7 @@ function render(d) {
         <div>
           <p class="sd-title">${escHtml(s.title || '(untitled)')}</p>
           <div class="sd-artist">${escHtml(s.artist || '')}</div>
-          <div class="sd-id">songs.id ${s.id}${s.canonical_calibration_method ? ' · method ' + escHtml(s.canonical_calibration_method) : ''}</div>
+          <div class="sd-id">songs.id ${s.id}${s.canonical_calibration_method ? ' · method ' + escHtml(s.canonical_calibration_method) : ''}${s.origin_chart_label ? ' · origin ' + escHtml(s.origin_chart_label) : ''}</div>
         </div>
         <div class="sd-links">${publicLink}</div>
       </div>

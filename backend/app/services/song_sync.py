@@ -132,7 +132,42 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
             "VALUES (:s, :m, :ip, :d)"
         ), {"s": song_id, "m": method, "ip": row.get("ip_address"), "d": json.dumps(detail)})
 
+    # Stamp origin_chart on the FIRST chart appearance (immutable). The
+    # `origin_chart IS NULL` guard means a later chart appearance never
+    # overwrites the first one. Build 7 -- the gutter-vs-mainstream origin signal.
+    if method == "chart_reading" and row.get("chart_source"):
+        db.execute(text(
+            "UPDATE songs SET origin_chart = :c WHERE id = :s AND origin_chart IS NULL"
+        ), {"c": row.get("chart_source"), "s": song_id})
+
     return song_id
+
+
+def record_chart_ingestion(db, song_id: int, chart_source: str | None) -> None:
+    """Log that a song surfaced on a chart (method='chart_reading') and stamp
+    songs.origin_chart on its FIRST chart appearance (immutable).
+
+    For the cache-hit chart path (compass_agent.run_compass_agent), which reuses
+    a stored calibration and so bypasses the store_calibrated_song chokepoint.
+    Without this, a song already in the Library that first surfaces on Shazam /
+    YouTube would leave NO chart_reading ingestion + no origin, making the
+    gutter-migration signal invisible exactly when it matters (Build 7).
+    Idempotent (deduped on the existing chart_reading row + the IS NULL guard);
+    does NOT commit -- the caller owns the transaction."""
+    if not song_id:
+        return
+    has_chart = db.execute(text(
+        "SELECT 1 FROM song_ingestions WHERE song_id = :s AND method = 'chart_reading' LIMIT 1"
+    ), {"s": song_id}).scalar()
+    if not has_chart:
+        db.execute(text(
+            "INSERT INTO song_ingestions (song_id, method, detail) "
+            "VALUES (:s, 'chart_reading', :d)"
+        ), {"s": song_id, "d": json.dumps({"chart_source": chart_source})})
+    if chart_source:
+        db.execute(text(
+            "UPDATE songs SET origin_chart = :c WHERE id = :s AND origin_chart IS NULL"
+        ), {"c": chart_source, "s": song_id})
 
 
 # --- native storage chokepoint ------------------------------------------- #

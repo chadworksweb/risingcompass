@@ -16,7 +16,7 @@ from app.models import (
 )
 from app.services.calibration_corpus import compute_consensus
 from app.services.song_search import search_unified
-from app.constants import COLOR_LABELS, COLOR_HEX
+from app.constants import COLOR_LABELS, COLOR_HEX, chart_source_label
 from app.services.artist_utils import generate_song_slug
 
 logger = logging.getLogger(__name__)
@@ -494,6 +494,8 @@ def _resolve_song(unified_id: int, db) -> dict | None:
         "listener_effects_prose": row.listener_effects_prose,
         "societal_effects_prose": row.societal_effects_prose,
         "uncalibrated": is_uncalibrated,
+        "origin_chart": row.origin_chart,
+        "origin_chart_label": chart_source_label(row.origin_chart),
         "song_source": "songs",
         "song_id": unified_id,
     }

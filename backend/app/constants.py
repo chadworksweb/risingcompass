@@ -96,6 +96,32 @@ def draft_display_name(draft_type) -> str:
     return DRAFT_TYPE_DISPLAY_NAMES.get(draft_type, draft_type)
 
 
+# Real chart names keyed by chart_source -- for a song's origin_chart ("first
+# surfaced on") line. Distinct from DRAFT_TYPE_DISPLAY_NAMES, which carries the
+# front-facing "Daily Listens"/"Daily Downloads" rebrand; origin provenance
+# names the actual chart a song first appeared on. Build 7.
+CHART_SOURCE_LABELS = {
+    "spotify_top50_usa": "Spotify Top 50 - USA",
+    "spotify_global_daily": "Spotify Global Daily",
+    "spotify": "Spotify",
+    "itunes_download_usa": "iTunes Download Chart - USA",
+    "shazam_top200_usa": "Shazam Top 200 - USA",
+    "youtube_trending_usa": "YouTube Trending - USA",
+    "billboard_hot_100": "Billboard Year-End Hot 100",
+    "billboard_yearend_2024": "Billboard Year-End Hot 100",
+    "billboard_yearend_2025": "Billboard Year-End Hot 100",
+    "billboard_200": "Billboard 200",
+}
+
+
+def chart_source_label(chart_source) -> str | None:
+    """Human chart name for a song's origin_chart (a chart_source key). Returns
+    None for empty input; falls back to the raw key for unregistered sources."""
+    if not chart_source:
+        return None
+    return CHART_SOURCE_LABELS.get(chart_source, chart_source)
+
+
 def is_chart_draft_type(draft_type) -> bool:
     """True if this draft_type names a chart-snapshot (iTunes chart, etc.) rather
     than the canonical daily/manual reading. Used by every cleanup, approval,

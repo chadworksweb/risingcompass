@@ -230,6 +230,15 @@
   margin: 0;
 }
 
+/* Origin chart — where the song first surfaced (Build 7). Quiet provenance
+   line under the artist. */
+.song-page-origin {
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  margin: 0.35rem 0 0;
+  letter-spacing: 0.01em;
+}
+
 .accent-link {
   color: var(--rc-accent);
   text-decoration: none;

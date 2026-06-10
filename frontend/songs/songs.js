@@ -931,6 +931,19 @@
       artistEl.textContent = song.artist || '';
     }
 
+    // Origin chart — the chart this song first surfaced on (Build 7). Present
+    // only for chart-born songs; a pure Lyrical Charger / terminal birth has no
+    // chart origin, so the line stays hidden.
+    const originEl = document.getElementById('song-origin-chart');
+    if (originEl) {
+      if (song.origin_chart_label) {
+        originEl.textContent = `First surfaced on ${song.origin_chart_label}`;
+        originEl.hidden = false;
+      } else {
+        originEl.hidden = true;
+      }
+    }
+
     // Tier badge + compass gauge. Calibrated songs get the gauge (which already
     // shows the score + tier), so the text badge is suppressed; uncalibrated
     // songs keep the simple "Uncalibrated" pill and no gauge.
