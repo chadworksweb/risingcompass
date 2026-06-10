@@ -266,6 +266,12 @@ app.include_router(users.router)
 from app.routers import geo
 app.include_router(geo.router)
 
+# On-site subscriber capture (Build 2b). No X-Api-Key gate -- the POST is
+# honeypot+Turnstile+rate-limit protected and the confirm/unsubscribe links are
+# clicked straight from an inbox, so neither can carry a key.
+from app.routers import subscribe as subscribe_router
+app.include_router(subscribe_router.router)
+
 # Public Participation Lobby comments. Reads are anonymous; writes require
 # require_clerk_user (Tier 1) and a claimed handle. No X-Api-Key gate --
 # the JWT (when present) is the authorization for writes.
@@ -311,6 +317,8 @@ app.include_router(misread.admin_router)
 app.include_router(dev_ledger.admin_router)
 app.include_router(artist_verification.admin_router)
 app.include_router(inquiries.admin_router)
+from app.routers import subscribers_admin
+app.include_router(subscribers_admin.router)
 app.include_router(chart_anomalies.admin_router)
 from app.routers import runs_admin
 app.include_router(runs_admin.router)

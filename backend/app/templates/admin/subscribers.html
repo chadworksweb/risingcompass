@@ -1,0 +1,105 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'subscribers' %}
+{% block title %}Subscribers — Admin{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="subConfirmed">—</div><div class="label">Confirmed</div></div>
+  <div class="stat-card"><div class="val" id="subPending">—</div><div class="label">Pending confirm</div></div>
+  <div class="stat-card"><div class="val" id="subPromoted">—</div><div class="label">Promoted to account</div></div>
+  <div class="stat-card"><div class="val" id="subUnsub">—</div><div class="label">Unsubscribed</div></div>
+  <div class="stat-card"><div class="val" id="subTotal">—</div><div class="label">All-time</div></div>
+</div>
+
+<div style="display:flex;align-items:center;gap:0.6rem;margin:0.5rem 0 0.2rem;flex-wrap:wrap;">
+  <button onclick="sendDigest(true)" style="padding:0.35rem 0.8rem;font-size:0.8rem;">Preview digest (count)</button>
+  <button onclick="sendDigest(false)" style="padding:0.35rem 0.8rem;font-size:0.8rem;">Send digest now</button>
+  <span id="digestResult" style="font-size:0.8rem;color:#888;"></span>
+</div>
+
+<h2 class="section-title">On-site subscribers</h2>
+<div class="filter-bar" id="subFilters">
+  <button class="filter-btn active" onclick="subFilter('')">All</button>
+  <button class="filter-btn" onclick="subFilter('confirmed')">Confirmed</button>
+  <button class="filter-btn" onclick="subFilter('pending')">Pending</button>
+  <button class="filter-btn" onclick="subFilter('promoted')">Promoted</button>
+  <button class="filter-btn" onclick="subFilter('unsubscribed')">Unsubscribed</button>
+</div>
+<p id="subCapNote" style="color:#888;font-size:0.75rem;display:none;">Showing the 500 most recent.</p>
+<div id="subList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let subStatus = '';
+
+function onAdminReady() { loadSubscribers(); }
+
+function subFilter(val) {
+  subStatus = val;
+  document.getElementById('subFilters').querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadSubscribers();
+}
+
+async function loadSubscribers() {
+  try {
+    let url = '/api/admin/subscribers';
+    if (subStatus) url += '?status=' + encodeURIComponent(subStatus);
+    const resp = await fetch(url, { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const s = data.stats || {};
+    document.getElementById('subConfirmed').textContent = s.confirmed ?? '—';
+    document.getElementById('subPending').textContent = s.pending ?? '—';
+    document.getElementById('subPromoted').textContent = s.promoted ?? '—';
+    document.getElementById('subUnsub').textContent = s.unsubscribed ?? '—';
+    document.getElementById('subTotal').textContent = s.total ?? '—';
+    document.getElementById('subCapNote').style.display = data.capped ? '' : 'none';
+
+    const el = document.getElementById('subList');
+    const rows = data.rows || [];
+    if (!rows.length) { el.innerHTML = '<p style="color:#666;">No subscribers match.</p>'; return; }
+    el.innerHTML = rows.map(renderSubscriber).join('');
+  } catch (e) { console.error(e); }
+}
+
+function renderSubscriber(r) {
+  const when = r.created_at ? `<time data-utc="${escHtml(r.created_at)}"></time>` : '—';
+  const statusColor = r.status === 'confirmed' ? 'var(--accent)'
+    : (r.status === 'unsubscribed' ? '#999' : '#c89b3c');
+  const promoted = r.promoted
+    ? `<span style="background:rgba(0,143,114,0.12);color:var(--accent);font-size:0.7rem;padding:1px 7px;border-radius:3px;margin-left:0.4rem;">account</span>`
+    : '';
+  const src = r.source ? ` &nbsp;|&nbsp; from <code>${escHtml(r.source)}</code>` : '';
+  const detail = r.source_detail ? ` &nbsp;|&nbsp; ${escHtml(r.source_detail)}` : '';
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.9rem;margin-bottom:0.4rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <span style="color:${statusColor};font-weight:bold;text-transform:uppercase;font-size:0.72rem;">${escHtml(r.status)}</span>
+        <strong style="margin-left:0.5rem;">${escHtml(r.email)}</strong>${promoted}
+      </div>
+      <div style="color:#666;font-size:0.78rem;">${when}</div>
+    </div>
+    <div style="color:#555;font-size:0.78rem;margin-top:0.25rem;">${src}${detail}</div>
+  </div>`;
+}
+
+async function sendDigest(dry) {
+  const out = document.getElementById('digestResult');
+  if (!dry && !confirm('Send the latest reading digest to all confirmed subscribers now?')) return;
+  out.textContent = dry ? 'Checking...' : 'Sending...';
+  try {
+    const resp = await fetch('/api/admin/subscribers/send-digest' + (dry ? '?dry_run=true' : ''), {
+      method: 'POST', headers: adminHeaders(),
+    });
+    const d = await resp.json();
+    if (!resp.ok) { out.textContent = 'Failed.'; return; }
+    if (d.status === 'no_reading') { out.textContent = 'No reading available to send.'; return; }
+    if (d.status === 'dry_run') { out.textContent = `${d.eligible} would receive the ${d.digest_key} reading.`; return; }
+    out.textContent = `Sent ${d.sent}, failed ${d.failed} (reading ${d.digest_key}).`;
+    loadSubscribers();
+  } catch (e) { out.textContent = 'Error.'; console.error(e); }
+}
+</script>
+{% endblock %}

@@ -362,6 +362,10 @@
         // instead so the public can't create accounts yet.
         renderSignupLocked();
       } else {
+        // Prefill the email when promoting from a subscriber link
+        // (/account/?mode=signup&prefill_email=...), Build 2b.
+        const prefillEmail = new URLSearchParams(window.location.search).get('prefill_email');
+        if (prefillEmail) opts.initialValues = { emailAddress: prefillEmail.slice(0, 254) };
         Auth.openSignUp(el.clerkMount, opts);
       }
     } else {

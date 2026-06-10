@@ -484,7 +484,7 @@
     <!-- ROW 3: Weekly Top 10 Albums (full width) -->
 
     <div class="card" id="reading-panel">
-      <div class="card-header">Daily Listens</div>
+      <div class="card-header">Spotify (US)</div>
       <p class="card-desc">Spotify Top 50 — USA. Today's most-heard songs, individually charged.</p>
       <div id="reading-content">
         <div class="loading" role="status">Loading today's reading...</div>
@@ -564,7 +564,7 @@
     <!-- ROW 2.5 LEFT: iTunes Download Chart (mirrors the Daily reading layout) -->
     <!-- ROW 2.5 RIGHT: The Ether Art Chart — same iTunes 20, deadpan + topic lens -->
     <div class="card" id="itunes-reading-panel" style="display:none;">
-      <div class="card-header">Daily Downloads</div>
+      <div class="card-header">iTunes</div>
       <p class="card-desc">iTunes Downloads — USA. Today's top-selling songs, individually charged. A second source through the same compass.</p>
       <div id="itunes-reading-content"></div>
     </div>
@@ -682,6 +682,11 @@
     </div>
   </section>
 
+  <!-- Subscriber capture (Build 2b). Drop-in: see /js/subscribe.js. -->
+  <div class="rc-subscribe" data-source="homepage"
+       data-heading="Follow the readings"
+       data-blurb="A short note from The Rising Compass as the daily reading moves and new songs are charged. No noise, leave any time."></div>
+
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">
@@ -716,8 +721,10 @@
     <nav class="footer-col" aria-label="Charts">
       <h2 class="footer-head">Charts</h2>
       <ul class="footer-links">
-        <li><a href="/charts/daily-listens/">Daily Listens</a></li>
-        <li><a href="/charts/daily-downloads/">Daily Downloads</a></li>
+        <li><a href="/charts/spotify/">Spotify (US)</a></li>
+        <li><a href="/charts/itunes/">iTunes</a></li>
+        <li><a href="/charts/shazam/">Shazam</a></li>
+        <li><a href="/charts/youtube/">YouTube</a></li>
         <li><a href="/ether-art-chart/">Ether Art Chart</a></li>
       </ul>
     </nav>
@@ -781,6 +788,7 @@
   <script src="js/contamination.js"></script>
   <script src="js/ether-art-chart.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/subscribe.js" defer></script>
   <script src="js/trajectory-expand.js" defer></script>
   <script src="calibration-log/calibration-log.js"></script>
 

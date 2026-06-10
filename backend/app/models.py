@@ -1136,6 +1136,41 @@ class LyricalChargerSubscriber(Base):
     notified_at = Column(DateTime, nullable=True)
 
 
+class RcSubscriber(Base):
+    """On-site email-subscriber layer -- the top of RC's own subscriber funnel
+    (Hockey Stick Build 2b). Distinct from LyricalChargerSubscriber, which is
+    the LC-outage notice list (a different consent purpose).
+
+    Double opt-in: a row is created `pending` with a confirm_token, then flips
+    to `confirmed` when the tokenized link is clicked. unsubscribe_token gives a
+    stable one-click opt-out.
+
+    No-duplicate / promote-to-Clerk: email_hash (sha256 of the normalized email)
+    is the match key against users.email_hash. When the subscriber becomes a
+    Clerk account (or an account holder subscribes later), user_id + promoted_at
+    link the two -- no duplicate identity. Plaintext email lives only here and in
+    Clerk, never on users.
+    """
+    __tablename__ = "rc_subscribers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(Text, nullable=False, unique=True)
+    email_hash = Column(String(64), nullable=False, index=True)
+    status = Column(String(16), nullable=False, default="pending")  # pending | confirmed | unsubscribed
+    source = Column(String(40), nullable=True)
+    source_detail = Column(Text, nullable=True)
+    confirm_token = Column(String(64), nullable=True)
+    confirmed_at = Column(DateTime, nullable=True)
+    unsubscribe_token = Column(String(64), nullable=False)
+    unsubscribed_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    promoted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # Date key (YYYY-MM-DD) of the last reading digest sent -- per-recipient
+    # dedup so a re-run only targets those who have not yet received it.
+    last_digest_key = Column(String(10), nullable=True)
+
+
 class Donation(Base):
     __tablename__ = "rc_donations"
 
@@ -1391,6 +1426,10 @@ class User(Base):
     avatar_url = Column(Text)
     tier = Column(Text, nullable=False, default="pending")
     anon_id = Column(Text, nullable=False, unique=True)
+    # sha256 of the normalized Clerk email. The ONLY email-derived value on this
+    # row (the table is otherwise pseudonymous, no plaintext email) -- it is the
+    # link key for the rc_subscribers layer, populated fail-soft at provision.
+    email_hash = Column(String(64))
     status = Column(Text, nullable=False, default="active")
     # Verified legal name (Stripe Identity) + the consent timestamp for
     # public display in the Deliberation Chamber. Shown only when BOTH are

@@ -456,6 +456,7 @@
     <div class="admin-nav-group">
       <div class="admin-nav-group-label">Community</div>
       <a class="admin-nav-item {% if active == 'users' %}active{% endif %}" href="/api/admin/dashboard/users">Users</a>
+      <a class="admin-nav-item {% if active == 'subscribers' %}active{% endif %}" href="/api/admin/dashboard/subscribers">Subscribers</a>
       <a class="admin-nav-item {% if active == 'lobby-mod' %}active{% endif %}" href="/api/admin/dashboard/lobby-mod">Moderation</a>
       <a class="admin-nav-item {% if active == 'motions' %}active{% endif %}" href="/api/admin/dashboard/motions">Motions</a>
       <a class="admin-nav-item {% if active == 'artist-verified' %}active{% endif %}" href="/api/admin/dashboard/artist-verified">Artist Verified</a>
@@ -752,6 +753,7 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
     { g: 'page', label: 'Backfill', url: '/api/admin/backfill', kw: 'historical billboard import console year' },
     { g: 'page', label: 'V1 Test', url: '/api/admin/dashboard/v1-test', kw: 'frozen tenets' },
     { g: 'page', label: 'Users', url: '/api/admin/dashboard/users', kw: 'accounts community tier handle email' },
+    { g: 'page', label: 'Subscribers', url: '/api/admin/dashboard/subscribers', kw: 'email list subscribe newsletter funnel audience confirm' },
     { g: 'page', label: 'Moderation', url: '/api/admin/dashboard/lobby-mod', kw: 'comments lobby reports bans' },
     { g: 'page', label: 'Motions', url: '/api/admin/dashboard/motions', kw: 'deliberation amendments proposals chamber' },
     { g: 'page', label: 'Artist Verified', url: '/api/admin/dashboard/artist-verified', kw: 'verification claims' },

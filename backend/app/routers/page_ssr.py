@@ -109,6 +109,17 @@ def _inject(html: str, *, title: str, description: str, canonical: str,
     return html.replace("</head>", script, 1)
 
 
+def _clamp(text: str, limit: int = 165) -> str:
+    """Collapse whitespace and trim a meta description to a SERP-safe length on
+    a word boundary. Google renders ~155-165 chars; cutting mid-word looks
+    broken, and a stray newline from prose would break the meta tag."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(" ,.;:-")
+    return f"{cut}..."
+
+
 def _faq_ld(question: str, answer: str, url: str) -> dict:
     """FAQPage schema: the natural-language question + its answer. This is the
     GEO payload answer engines lift directly."""
@@ -181,10 +192,14 @@ def ssr_song(slug: str):
         f"{question} {summary}" if summary
         else f"This page reads the meaning behind the lyrics of {tagline}, calibrated by The Rising Compass."
     )
-    description = (
-        f"This page answers what {tagline} is about - the meaning behind the lyrics. {summary}"
-        if summary else
-        f"This page answers what {tagline} is about - the meaning behind the lyrics, calibrated by The Rising Compass."
+    # Meta description: lead with the page-unique reading (charge_summary, drawn
+    # from the prose) so every snippet differs and the searcher sees the actual
+    # answer; open with the "what ... means" intent phrase so the query terms
+    # bold in the SERP. Raw tier/charge stay OUT of the visible text -- "Degraded
+    # -44" reads as jargon to a cold searcher and would depress CTR.
+    description = _clamp(
+        f"What {tagline} means: {summary}" if summary
+        else f"What does {tagline} mean? The Rising Compass reads the meaning behind the lyrics."
     )
     canonical = f"{_SITE}/songs/{slug}"
 

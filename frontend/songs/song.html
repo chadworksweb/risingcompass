@@ -678,6 +678,11 @@
       </section>
     </div>
 
+    <!-- Subscriber capture (Build 2b). Drop-in: see /js/subscribe.js. -->
+    <div class="rc-subscribe" data-source="song_page"
+         data-heading="Follow the readings"
+         data-blurb="Get a short note from The Rising Compass as new songs are read. No noise, leave any time."></div>
+
     <!-- Lobby comments -- mounted by songs.js after the song resolves. -->
     <section id="song-comments" class="song-section song-section--full" hidden></section>
 
@@ -720,6 +725,7 @@
   <script src="/js/comments.js" defer></script>
   <script src="/lyrical-charger/rc-charge-card-generator.js"></script>
   <script src="/songs/songs.js"></script>
+  <script src="/js/subscribe.js" defer></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">
@@ -754,8 +760,10 @@
     <nav class="footer-col" aria-label="Charts">
       <h2 class="footer-head">Charts</h2>
       <ul class="footer-links">
-        <li><a href="/charts/daily-listens/">Daily Listens</a></li>
-        <li><a href="/charts/daily-downloads/">Daily Downloads</a></li>
+        <li><a href="/charts/spotify/">Spotify (US)</a></li>
+        <li><a href="/charts/itunes/">iTunes</a></li>
+        <li><a href="/charts/shazam/">Shazam</a></li>
+        <li><a href="/charts/youtube/">YouTube</a></li>
         <li><a href="/ether-art-chart/">Ether Art Chart</a></li>
       </ul>
     </nav>

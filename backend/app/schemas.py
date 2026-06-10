@@ -1139,6 +1139,31 @@ class LCSubscriberOut(BaseModel):
     notified_at: Optional[datetime.datetime] = None
 
 
+class SubscribeIn(BaseModel):
+    """Public on-site subscribe (RC's own list, Build 2b). Bot-protected at the
+    endpoint. `source` records which surface captured the email."""
+    email: str = Field(..., min_length=4, max_length=254)
+    source: str = ""
+    source_detail: str = ""
+    hp_website: str = ""
+    turnstile_token: str = ""
+
+
+class SubscribeOut(BaseModel):
+    status: str  # "pending_confirm" | "already_subscribed" | "resent_confirm"
+    message: str
+
+
+class SubscriberOut(BaseModel):
+    id: int
+    email: str
+    status: str
+    source: Optional[str] = None
+    confirmed_at: Optional[datetime.datetime] = None
+    promoted: bool = False
+    created_at: datetime.datetime
+
+
 class GeneralInquiryCreate(BaseModel):
     """Public inquiry submission. Bot-protected at the endpoint."""
     name: Optional[str] = Field(None, max_length=200)

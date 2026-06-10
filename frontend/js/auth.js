@@ -317,9 +317,13 @@ const Auth = (() => {
   }
 
   function openSignUp(el, opts = {}) {
+    // initialValues (e.g. { emailAddress }) lets a subscriber promote to an
+    // account with their email already filled (Build 2b confirm-page link).
+    const extra = opts.initialValues ? { initialValues: opts.initialValues } : {};
     require().mountSignUp(el, {
       signInUrl: '/account/',
       ..._mirrorRedirectOpts(opts, 'signUp'),
+      ...extra,
       appearance: mergeAppearance(opts.appearance),
     });
   }

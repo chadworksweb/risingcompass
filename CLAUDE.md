@@ -932,3 +932,43 @@ sweep -- is the first resident.
   cost (all-time + 30d) + run-history table + a "Run now" button (Dusty's wired to
   the clutter `run-sweep` trigger) and a "View findings" link to the audit queue.
   Env-filtered (default prod).
+
+## On-site subscribers + reading digest (Build 2b, 2026-06-10)
+
+RC's OWN email-subscriber layer -- the top of RC's subscriber funnel (NOT
+chadlewine; you cannot sign people up to chadlewine from RC). Separate from
+`lyrical_charger_subscribers` (the LC-outage notice list). Tables: `rc_subscribers`
+(migration 102) + `users.email_hash` (102) + `rc_subscribers.last_digest_key`
+(103); see `RISING-COMPASS-DATABASE-SCHEMA.md` section 10. (Renumbered from
+099/100 to 102/103 on deploy: migration 101 had already shipped, and the
+runner applies only versions above the current max.)
+
+- **Capture (double opt-in).** Router `routers/subscribe.py`, mounted UNAUTHED like
+  `geo.router` (the POST is honeypot+Turnstile+`10/hour` protected; the GET links are
+  inbox-clicked). `POST /api/subscribe` -> `pending` row + Resend confirm email;
+  `GET /api/subscribe/confirm?token=` -> `confirmed` (single-use token) + a branded
+  page that promotes to a Clerk account with the email prefilled
+  (`/account/?mode=signup&prefill_email=...`); `GET /api/unsubscribe?token=`.
+  Service `services/subscribers.py`. Frontend: drop-in `frontend/js/subscribe.js`
+  card on the song page + homepage.
+- **No-duplicate / promote-to-Clerk.** `users` stores NO plaintext email; the link
+  key is `users.email_hash` (sha256 of the Clerk email), set fail-soft at provision
+  (`clerk.ensure_user_for_clerk_id` -> `get_clerk_user_email`) and matched against
+  `rc_subscribers.email_hash` both directions. Pre-existing accounts have NULL
+  `email_hash` until next sign-in (optional one-time backfill).
+- **Admin.** Site Admin -> Community -> **Subscribers** (`routers/subscribers_admin.py`,
+  `templates/admin/subscribers.html`, section `subscribers`): counts + filterable list
+  + a "Send digest now / preview" trigger.
+- **Reading digest (Phase 2).** `services/subscriber_digest.py` renders the **public
+  mirror of the daily admin reading email** (`agents/email_notifier.send_draft_email`):
+  charge metrics + editorial + song list, minus admin affordances, plus a Lyrical
+  Charger visual ad (banner `frontend/lyrical-charger/lc-splash-ad.png`, **701x158
+  shown at 350x79 = a 2x/retina slot** -- displaying it at 701px CSS rendered 2x-big +
+  blurry on HiDPI) and a boxed "created and managed by Chad Lewine" chadlewine link.
+  Sends to confirmed subscribers via Resend, deduped per-recipient by reading date.
+  Cron `POST /api/admin/agent/cron/subscriber-digest` (`X-Reading-Cron-Key`), script
+  `deploy/subscriber-digest.sh` (cadence = crontab choice, weekly recommended). NOT
+  yet in the server crontab.
+- **Status:** Deployed (migrations 102/103 apply on deploy). Plan:
+  `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 2; session notes
+  `2026-06-10b` / `2026-06-10c`.
