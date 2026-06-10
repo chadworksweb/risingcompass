@@ -37,7 +37,12 @@ from app.auth import verify_reading_cron_key
 from app.database import SessionLocal, get_db
 from app.models import AgentDraft, ChartSnapshot, Song
 from app.schemas import ReadingSongOut
-from app.services.agents.chart_source import fetch_itunes_songs, fetch_top_songs
+from app.services.agents.chart_source import (
+    fetch_itunes_songs,
+    fetch_shazam_songs,
+    fetch_top_songs,
+    fetch_youtube_songs,
+)
 from app.services.agents.compass_agent import run_compass_agent
 from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
 from app.services.charge_calc import degree_to_charge
@@ -59,6 +64,23 @@ CHART_REGISTRY: dict[str, dict] = {
         "slug": "spotify_top50_usa",
         "label": "Spotify Top 50 — USA",
         "fetcher": fetch_top_songs,
+    },
+    # Shazam Top 200 - USA: ingestion-discovery source (what people are trying to
+    # identify -> what to calibrate next). Same SOP as iTunes: unpublished
+    # snapshot + draft + awaiting-lyrics email; excluded from the compass charge
+    # aggregate (constants.AGGREGATING_CHART_SLUGS).
+    "shazam": {
+        "slug": "shazam_top200_usa",
+        "label": "Shazam Top 200 — USA",
+        "fetcher": fetch_shazam_songs,
+    },
+    # YouTube Trending - USA: ingestion-discovery source (what people are
+    # discovering now). Same SOP as iTunes/Shazam; excluded from the compass
+    # charge aggregate; pure ingestion feeder (no public panel).
+    "youtube": {
+        "slug": "youtube_trending_usa",
+        "label": "YouTube Trending — USA",
+        "fetcher": fetch_youtube_songs,
     },
 }
 

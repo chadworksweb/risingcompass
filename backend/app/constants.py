@@ -42,6 +42,8 @@ CHART_SOURCE_TO_CHART_SLUG = {
     "billboard_200": "billboard_200",
     "spotify_top50_usa": "spotify_top50_usa",
     "itunes_download_usa": "itunes_download_usa",
+    "shazam_top200_usa": "shazam_top200_usa",
+    "youtube_trending_usa": "youtube_trending_usa",
     "spotify_global_daily": "spotify_global_daily",
     "spotify": "spotify",
 }
@@ -81,6 +83,8 @@ DRAFT_TYPE_DISPLAY_NAMES = {
     "manual": "Manual Reading",
     "spotify_top50_usa": "Daily Listens",
     "itunes_download_usa": "Daily Downloads",
+    "shazam_top200_usa": "Shazam Top 200 - USA",
+    "youtube_trending_usa": "YouTube Trending - USA",
 }
 
 
