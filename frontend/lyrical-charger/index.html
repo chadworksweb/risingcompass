@@ -170,7 +170,10 @@
           var r = document.createRange(); r.selectNodeContents(t.firstChild);
           var g = r.getBoundingClientRect(), w = wrap.getBoundingClientRect();
           var pw = pl.offsetWidth || 45;
-          var overlap = Math.min(12, pw * 0.28);   // prong depth into the letter
+          // Seat depth: split the difference. Too deep (~12) and the pins poke
+          // through the OPEN counters of the L/R (no ink there to hide them);
+          // too shallow (~2) and the plug doesn't read as touching the letter.
+          var overlap = 7;
           pl.style.left = Math.max(2, (g.left - w.left) - pw + overlap) + 'px';
           pr.style.right = Math.max(2, (w.right - g.right) - pw + overlap) + 'px';
         }
