@@ -1,6 +1,47 @@
 {
   "schema_version": "1.0",
   "ratified_at": "2026-06-08",
+  "changelog": [
+    {
+      "at": "2026-06-09",
+      "change": "amend",
+      "target": "violet-note-specifics",
+      "from_version": "1.0",
+      "to_version": "1.1",
+      "summary": "Replace the 'different named group' transmit-test with the subject-vs-lens discriminator: the object of the demand (group as destination vs. group as window onto a universal) decides the Elevated cap.",
+      "source": "sonnet-arena flag 3 (Indian Reservation, They Don't Care About Us)"
+    },
+    {
+      "at": "2026-06-09",
+      "change": "amend",
+      "target": "R5",
+      "from_version": "1.0",
+      "to_version": "1.1",
+      "summary": "Add subsection (d): the R5c witness position governs the contamination flag too -- a slur voiced from the victim/attacked position does not set contaminated; only a slur deployed as contempt does.",
+      "source": "sonnet-arena flag 5 (They Don't Care About Us)"
+    },
+    {
+      "at": "2026-06-09",
+      "change": "amend",
+      "target": "CALIBRATION_FORMAT:CONTAMINATION_CHECK",
+      "summary": "Add a one-line pointer to R5(d) so the contamination step applies the witness-slur exemption.",
+      "source": "sonnet-arena flag 5"
+    },
+    {
+      "at": "2026-06-09",
+      "change": "amend",
+      "target": "CALIBRATION_FORMAT:CITATION_RULES",
+      "summary": "Extend name-redaction to slurs/epithets: refer to them abstractly and note the voicing stance; prevents content-filter blocks on protest/hip-hop/reclamation songs.",
+      "source": "sonnet-arena flag 6 (They Don't Care About Us)"
+    },
+    {
+      "at": "2026-06-10",
+      "change": "add",
+      "target": "CALIBRATION_FORMAT:CHARGE_VALUE",
+      "summary": "Add a Charge Anchors section: 15 anonymized reference archetypes (signature + charge) spanning +85 to -92, anchoring the charge_value scale so the number is placed relative to fixed exemplars instead of free-estimated inside a wide band. Cuts within-tier charge variance. Extremes (+95..+100, -95..-100) left unanchored by design. Anchors are content/structure signatures only (no song identity); they never override the anonymous read.",
+      "source": "sonnet-arena charge-anchor work (anchored-rating-scale fix #2); negative-tier arena + Chad rulings; mid-blue +55 and the -65/-42 high-orange/self-directed split validated empirically"
+    }
+  ],
   "tiers": [
     {
       "slug": "violet",
@@ -122,9 +163,9 @@
         {
           "id": "violet-note-specifics",
           "title": "Specifics challenge Ascended, not grant it.",
-          "text": "A song framed as an anthem for a specific identifiable group \u2014 by identity, ideology, geography, subculture, faith, or tribe \u2014 does NOT auto-qualify for Ascended just because it calls for that group's protection, pride, or liberation. Ascended requires a frequency that transmits universally \u2014 one any listener, including those outside the named group, can be elevated by. If a song's elevation is contingent on the listener belonging to (or siding with) the group, its ceiling is Elevated, not Ascended. Test the rule: would a song with the same structure but a different named group \u2014 one the listener finds objectionable \u2014 still read as transmitting at the highest frequency? If not, it's Elevated. Universal-frequency songs (wisdom, gratitude, pure love, non-group-specific transcendence) still earn Ascended.",
-          "version": "1.0",
-          "ratified_at": "2026-04-20",
+          "text": "A song framed as an anthem for a specific identifiable group \u2014 by identity, ideology, geography, subculture, faith, or tribe \u2014 does NOT auto-qualify for Ascended just because it calls for that group's protection, pride, or liberation. Ascended requires a frequency that transmits universally \u2014 one any listener, including those outside the named group, can be elevated by. If a song's elevation is contingent on the listener belonging to (or siding with) the group, its ceiling is Elevated, not Ascended. Universal-frequency songs (wisdom, gratitude, pure love, non-group-specific transcendence) still earn Ascended.\n\nSubject vs. lens -- the resolving test. What decides the cap is the OBJECT OF THE DEMAND, not the mere presence of a named group. Group-as-SUBJECT: the song's END is advocacy FOR a specific identifiable group -- its rights, pride, protection, liberation, or restoration is the thing being sought. The group is the destination. Ceiling = Elevated. Group-as-LENS: the song holds up a specific or lived group experience as a WINDOW onto a universal value (justice, human dignity, anti-brutality) any listener already stands inside -- the named experience is offered as proof or witness, not as the ask. The group is the window. Clears to Ascended. Test phrase: \"justice FOR [group]\" caps; \"justice, period -- here is what I lived\" clears. A named group in the lyrics never decides the cap by itself; whether that group is the song's destination or its window does. Worked: an anthem whose hook seeks one people's national return or restoration uses the group as SUBJECT and caps to Elevated; a first-person witness that offers one community's experience of brutality as proof of a claim every listener owns uses it as LENS and clears to Ascended.",
+          "version": "1.1",
+          "ratified_at": "2026-06-09",
           "status": "ratified"
         }
       ]
@@ -619,10 +660,10 @@
     {
       "id": "R5",
       "title": "Narrator perspective: observer/warning vs. first-person endorsement.",
-      "version": "1.0",
-      "ratified_at": "2026-04-26",
+      "version": "1.1",
+      "ratified_at": "2026-06-09",
       "status": "ratified",
-      "text": "Narrator perspective: observer/warning vs. first-person endorsement. When a song describes Degraded or Corrupted behavior, the narrator's relational position to that behavior determines tier. Three cases: (a) First-person endorsement \u2014 narrator IS the actor, models the behavior as desirable, or invites participation. The dehumanization/objectification/control language activates Degraded or Corrupted tenets at full weight. (b) Observer warning \u2014 narrator describes a third party's harmful pattern in cautionary terms, typically third-person (\"she\", \"he\", \"watch out\"), often addressed to another listener. The descriptive language can sound dehumanizing in isolation but the song's stance is warning, not celebrating. Lands Decent (often slightly negative, since cautioning about harm is not uplifting), unless the warning escalates into contempt or diss-track territory. (c) Witness/critique \u2014 narrator names harm without enacting it and the song does the work of exposing or counseling around the pattern. Can land Elevated when it processes or transforms (Beat It is an example \u2014 warns AND counsels survival). Test: where does the narrator stand relative to the harmful behavior \u2014 inside it, warning about it from outside, or critiquing it as a framing? Canonical example: \"Maneater\" (Hall & Oates, 1983). Narrator is sitting next to another man warning him about a third party who uses men for money. \"She-cat,\" \"beast,\" \"maneater\" sound dehumanizing in isolation, but the stance is cautionary observer, not endorser \u2014 every line is in service of \"watch out boy.\" \u2192 Decent (mid-low)."
+      "text": "Narrator perspective: observer/warning vs. first-person endorsement. When a song describes Degraded or Corrupted behavior, the narrator's relational position to that behavior determines tier. Three cases: (a) First-person endorsement \u2014 narrator IS the actor, models the behavior as desirable, or invites participation. The dehumanization/objectification/control language activates Degraded or Corrupted tenets at full weight. (b) Observer warning \u2014 narrator describes a third party's harmful pattern in cautionary terms, typically third-person (\"she\", \"he\", \"watch out\"), often addressed to another listener. The descriptive language can sound dehumanizing in isolation but the song's stance is warning, not celebrating. Lands Decent (often slightly negative, since cautioning about harm is not uplifting), unless the warning escalates into contempt or diss-track territory. (c) Witness/critique \u2014 narrator names harm without enacting it and the song does the work of exposing or counseling around the pattern. Can land Elevated when it processes or transforms (Beat It is an example \u2014 warns AND counsels survival). Test: where does the narrator stand relative to the harmful behavior \u2014 inside it, warning about it from outside, or critiquing it as a framing? Canonical example: \"Maneater\" (Hall & Oates, 1983). Narrator is sitting next to another man warning him about a third party who uses men for money. \"She-cat,\" \"beast,\" \"maneater\" sound dehumanizing in isolation, but the stance is cautionary observer, not endorser \u2014 every line is in service of \"watch out boy.\" \u2192 Decent (mid-low).\n\n(d) Witness-slur and contamination. The witness/critique position in (c) governs the contamination flag as well as the tier. A slur or epithet reproduced from the victim/attacked position -- the narrator IS the target voicing the abuse to expose it, or speaks AS the oppressed -- does NOT set contaminated, because contamination is a lower-tier artifact that UNDERMINES a higher-tier message and a witness-slur does the opposite: it serves the message by naming the harm done. Only a slur the narrator DEPLOYS as contempt against a target contaminates. Test: is the slur aimed BY the narrator at someone, or suffered and voiced by the narrator as the one it is aimed at? Aimed-by contaminates; voiced-as-witness does not. Canonical example: a first-person anthem that voices the very epithets hurled at the oppressed in order to expose the injustice -- the slur is the victim's voice, not the narrator's contempt -> NOT contaminated."
     },
     {
       "id": "R6",
