@@ -55,10 +55,13 @@ from app.models import (
     MisreadSubmission, CalibrationRun, SongSlug,
 )
 from app.routers.admin import verify_admin_key
+from app.auth import verify_admin_or_lyrics_key
 from app.services.agents.recalibrator import (
     recalibrate_song_satire, recalibrate_song_rubric_update,
 )
-from app.services.calibration_corpus import hash_lyrics, log_run, _seed_initial_run_if_missing
+from app.services.calibration_corpus import (
+    hash_lyrics, log_run, _seed_initial_run_if_missing, _derive_tier,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +168,36 @@ class AcceptIn(BaseModel):
 
 class RejectIn(BaseModel):
     review_notes: Optional[str] = Field(None, max_length=4000)
+
+
+class ApplySuppliedIn(BaseModel):
+    """Apply a Claude-Code-supplied verdict to an already-published song.
+
+    The verdict was produced OUT of band (by the calibration agent run through
+    Claude Code, then human-ruled) -- the server runs NO model. This is the
+    published-song analogue of correct_song.py (which is draft-only): it writes
+    the supplied tier/charge straight onto the unified song, supersedes the
+    prior runs, and logs the correction as a fresh calibration_run, exactly like
+    accept_proposal -- but from a supplied verdict instead of a server proposal.
+    Prose is intentionally NOT rewritten here (that would call the model); a
+    follow-up prose regeneration is a separate, opt-in step.
+    """
+    song_source: str = "songs"
+    song_id: int
+    rubric_color: str = Field(..., description="violet | blue | green | orange | red")
+    charge_value: int = Field(..., ge=-100, le=100)
+    contaminated: bool = False
+    contamination_note: Optional[str] = None
+    charge_summary: Optional[str] = None
+    # The agent's structured argument. Stored only after the lyric-quote scrub;
+    # fails closed without lyrics (which are used for the check only, never kept).
+    reasoning: Optional[str] = None
+    lyrics: Optional[str] = None
+    # The public-facing story of why the calibration changed (audit row).
+    public_summary: str = Field(..., min_length=20, max_length=2000)
+    internal_notes: Optional[str] = Field(None, max_length=4000)
+    rubric_change_note: Optional[str] = Field(None, max_length=2000)
+    agent_model: Optional[str] = "claude-code"
 
 
 def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
@@ -688,3 +721,131 @@ def reject_proposal(
 
     db.commit()
     return {"applied": False, "proposal_id": p.id, "status": p.status}
+
+
+@router.post("/apply-supplied")
+def apply_supplied_correction(
+    data: ApplySuppliedIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth = Depends(verify_admin_or_lyrics_key),
+):
+    """Apply a Claude-Code-supplied verdict to a published song (no model call).
+
+    Mirrors accept_proposal's apply block: seed a pre-mutation run if the song
+    has none, write the supplied tier/charge/summary onto the unified song,
+    supersede the prior non-superseded runs, and log the correction as the new
+    calibration_run (with the agent argument, lyric-guarded). Writes an
+    immutable SongRecalibration audit row (pipeline='manual', no proposal).
+    Auth: admin session cookie OR X-Lyrics-Supply-Key (terminal).
+    """
+    color = (data.rubric_color or "").strip().lower()
+    if color not in {"violet", "blue", "green", "orange", "red"}:
+        raise HTTPException(400, "rubric_color must be one of violet|blue|green|orange|red")
+    # Integrity: the supplied charge must fall in the supplied tier's band, and
+    # orange/red can never be contaminated (contamination attaches to v/b/g only).
+    derived = _derive_tier(data.charge_value)
+    if derived != color:
+        raise HTTPException(
+            400,
+            f"charge_value {data.charge_value} falls in '{derived}', not the supplied '{color}'",
+        )
+    if color in {"orange", "red"} and data.contaminated:
+        raise HTTPException(400, "orange/red songs cannot be contaminated")
+
+    song = _resolve_song(db, data.song_source, data.song_id)
+    unified_id = song.id
+    before_charge = song.charge_value
+    before_color = song.rubric_color
+    before_summary = song.charge_summary
+
+    flag_counts = _flag_counts_for_song(db, unified_id, song.title, song.artist or "")
+    vibe_snapshot = _vibe_snapshot(db, "songs", unified_id)
+
+    rc_note = (data.rubric_change_note or "").strip() or None
+    rc_slug = _slugify_rubric_change(rc_note) if rc_note else None
+    supersede_reason = rc_slug or "manual"
+
+    # Seed the pre-correction state as a run BEFORE mutating, so the original
+    # value stays visible as a superseded entry in the timeline.
+    try:
+        _seed_initial_run_if_missing("songs", song, db)
+    except Exception:
+        logger.exception("Failed to seed pre-correction run for song %s", unified_id)
+
+    # Apply supplied verdict to the song.
+    song.rubric_color = color
+    song.charge_value = data.charge_value
+    if data.charge_summary:
+        song.charge_summary = data.charge_summary
+    song.contaminated = bool(data.contaminated)
+    song.contamination_note = data.contamination_note if data.contaminated else None
+
+    # Supersede prior live runs so consensus restarts against the new verdict.
+    now = datetime.utcnow()
+    prior = (
+        db.query(CalibrationRun)
+        .filter(CalibrationRun.song_id == unified_id)
+        .filter(CalibrationRun.superseded.is_(False))
+        .all()
+    )
+    for r in prior:
+        r.superseded = True
+        r.superseded_reason = supersede_reason
+        r.superseded_at = now
+
+    run = log_run(
+        db,
+        title=song.title,
+        artist=getattr(song, "artist", None),
+        calibration={
+            "rubric_color": color,
+            "charge_value": data.charge_value,
+            "charge_summary": data.charge_summary or song.charge_summary,
+            "contaminated": bool(data.contaminated),
+            "contamination_note": song.contamination_note,
+            "confidence": 1.0,
+            "reasoning": data.reasoning,
+        },
+        triggered_by="manual",
+        song_id=unified_id,
+        lyrics_hash=hash_lyrics(data.lyrics) if data.lyrics else None,
+        agent_model=data.agent_model,
+        lyrics=data.lyrics,
+    )
+
+    audit = SongRecalibration(
+        lens="standard",
+        song_id=unified_id,
+        proposal_id=None,
+        pipeline="manual",
+        before_charge=before_charge,
+        before_color=before_color,
+        before_summary=before_summary,
+        after_charge=data.charge_value,
+        after_color=color,
+        ai_rationale=None,
+        public_summary=data.public_summary,
+        internal_notes=data.internal_notes,
+        human_rationale=data.internal_notes,
+        flag_count_snapshot=json.dumps(flag_counts),
+        vibe_snapshot=vibe_snapshot,
+        rubric_change_slug=rc_slug,
+        rubric_change_note=rc_note,
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(audit)
+
+    return {
+        "applied": True,
+        "audit_id": audit.id,
+        "run_id": run.id,
+        "song_id": unified_id,
+        "title": song.title,
+        "before": {"charge": before_charge, "color": before_color},
+        "after": {"charge": data.charge_value, "color": color},
+        "superseded_runs": len(prior),
+        "reasoning_stored": bool(run.reasoning),
+        "prose_rewritten": False,
+    }
