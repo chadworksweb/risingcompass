@@ -261,7 +261,7 @@ const App = (() => {
     if (etherPanel) etherPanel.style.display = '';
 
     const header = panel.querySelector('.card-header');
-    if (header) header.textContent = 'Daily Downloads';
+    if (header) header.textContent = 'iTunes';
     const desc = panel.querySelector('.card-desc');
     if (desc) desc.textContent = `iTunes Downloads — USA. iTunes' top-selling songs, read through the same compass. Updated ${formatDate(data.date)}.`;
 
@@ -324,7 +324,7 @@ const App = (() => {
     // Restore panel header for daily readings
     const header = document.querySelector('#reading-panel .card-header');
     const desc = document.querySelector('#reading-panel .card-desc');
-    if (header) header.textContent = 'Daily Listens';
+    if (header) header.textContent = 'Spotify (US)';
     if (desc) desc.textContent = "Spotify Top 50 — USA. Today's most-heard songs, individually charged.";
 
     // Sync calendar picker to this reading's date

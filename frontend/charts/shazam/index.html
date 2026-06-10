@@ -72,12 +72,15 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Calendar -- The Rising Compass</title>
-  <meta name="description" content="The Rising Compass calendar -- every daily reading laid out as a dial. Each day painted its exact charge color across the spectrum, from Ascended to Corrupted.">
-  <meta property="og:title" content="Calendar -- The Rising Compass">
-  <meta property="og:description" content="Every daily Compass reading as a colored calendar dial.">
+  <title>Shazam -- The Rising Compass</title>
+  <meta name="description" content="Shazam -- today's most-searched songs on the Shazam Top 200 USA, each individually charged by The Rising Compass.">
+  <link rel="canonical" href="https://risingcompass.net/charts/shazam/">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/calendar/">
+  <meta property="og:url" content="https://risingcompass.net/charts/shazam/">
+  <meta property="og:title" content="Shazam -- The Rising Compass">
+  <meta property="og:description" content="Today's most-searched songs, individually charged.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
@@ -85,10 +88,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/calendar/calendar.css">
+  <link rel="stylesheet" href="/charts/chart.css">
 </head>
 <body>
-  <a class="skip-nav" href="#cal-main">Skip to content</a>
+  <a class="skip-nav" href="#chart-main">Skip to content</a>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -163,52 +166,23 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="cal-main" class="cal-page">
-    <div class="cal-page-intro">
-      <h1 class="cal-page-title">Calendar</h1>
-      <p class="cal-page-sub">Every reading, painted its exact charge color. Choose a chart, then drill from days to decades; pick a day to open its reading.</p>
-      <div class="cal-chart-switch" role="tablist" aria-label="Choose chart">
-        <button class="cal-chart-btn is-active" data-chart="spotify" role="tab" aria-selected="true">Spotify (US)</button>
-        <button class="cal-chart-btn" data-chart="itunes" role="tab" aria-selected="false">iTunes</button>
-      </div>
-      <p class="cal-chart-sub" id="cal-chart-sub">Spotify Top 50 - USA</p>
+  <main id="chart-main" class="chart-page">
+    <div class="chart-page-intro">
+      <h1 class="chart-page-title">Shazam</h1>
+      <p class="chart-page-source">Shazam Top 200 -- USA</p>
+      <nav class="chart-page-links" aria-label="Related views">
+        <a href="/charts/spotify/">Spotify (US)</a>
+        <a href="/charts/itunes/">iTunes</a>
+        <a href="/charts/youtube/">YouTube</a>
+        <a href="/ether-art-chart/">Ether Art Chart</a>
+      </nav>
     </div>
-
-    <div class="cal-page-layout">
-      <section class="cal-stage" aria-label="Compass calendar">
-        <div class="cal-bar">
-          <button class="cal-bar-nav" data-action="prev" aria-label="Previous">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-          </button>
-          <button class="cal-bar-title" data-action="zoom-out" aria-label="Zoom out">Loading...</button>
-          <button class="cal-bar-nav" data-action="next" aria-label="Next">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-          </button>
-          <button class="cal-bar-today" data-action="today">Today</button>
-        </div>
-        <div id="cal-board" class="cal-board" aria-live="polite"></div>
-        <div class="cal-legend">
-          <span class="cal-legend-label">Ascended</span>
-          <span class="cal-legend-bar" aria-hidden="true"></span>
-          <span class="cal-legend-label">Corrupted</span>
-        </div>
-      </section>
-
-      <aside id="cal-detail" class="cal-detail" aria-label="Selected day reading" hidden>
-        <div class="cal-detail-inner">
-          <button class="cal-detail-close" data-action="close-detail" aria-label="Close reading">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
-          <div id="cal-detail-body" class="cal-detail-body"></div>
-        </div>
-      </aside>
-    </div>
+    <div id="chart-root"></div>
   </main>
 
-  <script src="/js/header-search.js" defer></script>
+  <script>window.RC_CHART = { source: 'shazam', title: 'Shazam', sub: 'Shazam Top 200 — USA' };</script>
   <script src="/js/api.js"></script>
-  <script src="/js/charge.js"></script>
-  <script src="/calendar/calendar.js"></script>
+  <script src="/charts/chart.js"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">

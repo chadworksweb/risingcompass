@@ -15,10 +15,10 @@
   // key. Brand names are working names ("for now") -- centralised here so a
   // rename is a single edit (label = the toggle button, sub = the source line).
   var CHARTS = {
-    'daily-listens':   { label: 'Daily Listens',   sub: 'Spotify Top 50 - USA',   source: 'daily' },
-    'daily-downloads': { label: 'Daily Downloads', sub: 'iTunes Downloads - USA', source: 'chart', key: 'itunes' },
+    'spotify': { label: 'Spotify (US)', sub: 'Spotify Top 50 - USA',   source: 'daily' },
+    'itunes':  { label: 'iTunes',       sub: 'iTunes Downloads - USA', source: 'chart', key: 'itunes' },
   };
-  var DEFAULT_CHART = 'daily-listens';
+  var DEFAULT_CHART = 'spotify';
   var curChart = DEFAULT_CHART;
   function chartCfg() { return CHARTS[curChart] || CHARTS[DEFAULT_CHART]; }
 
@@ -559,8 +559,11 @@
     if (!board) return;
 
     // Initial chart from ?chart= (footer deep-links / refresh), else default.
+    // Legacy slugs (pre-rename) still resolve so old links don't break.
+    var CHART_ALIASES = { 'daily-listens': 'spotify', 'daily-downloads': 'itunes' };
     try {
       var qChart = new URLSearchParams(window.location.search).get('chart');
+      if (qChart && CHART_ALIASES[qChart]) qChart = CHART_ALIASES[qChart];
       if (qChart && CHARTS[qChart]) curChart = qChart;
     } catch (e) {}
 

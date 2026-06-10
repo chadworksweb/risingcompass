@@ -22,7 +22,7 @@
   line-height: 1.5;
 }
 
-/* --- Chart switch (Daily Listens / Daily Downloads / ...) --- */
+/* --- Chart switch (Spotify (US) / iTunes / ...) --- */
 .cal-chart-switch {
   display: inline-flex;
   gap: 0.25rem;

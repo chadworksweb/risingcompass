@@ -7,9 +7,11 @@
    richer per-chart views come later.
 
    Each page sets window.RC_CHART = { source, title, sub } inline:
-     source 'daily'  -> /api/compass/current        (Daily Listens; has a charge readout)
-     source 'itunes' -> /api/compass/chart/itunes/current (Daily Downloads; song list only,
-                        mirroring the homepage's secondary panel) */
+     source 'daily'  -> /api/compass/current               (Spotify (US); has a charge readout)
+     any other source is a chart-snapshot registry key:
+     source 'itunes' | 'shazam' | 'youtube'
+                     -> /api/compass/chart/<source>/current (song list only, mirroring the
+                        homepage's secondary panel; no aggregate readout) */
 
 (function () {
   'use strict';
@@ -84,9 +86,9 @@
 
     var data;
     try {
-      data = CFG.source === 'itunes'
-        ? await API.getChartSnapshot('itunes')
-        : await API.getCompassCurrent();
+      data = CFG.source === 'daily'
+        ? await API.getCompassCurrent()
+        : await API.getChartSnapshot(CFG.source);
     } catch (e) {
       renderEmpty(root, "This chart hasn't published a reading yet. Check back once today's run is approved.");
       return;
@@ -102,8 +104,9 @@
       return;
     }
 
-    // Daily Listens carries the aggregate; the iTunes /current snapshot does not,
-    // so Daily Downloads shows the list only (as on the homepage).
+    // Spotify (US) carries the aggregate; the chart-snapshot /current endpoints
+    // (iTunes / Shazam / YouTube) do not, so those show the list only (as on the
+    // homepage).
     var readout = CFG.source === 'daily'
       ? renderReadout(data.charge_level, data.compass_degree, data.date)
       : '';
