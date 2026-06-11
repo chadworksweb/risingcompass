@@ -1654,11 +1654,11 @@ class Song(Base):
     album_id = Column(Integer, nullable=True)
     track_number = Column(Integer)
     # method that owns the current canonical calibration -- gates overwrite rules
-    # (authoritative chart_reading/editorial/terminal beats crowd lyrical_charger/stream)
+    # (authoritative chart_reading/catalog_backfill/terminal beats crowd lyrical_charger/stream)
     canonical_calibration_method = Column(Text)
     # The chart a song FIRST surfaced on (the chart_source of its earliest
     # chart_reading ingestion); stamped once, immutable, NULL for non-chart
-    # births (lyrical_charger / terminal / editorial). Build 7 -- the
+    # births (lyrical_charger / terminal / catalog_backfill). Build 7 -- the
     # gutter-vs-mainstream origin signal (degraded music tends to surface via
     # the social-discovery charts: Shazam, YouTube Trending).
     origin_chart = Column(Text)
@@ -1706,7 +1706,7 @@ class SongIngestion(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
-    # chart_reading | lyrical_charger | api_client | terminal | editorial | stream
+    # chart_reading | lyrical_charger | api_client | terminal | catalog_backfill | stream
     method = Column(Text, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     api_client_id = Column(Integer)

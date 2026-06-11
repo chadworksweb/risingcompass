@@ -9,7 +9,7 @@ legacy song-table read or write. The Phase-3 dual-write mirror
 
 Idempotent (upsert by canonical_key). Authoritative-first: a crowd write
 (lyrical_charger/stream) never overwrites an existing authoritative
-(chart_reading/editorial/terminal) calibration on the unified row. NEVER touches
+(chart_reading/catalog_backfill/terminal) calibration on the unified row. NEVER touches
 prose_provenance_anchors. See RISING-COMPASS-SONG-ENTITY-RENOVATION.md.
 """
 
@@ -24,9 +24,9 @@ from app.constants import CHART_SOURCE_TO_CHART_SLUG
 logger = logging.getLogger(__name__)
 
 _AUTH_SOURCES = {"compass", "library"}
-_AUTH_METHODS = {"chart_reading", "editorial", "terminal"}
+_AUTH_METHODS = {"chart_reading", "catalog_backfill", "terminal"}
 _METHOD = {
-    "compass": "chart_reading", "library": "editorial",
+    "compass": "chart_reading", "library": "catalog_backfill",
     "submitted": "lyrical_charger", "stream": "stream",
 }
 # Calibration columns copied onto the unified songs row (absent ones -> NULL).

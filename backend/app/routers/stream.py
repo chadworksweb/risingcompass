@@ -253,9 +253,9 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
 
     In the unified model the song already IS in the Library, so promotion no
     longer copies a row between tables. It (a) elevates the canonical
-    calibration method to authoritative -- editorial (library) / chart_reading
-    (compass) -- so a later crowd read can't override it, (b) records an
-    editorial/chart_reading ingestion breadcrumb, and (c) marks the stream
+    calibration method to authoritative -- catalog_backfill (library) / chart_reading
+    (compass) -- so a later crowd read can't override it, (b) records a
+    catalog_backfill/chart_reading ingestion breadcrumb, and (c) marks the stream
     ingestion promoted. A 'cl_stream' pick maps to no aggregating chart, so it
     stays out of the compass charge structurally (matching the legacy
     chart_position=0 / chart_source='cl_stream' non-chart behavior)."""
@@ -275,12 +275,12 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
         raise HTTPException(400, "Cannot promote -- calibration failed. Re-calibrate first.")
 
     sid = row["song_id"]
-    method = "chart_reading" if body.target == "compass" else "editorial"
+    method = "chart_reading" if body.target == "compass" else "catalog_backfill"
     db.execute(
         text("UPDATE songs SET canonical_calibration_method = :m WHERE id = :i"),
         {"m": method, "i": sid},
     )
-    # Editorial/chart_reading ingestion breadcrumb (one per song+method).
+    # catalog_backfill/chart_reading ingestion breadcrumb (one per song+method).
     if not db.execute(
         text("SELECT 1 FROM song_ingestions WHERE song_id = :s AND method = :m LIMIT 1"),
         {"s": sid, "m": method},

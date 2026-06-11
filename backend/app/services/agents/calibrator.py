@@ -39,7 +39,7 @@ _CONTAM_LINE_RE = re.compile(r"(?im)^\s*Contamination:\s*\S")
 # Calibration methods authoritative enough to serve as a cache hit -- a crowd
 # (lyrical_charger / stream) calibration never pre-empts a fresh authoritative
 # read. Mirrors the legacy compass-only cache scope on the unified model.
-_AUTHORITATIVE_METHODS = {"chart_reading", "editorial", "terminal"}
+_AUTHORITATIVE_METHODS = {"chart_reading", "catalog_backfill", "terminal"}
 
 
 def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:

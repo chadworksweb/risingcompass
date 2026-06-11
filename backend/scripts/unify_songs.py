@@ -9,7 +9,7 @@ Modes:
   python -m scripts.unify_songs                 # DRY RUN (default): report only, no writes
   python -m scripts.unify_songs --apply --yes   # APPLY: reset + rebuild in one txn, verify, commit
 
-Authoritative-first calibration wins (chart_reading/editorial beat crowd
+Authoritative-first calibration wins (chart_reading/catalog_backfill beat crowd
 lyrical_charger/stream); canonical identity from app.services.song_identity.
 See RISING-COMPASS-SONG-ENTITY-RENOVATION.md. NEVER touches prose_provenance_anchors.
 """
@@ -34,7 +34,7 @@ SOURCE_TABLE = {
 SOURCE_PRECEDENCE = {"compass": 3, "library": 2, "submitted": 1, "stream": 0}
 AUTH_SOURCES = {"compass", "library"}
 METHOD_BY_SOURCE = {
-    "compass": "chart_reading", "library": "editorial",
+    "compass": "chart_reading", "library": "catalog_backfill",
     "submitted": "lyrical_charger", "stream": "stream",
 }
 ENRICH_FIELDS = [

@@ -1,4 +1,4 @@
-"""Admin endpoints for Lyrical Charger submissions -- viewer, stats, promotion.
+"""Admin endpoints for Lyrical Charger submissions -- viewer, stats, delete.
 
 Unified song-entity renovation (Phase 5b): native. A "submitted song" is no
 longer a row in `submitted_songs`. A Lyrical Charger submission is an atomic
@@ -6,10 +6,7 @@ longer a row in `submitted_songs`. A Lyrical Charger submission is an atomic
 the legacy `submitted_songs.source` workflow field now lives in that ingestion's
 `detail` JSON (`source`), and `submitted_songs.ip_address` lives in
 `song_ingestions.ip_address`. The admin responses are rebuilt from songs + the
-lyrical_charger ingestion. Promotion no longer copies a row into a second table
--- the song already IS in the Library; it only elevates the canonical
-calibration to authoritative editorial (so a later crowd read can't override it)
-and records an editorial breadcrumb.
+lyrical_charger ingestion.
 """
 
 import json
@@ -211,46 +208,3 @@ def delete_submission(submission_id: int, db: Session = Depends(get_db)):
         db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": sid})
     db.commit()
     return {"deleted": submission_id, "title": title, "artist": artist, "song_removed": orphan}
-
-
-@router.post("/{submission_id}/promote", dependencies=[Depends(verify_admin_key)])
-def promote_submission(submission_id: int, db: Session = Depends(get_db)):
-    """Promote a submission into the authoritative Library.
-
-    In the unified model the song already IS in the Library, so promotion no
-    longer copies a row into a second table. It (a) elevates the canonical
-    calibration method to authoritative 'editorial' -- so a later crowd read
-    can't override it -- and (b) records an editorial ingestion breadcrumb
-    (guarded against a duplicate). Does NOT delete the lyrical_charger
-    ingestion."""
-    row = _fetch_submission(db, submission_id)
-    if not row:
-        raise HTTPException(status_code=404, detail=f"Submission ID {submission_id} not found")
-
-    if not row["title"] or not row["artist"]:
-        raise HTTPException(status_code=422, detail="Cannot promote: title and artist are required")
-
-    sid = row["id"]
-
-    db.execute(
-        text("UPDATE songs SET canonical_calibration_method = 'editorial' WHERE id = :i"),
-        {"i": sid},
-    )
-    # Editorial ingestion breadcrumb (one per song).
-    if not db.execute(
-        text("SELECT 1 FROM song_ingestions WHERE song_id = :s AND method = 'editorial' LIMIT 1"),
-        {"s": sid},
-    ).scalar():
-        db.execute(
-            text("INSERT INTO song_ingestions (song_id, method, detail) VALUES (:s, 'editorial', :d)"),
-            {"s": sid, "d": json.dumps({"promoted_from": "lyrical_charger"})},
-        )
-    db.commit()
-
-    return {
-        "promoted": True,
-        "submission_id": submission_id,
-        "song_id": sid,
-        "title": row["title"],
-        "artist": row["artist"],
-    }

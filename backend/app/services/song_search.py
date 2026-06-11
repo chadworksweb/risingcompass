@@ -43,7 +43,7 @@ _PROSE_FIELDS = {"listener_effects_prose", "societal_effects_prose"}
 # Legacy `source` filter value -> ingestion method, so the admin source filter
 # keeps working against the unified table.
 _METHOD_FOR_SOURCE = {
-    "compass": "chart_reading", "library": "editorial",
+    "compass": "chart_reading", "library": "catalog_backfill",
     "submitted": "lyrical_charger", "stream": "stream",
 }
 

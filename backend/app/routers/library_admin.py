@@ -1,10 +1,10 @@
 """Admin endpoints for library songs -- non-chart archive (manual + agent-scanned).
 
 Unified song-entity renovation (Phase 5b): native. A "library song" is now a
-`songs` row carrying an `editorial` song_ingestion (the workflow `source` field
-lives in that ingestion's detail). album_id / track_number live on `songs`.
-There is no library_songs row. Responses are rebuilt from songs + the editorial
-ingestion.
+`songs` row carrying a `catalog_backfill` song_ingestion (the workflow `source`
+field lives in that ingestion's detail). album_id / track_number live on `songs`.
+There is no library_songs row. Responses are rebuilt from songs + the
+catalog_backfill ingestion.
 """
 
 import json
@@ -24,11 +24,11 @@ from app.services.song_sync import store_calibrated_song
 router = APIRouter(prefix="/api/admin/library", tags=["library-admin"])
 
 
-def _editorial_source(db: Session, song_id: int) -> str:
-    """The workflow `source` for a library song lives in its editorial
+def _catalog_source(db: Session, song_id: int) -> str:
+    """The workflow `source` for a library song lives in its catalog_backfill
     ingestion detail. Defaults to 'manual'."""
     det = db.execute(
-        text("SELECT detail FROM song_ingestions WHERE song_id = :i AND method = 'editorial' ORDER BY id LIMIT 1"),
+        text("SELECT detail FROM song_ingestions WHERE song_id = :i AND method = 'catalog_backfill' ORDER BY id LIMIT 1"),
         {"i": song_id},
     ).scalar()
     if det:
@@ -47,7 +47,7 @@ def _library_out(db: Session, song_id: int) -> dict:
     ), {"i": song_id}).mappings().first()
     out = dict(s)
     out["contaminated"] = bool(out["contaminated"])
-    out["source"] = _editorial_source(db, song_id)
+    out["source"] = _catalog_source(db, song_id)
     return out
 
 
@@ -57,11 +57,11 @@ def list_library_songs(
     artist: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    """List library songs (songs carrying an editorial ingestion), optionally
+    """List library songs (songs carrying a catalog_backfill ingestion), optionally
     filtered by album or artist."""
     sql = (
         "SELECT s.id FROM songs s "
-        "WHERE EXISTS (SELECT 1 FROM song_ingestions i WHERE i.song_id = s.id AND i.method = 'editorial')"
+        "WHERE EXISTS (SELECT 1 FROM song_ingestions i WHERE i.song_id = s.id AND i.method = 'catalog_backfill')"
     )
     params: dict = {}
     if album_id is not None:
@@ -134,17 +134,17 @@ def update_library_song(song_id: int, data: LibrarySongUpdate, db: Session = Dep
 
 @router.delete("/songs/{song_id}", dependencies=[Depends(verify_admin_key)])
 def delete_library_song(song_id: int, db: Session = Depends(get_db)):
-    """Delete a library song. Removes the editorial ingestion; if that leaves the
-    songs row a pure library artifact (no chart appearance, no other ingestion,
+    """Delete a library song. Removes the catalog_backfill ingestion; if that leaves
+    the songs row a pure library artifact (no chart appearance, no other ingestion,
     not referenced by any reading or release), the song and its directly-owned
     reference rows are removed too. A song that also charts or is on a release is
-    kept (only the editorial ingestion drops)."""
+    kept (only the catalog_backfill ingestion drops)."""
     song = db.query(Song).filter(Song.id == song_id).first()
     if not song:
         raise HTTPException(status_code=404, detail=f"Library song ID {song_id} not found")
     title, artist = song.title, song.artist
 
-    db.execute(text("DELETE FROM song_ingestions WHERE song_id = :s AND method = 'editorial'"), {"s": song_id})
+    db.execute(text("DELETE FROM song_ingestions WHERE song_id = :s AND method = 'catalog_backfill'"), {"s": song_id})
 
     orphan = (
         not db.execute(text("SELECT 1 FROM song_ingestions WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()

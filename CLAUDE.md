@@ -478,7 +478,7 @@ occurred_at)` index on `lc_events` (not added -- current volume is fine).
 
 The chart a song **first surfaced on** = the `chart_source` of its earliest
 `chart_reading` ingestion. Stamped once, **immutable** (`origin_chart IS NULL`
-guard), NULL for non-chart births (lyrical_charger / terminal / editorial).
+guard), NULL for non-chart births (lyrical_charger / terminal / catalog_backfill).
 First-class queryable form of a fact that was previously only in
 `song_ingestions.detail` JSON -- and the ONLY provenance for Shazam / YouTube /
 iTunes, which create no `chart_appearance` (excluded from the charge aggregate).

@@ -8,7 +8,7 @@ through the one calibration path, which produces the whole object:
 
 Native (Phase 5b): both targets land on the unified `songs` table via
 store_calibrated_song -- compass = chart_reading method (the 'backfill_console'
-source is non-chart, so no chart_appearance), library = editorial method with
+source is non-chart, so no chart_appearance), library = catalog_backfill method with
 album linkage. Both pick up the ether columns the calibration path produces.
 
 State machine on the row:
@@ -289,7 +289,7 @@ def _persist_song(ctx: _RowCtx, calibration: Optional[dict]) -> tuple[str, int]:
     Native (Phase 5b): both targets land on the atomic `songs` table via
     store_calibrated_song -- compass = chart_reading method (chart_source
     'backfill_console' is non-chart, so no chart_appearance), library =
-    editorial method with album linkage. For tag-only jobs (calibration is
+    catalog_backfill method with album linkage. For tag-only jobs (calibration is
     None) we look up the existing unified song instead of creating one.
     Returns ("songs", id)."""
     if ctx.target == "compass":
