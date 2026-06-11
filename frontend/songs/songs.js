@@ -1062,6 +1062,24 @@
       }
     }
 
+    // Translated — neutral provenance badge (metadata only, never affects the
+    // charge). Set manually; stacks below the dogma badge when both show.
+    const translatedBadge = document.getElementById('song-translated-badge');
+    if (translatedBadge) {
+      if (!isUncalibrated && song.translated) {
+        const ttip = document.getElementById('song-translated-tooltip');
+        if (ttip) {
+          ttip.innerHTML = `<strong>Translated.</strong> ${escapeHtml(
+            `Calibrated from a translation of the original non-English lyrics. This tag is metadata only — it does not affect the charge.`
+          )}`;
+        }
+        translatedBadge.classList.toggle('stacked', !isUncalibrated && !!song.dogma_referenced);
+        translatedBadge.hidden = false;
+      } else {
+        translatedBadge.hidden = true;
+      }
+    }
+
     // Section 3b: Dogma Reference — only surfaces when the tag fired.
     const dogmaSection = document.getElementById('section-dogma');
     if (!isUncalibrated && song.dogma_referenced) {

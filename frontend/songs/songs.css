@@ -172,6 +172,57 @@
 .song-dogma-badge:focus .contam-tooltip,
 .song-dogma-badge:focus-within .contam-tooltip { display: block; }
 
+/* Translated — neutral provenance badge. Top-left like dogma; when the dogma
+   badge is also present, JS adds .stacked to drop it below dogma. */
+.song-translated-badge {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+  background: #dcefe9;
+  border: 1px solid #b7ddd0;
+  cursor: help;
+  z-index: 2;
+}
+.song-translated-badge.stacked { top: 2.55rem; }
+.song-translated-badge[hidden] { display: none; }
+.song-translated-badge .translated-icon {
+  font-size: 0.82rem;
+  line-height: 1;
+}
+.song-translated-badge-label {
+  font-family: var(--rc-font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1d7a5f;
+}
+.song-translated-badge .contam-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.4rem;
+  width: 230px;
+  padding: 0.55rem 0.65rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--rc-text);
+  text-align: left;
+  z-index: 10;
+}
+.song-translated-badge:hover .contam-tooltip,
+.song-translated-badge:focus .contam-tooltip,
+.song-translated-badge:focus-within .contam-tooltip { display: block; }
+
 .song-hero {
   max-width: 640px;
   margin: 0 auto;
