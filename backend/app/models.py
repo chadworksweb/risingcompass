@@ -2024,3 +2024,37 @@ class AlltimeAlbum(Base):
     __table_args__ = (
         Index("idx_alltime_albums_rank", "rank"),
     )
+
+
+class AlltimeStreamAlbum(Base):
+    """The Most-Streamed Albums of All Time chart (Spotify, GLOBAL lifetime
+    streams). The streaming-era twin of `AlltimeAlbum` (RIAA physical sales):
+    surfaces the modern albums the sales list misses. Current-state table (top
+    100), refreshed MONTHLY by scraping kworb.net. Stream rank + counts are the
+    real data; the calibration columns are denormalized off a matching charged
+    Release at refresh time (auto-link by title+artist), parallel to how the
+    songs board fills off `lookup_calibrated`."""
+    __tablename__ = "alltime_stream_albums"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rank = Column(Integer, nullable=False)
+    album_title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    total_streams = Column(BigInteger)
+    daily_streams = Column(Integer)
+    release_id = Column(Integer, ForeignKey("releases.id", ondelete="SET NULL"))
+    # Denormalized calibration snapshot (auto-linked Release at refresh):
+    rubric_color = Column(String(20))
+    charge_value = Column(Integer)
+    charge_summary = Column(Text)
+    deadpan_line = Column(Text)
+    topics = Column(Text)                                  # JSON-encoded list
+    artist_slug = Column(Text)
+    release_slug = Column(Text)
+    non_music = Column(Boolean, default=False)             # nulled + tagged, parallel to instrumental
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_alltime_stream_albums_rank", "rank"),
+    )

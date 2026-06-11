@@ -28,10 +28,12 @@ from sqlalchemy.orm import Session
 
 from app.auth import verify_reading_cron_key
 from app.database import SessionLocal, get_db
-from app.models import AlltimeAlbum, AlltimeStreamSong, Artist, Release
+from app.models import (AlltimeAlbum, AlltimeStreamAlbum, AlltimeStreamSong,
+                        Artist, Release)
 from app.routers.admin import verify_admin_key
 from app.services.agents.calibrator import lookup_calibrated
-from app.services.agents.chart_source import fetch_kworb_alltime_songs
+from app.services.agents.chart_source import (fetch_kworb_alltime_albums,
+                                              fetch_kworb_alltime_songs)
 from app.services.artist_utils import slugify
 from app.services.song_search import _attach_artist_slugs, _attach_slugs
 
@@ -132,6 +134,37 @@ def get_alltime_albums(db: Session = Depends(get_db)):
         .all()
     )
     return {"rows": [_album_row_out(r) for r in rows]}
+
+
+def _stream_album_row_out(r: AlltimeStreamAlbum) -> dict:
+    return {
+        "rank": r.rank,
+        "album_title": r.album_title,
+        "artist": r.artist,
+        "total_streams": r.total_streams,
+        "daily_streams": r.daily_streams,
+        "rubric_color": r.rubric_color,
+        "charge_value": r.charge_value,
+        "charge_summary": r.charge_summary,
+        "deadpan_line": r.deadpan_line,
+        "topics": _load_topics(r.topics),
+        "artist_slug": r.artist_slug,
+        "release_slug": r.release_slug,
+        "non_music": bool(r.non_music),
+    }
+
+
+@public_router.get("/stream-albums")
+def get_alltime_stream_albums(db: Session = Depends(get_db)):
+    """The Most-Streamed Albums of All Time board (top 100, Spotify global) --
+    the streaming-era twin of the RIAA best-sellers list."""
+    rows = (
+        db.query(AlltimeStreamAlbum)
+        .order_by(AlltimeStreamAlbum.rank.asc())
+        .limit(TOP_N)
+        .all()
+    )
+    return {"rows": [_stream_album_row_out(r) for r in rows]}
 
 
 # ------------------------------------------------- monthly stream-chart refresh
@@ -255,6 +288,127 @@ async def refresh_alltime_streams():
         except Exception:
             logger.exception("alltime-streams awaiting-lyrics alert failed")
 
+    return result
+
+
+# ------------------------------------------ monthly stream-ALBUMS chart refresh
+
+def _charged_release_index(db: Session) -> dict:
+    """Map (title-slug, artist-slug) -> Release for every Release that carries an
+    album-level reading. Built once per refresh so each scraped album is matched
+    in memory (the releases table is small)."""
+    index: dict[tuple, Release] = {}
+    rows = (
+        db.query(Release, Artist)
+        .join(Artist, Release.artist_id == Artist.id)
+        .filter(Release.rubric_color.isnot(None))
+        .all()
+    )
+    for rel, art in rows:
+        index.setdefault((slugify(rel.title), art.slug), (rel, art))
+    return index
+
+
+def _apply_stream_album_refresh(db: Session, albums: list[dict]) -> dict:
+    """Upsert the 100 stream-album rows by rank, auto-linking each to a matching
+    charged Release (by title+artist slug) to fill calibration -- the album twin
+    of the songs refresh. Diff-on-change. Non-music (sleep/ASMR) is nulled +
+    tagged. Returns a summary incl. the uncharged list (no matching Release yet)."""
+    rel_index = _charged_release_index(db)
+    existing = {r.rank: r for r in db.query(AlltimeStreamAlbum).all()}
+    seen_ranks: set[int] = set()
+    updated = 0
+    uncharged: list[dict] = []
+
+    for a in albums[:TOP_N]:
+        rank = a["position"]
+        seen_ranks.add(rank)
+        title, artist = a["title"], a["artist"]
+        nonmusic = _is_non_music(title, artist)
+        match = None if nonmusic else rel_index.get((slugify(title), slugify(artist)))
+
+        if match:
+            rel, art = match
+            release_id = rel.id
+            rubric_color = rel.rubric_color
+            charge_value = rel.charge_value
+            charge_summary = rel.charge_summary
+            deadpan_line = rel.deadpan_line
+            topics = rel.topics
+            release_slug = slugify(rel.title)
+            artist_slug = art.slug
+        else:
+            release_id = rubric_color = charge_value = charge_summary = None
+            deadpan_line = topics = release_slug = None
+            artist_slug = slugify(artist) if not nonmusic else None
+            if not nonmusic:
+                uncharged.append({"rank": rank, "album": title, "artist": artist})
+
+        row = existing.get(rank)
+        if row is None:
+            row = AlltimeStreamAlbum(rank=rank)
+            db.add(row)
+
+        changed = (
+            row.album_title != title
+            or row.artist != artist
+            or row.total_streams != a.get("total_streams")
+            or row.daily_streams != a.get("daily_streams")
+            or row.release_id != release_id
+            or row.rubric_color != rubric_color
+            or row.deadpan_line != deadpan_line
+            or row.topics != topics
+            or bool(row.non_music) != nonmusic
+        )
+        if changed:
+            row.album_title = title
+            row.artist = artist
+            row.total_streams = a.get("total_streams")
+            row.daily_streams = a.get("daily_streams")
+            row.release_id = release_id
+            row.rubric_color = rubric_color
+            row.charge_value = charge_value
+            row.charge_summary = charge_summary
+            row.deadpan_line = deadpan_line
+            row.topics = topics
+            row.release_slug = release_slug
+            row.artist_slug = artist_slug
+            row.non_music = nonmusic
+            updated += 1
+
+    for rank, row in existing.items():
+        if rank not in seen_ranks:
+            db.delete(row)
+
+    return {
+        "fetched": len(albums),
+        "updated": updated,
+        "uncharged_count": len(uncharged),
+        "uncharged": uncharged,
+    }
+
+
+@router.post(
+    "/api/admin/agent/cron/refresh-alltime-stream-albums",
+    dependencies=[Depends(verify_reading_cron_key)],
+)
+async def refresh_alltime_stream_albums():
+    """Monthly cron (X-Reading-Cron-Key): scrape kworb's all-time albums board,
+    upsert the 100 rows, and auto-link calibration from any already-charged
+    Release. No Anthropic calls -- uncharged albums simply render untagged until
+    charged through the Album Charger."""
+    albums = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: fetch_kworb_alltime_albums(count=TOP_N)
+    )
+    if not albums:
+        raise HTTPException(status_code=502, detail="Failed to fetch kworb all-time albums")
+
+    db: Session = SessionLocal()
+    try:
+        result = _apply_stream_album_refresh(db, albums)
+        db.commit()
+    finally:
+        db.close()
     return result
 
 

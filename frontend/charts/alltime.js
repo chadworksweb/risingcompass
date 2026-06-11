@@ -27,7 +27,13 @@
     albums: {
       fetch: function () { return API.getAlltimeAlbums(); },
       leftTitle: 'Best-Selling Albums of All Time',
-      leftDesc: 'RIAA certified units, USA, top 100. Each album charged across its tracks.',
+      leftDesc: 'RIAA certified units, USA, top 50. Each album charged across its tracks.',
+      etherDesc: 'The same albums, named for what they really are, with the topics pulled through the ether.',
+    },
+    'stream-albums': {
+      fetch: function () { return API.getAlltimeStreamAlbums(); },
+      leftTitle: 'Most Streamed Albums of All Time',
+      leftDesc: 'Spotify global lifetime streams, top 100 -- the streaming-era albums the sales chart misses.',
       etherDesc: 'The same 100 albums, named for what they really are, with the topics pulled through the ether.',
     },
   };
@@ -66,18 +72,19 @@
       ? '/artists/' + encodeURIComponent(row.artist_slug) + '/' + encodeURIComponent(row.release_slug) : null;
   }
 
-  function rowTitle(row) { return TOPIC === 'albums' ? row.album_title : row.title; }
+  function rowTitle(row) { return TOPIC === 'streams' ? row.title : row.album_title; }
 
   function metricText(row) {
-    if (TOPIC === 'streams') {
-      var s = formatStreams(row.total_streams);
-      return s ? s + ' streams' : '';
+    // RIAA albums show certified units + year; both stream boards show streams.
+    if (TOPIC === 'albums') {
+      var bits = [];
+      if (row.certified_units) bits.push(row.certified_units);
+      else if (row.units_millions) bits.push(row.units_millions + 'M units');
+      if (row.release_year) bits.push(String(row.release_year));
+      return bits.join(' · ');
     }
-    var bits = [];
-    if (row.certified_units) bits.push(row.certified_units);
-    else if (row.units_millions) bits.push(row.units_millions + 'M units');
-    if (row.release_year) bits.push(String(row.release_year));
-    return bits.join(' · ');
+    var s = formatStreams(row.total_streams);
+    return s ? s + ' streams' : '';
   }
 
   // --- left (regular) card ------------------------------------------------

@@ -45,6 +45,9 @@ EXCLUDED_FILE_NAMES = {
 # (the scan never recurses). Add nested page paths here as they ship.
 EXTRA_PAGES = [
     "/lyrical-charger/activity/",
+    "/charts/streamed-all-time/",
+    "/charts/most-streamed-albums/",
+    "/charts/best-selling-albums/",
 ]
 
 

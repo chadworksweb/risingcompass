@@ -61,6 +61,7 @@ const API = (() => {
     // left-regular + right-ether pages under /charts/.
     getAlltimeStreams: () => get('/api/charts/alltime/streams'),
     getAlltimeAlbums: () => get('/api/charts/alltime/albums'),
+    getAlltimeStreamAlbums: () => get('/api/charts/alltime/stream-albums'),
     // Chart-agnostic Calendar feeds: mirror the drift endpoints for any
     // chart-snapshot chart (key = CHART_REGISTRY key, e.g. "itunes").
     getChartYears: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/years`),

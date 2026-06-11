@@ -72,87 +72,26 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Privacy Policy — The Rising Compass</title>
-  <meta name="description" content="Privacy Policy for The Rising Compass.">
-  <link rel="canonical" href="https://risingcompass.net/privacy.html">
-
-  <!-- Favicon -->
-  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="img/favicon-48.png" sizes="48x48" type="image/png">
-  <link rel="apple-touch-icon" href="img/favicon-192.png">
-
+  <title>Most Streamed Albums of All Time -- The Rising Compass</title>
+  <meta name="description" content="The 100 most-streamed albums of all time on Spotify (global lifetime streams) -- the streaming-era albums the sales chart misses -- each charged by The Rising Compass, beside its Ether Art view.">
+  <link rel="canonical" href="https://risingcompass.net/charts/most-streamed-albums/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/charts/most-streamed-albums/">
+  <meta property="og:title" content="Most Streamed Albums of All Time -- The Rising Compass">
+  <meta property="og:description" content="The 100 most-streamed albums of all time, each charged across its tracks.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/css/responsive.css">
-  <style>
-    .privacy-page {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem 4rem;
-    }
-
-    .privacy-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.82rem;
-      color: var(--rc-accent);
-      text-decoration: none;
-      margin-bottom: 1.5rem;
-      transition: opacity var(--rc-ease);
-    }
-
-    .privacy-back:hover { opacity: 0.7; }
-
-    .privacy-title {
-      font-size: 1.4rem;
-      font-weight: 600;
-      color: var(--rc-text-bright);
-      margin-bottom: 0.5rem;
-    }
-
-    .privacy-updated {
-      font-size: 0.78rem;
-      color: var(--rc-text-dim);
-      margin-bottom: 2rem;
-    }
-
-    .privacy-page h2 {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--rc-text-bright);
-      margin-top: 2rem;
-      margin-bottom: 0.6rem;
-    }
-
-    .privacy-page p,
-    .privacy-page ul {
-      font-size: 0.88rem;
-      color: var(--rc-text);
-      line-height: 1.7;
-      margin-bottom: 1rem;
-    }
-
-    .privacy-page ul {
-      padding-left: 1.4rem;
-    }
-
-    .privacy-page li {
-      margin-bottom: 0.4rem;
-    }
-
-    .privacy-page a {
-      color: var(--rc-accent);
-      text-decoration: none;
-    }
-
-    .privacy-page a:hover { opacity: 0.7; }
-  </style>
+  <link rel="stylesheet" href="/charts/chart.css">
 </head>
 <body>
+  <a class="skip-nav" href="#chart-main">Skip to content</a>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -227,71 +166,22 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <div class="privacy-page">
-    <h1 class="privacy-title">Privacy Policy</h1>
-    <p class="privacy-updated">Last updated: May 30, 2026</p>
+  <main id="chart-main" class="chart-page">
+    <div class="chart-page-intro">
+      <h1 class="chart-page-title">Most Streamed Albums of All Time</h1>
+      <p class="chart-page-source">Spotify -- global lifetime streams -- top 100</p>
+      <nav class="chart-page-links" aria-label="Related views">
+        <a href="/charts/best-selling-albums/">Best-Selling Albums (sales)</a>
+        <a href="/charts/streamed-all-time/">Most Streamed Songs</a>
+        <a href="/ether-art-chart/">Ether Art Chart</a>
+      </nav>
+    </div>
+    <div id="chart-root"></div>
+  </main>
 
-    <p>The Rising Compass ("we," "us," "our") operates <strong>risingcompass.net</strong>. This policy explains what data we collect, how we use it, and your choices.</p>
-
-    <h2>1. Information We Collect</h2>
-
-    <p><strong>Automatically collected:</strong></p>
-    <ul>
-      <li><strong>Analytics data.</strong> We use Google Analytics 4 (GA4) and PostHog to collect usage data such as pages visited, device type, browser, general geographic region, and interactions with the site. This may include session replays (recordings of your on-page activity, with form fields and sensitive text masked) to help us improve the product. These tools may set cookies on your device. PostHog is served first-party from our own domain. Analytics is anonymous for signed-out visitors; if you sign in to an account, we associate your usage with that account. PostHog stores this data in the United States.</li>
-      <li><strong>IP address.</strong> Your IP address may be logged when you submit a Misread Report. It is used solely for abuse prevention.</li>
-    </ul>
-
-    <p><strong>Voluntarily provided:</strong></p>
-    <ul>
-      <li><strong>Misread Reports.</strong> If you submit a Misread Report, we collect your first name, last name, email address, and your message. This information is used to review your submission and send a confirmation receipt.</li>
-      <li><strong>Lyrical Charger.</strong> If you use the Lyrical Charger feature, we collect the song title and artist you provide. <strong>Lyrics are never stored.</strong> Only the calibration output — tier, charge value, contamination status, charge summary, and confidence score — is permanently retained in our database. This calibration data becomes part of The Rising Compass lyrical charge database. Your IP address is stored alongside each submission for rate limiting and abuse prevention.</li>
-    </ul>
-
-    <h2>2. Local Storage</h2>
-    <p>The Misread Report form generates a random device identifier stored in your browser's local storage. This is used to prevent abuse and is not linked to your personal identity. You can clear it at any time through your browser settings.</p>
-
-    <h2>3. How We Use Your Information</h2>
-    <ul>
-      <li>To operate and improve the site</li>
-      <li>To review and respond to Misread Reports</li>
-      <li>To send confirmation emails for submitted reports</li>
-      <li>To prevent abuse and enforce submission limits</li>
-      <li>To understand aggregate traffic patterns via analytics</li>
-    </ul>
-
-    <h2>4. Third-Party Services</h2>
-    <ul>
-      <li><strong>Google Analytics 4</strong> — usage analytics. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.</li>
-      <li><strong>PostHog</strong> — product analytics (pageviews and interaction events), with data stored in the United States. See <a href="https://posthog.com/privacy" target="_blank" rel="noopener">PostHog's Privacy Policy</a>.</li>
-      <li><strong>Resend</strong> — email delivery for Misread Report confirmations. See <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend's Privacy Policy</a>.</li>
-      <li><strong>Musixmatch</strong> — song search and lyrics retrieval for the Lyrical Charger "Search by Song" feature. Your search queries are sent to Musixmatch to find matching songs. See <a href="https://about.musixmatch.com/privacy" target="_blank" rel="noopener">Musixmatch's Privacy Policy</a>.</li>
-    </ul>
-    <p>We do not sell, trade, or share your personal information with any other third parties.</p>
-
-    <h2>5. Data Retention</h2>
-    <ul>
-      <li><strong>Misread Reports</strong> are retained indefinitely for calibration purposes.</li>
-      <li><strong>Lyrical Charger calibrations</strong> (tier, charge value, summary) are retained indefinitely as part of The Rising Compass lyrical charge database. Lyrics are never stored.</li>
-      <li><strong>Analytics data</strong> is retained per Google's standard GA4 retention policies and PostHog's data retention settings.</li>
-    </ul>
-
-    <h2>6. Your Choices</h2>
-    <ul>
-      <li><strong>Cookie consent.</strong> When you first visit, a cookie bar lets you allow or decline analytics cookies. Visitors in the EU, UK, and EEA are opt-in (analytics stay off until you choose "Accept"); elsewhere analytics are on by default and you can decline at any time. You can change your choice whenever you like via the <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a> link (also in the site footer). Essential cookies (sign-in, bot protection, and your saved cookie choice) are always on.</li>
-      <li>We honor your browser's <strong>Do Not Track</strong> and <strong>Global Privacy Control (GPC)</strong> signals: with either enabled, no analytics data is collected, regardless of any saved cookie choice. You can also block Google Analytics with a browser extension such as <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener">Google Analytics Opt-out</a>.</li>
-      <li>You can clear local storage through your browser settings.</li>
-      <li>You are not required to submit any personal information to use the site. The compass readings and historical data are fully accessible without providing any data.</li>
-    </ul>
-
-    <h2>7. Children's Privacy</h2>
-    <p>The Rising Compass is not directed at children under 13, and we do not knowingly collect personal information from children under 13.</p>
-
-    <h2>8. Changes to This Policy</h2>
-    <p>We may update this policy from time to time. Changes will be posted on this page with an updated "Last updated" date.</p>
-
-    <h2>9. Contact</h2>
-    <p>If you have questions about this policy, contact us through the <a href="/misread-submission.html">Misread Report</a> form.</p>
-  </div>
+  <script>window.RC_ALLTIME = { kind: 'stream-albums' };</script>
+  <script src="/js/api.js"></script>
+  <script src="/charts/alltime.js"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
@@ -391,6 +281,5 @@
 </footer>
 <script defer src="/js/consent.js"></script>
 <!-- /INCLUDE:footer -->
-
 </body>
 </html>

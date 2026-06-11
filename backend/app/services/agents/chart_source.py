@@ -47,6 +47,12 @@ SHAZAM_USA_URL = "https://kworb.net/charts/shazam/us.html"
 # <td class="text"><div>Artist - Title</div></td><td>total streams</td><td>daily streams</td>.
 KWORB_ALLTIME_SONGS_URL = "https://kworb.net/spotify/songs.html"
 
+# kworb's all-time Most-Streamed ALBUMS board (Spotify, GLOBAL lifetime totals).
+# Same table shape as the songs board, so the same parser handles it. This is
+# the streaming-era twin of the RIAA best-sellers list -- it surfaces the modern
+# albums (Bad Bunny, SZA, Olivia Rodrigo) that the physical-sales chart misses.
+KWORB_ALLTIME_ALBUMS_URL = "https://kworb.net/spotify/albums.html"
+
 # YouTube Music charts region + the chart we read. get_charts returns a few chart
 # playlists ("Trending ...", "Top 100 ...", "Daily Top ..."); we take Trending as
 # the discovery signal. Matched by substring since the country name is appended.
@@ -330,6 +336,42 @@ def fetch_kworb_alltime_songs(count: int = 100, _retries: int = 3) -> list[dict]
 
     logger.error("All %d attempts failed for %s (last got %d)", _retries, chart_source, len(songs))
     return songs
+
+
+def fetch_kworb_alltime_albums(count: int = 100, _retries: int = 3) -> list[dict]:
+    """Most-Streamed Albums of All Time -- Spotify GLOBAL lifetime streams. The
+    streaming-era twin of the RIAA best-sellers list. Reads kworb.net's all-time
+    albums board, which shares the songs board's table shape (Artist - Title /
+    total / daily), so `_parse_kworb_alltime_rows` parses it unchanged. The
+    `title` it yields is the album title. Returns up to `count`, or [] on total
+    failure."""
+    chart_source = "spotify_alltime_albums_global"
+    rows: list[dict] = []
+
+    for attempt in range(1, _retries + 1):
+        try:
+            resp = httpx.get(
+                KWORB_ALLTIME_ALBUMS_URL,
+                headers={"User-Agent": USER_AGENT, "Accept": "text/html"},
+                timeout=20,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            rows = _parse_kworb_alltime_rows(
+                resp.content.decode("utf-8", "replace"), count, chart_source
+            )
+            if rows:
+                logger.info("Fetched %d albums from %s", len(rows), chart_source)
+                return rows
+            logger.warning(
+                "Attempt %d/%d: %s table returned no usable rows, retrying...",
+                attempt, _retries, chart_source,
+            )
+        except Exception:
+            logger.exception("Attempt %d/%d: %s fetch failed", attempt, _retries, chart_source)
+
+    logger.error("All %d attempts failed for %s (last got %d)", _retries, chart_source, len(rows))
+    return rows
 
 
 def _resolve_youtube_chart_playlist(yt: YTMusic) -> str | None:
