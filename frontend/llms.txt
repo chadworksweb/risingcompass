@@ -1,0 +1,35 @@
+# The Rising Compass
+
+> The Rising Compass reads the vibrational charge of the song lyrics that dominate popular culture. Every charting song is calibrated against a 58-tenet rubric and placed on a five-tier spectrum, from Ascended at the top down to Corrupted at the bottom, so anyone can see what the music people actually listen to is really saying.
+
+The full reference, including the complete all-time chart rankings, lives at /llms-full.txt.
+
+## Charts
+- [Most Streamed Songs of All Time](https://risingcompass.net/charts/streamed-all-time/): the 100 most-streamed songs on Spotify by global lifetime streams, each one charged.
+- [Most Streamed Albums of All Time](https://risingcompass.net/charts/most-streamed-albums/): the 100 most-streamed albums on Spotify, the streaming-era counterpart the sales chart leaves out.
+- [Best-Selling Albums of All Time](https://risingcompass.net/charts/best-selling-albums/): the top 50 US albums by RIAA certified units.
+- [Spotify (US)](https://risingcompass.net/charts/spotify/): today's Spotify Top 50 USA, charged song by song.
+- [iTunes](https://risingcompass.net/charts/itunes/): the daily iTunes download chart, charged.
+- [Shazam](https://risingcompass.net/charts/shazam/): the daily Shazam chart, charged.
+- [YouTube](https://risingcompass.net/charts/youtube/): the daily YouTube trending chart, charged.
+- [Ether Art Chart](https://risingcompass.net/ether-art-chart/): the same songs named for what the lyrics really say, with the topics pulled through the ether.
+
+## The framework
+- [Methodology](https://risingcompass.net/methodology/): how a song is read and assigned a charge.
+- [Tenets](https://risingcompass.net/tenets/): the rubric every reading is built on.
+- [Amendments](https://risingcompass.net/amendments/): how the framework has changed over time.
+
+## Tools
+- [Lyrical Charger](https://risingcompass.net/lyrical-charger/): paste any lyrics and get the same reading the charts use.
+- [Charger Activity](https://risingcompass.net/lyrical-charger/activity/): what is moving through the charger right now.
+
+## Explore
+- [Library](https://risingcompass.net/library/): every calibrated song.
+- [Artists](https://risingcompass.net/artists/): the artists in the corpus.
+- [Search](https://risingcompass.net/search/): find a song or artist.
+- [Calendar](https://risingcompass.net/calendar/): the daily reading over time.
+- [Calibration Log](https://risingcompass.net/calibration-log/): the running record of readings.
+
+## Participate
+- [Motion Desk](https://risingcompass.net/motion-desk/): propose a change to the framework.
+- [Subscribe](https://risingcompass.net/subscribe/): get the daily reading by email.
