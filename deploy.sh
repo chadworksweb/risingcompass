@@ -172,8 +172,10 @@ bake_chart_statics() {  # $1 = repo root
     py="$repo/backend/.venv/Scripts/python.exe"
     [ -x "$py" ] || py="$repo/backend/.venv/bin/python"
     [ -x "$py" ] || { echo "(no backend venv -- skipping chart re-bake)"; return 0; }
-    "$py" "$repo/backend/scripts/bake_chart_ssr.py" || { echo "(chart bake failed -- skipping)"; return 0; }
-    "$py" "$repo/backend/scripts/bake_llms.py"      || { echo "(llms bake failed -- skipping)"; return 0; }
+    # Run from backend/ so pydantic-settings finds backend/.env (the bakers
+    # import app.config). Output paths resolve independent of CWD.
+    ( cd "$repo/backend" && "$py" scripts/bake_chart_ssr.py ) || { echo "(chart bake failed -- skipping)"; return 0; }
+    ( cd "$repo/backend" && "$py" scripts/bake_llms.py )      || { echo "(llms bake failed -- skipping)"; return 0; }
     git -C "$repo" add -- "${BAKED_FILES[@]}" 2>/dev/null || true
     if git -C "$repo" diff --cached --quiet -- "${BAKED_FILES[@]}"; then
         echo "chart statics + llms: rankings unchanged, nothing to commit"
