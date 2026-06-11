@@ -426,12 +426,12 @@ function renderFunnel(list) {
             <span class="av-badge-stage ${stage}">${esc(STAGE_LABELS[stage] || stage)}</span>
             ${method}
           </div>
-          <div class="av-card-meta">${esc(fmtDate(a.updated_at))}</div>
+          <div class="av-card-meta">${fmtDate(a.updated_at)}</div>
         </div>
         <div class="av-card-meta">
           ${a.published_block_count} published / ${a.block_count} block${a.block_count === 1 ? '' : 's'}
-          ${a.contacted_at ? ' &middot; first contacted ' + esc(fmtDate(a.contacted_at)) : ''}
-          ${a.verified_at ? ' &middot; verified ' + esc(fmtDate(a.verified_at)) : ''}
+          ${a.contacted_at ? ' &middot; first contacted ' + fmtDate(a.contacted_at) : ''}
+          ${a.verified_at ? ' &middot; verified ' + fmtDate(a.verified_at) : ''}
         </div>
       </div>
     `;
@@ -472,7 +472,7 @@ function renderDetail(d) {
     <div class="av-block">
       <div class="av-block-head">
         <strong>${esc(b.song_source)}/${b.song_id}</strong>
-        <span>${b.published ? '<span class="av-published-on">PUBLISHED</span>' : '<span class="av-published-off">draft</span>'}${b.published_at ? ' &middot; ' + esc(fmtDate(b.published_at)) : ''}</span>
+        <span>${b.published ? '<span class="av-published-on">PUBLISHED</span>' : '<span class="av-published-off">draft</span>'}${b.published_at ? ' &middot; ' + fmtDate(b.published_at) : ''}</span>
       </div>
       <div class="av-block-text">${esc(b.block_text || '(no text)')}</div>
       ${b.video_url ? `<div class="av-block-media">Video: <a href="${esc(b.video_url)}" target="_blank" rel="noopener">${esc(b.video_url)}</a></div>` : ''}
