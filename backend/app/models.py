@@ -819,6 +819,25 @@ class CalibrationRun(Base):
     activations = Column(Text)
     calibration_failed = Column(Boolean, default=False)
     reasoning = Column(Text)
+    # Calibrator v3 components + incoherence signals (migration 114). The model
+    # emits components; the server composes the charge and derives the tier.
+    # Stored per run so the composition is auditable and the escalation gate
+    # has signals. Internal-only: never surfaced outside admin.
+    visceral_charge = Column(Integer)  # System-1 first-impression placement
+    route = Column(String(40))  # internal_work | collective_stance | encouragement | witness_critique | doctrinal | static_portrait | negative_payload
+    harm_value = Column(Integer)  # harm axis read, 0..-100
+    harm_pervasive = Column(Boolean, default=False, nullable=False)  # R8 pervasiveness; forces harm governance
+    transcendence_value = Column(Integer)  # transcendence axis read, 0..+100
+    governing_axis = Column(String(15))  # server's governance decision: harm | transcendence | neutral
+    center = Column(Integer)  # precedent-placed center before the vernier shift
+    vernier = Column(Text)  # JSON {sat, res, reg, reach}, each -2..+2, pole-agnostic
+    precedent_refs = Column(Text)  # JSON array of precedent-table entry ids anchoring the placement
+    gut_divergence = Column(Integer)  # abs(charge - visceral_charge); the headline incoherence signal
+    guard_trips = Column(Integer, default=0, nullable=False)  # output-guard trips this run
+    parse_retries = Column(Integer, default=0, nullable=False)  # JSON parse retries this run
+    escalation_flags = Column(Text)  # JSON: trigger slugs fired (+ first-pass snapshot on re-pass); NULL = clean
+    escalated = Column(Boolean, default=False, nullable=False)  # an escalation re-pass actually ran
+    translated = Column(Boolean, default=False, nullable=False)  # this run read a translation (original unavailable)
 
 
 class SongReset(Base):

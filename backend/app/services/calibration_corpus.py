@@ -267,7 +267,15 @@ def log_run(
     `calibration` may carry a "reasoning" key (the agent's structured argument).
     It is stored ONLY through `_guard_reasoning`, which scrubs verbatim lyrics
     against `lyrics` and fails closed without them. `lyrics` is used for that
-    check only and is never persisted."""
+    check only and is never persisted.
+
+    Calibrator v3 component + incoherence keys (visceral_charge, route, harm,
+    transcendence, governing_axis, center, vernier, precedent_refs,
+    gut_divergence, guard_trips, parse_retries, escalation_flags, escalated,
+    translated, calibration_failed) map onto the migration-114 columns. All
+    optional: legacy/terminal-direct calibration dicts log cleanly with NULLs."""
+    harm = calibration.get("harm") or {}
+    transcendence = calibration.get("transcendence") or {}
     run = CalibrationRun(
         song_id=song_id,
         title=title,
@@ -287,10 +295,39 @@ def log_run(
         reasoning=_guard_reasoning(
             calibration.get("reasoning"), lyrics, title=title, artist=artist,
         ),
+        visceral_charge=calibration.get("visceral_charge"),
+        route=calibration.get("route"),
+        harm_value=harm.get("value"),
+        harm_pervasive=bool(harm.get("pervasive", False)),
+        transcendence_value=transcendence.get("value"),
+        governing_axis=calibration.get("governing_axis"),
+        center=calibration.get("center"),
+        vernier=_dump_json(calibration.get("vernier")),
+        precedent_refs=_dump_json(calibration.get("precedent_refs")),
+        gut_divergence=calibration.get("gut_divergence"),
+        guard_trips=int(calibration.get("guard_trips") or 0),
+        parse_retries=int(calibration.get("parse_retries") or 0),
+        escalation_flags=_dump_json(calibration.get("escalation_flags")),
+        escalated=bool(calibration.get("escalated", False)),
+        translated=bool(calibration.get("translated", False)),
+        calibration_failed=bool(calibration.get("calibration_failed", False)),
     )
     db.add(run)
     db.flush()
     return run
+
+
+def _dump_json(value) -> str | None:
+    """Serialize a v3 component value (dict/list) for its TEXT column. None and
+    empty containers store NULL; a pre-serialized string passes through."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def fetch_run_fingerprints(
