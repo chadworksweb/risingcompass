@@ -785,8 +785,8 @@ class CalibrationRun(Base):
 
     Every run — LC submit, compass daily, stream, admin library CRUD — writes
     one row here. Backs two features: per-song consensus (the canonical song
-    row drifts toward the weighted mean as runs accumulate) and the training
-    corpus for future agent improvements.
+    row drifts toward the MEDIAN of live runs as they accumulate) and the
+    training corpus for future agent improvements.
 
     Polymorphic song pointer is nullable so a run can exist before or without
     a persisted canonical song row. title + artist snapshot regardless.

@@ -1,10 +1,10 @@
 """Calibration corpus + consensus engine.
 
 Every agent run — wherever it fires — lands in calibration_runs. When a run
-targets an existing song, the canonical row drifts toward the
-confidence-weighted mean of all its runs. Tier flips from consensus drift
-are logged as song_recalibrations entries so the public audit trail stays
-honest.
+targets an existing song, the canonical row drifts toward the MEDIAN of all
+its live runs (Calibrator v3: one outlier vote can no longer drag a verdict
+toward a boundary). Tier flips from consensus drift are logged as
+song_recalibrations entries so the public audit trail stays honest.
 
 This is two things at once: a user-facing consensus ("this song was
 calibrated 8 times, consensus is orange -34") and a training corpus for
@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import statistics
 from typing import Optional
 
 from sqlalchemy import func, text
@@ -141,15 +142,10 @@ def _vibe_snapshot_json(db: Session, source: str, song_id: int) -> Optional[str]
         return None
 
 
-def _derive_tier(charge: int) -> str:
-    """Map a charge value back to a rubric color. Matches derive_tier in
-    artist_utils but avoids the cross-module import cycle.
-    """
-    if charge >= 75: return "violet"
-    if charge >= 25: return "blue"
-    if charge >= -24: return "green"
-    if charge >= -74: return "orange"
-    return "red"
+# THE single tier function (Calibrator v3): tier is always derived from
+# charge, server-side, everywhere. Re-exported under the historical private
+# name for this module's call sites.
+from app.services.charge_composition import derive_tier as _derive_tier  # noqa: E402
 
 
 def find_canonical_song(title: str, artist: str, db: Session) -> tuple[str, object] | None:
@@ -355,9 +351,20 @@ def fetch_run_fingerprints(
 
 
 def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
-    """Weighted-mean consensus across all runs for a song. Weighted by
-    confidence (defaults to 0.5 when the run didn't report one). Returns
-    None if there are no usable runs.
+    """MEDIAN consensus across all live runs for a song (Calibrator v3).
+
+    Median, not weighted mean: one outlier vote can no longer drag a verdict
+    toward a tier boundary, and self-reported confidence no longer weights
+    anything (it is stored per run and feeds only the escalation gate).
+    Contamination stays majority-vote. Returns None if there are no usable
+    runs.
+
+    Seed hygiene: a seed run is a lazy snapshot of the song's pre-corpus
+    state. When that state came from the chart_reading era (the audit's
+    headline staleness predictor) and 2+ fresh runs exist, the seed is
+    excluded so the stale snapshot stops voting. Any later authoritative
+    method change supersedes prior runs anyway, so the song-level
+    canonical_calibration_method is a stable provenance predicate.
 
     Unified renovation: aggregates by the atomic song. (source, song_id) is
     resolved to the unified song id (source='songs' -> id is already unified;
@@ -376,22 +383,17 @@ def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
     )
     if not runs:
         return None
-    weight_sum = 0.0
-    weighted_charge = 0.0
-    contam_count = 0
-    for r in runs:
-        w = float(r.confidence) if r.confidence is not None else 0.5
-        if w <= 0:
-            w = 0.1
-        weight_sum += w
-        weighted_charge += w * float(r.charge_value)
-        if r.contaminated:
-            contam_count += 1
-    if weight_sum == 0:
-        return None
-    consensus_charge = round(weighted_charge / weight_sum)
+
+    if (unified.canonical_calibration_method or "") == "chart_reading":
+        fresh = [r for r in runs if r.triggered_by != "seed"]
+        if len(fresh) >= 2:
+            runs = fresh
+
+    charges = [float(r.charge_value) for r in runs]
+    consensus_charge = int(round(statistics.median(charges)))
     consensus_charge = max(-100, min(100, consensus_charge))
     consensus_color = _derive_tier(consensus_charge)
+    contam_count = sum(1 for r in runs if r.contaminated)
     consensus_contaminated = contam_count > len(runs) / 2
     return {
         "run_count": len(runs),

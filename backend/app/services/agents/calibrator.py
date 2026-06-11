@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Song
+from app.services.charge_composition import derive_tier
 from app.services.claude_meter import tracked_create_async
 from app.services.contamination import enforce_contamination_rule
 from app.services.agents.compass_agent_rubric import (
@@ -250,6 +251,15 @@ async def calibrate_song_async(
         if existing:
             return await ensure_full_calibration(title, artist, lyrics, existing)
 
+    # No lyrics, no read. A calibration cannot exist without the page, so
+    # return the explicit null result without burning an API call (v3
+    # short-circuit; the old path spent a full rubric-sized Opus call to be
+    # told "null").
+    if not lyrics:
+        logger.info("No lyrics for '%s' by %s; returning null calibration "
+                    "without an API call", title, artist)
+        return _null_result(title, artist)
+
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     # Few-shot examples disabled. Today's corpus skews 1960s and creates a
@@ -262,20 +272,21 @@ async def calibrate_song_async(
         title, artist, lyrics=lyrics, examples=examples
     )
 
-    # Mandatory output guards, both run every song when lyrics are present:
+    # Mandatory output guards, both run on every song:
     #   1. CONTAMINATION CHECK -- the structured format requires an explicit
     #      "Contamination:" line before the VERDICT, independent of charge_value.
     #   2. charge_summary absence/verdict framing -- the summary must be pure
     #      positive description (the rule that lived prompt-only since c940c57;
     #      see summary_guard.py).
     # If either trips, the model drifted -- retry once with a corrective nudge,
-    # then proceed with a loud warning. The no-lyrics path returns a null
-    # calibration and produces no reasoning, so guards are skipped there.
+    # then proceed with a loud warning. Trips are counted as an incoherence
+    # signal (guard_trips) on the run.
     messages = [{"role": "user", "content": user_prompt}]
     raw = ""
     reasoning = ""
     json_str = ""
-    attempts = 2 if lyrics else 1
+    guard_trips = 0
+    attempts = 2
     for attempt in range(1, attempts + 1):
         response = await tracked_create_async(
             client,
@@ -298,12 +309,13 @@ async def calibrate_song_async(
             reasoning = raw[:brace_idx].strip()
             json_str = raw[brace_idx:]
 
-        contam_ok = (not lyrics) or bool(_CONTAM_LINE_RE.search(reasoning))
-        summary_ok = (not lyrics) or not summary_has_absence_framing(
+        contam_ok = bool(_CONTAM_LINE_RE.search(reasoning))
+        summary_ok = not summary_has_absence_framing(
             summary_from_json_text(json_str)
         )
-        if not lyrics or (contam_ok and summary_ok):
+        if contam_ok and summary_ok:
             break
+        guard_trips += 1
 
         problems = []
         if not contam_ok:
@@ -345,16 +357,23 @@ async def calibrate_song_async(
         logger.error("Failed to parse Claude response for %s by %s: %s", title, artist, raw)
         return _fallback_result(title, artist, raw)
 
-    # Validate rubric_color
-    if result.get("rubric_color") not in VALID_COLORS:
-        result["rubric_color"] = "green"
+    # The server owns the number (v3 discipline, enforced even on the current
+    # format): the tier is DERIVED from the charge, never model-chosen. The
+    # model's tier vocabulary survives only inside its reasoning. Invalid or
+    # missing charge output is an explicit needs-human-review failure -- the
+    # silent green default and the tier-band clamp are gone.
+    try:
+        charge_value = int(result.get("charge_value"))
+    except (TypeError, ValueError):
+        logger.error("Invalid charge_value %r for %s by %s; explicit failure",
+                     result.get("charge_value"), title, artist)
+        return _fallback_result(title, artist, raw)
+    charge_value = max(-100, min(100, charge_value))
+    color = derive_tier(charge_value)
+    result["rubric_color"] = color
 
     enforce_contamination_rule(result)
-    color = result.get("rubric_color", "green")
     contaminated = bool(result.get("contaminated", False))
-
-    # Validate and clamp charge_value to tier range
-    charge_value = _validate_charge_value(result.get("charge_value"), color)
 
     # Ensure all expected keys exist
     calibration = {
@@ -366,6 +385,7 @@ async def calibrate_song_async(
         "dogma_note": result.get("dogma_note"),
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
+        "guard_trips": guard_trips,
         # The agent's structured argument (the prose before the JSON). Carried
         # through to the calibration run, where log_run's _guard_reasoning
         # scrubs any verbatim lyric runs before it is stored.
@@ -418,7 +438,10 @@ def calibrate_song(
     ))
 
 
-# Tier ranges for charge_value validation
+# Tier ranges / midpoints. The v3 calibrate path derives the tier from the
+# composed charge (charge_composition.derive_tier) and no longer clamps or
+# midpoints anything; these stay exported because the satire lens
+# (services/agents/recalibrator.py) still imports them.
 TIER_RANGES = {
     "violet": (75, 100),
     "blue": (25, 74),
@@ -455,10 +478,10 @@ def _validate_charge_value(raw_value, color: str) -> int:
 
 
 def _fallback_result(title: str, artist: str, raw_response: str) -> dict:
-    """Return an explicit failure when Claude's response can't be parsed.
-
-    rubric_color=None signals the song needs human intervention rather than
-    silently defaulting to green/0.
+    """Return an explicit failure when Claude's response can't be parsed or
+    validated. rubric_color=None signals the song needs human intervention
+    rather than silently defaulting to green/0; calibration_failed stamps the
+    run so the failure stays visible in the ledger.
     """
     return {
         "rubric_color": None,
@@ -468,5 +491,21 @@ def _fallback_result(title: str, artist: str, raw_response: str) -> dict:
         "dogma_referenced": False,
         "dogma_note": None,
         "charge_summary": f"Calibration failed — manual review needed for {title} by {artist}",
+        "confidence": 0.0,
+        "calibration_failed": True,
+    }
+
+
+def _null_result(title: str, artist: str) -> dict:
+    """The null calibration for a song with no lyrics: nothing was read, so
+    nothing is scored. Distinct from _fallback_result (a read that failed)."""
+    return {
+        "rubric_color": None,
+        "charge_value": None,
+        "contaminated": False,
+        "contamination_note": None,
+        "dogma_referenced": False,
+        "dogma_note": None,
+        "charge_summary": f"No lyrics available for {title} by {artist}; awaiting lyrics to calibrate",
         "confidence": 0.0,
     }
