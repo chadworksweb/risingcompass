@@ -93,8 +93,8 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
             "title": title, "artist": artist, "canonical_key": key, "m": method,
             "album_id": row.get("album_id"), "track_number": row.get("track_number"),
         })
-        collist = "title, artist, canonical_key, canonical_calibration_method, album_id, track_number, " + ", ".join(_CALIB)
-        vallist = ":title, :artist, :canonical_key, :m, :album_id, :track_number, " + ", ".join(f":{c}" for c in _CALIB)
+        collist = "title, artist, canonical_key, canonical_calibration_method, album_id, track_number, created_at, " + ", ".join(_CALIB)
+        vallist = ":title, :artist, :canonical_key, :m, :album_id, :track_number, (now() at time zone 'utc'), " + ", ".join(f":{c}" for c in _CALIB)
         song_id = db.execute(
             text(f"INSERT INTO songs ({collist}) VALUES ({vallist}) RETURNING id"), params
         ).scalar()

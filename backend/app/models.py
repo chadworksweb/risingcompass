@@ -1663,7 +1663,10 @@ class Song(Base):
     # gutter-vs-mainstream origin signal (degraded music tends to surface via
     # the social-discovery charts: Shazam, YouTube Trending).
     origin_chart = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # server_default so the raw-SQL insert in song_sync.upsert_unified_song (the
+    # unified write chokepoint) stamps a time -- a client-side `default=` only
+    # fires on ORM inserts, which this table never uses. See migration 114.
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
 
 
 class Chart(Base):

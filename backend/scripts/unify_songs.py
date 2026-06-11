@@ -23,7 +23,7 @@ from sqlalchemy import text
 
 from app.database import engine
 from app.services.song_identity import compute_canonical_key
-from app.constants import CHART_SOURCE_TO_CHART_SLUG, NON_CHART_SOURCES
+from app.constants import CHART_SOURCE_TO_CHART_SLUG
 
 # precedence order: compass > library > submitted > stream
 SOURCES = ["compass", "library", "submitted", "stream"]

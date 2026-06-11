@@ -12,29 +12,10 @@ COLOR_BG = {
     "orange": "#fff5e0", "red": "#ffe8e8",
 }
 
-# Chart sources that represent popular music consciousness.
-# Any chart_source in this set = charting song.
-# "manual" (and any future non-chart source) = non-chart.
-TIER_LABELS_REVERSE = {
-    "Ascended": "violet", "Elevated": "blue", "Decent": "green",
-    "Degraded": "orange", "Corrupted": "red",
-}
-
-CHART_SOURCES = {
-    "billboard_hot_100",
-    "billboard_200",
-    "billboard_yearend_2024",
-    "billboard_yearend_2025",
-    "spotify",
-    "spotify_top50_usa",
-    "spotify_global_daily",
-}
-
 # Unified song-entity renovation: maps a legacy compass_songs.chart_source value
 # to a `charts.slug`. Consumed by scripts/unify_songs.py (Phase 2) when building
 # chart_appearances, and by the post-cutover write paths. Sources NOT present
-# here (NON_CHART_SOURCES) produce NO chart_appearance -- the structural
-# "non-chart" boundary that replaces today's CHART_SOURCES membership test.
+# here produce NO chart_appearance -- the structural non-chart boundary.
 CHART_SOURCE_TO_CHART_SLUG = {
     "billboard_hot_100": "billboard_yearend_hot100",
     "billboard_yearend_2024": "billboard_yearend_hot100",
@@ -47,7 +28,6 @@ CHART_SOURCE_TO_CHART_SLUG = {
     "spotify_global_daily": "spotify_global_daily",
     "spotify": "spotify",
 }
-NON_CHART_SOURCES = {"manual", "backfill_console"}
 
 # Chart slugs whose appearances count toward the compass charge + year/decade
 # aggregates -- the unified-model equivalent of CHART_SOURCES. Everything except

@@ -90,10 +90,6 @@ COST_SONG_MISS         = 1
 COST_SONG_CACHE_HIT    = 0
 COST_ALBUM_TRACK_MISS  = 1
 
-# Signup grant -- one-time on first User row, idempotent via ledger
-# (reason='signup_grant', ref_id=user_id).
-SIGNUP_GRANT_CREDITS = 1
-
 # Anonymous (no Clerk session) Charger daily allowance per-IP. Cost
 # firewall + funnel; signed-in users are gated by credits instead.
 ANON_CHARGER_DAILY_LIMIT = 3
