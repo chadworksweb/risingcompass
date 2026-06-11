@@ -90,7 +90,7 @@ def _run_dict(r: CalibrationRun) -> dict:
             bool(r.calibration_failed)
             if getattr(r, "calibration_failed", None) is not None else False
         ),
-        # Calibrator v3 components + incoherence signals (migration 114).
+        # Calibrator v3 components + incoherence signals (migration 116).
         # INTERNAL ONLY by ruling (spec section 5): surfaced here and on the
         # admin song detail, never on any public serializer.
         "visceral_charge": r.visceral_charge,

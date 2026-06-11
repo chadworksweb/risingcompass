@@ -268,7 +268,7 @@ def log_run(
     Calibrator v3 component + incoherence keys (visceral_charge, route, harm,
     transcendence, governing_axis, center, vernier, precedent_refs,
     gut_divergence, guard_trips, parse_retries, escalation_flags, escalated,
-    translated, calibration_failed) map onto the migration-114 columns. All
+    translated, calibration_failed) map onto the migration-116 columns. All
     optional: legacy/terminal-direct calibration dicts log cleanly with NULLs."""
     harm = calibration.get("harm") or {}
     transcendence = calibration.get("transcendence") or {}

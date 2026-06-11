@@ -819,7 +819,7 @@ class CalibrationRun(Base):
     activations = Column(Text)
     calibration_failed = Column(Boolean, default=False)
     reasoning = Column(Text)
-    # Calibrator v3 components + incoherence signals (migration 114). The model
+    # Calibrator v3 components + incoherence signals (migration 116). The model
     # emits components; the server composes the charge and derives the tier.
     # Stored per run so the composition is auditable and the escalation gate
     # has signals. Internal-only: never surfaced outside admin.
@@ -1684,7 +1684,7 @@ class Song(Base):
     origin_chart = Column(Text)
     # server_default so the raw-SQL insert in song_sync.upsert_unified_song (the
     # unified write chokepoint) stamps a time -- a client-side `default=` only
-    # fires on ORM inserts, which this table never uses. See migration 114.
+    # fires on ORM inserts, which this table never uses. See migration 116.
     created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
 
 
