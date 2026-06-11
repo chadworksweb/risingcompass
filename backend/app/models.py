@@ -1606,6 +1606,7 @@ class Song(Base):
     dogma_referenced = Column(Boolean, default=False)
     dogma_note = Column(Text)
     instrumental = Column(Boolean, default=False)
+    translated = Column(Boolean, default=False)  # calibrated off a translation of non-English lyrics
     confidence = Column(Float)
     listener_effects_prose = Column(Text)
     societal_effects_prose = Column(Text)

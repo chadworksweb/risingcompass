@@ -25,6 +25,9 @@
   .sd-flag.contam { background: #fce4dc; color: var(--red); }
   .sd-flag.dogma { background: #ede0ff; color: #6b34c9; }
   .sd-flag.instr { background: var(--panel-strong); color: var(--text-dim); }
+  .sd-flag.translated { background: #dcefe9; color: #1d7a5f; }
+  .sd-toggle { font-size: 0.7rem; font-weight: 600; padding: 0.18rem 0.6rem; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-strong); color: var(--text-dim); cursor: pointer; }
+  .sd-toggle:hover { background: rgba(0,143,114,0.12); color: var(--text); }
   .sd-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 0.6rem 1.2rem; }
   .sd-meta dt { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 700; }
   .sd-meta dd { margin: 0.1rem 0 0; font-size: 0.88rem; color: var(--text); }
@@ -69,6 +72,18 @@ function chargeClass(v) { return (v > 0) ? 'pos' : (v < 0 ? 'neg' : 'zero'); }
 function dot(color) { return color ? `<span class="color-dot ${escHtml(color)}"></span>` : ''; }
 function fmtCharge(v) { return (v === null || v === undefined) ? '—' : (v > 0 ? '+' + v : '' + v); }
 
+async function toggleTranslated(value) {
+  try {
+    const resp = await adminFetch(`/api/admin/songs/${encodeURIComponent(SONG_ID)}/translated`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: value }),
+    });
+    if (!resp.ok) { alert(`Failed to set translated (${resp.status}).`); return; }
+    loadSong();
+  } catch (e) { console.error(e); alert('Failed to set translated.'); }
+}
+
 async function loadSong() {
   const body = document.getElementById('sdBody');
   try {
@@ -89,7 +104,9 @@ function render(d) {
     s.contaminated ? '<span class="sd-flag contam">contaminated</span>' : '',
     s.dogma_referenced ? '<span class="sd-flag dogma">dogma</span>' : '',
     s.instrumental ? '<span class="sd-flag instr">instrumental</span>' : '',
+    s.translated ? '<span class="sd-flag translated">translated</span>' : '',
   ].join('');
+  const translatedToggle = `<button type="button" class="sd-toggle" onclick="toggleTranslated(${s.translated ? 'false' : 'true'})">${s.translated ? 'Unmark translated' : 'Mark translated'}</button>`;
   const publicLink = s.slug
     ? `<a href="/songs/${encodeURIComponent(s.slug)}" target="_blank" rel="noopener">Public page ↗</a>` : '';
 
@@ -162,6 +179,7 @@ function render(d) {
         <span class="sd-charge ${chargeClass(s.charge_value)}">${fmtCharge(s.charge_value)}</span>
         ${flags}
         <span class="sd-run-trig">${d.live_run_count}/${d.run_cap} live runs</span>
+        ${translatedToggle}
       </div>
     </div>
 

@@ -17,7 +17,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
@@ -233,6 +233,7 @@ def song_detail(song_id: int, db: Session = Depends(get_db)):
         "dogma_referenced": bool(s.dogma_referenced) if s.dogma_referenced is not None else False,
         "dogma_note": s.dogma_note,
         "instrumental": bool(s.instrumental) if s.instrumental is not None else False,
+        "translated": bool(s.translated) if s.translated is not None else False,
         "confidence": s.confidence,
         "deadpan_line": s.deadpan_line,
         "topics": _maybe_json(s.topics),
@@ -317,3 +318,16 @@ def song_detail(song_id: int, db: Session = Depends(get_db)):
         "live_run_count": live_runs,
         "run_cap": PUBLIC_RUN_CAP,
     }
+
+
+@router.post("/api/admin/songs/{song_id}/translated", dependencies=[Depends(verify_admin_key)])
+def set_translated(song_id: int, value: bool = Body(..., embed=True), db: Session = Depends(get_db)):
+    """Manually set the `translated` provenance flag on a song (calibrated off a
+    translation of non-English lyrics). Parallel tag, never moves the charge.
+    Set from the terminal supply path (calibrate_song.py --translated) or here."""
+    s = db.get(Song, song_id)
+    if s is None:
+        raise HTTPException(status_code=404, detail=f"Song {song_id} not found")
+    s.translated = bool(value)
+    db.commit()
+    return {"id": song_id, "translated": bool(s.translated)}
