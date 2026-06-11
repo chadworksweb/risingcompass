@@ -43,7 +43,11 @@ ROUTE_AXIS = {
     "internal_work": AXIS_TRANSCENDENCE,
     "collective_stance": AXIS_TRANSCENDENCE,
     "encouragement": AXIS_TRANSCENDENCE,
-    "witness_critique": AXIS_TRANSCENDENCE,
+    # Witness can EARN Elevated, but a sour warning legitimately sits slightly
+    # negative (sanity rehearsal 2026-06-11: Maneater) -- mapping it neutral
+    # lets the center sign govern silently instead of firing
+    # route_center_conflict on every healthy sour-witness read.
+    "witness_critique": AXIS_NEUTRAL,
     "doctrinal": AXIS_NEUTRAL,
     "static_portrait": AXIS_NEUTRAL,
     "negative_payload": AXIS_HARM,
