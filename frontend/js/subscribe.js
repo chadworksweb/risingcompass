@@ -66,9 +66,9 @@
   function initMount(mount) {
     const source = (mount.getAttribute('data-source') || 'other').slice(0, 40);
     const detail = (mount.getAttribute('data-source-detail') || window.location.pathname).slice(0, 200);
-    const heading = mount.getAttribute('data-heading') || 'Follow the readings';
+    const heading = mount.getAttribute('data-heading') ?? 'Follow the readings';
     const blurb = mount.getAttribute('data-blurb')
-      || 'A short note from The Rising Compass as new songs are read. No noise, leave any time.';
+      || 'Get the daily reading straight to your inbox.';
 
     mount.innerHTML = `
       <div class="rc-subscribe-inner">
@@ -145,21 +145,34 @@
   function injectStyles() {
     if (document.getElementById('rc-subscribe-styles')) return;
     const css = `
-      .rc-subscribe{margin:2.5rem auto;max-width:var(--rc-max-width,720px)}
-      .rc-subscribe-inner{border:1px solid rgba(255,255,255,.12);border-radius:10px;
-        padding:1.5rem 1.6rem;background:rgba(255,255,255,.03)}
-      .rc-subscribe-h{margin:0 0 .35rem;font-size:1.15rem;font-weight:600}
-      .rc-subscribe-blurb{margin:0 0 1rem;color:var(--rc-muted,#b6b7bd);font-size:.92rem;line-height:1.5}
-      .rc-subscribe-row{display:flex;gap:.5rem;flex-wrap:wrap}
-      .rc-subscribe-email{flex:1 1 220px;min-width:0;padding:.7rem .8rem;border-radius:6px;
-        border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:inherit;font-size:1rem}
-      .rc-subscribe-email:focus{outline:none;border-color:#3388ff}
-      .rc-subscribe-btn{padding:.7rem 1.3rem;border:none;border-radius:6px;background:#3388ff;
-        color:#fff;font-size:1rem;cursor:pointer;font-family:inherit}
+      .rc-subscribe{margin:2.5rem auto;max-width:720px}
+      /* Stay out of sight while the homepage splash/loading sequence runs. */
+      body.rc-splash .rc-subscribe{display:none}
+      .rc-subscribe-inner{position:relative;overflow:hidden;
+        border:1px solid var(--rc-border-ui,#646490);border-radius:12px;
+        padding:1.75rem 1.8rem;background:var(--rc-bg-card,#181828);
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 18px 44px -26px rgba(0,0,0,.85)}
+      .rc-subscribe-inner::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+        background:linear-gradient(90deg,var(--rc-violet,#9933ff),var(--rc-blue,#3388ff),var(--rc-accent,#00d4aa))}
+      .rc-subscribe-h{margin:0 0 .4rem;font-size:1.3rem;font-weight:700;
+        letter-spacing:-.01em;color:var(--rc-text-bright,#eeeef4)}
+      .rc-subscribe-h:empty{display:none}
+      .rc-subscribe-blurb{margin:0 0 1.15rem;color:var(--rc-text-dim,#c0c0ca);font-size:.95rem;line-height:1.55}
+      .rc-subscribe-row{display:flex;gap:.55rem;flex-wrap:wrap}
+      .rc-subscribe-email{flex:1 1 240px;min-width:0;padding:.78rem .9rem;border-radius:8px;
+        border:1px solid var(--rc-border,#2a2a3e);background:var(--rc-bg-dark,#0a0a14);
+        color:var(--rc-text-bright,#eeeef4);font-size:1rem;font-family:inherit}
+      .rc-subscribe-email::placeholder{color:var(--rc-text-dim,#c0c0ca);opacity:.55}
+      .rc-subscribe-email:focus{outline:none;border-color:var(--rc-accent,#00d4aa);
+        box-shadow:0 0 0 3px var(--rc-accent-subtle,rgba(0,212,170,.14))}
+      .rc-subscribe-btn{padding:.78rem 1.5rem;border:none;border-radius:8px;
+        background:var(--rc-accent,#00d4aa);color:var(--rc-bg-dark,#0a0a14);
+        font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;transition:filter .15s ease}
+      .rc-subscribe-btn:hover{filter:brightness(1.08)}
       .rc-subscribe-btn:disabled{opacity:.6;cursor:default}
-      .rc-subscribe-turnstile{margin-top:.7rem}
-      .rc-subscribe-msg{margin:.8rem 0 0;color:#7fd18b;font-size:.95rem}
-      .rc-subscribe-msg.is-error{color:#ff8f8f}
+      .rc-subscribe-turnstile{margin-top:.8rem}
+      .rc-subscribe-msg{margin:.9rem 0 0;color:var(--rc-accent,#00d4aa);font-size:.95rem;font-weight:500}
+      .rc-subscribe-msg.is-error{color:var(--rc-red,#ff3333)}
     `;
     const style = document.createElement('style');
     style.id = 'rc-subscribe-styles';
