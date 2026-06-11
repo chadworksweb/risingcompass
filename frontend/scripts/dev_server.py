@@ -97,6 +97,12 @@ SSR_PROXY_PATTERNS = [
     # Release detail: /artists/<artist>/<release> -> backend SSR (release.html
     # + injected meta). Two dotless segments, so it never catches asset files.
     re.compile(r"^/artists/[^/.]+/[^/.]+/?$"),
+    # All-time chart pages: backend SSR bakes a schema.org ItemList + FAQ and
+    # server-renders the ranked list into the body (the page is otherwise an
+    # empty client-rendered mount point). Exact paths only.
+    re.compile(r"^/charts/streamed-all-time/?$"),
+    re.compile(r"^/charts/most-streamed-albums/?$"),
+    re.compile(r"^/charts/best-selling-albums/?$"),
 ]
 
 

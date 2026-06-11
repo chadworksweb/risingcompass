@@ -302,3 +302,196 @@ def ssr_artist(slug: str):
         json_ld=_faq_ld(question, description, canonical),
     )
     return HTMLResponse(html)
+
+
+# --- all-time chart pages --------------------------------------------------
+# Unlike the song/artist templates, the chart pages carry correct per-page meta
+# already (they're fixed pages, not entity templates), so we don't rewrite the
+# head meta. The GEO gap is that the ranked list is client-rendered -- the raw
+# HTML body is an empty <div id="chart-root"></div>. So we (1) bake a schema.org
+# ItemList + FAQPage into the head (the structured ranking answer engines lift)
+# and (2) server-render the list into the body so non-JS crawlers see it. The
+# existing alltime.js still overwrites #chart-root on load (progressive
+# enhancement), so interactive users are unaffected.
+
+def _fmt_streams(n) -> str:
+    if n is None:
+        return ""
+    n = int(n)
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.2f}B"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    return f"{n:,}"
+
+
+def _chart_configs():
+    # Imported lazily so this module stays import-light and avoids any cycle.
+    from app.models import AlltimeAlbum, AlltimeStreamAlbum, AlltimeStreamSong
+    from app.routers.alltime_charts import (ALBUM_TOP_N, TOP_N, _album_row_out,
+                                            _stream_album_row_out, _stream_row_out)
+
+    def songs(db):
+        rows = (db.query(AlltimeStreamSong)
+                .order_by(AlltimeStreamSong.rank.asc()).limit(TOP_N).all())
+        return [_stream_row_out(r) for r in rows]
+
+    def stream_albums(db):
+        rows = (db.query(AlltimeStreamAlbum)
+                .order_by(AlltimeStreamAlbum.rank.asc()).limit(TOP_N).all())
+        return [_stream_album_row_out(r) for r in rows]
+
+    def riaa_albums(db):
+        rows = (db.query(AlltimeAlbum)
+                .order_by(AlltimeAlbum.rank.asc()).limit(ALBUM_TOP_N).all())
+        return [_album_row_out(r) for r in rows]
+
+    return {
+        "streamed-all-time": {
+            "template": "charts/streamed-all-time/index.html",
+            "heading": "Most Streamed Songs of All Time",
+            "noun": "song", "item_type": "MusicRecording",
+            "lead": "the most-streamed songs of all time on Spotify (global lifetime streams)",
+            "fetch": songs, "title_key": "title",
+            "metric": lambda r: (f"{_fmt_streams(r['total_streams'])} streams"
+                                 if r.get("total_streams") else ""),
+            "detail": lambda r: (f"{_SITE}/songs/{r['song_slug']}"
+                                 if r.get("song_slug") and r.get("rubric_color") else None),
+        },
+        "most-streamed-albums": {
+            "template": "charts/most-streamed-albums/index.html",
+            "heading": "Most Streamed Albums of All Time",
+            "noun": "album", "item_type": "MusicAlbum",
+            "lead": "the most-streamed albums of all time on Spotify (global lifetime streams)",
+            "fetch": stream_albums, "title_key": "album_title",
+            "metric": lambda r: (f"{_fmt_streams(r['total_streams'])} streams"
+                                 if r.get("total_streams") else ""),
+            "detail": lambda r: (f"{_SITE}/artists/{r['artist_slug']}/{r['release_slug']}"
+                                 if r.get("artist_slug") and r.get("release_slug") else None),
+        },
+        "best-selling-albums": {
+            "template": "charts/best-selling-albums/index.html",
+            "heading": "Best-Selling Albums of All Time",
+            "noun": "album", "item_type": "MusicAlbum",
+            "lead": "the best-selling albums of all time in the US (RIAA certified units)",
+            "fetch": riaa_albums, "title_key": "album_title",
+            "metric": lambda r: " - ".join(
+                [b for b in (r.get("certified_units"),
+                             str(r["release_year"]) if r.get("release_year") else None) if b]),
+            "detail": lambda r: (f"{_SITE}/artists/{r['artist_slug']}/{r['release_slug']}"
+                                 if r.get("artist_slug") and r.get("release_slug") else None),
+        },
+    }
+
+
+def _chart_itemlist_ld(cfg: dict, rows: list, canonical: str) -> dict:
+    items = []
+    for r in rows:
+        name = r.get(cfg["title_key"]) or ""
+        artist = r.get("artist") or ""
+        music = {"@type": cfg["item_type"], "name": name}
+        if artist:
+            music["byArtist"] = {"@type": "MusicGroup", "name": artist}
+        detail = cfg["detail"](r)
+        if detail:
+            music["url"] = detail
+        items.append({"@type": "ListItem", "position": r["rank"], "item": music})
+    return {
+        "@type": "ItemList",
+        "name": cfg["heading"],
+        "url": canonical,
+        "numberOfItems": len(rows),
+        "itemListOrder": "https://schema.org/ItemListOrderDescending",
+        "itemListElement": items,
+    }
+
+
+def _chart_faq(cfg: dict, rows: list, canonical: str) -> dict:
+    noun = cfg["noun"]
+    question = f"What are {cfg['lead']}?"
+    if rows:
+        top = rows[0]
+        nm = top.get(cfg["title_key"]) or ""
+        art = top.get("artist") or ""
+        metric = cfg["metric"](top)
+        lead = f'The #1 is "{nm}" by {art}' + (f" ({metric})" if metric else "")
+        seconds = ", ".join(f'"{x.get(cfg["title_key"])}"' for x in rows[1:4])
+        if seconds:
+            lead += f", followed by {seconds}"
+        answer = (f"{lead}. This chart ranks the top {len(rows)} {noun}s, "
+                  f"each read for the vibrational charge of its lyrics by The Rising Compass.")
+    else:
+        answer = f"This chart ranks {cfg['lead']}, each charged by The Rising Compass."
+    return _faq_ld(question, answer, canonical)
+
+
+def _chart_body_html(cfg: dict, rows: list) -> str:
+    lis = []
+    for r in rows:
+        name = _esc(r.get(cfg["title_key"]) or "")
+        artist = _esc(r.get("artist") or "")
+        metric = _esc(cfg["metric"](r))
+        detail = cfg["detail"](r)
+        name_html = f'<a href="{_esc(detail)}">{name}</a>' if detail else name
+        tier = r.get("rubric_color")
+        charge_bits = ""
+        if r.get("non_music"):
+            charge_bits = ' <span class="ssr-tag">non-music</span>'
+        elif tier:
+            dp = _esc(r.get("deadpan_line") or "")
+            charge_bits = f' <span class="ssr-tier">{_esc(tier)}</span>' + (f' <span class="ssr-deadpan">{dp}</span>' if dp else "")
+        lis.append(
+            f'<li><span class="ssr-rank">{r["rank"]}</span> '
+            f'<span class="ssr-name">{name_html}</span> '
+            f'<span class="ssr-artist">{artist}</span>'
+            + (f' <span class="ssr-metric">{metric}</span>' if metric else "")
+            + charge_bits + "</li>"
+        )
+    return (f'<ol class="ssr-chart-list" aria-label="{_esc(cfg["heading"])}">'
+            + "".join(lis) + "</ol>")
+
+
+def _render_chart(kind: str) -> HTMLResponse:
+    cfg = _chart_configs().get(kind)
+    if cfg is None:
+        return HTMLResponse("Not found", status_code=404)
+    tpl = _load_template(cfg["template"])
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    db = SessionLocal()
+    try:
+        rows = cfg["fetch"](db)
+    finally:
+        db.close()
+
+    canonical = f"{_SITE}/charts/{kind}/"
+    graph = {
+        "@context": "https://schema.org",
+        "@graph": [
+            _chart_itemlist_ld(cfg, rows, canonical),
+            _chart_faq(cfg, rows, canonical),
+        ],
+    }
+    payload = json.dumps(graph, ensure_ascii=False).replace("<", "\\u003c")
+    script = f'<script type="application/ld+json">{payload}</script>\n</head>'
+    html = tpl.replace("</head>", script, 1)
+    # Server-render the ranked list into the (otherwise empty) mount point.
+    html = html.replace('<div id="chart-root"></div>',
+                        f'<div id="chart-root">{_chart_body_html(cfg, rows)}</div>', 1)
+    return HTMLResponse(html)
+
+
+@router.get("/charts/streamed-all-time/", response_class=HTMLResponse)
+def ssr_chart_streamed_all_time():
+    return _render_chart("streamed-all-time")
+
+
+@router.get("/charts/most-streamed-albums/", response_class=HTMLResponse)
+def ssr_chart_most_streamed_albums():
+    return _render_chart("most-streamed-albums")
+
+
+@router.get("/charts/best-selling-albums/", response_class=HTMLResponse)
+def ssr_chart_best_selling_albums():
+    return _render_chart("best-selling-albums")
