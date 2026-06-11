@@ -558,3 +558,56 @@ def emit_leit_sweep_digest(*, scanned: int, findings: list) -> None:
         subject=f"LEIT clutter sweep: {n} flagged for review",
         html_body=html,
     )
+
+
+def emit_alltime_streams_awaiting(*, updated: int, awaiting: list) -> None:
+    """The monthly all-time-streams refresh ran and one or more chart songs are
+    not yet calibrated (no cache hit). Activity alert, default-on. `awaiting` is
+    the per-song list (rank/title/artist) to supply lyrics for via
+    calibrate_song.py. The cron itself makes no Anthropic calls."""
+    from app.auth import create_admin_link_token
+    site = settings.site_url.rstrip("/")
+
+    def _go(path: str) -> str:
+        return f"{site}/api/admin/go?t={create_admin_link_token(path)}"
+
+    rows = []
+    for a in awaiting[:100]:
+        rank = escape(str(a.get("rank", "")))
+        title = escape(str(a.get("title", "")))
+        artist = escape(str(a.get("artist", "")))
+        rows.append(
+            f"<tr>"
+            f"<td style='padding:4px 8px;font-size:12px;color:#777;text-align:right;'>{rank}</td>"
+            f"<td style='padding:4px 8px;font-size:13px;color:#333;'><strong>{title}</strong><br>"
+            f"<span style='color:#777;'>{artist}</span></td>"
+            f"</tr>"
+        )
+    table = "".join(rows)
+    n = len(awaiting)
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px;">
+      <p style="margin:0 0 6px;font-size:14px;color:#555;">
+        The monthly all-time-streams refresh updated <strong>{updated}</strong> row(s).
+        <strong>{n}</strong> chart song(s) are not yet calibrated -- supply lyrics
+        via <code>calibrate_song.py</code> and they'll fill in on the next run (or
+        immediately once their <code>songs</code> row exists).
+      </p>
+      <table style="border-collapse:collapse;width:100%;margin:8px 0 14px;">
+        <thead><tr style="text-align:left;border-bottom:1px solid #ddd;">
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">#</th>
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Song</th>
+        </tr></thead>
+        <tbody>{table}</tbody>
+      </table>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{_go('/api/admin/dashboard/alltime')}" style="color:#008f72;">Open the All-Time Charts admin</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="activity",
+        alert_key="alltime_streams_awaiting",
+        subject=f"All-time streams: {n} awaiting lyrics",
+        html_body=html,
+    )

@@ -41,6 +41,12 @@ ITUNES_DOWNLOAD_FEED = "https://itunes.apple.com/us/rss/topsongs/limit={limit}/j
 # row is <td>rank</td><td>movement</td><td>Artist - Title</td>.
 SHAZAM_USA_URL = "https://kworb.net/charts/shazam/us.html"
 
+# kworb's all-time Most-Streamed Songs board (Spotify, GLOBAL lifetime totals).
+# Different table shape than the Shazam mirror: NO rank column (rank = row order)
+# and the streams live in the next two cells. Each data row is
+# <td class="text"><div>Artist - Title</div></td><td>total streams</td><td>daily streams</td>.
+KWORB_ALLTIME_SONGS_URL = "https://kworb.net/spotify/songs.html"
+
 # YouTube Music charts region + the chart we read. get_charts returns a few chart
 # playlists ("Trending ...", "Top 100 ...", "Daily Top ..."); we take Trending as
 # the discovery signal. Matched by substring since the country name is appended.
@@ -233,6 +239,83 @@ def fetch_shazam_songs(count: int = 20, _retries: int = 3) -> list[dict]:
             # kworb omits a charset header, so httpx may guess latin-1 and mangle
             # apostrophes/accents in titles. Decode as UTF-8 explicitly.
             songs = _parse_kworb_rows(resp.content.decode("utf-8", "replace"), count, chart_source)
+
+            if songs:
+                logger.info("Fetched %d songs from %s", len(songs), chart_source)
+                return songs
+
+            logger.warning(
+                "Attempt %d/%d: %s table returned no usable rows, retrying...",
+                attempt, _retries, chart_source,
+            )
+        except Exception:
+            logger.exception("Attempt %d/%d: %s fetch failed", attempt, _retries, chart_source)
+
+    logger.error("All %d attempts failed for %s (last got %d)", _retries, chart_source, len(songs))
+    return songs
+
+
+def _parse_kworb_alltime_rows(page_html: str, count: int, chart_source: str) -> list[dict]:
+    """Parse the kworb all-time Most-Streamed board into song dicts. Unlike the
+    Shazam mirror this table has NO rank column -- rank is row order -- and each
+    data row is 'Artist - Title' / total streams / daily streams. Stream counts
+    are comma-grouped integers. Rows without the ' - ' separator or without a
+    numeric total are skipped (headers / malformed)."""
+    songs: list[dict] = []
+    for row in _TR_RE.findall(page_html):
+        cells = [html.unescape(_TAG_RE.sub("", c)).strip() for c in _TD_RE.findall(row)]
+        if len(cells) < 3:
+            continue
+        combo = cells[0]
+        if " - " not in combo:
+            continue
+        total_raw = cells[1].replace(",", "")
+        daily_raw = cells[2].replace(",", "")
+        if not total_raw.isdigit():
+            continue
+        artist, title = combo.split(" - ", 1)
+        title = title.strip()
+        artist = artist.strip()
+        if not title or not artist:
+            continue
+        songs.append({
+            "title": title,
+            "artist": artist,
+            "position": len(songs) + 1,
+            "total_streams": int(total_raw),
+            "daily_streams": int(daily_raw) if daily_raw.isdigit() else None,
+            "chart_source": chart_source,
+        })
+        if len(songs) >= count:
+            break
+    return songs
+
+
+def fetch_kworb_alltime_songs(count: int = 100, _retries: int = 3) -> list[dict]:
+    """Most-Streamed Songs of All Time -- Spotify GLOBAL lifetime streams. Backs
+    the all-time chart page (refreshed monthly), NOT the daily reading.
+
+    Reads kworb.net's all-time board -- plain HTML table, no browser, no key
+    (Spotify's own API exposes per-track popularity 0-100 but not lifetime
+    stream counts, so kworb is the only machine-readable source). Returns up to
+    `count` songs with total + daily stream counts, or [] if every attempt
+    fails. Mirrors fetch_shazam_songs: plain HTTP GET + retry loop, explicit
+    UTF-8 decode (kworb omits a charset header)."""
+    chart_source = "spotify_alltime_global"
+    songs: list[dict] = []
+
+    for attempt in range(1, _retries + 1):
+        try:
+            resp = httpx.get(
+                KWORB_ALLTIME_SONGS_URL,
+                headers={"User-Agent": USER_AGENT, "Accept": "text/html"},
+                timeout=20,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            songs = _parse_kworb_alltime_rows(
+                resp.content.decode("utf-8", "replace"), count, chart_source
+            )
 
             if songs:
                 logger.info("Fetched %d songs from %s", len(songs), chart_source)

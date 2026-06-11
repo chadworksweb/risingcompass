@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    CheckConstraint, Column, Integer, String, Text, Float, Boolean, Date, DateTime, ForeignKey, Index, LargeBinary, UniqueConstraint, text
+    CheckConstraint, Column, Integer, BigInteger, String, Text, Float, Boolean, Date, DateTime, ForeignKey, Index, LargeBinary, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -1944,4 +1944,81 @@ class AgentRun(Base):
     __table_args__ = (
         Index("idx_agent_runs_agent_started", "agent_id", "started_at"),
         Index("idx_agent_runs_env", "environment"),
+    )
+
+
+class AlltimeStreamSong(Base):
+    """The Most-Streamed Songs of All Time chart (Spotify, GLOBAL lifetime
+    streams). One row per chart slot (top 100), refreshed MONTHLY by scraping
+    kworb.net (the only public source of lifetime Spotify stream totals -- a
+    US-only all-time total does not exist anywhere). This is a current-state
+    table (the chart IS these 100 rows, upserted in place), NOT a dated snapshot,
+    so it is deliberately separate from `chart_snapshots` / the daily-reading
+    pipeline.
+
+    Stream rank + counts are the real chart data and always render. The
+    calibration fields (tier/charge/deadpan/topics) are denormalized off the
+    unified `songs` row at refresh time via `lookup_calibrated`, so the public
+    page reads one table with no join. They are populated only on a cache HIT --
+    the monthly cron makes no Anthropic calls; misses are flagged for manual
+    `calibrate_song.py` and render as an "untagged" ether row until calibrated."""
+    __tablename__ = "alltime_stream_songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rank = Column(Integer, nullable=False)                 # 1..100, kworb row order
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    total_streams = Column(BigInteger)                     # lifetime (exceeds INT4)
+    daily_streams = Column(Integer)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    # Denormalized calibration snapshot (cache-hit fill from lookup_calibrated):
+    rubric_color = Column(String(20))
+    charge_value = Column(Integer)
+    deadpan_line = Column(Text)
+    topics = Column(Text)                                  # JSON-encoded list
+    song_slug = Column(Text)
+    artist_slug = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_alltime_stream_songs_rank", "rank"),
+    )
+
+
+class AlltimeAlbum(Base):
+    """The Best-Selling Albums of All Time chart (US / RIAA certified units).
+    One row per chart slot (top 100), maintained by a MANUAL annual sweep (this
+    list changes once every few years) -- no cron. An admin editor owns the row;
+    `last_reviewed_at` drives a data-driven staleness banner.
+
+    Self-contained: the display fields (charge + album-level deadpan + topics)
+    are copied onto the row from album synthesis output
+    (`services/album_synthesis.py::generate_album_synthesis`, which already emits
+    a whole-album `deadpan_line` + `topics`). `release_id` links the calibrated
+    Release for provenance; the chart row is the source of truth for what renders."""
+    __tablename__ = "alltime_albums"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rank = Column(Integer, nullable=False)                 # 1..100
+    album_title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    certified_units = Column(Text)                         # display, e.g. "38x Platinum"
+    units_millions = Column(Float)                          # sortable numeric (US units, millions)
+    release_year = Column(Integer)
+    release_id = Column(Integer, ForeignKey("releases.id", ondelete="SET NULL"))
+    # Denormalized calibration snapshot (from album synthesis):
+    rubric_color = Column(String(20))
+    charge_value = Column(Integer)
+    charge_summary = Column(Text)
+    deadpan_line = Column(Text)
+    topics = Column(Text)                                  # JSON-encoded list
+    artist_slug = Column(Text)
+    release_slug = Column(Text)
+    last_reviewed_at = Column(DateTime)                    # drives the staleness banner
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_alltime_albums_rank", "rank"),
     )

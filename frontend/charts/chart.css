@@ -60,3 +60,28 @@
   color: var(--rc-text-dim);
   font-size: 0.85rem;
 }
+
+/* All-time paired pages: the regular chart (left) beside its Ether Art view
+   (right), mirroring the homepage daily-reading pairing. Full content width on
+   a dedicated page (1fr 1fr), collapsing to one column on narrow viewports. */
+.alltime-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--rc-gap-panel, 1.25rem);
+  align-items: start;
+}
+@media (max-width: 820px) {
+  .alltime-grid { grid-template-columns: 1fr; }
+}
+
+/* Native chart metric (stream count / certified units) on each left-card row,
+   right-aligned after the song info. */
+.alltime-metric {
+  margin-left: auto;
+  align-self: center;
+  white-space: nowrap;
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 0.74rem;
+  color: var(--rc-text-dim);
+  text-align: right;
+}

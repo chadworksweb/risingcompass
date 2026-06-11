@@ -57,6 +57,10 @@ const API = (() => {
     getEtherYears: () => get('/api/ether-art-chart/years'),
     getEtherYear: (year) => get(`/api/ether-art-chart/year/${year}`),
     getChartSnapshot: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/current`),
+    // All-time boards (top 100, refreshed monthly / annual-manual). Paired
+    // left-regular + right-ether pages under /charts/.
+    getAlltimeStreams: () => get('/api/charts/alltime/streams'),
+    getAlltimeAlbums: () => get('/api/charts/alltime/albums'),
     // Chart-agnostic Calendar feeds: mirror the drift endpoints for any
     // chart-snapshot chart (key = CHART_REGISTRY key, e.g. "itunes").
     getChartYears: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/years`),

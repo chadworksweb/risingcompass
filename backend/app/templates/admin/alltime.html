@@ -1,0 +1,221 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'alltime' %}
+{% block title %}All-Time Charts — Admin{% endblock %}
+
+{% block content %}
+<p style="color:#888;font-size:0.85rem;margin:0 0 1rem;max-width:680px;">
+  Two all-time boards. The <strong>Most-Streamed Songs</strong> chart refreshes
+  itself monthly from kworb (no editing here). The <strong>Best-Selling Albums</strong>
+  chart is a manual annual sweep: enter the RIAA top 100, then link each row to an
+  already-charged Release (run the album through the Album Charger first) to pull its
+  charge + deadpan + topics.
+</p>
+
+<div id="staleBanner" style="display:none;border-radius:5px;padding:0.7rem 1rem;margin-bottom:1rem;font-size:0.86rem;"></div>
+
+<div style="display:flex;align-items:center;gap:0.6rem;margin:0.5rem 0 0.8rem;flex-wrap:wrap;">
+  <button onclick="openNew()" style="padding:0.4rem 0.9rem;font-size:0.82rem;">+ Add album</button>
+  <span id="albumCount" style="color:#888;font-size:0.8rem;"></span>
+</div>
+
+<div id="editor" style="display:none;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:0.9rem 1rem;margin-bottom:1rem;">
+  <input type="hidden" id="edId">
+  <div style="display:grid;grid-template-columns:70px 1fr 1fr;gap:0.6rem;margin-bottom:0.6rem;">
+    <label style="font-size:0.72rem;color:#999;">Rank<input id="edRank" type="number" min="1" max="100" style="width:100%;"></label>
+    <label style="font-size:0.72rem;color:#999;">Album title<input id="edTitle" type="text" style="width:100%;"></label>
+    <label style="font-size:0.72rem;color:#999;">Artist<input id="edArtist" type="text" style="width:100%;"></label>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 140px 110px;gap:0.6rem;margin-bottom:0.7rem;">
+    <label style="font-size:0.72rem;color:#999;">Certified units (display)<input id="edUnits" type="text" placeholder="38x Platinum" style="width:100%;"></label>
+    <label style="font-size:0.72rem;color:#999;">US units (millions)<input id="edMillions" type="number" step="0.1" style="width:100%;"></label>
+    <label style="font-size:0.72rem;color:#999;">Year<input id="edYear" type="number" min="1900" max="2100" style="width:100%;"></label>
+  </div>
+  <div style="display:flex;gap:0.5rem;">
+    <button onclick="saveAlbum()" style="padding:0.35rem 0.9rem;font-size:0.8rem;">Save</button>
+    <button onclick="closeEditor()" style="padding:0.35rem 0.9rem;font-size:0.8rem;background:#333;">Cancel</button>
+    <span id="editorMsg" style="font-size:0.78rem;color:#888;align-self:center;"></span>
+  </div>
+</div>
+
+<div id="albumList"></div>
+
+<!-- Release-link picker -->
+<div id="linkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50;align-items:flex-start;justify-content:center;padding-top:8vh;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:1rem 1.2rem;width:min(620px,92vw);max-height:78vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">
+      <strong id="linkTitle">Link a Release</strong>
+      <button onclick="closeLink()" style="background:#333;padding:0.2rem 0.6rem;font-size:0.8rem;">Close</button>
+    </div>
+    <p style="color:#888;font-size:0.78rem;margin:0 0 0.5rem;">
+      Search Releases that already carry an album-level reading. Linking copies the
+      charge + deadpan + topics onto this chart row.
+    </p>
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.7rem;">
+      <input id="relSearch" type="text" placeholder="Album title..." style="flex:1;" onkeydown="if(event.key==='Enter')runRelSearch()">
+      <button onclick="runRelSearch()" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Search</button>
+    </div>
+    <div id="relResults"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let linkTargetId = null;
+
+function onAdminReady() { loadAlbums(); }
+
+async function loadAlbums() {
+  try {
+    const resp = await fetch('/api/admin/alltime/albums', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    renderBanner(data.staleness || {});
+    const rows = data.rows || [];
+    document.getElementById('albumCount').textContent = rows.length + ' of 100 entered';
+    const el = document.getElementById('albumList');
+    el.innerHTML = rows.length
+      ? rows.map(renderAlbum).join('')
+      : '<p style="color:#666;">No albums yet. Add the RIAA top 100.</p>';
+  } catch (e) { console.error(e); }
+}
+
+function renderBanner(s) {
+  const b = document.getElementById('staleBanner');
+  if (s.total === 0) {
+    b.style.display = 'none';
+    return;
+  }
+  if (s.due) {
+    const since = s.days_since == null ? 'never reviewed' : `last reviewed ${s.days_since} days ago`;
+    b.style.display = '';
+    b.style.background = 'rgba(200,60,40,0.12)';
+    b.style.border = '1px solid #c83c28';
+    b.style.color = '#e88';
+    b.innerHTML = `<strong>Annual sweep due.</strong> The best-selling albums board is ${escHtml(since)}. Re-check the RIAA certified list and update the rows.`;
+  } else {
+    b.style.display = '';
+    b.style.background = 'rgba(0,143,114,0.10)';
+    b.style.border = '1px solid rgba(0,143,114,0.4)';
+    b.style.color = 'var(--accent)';
+    b.innerHTML = `Board reviewed ${s.days_since} day(s) ago. Next sweep due in ${365 - s.days_since} day(s).`;
+  }
+}
+
+function renderAlbum(r) {
+  const dot = r.rubric_color
+    ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${tierHex(r.rubric_color)};margin-right:6px;"></span>`
+    : `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid #555;margin-right:6px;"></span>`;
+  const cal = r.calibrated
+    ? `<span style="color:var(--accent);font-size:0.72rem;">linked</span>`
+    : `<span style="color:#c89b3c;font-size:0.72rem;">no reading</span>`;
+  const deadpan = r.deadpan_line ? `<div style="color:#bbb;font-size:0.8rem;margin-top:0.2rem;">${escHtml(r.deadpan_line)}</div>` : '';
+  const units = r.certified_units ? `${escHtml(r.certified_units)}` : (r.units_millions ? `${r.units_millions}M` : '');
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.55rem 0.9rem;margin-bottom:0.35rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:baseline;">
+      <div>
+        <span style="font-family:var(--rc-font-mono,monospace);color:#888;min-width:2rem;display:inline-block;">${r.rank ?? '—'}</span>
+        ${dot}<strong>${escHtml(r.album_title)}</strong>
+        <span style="color:#888;"> — ${escHtml(r.artist)}</span>
+      </div>
+      <div style="color:#777;font-size:0.78rem;">${escHtml(units)} ${r.release_year ? '· ' + r.release_year : ''} · ${cal}</div>
+    </div>
+    ${deadpan}
+    <div style="margin-top:0.4rem;display:flex;gap:0.5rem;">
+      <button onclick='openEdit(${JSON.stringify(r)})' style="padding:0.2rem 0.6rem;font-size:0.74rem;background:#333;">Edit</button>
+      <button onclick="openLink(${r.id}, ${JSON.stringify(r.album_title)})" style="padding:0.2rem 0.6rem;font-size:0.74rem;">Link Release</button>
+      <button onclick="delAlbum(${r.id})" style="padding:0.2rem 0.6rem;font-size:0.74rem;background:#522;">Delete</button>
+    </div>
+  </div>`;
+}
+
+function tierHex(c) {
+  return { violet:'#9933ff', blue:'#3388ff', green:'#33cc55', orange:'#ffbb33', red:'#ff3333' }[c] || '#888';
+}
+
+function openNew() {
+  document.getElementById('edId').value = '';
+  ['edRank','edTitle','edArtist','edUnits','edMillions','edYear'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('editorMsg').textContent = '';
+  document.getElementById('editor').style.display = '';
+}
+function openEdit(r) {
+  document.getElementById('edId').value = r.id;
+  document.getElementById('edRank').value = r.rank ?? '';
+  document.getElementById('edTitle').value = r.album_title ?? '';
+  document.getElementById('edArtist').value = r.artist ?? '';
+  document.getElementById('edUnits').value = r.certified_units ?? '';
+  document.getElementById('edMillions').value = r.units_millions ?? '';
+  document.getElementById('edYear').value = r.release_year ?? '';
+  document.getElementById('editorMsg').textContent = '';
+  document.getElementById('editor').style.display = '';
+}
+function closeEditor() { document.getElementById('editor').style.display = 'none'; }
+
+async function saveAlbum() {
+  const id = document.getElementById('edId').value;
+  const body = {
+    rank: parseInt(document.getElementById('edRank').value) || 0,
+    album_title: document.getElementById('edTitle').value.trim(),
+    artist: document.getElementById('edArtist').value.trim(),
+    certified_units: document.getElementById('edUnits').value.trim() || null,
+    units_millions: parseFloat(document.getElementById('edMillions').value) || null,
+    release_year: parseInt(document.getElementById('edYear').value) || null,
+  };
+  if (!body.album_title || !body.artist) {
+    document.getElementById('editorMsg').textContent = 'Album title and artist are required.';
+    return;
+  }
+  const url = id ? `/api/admin/alltime/albums/${id}` : '/api/admin/alltime/albums';
+  const method = id ? 'PATCH' : 'POST';
+  const resp = await fetch(url, { method, headers: { ...adminHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!resp.ok) { document.getElementById('editorMsg').textContent = 'Save failed.'; return; }
+  closeEditor();
+  loadAlbums();
+}
+
+async function delAlbum(id) {
+  if (!confirm('Delete this album row?')) return;
+  const resp = await fetch(`/api/admin/alltime/albums/${id}`, { method: 'DELETE', headers: adminHeaders() });
+  if (resp.ok) loadAlbums();
+}
+
+function openLink(id, title) {
+  linkTargetId = id;
+  document.getElementById('linkTitle').textContent = 'Link a Release to: ' + title;
+  document.getElementById('relSearch').value = title;
+  document.getElementById('relResults').innerHTML = '';
+  document.getElementById('linkModal').style.display = 'flex';
+  runRelSearch();
+}
+function closeLink() { document.getElementById('linkModal').style.display = 'none'; }
+
+async function runRelSearch() {
+  const q = document.getElementById('relSearch').value.trim();
+  if (q.length < 2) return;
+  const resp = await fetch('/api/admin/alltime/albums/release-search?q=' + encodeURIComponent(q), { headers: adminHeaders() });
+  if (!resp.ok) return;
+  const data = await resp.json();
+  const rows = data.rows || [];
+  const el = document.getElementById('relResults');
+  if (!rows.length) { el.innerHTML = '<p style="color:#888;font-size:0.8rem;">No Releases found. Charge the album through the Album Charger first.</p>'; return; }
+  el.innerHTML = rows.map(rel => {
+    const dot = rel.rubric_color
+      ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${tierHex(rel.rubric_color)};margin-right:5px;"></span>` : '';
+    const reading = rel.has_reading ? '' : ' <span style="color:#c89b3c;font-size:0.72rem;">(no reading yet)</span>';
+    return `<div style="display:flex;justify-content:space-between;gap:0.8rem;padding:0.45rem 0.2rem;border-bottom:1px solid var(--border);font-size:0.84rem;">
+      <div>${dot}<strong>${escHtml(rel.title)}</strong> <span style="color:#888;">— ${escHtml(rel.artist)}</span> ${rel.release_year ? '<span style="color:#666;">· ' + rel.release_year + '</span>' : ''}${reading}</div>
+      <button onclick="linkRelease(${rel.release_id})" style="padding:0.2rem 0.7rem;font-size:0.76rem;">Link</button>
+    </div>`;
+  }).join('');
+}
+
+async function linkRelease(releaseId) {
+  const resp = await fetch(`/api/admin/alltime/albums/${linkTargetId}/link-release`, {
+    method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ release_id: releaseId }),
+  });
+  if (resp.ok) { closeLink(); loadAlbums(); }
+}
+</script>
+{% endblock %}

@@ -112,6 +112,9 @@ def _init_database():
     # LEIT daily clutter sweep digest: emailed when the sweep flags songs for
     # human audit. On by default; toggleable in the Alerts UI.
     ensure_pref_default("leit_sweep_digest", enabled=True)
+    # All-time streams monthly refresh: emailed when chart songs aren't yet
+    # calibrated (need manual lyrics). On by default; toggleable in the Alerts UI.
+    ensure_pref_default("alltime_streams_awaiting", enabled=True)
 
 
 @asynccontextmanager
@@ -254,6 +257,8 @@ app.include_router(tenets.router, dependencies=_api_key_dep)
 app.include_router(amendments.router, dependencies=_api_key_dep)
 app.include_router(ether_art_chart.router, dependencies=_api_key_dep)
 app.include_router(chart_snapshots.public_router, dependencies=_api_key_dep)
+from app.routers import alltime_charts
+app.include_router(alltime_charts.public_router, dependencies=_api_key_dep)
 
 # Public Participation Tier 1 user endpoints. Self-authenticating via
 # Clerk session JWT (require_clerk_user) -- no X-Api-Key gate here, since
@@ -319,6 +324,7 @@ app.include_router(artist_verification.admin_router)
 app.include_router(inquiries.admin_router)
 from app.routers import subscribers_admin
 app.include_router(subscribers_admin.router)
+app.include_router(alltime_charts.router)
 app.include_router(chart_anomalies.admin_router)
 from app.routers import runs_admin
 app.include_router(runs_admin.router)

@@ -72,30 +72,26 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Dev Ledger -- The Rising Compass</title>
-  <meta name="description" content="The dev side, exposed: what we shipped, what we're building, and the features and bugs you have asked for. Separate from the framework's Motion Desk.">
-  <link rel="canonical" href="https://risingcompass.net/dev/">
-
+  <title>Best-Selling Albums of All Time -- The Rising Compass</title>
+  <meta name="description" content="The 100 best-selling albums of all time (US / RIAA certified units), each charged across its tracks by The Rising Compass, beside its Ether Art view.">
+  <link rel="canonical" href="https://risingcompass.net/charts/best-selling-albums/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/charts/best-selling-albums/">
+  <meta property="og:title" content="Best-Selling Albums of All Time -- The Rising Compass">
+  <meta property="og:description" content="The 100 best-selling albums of all time, each charged across its tracks.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
-
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/dev/">
-  <meta property="og:title" content="Dev Ledger -- The Rising Compass">
-  <meta property="og:description" content="What we shipped, what we're building, and the features and bugs you have asked for.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-  <meta name="twitter:card" content="summary_large_image">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/dev/dev-ledger.css">
+  <link rel="stylesheet" href="/charts/chart.css">
 </head>
-<body class="rc-elevated">
-  <a class="skip-nav" href="#main">Skip to content</a>
+<body>
+  <a class="skip-nav" href="#chart-main">Skip to content</a>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -170,53 +166,23 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="main" class="dl-main">
-
-    <section class="dl-hero">
-      <h1 class="dl-title">Dev Ledger</h1>
-      <p class="dl-kicker">The dev side, exposed.</p>
-      <p class="dl-preamble">
-        What we have shipped, what we are building next, and the features and
-        bugs you have asked for. This is the product and engineering record --
-        separate from the <a href="/motion-desk/">Motion Desk</a>, which is
-        where the framework itself goes up for deliberation.
-      </p>
-      <p class="dl-version" id="dlVersion"></p>
-    </section>
-
-    <section class="dl-doors" aria-label="What you can do here">
-      <div class="dl-door-grid">
-        <a class="dl-door" href="/dev/changelog/">
-          <h3 class="dl-door-title">Changelog</h3>
-          <p class="dl-door-body">Every release, newest first, stamped with a date-based version. What actually shipped, in plain language.</p>
-          <span class="dl-door-cta">See what shipped &rarr;</span>
-        </a>
-        <a class="dl-door" href="/dev/roadmap/">
-          <h3 class="dl-door-title">Roadmap</h3>
-          <p class="dl-door-body">What is in progress now, what is up next, and what is on the horizon. Honest about order, not about dates.</p>
-          <span class="dl-door-cta">See what is coming &rarr;</span>
-        </a>
-        <a class="dl-door" href="/dev/feedback/">
-          <h3 class="dl-door-title">Feedback</h3>
-          <p class="dl-door-body">Request a feature or report a software bug, and vote on what others have asked for. Signed-in accounts only.</p>
-          <span class="dl-door-cta">Request or report &rarr;</span>
-        </a>
-      </div>
-    </section>
-
-    <footer class="dl-footer">
-      <p class="footer-note">
-        Looking to change how the Compass thinks? That lives at the
-        <a href="/motion-desk/">Motion Desk</a>. Think a song was read wrong?
-        File a misread report from that song's page.
-      </p>
-    </footer>
-
+  <main id="chart-main" class="chart-page">
+    <div class="chart-page-intro">
+      <h1 class="chart-page-title">Best-Selling Albums of All Time</h1>
+      <p class="chart-page-source">US -- RIAA certified units -- top 100</p>
+      <nav class="chart-page-links" aria-label="Related views">
+        <a href="/charts/streamed-all-time/">Most Streamed of All Time</a>
+        <a href="/charts/spotify/">Spotify (US)</a>
+        <a href="/ether-art-chart/">Ether Art Chart</a>
+      </nav>
+    </div>
+    <div id="chart-root"></div>
   </main>
 
-  <script src="/js/api.js" defer></script>
-  <script src="/js/auth.js" defer></script>
-  <script src="/dev/dev-ledger.js" defer></script>
+  <script>window.RC_ALLTIME = { kind: 'albums' };</script>
+  <script src="/js/api.js"></script>
+  <script src="/charts/alltime.js"></script>
+
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">
