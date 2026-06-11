@@ -198,6 +198,16 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                     "dogma_note": result.get("dogma_note"),
                     "confidence": result.get("confidence"),
                     "reasoning": result.get("reasoning"),
+                    # Calibrator v3 components + incoherence signals ride into
+                    # the run ledger (log_run maps them to columns); absent on
+                    # legacy/terminal-direct results and harmlessly NULL.
+                    **{k: result[k] for k in (
+                        "visceral_charge", "route", "harm", "transcendence",
+                        "governing_axis", "center", "vernier", "precedent_refs",
+                        "gut_divergence", "guard_trips", "parse_retries",
+                        "escalation_flags", "escalated", "translated",
+                        "calibration_failed",
+                    ) if result.get(k) is not None},
                 },
                 triggered_by="compass_daily",
                 direct_song_source="songs",

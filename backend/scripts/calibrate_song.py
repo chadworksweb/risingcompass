@@ -12,10 +12,14 @@ only updates draft_song values and only mirrors to compass_songs if the
 draft_song already has a compass_song_id, so a brand-new uncalibrated
 song's calibration is lost on draft publish.
 
-Usage:
+Usage (Calibrator v3 -- supply the COMPONENT set; the server composes the
+charge and derives the tier, still with zero server-side Anthropic calls):
     cat lyrics.txt | python calibrate_song.py <draft_ref> <song_id> \\
-        --color blue --charge 30 \\
-        --summary "Witness's lament for..." \\
+        --visceral -50 --route negative_payload \\
+        --harm -45 --harm-pervasive --transcendence 10 \\
+        --center -45 --vernier 1,-1,0,1 \\
+        --precedent -45 --precedent -42 \\
+        --summary "Heartbreak carried by..." \\
         [--contaminated --contam-note "..."] \\
         [--dogma --dogma-note "..."] \\
         [--listener-effects-prose-file path/to/prose.txt] \\
@@ -24,6 +28,13 @@ Usage:
         [--topic breakup --topic longing] \\
         [--topic-audit-reason "..." --topic-audit-tag slug \\
          --topic-audit-rationale "..."]
+
+Legacy direct form (kept for back-compat; prefer components for fresh reads):
+    ... --color blue --charge 30 --summary "..."
+
+The vernier is sat,res,reg,reach (each -2..+2, pole-agnostic intensity
+relative to the placed precedent; the server applies the governing axis's
+sign and computes charge = center + clamp(2*sat+res+reg+reach, -5, +5)).
 
 Ether Art Chart fields (deadpan_line + topics) are Claude-Code-supplied here
 so the server skips the ether_tagger Anthropic call. topics must be slugs from
@@ -61,8 +72,26 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("draft_ref")
     p.add_argument("song_id", type=int)
-    p.add_argument("--color", required=True, choices=["violet", "blue", "green", "orange", "red"])
-    p.add_argument("--charge", required=True, type=int)
+    p.add_argument("--color", choices=["violet", "blue", "green", "orange", "red"],
+                   help="Legacy direct tier. Prefer the v3 component args; the server composes color/charge from them.")
+    p.add_argument("--charge", type=int, help="Legacy direct charge. Prefer the v3 component args.")
+    # --- Calibrator v3 component set (all-or-none; replaces --color/--charge) ---
+    p.add_argument("--visceral", type=int, default=None,
+                   help="VISCERAL READ: first-impression placement, -100..+100, recorded before analysis.")
+    p.add_argument("--route", default=None,
+                   choices=["internal_work", "collective_stance", "encouragement",
+                            "witness_critique", "doctrinal", "static_portrait", "negative_payload"],
+                   help="ROUTE classification.")
+    p.add_argument("--harm", type=int, default=None, help="Harm axis value, 0..-100.")
+    p.add_argument("--harm-pervasive", action="store_true",
+                   help="Harm payload is PERVASIVE (hook/refrain-carried); forces harm governance.")
+    p.add_argument("--transcendence", type=int, default=None, help="Transcendence axis value, 0..+100.")
+    p.add_argument("--center", type=int, default=None,
+                   help="PRECEDENT PLACEMENT center, -100..+100.")
+    p.add_argument("--vernier", default=None,
+                   help="sat,res,reg,reach -- four ints, each -2..+2, pole-agnostic vs the placed precedent.")
+    p.add_argument("--precedent", action="append", dest="precedents", default=None,
+                   help="Precedent-table entry id placed against (e.g. -45). Repeatable.")
     p.add_argument("--summary", required=True)
     p.add_argument("--contaminated", action="store_true")
     p.add_argument("--contam-note", default=None)
@@ -96,6 +125,19 @@ def main() -> int:
         print("lyrics must be at least 50 chars", file=sys.stderr)
         return 2
 
+    # Either the full v3 component set or the legacy --color/--charge pair.
+    v3_parts = (args.visceral, args.route, args.harm, args.transcendence,
+                args.center, args.vernier)
+    has_all_v3 = all(v is not None for v in v3_parts)
+    has_any_v3 = any(v is not None for v in v3_parts) or args.harm_pervasive or args.precedents
+    if has_any_v3 and not has_all_v3:
+        print("supply the FULL v3 component set (--visceral --route --harm "
+              "--transcendence --center --vernier) or none of it", file=sys.stderr)
+        return 2
+    if not has_all_v3 and (args.color is None or args.charge is None):
+        print("either the v3 component set or --color + --charge is required", file=sys.stderr)
+        return 2
+
     calibration: dict = {
         "rubric_color": args.color,
         "charge_value": args.charge,
@@ -108,6 +150,24 @@ def main() -> int:
         "medley": bool(args.medley),
         "confidence": args.confidence,
     }
+    if has_all_v3:
+        try:
+            vernier_vals = [int(x) for x in args.vernier.split(",")]
+        except ValueError:
+            vernier_vals = []
+        if len(vernier_vals) != 4:
+            print("--vernier must be four comma-separated integers: sat,res,reg,reach",
+                  file=sys.stderr)
+            return 2
+        calibration.update({
+            "visceral_charge": args.visceral,
+            "route": args.route,
+            "harm": {"value": args.harm, "pervasive": bool(args.harm_pervasive)},
+            "transcendence": {"value": args.transcendence},
+            "precedent_refs": args.precedents or [],
+            "center": args.center,
+            "vernier": dict(zip(("sat", "res", "reg", "reach"), vernier_vals)),
+        })
     if args.reasoning_file:
         calibration["reasoning"] = Path(args.reasoning_file).read_text(encoding="utf-8").strip()
     elif args.reasoning:
@@ -183,9 +243,10 @@ def main() -> int:
 
     song = next((s for s in resp.get("songs", []) if s["id"] == args.song_id), None)
     if song:
+        composed = " (server-composed)" if has_all_v3 else ""
         print(
             f"OK  pos={song['position']}  {song['title']!r}  "
-            f"-> {song['rubric_color']}/{song.get('charge_value')}  "
+            f"-> {song['rubric_color']}/{song.get('charge_value')}{composed}  "
             f"compass_song_id={song.get('compass_song_id')}"
         )
     else:

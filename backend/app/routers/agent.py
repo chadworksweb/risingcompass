@@ -726,6 +726,53 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
     return draft
 
 
+def _compose_terminal_calibration(result: dict) -> dict:
+    """Compose a terminal-supplied calibration's color/charge from its v3
+    components (Calibrator v3: the server owns the number on the terminal
+    path too -- pure math, zero Anthropic calls). The legacy direct
+    rubric_color + charge_value form passes through untouched; the schema
+    validator guarantees one of the two forms is present.
+
+    Mirrors the server calibrator's post-read handling: contamination is
+    cross-derived from the axis data (the supplied flag is a cross-check),
+    incoherence signals + escalation triggers are recorded on the dict so
+    log_run stamps them on the run."""
+    if result.get("route") is None:
+        return result
+    from app.services.charge_composition import (
+        CompositionError, compose, evaluate_escalation, validate_components,
+    )
+    try:
+        components = validate_components(result)
+    except CompositionError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"v3 calibration components failed validation: {exc}",
+        )
+    composed = compose(components)
+    result["rubric_color"] = composed.rubric_color
+    result["charge_value"] = composed.charge
+    result["governing_axis"] = composed.governing_axis
+    result["gut_divergence"] = composed.gut_divergence
+
+    signals = list(composed.signals)
+    if bool(result.get("contaminated", False)) != composed.contaminated:
+        signals.append("contamination_flag_mismatch")
+    result["contaminated"] = composed.contaminated
+    if not composed.contaminated:
+        result["contamination_note"] = None
+
+    triggers = evaluate_escalation(
+        composed, components,
+        translated=bool(result.get("translated", False)),
+        confidence=result.get("confidence"),
+        confidence_floor=settings.escalation_confidence_floor,
+    )
+    if triggers or signals:
+        result["escalation_flags"] = {"triggers": triggers, "signals": signals}
+    return result
+
+
 @router.post("/drafts/{draft_ref}/songs/{song_id}/lyrics", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
 async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: Session = Depends(get_db)):
     """Supply lyrics for an uncalibrated song in a draft, triggering calibration.
@@ -790,7 +837,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     #      calibrate_song_async (Anthropic) and the full enrichment chain.
     terminal_mode = data.calibration is not None
     if terminal_mode:
-        result = data.calibration.model_dump()
+        result = _compose_terminal_calibration(data.calibration.model_dump())
     else:
         result = await calibrate_song_async(
             snap["title"], snap["artist"],

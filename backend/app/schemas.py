@@ -1,7 +1,7 @@
 import json
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 import datetime
 
 from app.services.charge_calc import degree_to_score as _degree_to_score
@@ -348,10 +348,28 @@ class TerminalCalibrationIn(BaseModel):
     The droplet's ANTHROPIC_API_KEY budget is reserved for live public traffic
     (daily cron, Lyrical Charger, badge calibrations). Operator-initiated terminal
     work must not draw from it. See feedback_rc_no_api_in_terminal memory.
+
+    Calibrator v3: a fresh terminal read supplies the COMPONENT set
+    (visceral_charge, route, harm, transcendence, center, vernier) and the
+    server composes rubric_color + charge_value (pure math, still zero
+    Anthropic calls) -- the server owns the number on every read path. The
+    direct rubric_color + charge_value form stays accepted for back-compat
+    and for human-ruled values.
     """
-    rubric_color: str = Field(..., pattern="^(violet|blue|green|orange|red)$")
-    charge_value: int = Field(..., ge=-100, le=100)
+    rubric_color: Optional[str] = Field(None, pattern="^(violet|blue|green|orange|red)$")
+    charge_value: Optional[int] = Field(None, ge=-100, le=100)
     charge_summary: str = Field(..., min_length=10)
+    # --- Calibrator v3 component set (all-or-none) ---
+    visceral_charge: Optional[int] = Field(None, ge=-100, le=100)
+    route: Optional[str] = Field(
+        None,
+        pattern="^(internal_work|collective_stance|encouragement|witness_critique|doctrinal|static_portrait|negative_payload)$",
+    )
+    harm: Optional[dict] = None            # {"value": 0..-100, "pervasive": bool}
+    transcendence: Optional[dict] = None   # {"value": 0..100}
+    precedent_refs: Optional[List[str]] = None
+    center: Optional[int] = Field(None, ge=-100, le=100)
+    vernier: Optional[dict] = None         # {"sat","res","reg","reach"}, each -2..2
     contaminated: bool = False
     contamination_note: Optional[str] = None
     dogma_referenced: bool = False
@@ -374,6 +392,23 @@ class TerminalCalibrationIn(BaseModel):
     deadpan_line: Optional[str] = None
     topics: Optional[List[str]] = None
     topic_audit: Optional[dict] = None
+
+    @model_validator(mode="after")
+    def _components_or_direct(self):
+        comps = (self.visceral_charge, self.route, self.harm,
+                 self.transcendence, self.center, self.vernier)
+        has_all = all(v is not None for v in comps)
+        has_any = any(v is not None for v in comps)
+        if has_any and not has_all:
+            raise ValueError(
+                "supply the FULL v3 component set (visceral_charge, route, harm, "
+                "transcendence, center, vernier) or none of it"
+            )
+        if not has_all and (self.rubric_color is None or self.charge_value is None):
+            raise ValueError(
+                "either the v3 component set or rubric_color + charge_value is required"
+            )
+        return self
 
 
 class SupplyLyricsIn(BaseModel):
