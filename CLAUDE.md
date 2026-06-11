@@ -302,6 +302,40 @@ transaction over a single SQLAlchemy Core connection (`engine.connect()` +
   Release for the artist. Idempotent.
 - `GET /api/admin/artists/events` — paginated audit log for merge/rename.
 
+## Artist CRM + outreach log (Hockey Stick Build 8, 2026-06-11)
+
+The Artist Verified funnel (`artist_verifications`: stages lead -> contacted ->
+in_conversation -> active; `contact_email`/`phone`/`handle`; `conversation_log`;
+deepfake gate; publishes `ArtistVerificationBlock` on the song page) was grown
+into a mini-CRM with an OUTBOUND lead path + a manual outreach ledger.
+Single-song scope (no album/catalog aggregate). Router `artist_verification.py`,
+admin section **Artist Verified** (`templates/admin/artist_verified.html`).
+
+- **Outbound lead.** Start-Outreach artist search -> empty-body
+  `PUT .../artists/{id}/verification` ensures an `ArtistVerification` at
+  `lead` (no-op if the artist is already in the funnel). Previously the ONLY
+  way in was promoting an inbound "Are you the artist?" inquiry.
+- **Full manual CRUD of the CRM record.** Every verification meta field is
+  hand-editable, including manual `contacted_at` / `verified_at` overrides
+  (added to `ArtistVerificationUpdate`; auto-stamp still fills them on stage
+  advance when null). `DELETE .../artists/{id}/verification` removes the
+  record but **refuses while a published block exists** (unpublish first);
+  outreach history survives (it hangs off the artist).
+- **Outreach log (`artist_outreach`, migration 105, model `ArtistOutreach`).**
+  Manually entered touches: `song_id` (FK, SET NULL) + `song_title` snapshot,
+  `channel` (email|dm|other), `contact_used`, `sent_at` (the "when", defaults
+  now), `notes`. `GET/POST .../artists/{id}/outreach`, `PATCH/DELETE
+  .../outreach/{touch_id}`; the list is bundled into `artist_detail`.
+- **Song picker = charge-to-send surface.** `GET .../artists/{id}/songs`
+  returns the artist's calibrated songs charge-DESC (reuses the public
+  `artist_top_songs` release_songs+song_artists UNION SQL + `SongSlug`); the
+  admin form shows each song's charge so Chad picks what to send.
+- **Status:** BUILT local, py-compile clean, NOT deployed. Migration 105
+  applies on deploy; never run against the shared prod DB locally. Send is
+  manual (Chad) -- the funnel is human-operated, so no automated-outbound
+  compliance concern (Lookout discipline by construction). Plan:
+  `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 8.
+
 ## Album Charger (Lyrical Charger tab)
 
 A second top-level tab in the Lyrical Charger frontend (`frontend/lyrical-charger/`,

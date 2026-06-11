@@ -989,6 +989,31 @@ class ArtistVerificationInquiry(Base):
     artist_id = Column(Integer, ForeignKey("artists.id", ondelete="SET NULL"))
 
 
+class ArtistOutreach(Base):
+    """Manual outreach-touch ledger for the Artist CRM (Hockey Stick Build 8).
+
+    One row per outbound touch Chad logs by hand: which artist, which song's
+    charge was sent, on what channel, and WHEN. Single-song outreach only for
+    now. Hangs off the artist (not the verification row), so a touch can be
+    logged before/without a funnel record. song_title is a display snapshot so
+    the history survives a later song deletion (song_id then goes NULL).
+    """
+    __tablename__ = "artist_outreach"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    song_title = Column(Text)
+    channel = Column(String(20), nullable=False, default="email")  # email | dm | other
+    contact_used = Column(Text)  # the address/handle it actually went to
+    sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    notes = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    artist = relationship("Artist")
+
+
 class AdminUser(Base):
     """Per-user admin account. Replaces the single shared RC_ADMIN_KEY.
 

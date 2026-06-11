@@ -193,6 +193,11 @@
   <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.5rem;">
     Artists with active verification records. Click to open the detail panel below.
   </p>
+  <div class="av-promote-search open" style="margin-bottom:0.8rem;">
+    <label style="display:block;margin-bottom:0.3rem;font-size:0.75rem;">Start outbound outreach &mdash; search an artist to add them to the funnel (stage = lead):</label>
+    <input type="text" placeholder="Type artist name..." oninput="searchArtistsToStart(this.value)">
+    <div class="av-search-results" id="startResults"></div>
+  </div>
   <div class="filter-bar" id="funnelFilters">
     <button class="filter-btn active" data-filter="">All</button>
     <button class="filter-btn" data-filter="lead">Lead</button>
@@ -235,6 +240,10 @@ const STATUS_LABELS = {
   dismissed: 'Dismissed',
   promoted: 'Promoted',
 };
+const CHANNEL_LABELS = { email: 'Email', dm: 'DM', other: 'Other' };
+
+// ISO timestamp -> YYYY-MM-DD for a <input type="date"> value.
+function dateInputVal(iso) { return iso ? String(iso).slice(0, 10) : ''; }
 
 function onAdminReady() {
   document.querySelectorAll('#inqFilters .filter-btn').forEach(b => {
@@ -478,6 +487,21 @@ function renderDetail(d) {
     </div>
   `).join('');
 
+  const outreachHtml = (d.outreach || []).map(o => `
+    <div class="av-block">
+      <div class="av-block-head">
+        <strong>${esc(o.song_title || '(no song)')}</strong>
+        <span>${esc(CHANNEL_LABELS[o.channel] || o.channel)} &middot; sent ${fmtDate(o.sent_at)}</span>
+      </div>
+      ${o.contact_used ? `<div class="av-block-media">To: ${esc(o.contact_used)}</div>` : ''}
+      ${o.notes ? `<div class="av-block-text">${esc(o.notes)}</div>` : ''}
+      <div class="av-card-actions">
+        <button class="btn-sm" onclick="editOutreach(${o.id})">Edit notes</button>
+        <button class="btn-sm btn-danger" onclick="deleteOutreach(${o.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
   document.getElementById('detailContent').innerHTML = `
     <div class="av-form-section">
       <h3>${esc(d.artist_name)} <a href="https://risingcompass.net/artists/${encodeURIComponent(d.artist_slug)}" target="_blank" style="font-size:0.78rem;color:var(--accent);text-decoration:none;margin-left:0.5rem;">View artist page &rarr;</a></h3>
@@ -514,6 +538,14 @@ function renderDetail(d) {
           <label>Contact Handle (Spotify-for-Artists, IG, etc)</label>
           <input type="text" id="vfHandle" value="${esc(v.contact_handle || '')}">
         </div>
+        <div class="form-group">
+          <label>Contacted At (manual override)</label>
+          <input type="date" id="vfContactedAt" value="${dateInputVal(v.contacted_at)}">
+        </div>
+        <div class="form-group">
+          <label>Verified At (manual override)</label>
+          <input type="date" id="vfVerifiedAt" value="${dateInputVal(v.verified_at)}">
+        </div>
       </div>
       <div class="form-group">
         <label>Conversation Log</label>
@@ -547,6 +579,51 @@ function renderDetail(d) {
 
     <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
       <button onclick="saveVerification(${d.artist_id})">Save Verification</button>
+      <button class="btn-danger" onclick="deleteVerification(${d.artist_id})">Delete from Funnel</button>
+    </div>
+
+    <div class="av-form-section">
+      <h3>Outreach Log <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--text-hint);">&mdash; what was sent, which song, when (single-song)</span></h3>
+      <div class="av-blocks-list">
+        ${outreachHtml || '<p class="av-empty">No outreach logged yet.</p>'}
+      </div>
+      <button class="av-block-form-toggle" onclick="toggleOutreachForm(${d.artist_id})">+ Log outreach</button>
+      <div id="newOutreachForm" hidden style="margin-top:0.6rem;padding:0.8rem;background:#fff;border:1px solid var(--border-soft);border-radius:4px;">
+        <div class="form-group">
+          <label>Song (their calibrated songs &mdash; shows the charge to send)</label>
+          <select id="oaSong" onchange="onOutreachSongPick()"><option value="">Loading...</option></select>
+        </div>
+        <div class="form-group">
+          <label>Song title (snapshot &mdash; auto-filled, editable; type here if the song isn't listed)</label>
+          <input type="text" id="oaSongTitle">
+        </div>
+        <div class="av-detail-grid">
+          <div class="form-group">
+            <label>Channel</label>
+            <select id="oaChannel">
+              <option value="email">Email</option>
+              <option value="dm">DM</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Sent on</label>
+            <input type="date" id="oaSentAt">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Contact used (the email / handle it went to)</label>
+          <input type="text" id="oaContact">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="oaNotes" rows="2"></textarea>
+        </div>
+        <div style="margin-top:0.6rem;display:flex;gap:0.4rem;">
+          <button onclick="createOutreach(${d.artist_id})">Log it</button>
+          <button class="btn-danger" onclick="toggleOutreachForm()">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <div class="av-form-section">
@@ -614,6 +691,8 @@ async function saveVerification(artistId) {
     contact_handle: document.getElementById('vfHandle').value || null,
     conversation_log: document.getElementById('vfLog').value || null,
     notes: document.getElementById('vfNotes').value || null,
+    contacted_at: document.getElementById('vfContactedAt').value || null,
+    verified_at: document.getElementById('vfVerifiedAt').value || null,
   };
   const cs = document.getElementById('checklistSection');
   if (cs && cs.style.display !== 'none') {
@@ -727,6 +806,135 @@ async function deleteBlock(blockId) {
   } catch (e) {
     showMsg(document.getElementById('detailStatus'), e.message, 'error');
   }
+}
+
+// --- Start outbound outreach (create a funnel lead for any artist) ---
+
+let _startTimer = null;
+function searchArtistsToStart(query) {
+  clearTimeout(_startTimer);
+  const out = document.getElementById('startResults');
+  if (!query || query.length < 2) { out.innerHTML = ''; return; }
+  _startTimer = setTimeout(async () => {
+    try {
+      const resp = await fetch(`/api/admin/artist-verification/artists-search?q=${encodeURIComponent(query)}`, { headers: adminHeaders() });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      if (!data.length) { out.innerHTML = '<p class="av-empty">No matching artists. Create one in the Artists admin first.</p>'; return; }
+      out.innerHTML = data.map(a => `
+        <div class="av-search-result" onclick="startOutreach(${a.id})">
+          <span><strong>${esc(a.name)}</strong> <span class="av-counts">${esc(a.slug)}</span></span>
+          <span class="av-counts">id ${a.id}</span>
+        </div>`).join('');
+    } catch (e) { out.innerHTML = `<p style="color:var(--red);">${esc(e.message)}</p>`; }
+  }, 250);
+}
+
+async function startOutreach(artistId) {
+  // Empty body = ensure a verification record exists at stage=lead; if the
+  // artist is already in the funnel this is a no-op (their stage is preserved).
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/artists/${artistId}/verification`, {
+      method: 'PUT', headers: adminHeaders(), body: JSON.stringify({}),
+    });
+    if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || `HTTP ${resp.status}`); }
+    document.getElementById('startResults').innerHTML = '';
+    loadFunnel();
+    loadDetail(artistId);
+  } catch (e) { document.getElementById('startResults').innerHTML = `<p style="color:var(--red);">${esc(e.message)}</p>`; }
+}
+
+async function deleteVerification(artistId) {
+  if (!confirm('Remove this artist from the funnel? Outreach history is kept. (Unpublish any published block first.)')) return;
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/artists/${artistId}/verification`, { method: 'DELETE', headers: adminHeaders() });
+    if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || `HTTP ${resp.status}`); }
+    showMsg(document.getElementById('detailStatus'), 'Verification record deleted', 'success');
+    document.getElementById('detailPanel').hidden = true;
+    loadFunnel();
+  } catch (e) { showMsg(document.getElementById('detailStatus'), e.message, 'error'); }
+}
+
+// --- Outreach log (what was sent, which song, when) ---
+
+let _outreachSongs = [];
+function toggleOutreachForm(artistId) {
+  const f = document.getElementById('newOutreachForm');
+  f.hidden = !f.hidden;
+  if (!f.hidden) {
+    const sent = document.getElementById('oaSentAt');
+    if (sent && !sent.value) sent.value = new Date().toISOString().slice(0, 10);
+    if (artistId) loadOutreachSongs(artistId);
+  }
+}
+
+async function loadOutreachSongs(artistId) {
+  const sel = document.getElementById('oaSong');
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/artists/${artistId}/songs`, { headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    _outreachSongs = await resp.json();
+    if (!_outreachSongs.length) {
+      sel.innerHTML = '<option value="">(no calibrated songs found -- type the title below)</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">(select a song)</option>' + _outreachSongs.map(s => {
+      const charge = (s.charge_value >= 0 ? '+' : '') + s.charge_value;
+      const tier = s.tier_label ? ` (${s.tier_label})` : '';
+      return `<option value="${s.song_id}" data-title="${escHtml(s.title)}">${esc(s.title)} -- ${charge}${esc(tier)}</option>`;
+    }).join('');
+  } catch (e) {
+    sel.innerHTML = `<option value="">Error: ${esc(e.message)}</option>`;
+  }
+}
+
+function onOutreachSongPick() {
+  const sel = document.getElementById('oaSong');
+  const opt = sel.options[sel.selectedIndex];
+  const title = opt ? opt.getAttribute('data-title') : '';
+  if (title) document.getElementById('oaSongTitle').value = title;
+}
+
+async function createOutreach(artistId) {
+  const songId = document.getElementById('oaSong').value;
+  const body = {
+    song_id: songId ? parseInt(songId, 10) : null,
+    song_title: document.getElementById('oaSongTitle').value || null,
+    channel: document.getElementById('oaChannel').value,
+    contact_used: document.getElementById('oaContact').value || null,
+    sent_at: document.getElementById('oaSentAt').value || null,
+    notes: document.getElementById('oaNotes').value || null,
+  };
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/artists/${artistId}/outreach`, {
+      method: 'POST', headers: adminHeaders(), body: JSON.stringify(body),
+    });
+    if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || `HTTP ${resp.status}`); }
+    showMsg(document.getElementById('detailStatus'), 'Outreach logged', 'success');
+    loadDetail(artistId);
+  } catch (e) { showMsg(document.getElementById('detailStatus'), e.message, 'error'); }
+}
+
+async function editOutreach(id) {
+  const newNotes = prompt('Edit notes for this touch:', '');
+  if (newNotes === null) return;
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/outreach/${id}`, {
+      method: 'PATCH', headers: adminHeaders(), body: JSON.stringify({ notes: newNotes }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    loadDetail(currentArtistId);
+  } catch (e) { showMsg(document.getElementById('detailStatus'), e.message, 'error'); }
+}
+
+async function deleteOutreach(id) {
+  if (!confirm('Delete this outreach touch?')) return;
+  try {
+    const resp = await fetch(`/api/admin/artist-verification/outreach/${id}`, { method: 'DELETE', headers: adminHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    showMsg(document.getElementById('detailStatus'), 'Touch deleted', 'success');
+    loadDetail(currentArtistId);
+  } catch (e) { showMsg(document.getElementById('detailStatus'), e.message, 'error'); }
 }
 </script>
 {% endblock %}

@@ -1043,6 +1043,11 @@ class ArtistVerificationUpdate(BaseModel):
     deepfake_reference_match_confirmed: Optional[bool] = None
     deepfake_recording_archived: Optional[bool] = None
     deepfake_recording_url: Optional[str] = None
+    # Manual override of the funnel timestamps (the CRM is fully hand-editable;
+    # otherwise these are auto-stamped on stage advance). Accept a date or
+    # datetime; null clears.
+    contacted_at: Optional[datetime.datetime] = None
+    verified_at: Optional[datetime.datetime] = None
 
 
 class ArtistVerificationBlockCreate(BaseModel):
@@ -1107,6 +1112,39 @@ class ArtistVerificationFunnelArtistOut(BaseModel):
     updated_at: Optional[datetime.datetime] = None
 
 
+class ArtistOutreachCreate(BaseModel):
+    song_id: Optional[int] = None
+    song_title: Optional[str] = Field(None, max_length=300)
+    channel: str = Field("email", max_length=20)  # email | dm | other
+    contact_used: Optional[str] = Field(None, max_length=300)
+    sent_at: Optional[datetime.datetime] = None  # defaults to now if omitted
+    notes: Optional[str] = Field(None, max_length=5000)
+
+
+class ArtistOutreachUpdate(BaseModel):
+    song_id: Optional[int] = None
+    song_title: Optional[str] = None
+    channel: Optional[str] = None
+    contact_used: Optional[str] = None
+    sent_at: Optional[datetime.datetime] = None
+    notes: Optional[str] = None
+
+
+class ArtistOutreachOut(BaseModel):
+    id: int
+    artist_id: int
+    song_id: Optional[int] = None
+    song_title: Optional[str] = None
+    channel: str
+    contact_used: Optional[str] = None
+    sent_at: Optional[datetime.datetime] = None
+    notes: Optional[str] = None
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ArtistVerificationDetailOut(BaseModel):
     """Full detail for the admin drawer."""
     artist_id: int
@@ -1114,6 +1152,7 @@ class ArtistVerificationDetailOut(BaseModel):
     artist_slug: str
     verification: Optional[ArtistVerificationOut] = None
     blocks: list[ArtistVerificationBlockOut] = []
+    outreach: list[ArtistOutreachOut] = []
 
 
 class LCAvailabilityOut(BaseModel):

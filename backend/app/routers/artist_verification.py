@@ -33,15 +33,22 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.constants import COLOR_HEX, COLOR_LABELS
 from app.models import (
     Artist,
+    ArtistOutreach,
     ArtistVerification,
     ArtistVerificationBlock,
     ArtistVerificationInquiry,
+    Song,
+    SongSlug,
 )
 from app.routers.admin import verify_admin_key
 from app.routers.analyzer import _check_bot_protection
 from app.schemas import (
+    ArtistOutreachCreate,
+    ArtistOutreachOut,
+    ArtistOutreachUpdate,
     ArtistVerificationBlockCreate,
     ArtistVerificationBlockOut,
     ArtistVerificationBlockUpdate,
@@ -77,6 +84,7 @@ def _resolve_unified_song_id(db: Session, source, sid):
 VALID_STAGES = {"lead", "contacted", "in_conversation", "active"}
 VALID_METHODS = {"in_person", "video_call", "audio_call", "prior_relationship"}
 VALID_INQUIRY_STATUSES = {"pending", "contacted", "dismissed", "promoted"}
+VALID_OUTREACH_CHANNELS = {"email", "dm", "other"}
 
 
 def _deepfake_complete(v: ArtistVerification) -> bool:
@@ -455,12 +463,19 @@ def artist_detail(artist_id: int, db: Session = Depends(get_db)):
         .order_by(ArtistVerificationBlock.created_at.desc())
         .all()
     )
+    outreach = (
+        db.query(ArtistOutreach)
+        .filter(ArtistOutreach.artist_id == artist_id)
+        .order_by(ArtistOutreach.sent_at.desc())
+        .all()
+    )
     return ArtistVerificationDetailOut(
         artist_id=artist.id,
         artist_name=artist.name,
         artist_slug=artist.slug,
         verification=v,
         blocks=blocks,
+        outreach=outreach,
     )
 
 
@@ -526,6 +541,41 @@ def upsert_verification(
     db.commit()
     db.refresh(v)
     return v
+
+
+@admin_router.delete(
+    "/api/admin/artist-verification/artists/{artist_id}/verification",
+    dependencies=[Depends(verify_admin_key)],
+)
+def delete_verification(artist_id: int, db: Session = Depends(get_db)):
+    """Remove an artist's CRM/funnel record. Refuses while a published block
+    exists (unpublish it first) so the public song page can't keep showing a
+    verified block whose funnel record is gone. Outreach history is preserved
+    (it hangs off the artist, not this record)."""
+    v = (
+        db.query(ArtistVerification)
+        .filter(ArtistVerification.artist_id == artist_id)
+        .first()
+    )
+    if not v:
+        raise HTTPException(404, "No verification record for this artist")
+    published = (
+        db.query(ArtistVerificationBlock)
+        .filter(
+            ArtistVerificationBlock.artist_id == artist_id,
+            ArtistVerificationBlock.published == True,  # noqa: E712
+        )
+        .count()
+    )
+    if published:
+        raise HTTPException(
+            400,
+            "Cannot delete: this artist has a published verification block. "
+            "Unpublish it first.",
+        )
+    db.delete(v)
+    db.commit()
+    return {"detail": "Verification record deleted"}
 
 
 # --- Admin: blocks ---
@@ -669,3 +719,139 @@ def search_artists(
         .all()
     )
     return [{"id": a.id, "name": a.name, "slug": a.slug} for a in results]
+
+
+# --- Admin: outreach log (Build 8, manual single-song touches) ---
+
+
+@admin_router.get(
+    "/api/admin/artist-verification/artists/{artist_id}/songs",
+    dependencies=[Depends(verify_admin_key)],
+)
+def artist_songs_for_outreach(artist_id: int, db: Session = Depends(get_db)):
+    """The artist's calibrated songs, charge DESC -- the picker for the
+    outreach log AND the 'what charge to show them' surface. Credited via a
+    release they own OR a direct song_artists credit (mirrors the public
+    artist_top_songs query). Slug attached when one exists."""
+    artist = db.query(Artist).filter(Artist.id == artist_id).first()
+    if not artist:
+        raise HTTPException(404, "Artist not found")
+    rows = db.execute(text(
+        """
+        SELECT s.id, s.title, s.rubric_color, s.charge_value
+          FROM songs s
+         WHERE s.charge_value IS NOT NULL
+           AND s.id IN (
+                SELECT rs.song_id
+                  FROM release_songs rs
+                  JOIN releases r ON r.id = rs.release_id
+                 WHERE r.artist_id = :aid AND rs.song_id IS NOT NULL
+                UNION
+                SELECT sa.song_id
+                  FROM song_artists sa
+                 WHERE sa.artist_id = :aid AND sa.song_id IS NOT NULL
+           )
+        """
+    ), {"aid": artist.id}).all()
+    items = [
+        {
+            "song_id": sid,
+            "title": title,
+            "rubric_color": rubric_color,
+            "charge_value": charge_value,
+            "tier_label": COLOR_LABELS.get(rubric_color, ""),
+            "tier_hex": COLOR_HEX.get(rubric_color, "#999"),
+        }
+        for sid, title, rubric_color, charge_value in rows
+    ]
+    items.sort(key=lambda x: (x["charge_value"] is None, -(x["charge_value"] or 0)))
+    if items:
+        ids = [it["song_id"] for it in items]
+        slug_map: dict[int, str] = {}
+        for sid, slug_value in (
+            db.query(SongSlug.song_id, SongSlug.slug)
+            .filter(SongSlug.song_id.in_(ids))
+            .all()
+        ):
+            slug_map.setdefault(sid, slug_value)
+        for it in items:
+            it["slug"] = slug_map.get(it["song_id"])
+    return items
+
+
+@admin_router.post(
+    "/api/admin/artist-verification/artists/{artist_id}/outreach",
+    response_model=ArtistOutreachOut,
+    status_code=201,
+    dependencies=[Depends(verify_admin_key)],
+)
+def create_outreach(
+    artist_id: int,
+    data: ArtistOutreachCreate,
+    db: Session = Depends(get_db),
+):
+    """Log one outbound touch (single-song): which song's charge was sent, on
+    what channel, and WHEN. sent_at defaults to now; song_title falls back to
+    the song's title when a song_id is given without a title."""
+    artist = db.query(Artist).filter(Artist.id == artist_id).first()
+    if not artist:
+        raise HTTPException(404, "Artist not found")
+    if data.channel not in VALID_OUTREACH_CHANNELS:
+        raise HTTPException(
+            400, f"Invalid channel. Must be one of: {sorted(VALID_OUTREACH_CHANNELS)}"
+        )
+    title = data.song_title
+    if not title and data.song_id:
+        row = db.query(Song.title).filter(Song.id == data.song_id).first()
+        title = row[0] if row else None
+    touch = ArtistOutreach(
+        artist_id=artist_id,
+        song_id=data.song_id,
+        song_title=title,
+        channel=data.channel,
+        contact_used=data.contact_used,
+        sent_at=data.sent_at or datetime.utcnow(),
+        notes=data.notes,
+    )
+    db.add(touch)
+    db.commit()
+    db.refresh(touch)
+    return touch
+
+
+@admin_router.patch(
+    "/api/admin/artist-verification/outreach/{touch_id}",
+    response_model=ArtistOutreachOut,
+    dependencies=[Depends(verify_admin_key)],
+)
+def update_outreach(
+    touch_id: int,
+    data: ArtistOutreachUpdate,
+    db: Session = Depends(get_db),
+):
+    touch = db.query(ArtistOutreach).filter(ArtistOutreach.id == touch_id).first()
+    if not touch:
+        raise HTTPException(404, "Outreach touch not found")
+    update_data = data.model_dump(exclude_unset=True)
+    if "channel" in update_data and update_data["channel"] not in VALID_OUTREACH_CHANNELS:
+        raise HTTPException(
+            400, f"Invalid channel. Must be one of: {sorted(VALID_OUTREACH_CHANNELS)}"
+        )
+    for k, val in update_data.items():
+        setattr(touch, k, val)
+    db.commit()
+    db.refresh(touch)
+    return touch
+
+
+@admin_router.delete(
+    "/api/admin/artist-verification/outreach/{touch_id}",
+    dependencies=[Depends(verify_admin_key)],
+)
+def delete_outreach(touch_id: int, db: Session = Depends(get_db)):
+    touch = db.query(ArtistOutreach).filter(ArtistOutreach.id == touch_id).first()
+    if not touch:
+        raise HTTPException(404, "Outreach touch not found")
+    db.delete(touch)
+    db.commit()
+    return {"detail": "Outreach touch deleted"}
