@@ -560,6 +560,74 @@ def emit_leit_sweep_digest(*, scanned: int, findings: list) -> None:
     )
 
 
+def emit_divergence_digest(*, scanned: int, nominations: list) -> None:
+    """The Calibrator v3 feedback organ found songs whose audience signals
+    (vibe pushes / clustered misread reports) oppose the stored verdict.
+    Activity alert, default-on. NOMINATES re-reads only -- nothing moved.
+    Never called with zero nominations (the cron skips the email)."""
+    from app.auth import create_admin_link_token
+    site = settings.site_url.rstrip("/")
+
+    def _go(path: str) -> str:
+        return f"{site}/api/admin/go?t={create_admin_link_token(path)}"
+
+    rows = []
+    for nom in nominations[:50]:
+        title = escape(str(nom.get("title", "")))
+        artist = escape(str(nom.get("artist", "")))
+        signals = escape(", ".join(nom.get("signals", [])))
+        charge = nom.get("stored_charge")
+        vibe = nom.get("vibe_value")
+        misreads = nom.get("misread_count") or 0
+        song_id = nom.get("song_id")
+        if song_id is not None:
+            title_cell = (f"<a href='{_go(f'/api/admin/dashboard/song/{song_id}')}' "
+                          f"style='color:#008f72;text-decoration:none;'><strong>{title}</strong></a>")
+        else:
+            title_cell = f"<strong>{title}</strong>"
+        crowd = []
+        if vibe is not None:
+            crowd.append(f"vibe {vibe:+d} ({nom.get('pushes_up', 0)}&uarr;/{nom.get('pushes_down', 0)}&darr;)")
+        if misreads:
+            crowd.append(f"{misreads} misread report(s)")
+        rows.append(
+            f"<tr>"
+            f"<td style='padding:4px 8px;font-size:13px;color:#333;'>{title_cell}<br>"
+            f"<span style='color:#777;'>{artist}</span></td>"
+            f"<td style='padding:4px 8px;font-size:13px;color:#333;white-space:nowrap;'>"
+            f"{charge if charge is not None else '?'}</td>"
+            f"<td style='padding:4px 8px;font-size:13px;color:#555;'>{' &middot; '.join(crowd)}</td>"
+            f"<td style='padding:4px 8px;font-size:12px;color:#a33;'>{signals}</td>"
+            f"</tr>"
+        )
+    table = "".join(rows)
+    n = len(nominations)
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px;">
+      <p style="margin:0 0 6px;font-size:14px;color:#555;">
+        The divergence report nominated <strong>{n}</strong> song(s) for a re-read
+        (scanned {scanned} audience signals). The compass leads the crowd; the crowd
+        flags the compass -- nothing was changed.
+      </p>
+      <table style="border-collapse:collapse;width:100%;margin:8px 0 14px;">
+        <thead><tr style="text-align:left;border-bottom:1px solid #ddd;">
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Song</th>
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Stored</th>
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Crowd</th>
+          <th style="padding:4px 8px;font-size:11px;color:#999;text-transform:uppercase;">Signals</th>
+        </tr></thead>
+        <tbody>{table}</tbody>
+      </table>
+    </div>
+    """
+    send_alert(
+        category="activity",
+        alert_key="divergence_digest",
+        subject=f"Divergence report: {n} song(s) nominated for re-read",
+        html_body=html,
+    )
+
+
 def emit_alltime_streams_awaiting(*, updated: int, awaiting: list) -> None:
     """The monthly all-time-streams refresh ran and one or more chart songs are
     not yet calibrated (no cache hit). Activity alert, default-on. `awaiting` is

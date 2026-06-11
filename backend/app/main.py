@@ -112,6 +112,9 @@ def _init_database():
     # LEIT daily clutter sweep digest: emailed when the sweep flags songs for
     # human audit. On by default; toggleable in the Alerts UI.
     ensure_pref_default("leit_sweep_digest", enabled=True)
+    # Calibrator v3 feedback organ: emailed when the divergence report
+    # nominates songs for a re-read (silent at zero traffic). Default-on.
+    ensure_pref_default("divergence_digest", enabled=True)
     # All-time streams monthly refresh: emailed when chart songs aren't yet
     # calibrated (need manual lyrics). On by default; toggleable in the Alerts UI.
     ensure_pref_default("alltime_streams_awaiting", enabled=True)
@@ -345,6 +348,9 @@ from app.routers import faultline_agent
 app.include_router(faultline_agent.router)
 from app.routers import leit_sweep
 app.include_router(leit_sweep.router)
+
+from app.routers import divergence_report
+app.include_router(divergence_report.router)
 from app.routers import clutter_admin
 app.include_router(clutter_admin.router)
 from app.routers import agents_admin

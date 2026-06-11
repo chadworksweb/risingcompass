@@ -51,6 +51,26 @@ AGENTS = {
         "findings_url": "/api/admin/dashboard/clutter",
         "overdue_hours": 36,
     },
+    "surveyor-001": {
+        "id": "surveyor-001",
+        "codename": "Surveyor 001",
+        "nickname": "Sonar",
+        "venture": "Rising Compass",
+        "layer": 1,
+        "role": "Calibration divergence report (the v3 feedback organ)",
+        "what": (
+            "Scans audience signals -- vibe-needle pushes and clustered misread "
+            "reports -- for songs where the crowd systematically opposes the "
+            "stored verdict, and nominates them for a human-ruled re-read. "
+            "Read-only by hard rule: it never moves a charge. Reports empty "
+            "until there is traffic. No Claude calls (pure SQL)."
+        ),
+        "schedule": "Weekly (cron lane; runs empty at zero traffic)",
+        "model": "none (no model calls)",
+        "call_site": "divergence_report",
+        "findings_url": "/api/admin/divergence-report",
+        "overdue_hours": 24 * 8,
+    },
 }
 
 
