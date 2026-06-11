@@ -451,6 +451,32 @@ def _chart_body_html(cfg: dict, rows: list) -> str:
             + "".join(lis) + "</ol>")
 
 
+def inject_chart_ssr(html: str, kind: str, cfg: dict, rows: list) -> str:
+    """Bake the schema.org ItemList + FAQ into the head and server-render the
+    ranked list into #chart-root. IDEMPOTENT: strips any prior injection first,
+    so it's safe to run on an already-baked file (the static bake re-runs on each
+    refresh) AND on a fresh template (dynamic render). One source of truth for
+    both paths."""
+    # Strip a prior bake so re-running never doubles up.
+    html = re.sub(r'\s*<script type="application/ld\+json">.*?</script>', '', html, flags=re.S)
+    html = re.sub(r'(<div id="chart-root">).*?(</div>)', r'\1\2', html, count=1, flags=re.S)
+
+    canonical = f"{_SITE}/charts/{kind}/"
+    graph = {
+        "@context": "https://schema.org",
+        "@graph": [
+            _chart_itemlist_ld(cfg, rows, canonical),
+            _chart_faq(cfg, rows, canonical),
+        ],
+    }
+    payload = json.dumps(graph, ensure_ascii=False).replace("<", "\\u003c")
+    script = f'<script type="application/ld+json">{payload}</script>\n</head>'
+    html = html.replace("</head>", script, 1)
+    html = html.replace('<div id="chart-root"></div>',
+                        f'<div id="chart-root">{_chart_body_html(cfg, rows)}</div>', 1)
+    return html
+
+
 def _render_chart(kind: str) -> HTMLResponse:
     cfg = _chart_configs().get(kind)
     if cfg is None:
@@ -465,21 +491,7 @@ def _render_chart(kind: str) -> HTMLResponse:
     finally:
         db.close()
 
-    canonical = f"{_SITE}/charts/{kind}/"
-    graph = {
-        "@context": "https://schema.org",
-        "@graph": [
-            _chart_itemlist_ld(cfg, rows, canonical),
-            _chart_faq(cfg, rows, canonical),
-        ],
-    }
-    payload = json.dumps(graph, ensure_ascii=False).replace("<", "\\u003c")
-    script = f'<script type="application/ld+json">{payload}</script>\n</head>'
-    html = tpl.replace("</head>", script, 1)
-    # Server-render the ranked list into the (otherwise empty) mount point.
-    html = html.replace('<div id="chart-root"></div>',
-                        f'<div id="chart-root">{_chart_body_html(cfg, rows)}</div>', 1)
-    return HTMLResponse(html)
+    return HTMLResponse(inject_chart_ssr(tpl, kind, cfg, rows))
 
 
 @router.get("/charts/streamed-all-time/", response_class=HTMLResponse)
