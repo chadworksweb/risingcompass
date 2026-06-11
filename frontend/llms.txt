@@ -2,7 +2,7 @@
 
 > The Rising Compass reads the vibrational charge of the song lyrics that dominate popular culture. Every charting song is calibrated against a 58-tenet rubric and placed on a five-tier spectrum, from Ascended at the top down to Corrupted at the bottom, so anyone can see what the music people actually listen to is really saying.
 
-The full reference, including the complete all-time chart rankings, lives at /llms-full.txt.
+A fuller description of the framework lives at /llms-full.txt.
 
 ## Charts
 - [Most Streamed Songs of All Time](https://risingcompass.net/charts/streamed-all-time/): the 100 most-streamed songs on Spotify by global lifetime streams, each one charged.

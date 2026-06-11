@@ -1,11 +1,9 @@
 """Generate /llms.txt and /llms-full.txt for The Rising Compass.
 
 llms.txt is the concise, link-first index answer engines read first
-(llmstxt.org). llms-full.txt is the cumulative reference: the framework in
-plain language plus the live all-time chart rankings, so a model can cite the
-actual data without crawling. Both are written into the static frontend root,
-which nginx already serves (mime.types maps .txt -> text/plain). Re-run after a
-monthly chart refresh, then commit + deploy.
+(llmstxt.org). llms-full.txt is the framework in plain language. Both are
+written into the static frontend root, which nginx already serves (mime.types
+maps .txt -> text/plain).
 
     cd backend && .venv/Scripts/python.exe scripts/bake_llms.py
 """
@@ -16,34 +14,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pathlib import Path
 
-import httpx
-
-from app.routers.page_ssr import _FRONTEND_DIR, _fmt_streams
+from app.routers.page_ssr import _FRONTEND_DIR
 
 SITE = "https://risingcompass.net"
-API_KEY = "6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b"
-
-TIER = {"violet": "Ascended", "blue": "Elevated", "green": "Decent",
-        "orange": "Degraded", "red": "Corrupted"}
-
-CHARTS = [
-    ("Most Streamed Songs of All Time", "/api/charts/alltime/streams",
-     "title", lambda r: f"{_fmt_streams(r['total_streams'])} streams" if r.get("total_streams") else "",
-     "/charts/streamed-all-time/"),
-    ("Most Streamed Albums of All Time", "/api/charts/alltime/stream-albums",
-     "album_title", lambda r: f"{_fmt_streams(r['total_streams'])} streams" if r.get("total_streams") else "",
-     "/charts/most-streamed-albums/"),
-    ("Best-Selling Albums of All Time (US, RIAA)", "/api/charts/alltime/albums",
-     "album_title", lambda r: ", ".join(b for b in (r.get("certified_units"),
-        str(r["release_year"]) if r.get("release_year") else None) if b),
-     "/charts/best-selling-albums/"),
-]
 
 LLMS_TXT = """# The Rising Compass
 
 > The Rising Compass reads the vibrational charge of the song lyrics that dominate popular culture. Every charting song is calibrated against a 58-tenet rubric and placed on a five-tier spectrum, from Ascended at the top down to Corrupted at the bottom, so anyone can see what the music people actually listen to is really saying.
 
-The full reference, including the complete all-time chart rankings, lives at /llms-full.txt.
+A fuller description of the framework lives at /llms-full.txt.
 
 ## Charts
 - [Most Streamed Songs of All Time](https://risingcompass.net/charts/streamed-all-time/): the 100 most-streamed songs on Spotify by global lifetime streams, each one charged.
@@ -76,72 +55,36 @@ The full reference, including the complete all-time chart rankings, lives at /ll
 - [Subscribe](https://risingcompass.net/subscribe/): get the daily reading by email.
 """
 
+LLMS_FULL = f"""# The Rising Compass: Full Reference
 
-def _fetch(path):
-    r = httpx.get(SITE + path, headers={"X-Api-Key": API_KEY}, timeout=30)
-    r.raise_for_status()
-    return r.json().get("rows", [])
+The Rising Compass measures the vibrational charge of the song lyrics that dominate popular culture. Every song that charts is read against a 58-tenet rubric and placed on a five-tier spectrum. The aim is to make visible what the music people actually listen to is really saying, one song at a time and at the scale of the whole culture.
 
+## The charge spectrum
 
-def _full_text():
-    out = []
-    out.append("# The Rising Compass: Full Reference")
-    out.append("")
-    out.append(
-        "The Rising Compass measures the vibrational charge of the song lyrics that "
-        "dominate popular culture. Every song that charts is read against a 58-tenet "
-        "rubric and placed on a five-tier spectrum. The aim is to make visible what "
-        "the music people actually listen to is really saying, one song at a time and "
-        "at the scale of the whole culture.")
-    out.append("")
-    out.append("## The charge spectrum")
-    out.append("")
-    out.append(
-        "A reading scores a song on a scale that runs from a high positive charge to a "
-        "deep negative one, then names the tier it lands in:")
-    out.append("")
-    out.append("- Ascended (violet): the highest, most life-giving charge.")
-    out.append("- Elevated (blue): a clearly positive charge.")
-    out.append("- Decent (green): roughly neutral, neither lifting nor corroding.")
-    out.append("- Degraded (orange): a negative charge that pulls downward.")
-    out.append("- Corrupted (red): the lowest, most corrosive charge.")
-    out.append("")
-    out.append(
-        "Instrumentals carry no lyric charge and are left uncharted. Non-music audio "
-        "such as sleep or white-noise tracks is tagged and excluded the same way. The "
-        "exact tenets behind a reading are documented at " + SITE + "/methodology/ and "
-        + SITE + "/tenets/.")
-    out.append("")
-    for heading, api, title_key, metric, page in CHARTS:
-        rows = _fetch(api)
-        out.append(f"## {heading}")
-        out.append("")
-        out.append(f"Source: {SITE}{page}")
-        out.append("")
-        for r in rows:
-            name = r.get(title_key) or ""
-            artist = r.get("artist") or ""
-            m = metric(r)
-            if r.get("non_music"):
-                tier = "Non-music"
-            else:
-                tier = TIER.get(r.get("rubric_color"), "uncharged")
-            line = f"{r['rank']}. {name} - {artist}"
-            if m:
-                line += f" ({m})"
-            line += f" [{tier}]"
-            out.append(line)
-        out.append("")
-    return "\n".join(out) + "\n"
+A reading scores a song on a scale that runs from a high positive charge to a deep negative one, then names the tier it lands in:
+
+- Ascended (violet): the highest, most life-giving charge.
+- Elevated (blue): a clearly positive charge.
+- Decent (green): roughly neutral, neither lifting nor corroding.
+- Degraded (orange): a negative charge that pulls downward.
+- Corrupted (red): the lowest, most corrosive charge.
+
+Instrumentals carry no lyric charge and are left uncharted. Non-music audio such as sleep or white-noise tracks is tagged and excluded the same way. The exact tenets behind a reading are documented at {SITE}/methodology/ and {SITE}/tenets/.
+
+## Where to read more
+
+- Methodology: {SITE}/methodology/
+- Tenets: {SITE}/tenets/
+- The charts (songs, albums, daily sources): {SITE}/ (see /llms.txt for the full list)
+"""
 
 
 def main():
     root = Path(_FRONTEND_DIR)
     (root / "llms.txt").write_text(LLMS_TXT, encoding="utf-8", newline="\n")
     print(f"wrote llms.txt ({len(LLMS_TXT)} bytes)")
-    full = _full_text()
-    (root / "llms-full.txt").write_text(full, encoding="utf-8", newline="\n")
-    print(f"wrote llms-full.txt ({len(full)} bytes)")
+    (root / "llms-full.txt").write_text(LLMS_FULL, encoding="utf-8", newline="\n")
+    print(f"wrote llms-full.txt ({len(LLMS_FULL)} bytes)")
 
 
 if __name__ == "__main__":
