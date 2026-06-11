@@ -58,7 +58,18 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
 
     if not existing:
         return None
-    if not existing.rubric_color or existing.charge_value is None or existing.charge_summary is None:
+    # Instrumentals carry no charge by design: charge_value and charge_summary
+    # stay NULL, the song shows a grey dot, and it is excluded from every
+    # aggregate. It is still fully RESOLVED -- there are no lyrics to read -- so
+    # a live feeder (Shazam / YouTube) that re-fetches the same instrumental
+    # every day must treat it as a cache hit, not re-list it as awaiting-lyrics
+    # forever. Only a tier (rubric_color) is required for an instrumental cache
+    # hit; non-instrumentals still need a complete charge_value + charge_summary.
+    if not existing.instrumental and (
+        not existing.rubric_color
+        or existing.charge_value is None
+        or existing.charge_summary is None
+    ):
         logger.warning("Incomplete calibration for '%s' by %s (id=%s) — missing %s",
                        title, artist, existing.id,
                        ", ".join(f for f, v in [
@@ -66,6 +77,12 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
                            ("charge_value", existing.charge_value),
                            ("charge_summary", existing.charge_summary),
                        ] if not v and v != 0))
+        return None
+    if existing.instrumental and not existing.rubric_color:
+        # An instrumental still needs a tier to render its row; without one it is
+        # not yet a usable cache hit.
+        logger.warning("Instrumental '%s' by %s (id=%s) has no rubric_color",
+                       title, artist, existing.id)
         return None
     if (existing.canonical_calibration_method or "") not in _AUTHORITATIVE_METHODS:
         # Calibrated, but only by a crowd method -- not a cache hit; the caller
@@ -83,6 +100,7 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
         "song_id": existing.id,
         "rubric_color": existing.rubric_color,
         "charge_value": existing.charge_value,
+        "instrumental": bool(existing.instrumental),
         "contaminated": existing.contaminated or False,
         "contamination_note": existing.contamination_note,
         "dogma_referenced": getattr(existing, "dogma_referenced", None) or False,
