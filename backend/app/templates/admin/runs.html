@@ -41,6 +41,7 @@
   .runs-arg-summary { font-weight: 600; color: var(--text); margin-bottom: 0.45rem; }
   .runs-arg-reasoning { white-space: pre-wrap; color: var(--text-dim); font-size: 0.8rem; line-height: 1.55; max-width: 78ch; }
   .runs-arg-none { color: var(--text-hint); font-style: italic; font-size: 0.8rem; }
+  .runs-v3-strip { font-size: 0.72rem; color: var(--text-dim); font-family: ui-monospace, 'Cascadia Mono', monospace; margin: 0 0 0.5rem; line-height: 1.6; }
 </style>
 {% endblock %}
 
@@ -98,6 +99,38 @@ function runsSwitch(view) {
 function runsReload() { runsOffset = 0; runsRender(); }
 
 function chargeClass(v) { return v > 0 ? 'pos' : (v < 0 ? 'neg' : 'zero'); }
+
+// Calibrator v3 component strip for the expandable run detail. Internal-only
+// surface (axes never ship publicly). Empty string on pre-v3 runs (no route).
+function v3Strip(r) {
+  if (!r.route) return '';
+  const num = v => (v === null || v === undefined) ? '—' : v;
+  const vern = r.vernier
+    ? `sat ${num(r.vernier.sat)} / res ${num(r.vernier.res)} / reg ${num(r.vernier.reg)} / reach ${num(r.vernier.reach)}`
+    : '—';
+  const refs = (r.precedent_refs && r.precedent_refs.length) ? r.precedent_refs.join(', ') : '—';
+  const esc = r.escalation_flags
+    ? [(r.escalation_flags.triggers || []).join(', '), (r.escalation_flags.signals || []).join(', ')]
+        .filter(Boolean).join(' | ')
+    : '';
+  const bits = [
+    `visceral ${num(r.visceral_charge)}`,
+    `route ${escHtml(r.route)}`,
+    `harm ${num(r.harm_value)}${r.harm_pervasive ? ' (PERVASIVE)' : ''}`,
+    `transcendence ${num(r.transcendence_value)}`,
+    `governs: ${escHtml(r.governing_axis || '—')}`,
+    `center ${num(r.center)}`,
+    `vernier ${vern}`,
+    `precedents ${escHtml(refs)}`,
+    `gut-div ${num(r.gut_divergence)}`,
+  ];
+  if (r.guard_trips) bits.push(`guard trips ${r.guard_trips}`);
+  if (r.parse_retries) bits.push(`parse retries ${r.parse_retries}`);
+  if (r.translated) bits.push('translated');
+  if (r.escalated) bits.push('ESCALATED');
+  if (esc) bits.push(`flags: ${escHtml(esc)}`);
+  return `<div class="runs-v3-strip">${bits.join(' &middot; ')}</div>`;
+}
 
 function dot(color) {
   return color ? `<span class="color-dot ${escHtml(color)}"></span>` : '';
@@ -180,10 +213,12 @@ async function renderAllRuns(body) {
       ? `<span class="runs-supersede-tag" title="${escHtml(r.superseded_reason || '')}">superseded</span>` : '';
     const failTag = r.calibration_failed ? `<span class="runs-supersede-tag" style="color:var(--red);">failed</span>` : '';
     const hasReason = r.reasoning && r.reasoning.trim().length;
-    const argBtn = hasReason
+    const hasV3 = !!r.route;
+    const argBtn = (hasReason || hasV3)
       ? `<button class="runs-link-btn" onclick="toggleArg(${r.id})">argument</button>`
       : `<span class="runs-song-by">—</span>`;
     const detail = (r.charge_summary ? `<div class="runs-arg-summary">${escHtml(r.charge_summary)}</div>` : '')
+      + v3Strip(r)
       + (hasReason
           ? `<div class="runs-arg-reasoning">${escHtml(r.reasoning)}</div>`
           : `<div class="runs-arg-none">No argument stored for this run.</div>`);

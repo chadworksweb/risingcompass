@@ -83,15 +83,6 @@ If the commentary mode is too thin to anchor the satirical reading — if the so
 7. Write the new charge_summary in the same voice as the standard rubric — direct, present-tense, no hedging — but it should describe what the song IS doing under the satire reading, not what its surface depicts.
 8. Note the recalibration in your reasoning: original literal tier, the flipped-summary thought exercise, mode breakdown, satirical reading evidence, new tier, ceiling consideration.
 
-## How to Run a Satire Recalibration
-
-1. Read the lyrics from top to bottom under the standard rubric. Note where it lands literally.
-2. Now re-read the same words asking: does this content function as exposure or endorsement?
-3. Cite specific lines that produce the satirical reading. If you cannot, the literal calibration stands — return it unchanged with a rationale explaining why the satire reading does not hold.
-4. If the satirical reading holds, apply the ceiling rule (S4): exposure earns the song out of the lower tier, but rarely beyond Elevated, and almost never to Ascended.
-5. Write the new charge_summary in the same voice as the standard rubric — direct, present-tense, no hedging — but it should describe what the song IS doing under the satire reading, not what its surface depicts.
-6. Note the recalibration in your reasoning: original literal tier, satirical reading evidence, new tier, ceiling consideration.
-
 ## Output Format
 
 The same JSON output format as the standard calibration. Add one additional field to your reasoning before the JSON:

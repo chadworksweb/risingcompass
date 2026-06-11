@@ -90,6 +90,24 @@ def _run_dict(r: CalibrationRun) -> dict:
             bool(r.calibration_failed)
             if getattr(r, "calibration_failed", None) is not None else False
         ),
+        # Calibrator v3 components + incoherence signals (migration 114).
+        # INTERNAL ONLY by ruling (spec section 5): surfaced here and on the
+        # admin song detail, never on any public serializer.
+        "visceral_charge": r.visceral_charge,
+        "route": r.route,
+        "harm_value": r.harm_value,
+        "harm_pervasive": bool(r.harm_pervasive) if r.harm_pervasive is not None else False,
+        "transcendence_value": r.transcendence_value,
+        "governing_axis": r.governing_axis,
+        "center": r.center,
+        "vernier": _maybe_json(r.vernier),
+        "precedent_refs": _maybe_json(r.precedent_refs),
+        "gut_divergence": r.gut_divergence,
+        "guard_trips": r.guard_trips,
+        "parse_retries": r.parse_retries,
+        "escalation_flags": _maybe_json(r.escalation_flags),
+        "escalated": bool(r.escalated) if r.escalated is not None else False,
+        "translated": bool(r.translated) if r.translated is not None else False,
     }
 
 

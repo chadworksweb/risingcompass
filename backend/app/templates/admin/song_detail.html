@@ -54,6 +54,7 @@
   .sd-run-summary { font-size: 0.86rem; color: var(--text); margin: 0.45rem 0 0; font-weight: 600; }
   .sd-run-reason { white-space: pre-wrap; font-size: 0.82rem; line-height: 1.55; color: var(--text-dim); margin-top: 0.4rem; max-width: 82ch; }
   .sd-run-noreason { font-style: italic; color: var(--text-hint); font-size: 0.8rem; margin-top: 0.35rem; }
+  .sd-v3-strip { font-size: 0.72rem; color: var(--text-dim); font-family: ui-monospace, 'Cascadia Mono', monospace; margin: 0.3rem 0; line-height: 1.6; }
   .sd-empty { color: var(--text-dim); padding: 0.8rem; font-size: 0.88rem; }
 </style>
 {% endblock %}
@@ -96,6 +97,38 @@ async function loadSong() {
     console.error(e);
     body.innerHTML = '<p class="sd-empty">Failed to load song.</p>';
   }
+}
+
+// Calibrator v3 component strip per run. Internal-only surface (axes never
+// ship publicly). Empty string on pre-v3 runs (no route).
+function v3Strip(r) {
+  if (!r.route) return '';
+  const num = v => (v === null || v === undefined) ? '—' : v;
+  const vern = r.vernier
+    ? `sat ${num(r.vernier.sat)} / res ${num(r.vernier.res)} / reg ${num(r.vernier.reg)} / reach ${num(r.vernier.reach)}`
+    : '—';
+  const refs = (r.precedent_refs && r.precedent_refs.length) ? r.precedent_refs.join(', ') : '—';
+  const esc = r.escalation_flags
+    ? [(r.escalation_flags.triggers || []).join(', '), (r.escalation_flags.signals || []).join(', ')]
+        .filter(Boolean).join(' | ')
+    : '';
+  const bits = [
+    `visceral ${num(r.visceral_charge)}`,
+    `route ${escHtml(r.route)}`,
+    `harm ${num(r.harm_value)}${r.harm_pervasive ? ' (PERVASIVE)' : ''}`,
+    `transcendence ${num(r.transcendence_value)}`,
+    `governs: ${escHtml(r.governing_axis || '—')}`,
+    `center ${num(r.center)}`,
+    `vernier ${vern}`,
+    `precedents ${escHtml(refs)}`,
+    `gut-div ${num(r.gut_divergence)}`,
+  ];
+  if (r.guard_trips) bits.push(`guard trips ${r.guard_trips}`);
+  if (r.parse_retries) bits.push(`parse retries ${r.parse_retries}`);
+  if (r.translated) bits.push('translated');
+  if (r.escalated) bits.push('ESCALATED');
+  if (esc) bits.push(`flags: ${escHtml(esc)}`);
+  return `<div class="sd-v3-strip">${bits.join(' &middot; ')}</div>`;
 }
 
 function render(d) {
@@ -150,6 +183,7 @@ function render(d) {
             ${supTag}
           </div>
           ${r.charge_summary ? `<p class="sd-run-summary">${escHtml(r.charge_summary)}</p>` : ''}
+          ${v3Strip(r)}
           ${hasReason
             ? `<div class="sd-run-reason">${escHtml(r.reasoning)}</div>`
             : '<div class="sd-run-noreason">No argument stored for this run.</div>'}

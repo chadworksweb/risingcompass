@@ -849,3 +849,53 @@ def apply_supplied_correction(
         "reasoning_stored": bool(run.reasoning),
         "prose_rewritten": False,
     }
+
+
+# --- Calibrator era boundary (v3 deploy mechanism) --------------------------
+
+class EraSupersedeIn(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=100)
+    confirm: bool = False
+
+
+@router.post("/era-supersede", dependencies=[Depends(verify_admin_key)])
+def era_supersede(data: EraSupersedeIn, db: Session = Depends(get_db)):
+    """Corpus-wide rubric-era boundary: supersede EVERY live calibration run.
+
+    Deploying a new calibrator is an era boundary -- "the measuring stick
+    moved, read it fresh." This mirrors the per-song supersede that every
+    accepted recalibration already performs, applied corpus-wide exactly once
+    on deploy day. Prior runs stay in the ledger (visible in history) but stop
+    voting in consensus, and live_run_count resets to zero everywhere, which
+    reopens every public-capped song to the Lyrical Charger.
+
+    Deliberately an ADMIN ENDPOINT and not a migration: local dev runs
+    migrations against the shared prod DB through the tunnel, so a startup
+    migration would trip the boundary while prod still ran the old calibrator.
+    This fires only when called, after the new code is live.
+
+    Does NOT touch songs rows -- no mass re-read; canonical values stand until
+    organic re-reads (daily reading, Lyrical Charger, audits) move them.
+    Idempotent: a second call finds nothing live and supersedes zero rows.
+    Requires confirm=true.
+    """
+    if not data.confirm:
+        raise HTTPException(400, "confirm=true is required to move the era boundary")
+    reason = data.reason.strip()
+    now = datetime.utcnow()
+    updated = (
+        db.query(CalibrationRun)
+        .filter(CalibrationRun.superseded.is_(False))
+        .update({
+            CalibrationRun.superseded: True,
+            CalibrationRun.superseded_reason: reason,
+            CalibrationRun.superseded_at: now,
+        }, synchronize_session=False)
+    )
+    db.commit()
+    logger.warning(
+        "ERA BOUNDARY: superseded %d live calibration runs (reason=%s)",
+        updated, reason,
+    )
+    return {"superseded_runs": int(updated), "reason": reason,
+            "at": now.isoformat()}

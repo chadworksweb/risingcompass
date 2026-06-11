@@ -215,8 +215,10 @@ def song_calibration_runs(slug: str, limit: int = 50):
     """Public list of every agent run logged for this song + consensus stats.
 
     Shows the corpus behind the current calibration — each run's tier/charge,
-    when it fired, and what triggered it. Consensus is the confidence-weighted
-    mean the canonical song row drifts toward as runs accumulate.
+    when it fired, and what triggered it. Consensus is the MEDIAN of live runs
+    the canonical song row drifts toward as runs accumulate (Calibrator v3).
+    Explicit-field serializer on purpose: the v3 axis/component columns are
+    internal-only by ruling and must never ship here.
     """
     db = SessionLocal()
     try:
