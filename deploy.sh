@@ -150,6 +150,40 @@ autocommit_regenerated() {
 }
 
 # ---------------------------------------------------------------------------
+# Chart static re-bake (GEO freshness)
+# ---------------------------------------------------------------------------
+# The all-time chart pages + llms-full.txt carry a baked snapshot of the live
+# rankings (schema.org ItemList + server-rendered list, for crawlers). After the
+# monthly data cron refreshes the DB, this re-bakes that snapshot from the live
+# API so the crawler-visible HTML stays current. FAIL-SOFT: a missing venv or a
+# down API is logged and skipped -- a deploy never depends on it. Stages ONLY
+# the five known baked files (never a sweep), so it cannot repeat the 2026-05-28
+# incident. Produces no commit when the rankings haven't moved (the common case).
+BAKED_FILES=(
+    frontend/charts/streamed-all-time/index.html
+    frontend/charts/most-streamed-albums/index.html
+    frontend/charts/best-selling-albums/index.html
+    frontend/llms.txt
+    frontend/llms-full.txt
+)
+
+bake_chart_statics() {  # $1 = repo root
+    local repo="$1" py
+    py="$repo/backend/.venv/Scripts/python.exe"
+    [ -x "$py" ] || py="$repo/backend/.venv/bin/python"
+    [ -x "$py" ] || { echo "(no backend venv -- skipping chart re-bake)"; return 0; }
+    "$py" "$repo/backend/scripts/bake_chart_ssr.py" || { echo "(chart bake failed -- skipping)"; return 0; }
+    "$py" "$repo/backend/scripts/bake_llms.py"      || { echo "(llms bake failed -- skipping)"; return 0; }
+    git -C "$repo" add -- "${BAKED_FILES[@]}" 2>/dev/null || true
+    if git -C "$repo" diff --cached --quiet -- "${BAKED_FILES[@]}"; then
+        echo "chart statics + llms: rankings unchanged, nothing to commit"
+    else
+        git -C "$repo" commit -m "Re-bake chart SSR + llms (auto)" -- "${BAKED_FILES[@]}"
+        echo "chart statics + llms: re-baked from live data + committed"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # LEIT dashboard integration (optional, fail-safe)
 # ---------------------------------------------------------------------------
 # Ask the dashboard whether deploy-time auto-commit is currently enabled.
@@ -266,6 +300,13 @@ run_deploy() {
             exit 1
         fi
         RC_DEPLOY_STATUS="deployed"
+    fi
+
+    # Re-bake the chart statics + llms from live data (fail-soft, explicit files
+    # only). Gated on the same auto-commit toggle as partials/sitemap.
+    if [ "$RC_TOGGLE_ENABLED" != disabled ]; then
+        echo "=== Re-baking chart statics + llms (fail-soft) ==="
+        bake_chart_statics "$repo_root" || true
     fi
 
     echo "=== Pushing local commits to origin ==="
