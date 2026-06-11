@@ -40,7 +40,26 @@ logger = logging.getLogger(__name__)
 public_router = APIRouter(prefix="/api/charts/alltime", tags=["alltime-charts"])
 router = APIRouter(tags=["alltime-charts-admin"])
 
-TOP_N = 100
+TOP_N = 100          # streams board depth
+ALBUM_TOP_N = 50     # albums board depth (per-album charging cost is high)
+
+# Non-music audio that kworb's all-time board surfaces (white-noise / sleep /
+# ASMR tracks). Conservative substring match on title+artist -- like an
+# instrumental it carries NO charge, but it is not a song to read at all, so it
+# is nulled AND tagged "non-music" instead of sitting in the awaiting-lyrics
+# queue forever. Kept tight to avoid nuking real songs; extend as needed.
+_NON_MUSIC_MARKERS = (
+    "white noise", "pink noise", "brown noise", "static noise", "fan noise",
+    "rain sounds", "rain sound", "rainfall", "ocean sounds", "ocean wave",
+    "nature sounds", "sleep sounds", "sleep music", "baby sleep", "deep sleep",
+    "asmr", "binaural", "guided meditation", "meditation music", "womb sound",
+    "loopable",
+)
+
+
+def _is_non_music(title: str, artist: str) -> bool:
+    blob = f"{title or ''} {artist or ''}".lower()
+    return any(m in blob for m in _NON_MUSIC_MARKERS)
 
 
 def _load_topics(raw) -> list:
@@ -68,6 +87,7 @@ def _stream_row_out(r: AlltimeStreamSong) -> dict:
         "topics": _load_topics(r.topics),
         "song_slug": r.song_slug,
         "artist_slug": r.artist_slug,
+        "non_music": bool(r.non_music),
     }
 
 
@@ -86,6 +106,7 @@ def _album_row_out(r: AlltimeAlbum) -> dict:
         "topics": _load_topics(r.topics),
         "artist_slug": r.artist_slug,
         "release_slug": r.release_slug,
+        "non_music": bool(r.non_music),
     }
 
 
@@ -103,11 +124,11 @@ def get_alltime_streams(db: Session = Depends(get_db)):
 
 @public_router.get("/albums")
 def get_alltime_albums(db: Session = Depends(get_db)):
-    """The Best-Selling Albums of All Time board (top 100, US / RIAA)."""
+    """The Best-Selling Albums of All Time board (top 50, US / RIAA)."""
     rows = (
         db.query(AlltimeAlbum)
         .order_by(AlltimeAlbum.rank.asc())
-        .limit(TOP_N)
+        .limit(ALBUM_TOP_N)
         .all()
     )
     return {"rows": [_album_row_out(r) for r in rows]}
@@ -131,7 +152,10 @@ def _apply_stream_refresh(db: Session, songs: list[dict]) -> dict:
         rank = s["position"]
         seen_ranks.add(rank)
         title, artist = s["title"], s["artist"]
-        cached = lookup_calibrated(title, artist, db)
+        # Non-music (white-noise/sleep/ASMR) is nulled like an instrumental and
+        # tagged -- never looked up, never queued for lyrics.
+        nonmusic = _is_non_music(title, artist)
+        cached = None if nonmusic else lookup_calibrated(title, artist, db)
 
         song_id = cached.get("song_id") if cached else None
         rubric_color = cached.get("rubric_color") if cached else None
@@ -140,7 +164,7 @@ def _apply_stream_refresh(db: Session, songs: list[dict]) -> dict:
         topics_json = (
             json.dumps(cached["topics"]) if cached and cached.get("topics") else None
         )
-        if not cached:
+        if not nonmusic and not cached:
             awaiting.append({"rank": rank, "title": title, "artist": artist})
 
         row = existing.get(rank)
@@ -159,6 +183,7 @@ def _apply_stream_refresh(db: Session, songs: list[dict]) -> dict:
             or row.charge_value != charge_value
             or row.deadpan_line != deadpan_line
             or row.topics != topics_json
+            or bool(row.non_music) != nonmusic
         )
         if changed:
             row.title = title
@@ -170,6 +195,7 @@ def _apply_stream_refresh(db: Session, songs: list[dict]) -> dict:
             row.charge_value = charge_value
             row.deadpan_line = deadpan_line
             row.topics = topics_json
+            row.non_music = nonmusic
             updated += 1
 
         # Always refresh slugs (artist slug for everyone; song slug when known).

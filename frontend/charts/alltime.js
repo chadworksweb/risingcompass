@@ -90,13 +90,14 @@
     var artistHtml = row.artist_slug
       ? '<a href="/artists/' + encodeURIComponent(row.artist_slug) + '" class="song-artist-name">' + escapeHtml(row.artist) + '</a>'
       : escapeHtml(row.artist || '');
-    var dotCls = 'song-dot ' + (row.rubric_color || '');
+    var dotCls = 'song-dot ' + (row.non_music ? '' : (row.rubric_color || ''));
     var metric = metricText(row);
-    return '<li class="song-item">'
+    var tag = row.non_music ? '<span class="alltime-nonmusic-pill">non-music</span>' : '';
+    return '<li class="song-item' + (row.non_music ? ' non-music' : '') + '">'
       + '<span class="song-pos">' + row.rank + '</span>'
       + '<span class="' + dotCls + '"></span>'
       + '<div class="song-info">'
-      + '<div class="song-title">' + titleHtml + '</div>'
+      + '<div class="song-title">' + titleHtml + ' ' + tag + '</div>'
       + '<div class="song-artist">' + artistHtml + '</div>'
       + '</div>'
       + (metric ? '<div class="alltime-metric">' + escapeHtml(metric) + '</div>' : '')
@@ -117,7 +118,12 @@
     var link = rowLink(row);
     var title = escapeHtml(rowTitle(row));
 
-    if (!row.deadpan_line) {
+    if (row.non_music || !row.deadpan_line) {
+      // Non-music carries its own tag (nulled like an instrumental); a real
+      // song with no reading yet shows the "untagged" pill.
+      var pill = row.non_music
+        ? '<span class="alltime-nonmusic-pill">non-music</span>'
+        : '<span class="ether-untagged-pill">untagged</span>';
       var titleHtml = link
         ? '<a href="' + link + '" class="ether-title-link">' + title + '</a>'
         : '<span class="ether-title-link">' + title + '</span>';
@@ -125,7 +131,7 @@
         + '<span class="ether-pos">' + row.rank + '</span>'
         + '<div class="ether-text">'
         + '<div class="ether-deadpan">' + titleHtml + '</div>'
-        + '<div class="ether-meta">' + escapeHtml(row.artist || '') + ' <span class="ether-untagged-pill">untagged</span></div>'
+        + '<div class="ether-meta">' + escapeHtml(row.artist || '') + ' ' + pill + '</div>'
         + '</div></li>';
     }
 

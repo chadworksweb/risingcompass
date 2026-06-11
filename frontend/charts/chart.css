@@ -85,3 +85,20 @@
   color: var(--rc-text-dim);
   text-align: right;
 }
+
+/* Non-music entries (white-noise / sleep / ASMR) -- nulled like an instrumental
+   but carrying their own tag so the row reads as deliberately uncharted, not
+   "awaiting lyrics." */
+.alltime-nonmusic-pill {
+  display: inline-block;
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  border: 1px dashed var(--rc-border);
+  padding: 0.05rem 0.4rem;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.song-item.non-music { opacity: 0.78; }

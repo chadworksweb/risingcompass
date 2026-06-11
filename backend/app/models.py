@@ -1971,6 +1971,7 @@ class AlltimeStreamSong(Base):
     total_streams = Column(BigInteger)                     # lifetime (exceeds INT4)
     daily_streams = Column(Integer)
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    non_music = Column(Boolean, default=False)             # white-noise/sleep/ASMR -> nulled + tagged
     # Denormalized calibration snapshot (cache-hit fill from lookup_calibrated):
     rubric_color = Column(String(20))
     charge_value = Column(Integer)
@@ -2007,6 +2008,7 @@ class AlltimeAlbum(Base):
     units_millions = Column(Float)                          # sortable numeric (US units, millions)
     release_year = Column(Integer)
     release_id = Column(Integer, ForeignKey("releases.id", ondelete="SET NULL"))
+    non_music = Column(Boolean, default=False)             # parallel to instrumental: nulled + tagged
     # Denormalized calibration snapshot (from album synthesis):
     rubric_color = Column(String(20))
     charge_value = Column(Integer)
