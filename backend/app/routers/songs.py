@@ -488,6 +488,7 @@ def _resolve_song(unified_id: int, db) -> dict | None:
         "dogma_referenced": row.dogma_referenced or False,
         "dogma_note": row.dogma_note,
         "translated": row.translated or False,
+        "medley": row.medley or False,
         "charge_summary": row.charge_summary,
         # Ether Art Chart fields -- feed the shareable charge card on the song page.
         "deadpan_line": row.deadpan_line,

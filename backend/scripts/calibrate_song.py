@@ -69,6 +69,7 @@ def main() -> int:
     p.add_argument("--dogma", action="store_true")
     p.add_argument("--dogma-note", default=None)
     p.add_argument("--translated", action="store_true", help="Calibrated off a translation of non-English lyrics. Parallel tag, never moves the charge.")
+    p.add_argument("--medley", action="store_true", help="Calibration reads a curated multi-song medley as one arc. Parallel tag, never moves the charge.")
     p.add_argument("--confidence", type=float, default=1.0)
     p.add_argument("--listener-effects-prose-file", default=None, help="Path to a UTF-8 text file with the two-paragraph effects prose.")
     p.add_argument("--societal-prose-file", default=None, help="Path to a UTF-8 text file with the societal effects prose.")
@@ -104,6 +105,7 @@ def main() -> int:
         "dogma_referenced": bool(args.dogma),
         "dogma_note": args.dogma_note,
         "translated": bool(args.translated),
+        "medley": bool(args.medley),
         "confidence": args.confidence,
     }
     if args.reasoning_file:

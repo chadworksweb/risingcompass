@@ -1632,6 +1632,7 @@ class Song(Base):
     dogma_note = Column(Text)
     instrumental = Column(Boolean, default=False)
     translated = Column(Boolean, default=False)  # calibrated off a translation of non-English lyrics
+    medley = Column(Boolean, default=False)  # calibration reads a curated multi-song medley as one arc
     confidence = Column(Float)
     listener_effects_prose = Column(Text)
     societal_effects_prose = Column(Text)

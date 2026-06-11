@@ -356,6 +356,8 @@ class TerminalCalibrationIn(BaseModel):
     contamination_note: Optional[str] = None
     dogma_referenced: bool = False
     dogma_note: Optional[str] = None
+    translated: bool = False
+    medley: bool = False
     confidence: float = 1.0
     listener_effects_prose: Optional[str] = None
     societal_effects_prose: Optional[str] = None

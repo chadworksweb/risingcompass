@@ -1080,6 +1080,27 @@
       }
     }
 
+    // Medley - neutral provenance badge (metadata only, never affects the
+    // charge). Marks a calibration that reads a curated multi-song medley as
+    // one arc. Stacks below dogma and translated when those also show.
+    const medleyBadge = document.getElementById('song-medley-badge');
+    if (medleyBadge) {
+      if (!isUncalibrated && song.medley) {
+        const ttip = document.getElementById('song-medley-tooltip');
+        if (ttip) {
+          ttip.innerHTML = `<strong>Medley.</strong> ${escapeHtml(
+            `This reading calibrates a curated multi-song medley as a single arc, not one authored song. Metadata only, it does not affect the charge.`
+          )}`;
+        }
+        const above = (!isUncalibrated && !!song.dogma_referenced ? 1 : 0) + (!isUncalibrated && !!song.translated ? 1 : 0);
+        medleyBadge.classList.toggle('stacked', above === 1);
+        medleyBadge.classList.toggle('stacked2', above === 2);
+        medleyBadge.hidden = false;
+      } else {
+        medleyBadge.hidden = true;
+      }
+    }
+
     // Section 3b: Dogma Reference — only surfaces when the tag fired.
     const dogmaSection = document.getElementById('section-dogma');
     if (!isUncalibrated && song.dogma_referenced) {
