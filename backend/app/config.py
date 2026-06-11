@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     # Anthropic API
     anthropic_api_key: str = ""
     agent_model: str = "claude-opus-4-6"
+    # Calibrator v3 escalation gate (spec 2.4). Empty escalation_model = same
+    # as agent_model. With the default config (Opus everywhere, re-pass off)
+    # the gate only records triggers; flipping to a cheaper default model +
+    # Opus escalation is a config change, not a build.
+    escalation_model: str = ""
+    escalation_repass_enabled: bool = False
+    escalation_confidence_floor: float = 0.6
 
     # Genius API (lyrics)
     genius_access_token: str = ""

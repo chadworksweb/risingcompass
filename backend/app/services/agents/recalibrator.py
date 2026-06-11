@@ -16,15 +16,14 @@ from anthropic import Anthropic
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.services.agents.calibrator import (
-    VALID_COLORS, TIER_RANGES, TIER_MIDPOINTS, _validate_charge_value,
+from app.services.charge_composition import (
+    CompositionError, compose, validate_components,
 )
 from app.services.agents.compass_agent_rubric import (
     RUBRIC_DEFINITION, CALIBRATION_FORMAT, build_few_shot_examples,
     build_calibration_prompt,
 )
 from app.services.claude_meter import tracked_create
-from app.services.contamination import enforce_contamination_rule
 
 logger = logging.getLogger(__name__)
 
@@ -165,19 +164,27 @@ def recalibrate_song_satire(
             )
         raise RuntimeError("Satire recalibration agent returned unparseable output.")
 
-    if result.get("rubric_color") not in VALID_COLORS:
-        result["rubric_color"] = original_color or "green"
-
-    enforce_contamination_rule(result)
-    color = result.get("rubric_color")
-    contaminated = bool(result.get("contaminated", False))
-    charge_value = _validate_charge_value(result.get("charge_value"), color)
+    # Calibrator v3: the lens read emits components too; the server composes
+    # the charge and derives the tier (charge_composition), exactly like the
+    # standard path. Validation failure is an explicit error, never a default.
+    try:
+        components = validate_components(result)
+    except CompositionError as exc:
+        logger.error("Satire recalibration output failed component validation "
+                     "for %s by %s: %s", title, artist, exc)
+        raise RuntimeError(
+            f"Satire recalibration agent output failed component validation: {exc}"
+        )
+    composed = compose(components)
+    color = composed.rubric_color
+    charge_value = composed.charge
+    contaminated = composed.contaminated
 
     return {
         "rubric_color": color,
         "charge_value": charge_value,
         "contaminated": contaminated,
-        "contamination_note": result.get("contamination_note"),
+        "contamination_note": result.get("contamination_note") if contaminated else None,
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
         "ai_rationale": reasoning,
@@ -218,7 +225,7 @@ def recalibrate_song_rubric_update(
         call_site="rubric_update_recalibrator",
         context={"title": title, "artist": artist},
         model=AGENT_MODEL,
-        max_tokens=2048,
+        max_tokens=3500,
         temperature=0,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
@@ -248,19 +255,24 @@ def recalibrate_song_rubric_update(
                      title, artist, raw)
         raise RuntimeError("Rubric-update recalibration agent returned unparseable output.")
 
-    if result.get("rubric_color") not in VALID_COLORS:
-        result["rubric_color"] = "green"
-
-    enforce_contamination_rule(result)
-    color = result.get("rubric_color")
-    contaminated = bool(result.get("contaminated", False))
-    charge_value = _validate_charge_value(result.get("charge_value"), color)
+    # Calibrator v3: compose color/charge from the component JSON (the server
+    # owns the number on every read path, recalibrations included).
+    try:
+        components = validate_components(result)
+    except CompositionError as exc:
+        logger.error("Rubric-update recalibration output failed component "
+                     "validation for %s by %s: %s", title, artist, exc)
+        raise RuntimeError(
+            f"Rubric-update recalibration agent output failed component validation: {exc}"
+        )
+    composed = compose(components)
+    contaminated = composed.contaminated
 
     return {
-        "rubric_color": color,
-        "charge_value": charge_value,
+        "rubric_color": composed.rubric_color,
+        "charge_value": composed.charge,
         "contaminated": contaminated,
-        "contamination_note": result.get("contamination_note"),
+        "contamination_note": result.get("contamination_note") if contaminated else None,
         "charge_summary": result.get("charge_summary", ""),
         "confidence": float(result.get("confidence", 0.5)),
         "ai_rationale": reasoning,

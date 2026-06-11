@@ -11,9 +11,13 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Song
-from app.services.charge_composition import derive_tier
+from app.services.charge_composition import (
+    CompositionError,
+    compose,
+    evaluate_escalation,
+    validate_components,
+)
 from app.services.claude_meter import tracked_create_async
-from app.services.contamination import enforce_contamination_rule
 from app.services.agents.compass_agent_rubric import (
     build_few_shot_examples,
     build_calibration_prompt,
@@ -27,8 +31,6 @@ from app.services.agents.summary_guard import (
 logger = logging.getLogger(__name__)
 
 AGENT_MODEL = settings.agent_model
-
-VALID_COLORS = {"violet", "blue", "green", "orange", "red"}
 
 # The structured format (CALIBRATION_FORMAT) requires an explicit
 # "Contamination: none" / "Contamination: <artifact>" line before the VERDICT.
@@ -227,6 +229,141 @@ async def ensure_full_calibration(
     return calibration
 
 
+async def _read_v3(
+    client: AsyncAnthropic,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    title: str,
+    artist: str,
+    target_year: int | None,
+) -> dict | None:
+    """Run ONE calibration read at `model`: call, split reasoning from JSON,
+    run the output guards, parse, and validate into v3 components -- with one
+    corrective retry shared across every failure kind. Failure kinds:
+
+      1. CONTAMINATION guard -- the format requires an explicit
+         "Contamination:" line in the reasoning (guard_trips).
+      2. charge_summary absence/verdict framing (guard_trips; see
+         summary_guard.py).
+      3. Unparseable JSON or components failing validation (parse_retries).
+
+    Guards keep the v2 proceed-with-warning posture: a read whose components
+    validate but whose guards still trip after the retry is returned with
+    guard_trip_survived=True (an escalation trigger). A read whose JSON never
+    validates returns None -- the caller turns that into the explicit
+    needs-human-review failure, never a defaulted verdict."""
+    messages = [{"role": "user", "content": user_prompt}]
+    guard_trips = 0
+    parse_retries = 0
+    best: dict | None = None
+    attempts = 2
+    for attempt in range(1, attempts + 1):
+        response = await tracked_create_async(
+            client,
+            call_site="calibrator",
+            context={"title": title, "artist": artist, "target_year": target_year},
+            model=model,
+            max_tokens=3500,
+            temperature=0,
+            system=system_prompt,
+            messages=messages,
+        )
+        raw = response.content[0].text.strip()
+
+        # Split reasoning from JSON -- reasoning comes first, JSON starts at
+        # the first {. Strip a trailing ``` fence if the JSON got wrapped.
+        reasoning = ""
+        json_str = raw
+        brace_idx = raw.find("{")
+        if brace_idx > 0:
+            reasoning = raw[:brace_idx].strip()
+            json_str = raw[brace_idx:]
+        if json_str.rstrip().endswith("```"):
+            json_str = json_str.rstrip()[:-3]
+        json_str = json_str.strip()
+
+        problems: list[str] = []
+        corrective_parts: list[str] = []
+
+        contam_ok = bool(_CONTAM_LINE_RE.search(reasoning))
+        summary_ok = not summary_has_absence_framing(
+            summary_from_json_text(json_str)
+        )
+        guards_ok = contam_ok and summary_ok
+        if not guards_ok:
+            guard_trips += 1
+        if not contam_ok:
+            problems.append("omitted the mandatory 'Contamination:' line")
+            corrective_parts.append(
+                "Re-run the full structured format with an explicit "
+                "'Contamination: none' or 'Contamination: <artifact>' line "
+                "before the VERDICT. "
+            )
+        if not summary_ok:
+            problems.append("used absence/verdict framing in charge_summary")
+            corrective_parts.append(_SUMMARY_NUDGE)
+
+        parsed = None
+        components = None
+        try:
+            parsed = json.loads(json_str)
+        except json.JSONDecodeError:
+            parse_retries += 1
+            problems.append("output did not end in a parseable JSON object")
+            corrective_parts.append(
+                "Re-emit the full structured reasoning followed by ONE valid "
+                "JSON object in the exact required shape. "
+            )
+        if parsed is not None:
+            try:
+                components = validate_components(parsed)
+            except CompositionError as exc:
+                parse_retries += 1
+                problems.append(f"JSON failed component validation ({exc})")
+                corrective_parts.append(
+                    "Fix the JSON fields named above to the required types and "
+                    "ranges from the JSON contract. "
+                )
+
+        read = None
+        if components is not None:
+            read = {
+                "raw": raw,
+                "reasoning": reasoning,
+                "parsed": parsed,
+                "components": components,
+                "confidence": float(parsed.get("confidence") or 0.0),
+                "guard_trips": guard_trips,
+                "parse_retries": parse_retries,
+                "guard_trip_survived": not guards_ok,
+                "model": model,
+            }
+        if not problems:
+            return read
+        if read is not None:
+            # Components are usable; only guards drifted. Keep the latest such
+            # read so a failed retry still ships (proceed-with-warning).
+            best = read
+
+        logger.warning(
+            "calibrator output problems for '%s' by %s at %s (attempt %d/%d): %s",
+            title, artist, model, attempt, attempts, "; ".join(problems),
+        )
+        if attempt < attempts:
+            corrective = (
+                "Your response had these problems: " + "; ".join(problems)
+                + ". " + "".join(corrective_parts)
+            )
+            messages = [
+                {"role": "user", "content": user_prompt},
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": corrective},
+            ]
+    return best
+
+
 async def calibrate_song_async(
     title: str,
     artist: str,
@@ -264,132 +401,125 @@ async def calibrate_song_async(
 
     # Few-shot examples disabled. Today's corpus skews 1960s and creates a
     # self-reinforcing loop (today's call becomes tomorrow's example), so the
-    # rubric stands alone. The 58-tenet definition + per-tier sub-ranges in
-    # RUBRIC_DEFINITION carry the anchoring without a corpus draw.
+    # rubric stands alone. The tenet definitions + the curated precedent table
+    # carry the anchoring without a corpus draw.
     examples = ""
 
     system_prompt, user_prompt = build_calibration_prompt(
         title, artist, lyrics=lyrics, examples=examples
     )
 
-    # Mandatory output guards, both run on every song:
-    #   1. CONTAMINATION CHECK -- the structured format requires an explicit
-    #      "Contamination:" line before the VERDICT, independent of charge_value.
-    #   2. charge_summary absence/verdict framing -- the summary must be pure
-    #      positive description (the rule that lived prompt-only since c940c57;
-    #      see summary_guard.py).
-    # If either trips, the model drifted -- retry once with a corrective nudge,
-    # then proceed with a loud warning. Trips are counted as an incoherence
-    # signal (guard_trips) on the run.
-    messages = [{"role": "user", "content": user_prompt}]
-    raw = ""
-    reasoning = ""
-    json_str = ""
-    guard_trips = 0
-    attempts = 2
-    for attempt in range(1, attempts + 1):
-        response = await tracked_create_async(
-            client,
-            call_site="calibrator",
-            context={"title": title, "artist": artist, "target_year": target_year},
-            model=AGENT_MODEL,
-            max_tokens=2048,
-            temperature=0,
-            system=system_prompt,
-            messages=messages,
+    # First pass at the default model. The model emits components only; the
+    # server composes the charge and derives the tier (charge_composition).
+    read = await _read_v3(
+        client, AGENT_MODEL, system_prompt, user_prompt,
+        title=title, artist=artist, target_year=target_year,
+    )
+    if read is None:
+        # Output never validated, even after the corrective retry. Explicit
+        # needs-human-review failure -- never a defaulted verdict.
+        logger.error("Calibration read failed validation for %s by %s", title, artist)
+        return _fallback_result(title, artist, "")
+
+    composed = compose(read["components"])
+    triggers = evaluate_escalation(
+        composed, read["components"],
+        guard_trip_survived=read["guard_trip_survived"],
+        # Server feeders read original-language lyrics; translated runs exist
+        # only on the terminal path, which stamps its own flag.
+        translated=False,
+        confidence=read["confidence"],
+        confidence_floor=settings.escalation_confidence_floor,
+    )
+
+    # Escalation gate (spec 2.4). Triggers are ALWAYS recorded on the run;
+    # the re-pass only fires when config enables it AND the escalation model
+    # actually differs (with Opus-everywhere defaults the gate logs only).
+    escalated = False
+    first_pass = None
+    escalation_model = settings.escalation_model or AGENT_MODEL
+    if triggers and settings.escalation_repass_enabled and escalation_model != AGENT_MODEL:
+        logger.warning("Escalation re-pass for '%s' by %s (triggers: %s)",
+                       title, artist, ", ".join(triggers))
+        repass = await _read_v3(
+            client, escalation_model, system_prompt, user_prompt,
+            title=title, artist=artist, target_year=target_year,
         )
+        if repass is not None:
+            first_pass = {
+                "model": AGENT_MODEL,
+                "charge": composed.charge,
+                "tier": composed.rubric_color,
+                "triggers": triggers,
+            }
+            read = repass
+            composed = compose(read["components"])
+            triggers = evaluate_escalation(
+                composed, read["components"],
+                guard_trip_survived=read["guard_trip_survived"],
+                translated=False,
+                confidence=read["confidence"],
+                confidence_floor=settings.escalation_confidence_floor,
+            )
+            escalated = True
+    elif triggers:
+        logger.warning("Escalation triggers recorded for '%s' by %s (no re-pass): %s",
+                       title, artist, ", ".join(triggers))
 
-        raw = response.content[0].text.strip()
+    if read["reasoning"]:
+        logger.info("Agent reasoning for '%s' by %s:\n%s", title, artist, read["reasoning"])
 
-        # Split reasoning from JSON — reasoning comes first, JSON starts at first {
-        reasoning = ""
-        json_str = raw
-        brace_idx = raw.find("{")
-        if brace_idx > 0:
-            reasoning = raw[:brace_idx].strip()
-            json_str = raw[brace_idx:]
+    c = read["components"]
+    parsed = read["parsed"]
 
-        contam_ok = bool(_CONTAM_LINE_RE.search(reasoning))
-        summary_ok = not summary_has_absence_framing(
-            summary_from_json_text(json_str)
-        )
-        if contam_ok and summary_ok:
-            break
-        guard_trips += 1
-
-        problems = []
-        if not contam_ok:
-            problems.append("omitted the mandatory 'Contamination:' line")
-        if not summary_ok:
-            problems.append("used absence/verdict framing in charge_summary")
+    # Contamination is cross-derived from the axis data (a discrete harm
+    # artifact on a read the harm axis does not govern). The model's own flag
+    # is a cross-check: a mismatch is recorded, the derivation wins. The note
+    # stays the model's words, kept only when the flag holds.
+    contaminated = composed.contaminated
+    signals = list(composed.signals)
+    if bool(parsed.get("contaminated", False)) != contaminated:
+        signals.append("contamination_flag_mismatch")
         logger.warning(
-            "calibrator output guard tripped for '%s' by %s (attempt %d/%d): %s",
-            title, artist, attempt, attempts, "; ".join(problems),
+            "contamination flag mismatch for '%s' by %s: model=%s derived=%s",
+            title, artist, bool(parsed.get("contaminated", False)), contaminated,
         )
-        if attempt < attempts:
-            corrective = "Your response had these problems: " + "; ".join(problems) + ". "
-            if not contam_ok:
-                corrective += (
-                    "Re-run the full structured format with an explicit "
-                    "'Contamination: none' or 'Contamination: <artifact>' line before the "
-                    "VERDICT. "
-                )
-            if not summary_ok:
-                corrective += _SUMMARY_NUDGE
-            messages = [
-                {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": raw},
-                {"role": "user", "content": corrective},
-            ]
 
-    if reasoning:
-        logger.info("Agent reasoning for '%s' by %s:\n%s", title, artist, reasoning)
+    escalation_flags = None
+    if triggers or signals or first_pass:
+        escalation_flags = {"triggers": triggers, "signals": signals}
+        if first_pass:
+            escalation_flags["first_pass"] = first_pass
 
-    # Strip trailing ``` if Claude wraps JSON in fences (opening fence is already
-    # before the first { and was stripped by the reasoning split above)
-    if json_str.rstrip().endswith("```"):
-        json_str = json_str.rstrip()[:-3]
-    json_str = json_str.strip()
-
-    try:
-        result = json.loads(json_str)
-    except json.JSONDecodeError:
-        logger.error("Failed to parse Claude response for %s by %s: %s", title, artist, raw)
-        return _fallback_result(title, artist, raw)
-
-    # The server owns the number (v3 discipline, enforced even on the current
-    # format): the tier is DERIVED from the charge, never model-chosen. The
-    # model's tier vocabulary survives only inside its reasoning. Invalid or
-    # missing charge output is an explicit needs-human-review failure -- the
-    # silent green default and the tier-band clamp are gone.
-    try:
-        charge_value = int(result.get("charge_value"))
-    except (TypeError, ValueError):
-        logger.error("Invalid charge_value %r for %s by %s; explicit failure",
-                     result.get("charge_value"), title, artist)
-        return _fallback_result(title, artist, raw)
-    charge_value = max(-100, min(100, charge_value))
-    color = derive_tier(charge_value)
-    result["rubric_color"] = color
-
-    enforce_contamination_rule(result)
-    contaminated = bool(result.get("contaminated", False))
-
-    # Ensure all expected keys exist
     calibration = {
-        "rubric_color": color,
-        "charge_value": charge_value,
+        "rubric_color": composed.rubric_color,
+        "charge_value": composed.charge,
         "contaminated": contaminated,
-        "contamination_note": result.get("contamination_note"),
-        "dogma_referenced": bool(result.get("dogma_referenced", False)),
-        "dogma_note": result.get("dogma_note"),
-        "charge_summary": result.get("charge_summary", ""),
-        "confidence": float(result.get("confidence", 0.5)),
-        "guard_trips": guard_trips,
+        "contamination_note": parsed.get("contamination_note") if contaminated else None,
+        "dogma_referenced": bool(parsed.get("dogma_referenced", False)),
+        "dogma_note": parsed.get("dogma_note"),
+        "charge_summary": parsed.get("charge_summary", ""),
+        "confidence": read["confidence"],
         # The agent's structured argument (the prose before the JSON). Carried
         # through to the calibration run, where log_run's _guard_reasoning
         # scrubs any verbatim lyric runs before it is stored.
-        "reasoning": reasoning or None,
+        "reasoning": read["reasoning"] or None,
+        # v3 components + incoherence signals -> calibration_runs columns
+        # (log_run). Internal-only; song_sync's column whitelist keeps them
+        # off the songs row.
+        "visceral_charge": c.visceral_charge,
+        "route": c.route,
+        "harm": {"value": c.harm_value, "pervasive": c.harm_pervasive},
+        "transcendence": {"value": c.transcendence_value},
+        "governing_axis": composed.governing_axis,
+        "center": c.center,
+        "vernier": c.vernier,
+        "precedent_refs": c.precedent_refs,
+        "gut_divergence": composed.gut_divergence,
+        "guard_trips": read["guard_trips"],
+        "parse_retries": read["parse_retries"],
+        "escalation_flags": escalation_flags,
+        "escalated": escalated,
     }
 
     # If the summary STILL carries absence/verdict framing after the retry, ship
@@ -436,45 +566,6 @@ def calibrate_song(
         title, artist, lyrics=lyrics, db=db,
         target_year=target_year, skip_cache=skip_cache,
     ))
-
-
-# Tier ranges / midpoints. The v3 calibrate path derives the tier from the
-# composed charge (charge_composition.derive_tier) and no longer clamps or
-# midpoints anything; these stay exported because the satire lens
-# (services/agents/recalibrator.py) still imports them.
-TIER_RANGES = {
-    "violet": (75, 100),
-    "blue": (25, 74),
-    "green": (-24, 24),
-    "orange": (-74, -25),
-    "red": (-100, -75),
-}
-
-# Default midpoints per tier (used when charge_value is missing)
-TIER_MIDPOINTS = {
-    "violet": 88,
-    "blue": 50,
-    "green": 0,
-    "orange": -50,
-    "red": -88,
-}
-
-
-def _validate_charge_value(raw_value, color: str) -> int:
-    """Validate charge_value falls within the tier's range, or assign midpoint."""
-    low, high = TIER_RANGES.get(color, (-24, 24))
-    midpoint = TIER_MIDPOINTS.get(color, 0)
-
-    if raw_value is None:
-        return midpoint
-
-    try:
-        val = int(raw_value)
-    except (TypeError, ValueError):
-        return midpoint
-
-    # Clamp to tier range
-    return max(low, min(high, val))
 
 
 def _fallback_result(title: str, artist: str, raw_response: str) -> dict:

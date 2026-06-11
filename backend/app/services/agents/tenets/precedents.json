@@ -1,0 +1,135 @@
+{
+  "schema_version": "1.0",
+  "ratified_at": "2026-06-11",
+  "notes": "The Calibrator v3 precedent table. Founding entries: the 15 charge anchors from the v2 rubric (promoted verbatim) plus the -97 deep-red floor ruled 2026-06-11. Entries are content/structure signatures only, never song identities; they anchor PRECEDENT PLACEMENT (a new song is never equal to an entry -- always stronger, weaker, or between). The table grows with every Chad ruling. The extremes (+95..+100 redefinition-level, -98..-100 comprehensive annihilation) are intentionally left without an entry; reserve them for songs that clearly exceed every entry here. ASCII only.",
+  "entries": [
+    {
+      "id": "+85",
+      "charge": 85,
+      "tier": "violet",
+      "signature": "Universal protest at full intensity. A systemic evil named as the enemy of all mankind, rhetorical and repetitive rather than new-language. Clears the violet-note-specifics cap because the frame is universal, not group-specific.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "+80",
+      "charge": 80,
+      "tier": "violet",
+      "signature": "Universal-unity transcendence. Cosmic/whole-pattern oneness, no group specificity, calm certainty, surrender to something larger enacted on the page.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "+74",
+      "charge": 74,
+      "tier": "blue",
+      "signature": "Collective-stance witness that names injustice across vignettes and refuses it in the body, but whose CLOSING relands in the very condition it critiqued (R10 cap, high-Elevated ceiling).",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "+55",
+      "charge": 55,
+      "tier": "blue",
+      "signature": "Group-as-SUBJECT collective witness. Advocacy or testimony FOR a specific identifiable group as the END (its rights, dignity, or restoration is the thing sought). Covers both the elegiac-witness register and the active-rights-advocacy register. Capped to Elevated by violet-note-specifics (subject, not lens).",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "+28",
+      "charge": 28,
+      "tier": "blue",
+      "signature": "Second-person encouragement naming a SPECIFIC inner dignity, strength, or courage in the listener (R11 route), narrator as messenger, concrete rather than vague platitude.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "+8",
+      "charge": 8,
+      "tier": "green",
+      "signature": "Devotional/divine-subject song correctly capped by R14 (dogma raises the bar). Sincere, doctrinally positioned, pleasant, but no universal surrender and no internal movement, so it stays low-positive Decent.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-24",
+      "charge": -24,
+      "tier": "green",
+      "signature": "Static, unprocessed emotional wallow with NO malice and NO earnest identity-ratification. An honest sad self-portrait that refuses motion. Decent FLOOR, not Degraded.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-28",
+      "charge": -28,
+      "tier": "orange",
+      "signature": "Club/party flirtation centering a partner's body via coded sexual phrasing. Objectification without malice or possession.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-42",
+      "charge": -42,
+      "tier": "orange",
+      "signature": "SELF-directed dysfunction. Self-deprecation or self-dehumanization ratified as identity (self-worth derived from being used or mistreated, toxic-attachment claimed as identity, refusal to self-examine), with NO malice toward others.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-45",
+      "charge": -45,
+      "tier": "orange",
+      "signature": "Sympathetically-framed heartbreak or nostalgia whose PERVASIVE payload (coping-by-intoxication, a tally of sexual partners, an emotionally-numb close) carries the song. The down-signals ARE the dominant arc, not a discrete artifact to quarantine as contamination.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-65",
+      "charge": -65,
+      "tier": "orange",
+      "signature": "OTHERS-directed ego-service. Diminishing, controlling, or subjugating others (and perpetuating toxic dynamics imposed ON others) for the narrator's ego, stopping short of full dominance, assault, or violent contempt (which is red).",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-75",
+      "charge": -75,
+      "tier": "red",
+      "signature": "Serial-conquest cataloging. Partners as an interchangeable, disposable roster, first-person braggadocio endorsement, explicit objectification as the engine, with a closing self-aware wish that fails the transformation check and does not lift the tier (orange/red boundary).",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-78",
+      "charge": -78,
+      "tier": "red",
+      "signature": "Contempt or diss. First-person contempt for a named rival, dominance flex, violence imagery. The payload SETS the tier (it is not quarantined as contamination).",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-83",
+      "charge": -83,
+      "tier": "red",
+      "signature": "Explicit sexual objectification as the WHOLE engine, ego-conquest framing, no sympathetic surface frame. This is also where celebratory corrupted-lifestyle TOPS OUT: stacking objectification plus substance-celebration plus territorial threat does not push deeper than about -82.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-92",
+      "charge": -92,
+      "tier": "red",
+      "signature": "Violence and dehumanization AS THE POINT. Graphic murder or assault threats plus systematic dehumanization delivered as entertainment or provocation, multiple Corrupted tenets at full weight, rage as the engine, first-person endorsement, any closing 'just joking' deflection non-redemptive. The qualitative step past the -82 lifestyle ceiling.",
+      "ruled_at": "2026-06-10",
+      "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "-97",
+      "charge": -97,
+      "tier": "red",
+      "signature": "Annihilation as the purpose, meant sincerely. The lyrics exist to celebrate the destruction, extermination, or erasure of a person or group as deserved or necessary - genocidal hate, dehumanization asserted as truth rather than provocation. The step past -92: NO performance frame. The -92 archetype delivers violence as entertainment, shock, or provocation (a deflection exists, even if non-redemptive). At the floor there is no entertainment posture and no deflection to reject - the hate is sincere and total. -100 remains reserved for comprehensive annihilation of dignity, meaning, and life together.",
+      "ruled_at": "2026-06-11",
+      "source": "Chad ruling 2026-06-11, the deep-red floor (RISING-COMPASS-CALIBRATOR-V3.md section 5)"
+    }
+  ]
+}

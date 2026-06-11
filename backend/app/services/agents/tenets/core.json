@@ -47,11 +47,19 @@
       "target": "CALIBRATION_FORMAT:CASE_FOR_MOVING_DOWN + CONTAMINATION_CHECK",
       "summary": "Discrete-vs-pervasive gate, placed UPSTREAM in the tier-decision step (CASE FOR MOVING DOWN) plus a CONTAMINATION CHECK backstop: a recurring lower-tier payload (especially hook/refrain-carried) is part of the DOMINANT ARC and SETS the tier via R8 cumulative-pattern; it is not an outlier, not atmosphere, and not quarantined to contamination. Weigh co-occurring different down-signals cumulatively, not one-at-a-time-removable. Closes the one-directional sex/substance escape hatch. (v1 lived only in CONTAMINATION CHECK, which runs after the tier is set -> too late; LA CANCION regression stayed green. Moved upstream.)",
       "source": "sonnet-arena flag 7 (LA CANCION, Cha Cha Cha, Titi Me Pregunto); v1 regression-failed, revised upstream"
+    },
+    {
+      "at": "2026-06-11",
+      "change": "amend",
+      "target": "tiers + CALIBRATION_FORMAT",
+      "summary": "Calibrator v3: every tier is assigned to its axis (orange/red = harm, blue/violet = transcendence, green = the neutral zone of both); tenet text unchanged. The read procedure is rewritten (visceral read first, explicit route classification, two-axis read, precedent placement, pole-agnostic intensity vernier, gut-vs-verdict reconciliation), R1-R14 keep their numbers and canonical examples but reorganize into the per-route decision tree, the 15 charge anchors are promoted to the founding precedent table (joined by the -97 deep-red floor ruled 2026-06-11; see tenets/precedents.json), and the model stops naming the tier and the final number: the server composes the charge from components and derives the tier everywhere.",
+      "source": "RISING-COMPASS-CALIBRATOR-V3.md (spec + section 5 rulings, 2026-06-11)"
     }
   ],
   "tiers": [
     {
       "slug": "violet",
+      "axis": "transcendence",
       "label": "Ascended",
       "code": "A",
       "color_hex": "#9933ff",
@@ -179,6 +187,7 @@
     },
     {
       "slug": "blue",
+      "axis": "transcendence",
       "label": "Elevated",
       "code": "E",
       "color_hex": "#3388ff",
@@ -281,6 +290,7 @@
     },
     {
       "slug": "green",
+      "axis": "neutral",
       "label": "Decent",
       "code": "D",
       "color_hex": "#33cc55",
@@ -375,6 +385,7 @@
     },
     {
       "slug": "orange",
+      "axis": "harm",
       "label": "Degraded",
       "code": "Dg",
       "color_hex": "#ffbb33",
@@ -477,6 +488,7 @@
     },
     {
       "slug": "red",
+      "axis": "harm",
       "label": "Corrupted",
       "code": "C",
       "color_hex": "#ff3333",

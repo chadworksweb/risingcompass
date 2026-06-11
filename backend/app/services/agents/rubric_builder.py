@@ -16,12 +16,32 @@ import json
 from pathlib import Path
 
 TENETS_PATH = Path(__file__).parent / "tenets" / "core.json"
+PRECEDENTS_PATH = Path(__file__).parent / "tenets" / "precedents.json"
 
 
 def load_tenets() -> dict:
     """Load the canonical tenets JSON."""
     with open(TENETS_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_precedents() -> dict:
+    """Load the v3 precedent table (founding anchors + banked rulings)."""
+    with open(PRECEDENTS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def render_precedent_table() -> str:
+    """Render the precedent table for PRECEDENT PLACEMENT: every entry as
+    `id (tier): signature`, sorted by charge descending. The relative-placement
+    framing (never equal to an entry; always stronger/weaker/between) lives in
+    the CALIBRATION_FORMAT step that consumes this table."""
+    data = load_precedents()
+    entries = sorted(data["entries"], key=lambda e: e["charge"], reverse=True)
+    lines = []
+    for e in entries:
+        lines.append(f"  - {e['id']} ({e['tier']}): {e['signature']}")
+    return "\n".join(lines)
 
 
 _PRELUDE = """You are a lyric calibration agent for The Rising Compass — a cultural diagnostic tool that reads the energetic charge of popular music by assessing the messages contained in the lyrics of the world's most listened to songs.
@@ -103,7 +123,16 @@ Every song starts at Decent (charge 0). This is not a judgment — it is the sta
 
 
 def _render_tier(tier: dict) -> str:
-    lines = [f"**{tier['slug']} ({tier['label']}):** {tier['definition']}"]
+    # The v3 axis assignment rides in the tier header: orange/red tenets
+    # define the harm axis, blue/violet the transcendence axis, green the
+    # neutral zone of both. The tenets themselves are unchanged.
+    axis = tier.get("axis")
+    axis_note = ""
+    if axis in ("harm", "transcendence"):
+        axis_note = f" [{axis} axis]"
+    elif axis == "neutral":
+        axis_note = " [neutral zone of both axes]"
+    lines = [f"**{tier['slug']} ({tier['label']}){axis_note}:** {tier['definition']}"]
     for tenet in tier["tenets"]:
         lines.append(f"{tenet['number']}. {tenet['text']}")
     out = "\n".join(lines)
