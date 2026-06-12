@@ -37,6 +37,27 @@ Script auto-detects what changed (backend vs frontend):
   404s every API call.)
 - Backend does NOT auto-reload — kill and restart uvicorn after code changes
 
+## Parallel Work Tracks
+
+When work should run in parallel lanes (multiple agents/terminals at once), use
+the track system. Do NOT hand-roll worktrees or branches for parallel work; use
+this so lanes get isolated env, venv, and ports instead of colliding.
+
+- Manager: `tracks/rc-track.ps1`. Full guide: `plans and docs/RC-TRACKS-WORKFLOW.md`.
+- Each track = its own worktree on branch `track/<name>` under
+  `Local Sites/rc-tracks/<name>`, with copied `backend/.env` + `.deploy.env`, a
+  junctioned `.venv`, and its own ports (slot 1 -> 8010/3015, slot 2 -> 8020/3025...).
+- Create: `pwsh tracks/rc-track.ps1 new <name>`. Then run a session with cwd set
+  to the printed worktree path. Run stack: `... start <name>`. Tear down:
+  `... remove <name> [-DeleteBranch]`. Integrate: rebase (`... sync <name>`) then
+  merge `track/<name>` into master.
+- SHARED DATABASE: the DB is remote and shared by every track and main. Code and
+  frontend lanes parallelize freely; run schema/migration work on ONE track at a
+  time, or repoint that track's `DATABASE_URL` at a throwaway DB.
+
+If you are running inside a track worktree (cwd under `rc-tracks/`), commit only
+to this track's branch; never reach into sibling worktrees.
+
 ## Database
 
 **Song entity (renovation COMPLETE 2026-06-05, schema_version 88).** `songs` is
