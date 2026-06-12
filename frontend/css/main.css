@@ -972,6 +972,22 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   text-align: center;
 }
 
+/* Pre-order — charting before release, no reading yet. Muted, no compass contribution. */
+.song-item.preorder { opacity: 0.55; }
+.song-item.preorder .song-dot { background: var(--rc-text-dim); opacity: 0.5; box-shadow: none; }
+.song-preorder {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  border: 1px solid var(--rc-text-dim);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .song-info { flex: 1; min-width: 0; }
 
 .song-title {

@@ -18,7 +18,7 @@ from app.models import AgentDraft, AgentDraftSong, ChartSnapshot, DailyReading, 
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
-    SupplyLyricsIn,
+    SupplyLyricsIn, PreorderIn,
     PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
 )
 from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
@@ -565,8 +565,11 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft cannot be approved in its current state")
 
-    # Block approval if any songs still need lyrics/calibration
-    uncalibrated = [s for s in draft.songs if s.rubric_color is None]
+    # Block approval if any songs still need lyrics/calibration. Pre-order songs
+    # (charting before release, no lyrics yet) are exempt: they carry no reading
+    # by design and must not hold the rest of the chart hostage.
+    uncalibrated = [s for s in draft.songs
+                    if s.rubric_color is None and not getattr(s, "preorder", False)]
     if uncalibrated:
         missing = [f"{s.title} by {s.artist}" for s in uncalibrated]
         raise HTTPException(
@@ -596,6 +599,8 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
         db.flush()
 
         for song in draft.songs:
+            if getattr(song, "preorder", False):
+                continue  # no reading yet; not part of the published list
             rs = ReadingSong(
                 reading_id=reading.id,
                 song_id=song.song_id,  # unified entity (Phase 5b native)
@@ -632,6 +637,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
                 compass_degree=draft.compass_degree,
                 charge_level=draft.charge_level,
                 published=True,
+                preorder=bool(getattr(song, "preorder", False)),
             ))
 
     draft.status = "approved"
@@ -710,16 +716,9 @@ def update_draft(draft_ref: str, data: DraftUpdate, db: Session = Depends(get_db
             existing.contaminated = tmp["contaminated"]
             existing.contamination_note = tmp["contamination_note"]
 
-        # Recalculate compass metrics after edits (uses charge_value when available)
-        song_dicts = [
-            {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
-            for s in draft.songs
-        ]
-        draft.compass_degree = compute_degree(song_dicts)
-        draft.charge_level = degree_to_charge(draft.compass_degree)
-        draft.contamination_count = count_contaminated(
-            [{"contaminated": s.contaminated} for s in draft.songs]
-        )
+        # Recalculate compass metrics after edits (uses charge_value when
+        # available; pre-order songs are excluded from the aggregate).
+        _recompute_draft_aggregate(draft)
 
     db.commit()
     db.refresh(draft)
@@ -868,18 +867,26 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
         ds.charge_summary = result["charge_summary"]
         ds.confidence = result.get("confidence")
         ds.lyrics_available = True
+        ds.preorder = False  # a real calibration supersedes any prior preorder hold
         ds.song_id = cs_id  # unified songs.id (Phase 5b native store)
 
-        all_calibrated = all(s.rubric_color is not None for s in draft.songs)
+        # Pre-order songs carry no reading; they count as "settled" for the
+        # all-done check but are excluded from every aggregate (degree / charge /
+        # editorial), exactly like the panel hides them from the math.
+        scored = [s for s in draft.songs if not getattr(s, "preorder", False)]
+        all_calibrated = all(
+            s.rubric_color is not None or getattr(s, "preorder", False)
+            for s in draft.songs
+        )
         if all_calibrated:
             song_dicts = [
                 {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
-                for s in draft.songs
+                for s in scored
             ]
             draft.compass_degree = compute_degree(song_dicts)
             draft.charge_level = degree_to_charge(draft.compass_degree)
             draft.contamination_count = count_contaminated(
-                [{"contaminated": s.contaminated} for s in draft.songs]
+                [{"contaminated": s.contaminated} for s in scored]
             )
             editorial_input = [
                 {
@@ -889,7 +896,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
                     "charge_summary": s.charge_summary, "confidence": s.confidence,
                     "lyrics_available": s.lyrics_available, "chart_source": s.chart_source,
                 }
-                for s in draft.songs
+                for s in scored
             ]
 
         write_db.commit()
@@ -931,6 +938,69 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
         return out
     finally:
         resp_db.close()
+
+
+def _recompute_draft_aggregate(draft) -> None:
+    """Recompute a draft's compass_degree / charge_level / contamination_count
+    over its SCORED songs only (pre-order songs carry no reading and are
+    excluded from every aggregate). Safe to call any time the scored set or the
+    preorder set changes. No-op shape when nothing is scored yet."""
+    scored = [s for s in draft.songs
+              if not getattr(s, "preorder", False) and s.rubric_color is not None]
+    if not scored:
+        return
+    song_dicts = [
+        {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
+        for s in scored
+    ]
+    draft.compass_degree = compute_degree(song_dicts)
+    draft.charge_level = degree_to_charge(draft.compass_degree)
+    draft.contamination_count = count_contaminated(
+        [{"contaminated": s.contaminated} for s in scored]
+    )
+
+
+@router.post("/drafts/{draft_ref}/songs/{song_id}/preorder", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
+def mark_preorder(draft_ref: str, song_id: int, data: PreorderIn | None = None, db: Session = Depends(get_db)):
+    """Null a draft song as PRE-ORDER (or clear the flag).
+
+    For a single charting on pre-order with no lyrics yet: it has no reading by
+    design, so this exempts it from the approval gate without inventing a tier.
+    The flag is TEMPORARY -- unlike instrumental, a preorder is NOT a cache hit,
+    so on each later day the song re-lists as awaiting-lyrics until real lyrics
+    drop and a normal calibration supersedes it (which also clears this flag).
+
+    Body is optional; `{"preorder": false}` clears the flag. Recomputes the
+    draft aggregate over the scored songs after the change.
+    """
+    on = True if data is None else bool(data.preorder)
+    draft = _resolve_draft(draft_ref, db)
+    if draft.status != "pending":
+        raise HTTPException(status_code=400, detail="Draft is not pending")
+    ds = next((s for s in draft.songs if s.id == song_id), None)
+    if ds is None:
+        raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
+    if on and ds.rubric_color is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Song is already calibrated; clear the calibration before marking pre-order",
+        )
+
+    ds.preorder = on
+    if on:
+        # No reading: keep the calibration columns null + lyrics flag down.
+        ds.rubric_color = None
+        ds.charge_value = None
+        ds.charge_summary = None
+        ds.lyrics_available = False
+    _recompute_draft_aggregate(draft)
+    db.commit()
+    db.refresh(draft)
+
+    out = _resolve_draft(draft_ref, db)
+    _ = list(out.songs)
+    db.expunge_all()
+    return out
 
 
 @router.post("/drafts/{draft_ref}/songs/{song_id}/correct", response_model=CorrectionApplyOut, dependencies=[Depends(verify_admin_or_lyrics_key)])

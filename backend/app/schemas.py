@@ -38,6 +38,7 @@ class ReadingSongOut(BaseModel):
     charge_summary: Optional[str] = None
     chart_source: Optional[str] = None
     instrumental: bool = False
+    preorder: bool = False
     song_slug: Optional[str] = None
     artist_slug: Optional[str] = None
     # Ether/deadpan lens (populated for chart-snapshot rows so the secondary
@@ -276,6 +277,7 @@ class DraftSongOut(BaseModel):
     chart_source: Optional[str] = None
     confidence: Optional[float] = None
     lyrics_available: bool = False
+    preorder: bool = False
     dogma_referenced: bool = False
     dogma_note: Optional[str] = None
 
@@ -414,6 +416,12 @@ class TerminalCalibrationIn(BaseModel):
 class SupplyLyricsIn(BaseModel):
     lyrics: str = Field(..., min_length=50)
     calibration: Optional[TerminalCalibrationIn] = None
+
+
+class PreorderIn(BaseModel):
+    """Mark (or clear) a draft song as charting-on-pre-order. Default True so an
+    empty POST body nulls the song as pre-order; {"preorder": false} clears it."""
+    preorder: bool = True
 
 
 class DraftTriggerSongIn(BaseModel):

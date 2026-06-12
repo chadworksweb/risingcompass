@@ -33,7 +33,7 @@ _METHOD = {
 _CALIB = [
     "rubric_color", "charge_value", "charge_summary", "contaminated",
     "contamination_note", "dogma_referenced", "dogma_note", "instrumental",
-    "translated", "medley",
+    "translated", "medley", "preorder",
     "confidence", "listener_effects_prose", "societal_effects_prose",
     "societal_prose_generated_at", "societal_prose_model", "prior_listener_effects_prose",
     "prior_societal_effects_prose", "prior_societal_prose_generated_at",
@@ -195,6 +195,7 @@ def calibration_to_columns(calibration: dict) -> dict:
     out["instrumental"] = bool(calibration.get("instrumental", False))
     out["translated"] = bool(calibration.get("translated", False))
     out["medley"] = bool(calibration.get("medley", False))
+    out["preorder"] = bool(calibration.get("preorder", False))
     out["calibration_failed"] = bool(calibration.get("calibration_failed", False))
     out["topics"] = json.dumps(topics) if topics else None
     out["topic_audit"] = json.dumps(topic_audit) if topic_audit else None

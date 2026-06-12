@@ -74,6 +74,9 @@ class ChartSnapshot(Base):
     # half-calibrated chart never leaks. Mirrors the daily reading's approve-
     # before-public flow.
     published = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    # Charting on pre-order: no songs row / reading yet. Rendered as "Pre-order"
+    # on the panel, excluded from the snapshot aggregate.
+    preorder = Column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     __table_args__ = (
         UniqueConstraint("date", "chart_source", "position", name="uq_chart_snapshots_date_source_pos"),
@@ -156,6 +159,10 @@ class AgentDraftSong(Base):
     chart_source = Column(Text, default="spotify")
     confidence = Column(Float)
     lyrics_available = Column(Boolean, default=False)
+    # Temporary null disposition: charting on pre-order with no lyrics yet. Exempt
+    # from the approval gate, excluded from aggregates, NOT a cache hit -- re-lists
+    # until real lyrics drop. Sibling to instrumental, but lifecycle differs.
+    preorder = Column(Boolean, default=False)
     # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
     activations = Column(Text)
     calibration_failed = Column(Boolean, default=False)
@@ -1652,6 +1659,7 @@ class Song(Base):
     instrumental = Column(Boolean, default=False)
     translated = Column(Boolean, default=False)  # calibrated off a translation of non-English lyrics
     medley = Column(Boolean, default=False)  # calibration reads a curated multi-song medley as one arc
+    preorder = Column(Boolean, default=False)  # charting on pre-order; no lyrics yet, awaiting release
     confidence = Column(Float)
     listener_effects_prose = Column(Text)
     societal_effects_prose = Column(Text)

@@ -41,7 +41,14 @@ try:
             "total": len(songs),
             "needs_lyrics": [
                 {"id": s.id, "pos": s.position, "title": s.title, "artist": s.artist}
-                for s in songs if s.rubric_color is None
+                for s in songs
+                if s.rubric_color is None and not getattr(s, "preorder", False)
+            ],
+            # Pre-order: charting before release, nulled (no reading), exempt from
+            # the approval gate. Re-lists until real lyrics drop.
+            "preorder": [
+                {"id": s.id, "pos": s.position, "title": s.title, "artist": s.artist}
+                for s in songs if getattr(s, "preorder", False)
             ],
             "calibrated": [
                 {"pos": s.position, "title": s.title, "artist": s.artist,

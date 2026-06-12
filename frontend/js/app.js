@@ -282,20 +282,25 @@ const App = (() => {
         tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
       }
       const instrClass = song.instrumental ? ' instrumental' : '';
+      const preClass = song.preorder ? ' preorder' : '';
       // Only link to the song page once it's calibrated (the page exists then).
       const songHref = (song.song_slug && song.rubric_color) ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
       const titleHtml = songHref
         ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
         : escapeHtml(song.title);
+      const preBadge = song.preorder
+        ? '<span class="song-preorder" title="Charting on pre-order; not yet released, no reading yet">Pre-order</span>'
+        : '';
       html += `
-        <li class="song-item${hasSummary ? ' has-tooltip' : ''}${instrClass}">
+        <li class="song-item${hasSummary ? ' has-tooltip' : ''}${instrClass}${preClass}">
           <span class="song-pos">${song.position}</span>
-          <span class="song-dot ${song.instrumental ? '' : (song.rubric_color || '')}"></span>
+          <span class="song-dot ${song.instrumental || song.preorder ? '' : (song.rubric_color || '')}"></span>
           <div class="song-info">
             <div class="song-title">${titleHtml}</div>
             <div class="song-artist">${artistHtml(song.artist, song.artist_slug, 'song-artist-name')}</div>
           </div>
           <div class="song-actions">
+            ${preBadge}
             ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
             ${hasSummary ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
           </div>
