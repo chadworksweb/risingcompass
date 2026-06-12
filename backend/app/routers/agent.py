@@ -636,6 +636,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
                 artist=song.artist,
                 compass_degree=draft.compass_degree,
                 charge_level=draft.charge_level,
+                editorial=draft.editorial_summary,
                 published=True,
                 preorder=bool(getattr(song, "preorder", False)),
             ))

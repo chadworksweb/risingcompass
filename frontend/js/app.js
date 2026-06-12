@@ -187,51 +187,6 @@ const App = (() => {
     `;
   }
 
-  // One ether/deadpan row for the iTunes right panel. Mirrors
-  // EtherArtChart.rowHtml line-for-line (same .ether-* markup + forward-only
-  // "untagged" fallback) so the iTunes deadpan chart reads identically to the
-  // Daily reading's Ether Art Chart. Calibrated rows carry deadpan_line +
-  // dominant_topic from the song row; uncalibrated rows fall back to the title.
-  function itunesEtherRow(item) {
-    const tierHex = COLOR_HEX[item.rubric_color] || 'transparent';
-    const tickStyle = `border-left:9px solid ${tierHex};`;
-    const songHref = (item.song_slug && item.rubric_color) ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
-
-    if (!item.deadpan_line) {
-      const titleHtml = songHref
-        ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
-        : `<span class="ether-title-link">${escapeHtml(item.title)}</span>`;
-      return `
-        <li class="ether-row ether-row--untagged" style="${tickStyle}">
-          <span class="ether-pos">${item.position}</span>
-          <div class="ether-text">
-            <div class="ether-deadpan">${titleHtml}</div>
-            <div class="ether-meta">${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')} <span class="ether-untagged-pill">untagged</span></div>
-          </div>
-        </li>`;
-    }
-
-    const titleHtml = songHref
-      ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
-      : escapeHtml(item.title);
-    const topicHtml = item.dominant_topic
-      ? `<span class="ether-meta-sep">·</span><span class="ether-chip">${escapeHtml(String(item.dominant_topic).replace(/-/g, ' '))}</span>`
-      : '';
-    return `
-      <li class="ether-row" style="${tickStyle}">
-        <span class="ether-pos">${item.position}</span>
-        <div class="ether-text">
-          <div class="ether-deadpan">${escapeHtml(item.deadpan_line)}</div>
-          <div class="ether-meta">
-            <span class="ether-meta-title">${titleHtml}</span>
-            <span class="ether-meta-sep">·</span>
-            ${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')}
-            ${topicHtml}
-          </div>
-        </div>
-      </li>`;
-  }
-
   // iTunes Download Chart — live snapshot row (the secondary-chart slot),
   // laid out exactly like the Daily reading row: the chart (left) + its Ether
   // Art Chart deadpan/topic lens (right), both fed by one snapshot fetch
@@ -265,57 +220,23 @@ const App = (() => {
     const desc = panel.querySelector('.card-desc');
     if (desc) desc.textContent = `iTunes Downloads — USA. iTunes' top-selling songs, read through the same compass. Updated ${formatDate(data.date)}.`;
 
-    let html = '<ul class="song-list">';
-    songs.forEach(song => {
-      const hasSummary = song.charge_summary || song.contamination_note;
-      let tooltipHtml = '';
-      if (hasSummary) {
-        const songHex = COLOR_HEX[song.rubric_color] || '#888';
-        const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
-        const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
-        let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
-        if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
-        if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
-        const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color || '', pos: song.position });
-        if (song.charge_summary) disputeParams.set('cs', song.charge_summary);
-        lines += `<div class="mei-dispute"><a href="/misread-submission.html?${disputeParams.toString()}">Did we get it wrong?</a></div>`;
-        tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
-      }
-      const instrClass = song.instrumental ? ' instrumental' : '';
-      const preClass = song.preorder ? ' preorder' : '';
-      // Only link to the song page once it's calibrated (the page exists then).
-      const songHref = (song.song_slug && song.rubric_color) ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
-      const titleHtml = songHref
-        ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
-        : escapeHtml(song.title);
-      const preBadge = song.preorder
-        ? '<span class="song-preorder" title="Charting on pre-order; not yet released, no reading yet">Pre-order</span>'
-        : '';
-      html += `
-        <li class="song-item${hasSummary ? ' has-tooltip' : ''}${instrClass}${preClass}">
-          <span class="song-pos">${song.position}</span>
-          <span class="song-dot ${song.instrumental || song.preorder ? '' : (song.rubric_color || '')}"></span>
-          <div class="song-info">
-            <div class="song-title">${titleHtml}</div>
-            <div class="song-artist">${artistHtml(song.artist, song.artist_slug, 'song-artist-name')}</div>
-          </div>
-          <div class="song-actions">
-            ${preBadge}
-            ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
-            ${hasSummary ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
-          </div>
-          ${tooltipHtml}
-        </li>
-      `;
-    });
-    html += '</ul>';
-
-    crossfade(container, html, () => initSongTooltips(container));
+    // The iTunes snapshot now carries its own aggregate (compass_degree /
+    // charge_level / contamination_count / editorial), so the panel renders the
+    // full canon shell -- charge group + editorial + list -- just like the daily
+    // reading, instead of a bare list. No calendar toggle (charts have none).
+    const reading = {
+      date: data.date,
+      degree: data.compass_degree,
+      charge: data.charge_level,
+      contaminationCount: data.contamination_count,
+      editorial: data.editorial,
+      songs: songs,
+    };
+    crossfade(container, ChartShell.buildLeft(reading), () => ChartShell.wireTooltips(container));
 
     // Right panel: the same songs through the deadpan + topic lens.
     if (etherPanel && etherContainer) {
-      const etherHtml = `<ol class="ether-list">${songs.map(itunesEtherRow).join('')}</ol>`;
-      crossfade(etherContainer, etherHtml);
+      crossfade(etherContainer, ChartShell.etherListHtml(songs));
     }
   }
 
@@ -348,87 +269,24 @@ const App = (() => {
       return;
     }
 
-    let html = '';
-    // Daily charge summary with date tab
-    const dailyCharge = CHARGE_LABELS[data.charge_level] || data.charge_level;
-    const dailyHex = COLOR_HEX[data.charge_level] || '#888';
-    html += `<div class="reading-charge-group">
-      <div class="reading-date" style="background:${dailyHex}">${formatDate(data.date)}</div>
-      <div class="reading-charge-row">
-        <div class="reading-charge-bar" style="background:${dailyHex}">
-          <div class="reading-charge-inner">
-            <span class="reading-charge-score">${degreeToScore(data.compass_degree)}</span>
-            <span class="reading-charge-label">${dailyCharge}</span>
-            <span class="reading-charge-meta">${data.songs.length} songs &middot; ${data.contamination_count} contaminated</span>
-          </div>
-        </div>
-        ${calendarToggleBtnHtml()}
-      </div>
-    </div>`;
-
-    if (data.editorial_summary) {
-      html += `<div class="reading-editorial">${escapeHtml(data.editorial_summary)}</div>`;
-    }
-    html += '<ul class="song-list">';
-    const sortedSongs = [...data.songs].sort((a, b) => a.position - b.position);
-    sortedSongs.forEach(song => {
-      const hasMEI = song.message_analysis || song.expression_analysis || song.intention_analysis;
-      const hasSummary = song.charge_summary || song.contamination_note;
-      const hasTooltip = hasMEI || hasSummary;
-      let tooltipHtml = '';
-      if (hasTooltip) {
-        const songHex = COLOR_HEX[song.rubric_color] || '#888';
-        const songLabel = CHARGE_LABELS[song.rubric_color] || song.rubric_color;
-        const songScore = song.charge_value != null ? (song.charge_value > 0 ? '+' + song.charge_value : String(song.charge_value)) : '';
-
-        // Charge header — color block background with black text (matches reading-date style)
-        let lines = `<div style="background:${songHex};color:var(--rc-bg-dark);font-family:var(--rc-font-mono);font-size:0.7rem;font-weight:700;letter-spacing:0.02em;padding:0.25rem 0.55rem;margin:-0.4rem -0.55rem 0.35rem;border-radius:4px 4px 0 0">${songScore} ${songLabel}</div>`;
-
-        // Summary line
-        if (song.charge_summary) lines += `<div style="font-size:0.72rem;color:rgba(20,20,30,0.65);font-style:italic;line-height:1.4;margin-bottom:0.3rem;padding-bottom:0.25rem;border-bottom:1px solid rgba(0,0,0,0.06)">${escapeHtml(song.charge_summary)}</div>`;
-
-        if (song.contaminated && song.contamination_note) lines += `<div class="mei-line mei-contam">&#x2622; ${escapeHtml(song.contamination_note)}</div>`;
-        if (song.dogma_referenced && song.dogma_note) lines += `<div class="mei-line mei-dogma">&#x1F4DC; ${escapeHtml(song.dogma_note)}</div>`;
-        const disputeParams = new URLSearchParams({ title: song.title, artist: song.artist, color: song.rubric_color, pos: song.position });
-        if (song.message_analysis) disputeParams.set('ma', song.message_analysis);
-        if (song.expression_analysis) disputeParams.set('ea', song.expression_analysis);
-        if (song.intention_analysis) disputeParams.set('ia', song.intention_analysis);
-        if (song.charge_summary) disputeParams.set('cs', song.charge_summary);
-        lines += `<div class="mei-dispute"><a href="/misread-submission.html?${disputeParams.toString()}">Did we get it wrong?</a></div>`;
-        tooltipHtml = `<div class="song-tooltip">${lines}</div>`;
-      }
-      const instrClass = song.instrumental ? ' instrumental' : '';
-      const songHref = song.song_slug ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
-      const titleHtml = songHref
-        ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
-        : escapeHtml(song.title);
-      html += `
-        <li class="song-item${hasTooltip ? ' has-tooltip' : ''}${instrClass}">
-          <span class="song-pos">${song.position}</span>
-          <span class="song-dot ${song.instrumental ? '' : song.rubric_color}"></span>
-          <div class="song-info">
-            <div class="song-title">${titleHtml}</div>
-            <div class="song-artist">${artistHtml(song.artist, song.artist_slug, 'song-artist-name')}</div>
-          </div>
-          <div class="song-actions">
-            ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
-            ${song.dogma_referenced ? '<span class="song-dogma" aria-hidden="true" title="Dogma referenced">&#x1F4DC;</span>' : ''}
-            ${hasTooltip ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}
-          </div>
-          ${tooltipHtml}
-        </li>
-      `;
-    });
-    html += '</ul>';
-
-    // Instrumental disclosure
-    const instrCount = sortedSongs.filter(s => s.instrumental).length;
-    if (instrCount > 0) {
-      html += `<div class="instrumental-note">${instrCount} instrumental${instrCount > 1 ? 's' : ''} — does not contribute to the compass reading.</div>`;
-    }
+    // Canon chart shell (left card body). The charge group carries the calendar
+    // toggle in its row; the song-list/editorial/instrumental templates are the
+    // same ones the iTunes panel and the standalone /charts/* pages render.
+    const reading = {
+      date: data.date,
+      degree: data.compass_degree,
+      charge: data.charge_level,
+      contaminationCount: data.contamination_count,
+      editorial: data.editorial_summary,
+      songs: data.songs,
+    };
+    const html = ChartShell.chargeGroupHtml(reading, calendarToggleBtnHtml())
+      + ChartShell.editorialHtml(reading.editorial)
+      + ChartShell.songListHtml(reading.songs)
+      + ChartShell.instrumentalNoteHtml(reading.songs);
 
     crossfade(container, html, () => {
-      initSongTooltips(container);
+      ChartShell.wireTooltips(container);
       wireCalendarToggle(container);
     });
 

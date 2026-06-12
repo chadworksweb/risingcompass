@@ -53,48 +53,11 @@ const EtherArtChart = (() => {
     return `<span class="ether-chip">${escapeHtml(t)}</span>`;
   }
 
+  // The ether row template is canon in /js/chart-shell.js so the homepage card,
+  // the iTunes panel, and the standalone chart pages all render an identical
+  // row. This module keeps only the fetch/mode logic around it.
   function rowHtml(item) {
-    const tierHex = COLOR_HEX[item.rubric_color] || 'transparent';
-    const tickStyle = `border-left:9px solid ${tierHex};`;
-
-    const songHref = item.song_slug ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
-
-    // Position display merges chart_position + letter so 9A and 9B both
-    // read as the same chart slot with their A/B suffix.
-    const positionDisplay = `${item.position}${item.position_letter || ''}`;
-
-    if (!item.deadpan_line) {
-      // Pre-tagger row — show the title, dim style, "untagged" hint.
-      const titleHtml = songHref
-        ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
-        : `<span class="ether-title-link">${escapeHtml(item.title)}</span>`;
-      return `
-        <li class="ether-row ether-row--untagged" style="${tickStyle}">
-          <span class="ether-pos">${positionDisplay}</span>
-          <div class="ether-text">
-            <div class="ether-deadpan">${titleHtml}</div>
-            <div class="ether-meta">${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')} <span class="ether-untagged-pill">untagged</span></div>
-          </div>
-        </li>`;
-    }
-
-    const titleHtml = songHref
-      ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
-      : escapeHtml(item.title);
-
-    return `
-      <li class="ether-row" style="${tickStyle}">
-        <span class="ether-pos">${positionDisplay}</span>
-        <div class="ether-text">
-          <div class="ether-deadpan">${escapeHtml(item.deadpan_line)}</div>
-          <div class="ether-meta">
-            <span class="ether-meta-title">${titleHtml}</span>
-            <span class="ether-meta-sep">·</span>
-            ${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')}
-            ${item.dominant_topic ? `<span class="ether-meta-sep">·</span>${topicChipHtml(item.dominant_topic)}` : ''}
-          </div>
-        </div>
-      </li>`;
+    return ChartShell.etherRowHtml(item);
   }
 
   function setDesc(text) {

@@ -67,6 +67,11 @@ class ChartSnapshot(Base):
     # fetch-time/unpublished rows have none until the chart draft is approved.
     compass_degree = Column(Float, nullable=True)
     charge_level = Column(Text, nullable=True)
+    # Per-chart editorial summary, denormalised onto every row of the snapshot at
+    # approval (equal across the day's rows). Reuses the editorial the compass
+    # agent already generated onto the chart's AgentDraft. Nullable: unpublished
+    # rows and pre-editorial snapshots carry none.
+    editorial = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     # Approval gate: rows are written unpublished by the scraper/refresh, then
     # flipped to True when the chart draft is approved (agent.approve_draft).

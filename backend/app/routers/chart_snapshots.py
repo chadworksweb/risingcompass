@@ -109,6 +109,13 @@ class ChartSnapshotOut(BaseModel):
     chart_source: str
     label: str
     date: date
+    # Snapshot aggregate (stamped on every row at approval, equal across the day's
+    # rows). Lets a standalone chart page render the same charge + editorial shell
+    # the homepage daily reading shows. Null on pre-aggregate snapshots.
+    compass_degree: float | None = None
+    charge_level: str | None = None
+    contamination_count: int = 0
+    editorial: str | None = None
     songs: list[ReadingSongOut]
 
 
@@ -265,10 +272,17 @@ def get_current_snapshot(key: str, db: Session = Depends(get_db)):
         for snap in snaps
     ]
 
+    # Degree/charge/editorial are denormalised across the day's rows, so any row
+    # carries the snapshot aggregate; contamination is counted from the looked-up
+    # songs (same as the daily reading + Calendar detail).
     return ChartSnapshotOut(
         chart_source=chart_slug,
         label=entry["label"],
         date=most_recent_date,
+        compass_degree=snaps[0].compass_degree,
+        charge_level=snaps[0].charge_level,
+        contamination_count=sum(1 for s in songs if s.contaminated),
+        editorial=snaps[0].editorial,
         songs=songs,
     )
 
@@ -369,8 +383,8 @@ def get_chart_year_dates(key: str, year: int, db: Session = Depends(get_db)):
 def get_chart_reading(key: str, reading_date: date, db: Session = Depends(get_db)):
     """Full published snapshot for one chart + date, with per-song colors looked
     up live -- shaped like the daily reading detail so the Calendar panel reuses
-    its renderer. Charts carry no editorial; contamination is counted from the
-    looked-up songs."""
+    its renderer. Editorial is the one stamped on the snapshot rows at approval;
+    contamination is counted from the looked-up songs."""
     chart_slug = _chart_slug_or_404(key)
     snaps = (
         db.query(ChartSnapshot)
@@ -401,7 +415,7 @@ def get_chart_reading(key: str, reading_date: date, db: Session = Depends(get_db
         compass_degree=snaps[0].compass_degree,
         charge_level=snaps[0].charge_level,
         contamination_count=contamination_count,
-        editorial_summary=None,
+        editorial_summary=snaps[0].editorial,
         songs=songs,
     )
 
