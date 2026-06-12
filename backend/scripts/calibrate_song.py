@@ -258,7 +258,10 @@ def main() -> int:
         else:
             print(f"    ether: {calibration['deadpan_line']!r}  topics={calibration['topics']}")
 
-    remaining = sum(1 for s in resp.get("songs", []) if s.get("rubric_color") is None)
+    remaining = sum(
+        1 for s in resp.get("songs", [])
+        if s.get("rubric_color") is None and not s.get("preorder")
+    )
     print(f"Remaining needs-lyrics in draft: {remaining}")
     return 0
 
