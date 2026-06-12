@@ -10,30 +10,44 @@
 
   var LIVE_CUTOFF = 2025; // years <= this have no daily readings (aggregate only)
 
-  // Charts the calendar can paint. 'daily' source reads the daily-reading drift
-  // endpoints; 'chart' source reads the chart-snapshot endpoints by registry
-  // key. Brand names are working names ("for now") -- centralised here so a
-  // rename is a single edit (label = the toggle button, sub = the source line).
-  var CHARTS = {
-    'spotify': { label: 'Spotify (US)', sub: 'Spotify Top 50 - USA',   source: 'daily' },
-    'itunes':  { label: 'iTunes',       sub: 'iTunes Downloads - USA', source: 'chart', key: 'itunes' },
-  };
+  // Charts the calendar can paint -- loaded at runtime from
+  // /api/compass/chart/calendar-charts so the toggle is NOT hardcoded: the
+  // backend returns the Tier-1 daily charge (Daily Listens, drift-sourced,
+  // always first/default) followed by every Tier-2 DAILY chart that has painted
+  // data. Register a new daily chart and it shows up here on its own. 'daily'
+  // source reads the drift endpoints; 'chart' source reads the chart-snapshot
+  // endpoints keyed by the chart's own key. Fallback to Daily Listens only if
+  // the list fetch fails, so the calendar always works.
+  var FALLBACK_CHARTS = [
+    { key: 'spotify', label: 'Spotify (US)', sub: 'Spotify Top 50 - USA', source: 'daily' },
+  ];
+  var CHARTS = {};       // { key: {key, label, sub, source} }
+  var CHART_ORDER = [];  // keys in toggle order
   var DEFAULT_CHART = 'spotify';
   var curChart = DEFAULT_CHART;
-  function chartCfg() { return CHARTS[curChart] || CHARTS[DEFAULT_CHART]; }
+  function chartCfg() { return CHARTS[curChart] || CHARTS[DEFAULT_CHART] || FALLBACK_CHARTS[0]; }
+
+  function setChartList(list) {
+    if (!list || !list.length) list = FALLBACK_CHARTS;
+    CHARTS = {}; CHART_ORDER = [];
+    list.forEach(function (c) { CHARTS[c.key] = c; CHART_ORDER.push(c.key); });
+    DEFAULT_CHART = CHART_ORDER[0];
+    if (!CHARTS[curChart]) curChart = DEFAULT_CHART;
+  }
 
   // --- Data-source adapter: same calendar, swappable chart behind it ---
+  // For a 'chart' source the calendar key IS the chart-snapshot registry key.
   function fetchYears() {
     var c = chartCfg();
-    return c.source === 'chart' ? API.getChartYears(c.key) : API.getDriftYears();
+    return c.source === 'chart' ? API.getChartYears(curChart) : API.getDriftYears();
   }
   function fetchYearDates(year) {
     var c = chartCfg();
-    return c.source === 'chart' ? API.getChartYearDates(c.key, year) : API.getYearDates(year);
+    return c.source === 'chart' ? API.getChartYearDates(curChart, year) : API.getYearDates(year);
   }
   function fetchReading(date) {
     var c = chartCfg();
-    return c.source === 'chart' ? API.getChartReading(c.key, date) : API.getReading(date);
+    return c.source === 'chart' ? API.getChartReading(curChart, date) : API.getReading(date);
   }
 
   var MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -494,6 +508,23 @@
   function resetForChart() {
     yearReadings = {}; monthMeans = {}; yearsList = null; yearAgg = {};
   }
+  // Build the chart toggle from the loaded list. Clicks are delegated on the
+  // container (see wire()), so rebuilding the buttons here is safe. A single
+  // chart needs no toggle -- hide it to avoid a lone dead button.
+  function renderChartToggle() {
+    var wrap = document.querySelector('.cal-chart-switch');
+    if (!wrap) return;
+    if (CHART_ORDER.length < 2) { wrap.innerHTML = ''; wrap.hidden = true; return; }
+    wrap.hidden = false;
+    wrap.innerHTML = CHART_ORDER.map(function (key) {
+      var c = CHARTS[key];
+      var on = key === curChart;
+      return '<button class="cal-chart-btn' + (on ? ' is-active' : '') + '" data-chart="'
+        + escapeHtml(key) + '" role="tab" aria-selected="' + (on ? 'true' : 'false') + '">'
+        + escapeHtml(c.label) + '</button>';
+    }).join('');
+  }
+
   function updateChartUI() {
     var c = chartCfg();
     document.querySelectorAll('.cal-chart-btn').forEach(function (btn) {
@@ -526,9 +557,14 @@
 
   // --- Wiring ---
   function wire() {
-    document.querySelectorAll('.cal-chart-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () { switchChart(btn.dataset.chart); });
-    });
+    // Delegated so dynamically-rendered toggle buttons work without re-binding.
+    var sw = document.querySelector('.cal-chart-switch');
+    if (sw) {
+      sw.addEventListener('click', function (e) {
+        var btn = e.target.closest('.cal-chart-btn');
+        if (btn) switchChart(btn.dataset.chart);
+      });
+    }
     document.querySelectorAll('.cal-bar [data-action]').forEach(function (el) {
       el.addEventListener('click', function () { handleAction(el); });
     });
@@ -558,6 +594,12 @@
     layoutEl = document.querySelector('.cal-page-layout');
     if (!board) return;
 
+    // Load the available charts (Daily Listens + every Tier-2 daily chart that
+    // has painted data). Falls back to Daily Listens only if the call fails.
+    var list;
+    try { list = await API.getCalendarCharts(); } catch (e) { list = null; }
+    setChartList(list);
+
     // Initial chart from ?chart= (footer deep-links / refresh), else default.
     // Legacy slugs (pre-rename) still resolve so old links don't break.
     var CHART_ALIASES = { 'daily-listens': 'spotify', 'daily-downloads': 'itunes' };
@@ -573,6 +615,7 @@
     decadeStart = Math.floor(curYear / 10) * 10;
     view = 'day';
 
+    renderChartToggle();
     wire();
     updateChartUI();
     board.innerHTML = loaderHtml('Loading ' + chartCfg().label, chartCfg().sub);

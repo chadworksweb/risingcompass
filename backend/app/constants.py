@@ -20,23 +20,22 @@ CHART_SOURCE_TO_CHART_SLUG = {
     "billboard_hot_100": "billboard_yearend_hot100",
     "billboard_yearend_2024": "billboard_yearend_hot100",
     "billboard_yearend_2025": "billboard_yearend_hot100",
-    "billboard_200": "billboard_200",
     "spotify_top50_usa": "spotify_top50_usa",
     "itunes_download_usa": "itunes_download_usa",
     "shazam_top200_usa": "shazam_top200_usa",
     "youtube_trending_usa": "youtube_trending_usa",
-    "spotify_global_daily": "spotify_global_daily",
-    "spotify": "spotify",
 }
 
-# Chart slugs whose appearances count toward the compass charge + year/decade
-# aggregates -- the unified-model equivalent of CHART_SOURCES. Everything except
-# the secondary-panel snapshot chart (the iTunes Download Chart): a side
-# snapshot, never part of the main compass charge. Songs can still chart on it
-# (a real chart) without polluting the aggregate.
+# Chart slugs whose appearances count toward the compass charge -- the only
+# charts that actually feed a charge measurement. Exactly two have a live feed:
+# spotify_top50_usa (the daily charge, "Daily Listens") and billboard_yearend_hot100
+# (the historical year/decade charge, the Billboard Year-End backfill). Every
+# other chart (iTunes/Daily Downloads, Shazam, YouTube, all-time lists) is a
+# display chart, excluded here so it never pollutes the aggregate. The legacy
+# placeholders billboard_200 / spotify / spotify_global_daily were removed in
+# migration 118 (no live feed; their few stray rows were repointed/cleared).
 AGGREGATING_CHART_SLUGS = {
-    "billboard_yearend_hot100", "billboard_200", "spotify",
-    "spotify_top50_usa", "spotify_global_daily",
+    "billboard_yearend_hot100", "spotify_top50_usa",
 }
 
 # Degree mapping for legacy (pre-5-tier) songs. Old 3-tier system had
@@ -82,15 +81,12 @@ def draft_display_name(draft_type) -> str:
 # names the actual chart a song first appeared on. Build 7.
 CHART_SOURCE_LABELS = {
     "spotify_top50_usa": "Spotify Top 50 - USA",
-    "spotify_global_daily": "Spotify Global Daily",
-    "spotify": "Spotify",
     "itunes_download_usa": "iTunes Download Chart - USA",
     "shazam_top200_usa": "Shazam Top 200 - USA",
     "youtube_trending_usa": "YouTube Trending - USA",
     "billboard_hot_100": "Billboard Year-End Hot 100",
     "billboard_yearend_2024": "Billboard Year-End Hot 100",
     "billboard_yearend_2025": "Billboard Year-End Hot 100",
-    "billboard_200": "Billboard 200",
 }
 
 

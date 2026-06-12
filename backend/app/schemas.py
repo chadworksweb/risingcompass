@@ -428,7 +428,7 @@ class DraftTriggerSongIn(BaseModel):
     title: str = Field(..., max_length=300)
     artist: str = Field(..., max_length=300)
     position: int
-    chart_source: str = Field("spotify", max_length=50)
+    chart_source: str = Field("spotify_top50_usa", max_length=50)
     lyrics: Optional[str] = None  # Manual lyrics — skips fetch when provided
 
 

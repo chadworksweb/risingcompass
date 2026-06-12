@@ -38,7 +38,7 @@ class ReadingSong(Base):
     title = Column(Text, nullable=False)
     artist = Column(Text, nullable=False)
     position = Column(Integer, nullable=False)
-    chart_source = Column(Text, default="spotify")
+    chart_source = Column(Text, default="spotify_top50_usa")
 
     reading = relationship("DailyReading", back_populates="songs")
     song = relationship("Song", foreign_keys=[song_id])  # unified renovation

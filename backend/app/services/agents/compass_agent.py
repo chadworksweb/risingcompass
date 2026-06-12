@@ -294,7 +294,7 @@ def run_compass_agent(
         title = song_in["title"]
         artist = song_in["artist"]
         position = song_in["position"]
-        chart_source = song_in.get("chart_source", "spotify")
+        chart_source = song_in.get("chart_source", "spotify_top50_usa")
 
         # Cache lookup — short session
         cache_db = SessionLocal()

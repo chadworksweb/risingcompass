@@ -821,7 +821,7 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
         "title": draft_song.title,
         "artist": draft_song.artist,
         "position": draft_song.position,
-        "chart_source": draft_song.chart_source or "spotify",
+        "chart_source": draft_song.chart_source or "spotify_top50_usa",
     }
     db.close()
 

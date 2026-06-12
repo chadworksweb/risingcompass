@@ -167,10 +167,10 @@
     <div class="cal-page-intro">
       <h1 class="cal-page-title">Calendar</h1>
       <p class="cal-page-sub">Every reading, painted its exact charge color. Choose a chart, then drill from days to decades; pick a day to open its reading.</p>
-      <div class="cal-chart-switch" role="tablist" aria-label="Choose chart">
-        <button class="cal-chart-btn is-active" data-chart="spotify" role="tab" aria-selected="true">Spotify (US)</button>
-        <button class="cal-chart-btn" data-chart="itunes" role="tab" aria-selected="false">iTunes</button>
-      </div>
+      <!-- Toggle buttons are rendered by calendar.js from
+           /api/compass/chart/calendar-charts (Daily Listens + Tier-2 daily
+           charts with data), so new daily charts appear with no markup change. -->
+      <div class="cal-chart-switch" role="tablist" aria-label="Choose chart" hidden></div>
       <p class="cal-chart-sub" id="cal-chart-sub">Spotify Top 50 - USA</p>
     </div>
 

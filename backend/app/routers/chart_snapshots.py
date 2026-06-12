@@ -34,6 +34,7 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.auth import verify_reading_cron_key
+from app.constants import AGGREGATING_CHART_SLUGS, chart_source_label
 from app.database import SessionLocal, get_db
 from app.models import AgentDraft, ChartSnapshot, Song
 from app.schemas import ReadingSongOut
@@ -51,36 +52,55 @@ from app.services.song_store import find_song_by_title_artist
 logger = logging.getLogger(__name__)
 
 
+# Registry of chart-snapshot charts. The key is the slot's wiring handle (cron
+# URL, public endpoint key, frontend element ids). Metadata used by the public
+# Calendar's auto-pickup (get_calendar_charts):
+#   cadence        -- "daily" | "weekly"; only daily charts paint the day-grid.
+#   calendar_label -- short toggle label (omit to keep a chart OUT of the toggle).
+#   calendar_sub   -- the source line shown under the toggle.
+# Tier is derived, not stored: a slug in constants.AGGREGATING_CHART_SLUGS feeds
+# the daily charge (Tier 1) and is painted via the drift endpoints, not as a
+# snapshot; everything else is Tier 2.
 CHART_REGISTRY: dict[str, dict] = {
     # iTunes Download Chart - USA: the secondary homepage panel, refreshed daily.
-    # The key is the slot's wiring handle (cron URL, public endpoint key,
-    # frontend element ids).
+    # Tier 2 (not in AGGREGATING_CHART_SLUGS) + daily -> the Calendar lists it.
     "itunes": {
         "slug": "itunes_download_usa",
-        "label": "iTunes Download Chart — USA",
+        "label": "iTunes Download Chart - USA",
         "fetcher": fetch_itunes_songs,
+        "cadence": "daily",
+        "calendar_label": "iTunes",
+        "calendar_sub": "iTunes Downloads - USA",
     },
+    # Spotify Top 50 - USA: the daily reading source = the daily CHARGE (Tier 1,
+    # slug in AGGREGATING_CHART_SLUGS). The Calendar paints it via the drift
+    # endpoints, so get_calendar_charts adds it as the drift default and skips it
+    # here -- no calendar_label, and the Tier-1 filter excludes it anyway.
     "top50": {
         "slug": "spotify_top50_usa",
-        "label": "Spotify Top 50 — USA",
+        "label": "Spotify Top 50 - USA",
         "fetcher": fetch_top_songs,
+        "cadence": "daily",
     },
-    # Shazam Top 200 - USA: ingestion-discovery source (what people are trying to
-    # identify -> what to calibrate next). Same SOP as iTunes: unpublished
-    # snapshot + draft + awaiting-lyrics email; excluded from the compass charge
-    # aggregate (constants.AGGREGATING_CHART_SLUGS).
+    # Shazam Top 200 - USA: Tier 2 daily ingestion-discovery source. Auto-listed
+    # in the Calendar once it has published, degree-stamped snapshots.
     "shazam": {
         "slug": "shazam_top200_usa",
-        "label": "Shazam Top 200 — USA",
+        "label": "Shazam Top 200 - USA",
         "fetcher": fetch_shazam_songs,
+        "cadence": "daily",
+        "calendar_label": "Shazam",
+        "calendar_sub": "Shazam Top 200 - USA",
     },
-    # YouTube Trending - USA: ingestion-discovery source (what people are
-    # discovering now). Same SOP as iTunes/Shazam; excluded from the compass
-    # charge aggregate; pure ingestion feeder (no public panel).
+    # YouTube Trending - USA: Tier 2 daily ingestion-discovery source. Auto-listed
+    # in the Calendar once it has published, degree-stamped snapshots.
     "youtube": {
         "slug": "youtube_trending_usa",
-        "label": "YouTube Trending — USA",
+        "label": "YouTube Trending - USA",
         "fetcher": fetch_youtube_songs,
+        "cadence": "daily",
+        "calendar_label": "YouTube",
+        "calendar_sub": "YouTube Trending - USA",
     },
 }
 
@@ -152,6 +172,53 @@ def _replace_snapshot(db: Session, chart_slug: str, snapshot_date: date, songs: 
 # --- Public read endpoint -------------------------------------------------
 
 public_router = APIRouter(prefix="/api/compass/chart", tags=["chart-snapshots"])
+
+
+@public_router.get("/calendar-charts")
+def get_calendar_charts(db: Session = Depends(get_db)):
+    """Charts the public Calendar can paint, in toggle order.
+
+    The Tier-1 daily charge (Daily Listens = Spotify Top 50, served by the drift
+    endpoints) is always first and is the default. After it come the Tier-2
+    DAILY charts: every CHART_REGISTRY entry that does NOT feed the charge (slug
+    not in AGGREGATING_CHART_SLUGS), is daily cadence, exposes a calendar_label,
+    and already has at least one published, degree-stamped snapshot to paint. So
+    registering a new Tier-2 daily chart makes it appear here automatically once
+    its first snapshot is approved; Tier-1, weekly, and all-time charts never
+    appear. Declared before the /{key}/... routes so the literal path wins.
+    """
+    charts = [{
+        "key": "spotify",
+        "label": "Spotify (US)",
+        "sub": "Spotify Top 50 - USA",
+        "source": "daily",
+    }]
+    for key, entry in CHART_REGISTRY.items():
+        slug = entry["slug"]
+        if slug in AGGREGATING_CHART_SLUGS:        # Tier 1 -- it IS the charge
+            continue
+        if entry.get("cadence") != "daily":         # only daily charts paint the day-grid
+            continue
+        if not entry.get("calendar_label"):         # not meant for the toggle
+            continue
+        painted = db.query(
+            db.query(ChartSnapshot.id)
+            .filter(
+                ChartSnapshot.chart_source == slug,
+                ChartSnapshot.published.is_(True),
+                ChartSnapshot.compass_degree.isnot(None),
+            )
+            .exists()
+        ).scalar()
+        if not painted:                             # nothing to paint yet -- skip
+            continue
+        charts.append({
+            "key": key,
+            "label": entry["calendar_label"],
+            "sub": entry.get("calendar_sub") or chart_source_label(slug) or entry["label"],
+            "source": "chart",
+        })
+    return charts
 
 
 @public_router.get("/{key}/current", response_model=ChartSnapshotOut)

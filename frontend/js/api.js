@@ -61,6 +61,9 @@ const API = (() => {
     getAlltimeStreamAlbums: () => get('/api/charts/alltime/stream-albums'),
     // Chart-agnostic Calendar feeds: mirror the drift endpoints for any
     // chart-snapshot chart (key = CHART_REGISTRY key, e.g. "itunes").
+    // getCalendarCharts lists the charts the Calendar should offer (Daily
+    // Listens + every Tier-2 daily chart that has painted data).
+    getCalendarCharts: () => get('/api/compass/chart/calendar-charts'),
     getChartYears: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/years`),
     getChartYearDates: (key, year) => get(`/api/compass/chart/${encodeURIComponent(key)}/years/${year}/dates`),
     getChartReading: (key, date) => get(`/api/compass/chart/${encodeURIComponent(key)}/reading/${date}`),
