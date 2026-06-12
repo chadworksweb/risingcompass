@@ -587,6 +587,39 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
   fills forward. Plan + source matrix:
   `plans and docs/RISING-COMPASS-CONSUMPTION-METHODOLOGY.md`.
 
+- **Canon chart shell (`frontend/js/chart-shell.js`, 2026-06-12).** The paired
+  chart-reading view -- left card (charge band `.reading-charge-group` + editorial
+  + song list) beside the Ether Art Chart card -- is ONE module rendered by every
+  surface: the homepage daily reading (`app.js renderReading`), the homepage iTunes
+  panel (`renderItunesPanel`), `js/ether-art-chart.js` (its row template), and all
+  standalone `/charts/*` pages (`charts/chart.js`). It owns the charge group,
+  editorial, song-list row+tooltip (union: MEI + dogma + contam + charge_summary +
+  preorder + instrumental, feature-detected), ether row, and `wireTooltips`, plus
+  the one `COLOR_HEX`/`CHARGE_LABELS` table. Do NOT re-implement any of these inline
+  -- extend the shell so every surface moves together (this replaced three drifted
+  copies). Input = a normalized `reading` object `{date, degree, charge,
+  contaminationCount, editorial, songs[]}`. Charts carry `editorial` on
+  `chart_snapshots.editorial` (migration 119), stamped at approval from the draft's
+  already-generated editorial (no new Anthropic call); `ChartSnapshotOut` exposes
+  `compass_degree`/`charge_level`/`contamination_count`/`editorial`.
+
+  **Adding a chart shell (the whole recipe):**
+  1. Backend: register a `CHART_REGISTRY` entry (`routers/chart_snapshots.py`) +
+     a fetcher (`services/agents/chart_source.py`). No schema change.
+  2. Frontend: copy an existing page dir under `frontend/charts/<key>/` (e.g.
+     `charts/itunes/`), set `window.RC_CHART = {source:'<key>', title, sub}`. The
+     page already loads `api.js` + `chart-shell.js` + `chart.js` + `main.css` +
+     `responsive.css` + `chart.css`; `chart.js` renders BOTH cards into the
+     `.chart-shell-grid` (mirrors the homepage `.main-dashboard`). `source:'daily'`
+     pulls `/compass/current` + `/ether-art-chart/today`; any other source pulls
+     `/compass/chart/<key>/current` (one fetch fills both cards). Add the page to
+     the footer Charts column (`partials/footer.html` -> `build_partials.py`) +
+     `sitemap.xml`.
+  3. Run the chart's daily refresh cron + approve to publish. The charge band +
+     editorial appear once the snapshot is approved; the editorial line is blank
+     only until that approval.
+  Session record: `plans and docs/session notes/2026-06-12d - Canon Chart Shell.md`.
+
 ## General Inquiry form
 
 Reusable account-free contact form (`frontend/inquiry.html`). First caller is the
