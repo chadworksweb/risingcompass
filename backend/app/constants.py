@@ -24,6 +24,7 @@ CHART_SOURCE_TO_CHART_SLUG = {
     "itunes_download_usa": "itunes_download_usa",
     "shazam_top200_usa": "shazam_top200_usa",
     "youtube_trending_usa": "youtube_trending_usa",
+    "spotify_nmf_usa": "spotify_nmf_usa",
 }
 
 # Chart slugs whose appearances count toward the compass charge -- the only
@@ -64,6 +65,7 @@ DRAFT_TYPE_DISPLAY_NAMES = {
     "itunes_download_usa": "Daily Downloads",
     "shazam_top200_usa": "Shazam Top 200 - USA",
     "youtube_trending_usa": "YouTube Trending - USA",
+    "spotify_nmf_usa": "New Music Friday - USA",
 }
 
 
@@ -84,6 +86,7 @@ CHART_SOURCE_LABELS = {
     "itunes_download_usa": "iTunes Download Chart - USA",
     "shazam_top200_usa": "Shazam Top 200 - USA",
     "youtube_trending_usa": "YouTube Trending - USA",
+    "spotify_nmf_usa": "New Music Friday - USA",
     "billboard_hot_100": "Billboard Year-End Hot 100",
     "billboard_yearend_2024": "Billboard Year-End Hot 100",
     "billboard_yearend_2025": "Billboard Year-End Hot 100",

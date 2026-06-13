@@ -3,6 +3,10 @@
 Three sources, three mechanisms:
   - Spotify Top 50 - USA (37i9dQZEVXbLRQDuF5jeBp) -- the canonical daily reading
     source. Scraped from the playlist DOM via Playwright (fetch_top_songs).
+  - Spotify New Music Friday - USA (37i9dQZF1DX4JAvHpjipBk) -- a Tier 2
+    new-release discovery chart (fetch_nmf_songs). Same Spotify playlist DOM as
+    the Top 50, so it reuses _fetch_playlist; it's WEEKLY (Spotify refreshes the
+    editorial playlist every Friday), not daily.
   - iTunes Download Chart - USA -- the secondary-panel source
     (fetch_itunes_songs). Pulled from Apple's public RSS JSON feed (no browser,
     no DOM, no key), so the secondary panel needs no Playwright at all.
@@ -31,6 +35,10 @@ from ytmusicapi import YTMusic
 logger = logging.getLogger(__name__)
 
 TOP50_USA_URL = "https://open.spotify.com/playlist/37i9dQZEVXbLRQDuF5jeBp"
+
+# Spotify's editorial "New Music Friday" playlist (USA). Same playlist DOM as
+# the Top 50, so _fetch_playlist scrapes it the same way. Refreshed every Friday.
+NMF_USA_URL = "https://open.spotify.com/playlist/37i9dQZF1DX4JAvHpjipBk"
 
 # Apple's public download-chart RSS feed (Apple's path name for it is "topsongs").
 # {limit} is templated in. Returns JSON: feed.entry[] ordered by rank, each with
@@ -133,6 +141,16 @@ def _fetch_playlist(playlist_url: str, chart_source: str, count: int, retries: i
 def fetch_top_songs(count: int = 20, _retries: int = 3) -> list[dict]:
     """Spotify Top 50 - USA. Source for the canonical daily compass reading."""
     return _fetch_playlist(TOP50_USA_URL, "spotify_top50_usa", count, _retries)
+
+
+def fetch_nmf_songs(count: int = 20, _retries: int = 3) -> list[dict]:
+    """Spotify New Music Friday - USA. Tier 2 new-release discovery chart.
+
+    Scrapes the same Spotify playlist DOM as the Top 50, so it reuses
+    _fetch_playlist; `position` is the playlist row order. Weekly source
+    (Spotify refreshes the playlist every Friday). Returns up to `count`
+    songs, or [] if every attempt fails (the caller 502s on empty)."""
+    return _fetch_playlist(NMF_USA_URL, "spotify_nmf_usa", count, _retries)
 
 
 def fetch_itunes_songs(count: int = 20, _retries: int = 3) -> list[dict]:

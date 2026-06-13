@@ -40,6 +40,7 @@ from app.models import AgentDraft, ChartSnapshot, Song
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import (
     fetch_itunes_songs,
+    fetch_nmf_songs,
     fetch_shazam_songs,
     fetch_top_songs,
     fetch_youtube_songs,
@@ -101,6 +102,17 @@ CHART_REGISTRY: dict[str, dict] = {
         "cadence": "daily",
         "calendar_label": "YouTube",
         "calendar_sub": "YouTube Trending - USA",
+    },
+    # Spotify New Music Friday - USA: Tier 2 new-release discovery chart. WEEKLY
+    # (Spotify refreshes the editorial playlist every Friday), so it is
+    # deliberately NOT given a calendar_label -- the Calendar only paints daily
+    # charts onto the day-grid, and a weekly chart would leave most days blank.
+    # It surfaces as its own /charts/new-music-friday/ page + the snapshot panel.
+    "new-music-friday": {
+        "slug": "spotify_nmf_usa",
+        "label": "New Music Friday - USA",
+        "fetcher": fetch_nmf_songs,
+        "cadence": "weekly",
     },
 }
 

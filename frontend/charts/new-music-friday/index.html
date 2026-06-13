@@ -72,34 +72,27 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>The Ether Art Chart — The Rising Compass</title>
-  <meta name="description" content="A second view on the daily top 20 — songs named for what they are, plus the topics being pulled through the ether into mass consciousness.">
-  <link rel="canonical" href="https://risingcompass.net/ether-art-chart/">
-
+  <title>New Music Friday -- The Rising Compass</title>
+  <meta name="description" content="New Music Friday -- this week's new releases from Spotify's New Music Friday USA playlist, each individually charged by The Rising Compass.">
+  <link rel="canonical" href="https://risingcompass.net/charts/new-music-friday/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/charts/new-music-friday/">
+  <meta property="og:title" content="New Music Friday -- The Rising Compass">
+  <meta property="og:description" content="This week's new releases, individually charged.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
-
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/ether-art-chart/">
-  <meta property="og:title" content="The Ether Art Chart — The Rising Compass">
-  <meta property="og:description" content="A chart of what we've collectively agreed to pull through.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="The Ether Art Chart — The Rising Compass">
-  <meta name="twitter:description" content="A chart of what we've collectively agreed to pull through.">
-  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Cormorant+SC:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/charts/chart.css">
 </head>
 <body>
-  <a class="skip-nav" href="#main">Skip to content</a>
+  <a class="skip-nav" href="#chart-main">Skip to content</a>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -174,120 +167,25 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="main" class="eac-main">
-
-    <section class="eac-hero">
-      <p class="eac-kicker">A second view</p>
-      <h1 class="eac-title">The Ether Art Chart</h1>
-      <p class="eac-framing">
-        This is what humanity is manifesting. Not a chart of songs &mdash;
-        a chart of what we&rsquo;ve collectively agreed to pull through.
-        The deadpan is the truth the marketing hides. The topic graph is
-        the shape of our current imagination.
-      </p>
-    </section>
-
-    <!-- Shared SVG defs so both constellations reference the same gradients. -->
-    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-      <defs>
-        <radialGradient id="star-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"  stop-color="#f0ebdd" stop-opacity="0.7"/>
-          <stop offset="50%" stop-color="#d8d4c8" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="#d8d4c8" stop-opacity="0"/>
-        </radialGradient>
-        <radialGradient id="star-glow-gold" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"  stop-color="#f3dca0" stop-opacity="0.85"/>
-          <stop offset="50%" stop-color="#c9a960" stop-opacity="0.25"/>
-          <stop offset="100%" stop-color="#c9a960" stop-opacity="0"/>
-        </radialGradient>
-      </defs>
-    </svg>
-
-    <section class="eac-section eac-today-topic-field"
-             aria-labelledby="today-topic-heading">
-      <header class="eac-section-head">
-        <h2 id="today-topic-heading" class="eac-section-title">Today&rsquo;s Topic Field</h2>
-        <p class="eac-section-meta" id="today-topic-meta">&mdash;</p>
-      </header>
-      <div class="eac-topic-field">
-        <div class="eac-constellation-wrap">
-          <svg id="constellation-today"
-               viewBox="0 0 960 440"
-               class="eac-constellation"
-               role="img"
-               aria-label="Force-directed map of today's topics">
-            <g id="constellation-today-stars"></g>
-            <g id="constellation-today-labels"></g>
-          </svg>
-          <p class="eac-constellation-empty" id="constellation-today-empty" hidden>
-            No tagged topics yet today. The constellation lights up as the daily reading runs.
-          </p>
-          <div class="eac-constellation-tooltip" id="constellation-today-tooltip" role="status" hidden></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="eac-section eac-today" aria-labelledby="today-heading">
-      <header class="eac-section-head">
-        <h2 id="today-heading" class="eac-section-title">Today&rsquo;s Ether</h2>
-        <p class="eac-section-meta" id="today-meta">&mdash;</p>
-      </header>
-      <ol class="eac-list" id="today-list">
-        <li class="eac-loading">Loading today&rsquo;s reading&hellip;</li>
-      </ol>
-    </section>
-
-    <section class="eac-section eac-rollups" aria-labelledby="rollups-heading">
-      <header class="eac-section-head">
-        <h2 id="rollups-heading" class="eac-section-title">Annual Rollups</h2>
-        <div class="eac-year-control">
-          <label for="year-select" class="sr-only">Year</label>
-          <select id="year-select" class="eac-year-select" aria-label="Select year">
-            <option value="">—</option>
-          </select>
-        </div>
-      </header>
-
-      <p class="eac-rollup-meta" id="rollup-meta">&nbsp;</p>
-
-      <div class="eac-rollup-status" id="rollup-status" hidden></div>
-
-      <div class="eac-topic-field">
-        <h3 class="eac-subsection-title">The Topic Field</h3>
-        <div class="eac-constellation-wrap">
-          <svg id="constellation-annual"
-               viewBox="0 0 960 440"
-               class="eac-constellation"
-               role="img"
-               aria-label="Force-directed map of topics for the selected year">
-            <g id="constellation-annual-stars"></g>
-            <g id="constellation-annual-labels"></g>
-          </svg>
-          <p class="eac-constellation-empty" id="constellation-annual-empty" hidden>
-            No tagged topics yet. The constellation lights up as the year fills.
-          </p>
-          <div class="eac-constellation-tooltip" id="constellation-annual-tooltip" role="status" hidden></div>
-        </div>
-      </div>
-
-      <div class="eac-rollup-grid">
-        <div class="eac-rollup-col eac-rollup-col-deadpan">
-          <h3 class="eac-subsection-title">The Top 20, Deadpan</h3>
-          <ol class="eac-list" id="year-list">
-            <li class="eac-loading">Pick a year to load the rollup.</li>
-          </ol>
-        </div>
-
-        <div class="eac-rollup-col eac-rollup-col-topics">
-          <h3 class="eac-subsection-title">Ranked</h3>
-          <ol class="eac-topic-list" id="topic-ranked">
-            <li class="eac-loading">—</li>
-          </ol>
-        </div>
-      </div>
-    </section>
-
+  <main id="chart-main" class="chart-page">
+    <div class="chart-page-intro">
+      <h1 class="chart-page-title">New Music Friday</h1>
+      <p class="chart-page-source">New Music Friday - USA</p>
+      <nav class="chart-page-links" aria-label="Related views">
+        <a href="/charts/spotify/">Spotify (US)</a>
+        <a href="/charts/itunes/">iTunes</a>
+        <a href="/charts/shazam/">Shazam</a>
+        <a href="/charts/youtube/">YouTube</a>
+        <a href="/ether-art-chart/">Ether Art Chart</a>
+      </nav>
+    </div>
+    <div id="chart-root"></div>
   </main>
+
+  <script>window.RC_CHART = { source: 'new-music-friday', title: 'New Music Friday', sub: 'New Music Friday - USA' };</script>
+  <script src="/js/api.js"></script>
+  <script src="/js/chart-shell.js"></script>
+  <script src="/charts/chart.js"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
@@ -388,8 +286,5 @@
 </footer>
 <script defer src="/js/consent.js"></script>
 <!-- /INCLUDE:footer -->
-
-  <script src="/js/api.js"></script>
-  <script src="page.js"></script>
 </body>
 </html>

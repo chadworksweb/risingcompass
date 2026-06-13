@@ -32,6 +32,7 @@ A fuller description of the framework lives at /llms-full.txt.
 - [iTunes](https://risingcompass.net/charts/itunes/): the daily iTunes download chart, charged.
 - [Shazam](https://risingcompass.net/charts/shazam/): the daily Shazam chart, charged.
 - [YouTube](https://risingcompass.net/charts/youtube/): the daily YouTube trending chart, charged.
+- [New Music Friday](https://risingcompass.net/charts/new-music-friday/): Spotify's weekly New Music Friday USA new releases, charged song by song.
 - [Ether Art Chart](https://risingcompass.net/ether-art-chart/): the same songs named for what the lyrics really say, with the topics pulled through the ether.
 
 ## The framework
