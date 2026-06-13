@@ -115,5 +115,69 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
         if row:
             return Resolution(song_id=row[0], via="clean")
 
-    # Rungs 3 (pg_trgm) + 4 (pgvector) land here in Phases 2-3.
+    # Rung 3: pg_trgm fuzzy fallback. Ships DARK behind identity_trgm.enabled
+    # (fail-closed). Fully fail-soft: any error (flag table, missing extension,
+    # non-PG dialect) leaves the exact+clean behavior unchanged.
+    try:
+        from app.services.feature_flags import is_identity_trgm_enabled
+        if clean_key and is_identity_trgm_enabled(db):
+            res = _trgm_resolve(db, title, artist, key, clean_key)
+            if res is not None:
+                return res
+    except Exception:
+        logger.debug("trgm rung skipped (fail-soft)", exc_info=True)
+
+    # Rung 4 (pgvector) lands here in Phase 3.
     return Resolution(song_id=None, via="new")
+
+
+# Rung 3 thresholds (conservative -- false merge is the only real danger). A
+# fuzzy match auto-links ONLY when BOTH the title and the primary artist are
+# near-identical; the gray band below that becomes a human-confirmed candidate.
+_TRGM_AUTO_TITLE = 0.92
+_TRGM_AUTO_ARTIST = 0.90
+_TRGM_GRAY_COMBINED = 1.30  # tsim + asim, below auto -> queue, don't link
+
+
+def _trgm_resolve(db, title, artist, key, clean_key):
+    """pg_trgm similarity over the clean key's title/artist parts. Returns a
+    Resolution (auto-link via='trgm', or new+candidates for the gray band), or
+    None to fall through. PG-only (similarity/split_part/% + the gin_trgm index);
+    returns None on any DB error so non-PG / no-extension callers are unaffected."""
+    from app.services.feeder_clean import clean_title_artist
+    ct, ca = clean_title_artist(title, artist)
+    nt = normalize_for_search(ct)
+    na = normalize_for_search(extract_primary_artist(ca))
+    if not nt:
+        return None
+    # Uses similarity() (not the `%` operator) to avoid the psycopg `%`-escaping
+    # gotcha; correct on any driver. At current corpus scale this is cheap, and
+    # it only runs on a cache-miss with the flag enabled.
+    try:
+        rows = db.execute(
+            text(
+                "SELECT id, "
+                "  similarity(split_part(canonical_key_clean, chr(31), 1), :nt) AS tsim, "
+                "  similarity(split_part(canonical_key_clean, chr(31), 2), :na) AS asim "
+                "FROM songs "
+                "WHERE canonical_key_clean IS NOT NULL AND canonical_key <> :k "
+                "  AND similarity(canonical_key_clean, :ck) >= 0.3 "
+                "ORDER BY (similarity(split_part(canonical_key_clean, chr(31), 1), :nt) "
+                "        + similarity(split_part(canonical_key_clean, chr(31), 2), :na)) DESC "
+                "LIMIT 8"
+            ),
+            {"nt": nt, "na": na, "ck": clean_key, "k": key},
+        ).fetchall()
+    except Exception:
+        return None  # pg_trgm unavailable -> no fuzzy rung
+    candidates = []
+    for sid, tsim, asim in rows:
+        tsim = tsim or 0.0
+        asim = asim or 0.0
+        if tsim >= _TRGM_AUTO_TITLE and asim >= _TRGM_AUTO_ARTIST:
+            return Resolution(song_id=sid, via="trgm")
+        if (tsim + asim) >= _TRGM_GRAY_COMBINED:
+            candidates.append(sid)
+    if candidates:
+        return Resolution(song_id=None, via="new", candidates=candidates)
+    return None

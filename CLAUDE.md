@@ -1053,11 +1053,48 @@ spec + status: `plans and docs/RISING-COMPASS-SONG-IDENTITY-RESOLUTION.md`.
   approval gate at `agent.py:572`, excluded from aggregates, re-lists until real
   lyrics drop and a calibration clears the flag). DROP_NONSONG is NOT automatic --
   the LEIT clutter audit queue stays the human-confirmed home for non-songs.
-- **Status:** BUILT local, py-compile clean, `tests/test_feeder_clean.py` 9/9,
-  NOT deployed. Migration 122 applies on deploy (or a track) -- never run against
-  the shared prod DB from local. Phases 2-3 (trgm fuzzy rung + merge-candidate
-  audit queue mirroring `clutter_audits` + `POST /api/admin/songs/{id}/merge-into`
-  to clean the historical dupe tail; then pgvector semantic rung) still pending.
+- **Phase 1 status:** DEPLOYED 2026-06-13 (migration 122 applied, schema at 122).
+  The backfill surfaced one real dupe pair (ids 2778/3293).
+
+### Phase 2 (merge queue + song-merge endpoint + trgm rung, 2026-06-13)
+
+- **Migration 123** -- `song_merge_candidates` (the human-audit queue, mirrors
+  `clutter_audits`: one OPEN row per pair, env-tagged, partial-unique) +
+  `song_merge_events` (permanent merge audit log, mirrors `artist_admin_events`)
+  + `pg_trgm` extension and a GIN trigram index on `canonical_key_clean`
+  (created in SAVEPOINTs, FAIL-SOFT -- a privilege error can't brick startup,
+  the trgm rung ships dark anyway). Backfills migration-122's clean-key
+  collisions into the queue as OPEN candidates (reason='clean_collision').
+- **Song-merge service** (`services/song_merge.py::merge_songs`) -- DESTRUCTIVE,
+  raw-SQL over a passed connection (caller owns commit), mirrors the artist-merge
+  Step 0. Repoints all 26 song-referencing tables (7 with UNIQUE constraints get
+  dedup-first: user_calibrations, song_artists, audience_vibe_needles/pushes,
+  artist_verification_blocks, chart_appearances, release_songs; song_ingestions
+  deduped on method), preserves the richer calibration (fills a stub target from
+  a calibrated source), writes a `song_merge_events` row, deletes the source.
+  `prose_provenance_anchors` is intentionally NOT repointed (re-attributing a
+  hash would corrupt the provenance recipe). NEVER auto-merges.
+- **Admin API** (`routers/song_merge_admin.py`): `GET /song-merge-candidates`
+  (+`/stats`), `POST /song-merge-candidates/{id}/resolve {action:
+  merge|keep_separate|dismiss, keep_id}`, `POST /songs/{id}/merge-into
+  {target_id}` (direct, the artist-merge analog), `GET /song-merge-events`.
+  Resolving/merging supersedes other open candidates for the dropped song BEFORE
+  the delete (the FK SET NULL would otherwise hide them). Section **Song Merge**
+  (`templates/admin/song_merge.html`, nav under Lyrical Charger, section
+  `song-merge`); two-song pair view, direction-explicit merge buttons.
+- **Rung 3 (trgm fuzzy)** in `resolve_song_identity` -- SHIPS DARK behind
+  `system_flags` `identity_trgm.enabled` (fail-closed, `feature_flags.
+  is_identity_trgm_enabled`). On a clean-key miss it scores title+artist
+  similarity off the clean key's two parts: BOTH >= ~0.9 auto-links
+  (via='trgm'); the gray band returns `candidates` and the write chokepoint
+  (`upsert_unified_song`) queues each as a `reason='trgm'` merge candidate (never
+  auto-merges). Fully fail-soft (non-PG / no-extension / flag-off -> exact+clean
+  behavior unchanged). Uses `similarity() >=` not the `%` operator (psycopg
+  escaping).
+- **Status:** BUILT local, py-compile clean, `tests/test_song_merge.py` +
+  `tests/test_feeder_clean.py` green, merge verified end-to-end on a real
+  session. Migration 123 applies on deploy. Phase 3 (pgvector semantic rung,
+  shared with the semantic-search roadmap) still pending.
 
 ## Agent mini-warehouse (2026-06-09)
 

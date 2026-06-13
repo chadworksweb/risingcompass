@@ -1,0 +1,143 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'song-merge' %}
+{% block title %}Song Merge — Admin{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="smOpen">—</div><div class="label">Open candidates</div></div>
+  <div class="stat-card"><div class="val" id="smCollision">—</div><div class="label">Clean-key collisions (open)</div></div>
+  <div class="stat-card"><div class="val" id="smTrgm">—</div><div class="label">Fuzzy / trgm (open)</div></div>
+</div>
+
+<h2 class="section-title">Song Merge Candidates</h2>
+<p style="color:#888;font-size:0.82rem;margin:-0.3rem 0 0.6rem;">
+  Likely DUPLICATE song rows (the same song minted twice under different
+  title/artist formatting). Pick the survivor to merge, or confirm they are
+  distinct works (a cover, remix, or live version that shares a title is NOT a
+  duplicate). Merging repoints every reference onto the survivor and deletes the
+  other row.
+</p>
+
+<div class="filter-bar" id="smEnvFilters">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">ENV:</span>
+  <button class="filter-btn active" onclick="smFilter('environment','prod')">Prod</button>
+  <button class="filter-btn" onclick="smFilter('environment','local')">Local</button>
+</div>
+<div class="filter-bar" id="smStatusFilters">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">STATUS:</span>
+  <button class="filter-btn active" onclick="smFilter('status','open')">Open</button>
+  <button class="filter-btn" onclick="smFilter('status','merged')">Merged</button>
+  <button class="filter-btn" onclick="smFilter('status','kept_separate')">Kept separate</button>
+  <button class="filter-btn" onclick="smFilter('status','dismissed')">Dismissed</button>
+  <button class="filter-btn" onclick="smFilter('status','')">All</button>
+</div>
+<div id="smList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let smEnv = 'prod';
+let smStatus = 'open';
+
+function onAdminReady() { loadStats(); loadCandidates(); }
+
+function smFilter(kind, val) {
+  if (kind === 'environment') smEnv = val; else smStatus = val;
+  const bar = document.getElementById(kind === 'environment' ? 'smEnvFilters' : 'smStatusFilters');
+  bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadStats(); loadCandidates();
+}
+
+async function loadStats() {
+  try {
+    const resp = await fetch('/api/admin/song-merge-candidates/stats?environment=' + encodeURIComponent(smEnv), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const s = await resp.json();
+    document.getElementById('smOpen').textContent = s.open || 0;
+    document.getElementById('smCollision').textContent = (s.by_reason && s.by_reason.clean_collision) || 0;
+    document.getElementById('smTrgm').textContent = (s.by_reason && s.by_reason.trgm) || 0;
+  } catch (e) { console.error(e); }
+}
+
+async function loadCandidates() {
+  try {
+    const qs = ['environment=' + encodeURIComponent(smEnv)];
+    if (smStatus) qs.push('status=' + encodeURIComponent(smStatus));
+    const resp = await fetch('/api/admin/song-merge-candidates?' + qs.join('&'), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const rows = (await resp.json()).items || [];
+    const el = document.getElementById('smList');
+    if (!rows.length) { el.innerHTML = '<p style="color:#666;">Nothing in the queue for this filter.</p>'; return; }
+    el.innerHTML = rows.map(renderCandidate).join('');
+  } catch (e) { console.error(e); }
+}
+
+const COLOR_HEX = { violet:'#7c3aed', blue:'#2563eb', green:'#16a34a', orange:'#ea580c', red:'#dc2626' };
+
+function songCard(s, side) {
+  if (!s) return `<div style="flex:1;color:#a55;font-style:italic;">(song ${side} missing)</div>`;
+  const dot = s.rubric_color ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${COLOR_HEX[s.rubric_color]||'#888'};margin-right:5px;"></span>` : '';
+  const charge = (s.charge_value != null) ? `<span style="color:#666;">charge ${s.charge_value}</span>` : '<span style="color:#a55;">uncalibrated</span>';
+  const method = s.canonical_calibration_method ? ` &middot; <code style="font-size:0.72rem;">${escHtml(s.canonical_calibration_method)}</code>` : '';
+  return `<div style="flex:1;min-width:0;">
+    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${dot}<strong>${escHtml(s.title)}</strong> <span style="color:#777;">— ${escHtml(s.artist)}</span></div>
+    <div style="font-size:0.76rem;margin-top:2px;">id ${s.id} &middot; ${charge}${method} &nbsp;<a href="/api/admin/dashboard/song/${s.id}" style="color:var(--accent);">admin</a></div>
+  </div>`;
+}
+
+function renderCandidate(r) {
+  const a = r.source, b = r.target;
+  const when = r.detected_at ? `<time data-utc="${escHtml(r.detected_at)}"></time>` : '—';
+  const conf = (r.confidence != null) ? ` &middot; conf ${(r.confidence).toFixed(2)}` : '';
+  const statusColor = r.status === 'open' ? 'var(--accent)' : '#888';
+  let actions = '';
+  if (r.status === 'open' && a && b) {
+    actions = `
+      <button onclick="doMerge(${r.id},${a.id})" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Merge → keep #${a.id}</button>
+      <button onclick="doMerge(${r.id},${b.id})" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Merge → keep #${b.id}</button>
+      <button onclick="resolveCand(${r.id},'keep_separate')" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Keep separate</button>
+      <button onclick="resolveCand(${r.id},'dismiss')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#888;">Dismiss</button>`;
+  } else {
+    const by = r.reviewed_by ? ` by ${escHtml(r.reviewed_by)}` : '';
+    actions = `<span style="color:#888;font-size:0.75rem;">resolved${by}</span>`;
+  }
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <span style="color:${statusColor};font-weight:bold;text-transform:uppercase;font-size:0.7rem;">${escHtml(r.status)}</span>
+        <span style="color:#999;font-size:0.7rem;margin-left:0.4rem;">${escHtml(r.reason)}${conf}</span>
+      </div>
+      <div style="color:#666;font-size:0.78rem;">${when}</div>
+    </div>
+    <div style="display:flex;gap:1.2rem;margin-top:0.5rem;align-items:flex-start;">
+      ${songCard(a,'A')}
+      <div style="align-self:center;color:#aaa;">vs</div>
+      ${songCard(b,'B')}
+    </div>
+    <div style="margin-top:0.6rem;display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">${actions}</div>
+  </div>`;
+}
+
+async function doMerge(id, keepId) {
+  if (!confirm('Merge this pair, keeping song #' + keepId + ' and DELETING the other row? This repoints all references and cannot be undone.')) return;
+  await postResolve(id, { action: 'merge', keep_id: keepId, notes: null });
+}
+
+async function resolveCand(id, action) {
+  await postResolve(id, { action, notes: null });
+}
+
+async function postResolve(id, body) {
+  try {
+    const resp = await fetch('/api/admin/song-merge-candidates/' + id + '/resolve', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) { loadStats(); loadCandidates(); }
+    else { const e = await resp.json().catch(() => ({})); alert('Failed: ' + (e.detail || resp.status)); }
+  } catch (e) { console.error(e); }
+}
+</script>
+{% endblock %}

@@ -120,6 +120,25 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
             text(f"INSERT INTO songs ({collist}) VALUES ({vallist}) RETURNING id"), params
         ).scalar()
 
+        # Phase 2: the identity ladder's fuzzy (trgm) rung flagged this new row as
+        # a gray-band near-match of existing song(s). Queue each as a merge
+        # CANDIDATE for human review -- never auto-merged. Dormant unless
+        # identity_trgm.enabled (resolution.candidates is empty otherwise).
+        if getattr(resolution, "candidates", None):
+            from app.config import settings as _settings
+            for cand_id in resolution.candidates:
+                lo, hi = sorted((song_id, cand_id))
+                exists = db.execute(text(
+                    "SELECT 1 FROM song_merge_candidates "
+                    "WHERE source_song_id = :lo AND target_song_id = :hi AND status = 'open' LIMIT 1"
+                ), {"lo": lo, "hi": hi}).scalar()
+                if not exists:
+                    db.execute(text(
+                        "INSERT INTO song_merge_candidates "
+                        "(source_song_id, target_song_id, reason, detected_by, status, environment) "
+                        "VALUES (:lo, :hi, 'trgm', 'resolve_ladder', 'open', :env)"
+                    ), {"lo": lo, "hi": hi, "env": _settings.environment})
+
     # id map (idempotent) -- transition-only; needs the legacy (source, id).
     if legacy_id:
         db.execute(text(

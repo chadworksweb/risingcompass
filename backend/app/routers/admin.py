@@ -212,6 +212,7 @@ _ADMIN_SECTIONS = {
     "faultline": "admin/faultline.html",
     "runs": "admin/runs.html",
     "clutter": "admin/clutter.html",
+    "song-merge": "admin/song_merge.html",
     "agents": "admin/agents.html",
     "subscribers": "admin/subscribers.html",
     "social": "admin/social.html",

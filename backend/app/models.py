@@ -1957,6 +1957,72 @@ class ClutterAudit(Base):
     )
 
 
+class SongMergeCandidate(Base):
+    """Song identity-resolution Phase 2: the human-audit queue for likely
+    DUPLICATE song rows (the same song minted twice under different formatting).
+    Mirrors `clutter_audits`: one OPEN row per unordered pair, env-tagged (local
+    dev shares the prod DB via the tunnel), resolved merge | keep_separate |
+    dismiss by an admin. NEVER auto-merges -- the songs-not-artists rule means a
+    cover/remix/live version that shares a title must be confirmed, not collapsed.
+
+    Pair stored canonically (source_song_id < target_song_id) so the partial
+    unique dedups it; merge DIRECTION (which row survives) is the admin's choice
+    at resolve time. Feeders: migration-122 clean-key collisions
+    (reason='clean_collision'), the resolve ladder's trgm gray band
+    (reason='trgm'), and manual admin entry (reason='manual')."""
+    __tablename__ = "song_merge_candidates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    target_song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    reason = Column(String(24), nullable=False)          # clean_collision | trgm | manual
+    confidence = Column(Float)                            # trgm similarity; 1.0 for exact clean collision
+    detected_by = Column(String(24), nullable=False, default="backfill")  # backfill | resolve_ladder | admin
+    status = Column(String(16), nullable=False, default="open")  # open | merged | kept_separate | dismissed
+    environment = Column(String(10), nullable=False, default="local")  # local | prod
+    payload_json = Column(Text)                          # optional snapshot at detection
+    # server_default so the RAW-SQL insert in song_sync (the resolve-ladder trgm
+    # path) populates it; a client-side default fires only on ORM inserts.
+    detected_at = Column(DateTime, nullable=False, default=datetime.utcnow,
+                         server_default=text("CURRENT_TIMESTAMP"))
+    reviewed_at = Column(DateTime)
+    reviewed_by = Column(String(120))                    # admin handle
+    review_notes = Column(Text)
+
+    __table_args__ = (
+        Index("idx_merge_cand_env_status", "environment", "status"),
+        Index("idx_merge_cand_source", "source_song_id"),
+        Index("idx_merge_cand_target", "target_song_id"),
+        Index("uq_merge_cand_open_pair", "source_song_id", "target_song_id", unique=True,
+              postgresql_where=text("status = 'open'"),
+              sqlite_where=text("status = 'open'")),
+    )
+
+
+class SongMergeEvent(Base):
+    """Permanent audit log of applied song merges (mirrors artist_admin_events).
+    One row per merge: who, the source/target snapshot, and the rewrites
+    breakdown. Survives the source song's deletion (no FK -- ids are recorded as
+    plain values)."""
+    __tablename__ = "song_merge_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # server_default so the merge service's raw-SQL INSERT (which omits this) is
+    # safe on a fresh create_all DB too, matching the migration's DDL default.
+    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow,
+                         server_default=text("CURRENT_TIMESTAMP"))
+    actor = Column(String(120))                          # admin handle | 'system'
+    source_song_id = Column(Integer)                     # deleted row's id (no FK)
+    source_title = Column(Text)
+    source_artist = Column(Text)
+    target_song_id = Column(Integer)
+    target_title = Column(Text)
+    target_artist = Column(Text)
+    rewrites_json = Column(Text)                          # per-table repoint counts
+    notes = Column(Text)
+    environment = Column(String(10), nullable=False, default="local")
+
+
 class AgentRun(Base):
     """One row per run of an in-house Rising Compass agent -- the operational
     ledger behind the admin "Agents" mini-warehouse (Dusty the clutter sweep is

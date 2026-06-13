@@ -362,6 +362,8 @@ from app.routers import divergence_report
 app.include_router(divergence_report.router)
 from app.routers import clutter_admin
 app.include_router(clutter_admin.router)
+from app.routers import song_merge_admin
+app.include_router(song_merge_admin.router)  # Site Admin -> Song Merge (cookie auth)
 from app.routers import agents_admin
 app.include_router(agents_admin.router)
 from app.routers import donate
