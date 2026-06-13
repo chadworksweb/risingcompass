@@ -119,9 +119,12 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
     # (fail-closed). Fully fail-soft: any error (flag table, missing extension,
     # non-PG dialect) leaves the exact+clean behavior unchanged.
     try:
-        from app.services.feature_flags import is_identity_trgm_enabled
+        from app.services.feature_flags import (
+            is_identity_trgm_enabled, is_identity_trgm_autolink_enabled,
+        )
         if clean_key and is_identity_trgm_enabled(db):
-            res = _trgm_resolve(db, title, artist, key, clean_key)
+            autolink = is_identity_trgm_autolink_enabled(db)
+            res = _trgm_resolve(db, title, artist, key, clean_key, autolink=autolink)
             if res is not None:
                 return res
     except Exception:
@@ -139,10 +142,11 @@ _TRGM_AUTO_ARTIST = 0.90
 _TRGM_GRAY_COMBINED = 1.30  # tsim + asim, below auto -> queue, don't link
 
 
-def _trgm_resolve(db, title, artist, key, clean_key):
+def _trgm_resolve(db, title, artist, key, clean_key, autolink=False):
     """pg_trgm similarity over the clean key's title/artist parts. Returns a
-    Resolution (auto-link via='trgm', or new+candidates for the gray band), or
-    None to fall through. PG-only (similarity/split_part/% + the gin_trgm index);
+    Resolution (auto-link via='trgm' when `autolink`, or new+candidates), or None
+    to fall through. With autolink OFF (the watch posture) even a high-confidence
+    match is returned as a CANDIDATE, not linked. PG-only (similarity/split_part);
     returns None on any DB error so non-PG / no-extension callers are unaffected."""
     from app.services.feeder_clean import clean_title_artist
     ct, ca = clean_title_artist(title, artist)
@@ -175,8 +179,10 @@ def _trgm_resolve(db, title, artist, key, clean_key):
         tsim = tsim or 0.0
         asim = asim or 0.0
         if tsim >= _TRGM_AUTO_TITLE and asim >= _TRGM_AUTO_ARTIST:
-            return Resolution(song_id=sid, via="trgm")
-        if (tsim + asim) >= _TRGM_GRAY_COMBINED:
+            if autolink:
+                return Resolution(song_id=sid, via="trgm")
+            candidates.append(sid)  # watch posture: queue, don't link
+        elif (tsim + asim) >= _TRGM_GRAY_COMBINED:
             candidates.append(sid)
     if candidates:
         return Resolution(song_id=None, via="new", candidates=candidates)

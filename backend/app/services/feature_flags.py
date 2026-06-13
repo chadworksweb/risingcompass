@@ -30,20 +30,38 @@ def is_lyrical_charger_disabled(db: Session) -> bool:
 # absent flag = OFF, so fuzzy auto-linking + gray-band candidate emission stay
 # dormant until an admin enables it after watching the merge-candidate queue.
 IDENTITY_TRGM_KEY = "identity_trgm.enabled"
+# Separate sub-gate for the AUTO-LINK action. With the rung enabled but autolink
+# OFF (the default "watch" posture), a high-confidence trgm match is QUEUED as a
+# merge candidate instead of silently linked -- so every near-match is reviewable
+# before the rung is trusted to act on its own. Flip this on once the candidate
+# stream looks right.
+IDENTITY_TRGM_AUTOLINK_KEY = "identity_trgm.autolink"
 
 
 def is_identity_trgm_enabled(db: Session) -> bool:
     return (_get_flag(db, IDENTITY_TRGM_KEY) or "false").lower() == "true"
 
 
-def set_identity_trgm_enabled(db: Session, enabled: bool) -> None:
-    row = db.query(SystemFlag).filter(SystemFlag.key == IDENTITY_TRGM_KEY).first()
+def is_identity_trgm_autolink_enabled(db: Session) -> bool:
+    return (_get_flag(db, IDENTITY_TRGM_AUTOLINK_KEY) or "false").lower() == "true"
+
+
+def _set_flag(db: Session, key: str, enabled: bool) -> None:
+    row = db.query(SystemFlag).filter(SystemFlag.key == key).first()
     val = "true" if enabled else "false"
     if row:
         row.value = val
     else:
-        db.add(SystemFlag(key=IDENTITY_TRGM_KEY, value=val))
+        db.add(SystemFlag(key=key, value=val))
     db.commit()
+
+
+def set_identity_trgm_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, IDENTITY_TRGM_KEY, enabled)
+
+
+def set_identity_trgm_autolink_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, IDENTITY_TRGM_AUTOLINK_KEY, enabled)
 
 
 def lyrical_charger_disabled_message(db: Session) -> str:
