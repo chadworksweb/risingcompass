@@ -18,6 +18,19 @@
   other row.
 </p>
 
+<div id="smTrgmPanel" style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin:0 0 0.8rem;font-size:0.85rem;">
+  <div style="display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap;">
+    <strong style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.03em;color:var(--text-dim);">Fuzzy (trgm) rung</strong>
+    <span>Rung: <button id="smTrgmEnabled" class="filter-btn" onclick="toggleTrgm('enabled')">—</button></span>
+    <span>Auto-link: <button id="smTrgmAutolink" class="filter-btn" onclick="toggleTrgm('autolink')">—</button></span>
+    <span id="smTrgmHint" style="color:#888;font-size:0.78rem;"></span>
+  </div>
+  <div style="color:#777;font-size:0.76rem;margin-top:0.4rem;">
+    Rung ON + Auto-link OFF = observe-only: near-matches are queued as candidates below, nothing is linked.
+    Turn Auto-link ON only once the candidate stream looks trustworthy.
+  </div>
+</div>
+
 <div class="filter-bar" id="smEnvFilters">
   <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">ENV:</span>
   <button class="filter-btn active" onclick="smFilter('environment','prod')">Prod</button>
@@ -39,7 +52,54 @@
 let smEnv = 'prod';
 let smStatus = 'open';
 
-function onAdminReady() { loadStats(); loadCandidates(); }
+function onAdminReady() { loadTrgmStatus(); loadStats(); loadCandidates(); }
+
+function paintTrgm(s) {
+  const en = document.getElementById('smTrgmEnabled');
+  const al = document.getElementById('smTrgmAutolink');
+  en.textContent = s.enabled ? 'ON' : 'OFF';
+  en.classList.toggle('active', !!s.enabled);
+  al.textContent = s.autolink ? 'ON' : 'OFF';
+  al.classList.toggle('active', !!s.autolink);
+  al.disabled = !s.enabled;
+  al.style.opacity = s.enabled ? '1' : '0.45';
+  const hint = document.getElementById('smTrgmHint');
+  if (!s.enabled) hint.textContent = 'rung off — exact + clean key only';
+  else if (!s.autolink) hint.textContent = 'observe-only (queues candidates)';
+  else hint.textContent = 'auto-linking high-confidence matches';
+}
+
+async function loadTrgmStatus() {
+  try {
+    const resp = await fetch('/api/admin/song-merge/trgm-status', { headers: adminHeaders() });
+    if (resp.ok) paintTrgm(await resp.json());
+  } catch (e) { console.error(e); }
+}
+
+async function toggleTrgm(which) {
+  // Read the current rendered state to compute the flip.
+  const cur = {
+    enabled: document.getElementById('smTrgmEnabled').textContent === 'ON',
+    autolink: document.getElementById('smTrgmAutolink').textContent === 'ON',
+  };
+  const body = {};
+  body[which] = !cur[which];
+  if (which === 'autolink' && body.autolink && !cur.enabled) {
+    alert('Enable the rung before turning auto-link on.');
+    return;
+  }
+  if (which === 'autolink' && body.autolink &&
+      !confirm('Turn ON auto-link? High-confidence trgm matches will be linked automatically instead of queued for review.')) return;
+  try {
+    const resp = await fetch('/api/admin/song-merge/trgm-toggle', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) paintTrgm(await resp.json());
+    else { const e = await resp.json().catch(() => ({})); alert('Failed: ' + (e.detail || resp.status)); }
+  } catch (e) { console.error(e); }
+}
 
 function smFilter(kind, val) {
   if (kind === 'environment') smEnv = val; else smStatus = val;

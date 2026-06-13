@@ -27,6 +27,10 @@ from app.database import get_db
 from app.models import Song, SongMergeCandidate, SongMergeEvent
 from app.routers.admin import verify_admin_key
 from app.services.song_merge import merge_songs, MergeError
+from app.services.feature_flags import (
+    is_identity_trgm_enabled, is_identity_trgm_autolink_enabled,
+    set_identity_trgm_enabled, set_identity_trgm_autolink_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +109,39 @@ def candidate_stats(environment: str = "prod", db: Session = Depends(get_db)):
         .group_by(SongMergeCandidate.reason).all()
     )
     return {"open": open_count, "by_reason": by_reason}
+
+
+@router.get("/song-merge/trgm-status", dependencies=[Depends(verify_admin_key)])
+def trgm_status(db: Session = Depends(get_db)):
+    """Current state of the fuzzy (trgm) identity rung + its auto-link sub-gate."""
+    return {
+        "enabled": is_identity_trgm_enabled(db),
+        "autolink": is_identity_trgm_autolink_enabled(db),
+    }
+
+
+class TrgmToggleIn(BaseModel):
+    enabled: Optional[bool] = None
+    autolink: Optional[bool] = None
+
+
+@router.post("/song-merge/trgm-toggle", dependencies=[Depends(verify_admin_key)])
+def trgm_toggle(data: TrgmToggleIn, db: Session = Depends(get_db)):
+    """Flip the trgm rung and/or its auto-link sub-gate. Turning the rung OFF also
+    clears auto-link (meaningless without the rung); turning auto-link ON requires
+    the rung to be enabled first (no silent linking from a dormant rung)."""
+    if data.enabled is not None:
+        set_identity_trgm_enabled(db, data.enabled)
+        if not data.enabled:
+            set_identity_trgm_autolink_enabled(db, False)
+    if data.autolink is not None:
+        if data.autolink and not is_identity_trgm_enabled(db):
+            raise HTTPException(400, "Enable the trgm rung before enabling auto-link")
+        set_identity_trgm_autolink_enabled(db, data.autolink)
+    return {
+        "enabled": is_identity_trgm_enabled(db),
+        "autolink": is_identity_trgm_autolink_enabled(db),
+    }
 
 
 class ResolveCandidateIn(BaseModel):
