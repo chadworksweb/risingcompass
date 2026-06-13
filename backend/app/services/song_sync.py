@@ -19,6 +19,7 @@ import logging
 from sqlalchemy import text
 
 from app.services.song_identity import compute_canonical_key
+from app.services.artist_utils import generate_song_slug
 from app.constants import CHART_SOURCE_TO_CHART_SLUG
 
 logger = logging.getLogger(__name__)
@@ -141,7 +142,38 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
             "UPDATE songs SET origin_chart = :c WHERE id = :s AND origin_chart IS NULL"
         ), {"c": row.get("chart_source"), "s": song_id})
 
+    # Persist a canonical URL slug for EVERY song at the write chokepoint, so no
+    # ingestion path (chart_reading was the historical gap -- 415 slugless songs)
+    # can leave a song without a stable public URL or out of the sitemap.
+    ensure_song_slug(db, song_id, title, artist)
+
     return song_id
+
+
+def ensure_song_slug(db, song_id: int, title: str, artist: str) -> str | None:
+    """Idempotently guarantee a `song_slugs` row for `song_id`. Returns the slug.
+    Collision-safe (appends -2, -3, ... like the read-path minter). Does NOT
+    commit -- the caller owns the transaction (matches upsert_unified_song)."""
+    if not song_id:
+        return None
+    existing = db.execute(
+        text("SELECT slug FROM song_slugs WHERE song_id = :s ORDER BY id LIMIT 1"),
+        {"s": song_id},
+    ).scalar()
+    if existing:
+        return existing
+    base = generate_song_slug(title, artist)
+    slug = base
+    suffix = 2
+    while db.execute(text("SELECT 1 FROM song_slugs WHERE slug = :sl LIMIT 1"),
+                     {"sl": slug}).scalar():
+        slug = f"{base}-{suffix}"
+        suffix += 1
+    db.execute(text(
+        "INSERT INTO song_slugs (slug, title, artist, song_id) "
+        "VALUES (:sl, :t, :a, :s) ON CONFLICT (slug) DO NOTHING"
+    ), {"sl": slug, "t": title, "a": artist, "s": song_id})
+    return slug
 
 
 def record_chart_ingestion(db, song_id: int, chart_source: str | None) -> None:

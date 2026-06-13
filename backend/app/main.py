@@ -254,6 +254,10 @@ app.include_router(songs.router, dependencies=_api_key_dep)
 # X-Api-Key dependency. nginx routes the dotless slug paths here.
 from app.routers import page_ssr
 app.include_router(page_ssr.router)
+# Dynamic sitemap index + sharded song sitemaps. Public (no X-Api-Key) so
+# crawlers can read it; nginx proxies `= /sitemap.xml` and `/sitemap/` here.
+from app.routers import sitemap as sitemap_router
+app.include_router(sitemap_router.router)
 app.include_router(vibe.user_router)  # Clerk-authed, no X-Api-Key; before the gated router
 app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(tenets.router, dependencies=_api_key_dep)
