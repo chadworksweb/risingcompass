@@ -352,6 +352,11 @@ from app.routers import faultline_agent
 app.include_router(faultline_agent.router)
 from app.routers import leit_sweep
 app.include_router(leit_sweep.router)
+from app.routers import social_broadcast
+app.include_router(social_broadcast.router)  # cron: X-Reading-Cron-Key
+app.include_router(social_broadcast.public_router)  # public card PNG (Buffer fetches it)
+from app.routers import social_admin
+app.include_router(social_admin.router)  # Site Admin -> Broadcasts (cookie auth)
 
 from app.routers import divergence_report
 app.include_router(divergence_report.router)

@@ -214,6 +214,7 @@ _ADMIN_SECTIONS = {
     "clutter": "admin/clutter.html",
     "agents": "admin/agents.html",
     "subscribers": "admin/subscribers.html",
+    "social": "admin/social.html",
     "alltime": "admin/alltime.html",
 }
 

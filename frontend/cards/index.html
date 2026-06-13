@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>RC Card Render</title>
+  <!--
+    Rising Compass card render surface. Two jobs in one page:
+      1. Human preview + PNG download (open it, eyeball the card, download).
+      2. The headless render surface for Build 6's social broadcaster: a
+         Playwright cron navigates here with the card data, waits for
+         window.__cardReady, then reads window.__cardPng() (a 1080x1080 PNG
+         data URL). One page renders BOTH the per-song and daily-aggregate
+         cards via the shared rc-charge-card-generator module.
+
+    Params:
+      ?type=reading | song      (default: reading)
+      ?data=<base64url JSON>     (the card data; omitted -> sample data)
+      ?download=1               (auto-trigger the PNG download)
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0;
+      background: #060609;
+      color: #c8c8d8;
+      font-family: 'Inter', sans-serif;
+      min-height: 100%;
+    }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 2rem 1rem 4rem;
+    }
+    canvas#card {
+      width: min(540px, 92vw);
+      height: auto;
+      border-radius: 6px;
+      box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+    }
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button, .seg {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.04em;
+      background: #15151f;
+      color: #e8e8f0;
+      border: 1px solid #2a2a3a;
+      border-radius: 5px;
+      padding: 0.6rem 1.1rem;
+      cursor: pointer;
+    }
+    button:hover { border-color: #00d4aa; }
+    .note { font-size: 0.75rem; color: #6a6a82; font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <canvas id="card" width="1080" height="1080"></canvas>
+    <div class="controls">
+      <button id="dl">Download PNG</button>
+      <a class="seg" href="?type=reading">Reading card</a>
+      <a class="seg" href="?type=song">Song card</a>
+    </div>
+    <div class="note" id="status">rendering...</div>
+  </div>
+
+  <script src="/lyrical-charger/rc-charge-card-generator.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      // Sample data for the standalone preview (no ?data= passed).
+      var SAMPLE_READING = {
+        date: '2026-06-09',
+        degree: 118,
+        charge: 'orange',
+        contaminationCount: 7,
+        editorial: 'The chart leans degraded today: hooks chase a mood, not a movement, and the few songs reaching for something keep getting drowned by the ones that settle.',
+        songs: [
+          { position: 1, title: 'Pop', artist: 'Harry Styles', rubric_color: 'orange', charge_value: -42 },
+          { position: 2, title: 'Noble', artist: 'f3miii', rubric_color: 'red', charge_value: -71 },
+          { position: 3, title: 'Coming Up Roses', artist: 'Some Artist', rubric_color: 'green', charge_value: 12 },
+          { position: 4, title: 'A Much Longer Song Title That Should Ellipsize Cleanly', artist: 'A Long Artist Name Here', rubric_color: 'blue', charge_value: 58 },
+          { position: 5, title: 'Instrumental Interlude', artist: 'Studio Band', rubric_color: null, charge_value: null, instrumental: true },
+        ],
+      };
+      var SAMPLE_SONG = {
+        title: 'Pop',
+        artist: 'Harry Styles',
+        charge: -42,
+        tier: 'orange',
+        tier_label: 'Degraded',
+        deadpan_line: 'A hook in search of a reason to exist.',
+        charge_summary: 'Surface gloss over an empty center; momentum without meaning.',
+        topics: ['fame', 'emptiness', 'spectacle'],
+      };
+
+      function getParams() {
+        return new URLSearchParams(window.location.search);
+      }
+
+      // base64url -> JSON. Tolerant of standard base64 and URL-safe variants.
+      function decodeData(raw) {
+        if (!raw) return null;
+        try {
+          var b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+          while (b64.length % 4) b64 += '=';
+          var json = decodeURIComponent(escape(window.atob(b64)));
+          return JSON.parse(json);
+        } catch (e) {
+          try { return JSON.parse(decodeURIComponent(raw)); } catch (e2) { return null; }
+        }
+      }
+
+      var canvas = document.getElementById('card');
+      var statusEl = document.getElementById('status');
+      var params = getParams();
+      var type = (params.get('type') === 'song') ? 'song' : 'reading';
+      var passed = decodeData(params.get('data'));
+
+      window.__cardReady = false;
+      window.__cardPng = function () { return canvas.toDataURL('image/png'); };
+
+      function draw() {
+        var data = passed || (type === 'song' ? SAMPLE_SONG : SAMPLE_READING);
+        var p = (type === 'song')
+          ? RCChargeCard.render(data, canvas, { brand: 'compass' })
+          : RCChargeCard.renderReading(data, canvas);
+        return p.then(function () {
+          window.__cardReady = true;
+          statusEl.textContent = type + ' card ready -- ' + (passed ? 'live data' : 'sample data');
+          if (params.get('download') === '1') triggerDownload();
+        }).catch(function (err) {
+          statusEl.textContent = 'render error: ' + (err && err.message ? err.message : err);
+        });
+      }
+
+      function triggerDownload() {
+        canvas.toBlob(function (blob) {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'rc-' + type + '-card.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        }, 'image/png');
+      }
+
+      document.getElementById('dl').addEventListener('click', triggerDownload);
+
+      // Fonts must be ready before the canvas rasterizes them; render()'s
+      // ensureFonts() already awaits document.fonts, so just call draw().
+      draw();
+    })();
+  </script>
+</body>
+</html>

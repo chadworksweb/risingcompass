@@ -392,6 +392,248 @@
     return canvas;
   }
 
+  // ============================================================
+  // Daily-aggregate (reading) card -- the day's whole reading on one
+  // 1080x1080 card, sibling to the per-song render() above. Same chrome
+  // and badge so a feed of per-song + daily cards reads as one set; the
+  // body swaps the single-song hero for the date kicker, the editorial as
+  // the statement, and the top-5 song list. Drives Build 6's daily-aggregate
+  // social post (the Playwright harness screenshots this exactly like the
+  // per-song card). Input = the normalized reading object that chart-shell.js
+  // documents: { date, degree, charge, contaminationCount, editorial, songs[] }.
+  // ============================================================
+
+  // Long-form date, e.g. "Monday, June 9, 2026". Parsed at local midnight to
+  // avoid a UTC off-by-one on the date-only string.
+  function formatLongDate(dateStr) {
+    if (!dateStr) return '';
+    var d = new Date(String(dateStr) + 'T00:00:00');
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  // Signed compass score from a 0..180 degree (0deg = +100, 90deg = 0,
+  // 180deg = -100). Mirrors chart-shell.degreeToScore + charge_calc.py.
+  function degreeToScore(degree) {
+    if (degree == null) return 0;
+    return Math.round((90 - degree) * 100 / 90);
+  }
+
+  // Trim a string to fit maxWidth at the current ctx.font, adding an ellipsis.
+  function ellipsize(ctx, text, maxWidth) {
+    var s = String(text == null ? '' : text);
+    if (ctx.measureText(s).width <= maxWidth) return s;
+    var ell = '…';
+    while (s.length > 1 && ctx.measureText(s + ell).width > maxWidth) {
+      s = s.slice(0, -1);
+    }
+    return s.replace(/\s+$/, '') + ell;
+  }
+
+  function pickReading(reading) {
+    var r = reading || {};
+    var chargeKey = (r.charge && TIER_HEX[r.charge]) ? r.charge : 'green';
+    var hex = TIER_HEX[chargeKey];
+    var label = TIER_LABELS[chargeKey] || 'Decent';
+    var score = degreeToScore(r.degree);
+    var scoreStr = (score > 0 ? '+' : '') + score;
+    var songs = Array.isArray(r.songs) ? r.songs.slice() : [];
+    songs.sort(function (a, b) { return (a.position || 0) - (b.position || 0); });
+    var songCount = songs.length;
+    var contam = r.contaminationCount || 0;
+    var metaStr = songCount + ' song' + (songCount === 1 ? '' : 's') +
+      '  ·  ' + contam + ' contaminated';
+    return {
+      hex: hex, label: label, score: score, scoreStr: scoreStr,
+      dateLong: formatLongDate(r.date),
+      editorial: (r.editorial && String(r.editorial).trim()) ? String(r.editorial).trim() : '',
+      metaStr: metaStr, songs: songs, songCount: songCount,
+    };
+  }
+
+  // Draw the shared CRT card chrome (background, tier bloom, scanlines,
+  // vignette, phosphor border). `glowY` centers the tier bloom for the layout.
+  function drawChrome(ctx, hex, glowY) {
+    var bg = ctx.createLinearGradient(0, 0, 0, SIZE);
+    bg.addColorStop(0, '#0e0e1a');
+    bg.addColorStop(0.55, '#0a0a14');
+    bg.addColorStop(1, '#060609');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    var rg = ctx.createRadialGradient(SIZE / 2, glowY, 40, SIZE / 2, glowY, SIZE * 0.62);
+    rg.addColorStop(0, hexToRgba(hex, 0.18));
+    rg.addColorStop(1, hexToRgba(hex, 0));
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    for (var sy = 0; sy < SIZE; sy += 4) ctx.fillRect(0, sy, SIZE, 2);
+
+    var vg = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.34, SIZE / 2, SIZE / 2, SIZE * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    var bx = 30, bw = SIZE - 60, blw = 7;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bx, bx, bw, bw);
+    ctx.clip();
+    ctx.shadowColor = hex;
+    ctx.shadowBlur = 66;
+    ctx.strokeStyle = hex;
+    ctx.lineWidth = blw;
+    ctx.strokeRect(bx, bx, bw, bw);
+    ctx.strokeRect(bx, bx, bw, bw);
+    ctx.strokeRect(bx, bx, bw, bw);
+    ctx.restore();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = hex;
+    ctx.lineWidth = blw;
+    ctx.strokeRect(bx, bx, bw, bw);
+  }
+
+  // Draw the bottom brand block (compass mark + "THE RISING COMPASS" + url).
+  function drawCompassBrand(ctx, compassFlat, leftX) {
+    var fy = SIZE - 100 - 44;
+    var markSize = 32;
+    if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#c8c8d8';
+    ctx.font = '700 22px "JetBrains Mono"';
+    setLS(ctx, 2);
+    ctx.fillText('THE RISING COMPASS', leftX + markSize + 14, fy + 1);
+    setLS(ctx, 0);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#6a6a82';
+    ctx.font = '400 20px "JetBrains Mono"';
+    ctx.fillText('risingcompass.net', leftX, SIZE - 100);
+  }
+
+  async function renderReading(reading, canvas, opts) {
+    await ensureFonts();
+    var v = pickReading(reading);
+    var compass = await loadCompass(chargeToRot(v.score)); // needle at the day's charge
+    var compassFlat = await loadCompass(0);
+
+    canvas.width = SIZE;
+    canvas.height = SIZE;
+    var ctx = canvas.getContext('2d');
+    var P = 100;
+    var PX = 110;
+    var leftX = PX;
+    var contentW = SIZE - PX * 2;
+
+    drawChrome(ctx, v.hex, SIZE * 0.40);
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    // ----- Badge column (top-right): compass gauge + tier label + score -----
+    var tile = 138;
+    var tileX = SIZE - PX - tile;
+    var tileY = P;
+    var badgeCx = tileX + tile / 2;
+    if (compass) ctx.drawImage(compass, tileX, tileY, tile, tile);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = v.hex;
+    ctx.font = '600 30px "Inter"';
+    ctx.fillText(v.label, badgeCx, tileY + tile + 38);
+    ctx.fillStyle = '#f4f4fa';
+    ctx.font = '700 50px "JetBrains Mono"';
+    ctx.fillText(v.scoreStr, badgeCx, tileY + tile + 92);
+    var badgeBottom = tileY + tile + 92;
+    ctx.textAlign = 'left';
+
+    // ----- Left column: kicker, date, meta -----
+    var colW = tileX - leftX - 30;
+    ctx.fillStyle = hexToRgba(v.hex, 0.92);
+    ctx.font = '700 26px "JetBrains Mono"';
+    setLS(ctx, 3);
+    ctx.fillText('DAILY LISTENS', leftX, P + 22);
+    setLS(ctx, 0);
+
+    var dFit = fitText(ctx, v.dateLong, '"Inter"', '700', colW, 2, 56, 40);
+    var dy = P + 22 + 34 + dFit.size;
+    ctx.fillStyle = '#f4f4fa';
+    ctx.font = '700 ' + dFit.size + 'px "Inter"';
+    for (var i = 0; i < dFit.lines.length; i++) {
+      ctx.fillText(dFit.lines[i], leftX, dy + i * dFit.lineHeight);
+    }
+    var leftBottom = dy + (dFit.lines.length - 1) * dFit.lineHeight;
+
+    ctx.fillStyle = '#9a9ab0';
+    ctx.font = '400 30px "Inter"';
+    ctx.fillText(v.metaStr, leftX, leftBottom + 50);
+    leftBottom += 50;
+
+    // ----- Editorial: the day's statement, full width -----
+    var y = Math.max(leftBottom, badgeBottom) + 64;
+    if (v.editorial) {
+      var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 3, 44, 30);
+      y += eFit.size;
+      ctx.fillStyle = '#e8e8f0';
+      ctx.font = '600 ' + eFit.size + 'px "Inter"';
+      for (var ei = 0; ei < eFit.lines.length; ei++) {
+        ctx.fillText(eFit.lines[ei], leftX, y + ei * eFit.lineHeight);
+      }
+      y += (eFit.lines.length - 1) * eFit.lineHeight;
+    }
+
+    // ----- Top-5 song list -----
+    var listTop = y + 64;
+    var brandTop = SIZE - P - 44 - 40; // keep clear of the bottom brand block
+    var rows = v.songs.slice(0, 5);
+    var rowH = 64;
+    // If the editorial ran long, shrink the gap so 5 rows still fit.
+    if (listTop + rows.length * rowH > brandTop) {
+      listTop = Math.max(y + 36, brandTop - rows.length * rowH);
+    }
+    for (var ri = 0; ri < rows.length; ri++) {
+      var s = rows[ri];
+      var ry = listTop + ri * rowH;
+      var sHex = TIER_HEX[s.rubric_color] || '#6a6a82';
+      // position
+      ctx.fillStyle = '#9a9ab0';
+      ctx.font = '700 30px "JetBrains Mono"';
+      ctx.textAlign = 'left';
+      var posStr = String(s.position == null ? ri + 1 : s.position) + (s.position_letter || '');
+      ctx.fillText(posStr, leftX, ry + 30);
+      // tier dot
+      ctx.beginPath();
+      ctx.arc(leftX + 62, ry + 20, 9, 0, Math.PI * 2);
+      ctx.fillStyle = (s.instrumental || s.preorder) ? '#6a6a82' : sHex;
+      ctx.fill();
+      // charge (right)
+      var chargeStr = '';
+      if (s.preorder) chargeStr = 'Pre';
+      else if (s.instrumental) chargeStr = 'Instr';
+      else if (s.charge_value != null) chargeStr = (s.charge_value > 0 ? '+' : '') + s.charge_value;
+      ctx.font = '700 30px "JetBrains Mono"';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = (s.instrumental || s.preorder) ? '#6a6a82' : sHex;
+      ctx.fillText(chargeStr, SIZE - PX, ry + 30);
+      var chargeW = chargeStr ? ctx.measureText(chargeStr).width + 28 : 0;
+      // title + artist (single line, ellipsized to the remaining width)
+      ctx.textAlign = 'left';
+      var textX = leftX + 88;
+      var textW = (SIZE - PX) - chargeW - textX;
+      ctx.font = '600 32px "Inter"';
+      ctx.fillStyle = '#f4f4fa';
+      var titleStr = ellipsize(ctx, s.title || 'Untitled', textW);
+      ctx.fillText(titleStr, textX, ry + 22);
+      ctx.font = '400 24px "Inter"';
+      ctx.fillStyle = '#9a9ab0';
+      var artistStr = ellipsize(ctx, s.artist || '', textW);
+      ctx.fillText(artistStr, textX, ry + 50);
+    }
+
+    drawCompassBrand(ctx, compassFlat, leftX);
+    return canvas;
+  }
+
   function canvasToBlob(canvas) {
     return new Promise(function (resolve) {
       canvas.toBlob(function (b) { resolve(b); }, 'image/png');
@@ -443,5 +685,11 @@
     return 'downloaded';
   }
 
-  window.RCChargeCard = { render: render, shareOrDownload: shareOrDownload, _pick: pick };
+  window.RCChargeCard = {
+    render: render,
+    renderReading: renderReading,
+    shareOrDownload: shareOrDownload,
+    _pick: pick,
+    _pickReading: pickReading,
+  };
 })();

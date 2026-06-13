@@ -1,0 +1,141 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'social' %}
+{% block title %}Broadcasts — Admin{% endblock %}
+
+{% block content %}
+<div id="socialConfig" style="margin-bottom:0.6rem;"></div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="bcItems">—</div><div class="label">Broadcast items</div></div>
+  <div class="stat-card"><div class="val" id="bcPosted">—</div><div class="label">Posted</div></div>
+  <div class="stat-card"><div class="val" id="bcQueued">—</div><div class="label">Queued</div></div>
+  <div class="stat-card"><div class="val" id="bcDark">—</div><div class="label">Dark (held)</div></div>
+  <div class="stat-card"><div class="val" id="bcError">—</div><div class="label">Errors</div></div>
+</div>
+
+<div style="display:flex;align-items:center;gap:0.6rem;margin:0.5rem 0 0.2rem;flex-wrap:wrap;">
+  <button onclick="runBroadcast()" style="padding:0.35rem 0.8rem;font-size:0.8rem;">Run broadcast now</button>
+  <span id="runResult" style="font-size:0.8rem;color:#888;"></span>
+</div>
+
+<h2 class="section-title">Broadcasts</h2>
+<div class="filter-bar" id="bcFilters">
+  <button class="filter-btn active" onclick="bcFilter('')">All</button>
+  <button class="filter-btn" onclick="bcFilter('posted')">Posted</button>
+  <button class="filter-btn" onclick="bcFilter('queued')">Queued</button>
+  <button class="filter-btn" onclick="bcFilter('dark')">Dark</button>
+  <button class="filter-btn" onclick="bcFilter('error')">Error</button>
+</div>
+<p id="bcCapNote" style="color:#888;font-size:0.75rem;display:none;">Showing the most recent rows.</p>
+<div id="bcList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let bcStatus = '';
+const PLATFORM_LABELS = { x: 'X', bluesky: 'Bluesky', threads: 'Threads', instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook' };
+const TIER_LABELS = { violet: 'Ascended', blue: 'Elevated', green: 'Decent', orange: 'Degraded', red: 'Corrupted' };
+const TIER_HEX = { violet: '#aa54ff', blue: '#3388ff', green: '#33cc55', orange: '#ffbb33', red: '#ff3333' };
+
+function onAdminReady() { loadBroadcasts(); }
+
+function bcFilter(val) {
+  bcStatus = val;
+  document.getElementById('bcFilters').querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadBroadcasts();
+}
+
+function statusColor(s) {
+  return s === 'posted' ? 'var(--accent)'
+    : s === 'queued' ? '#3388ff'
+    : s === 'error' ? '#ff5555'
+    : s === 'dark' ? '#888'
+    : '#c89b3c';
+}
+
+async function loadBroadcasts() {
+  try {
+    let url = '/api/admin/social/broadcasts';
+    if (bcStatus) url += '?status=' + encodeURIComponent(bcStatus);
+    const resp = await fetch(url, { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const st = data.stats || {};
+    document.getElementById('bcItems').textContent = st.items ?? '—';
+    document.getElementById('bcPosted').textContent = st.posted ?? '—';
+    document.getElementById('bcQueued').textContent = st.queued ?? '—';
+    document.getElementById('bcDark').textContent = st.dark ?? '—';
+    document.getElementById('bcError').textContent = st.error ?? '—';
+    document.getElementById('bcCapNote').style.display = data.capped ? '' : 'none';
+    renderConfig(data.config || {});
+
+    const el = document.getElementById('bcList');
+    const items = data.items || [];
+    if (!items.length) { el.innerHTML = '<p style="color:#666;">No broadcasts yet.</p>'; return; }
+    el.innerHTML = items.map(renderItem).join('');
+  } catch (e) { console.error(e); }
+}
+
+function renderConfig(c) {
+  const live = c.enabled && c.buffer_configured;
+  const badge = live
+    ? `<span style="background:rgba(0,143,114,0.15);color:var(--accent);font-weight:bold;padding:2px 9px;border-radius:3px;">LIVE</span>`
+    : `<span style="background:rgba(160,160,160,0.15);color:#aaa;font-weight:bold;padding:2px 9px;border-radius:3px;">DARK</span>`;
+  const why = live ? '' : (!c.enabled ? ' &nbsp;SOCIAL_BROADCAST_ENABLED is off' : ' &nbsp;Buffer not configured');
+  document.getElementById('socialConfig').innerHTML =
+    `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.55rem 0.9rem;font-size:0.82rem;">
+       ${badge}${why}
+       <span style="color:#777;margin-left:0.6rem;">platforms: ${(c.platforms || []).map(p => PLATFORM_LABELS[p] || p).join(', ')}
+       &nbsp;|&nbsp; top-${c.trending_count} trending + daily reading</span>
+     </div>`;
+}
+
+function renderItem(it) {
+  const tierHex = TIER_HEX[it.tier] || '#888';
+  const tierLabel = TIER_LABELS[it.tier] || it.tier || '';
+  const chargeStr = it.charge_value == null ? '' : (it.charge_value > 0 ? '+' : '') + it.charge_value;
+  const heading = it.scope === 'song'
+    ? `${escHtml(it.title || ('song #' + it.song_id))}${it.artist ? ' <span style="color:#888;">— ' + escHtml(it.artist) + '</span>' : ''}`
+    : escHtml(it.title || ('Daily reading ' + (it.reading_date || '')));
+  const srcTag = it.trending_source
+    ? `<span style="background:rgba(120,120,160,0.15);color:#99c;font-size:0.68rem;padding:1px 6px;border-radius:3px;margin-left:0.4rem;text-transform:uppercase;">${escHtml(it.trending_source)}</span>`
+    : `<span style="background:rgba(120,120,160,0.15);color:#9c9;font-size:0.68rem;padding:1px 6px;border-radius:3px;margin-left:0.4rem;text-transform:uppercase;">reading</span>`;
+  const thumb = it.card_token
+    ? `<img src="/api/social/card/${encodeURIComponent(it.card_token)}.png" alt="card" loading="lazy" style="width:104px;height:104px;border-radius:5px;border:1px solid var(--border);flex-shrink:0;">`
+    : '';
+  const chips = (it.platforms || []).map(p =>
+    `<span title="${p.post_external_id ? escHtml(p.post_external_id) : 'not pushed'}" style="display:inline-block;font-size:0.7rem;padding:1px 7px;border-radius:3px;border:1px solid ${statusColor(p.status)};color:${statusColor(p.status)};margin:0 0.25rem 0.25rem 0;">${PLATFORM_LABELS[p.platform] || p.platform}: ${escHtml(p.status)}</span>`
+  ).join('');
+  const when = it.created_at ? `<time data-utc="${escHtml(it.created_at)}"></time>` : '';
+
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-left:4px solid ${tierHex};border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;display:flex;gap:0.9rem;">
+    ${thumb}
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <div style="font-size:0.92rem;">${heading}${srcTag}</div>
+        <div style="color:#666;font-size:0.76rem;">${when}</div>
+      </div>
+      <div style="font-size:0.78rem;color:${tierHex};font-weight:bold;margin:0.15rem 0 0.35rem;">${chargeStr}${tierLabel ? ' ' + escHtml(tierLabel) : ''}</div>
+      <pre style="white-space:pre-wrap;font-family:inherit;font-size:0.78rem;color:#bbb;margin:0 0 0.4rem;">${escHtml(it.post_text || '')}</pre>
+      <div>${chips}</div>
+    </div>
+  </div>`;
+}
+
+async function runBroadcast() {
+  const out = document.getElementById('runResult');
+  if (!confirm('Run a broadcast pass now? If Buffer is configured + enabled this PUBLISHES posts.')) return;
+  out.textContent = 'Running...';
+  try {
+    const resp = await fetch('/api/admin/social/run', { method: 'POST', headers: adminHeaders() });
+    const d = await resp.json();
+    if (!resp.ok) { out.textContent = 'Failed.'; return; }
+    if (d.note) { out.textContent = d.note; loadBroadcasts(); return; }
+    const verb = d.buffer_configured ? 'pushed' : 'held dark';
+    out.textContent = `${d.items ? d.items.length : 0} item(s) ${verb} (${d.pushed} pushed, ${d.dark} dark, ${d.errors} error).`;
+    loadBroadcasts();
+  } catch (e) { out.textContent = 'Error.'; console.error(e); }
+}
+</script>
+{% endblock %}

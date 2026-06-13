@@ -179,6 +179,30 @@ class Settings(BaseSettings):
     faultline_capture_level: str = "ERROR"  # min log level captured (ERROR | WARNING)
     faultline_occurrence_retention: int = 50  # per-signature occurrence cap (pruned later)
 
+    # Build 6 -- automated own-account social broadcaster (Hockey Stick plan).
+    # Ships DARK: with social_broadcast_enabled False (or Buffer unconfigured)
+    # the cron still selects + renders + ledgers the day's items, but writes them
+    # status='dark' and never pushes to Buffer -- so the whole pipeline is
+    # verifiable before any account/credential exists. Flip enabled True and set
+    # the Buffer token + profile map to go live.
+    social_broadcast_enabled: bool = False
+    # Buffer push. access_token = a personal Buffer access token; profile_ids =
+    # a JSON map of platform -> Buffer profile id, e.g.
+    # {"x":"abc","bluesky":"def","threads":"...","instagram":"...","tiktok":"...","facebook":"..."}.
+    # Verify the exact endpoint/token shape against Buffer's current API at
+    # connect time (the plan flags the Free-plan channel cap too).
+    buffer_access_token: str = ""
+    buffer_profile_ids: str = ""  # JSON: {platform: profile_id}
+    buffer_api_base: str = "https://api.bufferapp.com/1"
+    # Where frontend/cards/ is served for the Playwright screenshot. Prod = the
+    # deployed static site; local points at the dev server (e.g.
+    # http://localhost:3005). The cron navigates {base}/cards/?type=...&data=...
+    card_render_base_url: str = "https://risingcompass.net"
+    # Base for the tagged outbound links in post text (UTM-stamped per item).
+    social_link_base: str = "https://risingcompass.net"
+    # How many trending per-song verdicts to broadcast per run (top-N by signal).
+    social_trending_count: int = 3
+
     @model_validator(mode="after")
     def _validate_required_secrets(self):
         if not self.rc_admin_key or self.rc_admin_key == "change-me":

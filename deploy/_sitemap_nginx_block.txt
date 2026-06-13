@@ -1,0 +1,20 @@
+
+    # Dynamic sitemap (index + sharded song sitemaps) -> backend. DB-backed so
+    # daily-added songs appear without a deploy. Exact/prefix matches outrank
+    # `location /`, so the SPA index.html fallback never swallows them.
+    location = /sitemap.xml {
+        proxy_pass http://rc-backend:8000;
+        proxy_read_timeout 60s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /sitemap/ {
+        proxy_pass http://rc-backend:8000;
+        proxy_read_timeout 60s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
