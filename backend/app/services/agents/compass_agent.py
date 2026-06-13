@@ -77,6 +77,10 @@ def _write_draft_and_songs(
                 chart_source=s["chart_source"],
                 confidence=s["confidence"],
                 lyrics_available=bool(s["lyrics_available"]),
+                # Codified disposition: an auto-detected pre-order (unreleased,
+                # no lyrics yet) is written exempt from the approval gate +
+                # excluded from aggregates, re-listing until real lyrics drop.
+                preorder=bool(s.get("preorder", False)),
             ))
 
         db.commit()
@@ -338,6 +342,47 @@ def run_compass_agent(
 
         lyrics = song_in.get("lyrics")
         if not lyrics:
+            # Codified per-song disposition (feeder-agnostic): no cache hit + no
+            # lyrics. Detect release-state -> auto-PREORDER for a charting-but-
+            # unreleased single (no lyrics exist yet); else NEEDS_LYRICS. Fail-
+            # open: any uncertainty stays NEEDS_LYRICS so a real released song is
+            # never swallowed. Skipped under draft_only (case studies) + when the
+            # detector errors. See app/services/disposition.py.
+            is_preorder = False
+            if not draft_only:
+                try:
+                    from app.services.disposition import (
+                        resolve_draft_song_disposition, PREORDER,
+                    )
+                    disposition, detail = resolve_draft_song_disposition(
+                        title, artist, is_cache_hit=False, lyrics_available=False,
+                    )
+                    if disposition == PREORDER:
+                        is_preorder = True
+                        logger.info("Auto-PREORDER: %s by %s (%s)", title, artist, detail)
+                except Exception:
+                    logger.exception("Disposition resolve failed for %s by %s", title, artist)
+
+            if is_preorder:
+                agent_notes_parts.append(
+                    f"\"{title}\" detected as pre-order (unreleased) — auto-marked preorder")
+                calibrated_songs.append({
+                    "title": title,
+                    "artist": artist,
+                    "position": position,
+                    "chart_source": chart_source,
+                    "song_id": None,
+                    "lyrics_available": False,
+                    "preorder": True,
+                    "rubric_color": None,
+                    "charge_value": None,
+                    "contaminated": False,
+                    "contamination_note": None,
+                    "charge_summary": "Charting on pre-order — awaiting release",
+                    "confidence": 0.0,
+                })
+                continue
+
             agent_notes_parts.append(f"No lyrics found for \"{title}\" — awaiting human calibration")
             logger.warning("No lyrics found for %s by %s — song left uncalibrated", title, artist)
             calibrated_songs.append({

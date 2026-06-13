@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 
 from app.models import Song, Chart, ChartAppearance
 from app.constants import AGGREGATING_CHART_SLUGS
-from app.services.song_identity import compute_canonical_key
 
 
 def decade_of(year: int) -> str:
@@ -140,10 +139,15 @@ def find_song_by_title_artist(db: Session, title: str, artist: str) -> Song | No
     """Resolve a (title, artist) pair to its unified Song via canonical_key.
 
     The unified replacement for the legacy case-insensitive title+artist
-    CompassSong lookup. Matches on the canonical identity (primary artist,
-    normalized) so credit-string variants ("X & Y" / "X feat. Y") still
-    resolve to the one atomic song."""
+    CompassSong lookup. Routes through resolve_song_identity, so it matches on
+    the canonical identity (primary artist, normalized) AND the cleaned key
+    (feeder MV cruft / VEVO/label artists) -- the same ladder the write + cache
+    paths use, so a chart snapshot or broadcast row resolves to the one atomic
+    song even when the feeder string carries cruft."""
     if not title:
         return None
-    key = compute_canonical_key(title, artist)
-    return db.query(Song).filter(Song.canonical_key == key).first()
+    from app.services.song_identity import resolve_song_identity
+    resolution = resolve_song_identity(db, title, artist)
+    if not resolution.song_id:
+        return None
+    return db.query(Song).filter(Song.id == resolution.song_id).first()

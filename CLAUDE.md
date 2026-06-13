@@ -1017,6 +1017,48 @@ hot path, `db=` = caller's txn for the sweep).
   (same orchestrator as cron). `remove` reuses `submissions_admin.delete_submission`
   (orphan-aware song deletion). Env-filtered (default prod).
 
+## Song identity resolution + codified disposition (Phase 1, 2026-06-13)
+
+Stops the social-discovery feeders (Spotify daily reading, youtube_trending_usa,
+shazam_top200_usa, itunes_download_usa) from minting DUPLICATE Library rows when
+the same song re-enters under a different title/artist string, and codifies the
+per-song draft disposition once (feeder-agnostic) instead of in SOP prose. Full
+spec + status: `plans and docs/RISING-COMPASS-SONG-IDENTITY-RESOLUTION.md`.
+
+- **Identity ladder.** `song_identity.resolve_song_identity(db, title, artist) ->
+  Resolution(exact|clean|new)`. Rung 1 = exact `canonical_key` (unchanged fast
+  path, zero regression). Rung 2 = `canonical_key_clean`, computed after a CLOSED
+  feeder-cruft cleaning pass (`services/feeder_clean.py::clean_title_artist`):
+  strips MV/lyric-video bracket+trailing cruft, a leading `ARTIST - ` prefix, the
+  K-pop `ARTIST 'TITLE' Official MV` quote form, and `| @channel` tails;
+  reconciles `*VEVO` / `- Topic` / label channels (HYBE LABELS, ...) to the real
+  primary artist. The artist suffix is cleaned BEFORE the prefix match so a
+  stored `OliviaRodrigoVEVO` and an incoming `Olivia Rodrigo` clean symmetrically.
+  Rungs 3/4 (pg_trgm, pgvector) are stubs that fall through to `new` (Phases 2-3).
+- **Clean key column.** `songs.canonical_key_clean` (migration 122: add col +
+  index + Python backfill; NOT unique -- a collision is a dupe to surface). The
+  backfill LOGS collision groups (the historical dupe tail). Stored on every
+  write (`song_sync.upsert_unified_song` insert + opportunistic stamp on hit).
+- **Chokepoints routed through the ladder:** `upsert_unified_song` (write),
+  `store_calibrated_song` (`created` flag), `calibrator.lookup_calibrated` (the
+  cache rung that stops the daily awaiting-lyrics re-list of an already-calibrated
+  song), `song_store.find_song_by_title_artist` (snapshot/broadcast -> song).
+- **Codified disposition.** `services/disposition.py::resolve_draft_song_disposition`
+  runs identity (CACHE_LINK) -> release-state (PREORDER) -> non-song (DROP_NONSONG)
+  -> NEEDS_LYRICS. The NEW piece is AUTOMATIC release-state detection
+  (`detect_release_state`, iTunes Search API, FAIL-OPEN to NEEDS_LYRICS on any
+  uncertainty -- never swallows a real song). Wired into
+  `compass_agent.run_compass_agent`: an un-cached, lyric-less, future-dated
+  charting single is auto-marked `preorder` on the draft song (exempt from the
+  approval gate at `agent.py:572`, excluded from aggregates, re-lists until real
+  lyrics drop and a calibration clears the flag). DROP_NONSONG is NOT automatic --
+  the LEIT clutter audit queue stays the human-confirmed home for non-songs.
+- **Status:** BUILT local, py-compile clean, `tests/test_feeder_clean.py` 9/9,
+  NOT deployed. Migration 122 applies on deploy (or a track) -- never run against
+  the shared prod DB from local. Phases 2-3 (trgm fuzzy rung + merge-candidate
+  audit queue mirroring `clutter_audits` + `POST /api/admin/songs/{id}/merge-into`
+  to clean the historical dupe tail; then pgvector semantic rung) still pending.
+
 ## Agent mini-warehouse (2026-06-09)
 
 The external LEIT Agent Warehouse + Mickey were decommissioned, so RC's own
@@ -1082,3 +1124,60 @@ runner applies only versions above the current max.)
 - **Status:** Deployed (migrations 102/103 apply on deploy). Plan:
   `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 2; session notes
   `2026-06-10b` / `2026-06-10c`.
+
+## Social broadcaster (Hockey Stick Build 6, 2026-06-13) -- ships DARK
+
+Automated own-account broadcast of RC's OWN verdicts (the only reach vector in the
+plan; the rest is organic-search pull). Posts the objective charge of whatever is
+trending TODAY + the daily-aggregate reading, to RC's own accounts, fanned out
+through ONE Buffer integration. Distinct from The Lookout (reactive, human-sent
+outreach): this is proactive publisher-posts-its-own-work, the most compliant
+automation there is. Package `app/services/social/`, router
+`routers/social_broadcast.py`, migration 121. Plan:
+`RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 6.
+
+- **Ships DARK.** `settings.social_broadcast_enabled` (default false) + Buffer
+  config gate the push. Dark = the cron still selects, renders, stores the card,
+  and writes the ledger as `status='dark'`, but never calls Buffer -- so the whole
+  pipeline is verifiable before any account/credential exists. Go live = connect
+  the accounts to Buffer, set `BUFFER_ACCESS_TOKEN` + `BUFFER_PROFILE_IDS` (JSON
+  map platform->profile id), flip `SOCIAL_BROADCAST_ENABLED=true`.
+- **Card render = Playwright, NOT Pillow.** The card is authored once in JS
+  (`frontend/lyrical-charger/rc-charge-card-generator.js`: `RCChargeCard.render`
+  for per-song, `renderReading` for the daily aggregate -- same CRT chrome / badge
+  / wordmark). `frontend/cards/index.html` is the render surface: it draws either
+  card from `?type=song|reading` + `?data=<urlsafe-base64 JSON>` and exposes
+  `window.__cardReady` + `window.__cardPng()` (1080x1080 PNG data URL), doubling as
+  a human preview + PNG download. `services/social/card_render.py` drives headless
+  Chromium to that page and screenshots the canvas. The prod image already runs
+  `playwright install chromium` (Dockerfile), so no image change. Local: point
+  `CARD_RENDER_BASE_URL` at the dev server (e.g. http://localhost:3005).
+- **Selection** (`broadcaster.run_social_broadcast`): top-N (`SOCIAL_TRENDING_COUNT`,
+  default 3) trending CALIBRATED songs -- latest Shazam + YouTube `chart_snapshots`
+  resolved to `songs` via `find_song_by_title_artist`, dropped if uncalibrated /
+  instrumental / preorder, ranked by |charge_value| (the strongest verdict
+  travels), deduped against the ledger -- PLUS the latest `DailyReading` (skipped
+  if already broadcast). Corpus-hit only: no Opus spend, no auto-calibration.
+- **Ledger** (migration 121): `social_cards` (the rendered PNG, served public at
+  `GET /api/social/card/{token}.png` so Buffer can fetch the media; mounted
+  unauthed like geo/subscribe) + `social_posts` (one row per (item, platform),
+  UNIQUE `dedup_key` = `song:{id}:{platform}` | `reading:{date}:{platform}`).
+  Writes are an ON CONFLICT upsert that never overwrites a live (queued/posted)
+  row, so a dark row upgrades to a real post on a later configured run, and
+  re-runs are idempotent. Selection treats only queued/posted as "already
+  broadcast" -- dark rows stay selectable.
+- **Post text = locked "Plain instrument" voice** (Build 6 decision): per-song
+  `Rising Compass measured "{title}" by {artist}.` / `Charge: {+/-N} ({tier}).` /
+  UTM-tagged song link; reading = the parallel one-line measurement + the
+  daily-listens chart link. No editorializing (objectivity lock).
+- **Admin:** Site Admin -> Community -> **Broadcasts** (`routers/social_admin.py`,
+  `templates/admin/social.html`, section `social`). A LIVE/DARK config banner +
+  status stat-cards, and the ledger collapsed to one card per broadcast ITEM (the
+  rendered card thumbnail via the public route + the post text + a per-platform
+  status strip). "Run broadcast now" calls the same orchestrator (cookie auth).
+- **Cron:** `POST /api/admin/agent/cron/social-broadcast` (`X-Reading-Cron-Key`,
+  reuses the reading lane -- no new secret), script `deploy/social-broadcast.sh`,
+  intended droplet lane AFTER youtube (reading 08:00 -> itunes 09:00 -> shazam
+  10:00 -> youtube 11:00 -> social 12:00 UTC). Not yet in the server crontab.
+- **Compliance:** own-account broadcast of own corpus-hit content; no scraping,
+  no DMs, no individual outreach. No terminal Anthropic calls.

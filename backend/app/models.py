@@ -1653,6 +1653,12 @@ class Song(Base):
     artist = Column(Text, nullable=False)  # display, original casing
     # normalize_for_search(title) + '\x1f' + normalize_for_search(normalize_artist_name(artist))
     canonical_key = Column(Text, nullable=False)
+    # Phase-1 identity resolution: canonical_key computed AFTER the closed feeder-
+    # cruft cleaning pass (app.services.feeder_clean). Indexed, NOT unique -- a
+    # collision is a duplicate to surface, not an error. NULL until backfilled
+    # (migration 122) on legacy rows; stamped on every write going forward. See
+    # RISING-COMPASS-SONG-IDENTITY-RESOLUTION.md.
+    canonical_key_clean = Column(Text)
     # --- canonical calibration (identical column set across the 4 legacy tables) ---
     rubric_color = Column(Text)            # nullable: the Library includes uncalibrated songs
     charge_value = Column(Integer)         # -100 to +100
@@ -2093,4 +2099,56 @@ class AlltimeStreamAlbum(Base):
 
     __table_args__ = (
         Index("idx_alltime_stream_albums_rank", "rank"),
+    )
+
+
+# --- Build 6: social broadcaster (own-account automated broadcast) ----------
+# RISING-COMPASS-HOCKEY-STICK-PLAN.md Build 6. The cron renders + queues the
+# day's trending verdicts + the daily-aggregate reading to RC's Buffer queue and
+# records each here so nothing is broadcast twice. Migration 121.
+
+class SocialCard(Base):
+    """The rendered 1080x1080 PNG for one broadcast item. One card is shared by
+    every platform the item fans out to. Served at /api/social/card/{token}.png
+    so Buffer can fetch the media by URL (token = unguessable public handle)."""
+    __tablename__ = "social_cards"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token = Column(Text, nullable=False, unique=True)
+    scope = Column(Text, nullable=False)        # 'song' | 'reading'
+    ref = Column(Text, nullable=False)          # song_id (str) | reading date ISO
+    png = Column(LargeBinary, nullable=False)   # BYTEA on Postgres
+    content_type = Column(Text, nullable=False, default="image/png")
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
+
+
+class SocialPost(Base):
+    """One broadcast of one item to one platform. dedup_key (UNIQUE) is both the
+    idempotency guard and the selection-dedup key, so a re-run never double-posts
+    and the next day's selection can exclude already-broadcast songs/readings."""
+    __tablename__ = "social_posts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scope = Column(Text, nullable=False)        # 'song' | 'reading'
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
+    reading_date = Column(Date, nullable=True)
+    platform = Column(Text, nullable=False)
+    # 'song:{song_id}:{platform}' | 'reading:{date}:{platform}'
+    dedup_key = Column(Text, nullable=False, unique=True)
+    post_text = Column(Text, nullable=False)
+    card_token = Column(Text, nullable=True)    # -> social_cards.token
+    charge_value = Column(Integer, nullable=True)   # audit snapshot
+    tier = Column(Text, nullable=True)              # audit snapshot
+    trending_source = Column(Text, nullable=True)   # 'shazam' | 'youtube' (song scope)
+    post_external_id = Column(Text, nullable=True)  # Buffer update id
+    # prepared | dark | queued | posted | skipped | error
+    status = Column(Text, nullable=False, default="prepared")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
+    posted_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_social_posts_song", "song_id"),
+        Index("ix_social_posts_reading_date", "reading_date"),
+        Index("ix_social_posts_created_at", "created_at"),
     )

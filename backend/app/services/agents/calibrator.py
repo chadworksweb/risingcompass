@@ -55,9 +55,16 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
     calibration was set by an authoritative method -- so the daily read / LC
     don't reuse a crowd calibration, exactly as the legacy compass-only cache did.
     """
-    from app.services.song_identity import compute_canonical_key
-    key = compute_canonical_key(title, artist)
-    existing = db.query(Song).filter(Song.canonical_key == key).first()
+    from app.services.song_identity import resolve_song_identity
+    # Identity ladder: exact canonical_key, then the cleaned key -- so a feeder
+    # re-entry of an already-calibrated song (MV cruft / VEVO-or-label artist)
+    # is a CACHE HIT instead of being re-listed as awaiting-lyrics. This is the
+    # rung that resolves the 2026-06-13 daily-reading misses.
+    resolution = resolve_song_identity(db, title, artist)
+    existing = (
+        db.query(Song).filter(Song.id == resolution.song_id).first()
+        if resolution.song_id else None
+    )
 
     if not existing:
         return None

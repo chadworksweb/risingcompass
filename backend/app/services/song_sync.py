@@ -18,7 +18,9 @@ import logging
 
 from sqlalchemy import text
 
-from app.services.song_identity import compute_canonical_key
+from app.services.song_identity import (
+    compute_canonical_key, compute_canonical_key_clean, resolve_song_identity,
+)
 from app.services.artist_utils import generate_song_slug
 from app.constants import CHART_SOURCE_TO_CHART_SLUG
 
@@ -62,17 +64,34 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
     if not title or not artist:
         return None
     key = compute_canonical_key(title, artist)
+    clean_key = compute_canonical_key_clean(title, artist)
     method = _METHOD[source]
     incoming_auth = source in _AUTH_SOURCES
 
-    existing = db.execute(
-        text("SELECT id, canonical_calibration_method FROM songs WHERE canonical_key = :k"),
-        {"k": key},
-    ).mappings().first()
+    # Identity-resolution ladder: exact canonical_key (fast path), then the
+    # cleaned key (catches feeder formatting drift -- MV cruft, VEVO/label
+    # artists). A clean-rung hit lands the write on the EXISTING row instead of
+    # minting a duplicate. Pure read; the actual write is below.
+    resolution = resolve_song_identity(db, title, artist)
+    existing = None
+    if resolution.song_id:
+        existing = db.execute(
+            text("SELECT id, canonical_calibration_method, canonical_key_clean "
+                 "FROM songs WHERE id = :id"),
+            {"id": resolution.song_id},
+        ).mappings().first()
 
     if existing:
         song_id = existing["id"]
         cur_auth = (existing["canonical_calibration_method"] or "") in _AUTH_METHODS
+        # Opportunistically stamp the clean key on a row that predates the
+        # backfill (or was matched via the raw-key clean rung), so future
+        # resolutions hit it directly on the indexed clean column.
+        if not existing.get("canonical_key_clean"):
+            db.execute(
+                text("UPDATE songs SET canonical_key_clean = :ck WHERE id = :id"),
+                {"ck": clean_key, "id": song_id},
+            )
         # Authoritative-first: only overwrite calibration when the incoming write
         # is authoritative, or the existing row isn't authoritative.
         if incoming_auth or not cur_auth:
@@ -91,11 +110,12 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
     else:
         params = {c: row.get(c) for c in _CALIB}
         params.update({
-            "title": title, "artist": artist, "canonical_key": key, "m": method,
+            "title": title, "artist": artist, "canonical_key": key,
+            "canonical_key_clean": clean_key, "m": method,
             "album_id": row.get("album_id"), "track_number": row.get("track_number"),
         })
-        collist = "title, artist, canonical_key, canonical_calibration_method, album_id, track_number, created_at, " + ", ".join(_CALIB)
-        vallist = ":title, :artist, :canonical_key, :m, :album_id, :track_number, (now() at time zone 'utc'), " + ", ".join(f":{c}" for c in _CALIB)
+        collist = "title, artist, canonical_key, canonical_key_clean, canonical_calibration_method, album_id, track_number, created_at, " + ", ".join(_CALIB)
+        vallist = ":title, :artist, :canonical_key, :canonical_key_clean, :m, :album_id, :track_number, (now() at time zone 'utc'), " + ", ".join(f":{c}" for c in _CALIB)
         song_id = db.execute(
             text(f"INSERT INTO songs ({collist}) VALUES ({vallist}) RETURNING id"), params
         ).scalar()
@@ -265,10 +285,10 @@ def store_calibrated_song(
             "for '%s' by %s (source=%s): %r",
             title, artist, source, calibration.get("charge_summary"),
         )
-    key = compute_canonical_key(title, artist)
-    existed = db.execute(
-        text("SELECT 1 FROM songs WHERE canonical_key = :k LIMIT 1"), {"k": key}
-    ).scalar()
+    # `created` reflects the identity ladder, not just the exact key: a feeder
+    # re-entry that resolves to an existing row via the clean key is NOT new, so
+    # it must not re-log a calibration run / re-emit a "new song" signal.
+    existed = resolve_song_identity(db, title, artist).song_id is not None
     row = calibration_to_columns(calibration)
     row.update({
         "title": title, "artist": artist,
