@@ -117,11 +117,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://risingcompass.net/charts/new-music-friday/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://risingcompass.net/charts/streamed-all-time/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
