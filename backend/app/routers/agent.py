@@ -577,6 +577,44 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
             detail=f"Cannot approve: {len(missing)} song(s) still need lyrics: {', '.join(missing)}",
         )
 
+    # === EDITORIAL REGEN AT APPROVAL ===
+    # The draft's editorial was generated at draft-creation time over only the
+    # THEN-calibrated (cache-hit) songs, and the terminal calibration SOP
+    # (calibrate_song.py) skips editorial regen on purpose -- it supplies the
+    # calibration object so the server makes zero Anthropic calls
+    # (feedback_rc_no_api_in_terminal). That left a reading dominated by fresh
+    # releases (e.g. New Music Friday: "one calibrated song in a field of
+    # twenty") stamped with a draft-creation editorial that never saw the full
+    # set. Approval is a browser/admin action, so the Anthropic call is allowed
+    # here, and it is the ONE chokepoint every reading SOP (daily + every chart)
+    # funnels through -- so the PUBLISHED editorial always reflects the final
+    # calibrated set. Full calibration is guaranteed by the block above (pre-order
+    # songs excluded, exactly as the lyrics-supply regen and the aggregates do).
+    # Fail-soft: on any error keep the existing editorial rather than blocking the
+    # approval.
+    try:
+        from app.services.agents.compass_agent import _generate_editorial
+        scored = [s for s in draft.songs if not getattr(s, "preorder", False)]
+        editorial_input = [
+            {
+                "title": s.title, "artist": s.artist, "position": s.position,
+                "rubric_color": s.rubric_color, "charge_value": s.charge_value,
+                "contaminated": s.contaminated, "contamination_note": s.contamination_note,
+                "charge_summary": s.charge_summary, "confidence": s.confidence,
+                "lyrics_available": s.lyrics_available, "chart_source": s.chart_source,
+            }
+            for s in scored
+        ]
+        if editorial_input:
+            regenerated = _generate_editorial(editorial_input)
+            if regenerated:
+                draft.editorial_summary = regenerated
+    except Exception:
+        logger.exception(
+            "Approval-time editorial regen failed for draft %s; keeping existing editorial",
+            draft_ref,
+        )
+
     if not is_chart_draft_type(draft.draft_type):
         # Daily-reading publish path
         existing = db.query(DailyReading).filter(DailyReading.date == draft.date).first()
