@@ -600,8 +600,22 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
   copies). Input = a normalized `reading` object `{date, degree, charge,
   contaminationCount, editorial, songs[]}`. Charts carry `editorial` on
   `chart_snapshots.editorial` (migration 119), stamped at approval from the draft's
-  already-generated editorial (no new Anthropic call); `ChartSnapshotOut` exposes
+  editorial; `ChartSnapshotOut` exposes
   `compass_degree`/`charge_level`/`contamination_count`/`editorial`.
+
+  **Editorial is REGENERATED at approval (2026-06-13).** `approve_draft`
+  re-runs `_generate_editorial` over the FINAL calibrated song set right before
+  stamping the DailyReading / ChartSnapshot -- so the published editorial always
+  reflects the whole reading, for the daily reading AND every chart. This closed
+  a gap: the draft editorial is generated at draft-creation time over only the
+  cache-hit songs, and the terminal calibration SOP (`calibrate_song.py`,
+  `terminal_mode`) skips editorial regen (no Anthropic from terminal), so a
+  fresh-release-heavy reading (New Music Friday) used to publish a stale "one
+  calibrated song in a field of twenty" editorial. Approval is browser/admin, so
+  the Anthropic call is allowed there; it ALWAYS regenerates (a hand-edited
+  editorial set via `PUT /drafts` before approval is overwritten) and is
+  fail-soft (keeps the existing editorial on error). NOTE: this means approval
+  now makes one editorial Anthropic call.
 
   **Adding a chart shell (the whole recipe):**
   1. Backend: register a `CHART_REGISTRY` entry (`routers/chart_snapshots.py`) +
@@ -615,10 +629,18 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
      `/compass/chart/<key>/current` (one fetch fills both cards). Add the page to
      the footer Charts column (`partials/footer.html` -> `build_partials.py`) +
      `sitemap.xml`.
-  3. Run the chart's daily refresh cron + approve to publish. The charge band +
+  3. Run the chart's refresh cron + approve to publish. The charge band +
      editorial appear once the snapshot is approved; the editorial line is blank
      only until that approval.
-  Session record: `plans and docs/session notes/2026-06-12d - Canon Chart Shell.md`.
+  A chart's `cadence` can be `weekly` -- set it and OMIT `calendar_label` so the
+  Calendar (day-grid, daily-only) doesn't list it, and cron it on its own day.
+  Example: **Spotify New Music Friday - USA** (key `new-music-friday`, slug
+  `spotify_nmf_usa`, weekly), added 2026-06-13. Its fetcher (`fetch_nmf_songs`)
+  reuses `_fetch_playlist` (same Spotify playlist DOM as the Top 50); cron
+  `deploy/new-music-friday.sh` runs Fridays. Because NMF is mostly fresh releases
+  (few cache hits), it is the reading that exposed the stale-editorial gap above.
+  Session records: `plans and docs/session notes/2026-06-12d - Canon Chart Shell.md`,
+  `2026-06-13 - Spotify New Music Friday Tier 2 Chart.md`.
 
 ## General Inquiry form
 
