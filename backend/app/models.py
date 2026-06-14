@@ -1636,6 +1636,34 @@ class AlbumChargeJob(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class CalibrateJob(Base):
+    """Async job for a single-song (public Lyrical Charger) calibration.
+
+    A public charge is several sequential Opus calls (identity -> calibrate ->
+    listener -> ether -> societal -> save), long enough that holding the HTTP
+    connection open read as a hang and the bar could only fake progress. The
+    /calibrate-lyrics/start endpoint validates synchronously, creates one of
+    these (status 'queued'), launches a background task, and returns the token;
+    the frontend polls the status endpoint and drives a REAL bar from `phase`.
+    The worker writes the final LyricsCalibrateOut payload into result_json --
+    every terminal status (scored, run_capped, not_commercial_warning,
+    lyrics_mismatch, lyrics_diverge_from_prior, saved_view_on_page, error) is
+    delivered through it. Mirrors AlbumChargeJob; migration 126.
+    """
+    __tablename__ = "calibrate_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_token = Column(String(64), nullable=False, unique=True)
+    status = Column(String(20), nullable=False, default="queued")  # queued|running|done|error
+    # queued|identity|calibrating|listener|ether|societal|saving|done
+    phase = Column(String(30))
+    result_json = Column(Text)           # final LyricsCalibrateOut payload (JSON)
+    error_message = Column(Text)
+    ip_address = Column(String(45))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ===========================================================================
 # Unified song-entity renovation (migrations 081/082). `songs` is the atomic
 # unit AND the entire Library; "charting" is a derived role via chart

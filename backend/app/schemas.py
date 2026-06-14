@@ -784,6 +784,26 @@ class AlbumChooseReleaseOut(BaseModel):
     cover_thumb_url: Optional[str] = None
 
 
+class CalibrateJobOut(BaseModel):
+    """Returned by /calibrate-lyrics/start -- the single-song job to poll."""
+    job_token: str
+    status: str          # queued
+
+
+class CalibrateStatusOut(BaseModel):
+    """Returned by /calibrate-lyrics/status/{token}. The frontend maps `phase`
+    to a real progress position; on `done` it renders `result` exactly as it
+    would the synchronous /calibrate-lyrics response."""
+    status: str          # queued | running | done | error
+    # queued | identity | calibrating | listener | ether | societal | saving | done
+    phase: Optional[str] = None
+    # Present only when status == "done": the full LyricsCalibrateOut (its own
+    # `status` carries the real outcome -- scored, run_capped, etc).
+    result: Optional[LyricsCalibrateOut] = None
+    # Present only when status == "error" (an unexpected worker crash).
+    error: Optional[str] = None
+
+
 class AlbumChargeJobOut(BaseModel):
     """Returned by the submit endpoint -- the job to poll."""
     job_token: str

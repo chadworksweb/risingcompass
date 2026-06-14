@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+from typing import Callable
 
 from anthropic import AsyncAnthropic
 from sqlalchemy import func
@@ -164,7 +165,10 @@ def _load_json(raw):
         return None
 
 
-async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) -> None:
+async def _ensure_generation(
+    title: str, artist: str, lyrics: str, calib: dict,
+    progress_cb: Callable[[str], None] | None = None,
+) -> None:
     """Complete a calibration's generated fields IN PLACE: effects prose,
     ether tagging (deadpan_line + topics + topic_audit), then societal prose.
 
@@ -185,6 +189,8 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
         return
 
     # 1. Effects prose -- what the words may do to a listener.
+    if progress_cb:
+        progress_cb("listener")
     if not calib.get("listener_effects_prose"):
         try:
             from app.services.listener_effects_prose import generate_listener_effects_prose
@@ -201,6 +207,8 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
             logger.exception("listener_effects_prose step failed for %s / %s", title, artist)
 
     # 2. Ether tagging -- names what the song IS: deadpan_line + topic tags.
+    if progress_cb:
+        progress_cb("ether")
     if not calib.get("deadpan_line"):
         try:
             from app.services.agents.ether_tagger import tag_song
@@ -220,6 +228,8 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
 
     # 3. Societal prose -- what running this program at scale does to a society.
     #    Grounded on the ether tags + listener prose produced above.
+    if progress_cb:
+        progress_cb("societal")
     if not calib.get("societal_effects_prose"):
         try:
             from app.services.societal_effects_prose import generate_societal_effects_prose
@@ -248,12 +258,13 @@ async def _ensure_generation(title: str, artist: str, lyrics: str, calib: dict) 
 
 async def ensure_full_calibration(
     title: str, artist: str, lyrics: str | None, calibration: dict,
+    progress_cb: Callable[[str], None] | None = None,
 ) -> dict:
     """Gap-fill the generated fields on an existing calibration dict (e.g. a
     cache hit) through the one shared generation step. Returns the same dict,
     mutated. No-op without lyrics (ether + prose need them)."""
     if lyrics:
-        await _ensure_generation(title, artist, lyrics, calibration)
+        await _ensure_generation(title, artist, lyrics, calibration, progress_cb)
     return calibration
 
 
@@ -368,12 +379,19 @@ async def _read_v3(
                 "guard_trip_survived": not guards_ok,
                 "model": model,
             }
-        if not problems:
-            return read
         if read is not None:
-            # Components are usable; only guards drifted. Keep the latest such
-            # read so a failed retry still ships (proceed-with-warning).
-            best = read
+            # A usable read -- components validated and the charge composes.
+            # Ship it immediately, whether the soft guards (contamination line /
+            # charge_summary framing) were clean or drifted. A drifted guard is
+            # already recorded on the read (guard_trip_survived) and surfaces as
+            # an escalation signal downstream, exactly as it did when the old
+            # second pass also tripped. We deliberately do NOT spend a second
+            # full-rubric Opus call just to re-coax formatting: that turned every
+            # submission into TWO calibrator calls (the dominant latency in the
+            # public charger). The corrective retry below is reserved for the
+            # genuine no-usable-read case -- unparseable JSON or failed component
+            # validation -- where a second attempt is the only path to a result.
+            return read
 
         logger.warning(
             "calibrator output problems for '%s' by %s at %s (attempt %d/%d): %s",
@@ -399,6 +417,7 @@ async def calibrate_song_async(
     db: Session | None = None,
     target_year: int | None = None,
     skip_cache: bool = False,
+    progress_cb: Callable[[str], None] | None = None,
 ) -> dict:
     """The calibration path. Calibrate a song against the rubric, then complete
     the generated fields (effects prose, ether tagging, societal prose) in one
@@ -414,7 +433,9 @@ async def calibrate_song_async(
     if db and not skip_cache:
         existing = lookup_calibrated(title, artist, db)
         if existing:
-            return await ensure_full_calibration(title, artist, lyrics, existing)
+            return await ensure_full_calibration(
+                title, artist, lyrics, existing, progress_cb
+            )
 
     # No lyrics, no read. A calibration cannot exist without the page, so
     # return the explicit null result without burning an API call (v3
@@ -439,6 +460,8 @@ async def calibrate_song_async(
 
     # First pass at the default model. The model emits components only; the
     # server composes the charge and derives the tier (charge_composition).
+    if progress_cb:
+        progress_cb("calibrating")
     read = await _read_v3(
         client, AGENT_MODEL, system_prompt, user_prompt,
         title=title, artist=artist, target_year=target_year,
@@ -575,7 +598,7 @@ async def calibrate_song_async(
     # Complete the generated fields (effects prose, ether tagging, societal
     # prose) in the same pass -- the calibration path returns one whole object.
     if lyrics:
-        await _ensure_generation(title, artist, lyrics, calibration)
+        await _ensure_generation(title, artist, lyrics, calibration, progress_cb)
 
     return calibration
 

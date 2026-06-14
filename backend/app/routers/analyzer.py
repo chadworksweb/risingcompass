@@ -1,9 +1,14 @@
 """Lyrical Charger — public endpoints for user-submitted song analysis."""
 
+import asyncio
 import json
 import logging
 import re
 import time
+import uuid
+from datetime import datetime, timedelta
+from types import SimpleNamespace
+from typing import Callable
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -17,8 +22,9 @@ from app.schemas import (
     LyricsCalibrateIn, LyricsCalibrateOut,
     SongSearchIn, SongSearchOut, SearchCalibrateIn,
     LCAvailabilityOut, LCSubscribeIn, LCSubscribeOut,
+    CalibrateJobOut, CalibrateStatusOut,
 )
-from app.models import LyricalChargerSubscriber, UserCalibration, User
+from app.models import LyricalChargerSubscriber, UserCalibration, User, CalibrateJob
 from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
     lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
@@ -567,6 +573,26 @@ async def calibrate_lyrics_endpoint(
     tier: str = Depends(verify_api_or_service_key),
     current_user: User | None = Depends(optional_clerk_user),
 ):
+    """Synchronous single-song calibrate. Used by service/API callers
+    (chadlewine.com, internal scripts) and as a fallback. The public web tool
+    uses the async job path (POST /calibrate-lyrics/start) so it can drive a
+    real progress bar; both share _calibrate_lyrics_impl below."""
+    return await _calibrate_lyrics_impl(
+        body=body, request=request, background_tasks=background_tasks,
+        tier=tier, current_user=current_user,
+    )
+
+
+async def _calibrate_lyrics_impl(
+    *,
+    body: LyricsCalibrateIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    tier: str,
+    current_user: User | None,
+    progress_cb: Callable[[str], None] | None = None,
+    skip_bot_check: bool = False,
+):
     """Calibrate raw lyrics text. Stores the calibration (not the lyrics).
 
     Public callers (RC_API_KEY, e.g. Lyrical Charger web tool) get bot
@@ -585,7 +611,11 @@ async def calibrate_lyrics_endpoint(
 
     if is_public:
         _check_lc_available_or_503()
-        await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+        # skip_bot_check: the async job path (/calibrate-lyrics/start) already
+        # ran bot protection synchronously before launching the worker, and the
+        # Turnstile token is single-use, so the worker must NOT re-verify it.
+        if not skip_bot_check:
+            await _check_bot_protection(body.hp_website, body.turnstile_token, request)
 
     source = _resolve_source(tier, body.source)
 
@@ -780,12 +810,14 @@ async def calibrate_lyrics_endpoint(
         if cached_calibration:
             calibration = await ensure_full_calibration(
                 title, artist, body.lyrics, cached_calibration,
+                progress_cb=progress_cb,
             )
         else:
             # skip_cache=True since Phase 1 already did the lookup; db=None
             # so calibrate_song_async does not open its own session.
             calibration = await calibrate_song_async(
                 title, artist, body.lyrics, db=None, skip_cache=True,
+                progress_cb=progress_cb,
             )
 
         color = calibration.get("rubric_color")
@@ -1007,6 +1039,233 @@ async def calibrate_lyrics_endpoint(
                              payload={"reason": "calibrator_exception", "title": title,
                                       "artist": artist, "source": source})
         raise HTTPException(500, "Calibration failed -- try again")
+
+
+# ------------------------------------------------------------------
+# 5b. Async job model for the PUBLIC single-song charge
+# ------------------------------------------------------------------
+# A public charge is several sequential Opus calls (identity -> calibrate ->
+# listener -> ether -> societal -> save). Holding the HTTP connection open for
+# the whole tail read as a hang, and the frontend bar could only fake progress
+# (it parked at a fixed % until the response landed). The web tool now submits
+# to /calibrate-lyrics/start (validates + bot-checks synchronously, creates a
+# calibrate_jobs row, launches a worker, returns a token) and polls
+# /calibrate-lyrics/status/{token}, driving a REAL bar from the worker's phase.
+# The synchronous /calibrate-lyrics endpoint above is unchanged for service/API
+# callers -- both share _calibrate_lyrics_impl, so billing / salvage / events
+# have one source of truth. Mirrors the Album Charger job model.
+
+# A job left running past this is treated as failed (covers a container restart
+# mid-charge -- the in-process task is gone but the row still says "running").
+CALIB_JOB_STALE_AFTER = timedelta(minutes=10)
+
+# Hold references to in-flight worker tasks so the event loop doesn't GC them
+# (asyncio keeps only weak refs to tasks).
+_running_calib_tasks: set = set()
+
+
+class _ShimRequest:
+    """A request-shaped stand-in for the off-request worker. The single-song
+    impl only reads ip / user-agent / referrer (via extract_request_meta /
+    get_remote_address) and sets request.state.call_context -- this satisfies
+    exactly that and nothing else."""
+
+    def __init__(self, ip, user_agent, referrer):
+        self.client = SimpleNamespace(host=ip or "127.0.0.1")
+        self.headers = {"user-agent": user_agent or "", "referer": referrer or ""}
+        self.state = SimpleNamespace()
+
+
+def _update_calib_job(token: str, **fields) -> None:
+    """Short-lived write to the job row. Bumps updated_at. Swallows errors --
+    progress telemetry must never crash the worker."""
+    fields["updated_at"] = datetime.utcnow()
+    db = SessionLocal()
+    try:
+        db.query(CalibrateJob).filter(CalibrateJob.job_token == token).update(fields)
+        db.commit()
+    except Exception:
+        logger.exception("calibrate job %s progress update failed", token)
+    finally:
+        db.close()
+
+
+def _store_calib_result(token: str, result: LyricsCalibrateOut) -> None:
+    """Persist the final LyricsCalibrateOut payload + mark the job done. The
+    result's own `status` carries the real outcome (scored, run_capped, etc)."""
+    _update_calib_job(
+        token, status="done", phase="done",
+        result_json=json.dumps(result.model_dump(mode="json")),
+    )
+
+
+async def _run_single_calibration(
+    token: str,
+    body: LyricsCalibrateIn,
+    tier: str,
+    current_user_id: int | None,
+    meta: dict,
+) -> None:
+    """Worker: run the public single-song charge off the request, driving the
+    job's phase as it goes. Reuses the exact synchronous impl (one source of
+    truth) via a request shim, with bot-check skipped (already done at /start)
+    and a progress callback that stamps the job phase. Never raises into the
+    event loop -- any crash is recorded on the job so the poller stops."""
+
+    def _phase(name: str) -> None:
+        _update_calib_job(token, status="running", phase=name)
+
+    shim = _ShimRequest(meta.get("ip"), meta.get("user_agent"), meta.get("referrer"))
+    # current_user is only ever read for `.id`; a light stand-in is enough.
+    user_obj = SimpleNamespace(id=current_user_id) if current_user_id is not None else None
+    try:
+        _phase("identity")
+        result = await _calibrate_lyrics_impl(
+            body=body, request=shim, background_tasks=BackgroundTasks(),
+            tier=tier, current_user=user_obj,
+            progress_cb=_phase, skip_bot_check=True,
+        )
+        _store_calib_result(token, result)
+    except HTTPException as exc:
+        # A credit 402 (balance drained between the /start pre-flight and the
+        # worker) or any other HTTP error surfaces to the poller as an error,
+        # not a silent stall.
+        detail = exc.detail if isinstance(exc.detail, str) else "calibration_error"
+        _update_calib_job(token, status="error", phase="done",
+                          error_message=f"{exc.status_code}: {detail}")
+    except Exception:
+        logger.exception("single calibration worker failed (token=%s)", token)
+        _update_calib_job(token, status="error", phase="done",
+                          error_message="Calibration failed -- try again")
+
+
+@router.post("/calibrate-lyrics/start", response_model=CalibrateJobOut)
+@limiter.limit(_calibrate_daily_limit)
+async def calibrate_lyrics_start(
+    body: LyricsCalibrateIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    tier: str = Depends(verify_api_or_service_key),
+    current_user: User | None = Depends(optional_clerk_user),
+):
+    """Public async entry for the single-song charge. Validates + bot-checks +
+    credit-pre-flights synchronously (so a bad submission / failed Turnstile /
+    out-of-credits is a clean HTTP error here, before any token), then creates a
+    job and launches the worker. The frontend polls
+    /calibrate-lyrics/status/{token} and drives a real bar from the phase."""
+    is_public = tier == "public"
+    request.state.call_context = {
+        "title": (body.title or "")[:200],
+        "artist": (body.artist or "")[:200],
+        "source": (body.source or "")[:50],
+    }
+
+    if is_public:
+        _check_lc_available_or_503()
+        await _check_bot_protection(body.hp_website, body.turnstile_token, request)
+
+    source = _resolve_source(tier, body.source)
+
+    # Synchronous validation -- a 422 must surface at submit, not mid-bar.
+    if not body.title or not body.title.strip():
+        if is_public:
+            _log_error_event("submission_failed_validation", request,
+                             payload={"reason": "missing_title", "source": source})
+        raise HTTPException(422, "Song title is required.")
+    if not body.artist or not body.artist.strip():
+        if is_public:
+            _log_error_event("submission_failed_validation", request,
+                             payload={"reason": "missing_artist", "source": source})
+        raise HTTPException(422, "Artist is required.")
+    lyrics_error = _validate_lyrics(body.lyrics)
+    if lyrics_error:
+        if is_public:
+            _log_error_event("submission_failed_validation", request,
+                             payload={"reason": lyrics_error, "source": source,
+                                      "title": body.title[:100], "artist": body.artist[:100]})
+            raise HTTPException(422, {
+                "error": "lyrics_rejected",
+                "reason": lyrics_error,
+                "appeal_url": "/inquiry.html?topic=lyrics_rejected&source=lyrical_charger",
+                "message": (
+                    f"{lyrics_error} If these are accurate and complete lyrics, "
+                    "appeal at /inquiry.html?topic=lyrics_rejected"
+                ),
+            })
+        raise HTTPException(422, lyrics_error)
+
+    # Credit pre-flight (signed-in users) -- a clean 402 at submit. Cost depends
+    # on cache status, so resolve it the same way the impl will (a cheap read).
+    if current_user is not None:
+        read_db = SessionLocal()
+        try:
+            cached = lookup_calibrated(body.title.strip(), body.artist.strip(), read_db)
+        finally:
+            read_db.close()
+        preflight_cost = (
+            billing_config.COST_SONG_CACHE_HIT if cached
+            else billing_config.COST_SONG_MISS
+        )
+        billing_svc.check_credits(
+            current_user.id, preflight_cost,
+            reason=("song_cache_hit" if cached else "song_miss"),
+            allow_daily_free=True,
+        )
+
+    token = uuid.uuid4().hex
+    meta = extract_request_meta(request)
+    db = SessionLocal()
+    try:
+        db.add(CalibrateJob(job_token=token, status="queued", phase="queued",
+                            ip_address=meta.get("ip")))
+        db.commit()
+    finally:
+        db.close()
+
+    task = asyncio.create_task(_run_single_calibration(
+        token, body, tier,
+        current_user.id if current_user is not None else None,
+        meta,
+    ))
+    _running_calib_tasks.add(task)
+    task.add_done_callback(_running_calib_tasks.discard)
+
+    return CalibrateJobOut(job_token=token, status="queued")
+
+
+@router.get("/calibrate-lyrics/status/{job_token}", response_model=CalibrateStatusOut)
+@limiter.limit("600/hour")
+async def calibrate_lyrics_status(job_token: str, request: Request):
+    """Poll a single-song calibrate job. On done, `result` is the full
+    LyricsCalibrateOut the synchronous endpoint would have returned."""
+    db = SessionLocal()
+    try:
+        job = db.query(CalibrateJob).filter(CalibrateJob.job_token == job_token).first()
+    finally:
+        db.close()
+    if not job:
+        raise HTTPException(404, "Unknown job.")
+
+    # A job stuck running past the stale window (e.g. a redeploy mid-charge) is
+    # reported as errored so the UI stops polling.
+    if job.status in ("queued", "running"):
+        ref = job.updated_at or job.created_at or datetime.utcnow()
+        if datetime.utcnow() - ref > CALIB_JOB_STALE_AFTER:
+            return CalibrateStatusOut(status="error", phase=job.phase,
+                                      error="This calibration timed out. Please try again.")
+        return CalibrateStatusOut(status=job.status, phase=job.phase)
+
+    if job.status == "error":
+        return CalibrateStatusOut(status="error", phase=job.phase,
+                                  error=job.error_message or "Calibration failed -- try again.")
+
+    result = None
+    if job.result_json:
+        try:
+            result = LyricsCalibrateOut(**json.loads(job.result_json))
+        except Exception:
+            logger.exception("calibrate job %s result parse failed", job_token)
+    return CalibrateStatusOut(status="done", phase="done", result=result)
 
 
 # ------------------------------------------------------------------

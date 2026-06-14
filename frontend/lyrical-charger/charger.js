@@ -813,6 +813,104 @@ function detectProseLike(text) {
   return null;
 }
 
+// Real-progress phase map. The single-song charge is now an async job
+// (POST /calibrate-lyrics/start -> poll /status/{token}); the worker reports its
+// TRUE phase as it runs, so these percentages track actual backend work instead
+// of a timer. Percentages are monotonic and the worker stamps phases in order,
+// so the bar only ever moves forward. (Cosmetic-timer fallback `startProgress`
+// is still used by the synchronous Search flow.)
+const PHASE_PROGRESS = {
+  queued:      { pct: 8,  label: 'Queued',                  detail: 'Starting the calibrator...', sub: null },
+  identity:    { pct: 22, label: 'Reading lyrics',          detail: 'Checking they match the song...', sub: null },
+  calibrating: { pct: 48, label: 'Calibrating',             detail: 'Building the case against the rubric...', sub: null },
+  listener:    { pct: 70, label: 'Generating your reading', detail: 'What it may do to a listener...', sub: 0 },
+  ether:       { pct: 82, label: 'Generating your reading', detail: 'Naming what it is...', sub: 0 },
+  societal:    { pct: 92, label: 'Generating your reading', detail: 'And what it does at the scale of a society...', sub: 1 },
+  done:        { pct: 100, label: 'Complete',               detail: 'Calibration ready.', sub: 2 },
+};
+
+function driveProgressPhase(phase) {
+  const p = PHASE_PROGRESS[phase];
+  if (!p) return;
+  setProgress(p.pct, p.label, p.detail);
+  if (p.sub !== null && p.sub !== undefined) setSubstepActive(p.sub);
+}
+
+// Poll the calibrate job until it finishes, driving the real bar from `phase`.
+// Resolves with the LyricsCalibrateOut result; rejects with a coded Error
+// ('job_lost' | 'timeout' | a server error message) the caller maps to UI.
+async function pollCalibrateJob(token, headers) {
+  const deadline = Date.now() + 5 * 60 * 1000; // safety ceiling
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1200));
+    let resp;
+    try {
+      resp = await fetch(`${API_BASE}/calibrate-lyrics/status/${token}`, { headers });
+    } catch (_) {
+      continue; // transient network blip -- keep polling
+    }
+    if (resp.status === 404) throw new Error('job_lost');
+    if (!resp.ok) continue; // e.g. a poll-rate 429 -- back off and retry
+    const data = await resp.json();
+    if (data.phase) driveProgressPhase(data.phase);
+    if (data.status === 'done') return data.result;
+    if (data.status === 'error') throw new Error(data.error || 'Calibration failed. Try again.');
+  }
+  throw new Error('timeout');
+}
+
+// Render a finished LyricsCalibrateOut (the worker's result payload) -- identical
+// branch handling to the old synchronous response.
+async function handleCalibrationResult(data) {
+  if (!data || data.status === 'error') {
+    stopProgress();
+    showError('Could not calibrate these lyrics. Try different lyrics or check formatting.');
+    showScreen('screen-entry');
+    btnSubmit.disabled = false;
+    return;
+  }
+
+  if (data.status === 'lyrics_mismatch' || data.status === 'lyrics_diverge_from_prior') {
+    stopProgress();
+    showError(data.block_reason || 'These lyrics don\'t appear to match this song.');
+    showScreen('screen-entry');
+    btnSubmit.disabled = false;
+    return;
+  }
+
+  if (data.status === 'run_capped') {
+    stopProgress();
+    showCappedCard(data);
+    showScreen('screen-entry');
+    btnSubmit.disabled = false;
+    return;
+  }
+
+  if (data.status === 'not_commercial_warning') {
+    // LEIT clutter control: soft warning -- this didn't look like a commercially
+    // released song. Let the user confirm and push through (which queues it for
+    // human audit) or route to Creative/Curio.
+    stopProgress();
+    showCommercialWarning(data);
+    showScreen('screen-entry');
+    btnSubmit.disabled = false;
+    return;
+  }
+
+  if (data.status === 'saved_view_on_page') {
+    stopProgress();
+    showSavedCard(data);
+    showScreen('screen-entry');
+    btnSubmit.disabled = false;
+    return;
+  }
+
+  completeProgress();
+  await new Promise((r) => setTimeout(r, 600)); // brief beat on 100%
+  renderResults(data);
+  showScreen('screen-results');
+}
+
 async function submitLyrics(confirmCommercial = false) {
   hideError();
   btnSubmit.disabled = true;
@@ -835,12 +933,15 @@ async function submitLyrics(confirmCommercial = false) {
   }
 
   showScreen('screen-processing');
-  startProgress();
+  resetProgress();
+  setProgress(6, 'Submitting', 'Sending to the calibrator...');
 
   try {
     const headers = await calibrateHeaders();
 
-    const resp = await fetch(`${API_BASE}/calibrate-lyrics`, {
+    // 1) Synchronous submit: validation, bot-check, and credit pre-flight all
+    //    resolve here (clean HTTP errors), then a job token comes back.
+    const resp = await fetch(`${API_BASE}/calibrate-lyrics/start`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -903,57 +1004,31 @@ async function submitLyrics(confirmCommercial = false) {
       return;
     }
 
-    const data = await resp.json();
-
-    if (data.status === 'lyrics_mismatch' || data.status === 'lyrics_diverge_from_prior') {
+    const { job_token } = await resp.json();
+    if (!job_token) {
       stopProgress();
-      showError(data.block_reason || 'These lyrics don\'t appear to match this song.');
+      showError('Calibration failed. Try again.');
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
     }
 
-    if (data.status === 'run_capped') {
+    // 2) Poll the job, driving the REAL bar from the worker's phase.
+    let result;
+    try {
+      result = await pollCalibrateJob(job_token, headers);
+    } catch (e) {
       stopProgress();
-      showCappedCard(data);
+      const msg = e && e.message;
+      if (msg === 'job_lost') showError('We lost track of that calibration. Please try again.');
+      else if (msg === 'timeout') showError('That took longer than expected. Please try again.');
+      else showError(msg || 'Calibration failed. Try again.');
       showScreen('screen-entry');
       btnSubmit.disabled = false;
       return;
     }
 
-    if (data.status === 'not_commercial_warning') {
-      // LEIT clutter control: soft warning -- this didn't look like a
-      // commercially released song. Let the user confirm and push through
-      // (which queues it for human audit) or route to Creative/Curio.
-      stopProgress();
-      showCommercialWarning(data);
-      showScreen('screen-entry');
-      btnSubmit.disabled = false;
-      return;
-    }
-
-    if (data.status === 'error') {
-      stopProgress();
-      showError('Could not calibrate these lyrics. Try different lyrics or check formatting.');
-      showScreen('screen-entry');
-      btnSubmit.disabled = false;
-      return;
-    }
-
-    if (data.status === 'saved_view_on_page') {
-      stopProgress();
-      showSavedCard(data);
-      showScreen('screen-entry');
-      btnSubmit.disabled = false;
-      return;
-    }
-
-    completeProgress();
-    // Brief pause on 100% before showing results
-    await new Promise((r) => setTimeout(r, 600));
-
-    renderResults(data);
-    showScreen('screen-results');
+    await handleCalibrationResult(result);
   } catch (e) {
     stopProgress();
     resetTurnstile();

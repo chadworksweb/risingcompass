@@ -1239,6 +1239,23 @@ main {
   padding: 2rem 0;
 }
 
+.results-credit {
+  font-size: 0.75rem;
+  color: var(--rc-text-dim);
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.results-credit a {
+  color: var(--rc-accent);
+  text-decoration: none;
+  transition: color var(--rc-ease);
+}
+
+.results-credit a:hover {
+  color: var(--rc-text-bright);
+}
+
 .wordmark-small {
   font-size: 0.65rem;
   font-weight: 600;
