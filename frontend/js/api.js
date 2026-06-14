@@ -8,22 +8,48 @@ const API = (() => {
     ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
     : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
 
+  // Scrape Shield (Layer 2): grant a short-TTL, IP-bound session-token cookie
+  // so the browser carries a credential the static key alone can't give a
+  // scraper. Same-origin GET; the HttpOnly cookie rides on every later /api
+  // fetch automatically. Fire on load and re-grant when a 403 says the token
+  // lapsed (IP change / TTL). Best-effort: never blocks the page if it fails.
+  async function grantSession() {
+    try {
+      await fetch(`${BASE}/api/session/grant`, {
+        credentials: 'same-origin',
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (_) { /* shield is observe-only until enforced; ignore */ }
+  }
+  let sessionReady = grantSession();
+
   // nginx returns a brief 502/504 while the backend container restarts on
   // deploy; retry with short backoff so a page load mid-deploy recovers.
-  // 4xx is not retried (won't improve). 8s timeout is ample now that the
-  // backend talks to Postgres over the VPC (<1s typical) -- the old 20s
+  // 4xx is not retried (won't improve) EXCEPT a shield 403, which we recover
+  // from by re-granting the session token once. 8s timeout is ample now that
+  // the backend talks to Postgres over the VPC (<1s typical) -- the old 20s
   // budget was sized for the WAN round-trip to Turso, which is gone.
   async function get(path, { attempts = 3, timeoutMs = 8000 } = {}) {
     const headers = {};
     if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    try { await sessionReady; } catch (_) {}
+    let regranted = false;
     let lastErr;
     for (let i = 0; i < attempts; i++) {
       try {
         const resp = await fetch(`${BASE}${path}`, {
           headers,
+          credentials: 'same-origin',
           signal: AbortSignal.timeout(timeoutMs),
         });
         if (resp.ok) return resp.json();
+        if (resp.status === 403 && !regranted) {
+          // Likely a lapsed session token -- re-grant once and retry.
+          regranted = true;
+          sessionReady = grantSession();
+          try { await sessionReady; } catch (_) {}
+          continue;
+        }
         if (resp.status >= 400 && resp.status < 500) {
           throw new Error(`API error: ${resp.status}`);
         }

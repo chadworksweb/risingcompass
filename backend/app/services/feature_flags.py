@@ -211,6 +211,74 @@ def set_lyrical_charger_free_daily_charges(db: Session, value: int | None) -> No
     _set_int_flag(db, LC_FREE_DAILY_CHARGES_KEY, value)
 
 
+# --- Scrape Shield (anti-scrape stack) -------------------------------------
+# Genius-style defense on the public read path. Three independent enforcement
+# toggles, all FAIL-OPEN (absent = OFF) so the shield ships in observe-only
+# mode: it scores + logs without blocking until an admin flips a switch after
+# watching the bot feed. The numeric tunables size the per-IP read limiter and
+# the bot-score block threshold. See services/scrape_shield.py.
+SHIELD_RATELIMIT_ENABLED_KEY = "scrape_shield.ratelimit_enabled"
+SHIELD_BOTSCORE_ENABLED_KEY = "scrape_shield.botscore_enabled"
+SHIELD_TOKEN_ENABLED_KEY = "scrape_shield.token_enabled"
+SHIELD_READ_PER_MINUTE_KEY = "scrape_shield.read_per_minute"
+SHIELD_READ_PER_DAY_KEY = "scrape_shield.read_per_day"
+SHIELD_BOTSCORE_THRESHOLD_KEY = "scrape_shield.botscore_threshold"
+
+# Defaults: generous for humans, hard cap on enumeration. A real reader browses
+# a few pages a minute; a scraper pulling the sitemap blows past these fast.
+DEFAULT_SHIELD_READ_PER_MINUTE = 120
+DEFAULT_SHIELD_READ_PER_DAY = 3000
+DEFAULT_SHIELD_BOTSCORE_THRESHOLD = 60  # one ua_deny hit = 60, so a scripted UA trips it
+
+
+def is_shield_ratelimit_enabled(db: Session) -> bool:
+    return (_get_flag(db, SHIELD_RATELIMIT_ENABLED_KEY) or "false").lower() == "true"
+
+
+def is_shield_botscore_enabled(db: Session) -> bool:
+    return (_get_flag(db, SHIELD_BOTSCORE_ENABLED_KEY) or "false").lower() == "true"
+
+
+def is_shield_token_enabled(db: Session) -> bool:
+    return (_get_flag(db, SHIELD_TOKEN_ENABLED_KEY) or "false").lower() == "true"
+
+
+def shield_read_per_minute(db: Session) -> int:
+    return _read_int_flag(db, SHIELD_READ_PER_MINUTE_KEY, DEFAULT_SHIELD_READ_PER_MINUTE)
+
+
+def shield_read_per_day(db: Session) -> int:
+    return _read_int_flag(db, SHIELD_READ_PER_DAY_KEY, DEFAULT_SHIELD_READ_PER_DAY)
+
+
+def shield_botscore_threshold(db: Session) -> int:
+    return _read_int_flag(db, SHIELD_BOTSCORE_THRESHOLD_KEY, DEFAULT_SHIELD_BOTSCORE_THRESHOLD)
+
+
+def set_shield_ratelimit_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, SHIELD_RATELIMIT_ENABLED_KEY, enabled)
+
+
+def set_shield_botscore_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, SHIELD_BOTSCORE_ENABLED_KEY, enabled)
+
+
+def set_shield_token_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, SHIELD_TOKEN_ENABLED_KEY, enabled)
+
+
+def set_shield_read_per_minute(db: Session, value: int | None) -> None:
+    _set_int_flag(db, SHIELD_READ_PER_MINUTE_KEY, value)
+
+
+def set_shield_read_per_day(db: Session, value: int | None) -> None:
+    _set_int_flag(db, SHIELD_READ_PER_DAY_KEY, value)
+
+
+def set_shield_botscore_threshold(db: Session, value: int | None) -> None:
+    _set_int_flag(db, SHIELD_BOTSCORE_THRESHOLD_KEY, value)
+
+
 # --- Launch lock -----------------------------------------------------------
 # Soft pre-launch gate for the public sign-up form AND the billing checkout
 # (subscribe / buy credits). Default is LOCKED when the flag has never been

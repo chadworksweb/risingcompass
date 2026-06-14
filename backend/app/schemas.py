@@ -1365,3 +1365,27 @@ class LCNotifyOut(BaseModel):
     sent: int
     skipped: int
     failed: int
+
+
+# --- Scrape Shield admin ---------------------------------------------------
+class ShieldStatusOut(BaseModel):
+    ratelimit_enabled: bool
+    botscore_enabled: bool
+    token_enabled: bool
+    read_per_minute: int
+    read_per_day: int
+    botscore_threshold: int
+
+
+class ShieldToggleIn(BaseModel):
+    # null/omitted leaves that toggle unchanged.
+    ratelimit_enabled: Optional[bool] = None
+    botscore_enabled: Optional[bool] = None
+    token_enabled: Optional[bool] = None
+
+
+class ShieldLimitsIn(BaseModel):
+    # null/omitted leaves that value unchanged.
+    read_per_minute: Optional[int] = None
+    read_per_day: Optional[int] = None
+    botscore_threshold: Optional[int] = None

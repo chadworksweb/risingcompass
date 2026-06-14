@@ -1,0 +1,203 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'shield' %}
+{% block title %}Scrape Shield — Admin{% endblock %}
+
+{% block content %}
+<p style="font-size:0.9rem;color:var(--text-dim);max-width:60rem;margin:0 0 1.2rem;">
+  App-layer anti-scrape stack for the public read API. Each layer ships
+  <strong>observe-only</strong>: it scores and logs without blocking until you
+  enforce it. Watch the feed below (rows tagged <code>observe</code>), confirm
+  it's catching scrapers and not real readers, then flip Enforce. Service-tier
+  (paid / first-party) API keys and verified crawlers always bypass. Changes go
+  live within ~30s. Cloudflare (edge) is the other half — see the handoff doc.
+</p>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="shRate">—</div><div class="label">Rate limit</div></div>
+  <div class="stat-card"><div class="val" id="shBot">—</div><div class="label">Bot score</div></div>
+  <div class="stat-card"><div class="val" id="shToken">—</div><div class="label">Session token</div></div>
+</div>
+
+<h2 class="section-title">Enforcement</h2>
+<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;">
+  <table style="width:100%;font-size:0.88rem;border-collapse:collapse;">
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:0.5rem 0.4rem;"><strong>Per-IP read rate limit</strong><br>
+        <span style="color:var(--text-dim);font-size:0.8rem;">Throttles enumeration. 403 over the cap.</span></td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn-secondary" style="font-size:0.8rem;" onclick="shToggle('ratelimit_enabled', false)">Observe</button>
+        <button class="btn btn-primary" style="font-size:0.8rem;" onclick="shToggle('ratelimit_enabled', true)">Enforce</button>
+      </td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:0.5rem 0.4rem;"><strong>Bot-score block</strong><br>
+        <span style="color:var(--text-dim);font-size:0.8rem;">UA + header heuristics over the threshold.</span></td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn-secondary" style="font-size:0.8rem;" onclick="shToggle('botscore_enabled', false)">Observe</button>
+        <button class="btn btn-primary" style="font-size:0.8rem;" onclick="shToggle('botscore_enabled', true)">Enforce</button>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0.5rem 0.4rem;"><strong>Origin-bound session token</strong><br>
+        <span style="color:var(--text-dim);font-size:0.8rem;">Requires the browser cookie or same-origin. Blocks copied-key scrapers.</span></td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn-secondary" style="font-size:0.8rem;" onclick="shToggle('token_enabled', false)">Observe</button>
+        <button class="btn btn-primary" style="font-size:0.8rem;" onclick="shToggle('token_enabled', true)">Enforce</button>
+      </td>
+    </tr>
+  </table>
+  <div id="shToggleNote" style="font-size:0.82rem;color:var(--text-dim);margin-top:0.6rem;"></div>
+</div>
+
+<h2 class="section-title">Tunables</h2>
+<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;">
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-end;">
+    <div>
+      <label style="display:block;font-size:0.82rem;color:var(--text-dim);margin-bottom:0.3rem;">Reads / minute / IP</label>
+      <input type="number" id="shPerMin" min="1" step="1" style="width:8rem;font-family:inherit;font-size:0.9rem;padding:0.45rem 0.5rem;border:1px solid var(--border);border-radius:4px;">
+    </div>
+    <div>
+      <label style="display:block;font-size:0.82rem;color:var(--text-dim);margin-bottom:0.3rem;">Reads / day / IP</label>
+      <input type="number" id="shPerDay" min="1" step="1" style="width:8rem;font-family:inherit;font-size:0.9rem;padding:0.45rem 0.5rem;border:1px solid var(--border);border-radius:4px;">
+    </div>
+    <div>
+      <label style="display:block;font-size:0.82rem;color:var(--text-dim);margin-bottom:0.3rem;">Bot-score threshold</label>
+      <input type="number" id="shThreshold" min="1" step="1" style="width:8rem;font-family:inherit;font-size:0.9rem;padding:0.45rem 0.5rem;border:1px solid var(--border);border-radius:4px;">
+    </div>
+    <button class="btn btn-primary" onclick="shSaveLimits()">Save tunables</button>
+    <span id="shLimitsNote" style="font-size:0.82rem;color:var(--text-dim);"></span>
+  </div>
+</div>
+
+<h2 class="section-title">Activity feed</h2>
+<div style="display:flex;gap:0.8rem;margin-bottom:0.8rem;align-items:center;">
+  <label style="font-size:0.82rem;color:var(--text-dim);"><input type="checkbox" id="shOnlyBlocks" onchange="shLoadEvents()"> Only enforced blocks</label>
+  <button onclick="shLoadEvents()" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Refresh</button>
+</div>
+<table class="data-table" style="width:100%;font-size:0.82rem;">
+  <thead>
+    <tr>
+      <th style="text-align:left;">When</th>
+      <th style="text-align:left;">Decision</th>
+      <th style="text-align:left;">IP</th>
+      <th style="text-align:left;">User-Agent</th>
+      <th style="text-align:left;">Detail</th>
+    </tr>
+  </thead>
+  <tbody id="shEventsBody"><tr><td colspan="5" style="color:var(--text-dim);">Loading...</td></tr></tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onAdminReady() {
+  shLoadStatus();
+  shLoadEvents();
+}
+
+function shFmtDate(iso) {
+  if (!iso) return '<span style="color:var(--text-dim);">—</span>';
+  return `<time data-utc="${escHtml(iso)}"></time>`;
+}
+
+function shStateLabel(on) {
+  return on
+    ? '<span style="color:#cc3333;">ENFORCING</span>'
+    : '<span style="color:#888;">observe</span>';
+}
+
+async function shLoadStatus() {
+  try {
+    const resp = await adminFetch('/api/admin/shield');
+    if (!resp.ok) throw new Error('status fetch failed');
+    const s = await resp.json();
+    document.getElementById('shRate').innerHTML = shStateLabel(s.ratelimit_enabled);
+    document.getElementById('shBot').innerHTML = shStateLabel(s.botscore_enabled);
+    document.getElementById('shToken').innerHTML = shStateLabel(s.token_enabled);
+    document.getElementById('shPerMin').value = s.read_per_minute;
+    document.getElementById('shPerDay').value = s.read_per_day;
+    document.getElementById('shThreshold').value = s.botscore_threshold;
+  } catch (e) {
+    document.getElementById('shRate').textContent = 'error';
+  }
+}
+
+async function shToggle(field, enabled) {
+  const note = document.getElementById('shToggleNote');
+  note.textContent = 'Saving...';
+  try {
+    const body = {}; body[field] = enabled;
+    const resp = await adminFetch('/api/admin/shield/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    note.textContent = `${field}: ${enabled ? 'ENFORCING' : 'observe'}. Live within ~30s.`;
+    await shLoadStatus();
+  } catch (e) {
+    note.textContent = 'Toggle failed: ' + e.message;
+  }
+}
+
+async function shSaveLimits() {
+  const note = document.getElementById('shLimitsNote');
+  const perMin = parseInt(document.getElementById('shPerMin').value, 10);
+  const perDay = parseInt(document.getElementById('shPerDay').value, 10);
+  const thr = parseInt(document.getElementById('shThreshold').value, 10);
+  if (![perMin, perDay, thr].every(n => Number.isInteger(n) && n >= 1)) {
+    note.textContent = 'Values must be whole numbers >= 1.';
+    return;
+  }
+  note.textContent = 'Saving...';
+  try {
+    const resp = await adminFetch('/api/admin/shield/limits', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({read_per_minute: perMin, read_per_day: perDay, botscore_threshold: thr}),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    note.textContent = 'Saved. Live within ~30s.';
+    await shLoadStatus();
+  } catch (e) {
+    note.textContent = 'Save failed: ' + e.message;
+  }
+}
+
+function shDecisionBadge(t) {
+  const block = t.startsWith('shield_block');
+  const layer = t.replace('shield_observe_', '').replace('shield_block_', '');
+  const color = block ? '#cc3333' : '#888';
+  const word = block ? 'BLOCK' : 'observe';
+  return `<span style="color:${color};">${word}</span> ${escHtml(layer)}`;
+}
+
+async function shLoadEvents() {
+  const onlyBlocks = document.getElementById('shOnlyBlocks').checked;
+  const tbody = document.getElementById('shEventsBody');
+  tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-dim);">Loading...</td></tr>';
+  try {
+    const resp = await adminFetch(`/api/admin/shield/events?limit=150&only_blocks=${onlyBlocks}`);
+    if (!resp.ok) throw new Error('events fetch failed');
+    const data = await resp.json();
+    if (!data.events.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-dim);">No shield events yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.events.map(e => {
+      const detail = e.payload ? escHtml(JSON.stringify(e.payload)) : '';
+      const ua = e.user_agent ? escHtml(e.user_agent.slice(0, 80)) : '';
+      return `<tr>
+        <td style="white-space:nowrap;">${shFmtDate(e.occurred_at)}</td>
+        <td style="white-space:nowrap;">${shDecisionBadge(e.event_type)}</td>
+        <td style="white-space:nowrap;">${escHtml(e.ip || '')}</td>
+        <td style="max-width:22rem;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(e.user_agent || '')}">${ua}</td>
+        <td style="font-family:monospace;font-size:0.75rem;">${detail}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:#cc3333;">Error: ${e.message}</td></tr>`;
+  }
+}
+</script>
+{% endblock %}

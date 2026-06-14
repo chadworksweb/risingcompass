@@ -13,6 +13,7 @@ from fastapi import Depends
 
 from app.auth import verify_api_key, verify_api_or_service_key
 from app.config import settings
+from app.services.scrape_shield import shield_read_guard
 from app.database import engine, Base, SessionLocal
 from app.logging_config import configure_logging
 from app.migrate import run_migrations
@@ -230,8 +231,14 @@ async def log_api_call(request: Request, call_next):
 
 # Public routers — require X-Api-Key header
 _api_key_dep = [Depends(verify_api_key)]
-app.include_router(compass.router, dependencies=_api_key_dep)
-app.include_router(drift.router, dependencies=_api_key_dep)
+# Scrape Shield: public READ routers carrying the bulk, scrapeable content get
+# the shield guard AFTER key auth (so it can read client_behavior -- service-tier
+# / paid callers bypass). Layers ship observe-only behind system_flags; see
+# services/scrape_shield.py. Low-value routers (badge, tenets, etc.) stay on the
+# plain key dep to keep the blast radius on the data that actually gets scraped.
+_public_read_dep = [Depends(verify_api_key), Depends(shield_read_guard)]
+app.include_router(compass.router, dependencies=_public_read_dep)
+app.include_router(drift.router, dependencies=_public_read_dep)
 app.include_router(weekly_albums.router, dependencies=_api_key_dep)
 app.include_router(misread.router, dependencies=_api_key_dep)
 # misread admin endpoints are mounted separately below with the other admin routers
@@ -247,8 +254,8 @@ app.include_router(analyzer.router, dependencies=[Depends(verify_api_or_service_
 from app.routers import album_charger
 app.include_router(album_charger.router, dependencies=[Depends(verify_api_or_service_key)])
 app.include_router(badge.router, dependencies=_api_key_dep)
-app.include_router(artists.router, dependencies=_api_key_dep)
-app.include_router(songs.router, dependencies=_api_key_dep)
+app.include_router(artists.router, dependencies=_public_read_dep)
+app.include_router(songs.router, dependencies=_public_read_dep)
 # Public page SSR (/songs/<slug>, /artists/<slug>) -- bakes per-entity meta +
 # JSON-LD into the head for crawlers. Browser/crawler page loads, so NO
 # X-Api-Key dependency. nginx routes the dotless slug paths here.
@@ -262,10 +269,10 @@ app.include_router(vibe.user_router)  # Clerk-authed, no X-Api-Key; before the g
 app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(tenets.router, dependencies=_api_key_dep)
 app.include_router(amendments.router, dependencies=_api_key_dep)
-app.include_router(ether_art_chart.router, dependencies=_api_key_dep)
-app.include_router(chart_snapshots.public_router, dependencies=_api_key_dep)
+app.include_router(ether_art_chart.router, dependencies=_public_read_dep)
+app.include_router(chart_snapshots.public_router, dependencies=_public_read_dep)
 from app.routers import alltime_charts
-app.include_router(alltime_charts.public_router, dependencies=_api_key_dep)
+app.include_router(alltime_charts.public_router, dependencies=_public_read_dep)
 
 # Public Participation Tier 1 user endpoints. Self-authenticating via
 # Clerk session JWT (require_clerk_user) -- no X-Api-Key gate here, since
@@ -342,6 +349,8 @@ from app.routers import lc_events_admin
 app.include_router(lc_events_admin.router)
 from app.routers import lc_status_admin
 app.include_router(lc_status_admin.router)
+from app.routers import shield_admin
+app.include_router(shield_admin.router)
 from app.routers import launch_admin
 app.include_router(launch_admin.router)
 from app.routers import provenance
@@ -385,9 +394,12 @@ app.include_router(prose_admin.router)
 app.include_router(ether_audits.router)
 app.include_router(backfill_admin.router)
 app.include_router(calibration_log.router)
-app.include_router(calibration_log.public_router, dependencies=_api_key_dep)
-app.include_router(charger_activity.public_router, dependencies=_api_key_dep)
+app.include_router(calibration_log.public_router, dependencies=_public_read_dep)
+app.include_router(charger_activity.public_router, dependencies=_public_read_dep)
 app.include_router(chart_snapshots.admin_router)
+# Scrape Shield session-token grant (Layer 2). Public, origin-gated, no key dep.
+from app.routers import shield as shield_router
+app.include_router(shield_router.router)
 app.include_router(v1_test.router)
 
 

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     rc_backup_key: str = ""  # OPTIONAL — service token for the cron-driven /api/admin/backup endpoint. Falls back to rc_admin_key during transition.
     rc_reading_cron_key: str = ""  # REQUIRED in prod — service token for the cron-driven /api/admin/agent/cron/calibrate-live endpoint. Distinct from rc_backup_key so a leaked reading key can't trigger backups (and vice versa).
     rc_lyrics_supply_key: str = ""  # OPTIONAL — service token for POST /api/admin/agent/drafts/{ref}/songs/{id}/lyrics. Lets terminal scripts supply lyrics without the browser session cookie. Distinct from other service keys so a leak is scoped to lyrics supply only.
+    scrape_shield_secret: str = ""  # OPTIONAL — HMAC secret for the origin-bound browser session token (services/scrape_shield.py). Falls back to rc_admin_key when unset, so the shield works without new env; set a distinct value to rotate it independently.
 
     # Admin session policy
     admin_session_idle_seconds: int = 28800  # 8h sliding window

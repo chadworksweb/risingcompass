@@ -1,4 +1,9 @@
+# Rising Compass
+# Crawl the public pages (songs, artists, charts) -- search + LLM citation are
+# welcome. Do NOT crawl the JSON API: bulk and programmatic access runs through
+# the licensed API at https://api.risingcompass.net (plans at /api).
 User-agent: *
 Allow: /
+Disallow: /api/
 
 Sitemap: https://risingcompass.net/sitemap.xml

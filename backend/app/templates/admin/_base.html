@@ -483,6 +483,7 @@
       <a class="admin-nav-item {% if active == 'chart-anomalies' %}active{% endif %}" href="/api/admin/dashboard/chart-anomalies">Chart Anomalies</a>
       <a class="admin-nav-item {% if active == 'faultline' %}active{% endif %}" href="/api/admin/dashboard/faultline">Faultline</a>
       <a class="admin-nav-item {% if active == 'agents' %}active{% endif %}" href="/api/admin/dashboard/agents">Agents</a>
+      <a class="admin-nav-item {% if active == 'shield' %}active{% endif %}" href="/api/admin/dashboard/shield">Scrape Shield</a>
     </div>
 
     <div class="admin-nav-group">
@@ -766,6 +767,7 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
     { g: 'page', label: 'LC Activity', url: '/api/admin/dashboard/lc-activity', kw: 'lyrical charger albums events' },
     { g: 'page', label: 'LC Status', url: '/api/admin/dashboard/lc-status', kw: 'lyrical charger kill switch disabled' },
     { g: 'page', label: 'Song Merge', url: '/api/admin/dashboard/song-merge', kw: 'duplicate dedup identity resolution merge candidate clean key collision library hygiene' },
+    { g: 'page', label: 'Scrape Shield', url: '/api/admin/dashboard/shield', kw: 'anti scrape bot rate limit token genius block enforcement' },
     { g: 'page', label: 'Alerts', url: '/api/admin/dashboard/alerts', kw: 'email notifications prefs provenance' },
     { g: 'page', label: 'Inquiries', url: '/api/admin/dashboard/inquiries', kw: 'contact form general' },
     { g: 'page', label: 'Database', url: '/api/admin/dashboard/db', kw: 'db explorer sql tables rows' },
