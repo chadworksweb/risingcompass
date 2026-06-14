@@ -42,6 +42,7 @@ $sc.Arguments        = "-NoProfile -ExecutionPolicy Bypass -File `"$here\launch.
 $sc.WorkingDirectory = $here
 $sc.IconLocation     = "$icoPath,0"
 $sc.Description       = 'Rising Compass - parallel work-track visualizer'
+$sc.WindowStyle      = 7   # minimized: the watchdog window tucks into the taskbar
 $sc.Save()
 
 Write-Host "Shortcut created: $lnk"
