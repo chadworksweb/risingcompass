@@ -862,6 +862,10 @@
 
   function renderSong(song) {
     const isUncalibrated = !!song.uncalibrated || song.charge_value == null;
+    // Released, but its lyrics are genuinely unobtainable, so it carries no
+    // reading by design (distinct from a reset/uncalibrated song awaiting a
+    // re-read). Labeled honestly rather than shown as a generic "uncalibrated".
+    const isLyricsUnavailable = !!song.lyrics_unavailable;
     const color = COLOR_HEX[song.rubric_color] || '#999';
     const tierLabel = CHARGE_LABELS[song.rubric_color] || '';
     const chargeDisplay = song.charge_value != null
@@ -883,7 +887,9 @@
     if (pageTitleEl) pageTitleEl.textContent = pageTitle;
 
     const meaningLead = `This page answers what ${tagline} is about — the meaning behind the lyrics`;
-    const summaryLine = isUncalibrated
+    const summaryLine = isLyricsUnavailable
+      ? `${meaningLead}. This song is released but its lyrics are not available to read, so The Rising Compass carries no reading for it.`
+      : isUncalibrated
       ? `${meaningLead}. Currently uncalibrated by The Rising Compass; previous reasoning shown below.`
       : song.charge_summary
         ? `${meaningLead}: ${song.charge_summary}`
@@ -950,7 +956,8 @@
     const badge = document.getElementById('song-tier-badge');
     const compassWrap = document.getElementById('song-compass-container');
     if (isUncalibrated) {
-      badge.innerHTML = `<span class="badge-tier badge-tier--uncalibrated">Uncalibrated</span>`;
+      const badgeLabel = isLyricsUnavailable ? 'Lyrics unavailable' : 'Uncalibrated';
+      badge.innerHTML = `<span class="badge-tier badge-tier--uncalibrated">${badgeLabel}</span>`;
       if (compassWrap) compassWrap.hidden = true;
     } else {
       badge.innerHTML = '';
@@ -981,7 +988,9 @@
     summarySection.hidden = false;
     const summaryText = document.getElementById('summary-text');
     summaryText.classList.remove('is-loading');
-    summaryText.textContent = isUncalibrated
+    summaryText.textContent = isLyricsUnavailable
+      ? `${tagline} is released, but its lyrics are not available to read on any source, so The Rising Compass carries no reading for it. If the lyrics surface, it will be calibrated like any other song.`
+      : isUncalibrated
       ? `${tagline} is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.`
       : song.charge_summary || `${tagline} is calibrated as ${tierLabel} by The Rising Compass.`;
 

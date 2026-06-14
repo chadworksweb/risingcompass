@@ -39,6 +39,7 @@ class ReadingSongOut(BaseModel):
     chart_source: Optional[str] = None
     instrumental: bool = False
     preorder: bool = False
+    lyrics_unavailable: bool = False
     song_slug: Optional[str] = None
     artist_slug: Optional[str] = None
     # Ether/deadpan lens (populated for chart-snapshot rows so the secondary

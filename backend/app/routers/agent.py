@@ -640,8 +640,8 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
         db.flush()
 
         for song in draft.songs:
-            if getattr(song, "preorder", False):
-                continue  # no reading yet; not part of the published list
+            if getattr(song, "preorder", False) or getattr(song, "lyrics_unavailable", False):
+                continue  # no reading (pre-order / lyrics unavailable); not in the published list
             rs = ReadingSong(
                 reading_id=reading.id,
                 song_id=song.song_id,  # unified entity (Phase 5b native)

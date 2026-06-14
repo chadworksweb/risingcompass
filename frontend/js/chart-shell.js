@@ -148,19 +148,23 @@ const ChartShell = (() => {
 
     const instrClass = song.instrumental ? ' instrumental' : '';
     const preClass = song.preorder ? ' preorder' : '';
+    const luClass = song.lyrics_unavailable ? ' lyrics-unavailable' : '';
     // Link to the song page only once calibrated (the page exists then): a row
     // with no rubric_color has no reading yet.
     const songHref = (song.song_slug && song.rubric_color) ? `/songs/${encodeURIComponent(song.song_slug)}` : null;
     const titleHtml = songHref
       ? `<a href="${songHref}" class="song-title-link">${escapeHtml(song.title)}</a>`
       : escapeHtml(song.title);
-    const dotColor = (song.instrumental || song.preorder) ? '' : (song.rubric_color || '');
+    const dotColor = (song.instrumental || song.preorder || song.lyrics_unavailable) ? '' : (song.rubric_color || '');
     const preBadge = song.preorder
       ? '<span class="song-preorder" title="Charting on pre-order; not yet released, no reading yet">Pre-order</span>'
       : '';
+    const luBadge = song.lyrics_unavailable
+      ? '<span class="song-lyrics-unavailable" title="Released, but the lyrics are not available to read — so it carries no reading">Lyrics unavailable</span>'
+      : '';
 
     return `
-      <li class="song-item${hasTooltip ? ' has-tooltip' : ''}${instrClass}${preClass}">
+      <li class="song-item${hasTooltip ? ' has-tooltip' : ''}${instrClass}${preClass}${luClass}">
         <span class="song-pos">${positionDisplay(song)}</span>
         <span class="song-dot ${dotColor}"></span>
         <div class="song-info">
@@ -169,6 +173,7 @@ const ChartShell = (() => {
         </div>
         <div class="song-actions">
           ${preBadge}
+          ${luBadge}
           ${song.contaminated ? '<span class="song-contam" aria-hidden="true">&#x2622;</span>' : ''}
           ${song.dogma_referenced ? '<span class="song-dogma" aria-hidden="true" title="Dogma referenced">&#x1F4DC;</span>' : ''}
           ${hasTooltip ? `<button class="song-comment-btn" title="Read analysis" aria-label="Analysis of ${escapeHtml(song.title)}">&#x1F4AC;</button>` : ''}

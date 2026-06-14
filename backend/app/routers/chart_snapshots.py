@@ -160,6 +160,7 @@ def _build_song(snap: ChartSnapshot, song: Song | None, artist_slug: str | None 
         charge_summary=song.charge_summary if song else None,
         chart_source=snap.chart_source,
         instrumental=bool(song.instrumental) if song else False,
+        lyrics_unavailable=bool(song.lyrics_unavailable) if song else False,
         preorder=bool(getattr(snap, "preorder", False)),
         song_slug=generate_song_slug(snap.title, snap.artist),
         artist_slug=artist_slug,

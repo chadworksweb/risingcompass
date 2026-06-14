@@ -33,6 +33,7 @@ def _song_out(rs: ReadingSong, slug_map: dict[str, str] | None = None) -> Readin
         charge_summary=cs.charge_summary if cs else None,
         chart_source=rs.chart_source,
         instrumental=bool(cs.instrumental) if cs else False,
+        lyrics_unavailable=bool(cs.lyrics_unavailable) if cs else False,
         song_slug=generate_song_slug(rs.title, rs.artist),
         artist_slug=artist_slug,
     )

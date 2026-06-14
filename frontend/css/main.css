@@ -988,6 +988,23 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   flex-shrink: 0;
 }
 
+/* Lyrics unavailable — released, but lyrics are unobtainable, so no reading.
+   Muted like pre-order, no compass contribution. Permanent (a cache hit). */
+.song-item.lyrics-unavailable { opacity: 0.55; }
+.song-item.lyrics-unavailable .song-dot { background: var(--rc-text-dim); opacity: 0.5; box-shadow: none; }
+.song-lyrics-unavailable {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+  border: 1px solid var(--rc-text-dim);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .song-info { flex: 1; min-width: 0; }
 
 .song-title {
