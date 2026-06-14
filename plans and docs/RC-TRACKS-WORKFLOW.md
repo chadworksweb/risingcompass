@@ -34,10 +34,26 @@ pwsh tracks/rc-track.ps1 stop  <name>                  kill its backend + fronte
 pwsh tracks/rc-track.ps1 sync  <name>                  rebase the track onto origin/master
 pwsh tracks/rc-track.ps1 list                          show tracks + git worktrees
 pwsh tracks/rc-track.ps1 ports                         show the slot -> port table
+pwsh tracks/rc-track.ps1 viz                           open the live visualizer dashboard
 pwsh tracks/rc-track.ps1 remove <name> [-DeleteBranch] [-Force]
 ```
 
 `<name>` is kebab-case. The branch is always `track/<name>`.
+
+## Visualizer
+
+A live dashboard for watching every lane at once. Run `pwsh tracks/rc-track.ps1
+viz` (or the Desktop shortcut "RC Track Visualizer", or
+`node tracks/visualizer/server.js` directly), then open
+`http://127.0.0.1:4310`.
+
+It is a zero-dependency local Node server (no npm install, no build step) that
+reads `rc-tracks/registry.json`, `netstat`, and per-worktree `git` state. Each
+track and main shows as a module card, refreshed every 2s: stack up/down (backend
++ frontend ports listening), branch, dirty working tree, ahead/behind
+origin/master, and the last commit. It is read-only -- it never touches the
+worktrees or the database. Lives in `tracks/visualizer/`, so it travels with the
+repo like this script.
 
 ## Starting a parallel agent on a track
 

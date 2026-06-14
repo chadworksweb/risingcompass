@@ -20,6 +20,7 @@
     pwsh ./tracks/rc-track.ps1 sync  <name>          # rebase track onto origin/master
     pwsh ./tracks/rc-track.ps1 list
     pwsh ./tracks/rc-track.ps1 ports
+    pwsh ./tracks/rc-track.ps1 viz
     pwsh ./tracks/rc-track.ps1 remove <name> [-DeleteBranch] [-Force]
 
   NOTE: the database is REMOTE and SHARED across every track. Pure code/frontend
@@ -296,6 +297,15 @@ function Cmd-Remove {
   Write-Ok "Track '$Name' removed from registry."
 }
 
+function Cmd-Viz {
+  $launcher = Join-Path $PSScriptRoot "visualizer\launch.ps1"
+  if (-not (Test-Path $launcher)) { Die "Visualizer not found at $launcher" }
+  Write-Info "Starting the RC Track Visualizer..."
+  Start-Process pwsh -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $launcher) | Out-Null
+  Write-Ok "Dashboard: http://127.0.0.1:4310 (opens in your browser once it is up)"
+  Write-Info "Live view of every track: stack up/down, branch, dirty tree, ahead/behind, last commit."
+}
+
 function Cmd-Help {
   @"
 rc-track.ps1 - parallel work-track manager for Rising Compass
@@ -306,6 +316,7 @@ rc-track.ps1 - parallel work-track manager for Rising Compass
   sync  <name>                    fetch + rebase the track onto origin/master
   list                            show tracks and git worktrees
   ports                           show the slot -> port table
+  viz                             open the live track visualizer dashboard
   remove <name> [-DeleteBranch] [-Force]   tear down a track
 
 Each track is an isolated worktree/branch with its own ports. The database is
@@ -322,6 +333,7 @@ switch ($Command.ToLower()) {
   "sync"   { Cmd-Sync }
   "list"   { Cmd-List }
   "ports"  { Cmd-Ports }
+  "viz"    { Cmd-Viz }
   "remove" { Cmd-Remove }
   "help"   { Cmd-Help }
   default  { Write-Warn "Unknown command '$Command'."; Cmd-Help }
