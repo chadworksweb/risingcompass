@@ -21,15 +21,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import httpx
 
+from app.config import settings
 from app.routers import page_ssr
 
 # The baked pages are public, so force the canonical production origin
-# regardless of the local SITE_URL env.
+# regardless of the local SITE_URL env (this is the canonical URL written into
+# the baked HTML, NOT the host we fetch the data from).
 page_ssr._SITE = "https://risingcompass.net"
 
-API_BASE = "https://risingcompass.net"
-# Public read key (same one the static frontend ships in js/api.js).
-API_KEY = "6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b"
+# Fetch from the machine-API host, NOT the public root. The public root now
+# sits behind Cloudflare's bot challenge + the app-layer Scrape Shield, which
+# 403 a non-browser client like this baker. The api host is the sanctioned
+# machine path: no Cloudflare challenge, and a service-tier key bypasses the
+# Scrape Shield (shield_read_guard returns early for behavior == "service").
+API_BASE = "https://api.risingcompass.net"
+# Service key (first-party, bypasses the shield). Falls back to the public read
+# key (the one the static frontend ships) when RC_SERVICE_KEY is unset -- the
+# api host accepts it too, since the shield ships observe-only.
+API_KEY = settings.rc_service_key or "6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b"
 
 ENDPOINTS = {
     "streamed-all-time": "/api/charts/alltime/streams",
