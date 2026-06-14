@@ -36,7 +36,7 @@ _METHOD = {
 _CALIB = [
     "rubric_color", "charge_value", "charge_summary", "contaminated",
     "contamination_note", "dogma_referenced", "dogma_note", "instrumental",
-    "translated", "medley", "preorder",
+    "lyrics_unavailable", "translated", "medley", "preorder",
     "confidence", "listener_effects_prose", "societal_effects_prose",
     "societal_prose_generated_at", "societal_prose_model", "prior_listener_effects_prose",
     "prior_societal_effects_prose", "prior_societal_prose_generated_at",

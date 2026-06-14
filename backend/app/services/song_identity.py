@@ -42,6 +42,38 @@ def compute_canonical_key(title, artist):
     return f"{nt}{CANON_SEP}{na}"
 
 
+def clean_artist_set_key(artist):
+    """Order-independent normalized key for the CLEAN identity's artist part.
+
+    A multi-PRIMARY collaboration ("LE SSERAFIM x ILLIT x KATSEYE",
+    "ILLIT, LE SSERAFIM, KATSEYE") surfaces with the co-credits in a different
+    order on different feeds, so keying the clean identity on the first-credited
+    artist alone misses itself every time the order flips -- the song re-lists as
+    awaiting-lyrics daily. This collapses all co-primary credits to a sorted,
+    deduped set so the key is identical regardless of credit order.
+
+    Featured artists are EXCLUDED (preserving the prior primary-only behavior):
+    "A" and "A feat. B" still key the same. A single-primary credit returns the
+    same string the old extract_primary_artist(artist) produced, so single-artist
+    rows are unchanged -- only multi-primary rows get a new (order-stable) key.
+
+    Pure; no DB. parse_artist_string is imported lazily (it imports models)."""
+    try:
+        from app.services.artist_linker import parse_artist_string
+        entries = parse_artist_string(artist or "")
+    except Exception:
+        entries = []
+    primaries = []
+    for e in entries:
+        if (e.get("role") or "primary") == "primary":
+            n = normalize_for_search(e.get("name") or "")
+            if n:
+                primaries.append(n)
+    if not primaries:
+        return normalize_for_search(extract_primary_artist(artist))
+    return "".join(sorted(set(primaries)))
+
+
 def compute_canonical_key_clean(title, artist):
     """The Phase-1 CLEAN identity: the canonical key computed AFTER the closed
     feeder-cruft cleaning pass (app.services.feeder_clean). Collapses MV/lyric-
@@ -49,13 +81,17 @@ def compute_canonical_key_clean(title, artist):
     entry of a song already in the Library resolves to it instead of minting a
     duplicate. When (title, artist) carry no cruft, this equals compute_canonical_key.
 
+    The artist part uses clean_artist_set_key (order-independent over co-primary
+    collaborators), so a multi-group collab that surfaces with its credits in a
+    different order on different feeds still resolves to the one Library row.
+
     Pure; no DB. Imported lazily to avoid a feeder_clean <-> song_identity cycle
     at module load (feeder_clean imports song_search + artist_linker, same as us).
     """
     from app.services.feeder_clean import clean_title_artist
     ct, ca = clean_title_artist(title or "", artist or "")
     nt = normalize_for_search(ct)
-    na = normalize_for_search(extract_primary_artist(ca))
+    na = clean_artist_set_key(ca)
     return f"{nt}{CANON_SEP}{na}"
 
 
@@ -151,7 +187,9 @@ def _trgm_resolve(db, title, artist, key, clean_key, autolink=False):
     from app.services.feeder_clean import clean_title_artist
     ct, ca = clean_title_artist(title, artist)
     nt = normalize_for_search(ct)
-    na = normalize_for_search(extract_primary_artist(ca))
+    # Match the stored canonical_key_clean artist part (order-independent set key)
+    # so trgm compares like-for-like.
+    na = clean_artist_set_key(ca)
     if not nt:
         return None
     # Uses similarity() (not the `%` operator) to avoid the psycopg `%`-escaping

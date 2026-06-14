@@ -278,6 +278,7 @@ class DraftSongOut(BaseModel):
     confidence: Optional[float] = None
     lyrics_available: bool = False
     preorder: bool = False
+    lyrics_unavailable: bool = False
     dogma_referenced: bool = False
     dogma_note: Optional[str] = None
 
@@ -422,6 +423,13 @@ class PreorderIn(BaseModel):
     """Mark (or clear) a draft song as charting-on-pre-order. Default True so an
     empty POST body nulls the song as pre-order; {"preorder": false} clears it."""
     preorder: bool = True
+
+
+class LyricsUnavailableIn(BaseModel):
+    """Mark (or clear) a draft song as lyrics-unavailable: a released song whose
+    lyrics are genuinely unobtainable. Default True so an empty POST body sets
+    the hold; {"lyrics_unavailable": false} clears it."""
+    lyrics_unavailable: bool = True
 
 
 class DraftTriggerSongIn(BaseModel):

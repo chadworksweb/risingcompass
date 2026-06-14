@@ -68,6 +68,27 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
 
     if not existing:
         return None
+    # A lyrics_unavailable song is fully RESOLVED (released, but its lyrics are
+    # genuinely unobtainable) -- a permanent NULL-tier cache hit, so a live feeder
+    # stops re-listing it as awaiting-lyrics every day. It carries no tier/charge
+    # and is excluded from every aggregate. Return it BEFORE the incomplete-
+    # calibration rejection below (which requires a tier the song will never have).
+    if getattr(existing, "lyrics_unavailable", False):
+        logger.info("Cache hit (lyrics unavailable) for '%s' by %s (id=%s)",
+                    title, artist, existing.id)
+        return {
+            "song_id": existing.id,
+            "rubric_color": None,
+            "charge_value": None,
+            "charge_summary": None,
+            "lyrics_unavailable": True,
+            "instrumental": bool(existing.instrumental),
+            "contaminated": False,
+            "contamination_note": None,
+            "dogma_referenced": False,
+            "dogma_note": None,
+            "confidence": 1.0,
+        }
     # Instrumentals carry no charge by design: charge_value and charge_summary
     # stay NULL, the song shows a grey dot, and it is excluded from every
     # aggregate. It is still fully RESOLVED -- there are no lyrics to read -- so

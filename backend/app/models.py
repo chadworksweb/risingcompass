@@ -168,6 +168,12 @@ class AgentDraftSong(Base):
     # from the approval gate, excluded from aggregates, NOT a cache hit -- re-lists
     # until real lyrics drop. Sibling to instrumental, but lifecycle differs.
     preorder = Column(Boolean, default=False)
+    # Permanent null disposition: a RELEASED song whose lyrics are genuinely
+    # unobtainable (not published anywhere). Exempt from the approval gate and
+    # excluded from aggregates like preorder, but -- unlike preorder -- it IS a
+    # cache hit (a persistent songs row carries the flag), so the feeder stops
+    # re-listing it daily. Cleared if real lyrics later surface and supersede it.
+    lyrics_unavailable = Column(Boolean, default=False)
     # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
     activations = Column(Text)
     calibration_failed = Column(Boolean, default=False)
@@ -1668,6 +1674,11 @@ class Song(Base):
     dogma_referenced = Column(Boolean, default=False)
     dogma_note = Column(Text)
     instrumental = Column(Boolean, default=False)
+    # Released song with genuinely unobtainable lyrics. A permanent NULL-tier
+    # cache hit (sibling to instrumental, but no rubric_color and a distinct
+    # public label): resolves the feeder so the song stops re-listing as
+    # awaiting-lyrics, carries no charge, and is excluded from every aggregate.
+    lyrics_unavailable = Column(Boolean, default=False)
     translated = Column(Boolean, default=False)  # calibrated off a translation of non-English lyrics
     medley = Column(Boolean, default=False)  # calibration reads a curated multi-song medley as one arc
     preorder = Column(Boolean, default=False)  # charting on pre-order; no lyrics yet, awaiting release

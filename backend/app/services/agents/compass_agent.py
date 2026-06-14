@@ -81,6 +81,11 @@ def _write_draft_and_songs(
                 # no lyrics yet) is written exempt from the approval gate +
                 # excluded from aggregates, re-listing until real lyrics drop.
                 preorder=bool(s.get("preorder", False)),
+                # Permanent null disposition: a released song whose lyrics are
+                # unobtainable. A cache hit (carried on the songs row), so it is
+                # exempt from the gate and excluded from aggregates, and it does
+                # NOT re-list on the next feeder run.
+                lyrics_unavailable=bool(s.get("lyrics_unavailable", False)),
             ))
 
         db.commit()
