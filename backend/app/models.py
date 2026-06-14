@@ -1231,6 +1231,13 @@ class RcSubscriber(Base):
     # Date key (YYYY-MM-DD) of the last reading digest sent -- per-recipient
     # dedup so a re-run only targets those who have not yet received it.
     last_digest_key = Column(String(10), nullable=True)
+    # Notification-category toggles (opt-out model: all default true). A subscriber
+    # turns any off from the tokenized preference center. See services/subscribers
+    # NOTIFY_CATEGORIES; daily_reading gates the digest, the other two gate the
+    # admin-composed broadcasts (moments of notice, updates/releases).
+    pref_daily_reading = Column(Boolean, nullable=False, default=True, server_default=text("true"))
+    pref_moments_of_notice = Column(Boolean, nullable=False, default=True, server_default=text("true"))
+    pref_config_updates = Column(Boolean, nullable=False, default=True, server_default=text("true"))
 
 
 class Donation(Base):

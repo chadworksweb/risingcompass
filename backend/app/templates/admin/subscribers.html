@@ -17,6 +17,29 @@
   <span id="digestResult" style="font-size:0.8rem;color:#888;"></span>
 </div>
 
+<h2 class="section-title">Send a broadcast</h2>
+<div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:0.9rem 1rem;max-width:680px;">
+  <p style="color:#888;font-size:0.78rem;margin:0 0 0.7rem;">A one-off note to confirmed subscribers who keep the chosen category on. Daily readings have their own digest above. Preview the count before sending; broadcasts are not deduped, so re-sending goes to everyone again.</p>
+  <div style="display:flex;flex-direction:column;gap:0.55rem;">
+    <label style="font-size:0.8rem;color:#aaa;">Category
+      <select id="bcCategory" style="display:block;margin-top:0.2rem;width:100%;padding:0.4rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;"></select>
+    </label>
+    <label style="font-size:0.8rem;color:#aaa;">Subject
+      <input id="bcSubject" type="text" maxlength="200" placeholder="What this note is about"
+             style="display:block;margin-top:0.2rem;width:100%;padding:0.4rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;box-sizing:border-box;">
+    </label>
+    <label style="font-size:0.8rem;color:#aaa;">Message (plain text; blank lines make paragraphs)
+      <textarea id="bcBody" rows="6" maxlength="20000" placeholder="Write the note..."
+             style="display:block;margin-top:0.2rem;width:100%;padding:0.5rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;box-sizing:border-box;font-family:inherit;"></textarea>
+    </label>
+    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+      <button onclick="sendBroadcast(true)" style="padding:0.35rem 0.8rem;font-size:0.8rem;">Preview (count)</button>
+      <button onclick="sendBroadcast(false)" style="padding:0.35rem 0.8rem;font-size:0.8rem;">Send broadcast now</button>
+      <span id="bcResult" style="font-size:0.8rem;color:#888;"></span>
+    </div>
+  </div>
+</div>
+
 <h2 class="section-title">On-site subscribers</h2>
 <div class="filter-bar" id="subFilters">
   <button class="filter-btn active" onclick="subFilter('')">All</button>
@@ -32,6 +55,7 @@
 {% block scripts %}
 <script>
 let subStatus = '';
+let bcCategories = [];
 
 function onAdminReady() { loadSubscribers(); }
 
@@ -57,6 +81,8 @@ async function loadSubscribers() {
     document.getElementById('subTotal').textContent = s.total ?? '—';
     document.getElementById('subCapNote').style.display = data.capped ? '' : 'none';
 
+    if (data.categories) { bcCategories = data.categories; renderBroadcastCategories(); }
+
     const el = document.getElementById('subList');
     const rows = data.rows || [];
     if (!rows.length) { el.innerHTML = '<p style="color:#666;">No subscribers match.</p>'; return; }
@@ -81,8 +107,60 @@ function renderSubscriber(r) {
       </div>
       <div style="color:#666;font-size:0.78rem;">${when}</div>
     </div>
-    <div style="color:#555;font-size:0.78rem;margin-top:0.25rem;">${src}${detail}</div>
+    <div style="color:#555;font-size:0.78rem;margin-top:0.25rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+      ${renderPrefChips(r.prefs)}<span>${src}${detail}</span>
+    </div>
   </div>`;
+}
+
+// Compact on/off chips for the notification categories, labeled by their first
+// letter (D=daily reading, M=moments of notice, U=updates). Off = dim/struck.
+function renderPrefChips(prefs) {
+  if (!prefs || !bcCategories.length) return '';
+  const all = (bcCategories.length ? bcCategories : []);
+  return all.map(c => {
+    const on = prefs[c.key] !== false;
+    const letter = (c.label || c.key).charAt(0).toUpperCase();
+    const style = on
+      ? 'background:rgba(0,143,114,0.14);color:var(--accent);'
+      : 'background:rgba(120,120,120,0.12);color:#888;text-decoration:line-through;';
+    return `<span title="${escHtml(c.label)}${on ? '' : ' (off)'}" style="${style}font-size:0.68rem;padding:1px 6px;border-radius:3px;font-weight:bold;">${letter}</span>`;
+  }).join('');
+}
+
+function renderBroadcastCategories() {
+  const sel = document.getElementById('bcCategory');
+  if (!sel) return;
+  const broadcastable = bcCategories.filter(c => c.broadcast);
+  const cur = sel.value;
+  sel.innerHTML = broadcastable.map(c =>
+    `<option value="${escHtml(c.key)}">${escHtml(c.label)}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+async function sendBroadcast(dry) {
+  const out = document.getElementById('bcResult');
+  const category = document.getElementById('bcCategory').value;
+  const subject = document.getElementById('bcSubject').value.trim();
+  const body = document.getElementById('bcBody').value.trim();
+  if (!category) { out.textContent = 'Pick a category.'; return; }
+  if (!subject || !body) { out.textContent = 'Subject and message are required.'; return; }
+  if (!dry && !confirm(`Send "${subject}" to everyone opted into this category now?`)) return;
+  out.textContent = dry ? 'Checking...' : 'Sending...';
+  try {
+    const resp = await fetch('/api/admin/subscribers/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+      body: JSON.stringify({ category, subject, body, dry_run: dry }),
+    });
+    const d = await resp.json().catch(() => ({}));
+    if (!resp.ok) { out.textContent = 'Failed.'; return; }
+    if (d.status === 'bad_category') { out.textContent = 'That category cannot be broadcast.'; return; }
+    if (d.status === 'empty') { out.textContent = 'Subject and message are required.'; return; }
+    if (d.status === 'dry_run') { out.textContent = `${d.eligible} would receive this.`; return; }
+    out.textContent = `Sent ${d.sent}, failed ${d.failed} (of ${d.eligible} eligible).`;
+    loadSubscribers();
+  } catch (e) { out.textContent = 'Error.'; console.error(e); }
 }
 
 async function sendDigest(dry) {

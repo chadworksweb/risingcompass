@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.routers.analyzer import _check_bot_protection, limiter
-from app.schemas import SubscribeIn, SubscribeOut
+from app.schemas import SubscribeIn, SubscribeOut, SubscriberPrefsIn
 from app.services import subscribers as subs
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,42 @@ def confirm(token: str = "", db: Session = Depends(get_db)):
         f'<p style="margin-top:18px"><a class="muted" href="{site}/">No thanks, just the readings</a></p>'
     )
     return HTMLResponse(_page("Subscribed", body))
+
+
+@router.get("/api/subscribe/preferences")
+def get_preferences(token: str = "", db: Session = Depends(get_db)):
+    """Read the category toggles + master state behind a manage token. Returns
+    `found: false` (200) for an unknown token so the page can show a generic
+    'link invalid' state without confirming whether an address is on the list."""
+    public_categories = [
+        {"key": c["key"], "label": c["label"], "desc": c["desc"]}
+        for c in subs.NOTIFY_CATEGORIES
+    ]
+    row = subs.get_by_unsub_token(db, token)
+    if row is None:
+        return {"found": False, "categories": public_categories}
+    return {
+        "found": True,
+        "email": row.email,
+        "subscribed": row.status != "unsubscribed",
+        "prefs": subs.prefs_dict(row),
+        "categories": public_categories,
+    }
+
+
+@router.post("/api/subscribe/preferences")
+def update_preferences(data: SubscriberPrefsIn, db: Session = Depends(get_db)):
+    """Update toggles / master state for the row behind the manage token. Always
+    returns `ok: true` (idempotent, no token-existence leak); when the token
+    resolves, the new state rides back so the page can re-render."""
+    row = subs.set_prefs_by_token(db, data.token, data.prefs or {}, data.subscribed)
+    if row is None:
+        return {"ok": True}
+    return {
+        "ok": True,
+        "subscribed": row.status != "unsubscribed",
+        "prefs": subs.prefs_dict(row),
+    }
 
 
 @router.get("/api/unsubscribe", response_class=HTMLResponse)

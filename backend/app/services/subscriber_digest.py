@@ -78,6 +78,7 @@ def _render_html(reading: DailyReading, sub: RcSubscriber, ad_image_url: str | N
     site = _site()
     ad_img = ad_image_url or f"{site}/lyrical-charger/lc-splash-ad.png"
     unsub = f"{site}/api/unsubscribe?token={sub.unsubscribe_token}"
+    manage = f"{site}/subscribe/preferences/?token={sub.unsubscribe_token}"
     charge_color = COLOR_HEX.get(reading.charge_level, "#999")
     charge_label = COLOR_LABELS.get(reading.charge_level, reading.charge_level)
     score = degree_to_score_display(reading.compass_degree) if reading.compass_degree is not None else ""
@@ -149,7 +150,7 @@ def _render_html(reading: DailyReading, sub: RcSubscriber, ad_image_url: str | N
         </table>
       </div>
       <div style="padding:14px 26px;border-top:1px solid #eee;text-align:center;">
-        <span style="font-size:11px;color:#999;">You are subscribed to The Rising Compass readings. <a href="{unsub}" style="color:#999;">Unsubscribe</a>.</span>
+        <span style="font-size:11px;color:#999;">You are subscribed to The Rising Compass readings. <a href="{manage}" style="color:#999;">Manage preferences</a> &middot; <a href="{unsub}" style="color:#999;">Unsubscribe</a>.</span>
       </div>
     </div>
     """
@@ -170,6 +171,7 @@ def send_digest(db: Session, dry_run: bool = False) -> dict:
         db.query(RcSubscriber)
         .filter(
             RcSubscriber.status == "confirmed",
+            RcSubscriber.pref_daily_reading.is_(True),
             or_(RcSubscriber.last_digest_key.is_(None), RcSubscriber.last_digest_key != key),
         )
         .order_by(RcSubscriber.id.asc())

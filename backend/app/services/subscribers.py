@@ -31,6 +31,44 @@ logger = logging.getLogger(__name__)
 
 VALID_SOURCES = {"song_page", "homepage", "activity", "charger", "footer", "other"}
 
+# Notification categories (opt-out model: every column defaults true). `key` is
+# the public/admin token, `col` the RcSubscriber attribute. daily_reading is the
+# existing reading digest; the other two are admin-composed broadcasts. Add a
+# category here + a migration column and every surface (preference center, admin
+# display, broadcast picker) picks it up.
+NOTIFY_CATEGORIES = [
+    {
+        "key": "daily_reading",
+        "col": "pref_daily_reading",
+        "label": "Daily readings",
+        "desc": "The daily compass reading: the day's charge and the songs behind it.",
+        "broadcast": False,
+    },
+    {
+        "key": "moments_of_notice",
+        "col": "pref_moments_of_notice",
+        "label": "Moments of notice",
+        "desc": "Occasional notes when something moves: a sharp spike, an anomaly, a notable shift.",
+        "broadcast": True,
+    },
+    {
+        "key": "config_updates",
+        "col": "pref_config_updates",
+        "label": "Updates and releases",
+        "desc": "Now and then: new features, framework changes, and version launches.",
+        "broadcast": True,
+    },
+]
+NOTIFY_BY_KEY = {c["key"]: c for c in NOTIFY_CATEGORIES}
+# Categories an admin can send a one-off broadcast to (daily_reading has its own
+# digest sender, so it is not a broadcast target).
+BROADCAST_KEYS = {c["key"] for c in NOTIFY_CATEGORIES if c["broadcast"]}
+
+
+def prefs_dict(sub: RcSubscriber) -> dict:
+    """Serialize a row's category toggles as {key: bool} for the API/admin."""
+    return {c["key"]: bool(getattr(sub, c["col"], True)) for c in NOTIFY_CATEGORIES}
+
 
 def normalize_email(email: str) -> str:
     return (email or "").strip().lower()
@@ -125,6 +163,45 @@ def unsubscribe(db: Session, token: str) -> Optional[RcSubscriber]:
     return row
 
 
+# --- preference center (tokenized, no login) --------------------------------
+
+def get_by_unsub_token(db: Session, token: str) -> Optional[RcSubscriber]:
+    """Resolve the stable manage/unsubscribe token to its row. The token comes
+    from the subscriber's own inbox, so it doubles as the preference-center key
+    (the same pattern chadlewine uses)."""
+    if not token:
+        return None
+    return db.query(RcSubscriber).filter(RcSubscriber.unsubscribe_token == token).first()
+
+
+def set_prefs_by_token(
+    db: Session, token: str, prefs: dict, subscribed: Optional[bool] = None
+) -> Optional[RcSubscriber]:
+    """Update category toggles (and optionally the master subscribe state) for the
+    row behind `token`. `prefs` is {category_key: bool}; unknown keys are ignored.
+    `subscribed` True/False flips the master status (resubscribe / unsubscribe
+    from everything). Returns the row, or None if the token does not resolve."""
+    row = get_by_unsub_token(db, token)
+    if row is None:
+        return None
+    for c in NOTIFY_CATEGORIES:
+        if isinstance(prefs, dict) and c["key"] in prefs:
+            setattr(row, c["col"], bool(prefs[c["key"]]))
+    if subscribed is True:
+        # Re-opt-in. The click came from their own email, so treat the address as
+        # confirmed rather than bouncing them back through double opt-in.
+        row.status = "confirmed"
+        row.unsubscribed_at = None
+        if row.confirmed_at is None:
+            row.confirmed_at = datetime.utcnow()
+    elif subscribed is False:
+        row.status = "unsubscribed"
+        row.unsubscribed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 # --- linking (no-duplicate / promote-to-Clerk) -----------------------------
 
 def link_user_for_subscriber(db: Session, sub: RcSubscriber) -> bool:
@@ -177,6 +254,12 @@ def _unsub_url(sub: RcSubscriber) -> str:
     return f"{base}/api/unsubscribe?token={sub.unsubscribe_token}"
 
 
+def manage_url(sub: RcSubscriber) -> str:
+    """Tokenized preference-center link (choose which categories to receive)."""
+    base = (settings.site_url or "https://risingcompass.net").rstrip("/")
+    return f"{base}/subscribe/preferences/?token={sub.unsubscribe_token}"
+
+
 def send_confirm_email(sub: RcSubscriber) -> bool:
     """Double-opt-in confirm email. Safe to call from a background task; returns
     False (logged) if Resend is unconfigured, never raises."""
@@ -184,6 +267,7 @@ def send_confirm_email(sub: RcSubscriber) -> bool:
 
     confirm_link = _confirm_url(sub)
     unsub_link = _unsub_url(sub)
+    manage_link = manage_url(sub)
     subject = "Confirm your Rising Compass subscription"
     html = f"""
       <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;line-height:1.55">
@@ -198,6 +282,7 @@ def send_confirm_email(sub: RcSubscriber) -> bool:
         </p>
         <p style="font-size:13px;color:#666">If you did not request this, ignore
         this email and nothing happens. You can
+        <a href="{manage_link}" style="color:#666">choose what you get</a> or
         <a href="{unsub_link}" style="color:#666">opt out here</a>.</p>
       </div>
     """

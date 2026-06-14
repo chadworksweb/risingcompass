@@ -1267,6 +1267,22 @@ class SubscribeOut(BaseModel):
     message: str
 
 
+class SubscriberPrefsIn(BaseModel):
+    """Preference-center update (tokenized, no login). `prefs` is
+    {category_key: bool}; `subscribed` flips the master state when present."""
+    token: str = ""
+    prefs: dict = Field(default_factory=dict)
+    subscribed: Optional[bool] = None
+
+
+class SubscriberBroadcastIn(BaseModel):
+    """Admin one-off category broadcast (moments of notice / updates)."""
+    category: str
+    subject: str = Field(..., min_length=1, max_length=200)
+    body: str = Field(..., min_length=1, max_length=20000)
+    dry_run: bool = False
+
+
 class SubscriberOut(BaseModel):
     id: int
     email: str

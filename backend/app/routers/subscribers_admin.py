@@ -10,7 +10,9 @@ from app.auth import verify_reading_cron_key
 from app.database import get_db
 from app.models import RcSubscriber
 from app.routers.admin import verify_admin_key
-from app.services import subscriber_digest
+from app.schemas import SubscriberBroadcastIn
+from app.services import subscriber_broadcast, subscriber_digest
+from app.services import subscribers as subs
 
 router = APIRouter(tags=["subscribers-admin"])
 
@@ -54,8 +56,13 @@ def list_subscribers(status: str = Query(""), db: Session = Depends(get_db)):
                 "promoted_at": r.promoted_at.isoformat() if r.promoted_at else None,
                 "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
+                "prefs": subs.prefs_dict(r),
             }
             for r in rows
+        ],
+        "categories": [
+            {"key": c["key"], "label": c["label"], "broadcast": c["broadcast"]}
+            for c in subs.NOTIFY_CATEGORIES
         ],
     }
 
@@ -72,3 +79,13 @@ def admin_send_digest(dry_run: bool = Query(False), db: Session = Depends(get_db
     """Admin 'Send digest now' trigger (cookie auth). Same sender as the cron;
     pass dry_run=true to preview the eligible count without sending."""
     return subscriber_digest.send_digest(db, dry_run=dry_run)
+
+
+@router.post("/api/admin/subscribers/broadcast", dependencies=[Depends(verify_admin_key)])
+def admin_broadcast(data: SubscriberBroadcastIn, db: Session = Depends(get_db)):
+    """Admin one-off category broadcast (moments of notice / updates and releases).
+    Sends to confirmed subscribers opted into that category; pass dry_run=true to
+    preview the eligible count without sending."""
+    return subscriber_broadcast.send_broadcast(
+        db, data.category, data.subject, data.body, dry_run=data.dry_run
+    )

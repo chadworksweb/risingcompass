@@ -1158,9 +1158,33 @@ runner applies only versions above the current max.)
   Cron `POST /api/admin/agent/cron/subscriber-digest` (`X-Reading-Cron-Key`), script
   `deploy/subscriber-digest.sh` (cadence = crontab choice, weekly recommended). NOT
   yet in the server crontab.
-- **Status:** Deployed (migrations 102/103 apply on deploy). Plan:
+- **Notification preferences (2026-06-14, mirrors chadlewine).** Three opt-out
+  category toggles on `rc_subscribers` (migration 127, all `DEFAULT true` so
+  existing confirmed subscribers stay on readings + are opted into the two new
+  ones): `pref_daily_reading` (the digest), `pref_moments_of_notice` (spikes /
+  anomalies / notable shifts), `pref_config_updates` (features / framework /
+  version launches). Single source of truth = `subscribers.NOTIFY_CATEGORIES`
+  (`key`/`col`/`label`/`desc`/`broadcast`); add a category there + a column and
+  every surface picks it up. `prefs_dict` serializes a row as `{key: bool}`.
+  - **Preference center (tokenized, no login).** Reuses the stable
+    `unsubscribe_token` as the manage key (came from the subscriber's own inbox).
+    `GET/POST /api/subscribe/preferences` (added to the UNAUTHED `subscribe.py`
+    router; no-leak: bad token -> `found:false` / `ok:true`). Frontend page
+    `frontend/subscribe/preferences/` (toggle per category + master
+    unsubscribe/resubscribe, saves on change). Manage link added to the confirm +
+    digest email footers.
+  - **Digest gating.** `subscriber_digest.send_digest` now also filters
+    `pref_daily_reading IS TRUE`.
+  - **Admin category broadcast.** `services/subscriber_broadcast.py` +
+    `POST /api/admin/subscribers/broadcast` (cookie auth, `dry_run`): a one-off
+    plain-text note (rendered into the branded shell) to confirmed subscribers
+    opted into a `BROADCAST_KEYS` category (moments_of_notice / config_updates;
+    daily_reading has its own digest). NOT deduped -- preview the count first.
+    Composer + per-row D/M/U preference chips on the Subscribers admin page.
+- **Status:** Build 2b (capture + digest) deployed (102/103). Preferences pass
+  deployed 2026-06-14 (migration 127 applies on deploy). Plan:
   `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 2; session notes
-  `2026-06-10b` / `2026-06-10c`.
+  `2026-06-10b` / `2026-06-10c` / `2026-06-14`.
 
 ## Social broadcaster (Hockey Stick Build 6, 2026-06-13) -- ships DARK
 
