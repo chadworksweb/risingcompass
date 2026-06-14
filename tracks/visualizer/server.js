@@ -107,7 +107,7 @@ async function gitInfo(repoPath) {
   };
 }
 
-// --- registry ----------------------------------------------------------------
+// --- registry (optional metadata: slot + ports per track name) --------------
 function loadRegistry() {
   try {
     const raw = fs.readFileSync(REGISTRY, "utf8");
@@ -119,10 +119,46 @@ function loadRegistry() {
   }
 }
 
+// TRACK.md fallback - the script writes slot/ports into each worktree, so a
+// track that exists but is missing from the registry still resolves its ports.
+function trackMdMeta(repoPath) {
+  try {
+    const md = fs.readFileSync(path.join(repoPath, "TRACK.md"), "utf8");
+    const slot = (md.match(/Slot:\s*(\d+)/) || [])[1];
+    const be = (md.match(/Backend:\s*http:\/\/127\.0\.0\.1:(\d+)/) || [])[1];
+    const fe = (md.match(/Frontend:\s*http:\/\/127\.0\.0\.1:(\d+)/) || [])[1];
+    return {
+      slot: slot ? Number(slot) : null,
+      backendPort: be ? Number(be) : null,
+      frontendPort: fe ? Number(fe) : null,
+    };
+  } catch {
+    return {};
+  }
+}
+
+// --- live worktrees (the source of truth for what tracks exist) -------------
+const norm = (p) => String(p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+
+async function gitWorktrees() {
+  const out = await run("git", ["-C", MAIN_REPO, "worktree", "list", "--porcelain"]);
+  const list = [];
+  let cur = {};
+  for (const line of (out || "").split(/\r?\n/)) {
+    if (line.startsWith("worktree ")) cur = { path: line.slice(9) };
+    else if (line.startsWith("branch ")) cur.branch = line.slice(7).replace("refs/heads/", "");
+    else if (line.trim() === "") { if (cur.path) list.push(cur); cur = {}; }
+  }
+  if (cur.path) list.push(cur);
+  return list;
+}
+
 // --- assemble the full live state -------------------------------------------
 async function buildState() {
   const ports = await listeningPorts();
   const registry = loadRegistry();
+  const regByName = {};
+  for (const r of registry) regByName[r.name] = r;
 
   const main = {
     name: "main",
@@ -136,26 +172,39 @@ async function buildState() {
     ...(await gitInfo(MAIN_REPO)),
   };
 
-  const tracks = await Promise.all(
-    registry.map(async (t) => ({
-      name: t.name,
-      slot: t.slot,
-      branch: t.branch,
-      path: t.path,
-      backendPort: t.backendPort,
-      frontendPort: t.frontendPort,
-      backendUp: ports.has(t.backendPort),
-      frontendUp: ports.has(t.frontendPort),
-      ...(await gitInfo(t.path)),
-    }))
+  // Tracks = every git worktree that lives under rc-tracks/ (not main). This
+  // auto-populates new lanes and auto-drops removed ones, regardless of the
+  // registry. Registry/TRACK.md only supply slot + ports.
+  const tracksRootNorm = norm(TRACKS_ROOT);
+  const wts = (await gitWorktrees()).filter(
+    (w) => norm(w.path).startsWith(tracksRootNorm + "/") && norm(w.path) !== norm(MAIN_REPO)
   );
-  tracks.sort((a, b) => (a.slot || 0) - (b.slot || 0));
 
-  // slot -> port reference (matches Ports-ForSlot in rc-track.ps1)
-  const slotTable = [];
-  for (let s = 1; s <= 8; s++) {
-    slotTable.push({ slot: s, backend: 8000 + s * 10, frontend: 3005 + s * 10 });
-  }
+  const tracks = await Promise.all(
+    wts.map(async (w) => {
+      const name = w.branch && w.branch.startsWith("track/")
+        ? w.branch.slice("track/".length)
+        : path.basename(w.path);
+      const reg = regByName[name] || {};
+      const md = (reg.backendPort && reg.frontendPort) ? {} : trackMdMeta(w.path);
+      const backendPort = reg.backendPort ?? md.backendPort ?? null;
+      const frontendPort = reg.frontendPort ?? md.frontendPort ?? null;
+      const slot = reg.slot ?? md.slot ?? null;
+      return {
+        name,
+        slot,
+        branch: w.branch || null,
+        path: w.path,
+        backendPort,
+        frontendPort,
+        backendUp: backendPort ? ports.has(backendPort) : false,
+        frontendUp: frontendPort ? ports.has(frontendPort) : false,
+        registered: !!regByName[name],
+        ...(await gitInfo(w.path)),
+      };
+    })
+  );
+  tracks.sort((a, b) => (a.slot ?? 99) - (b.slot ?? 99) || a.name.localeCompare(b.name));
 
   return {
     ok: true,
@@ -164,7 +213,6 @@ async function buildState() {
     registryExists: fs.existsSync(REGISTRY),
     main,
     tracks,
-    slotTable,
   };
 }
 

@@ -131,7 +131,8 @@
     <span class="item"><span class="tag tag-orange">partial</span> one side up</span>
     <span class="item"><span class="tag tag-gray">stopped</span> nothing listening</span>
     <span class="item"><span class="tag tag-orange">dirty</span> uncommitted work</span>
-    <span class="item"><span class="tag tag-red">missing</span> worktree gone</span>
+    <span class="item"><span class="tag tag-violet">unregistered</span> worktree not in registry</span>
+    <span class="item"><span class="tag tag-gray">no ports</span> no slot/ports assigned</span>
   </div>
 
   <div class="section" style="margin-top:36px;">
@@ -154,6 +155,7 @@ const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": 
 
 function statusTag(t) {
   if (t.exists === false) return '<span class="tag tag-red">missing</span>';
+  if (!t.backendPort && !t.frontendPort) return '<span class="tag tag-gray">no ports</span>';
   const up = (t.backendUp ? 1 : 0) + (t.frontendUp ? 1 : 0);
   if (up === 2) return '<span class="tag tag-green">running</span>';
   if (up === 1) return '<span class="tag tag-orange">partial</span>';
@@ -161,6 +163,7 @@ function statusTag(t) {
 }
 
 function svcRow(label, port, up) {
+  if (!port) return '<span class="svc"><span class="dot down"></span><span class="dim">port unknown</span></span>';
   const link = up
     ? '<a href="http://127.0.0.1:' + port + '" target="_blank">127.0.0.1:' + port + '</a> <span class="state-up">up</span>'
     : ':' + port + ' <span class="state-down">down</span>';
@@ -186,6 +189,7 @@ function card(t, isMain) {
   const tags = [statusTag(t)];
   if (t.dirty > 0) tags.push('<span class="tag tag-orange">dirty</span>');
   if (isMain) tags.push('<span class="tag tag-blue">main</span>');
+  else if (t.registered === false) tags.push('<span class="tag tag-violet">unregistered</span>');
 
   const cls = "module" + (isMain ? " primary" : "") + (t.exists === false ? " missing" : "");
   const tree = t.exists === false
@@ -196,7 +200,7 @@ function card(t, isMain) {
     '<div class="' + cls + '">' +
       '<div class="card-head">' +
         '<div><span class="card-name">' + esc(t.name) + "</span>" +
-          (isMain ? "" : ' <span class="card-slot">slot ' + esc(t.slot) + "</span>") +
+          (isMain ? "" : ' <span class="card-slot">slot ' + (t.slot == null ? "-" : esc(t.slot)) + "</span>") +
         "</div>" +
         '<div class="tags">' + tags.join("") + "</div>" +
       "</div>" +
