@@ -260,7 +260,8 @@ def main() -> int:
 
     remaining = sum(
         1 for s in resp.get("songs", [])
-        if s.get("rubric_color") is None and not s.get("preorder")
+        if s.get("rubric_color") is None
+        and not s.get("preorder") and not s.get("lyrics_unavailable")
     )
     print(f"Remaining needs-lyrics in draft: {remaining}")
     return 0
