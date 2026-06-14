@@ -109,6 +109,16 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
                 ), params)
     else:
         params = {c: row.get(c) for c in _CALIB}
+        # The boolean flag columns are NOT NULL (server default False). A raw-SQL
+        # INSERT bypasses the ORM `default=False`, so a minimal/partial row (e.g.
+        # the lyrics_unavailable disposition write, which carries no calibration)
+        # would send None and trip the NOT-NULL constraint. Coerce None -> False
+        # for these; fully-specified calibration callers are unaffected.
+        for _b in ("contaminated", "dogma_referenced", "instrumental",
+                   "lyrics_unavailable", "translated", "medley", "preorder",
+                   "calibration_failed"):
+            if params.get(_b) is None:
+                params[_b] = False
         params.update({
             "title": title, "artist": artist, "canonical_key": key,
             "canonical_key_clean": clean_key, "m": method,
