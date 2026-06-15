@@ -20,6 +20,11 @@ The two 2026-06-13 misses this resolves:
       -> "ICONIC BY MISTAKE" / "ILLIT"   (quote-format + label->title artist)
   "Olivia Rodrigo - stupid song (Official Music Video)" / "OliviaRodrigoVEVO"
       -> "stupid song" / "Olivia Rodrigo"  (leading prefix + bracket + VEVO)
+
+The 2026-06-15 miss this resolves:
+  "BTS (<hangul>) 'Come Over' Lyric Video" / "BTS"
+      -> "Come Over" / "BTS"   (lyric-video upload signal gates the quoted-title
+         extraction; previously only "Official MV"-class titles did)
 """
 
 import re
@@ -82,13 +87,22 @@ _LABEL_CHANNELS = {normalize_for_search(x) for x in [
 ]}
 
 _QUOTE_CHARS = "'\"‘’“”"
-# ARTIST 'TITLE' (cruft): captures the prefix before the first quote + the
-# quoted inner. Applied ONLY when an MV signal is present (see clean_title_artist),
-# so an apostrophe inside a normal title (Rock 'n' Roll) is never mis-parsed.
+# ARTIST 'TITLE' (cruft): captures the prefix (the artist) + the quoted title.
+# Applied ONLY when an upload signal is present (see clean_title_artist). The
+# opening quote MUST be preceded by whitespace, so a mid-word apostrophe in a
+# normal title ("Don't", "Believin'", "Rock 'n' Roll") never opens a group and
+# gets mis-parsed; inner excludes quote chars so it captures one quoted segment.
 _QUOTE_RE = re.compile(
-    r"^(?P<pre>.*?)[" + _QUOTE_CHARS + r"]\s*(?P<inner>.+?)\s*[" + _QUOTE_CHARS + r"]"
+    r"^(?P<pre>.*?\S)\s+[" + _QUOTE_CHARS + r"](?P<inner>[^" + _QUOTE_CHARS + r"]+?)[" + _QUOTE_CHARS + r"]"
 )
-_MV_SIGNAL_RE = re.compile(r"(official\s*(music\s*)?(video|mv)|m/v|\bmv\b)", re.I)
+# Upload-cruft signal: gates the quote extractor and the label-channel swap. Any
+# platform "this is an upload" marker -- official video/mv/audio, lyric(s) video,
+# visualizer, bare m/v -- not just an MV, so a K-pop lyric-video upload
+# ("ARTIST (name) 'TITLE' Lyric Video") triggers the quote extraction too.
+_UPLOAD_SIGNAL_RE = re.compile(
+    r"(official\s*(music\s*)?(video|mv|audio)|lyrics?\s*video|m/v|\bmv\b|visualiser|visualizer)",
+    re.I,
+)
 
 _VEVO_RE = re.compile(r"\s*vevo\s*$", re.I)
 _TOPIC_RE = re.compile(r"\s*-\s*topic\s*$", re.I)
@@ -221,9 +235,10 @@ def clean_title_artist(title, artist):
     t = raw_title
     artist_hint = None
 
-    # 1. K-pop / quoted-title MV format: ARTIST 'TITLE' cruft. Gated on an MV
-    #    signal (or a label-channel artist) so a normal apostrophe title is safe.
-    if _MV_SIGNAL_RE.search(t) or _primary_is_label_channel(raw_artist):
+    # 1. K-pop / quoted-title upload format: ARTIST 'TITLE' cruft. Gated on an
+    #    upload signal (or a label-channel artist) so a normal apostrophe title
+    #    is safe; the whitespace-before-quote rule in _QUOTE_RE is the backstop.
+    if _UPLOAD_SIGNAL_RE.search(t) or _primary_is_label_channel(raw_artist):
         m = _QUOTE_RE.match(t)
         if m:
             pre = m.group("pre").strip()
