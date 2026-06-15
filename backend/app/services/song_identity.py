@@ -12,12 +12,15 @@ where primary_artist is the first credit from parse_artist_string (so
 US = unit separator (0x1f), an char that never appears in normalized text.
 """
 
+import logging
 from dataclasses import dataclass, field
 
 from sqlalchemy import text
 
 from app.services.song_search import normalize_for_search
 from app.services.artist_linker import parse_artist_string
+
+logger = logging.getLogger(__name__)
 
 CANON_SEP = "\x1f"
 
@@ -95,6 +98,29 @@ def compute_canonical_key_clean(title, artist):
     return f"{nt}{CANON_SEP}{na}"
 
 
+def compute_canonical_key_clean_lead(title, artist):
+    """Lead-primary variant of the clean key: cleaned title + the FIRST-credited
+    cleaned primary artist (NOT the order-independent set).
+
+    Why both exist. compute_canonical_key_clean keys the artist as the full,
+    order-independent co-primary SET, which collapses a reordered collab credit
+    ("ILLIT, LE SSERAFIM, KATSEYE" vs "LE SSERAFIM x ILLIT x KATSEYE") onto one
+    identity. But a label-channel MV upload often surfaces only the LEAD group in
+    its title prefix (stored "ILLIT 'ICONIC BY MISTAKE' Official MV" / a label
+    channel -> cleans to the single artist "ILLIT"), so its stored set key is a
+    SUBSET of a later full-credit re-entry's set key and the two never match. The
+    lead key is the bridge: it equals clean_title + lead, which a lead-only stored
+    row carries verbatim, mirroring the exact key's lead-based identity ("A" and
+    "A feat. B" already key the same). The resolve ladder matches on EITHER key.
+
+    Pure; no DB. Imported lazily (same feeder_clean cycle guard as the set key)."""
+    from app.services.feeder_clean import clean_title_artist
+    ct, ca = clean_title_artist(title or "", artist or "")
+    nt = normalize_for_search(ct)
+    na = normalize_for_search(extract_primary_artist(ca))
+    return f"{nt}{CANON_SEP}{na}"
+
+
 @dataclass
 class Resolution:
     """Outcome of the layered identity-resolution ladder. `song_id` is the
@@ -137,16 +163,26 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
     # canonical_key_clean -- exactly the 2026-06-13 "ICONIC BY MISTAKE" case,
     # where the incoming string is already clean but the Library row carries the
     # MV cruft + label artist.
+    #
+    # The `:lk` (lead-primary clean key) clause catches the label-channel
+    # subset case: a stored MV-upload row whose only artist signal was the
+    # title's lead group cleans to a SINGLE artist, so its set clean key is a
+    # subset of a full-credit re-entry and never matches on :ck. Its clean key
+    # DOES equal clean_title + lead, so the re-entry's lead key matches it. This
+    # is consistent with the exact key's lead-based identity (it never widens
+    # merging past what canonical_key already does on the lead artist).
     clean_key = compute_canonical_key_clean(title, artist)
+    lead_clean_key = compute_canonical_key_clean_lead(title, artist)
     if clean_key:
         row = db.execute(
             text(
                 "SELECT id FROM songs "
-                "WHERE (canonical_key_clean = :ck OR canonical_key = :ck) "
+                "WHERE (canonical_key_clean = :ck OR canonical_key_clean = :lk "
+                "       OR canonical_key = :ck) "
                 "AND canonical_key <> :k "
                 "ORDER BY id ASC LIMIT 1"
             ),
-            {"ck": clean_key, "k": key},
+            {"ck": clean_key, "lk": lead_clean_key, "k": key},
         ).first()
         if row:
             return Resolution(song_id=row[0], via="clean")

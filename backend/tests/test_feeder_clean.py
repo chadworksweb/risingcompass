@@ -16,7 +16,12 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.feeder_clean import clean_title_artist
-from app.services.song_identity import compute_canonical_key, compute_canonical_key_clean
+from app.services.song_identity import (
+    compute_canonical_key,
+    compute_canonical_key_clean,
+    compute_canonical_key_clean_lead,
+    resolve_song_identity,
+)
 
 
 def _same_clean(a, b):
@@ -24,13 +29,90 @@ def _same_clean(a, b):
     return compute_canonical_key_clean(*a) == compute_canonical_key_clean(*b)
 
 
-def test_case1_kpop_label_channel_matches():
-    # Stored row id 3297 vs today's draft string.
+class _FakeResult:
+    def __init__(self, row):
+        self._row = row
+
+    def first(self):
+        return self._row
+
+    def fetchall(self):
+        return []
+
+    def scalar(self):
+        return None
+
+
+class _FakeDB:
+    """Emulates just the two raw-SQL queries resolve_song_identity issues (Rung 1
+    exact, Rung 2 clean), against an in-memory list of stored rows. No real DB --
+    keeps this suite dependency-free while still testing resolution behavior."""
+
+    def __init__(self, rows):
+        self.rows = rows  # each: {id, canonical_key, canonical_key_clean}
+
+    def execute(self, stmt, params=None):
+        sql = str(stmt)
+        p = params or {}
+        if "WHERE canonical_key = :k LIMIT 1" in sql:  # Rung 1: exact
+            hit = next((r for r in self.rows if r["canonical_key"] == p["k"]), None)
+            return _FakeResult((hit["id"],) if hit else None)
+        if "canonical_key_clean" in sql and "ORDER BY id" in sql:  # Rung 2: clean
+            ck, lk, k = p.get("ck"), p.get("lk"), p.get("k")
+            matched = [
+                r for r in self.rows
+                if (r.get("canonical_key_clean") in (ck, lk) or r["canonical_key"] == ck)
+                and r["canonical_key"] != k
+            ]
+            matched.sort(key=lambda r: r["id"])
+            return _FakeResult((matched[0]["id"],) if matched else None)
+        return _FakeResult(None)  # trgm rung / flag lookups: fall through
+
+
+def _stored_row(rid, title, artist):
+    return {
+        "id": rid,
+        "canonical_key": compute_canonical_key(title, artist),
+        "canonical_key_clean": compute_canonical_key_clean(title, artist),
+    }
+
+
+def test_case1_kpop_label_channel_resolves():
+    # Stored row id 3297 (a label-channel MV upload that cleans to the LEAD group
+    # only) vs today's full-credit draft string. The set clean keys diverge by
+    # design (subset vs full set), so resolution rides the lead-primary clean key.
     stored = ("ILLIT 'ICONIC BY MISTAKE' Official MV", "HYBE LABELS")
-    draft = ("ICONIC BY MISTAKE", "ILLIT, LE SSERAFIM")
+    draft = ("ICONIC BY MISTAKE", "ILLIT, LE SSERAFIM, KATSEYE")
     assert clean_title_artist(*stored) == ("ICONIC BY MISTAKE", "ILLIT")
-    assert _same_clean(stored, draft), (
-        compute_canonical_key_clean(*stored), compute_canonical_key_clean(*draft))
+    # The lead-primary clean key is the bridge between the two.
+    assert (compute_canonical_key_clean_lead(*draft)
+            == compute_canonical_key_clean(*stored)), (
+        compute_canonical_key_clean_lead(*draft), compute_canonical_key_clean(*stored))
+    # End to end: the draft resolves to the stored row via the clean rung.
+    db = _FakeDB([_stored_row(3297, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id == 3297 and res.via == "clean", (res.song_id, res.via)
+
+
+def test_reorder_collab_still_matches_on_set_key():
+    # The set clean key must still collapse a reordered full-credit collab, so the
+    # lead-key addition does not regress order-independence.
+    stored = ("ICONIC BY MISTAKE", "ILLIT, LE SSERAFIM, KATSEYE")
+    draft = ("ICONIC BY MISTAKE", "KATSEYE, ILLIT, LE SSERAFIM")
+    assert _same_clean(stored, draft)
+    db = _FakeDB([_stored_row(3297, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id == 3297, (res.song_id, res.via)
+
+
+def test_distinct_lead_not_falsely_merged_by_lead_key():
+    # The lead-key clause must not merge a genuinely different song that shares a
+    # title but has a different lead artist.
+    stored = ("Hold On", "Wilson Phillips")
+    draft = ("Hold On", "Justin Bieber, Some Other Act")
+    db = _FakeDB([_stored_row(40, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id is None and res.via == "new", (res.song_id, res.via)
 
 
 def test_case2_vevo_and_bracket_matches():
@@ -43,6 +125,28 @@ def test_case2_vevo_and_bracket_matches():
     ct, ca = clean_title_artist(*stored)
     assert ct == "stupid song", ct
     assert ca == "OliviaRodrigo", ca
+
+
+def test_case3_kpop_lyric_video_paren_name_matches():
+    # 2026-06-15 miss: a YouTube K-pop lyric-video upload (artist name in parens,
+    # title in single quotes, trailing "Lyric Video") must clean to the bare
+    # title/artist and match the already-clean stored row. The lyric-video upload
+    # signal is what gates the quoted-title extraction here. (The real title
+    # carries the Hangul group "(BTS)"; ASCII placeholder used here per the
+    # ASCII-only-in-code rule -- the cleaner strips any paren group regardless.)
+    stored = ("Come Over", "BTS")
+    draft = ("BTS (Bangtan Sonyeondan) 'Come Over' Lyric Video", "BTS")
+    assert clean_title_artist(*draft) == ("Come Over", "BTS"), clean_title_artist(*draft)
+    assert _same_clean(stored, draft), (
+        compute_canonical_key_clean(*stored), compute_canonical_key_clean(*draft))
+
+
+def test_lyric_video_apostrophe_title_not_mangled():
+    # Widening the gate to lyric-video must NOT let a mid-word apostrophe get
+    # mis-parsed as a quoted K-pop title: the opening quote needs whitespace
+    # before it, which no apostrophe in "Don't"/"Believin'" has.
+    ct, _ = clean_title_artist("Don't Stop Believin' (Lyric Video)", "Journey")
+    assert ct == "Don't Stop Believin'", ct
 
 
 def test_no_cruft_clean_key_equals_exact():
