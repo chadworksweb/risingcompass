@@ -78,6 +78,15 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - AGENT_MODEL=${AGENT_MODEL:-claude-opus-4-6}
+      # Libra Engine Compass (LEC) -- the extracted scoring brain. When the
+      # lec.enabled system flag is on, the calibrator routes scoring through LEC
+      # over the internal le-proxy network, falling back to in-process on any
+      # failure. LEC_API_KEY must be a valid key from LEC's api_client_keys
+      # (client rising-compass) or the auth-on LEC returns 401 and RC silently
+      # falls back. Flag stays fail-closed until flipped in system_flags.
+      - LEC_BASE_URL=${LEC_BASE_URL:-http://lec:8012}
+      - LEC_API_KEY=${LEC_API_KEY}
+      - LEC_TIMEOUT_SECONDS=${LEC_TIMEOUT_SECONDS:-120}
       - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - EMAIL_FROM=${EMAIL_FROM:-Rising Compass <compass@risingcompass.net>}
