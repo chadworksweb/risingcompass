@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     escalation_repass_enabled: bool = False
     escalation_confidence_floor: float = 0.6
 
+    # Libra Engine Compass (LEC) -- the extracted scoring brain. When the
+    # lec.enabled system flag is on (feature_flags), RC calls LEC's /api/score
+    # over HTTP instead of running the calibrator in-process; ANY LEC failure
+    # falls back to the in-process calibrator, so a flip is reversible and a LEC
+    # outage degrades cleanly. lec_base_url default points at a local LEC; prod
+    # points at the internal container / https://lec.libraengine.com.
+    lec_base_url: str = "http://localhost:8012"
+    lec_api_key: str = ""  # X-Api-Key for LEC; issued in LEC's api_client_keys
+    lec_timeout_seconds: float = 120.0  # an Opus calibration is multi-second; allow headroom
+
     # Genius API (lyrics)
     genius_access_token: str = ""
 

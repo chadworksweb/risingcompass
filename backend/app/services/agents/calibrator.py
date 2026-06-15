@@ -410,6 +410,29 @@ async def _read_v3(
     return best
 
 
+def _scrub_calibration_quotes(
+    calibration: dict, lyrics: str | None, title: str = "", artist: str = "",
+) -> None:
+    """Clear the calibrator's quote-prone note fields (contamination_note,
+    dogma_note) IN PLACE if they reproduce a verbatim lyric run (>= 6 words).
+    The contaminated / dogma_referenced flags stay set, so the indicators still
+    show and the page falls back to generic copy. No-op without lyrics.
+
+    Applied to BOTH the in-process read and the LEC read, so neither engine can
+    ship copyrighted lyric text in a note. (The longer prose fields are scrubbed
+    later at the storage chokepoint via lyric_quote_guard.scrub_calibration_quotes;
+    these two short fields are guarded here because they exist pre-generation.)
+    """
+    if not lyrics:
+        return
+    from app.services.lyric_quote_guard import has_verbatim_overlap
+    for field in ("contamination_note", "dogma_note"):
+        if calibration.get(field) and has_verbatim_overlap(calibration[field], lyrics):
+            logger.warning("%s carried verbatim lyric quotes for %s / %s; cleared",
+                           field, title, artist)
+            calibration[field] = None
+
+
 async def calibrate_song_async(
     title: str,
     artist: str,
@@ -445,6 +468,42 @@ async def calibrate_song_async(
         logger.info("No lyrics for '%s' by %s; returning null calibration "
                     "without an API call", title, artist)
         return _null_result(title, artist)
+
+    # LEC cutover (Phase 2). When the lec.enabled flag is on, score through the
+    # Libra Engine Compass service over HTTP instead of in-process. The result
+    # is mapped back into this exact calibration shape, then run through the same
+    # verbatim-quote guard + generation as the in-process read, so the caller
+    # can't tell which engine scored it. ANY LEC failure (flag-read error,
+    # transport, unscorable) falls through to the in-process block below -- LEC
+    # is on the live path, so it degrades to the proven local calibrator rather
+    # than failing the read. The flag is read from a short-lived session because
+    # this path is usually called with db=None (the LC read->AI->write split).
+    try:
+        from app.database import SessionLocal
+        from app.services.feature_flags import is_lec_calibration_enabled
+        _flag_db = SessionLocal()
+        try:
+            _lec_on = is_lec_calibration_enabled(_flag_db)
+        finally:
+            _flag_db.close()
+    except Exception:
+        logger.warning("LEC flag read failed; scoring in-process", exc_info=True)
+        _lec_on = False
+
+    if _lec_on:
+        from app.services import lec_client  # lazy: keep httpx off the in-process path
+        lec_calibration = await lec_client.score_via_lec(
+            title, artist, lyrics, artifact_type="lyric",
+        )
+        if lec_calibration is not None:
+            logger.info("Scored '%s' by %s via LEC", title, artist)
+            # Same post-read steps as the in-process path: clear any verbatim
+            # lyric run from the note fields, then complete the generated fields.
+            _scrub_calibration_quotes(lec_calibration, lyrics, title, artist)
+            await _ensure_generation(title, artist, lyrics, lec_calibration, progress_cb)
+            return lec_calibration
+        logger.info("LEC returned no calibration for '%s' by %s; scoring in-process",
+                    title, artist)
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -582,18 +641,11 @@ async def calibrate_song_async(
             title, artist, calibration["charge_summary"],
         )
 
-    # Verbatim-lyric backstop on the calibrator's quote-prone short fields, both of
-    # which render on the public song page. The rubric now asks for paraphrase; if a
-    # verbatim run slips through anyway, clear the field so no copyrighted lyric text
-    # ever ships. contaminated / dogma_referenced flags stay set, so the indicators
-    # still show and the page falls back to generic copy.
-    if lyrics:
-        from app.services.lyric_quote_guard import has_verbatim_overlap
-        for _field in ("contamination_note", "dogma_note"):
-            if calibration.get(_field) and has_verbatim_overlap(calibration[_field], lyrics):
-                logger.warning("%s carried verbatim lyric quotes for %s / %s; cleared",
-                               _field, title, artist)
-                calibration[_field] = None
+    # Verbatim-lyric backstop on the calibrator's quote-prone short note fields,
+    # both of which render on the public song page. The rubric now asks for
+    # paraphrase; if a verbatim run slips through anyway, clear the field so no
+    # copyrighted lyric text ever ships. (Shared with the LEC path above.)
+    _scrub_calibration_quotes(calibration, lyrics, title, artist)
 
     # Complete the generated fields (effects prose, ether tagging, societal
     # prose) in the same pass -- the calibration path returns one whole object.

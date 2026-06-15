@@ -324,6 +324,26 @@ def set_launch_locked_message(db: Session, message: str | None) -> None:
     db.commit()
 
 
+# --- LEC calibration cutover -----------------------------------------------
+# Routes the calibrator's scoring half through the Libra Engine Compass (LEC)
+# service over HTTP instead of running it in-process. Fail-CLOSED (absent flag =
+# OFF): until an admin explicitly enables it, RC scores in-process exactly as
+# before. The in-process calibrator stays as the AUTOMATIC fallback even when
+# this is on, so a flip is reversible and a LEC outage degrades to in-process.
+# Mirrors the launch.locked toggle pattern.
+
+LEC_ENABLED_KEY = "lec.enabled"
+
+
+def is_lec_calibration_enabled(db: Session) -> bool:
+    # Absent flag -> disabled (fail closed). Only an explicit "true" routes to LEC.
+    return (_get_flag(db, LEC_ENABLED_KEY) or "false").lower() == "true"
+
+
+def set_lec_calibration_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, LEC_ENABLED_KEY, enabled)
+
+
 # --- Faultline (internal error ledger) kill switch -------------------------
 # Gates Faultline capture writes. Capture is fail-safe regardless -- this is a
 # deliberate off switch for the writes/noise, not a safety mechanism. Fails
