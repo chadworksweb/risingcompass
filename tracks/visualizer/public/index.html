@@ -104,6 +104,14 @@
   .port-table td { padding: 5px 12px; border: 1px solid var(--border); font-family: var(--mono); font-size: 12px; }
 
   .errbar { background: var(--red-light); border: 1px solid #e0b0c0; color: var(--red); border-radius: 6px; padding: 10px 16px; font-size: 12px; font-family: var(--mono); margin-bottom: 24px; display: none; }
+  /* db tunnel strip */
+  .tunnel-card { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px 18px; }
+  .tunnel-card .svc { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .tunnel-meta { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+  .tunnel-actions { display: flex; gap: 8px; margin-left: auto; }
+  .tunnel-msg { font-family: var(--mono); font-size: 11px; color: var(--text-mid); flex-basis: 100%; }
+  .tunnel-msg:empty { display: none; }
+
   footer { margin-top: 56px; font-size: 11px; color: var(--text-dim); font-family: var(--mono); text-align: center; }
 </style>
 </head>
@@ -133,6 +141,19 @@
     <span class="item"><span class="tag tag-orange">dirty</span> uncommitted work</span>
     <span class="item"><span class="tag tag-violet">unregistered</span> worktree not in registry</span>
     <span class="item"><span class="tag tag-gray">no ports</span> no slot/ports assigned</span>
+  </div>
+
+  <div class="section" style="margin-top:28px;margin-bottom:0;">
+    <div class="section-label">Database tunnel</div>
+    <div class="tunnel-card">
+      <span class="svc"><span class="dot down" id="tunnelDot"></span><span id="tunnelState" class="state-down">checking...</span></span>
+      <span class="tunnel-meta">127.0.0.1:25061 &rarr; droplet &rarr; Postgres</span>
+      <span class="tunnel-actions">
+        <button class="btn" id="tunnelUpBtn">start</button>
+        <button class="btn" id="tunnelDownBtn">stop</button>
+      </span>
+      <span class="tunnel-msg" id="tunnelMsg"></span>
+    </div>
   </div>
 
   <div class="section" style="margin-top:36px;">
@@ -231,8 +252,30 @@ function render(state) {
       (state.registryExists ? "" : '<br><br>Registry: <code>' + esc(state.tracksRoot) + "\\registry.json</code> (not created yet)") +
       "</div>";
 
+  const tun = state.tunnel || { up: false, port: 25061 };
+  $("tunnelDot").className = "dot " + (tun.up ? "up" : "down");
+  $("tunnelState").textContent = tun.up ? "tunnel up" : "tunnel down";
+  $("tunnelState").className = tun.up ? "state-up" : "state-down";
+
   $("sub").textContent = "parallel work-track monitor - " + state.tracksRoot;
   $("foot").textContent = "rc-track-visualizer - polling " + (POLL_MS / 1000) + "s - last build " + new Date(state.generatedAt).toLocaleTimeString();
+}
+
+async function tunnelAction(action) {
+  const msg = $("tunnelMsg");
+  const btnUp = $("tunnelUpBtn"), btnDown = $("tunnelDownBtn");
+  btnUp.disabled = btnDown.disabled = true;
+  msg.textContent = action === "up" ? "starting tunnel..." : "stopping tunnel...";
+  try {
+    const r = await fetch("/api/tunnel/" + action, { method: "POST" });
+    const d = await r.json();
+    msg.textContent = d.output || (d.ok ? "done" : "failed");
+  } catch (e) {
+    msg.textContent = "error: " + (e.message || e);
+  } finally {
+    btnUp.disabled = btnDown.disabled = false;
+    tick();
+  }
 }
 
 async function tick() {
@@ -266,6 +309,8 @@ $("autoBtn").onclick = () => {
   schedule();
 };
 $("refreshBtn").onclick = tick;
+$("tunnelUpBtn").onclick = () => tunnelAction("up");
+$("tunnelDownBtn").onclick = () => tunnelAction("down");
 
 tick();
 schedule();

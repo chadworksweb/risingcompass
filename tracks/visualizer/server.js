@@ -33,6 +33,12 @@ const PORT = Number(process.env.RC_VIZ_PORT) || 4310;
 const MAIN_BACKEND = 8000;
 const MAIN_FRONTEND = 3005;
 
+// DB tunnel (local -> droplet -> Postgres). Listening on 25061 == tunnel up.
+// Control runs through the canonical manager so the visualizer and the
+// SessionStart hook share one source of truth.
+const DB_TUNNEL_PORT = 25061;
+const TUNNEL_PS1 = path.join(__dirname, "..", "db-tunnel.ps1");
+
 // --- small promise wrappers around child_process ----------------------------
 function run(cmd, args, opts) {
   return new Promise((resolve) => {
@@ -49,6 +55,23 @@ function shell(cmd) {
       if (err) return resolve("");
       resolve(String(stdout));
     });
+  });
+}
+
+// --- DB tunnel control (delegates to db-tunnel.ps1) -------------------------
+function runTunnel(action) {
+  return new Promise((resolve) => {
+    execFile(
+      "pwsh",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", TUNNEL_PS1, action],
+      { windowsHide: true, timeout: 25000 },
+      (err, stdout, stderr) => {
+        const output = String(stdout || "").trim() || String(stderr || "").trim();
+        // db-tunnel.ps1 exits 1 when DOWN (status) -- not a server error, so
+        // report ok by whether we got output, and let the client read state.
+        resolve({ ok: !err || !!output, action, output: output || "no output" });
+      }
+    );
   });
 }
 
@@ -211,6 +234,7 @@ async function buildState() {
     generatedAt: new Date().toISOString(),
     tracksRoot: TRACKS_ROOT,
     registryExists: fs.existsSync(REGISTRY),
+    tunnel: { port: DB_TUNNEL_PORT, up: ports.has(DB_TUNNEL_PORT) },
     main,
     tracks,
   };
@@ -219,6 +243,19 @@ async function buildState() {
 // --- http server -------------------------------------------------------------
 const server = http.createServer(async (req, res) => {
   const url = (req.url || "/").split("?")[0];
+
+  // DB tunnel control. Local-only dashboard (bound to 127.0.0.1), so no auth.
+  if (url === "/api/tunnel/up" || url === "/api/tunnel/down") {
+    if (req.method !== "POST") {
+      res.writeHead(405, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "POST only" }));
+      return;
+    }
+    const result = await runTunnel(url.endsWith("/up") ? "up" : "down");
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(result));
+    return;
+  }
 
   if (url === "/api/state") {
     try {
