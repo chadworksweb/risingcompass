@@ -251,6 +251,47 @@ SC). Tenets stays dark on purpose -- "the constitution and the room
 where the constitution is argued over should not look the same."
 Tokens documented in `STYLE-GUIDE.md` "Deliberation Venue Palette".
 
+## Ether taxonomy editor (Site Admin -> Calibration -> Taxonomy, 2026-06-16)
+
+Edit the Ether theme/topic hierarchy AND the tagger definitions from admin, no
+redeploy. Two new tables: `ether_themes` (slug/label/sort_order) + `ether_topics`
+(slug/label/primary_theme_slug/secondary_themes JSON/sort_order, plus Phase-2a
+`scope` TEXT + `examples` JSON). Migrations 128 + 129. Models in `models.py`.
+Spec: `RISING-COMPASS-TAXONOMY-EDITOR-SCOPE.md`.
+
+- **Resolver (`services/ether_taxonomy.py`).** `topic_hierarchy(db)` /
+  `themes(db)` / `topics(db)` and `valid_slugs(db)` / `taxonomy_for_prompt(db)`
+  prefer DB rows, FALL BACK to the code constants (`ETHER_TAXONOMY` etc.) when
+  the tables are empty / unreachable / the flag is off. Module-level cache (30s
+  TTL) busted on every write via `bust_taxonomy_cache()`. The no-arg forms still
+  return code (import-time / terminal callers). `_code_taxonomy_for_prompt()` is
+  kept byte-identical so flipping the DB flag does not drift the prompt.
+- **Seed + backfill (startup, idempotent).** `seed_taxonomy_if_empty(db)` seeds
+  both tables from the code constants when empty; `backfill_topic_definitions(db)`
+  fills scope/examples on pre-2a rows. Never overwrites admin edits.
+- **Admin API + UI.** `routers/ether_taxonomy_admin.py` (cookie auth, site-admin),
+  prefix `/api/admin/taxonomy`: GET (themes + topics grouped + `has_definition`),
+  theme + topic CRUD, `/reorder`, `/tagger-source`. Section `taxonomy`
+  (`templates/admin/taxonomy.html`); kept OUT of `API_ADMIN_SECTIONS`. Validation
+  mirrors the code asserts: kebab/unique slugs, exactly-one existing primary,
+  secondary valid and != primary, theme-delete guard. **Topic-slug rename is
+  disabled** (songs.topics JSON stores slugs -- a rename orphans history, a
+  Phase-2b alias-migration concern); theme-slug rename rewrites referencing rows
+  in-txn.
+- **Phase 1 (presentation) is unconditional**: `routers/topic_trends.py` reads
+  `topic_hierarchy(db)` (response shape unchanged). **Phase 2a (DB drives the
+  tagger) is FLAG-GATED**: `system_flags` `taxonomy_db_driven.enabled`
+  (fail-CLOSED, in `feature_flags.py`). When ON, `ether_tagger.py` +
+  `album_synthesis.py` build their prompt + valid-slug set from the DB (each
+  resolves via its OWN short-lived `SessionLocal` -- tag_song runs in a worker
+  thread, so it must not touch the request Session), fail-safe to code. Flip it
+  from the admin "Tagger source" toggle. **Currently OFF in prod** (tagger reads
+  code). Terminal scripts (`calibrate_song.py`/`backfill_album.py`) still
+  validate against the code set by design.
+- **Phase 2b (NOT built):** topic-slug rename/remove + an `ether_topic_aliases`
+  map honored by the rollups + a server-side retag tool. Until then the slug is
+  immutable.
+
 ## Calibration Runs admin (Site Admin -> Calibration -> Runs, 2026-06-06)
 
 Read-only window onto `calibration_runs` (the run ledger behind each song's
