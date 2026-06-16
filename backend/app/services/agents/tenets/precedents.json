@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "ratified_at": "2026-06-11",
-  "notes": "The Calibrator v3 precedent table. Founding entries: the 15 charge anchors from the v2 rubric (promoted verbatim) plus the -97 deep-red floor ruled 2026-06-11. Entries are content/structure signatures only, never song identities; they anchor PRECEDENT PLACEMENT (a new song is never equal to an entry -- always stronger, weaker, or between). The table grows with every Chad ruling. The extremes (+95..+100 redefinition-level, -98..-100 comprehensive annihilation) are intentionally left without an entry; reserve them for songs that clearly exceed every entry here. ASCII only.",
+  "notes": "The Calibrator v3 precedent table. Founding entries: the 15 charge anchors from the v2 rubric (promoted verbatim) plus the -97 deep-red floor ruled 2026-06-11. Grown 2026-06-16 with the banked audit rulings (famous-anthem staleness audit + Flag-3/Flag-7 adjudications). Entries are content/structure signatures only, never song identities; they anchor PRECEDENT PLACEMENT (a new song is never equal to an entry -- always stronger, weaker, or between). Where two entries share a charge, the id carries a descriptive suffix so the model places against the signature, not a duplicate label. The table grows with every Chad ruling. The extremes (+95..+100 redefinition-level, -98..-100 comprehensive annihilation) are intentionally left without an entry; reserve them for songs that clearly exceed every entry here. ASCII only.",
   "entries": [
     {
       "id": "+85",
@@ -12,12 +12,52 @@
       "source": "v2 charge anchor, promoted at v3 launch"
     },
     {
+      "id": "+82-humanitarian",
+      "charge": 82,
+      "tier": "violet",
+      "signature": "Universal collective humanitarian address. The first person dissolves into a genuine 'we' that calls all people to give and to save themselves together, no group held as subject, the closing posture reinforcing the call. Any scriptural or divine vocabulary is decorative and passes the dogma-swap, so R14 does not fire.",
+      "ruled_at": "2026-06-10",
+      "source": "Chad audit ruling 2026-06-10 (famous-anthem audit control, exact hit)"
+    },
+    {
+      "id": "+82-internal-collective",
+      "charge": 82,
+      "tier": "violet",
+      "signature": "Internal-work accountability fused into a collective call. The narrator makes change start with the self (the transformation check passes on the page) and carries that into a universal appeal, using lived poverty as a LENS rather than advocacy for a named group.",
+      "ruled_at": "2026-06-10",
+      "source": "Chad audit ruling 2026-06-10 (famous-anthem audit)"
+    },
+    {
+      "id": "+82-lens",
+      "charge": 82,
+      "tier": "violet",
+      "signature": "A specific lived or identity experience used as a LENS onto a UNIVERSAL value (here, that surface difference must not govern human connection). Clears Ascended because the object of the claim is universal, not the advancement of one named group.",
+      "ruled_at": "2026-06-10",
+      "source": "Chad audit ruling 2026-06-10 (famous-anthem audit)"
+    },
+    {
       "id": "+80",
       "charge": 80,
       "tier": "violet",
       "signature": "Universal-unity transcendence. Cosmic/whole-pattern oneness, no group specificity, calm certainty, surrender to something larger enacted on the page.",
       "ruled_at": "2026-06-10",
       "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "+80-lens-witness",
+      "charge": 80,
+      "tier": "violet",
+      "signature": "Group-experience-as-LENS witness: a specific injustice lived first-hand is the window onto a universal 'justice, period' claim, NOT advocacy for the group as the end. The discriminator opposite of the +55 group-as-SUBJECT cap -- it CLEARS to Ascended. A slur voiced from the victim or attacked position is witness (R5(d)), not contamination.",
+      "ruled_at": "2026-06-09",
+      "source": "Chad ruling 2026-06-09 (Flag 3 subject-vs-lens + Flag 5 witness-slur)"
+    },
+    {
+      "id": "+78",
+      "charge": 78,
+      "tier": "violet",
+      "signature": "Intimate enacted self-sacrifice. A vow to lay oneself down for another in their suffering, addressed openly enough to read universal but grounded by particular detail that keeps it just below cosmic-oneness and off the ceiling. Cross-traditional metaphor passes the dogma-swap.",
+      "ruled_at": "2026-06-10",
+      "source": "Chad audit ruling 2026-06-10 (famous-anthem audit)"
     },
     {
       "id": "+74",
@@ -36,12 +76,44 @@
       "source": "v2 charge anchor, promoted at v3 launch"
     },
     {
+      "id": "+30",
+      "charge": 30,
+      "tier": "blue",
+      "signature": "Intimate one-to-one encouragement: a single addressee coaxed to open up, the agency already located in the listener. Caps at Elevated because the scope is personal, not collective or universal. Corrects the reverence-halo (R6) when a song's fame would otherwise leak past the anonymous read and inflate it.",
+      "ruled_at": "2026-06-10",
+      "source": "Chad audit ruling 2026-06-10 (famous-anthem audit, reverence-halo correction)"
+    },
+    {
       "id": "+28",
       "charge": 28,
       "tier": "blue",
       "signature": "Second-person encouragement naming a SPECIFIC inner dignity, strength, or courage in the listener (R11 route), narrator as messenger, concrete rather than vague platitude.",
       "ruled_at": "2026-06-10",
       "source": "v2 charge anchor, promoted at v3 launch"
+    },
+    {
+      "id": "+25-contaminated",
+      "charge": 25,
+      "tier": "blue",
+      "signature": "Legal contaminated-Elevated. An introspective self-portrait that earns an Elevated arc (named avoidance, family, mortality, self-caught flaws) while carrying a discrete degrading aside (manipulation or financial-control-as-attachment) as legal contamination. Decent and Elevated tiers CAN be contaminated; the aside does not set the tier.",
+      "ruled_at": "2026-06-10",
+      "source": "Chad ruling 2026-06-10 (Drake illegal-state cleanup)"
+    },
+    {
+      "id": "+25-gratitude",
+      "charge": 25,
+      "tier": "blue",
+      "signature": "Gratitude or tribute route. Detailed, sincere, uplifting thanks to another whose effect on the narrator is the whole song. Clears to low-Elevated even though the transformation happened BEFORE the song and the narrator does no on-page internal work; the gratitude itself is the elevation, not a personal-change arc.",
+      "ruled_at": "2026-06-09",
+      "source": "Chad ruling 2026-06-09 (Flag 1 gratitude route)"
+    },
+    {
+      "id": "+12",
+      "charge": 12,
+      "tier": "green",
+      "signature": "Fragmented, stream-of-consciousness identity reverie. An in-group or tribal identity-claim (an 'us', not a universal witness) whose substance is diffuse mood rather than articulated truth, so it fails R3 and the violet-note-specifics test and stays Decent. The corrector for deep-dive-era manual inflation.",
+      "ruled_at": "2026-06-09",
+      "source": "Chad ruling 2026-06-09 (deep-dive-era inflation, 2-tier correction)"
     },
     {
       "id": "+8",
