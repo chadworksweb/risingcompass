@@ -22,7 +22,7 @@ from app.migrate import run_migrations
 # startup, migrations, and every swallowed "non-fatal" exception persist.
 configure_logging()
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ApiCallLog
-from app.routers import compass, drift, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber, prose_admin, charger_activity
+from app.routers import compass, drift, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber, prose_admin, charger_activity, topic_trends
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +270,7 @@ app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(tenets.router, dependencies=_api_key_dep)
 app.include_router(amendments.router, dependencies=_api_key_dep)
 app.include_router(ether_art_chart.router, dependencies=_public_read_dep)
+app.include_router(topic_trends.router, dependencies=_public_read_dep)
 app.include_router(chart_snapshots.public_router, dependencies=_public_read_dep)
 from app.routers import alltime_charts
 app.include_router(alltime_charts.public_router, dependencies=_public_read_dep)

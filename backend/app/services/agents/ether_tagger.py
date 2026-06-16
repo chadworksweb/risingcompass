@@ -20,7 +20,7 @@ from anthropic import Anthropic
 
 from app.config import settings
 from app.services.claude_meter import tracked_create
-from app.services.ether_taxonomy import VALID_SLUGS, taxonomy_for_prompt
+from app.services.ether_taxonomy import ETHER_TAXONOMY, VALID_SLUGS, taxonomy_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +45,9 @@ pieces of data that name what the song IS:
   1. deadpan_line — a flat, literal naming of the song's content,
      approximately len(artist) + len(title) characters long.
 
-  2. topics — 0 to 3 tags from the closed 25-topic taxonomy below,
-     ordered most-dominant-first. If no honest match exists in the
-     taxonomy, return topics: [] and a topic_audit payload.
+  2. topics — 0 to 3 tags from the closed taxonomy below, ordered
+     most-dominant-first. If no honest match exists in the taxonomy,
+     return topics: [] and a topic_audit payload.
 
 You are an instrument. You name. You do not judge, joke, or comment.
 
@@ -199,7 +199,7 @@ def _build_system_prompt() -> str:
     return "\n".join([
         _VOICE_BLOCK,
         "═══════════════════════════════════════════════════════════════════════",
-        "TOPICS — closed taxonomy of 25 (do not invent)",
+        f"TOPICS — closed taxonomy of {len(ETHER_TAXONOMY)} (do not invent)",
         "═══════════════════════════════════════════════════════════════════════",
         "",
         taxonomy_for_prompt(),

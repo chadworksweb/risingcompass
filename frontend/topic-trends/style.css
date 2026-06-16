@@ -1,0 +1,312 @@
+/* ==========================================================================
+   Topic Trends — "The Narrowing"
+   Homepage branding: --rc-* tokens from /css/main.css (dark, Inter, cyan
+   accent). NOT the esoteric Ether Art Chart palette — this is the plain,
+   data-forward Compass surface.
+   ========================================================================== */
+
+.tt-main {
+  max-width: var(--rc-max-width, 1200px);
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  font-family: var(--rc-font, 'Inter', sans-serif);
+  color: var(--rc-text, #c8c8d8);
+}
+
+/* ─── Hero ─────────────────────────────────────────────────────────── */
+
+.tt-hero { margin-bottom: 2rem; max-width: 52rem; }
+
+.tt-kicker {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rc-accent, #00d4aa);
+  margin: 0 0 0.5rem;
+}
+
+.tt-title {
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.1rem;
+  color: var(--rc-text-bright, #eeeef4);
+}
+
+.tt-framing {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: var(--rc-text, #c8c8d8);
+  margin: 0;
+}
+
+/* ─── Coverage caveat ──────────────────────────────────────────────── */
+
+.tt-caveat {
+  margin: 0 0 2.5rem;
+  padding: 0.85rem 1.1rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--rc-text-dim, #c0c0ca);
+  background: var(--rc-accent-subtle, rgba(0, 212, 170, 0.08));
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-left: 3px solid var(--rc-accent, #00d4aa);
+  border-radius: var(--rc-radius-md, 6px);
+}
+.tt-caveat strong { color: var(--rc-text-bright, #eeeef4); }
+.tt-caveat[hidden] { display: none; }
+
+/* ─── Topics / Themes toggle ───────────────────────────────────────── */
+
+.tt-toggle {
+  display: inline-flex;
+  gap: 0;
+  margin: 0 0 0.5rem;
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: 999px;
+  padding: 0.25rem;
+  background: var(--rc-bg-panel, #12121e);
+}
+.tt-toggle-btn {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--rc-text-dim, #c0c0ca);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.tt-toggle-btn:hover { color: var(--rc-text-bright, #eeeef4); }
+.tt-toggle-btn.is-active {
+  color: var(--rc-bg-dark, #0a0a14);
+  background: var(--rc-accent, #00d4aa);
+}
+
+/* ─── Sections ─────────────────────────────────────────────────────── */
+
+.tt-section {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--rc-border, #2a2a3e);
+}
+
+.tt-section-head { margin-bottom: 1.4rem; }
+
+.tt-section-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--rc-text-bright, #eeeef4);
+  margin: 0 0 0.4rem;
+}
+
+.tt-section-sub {
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: var(--rc-text-dim, #c0c0ca);
+  margin: 0;
+  max-width: 46rem;
+}
+.tt-section-sub sup { font-size: 0.7em; }
+
+/* ─── Chart shells ─────────────────────────────────────────────────── */
+
+.tt-chart-wrap {
+  position: relative;
+  background: var(--rc-bg-panel, #12121e);
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: var(--rc-radius-lg, 8px);
+  padding: 0.5rem;
+}
+
+.tt-chart-area { display: block; width: 100%; }
+.tt-chart-area svg { display: block; width: 100%; height: auto; }
+
+.tt-chart-status {
+  padding: 2.5rem 1.2rem;
+  text-align: center;
+  color: var(--rc-text-dim, #c0c0ca);
+  font-style: italic;
+  font-size: 0.95rem;
+}
+.tt-chart-status[hidden] { display: none; }
+.tt-chart-note {
+  font-style: normal;
+  text-align: left;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--rc-accent, #00d4aa);
+  background: var(--rc-accent-subtle, rgba(0, 212, 170, 0.08));
+  border-radius: var(--rc-radius-sm, 4px);
+  margin: 0.4rem;
+}
+
+/* ─── The Narrowing Index (line) ───────────────────────────────────── */
+
+.tt-grid { stroke: var(--rc-border, #2a2a3e); stroke-width: 1; opacity: 0.6; }
+.tt-y-label, .tt-x-label {
+  fill: var(--rc-text-dim, #c0c0ca);
+  font-family: var(--rc-font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+}
+.tt-tick { stroke: var(--rc-text-dim, #c0c0ca); stroke-width: 0.5; opacity: 0.5; }
+
+.tt-index-line {
+  stroke: var(--rc-accent, #00d4aa);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tt-index-dot {
+  fill: var(--rc-bg-panel, #12121e);
+  stroke: var(--rc-accent, #00d4aa);
+  stroke-width: 2;
+}
+.tt-hover-line {
+  stroke: var(--rc-text-bright, #eeeef4);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ─── The Topic River (streamgraph) ────────────────────────────────── */
+
+.tt-band {
+  stroke: var(--rc-bg-panel, #12121e);
+  stroke-width: 0.6;
+  transition: opacity 0.18s ease;
+  cursor: pointer;
+}
+.tt-band.is-dim { opacity: 0.28; }
+
+.tt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--rc-text-dim, #c0c0ca);
+}
+.tt-legend[hidden] { display: none; }
+.tt-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: default;
+}
+.tt-legend-swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  flex: none;
+}
+
+/* ─── Single-year field fallback (bars) ────────────────────────────── */
+
+.tt-field { padding: 0.8rem 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.tt-field-row {
+  display: grid;
+  grid-template-columns: 9rem 1fr 3.2rem;
+  align-items: center;
+  gap: 0.8rem;
+}
+.tt-field-label {
+  font-size: 0.9rem;
+  color: var(--rc-text, #c8c8d8);
+  text-transform: capitalize;
+  text-align: right;
+}
+.tt-field-bar {
+  height: 0.85rem;
+  background: var(--rc-bg-card, #181828);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.tt-field-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tt-field-pct {
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 0.82rem;
+  color: var(--rc-text-dim, #c0c0ca);
+  text-align: right;
+}
+
+/* ─── Tooltips ─────────────────────────────────────────────────────── */
+
+.tt-tooltip {
+  position: absolute;
+  z-index: 10;
+  top: 1rem;
+  pointer-events: none;
+  background: var(--rc-bg-card, #181828);
+  border: 1px solid var(--rc-border-ui, #646490);
+  border-radius: var(--rc-radius-md, 6px);
+  padding: 0.5rem 0.7rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  min-width: 9rem;
+  max-width: 18rem;
+  font-size: 0.85rem;
+  color: var(--rc-text, #c8c8d8);
+}
+.tt-tooltip[hidden] { display: none; }
+.tt-tt-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: var(--rc-text-bright, #eeeef4);
+  text-transform: capitalize;
+  margin-bottom: 0.2rem;
+}
+.tt-tt-big {
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--rc-accent, #00d4aa);
+}
+.tt-tt-big span {
+  font-family: var(--rc-font, sans-serif);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--rc-text-dim, #c0c0ca);
+}
+.tt-tt-sub {
+  font-size: 0.8rem;
+  color: var(--rc-text-dim, #c0c0ca);
+  margin-top: 0.15rem;
+}
+.tt-tt-theme {
+  font-size: 0.76rem;
+  color: var(--rc-accent, #00d4aa);
+  margin: 0.05rem 0 0.1rem;
+}
+
+/* ─── Method note ──────────────────────────────────────────────────── */
+
+.tt-method p {
+  font-size: 0.96rem;
+  line-height: 1.65;
+  color: var(--rc-text-dim, #c0c0ca);
+  max-width: 48rem;
+  margin: 0.6rem 0 0;
+}
+.tt-method sup { font-size: 0.7em; }
+
+/* ─── Mobile ───────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .tt-main { padding: 2rem 1rem 3rem; }
+  .tt-field-row { grid-template-columns: 6.5rem 1fr 2.8rem; gap: 0.5rem; }
+  .tt-field-label { font-size: 0.8rem; }
+}
