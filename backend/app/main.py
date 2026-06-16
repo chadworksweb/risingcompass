@@ -87,6 +87,24 @@ def _init_database():
     except Exception:
         logger.exception("rubric_change_detector failed at startup (non-fatal)")
 
+    # Seed the Ether taxonomy editor tables (Phase 1) from the code constants
+    # the first time they're empty. Idempotent; never overwrites admin edits.
+    # Fail-soft -- the resolver falls back to code if this hiccups.
+    try:
+        from app.services.ether_taxonomy import (
+            seed_taxonomy_if_empty, backfill_topic_definitions,
+        )
+        db = SessionLocal()
+        try:
+            seed_taxonomy_if_empty(db)
+            # Phase 2a: fill scope/examples on rows seeded before those columns
+            # existed (the Phase-1 prod seed). Idempotent; never overwrites edits.
+            backfill_topic_definitions(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("ether taxonomy seed failed at startup (non-fatal)")
+
     # Bootstrap system API clients + migrate env keys into api_client_keys
     from app.services.api_clients import bootstrap_system_clients
     bootstrap_system_clients()
@@ -376,6 +394,8 @@ from app.routers import song_merge_admin
 app.include_router(song_merge_admin.router)  # Site Admin -> Song Merge (cookie auth)
 from app.routers import agents_admin
 app.include_router(agents_admin.router)
+from app.routers import ether_taxonomy_admin
+app.include_router(ether_taxonomy_admin.router)  # Site Admin -> Taxonomy (cookie auth)
 from app.routers import donate
 app.include_router(donate.router)
 # Billing -- subscription/pack Checkout, wallet, estimate, billing webhook.

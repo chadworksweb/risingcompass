@@ -36,12 +36,7 @@ from sqlalchemy.orm import Session
 
 from app.constants import AGGREGATING_CHART_SLUGS
 from app.database import get_db
-from app.services.ether_taxonomy import (
-    ETHER_TAXONOMY,
-    ETHER_THEMES,
-    ETHER_TOPIC_PRIMARY,
-    ETHER_TOPIC_SECONDARY,
-)
+from app.services.ether_taxonomy import topic_hierarchy
 
 _AGG_SLUGS = sorted(AGGREGATING_CHART_SLUGS)
 
@@ -264,16 +259,20 @@ def get_topic_trends(db: Session = Depends(get_db)):
         is_early_signal=span < EARLY_SIGNAL_SPAN_YEARS,
     )
 
+    # Hierarchy from the DB resolver (Phase 1: presentation-authoritative),
+    # falling back to the code constants when the tables are empty/unreachable.
+    # Response shape is unchanged, so the frontend needs no change.
+    hierarchy = topic_hierarchy(db)
     taxonomy = [
         TaxonomyEntry(
             slug=slug,
-            label=_label_for(slug),
-            primary=ETHER_TOPIC_PRIMARY[slug],
-            also=ETHER_TOPIC_SECONDARY.get(slug, []),
+            label=meta.get("label") or _label_for(slug),
+            primary=meta["primary"],
+            also=meta.get("also", []),
         )
-        for slug in ETHER_TAXONOMY.keys()
+        for slug, meta in hierarchy["topics"].items()
     ]
-    themes = [ThemeEntry(slug=s, label=label) for s, label in ETHER_THEMES.items()]
+    themes = [ThemeEntry(slug=t["slug"], label=t["label"]) for t in hierarchy["themes"]]
 
     return TopicTrendsOut(
         taxonomy=taxonomy, themes=themes, years=years_out, coverage=coverage,

@@ -241,8 +241,11 @@ assert len(VALID_SLUGS) == 30, (
 )
 
 
-def taxonomy_for_prompt() -> str:
-    """Render the taxonomy as a prompt-ready block."""
+def _code_taxonomy_for_prompt() -> str:
+    """Render the CODE taxonomy as a prompt-ready block (the fallback). The
+    public taxonomy_for_prompt(db) below dispatches DB-vs-code; this is the code
+    half, kept byte-for-byte so flipping the DB flag does not drift the prompt
+    for the seeded topics."""
     lines = []
     for slug, data in ETHER_TAXONOMY.items():
         lines.append(f"  {slug}: {data['scope']}")
@@ -348,22 +351,296 @@ for _slug, _themes in ETHER_TOPIC_SECONDARY.items():
         )
 
 
-def topic_hierarchy() -> dict:
-    """The hierarchy in one payload: themes (ordered) + per-topic primary/also.
+def _label_for(slug: str) -> str:
+    """Default display label for a topic slug ("self-affirmation" -> "self
+    affirmation"). Matches what the public surfaces have always rendered."""
+    return slug.replace("-", " ")
 
-    Shape:
-      {
-        "themes": [{"slug": ..., "label": ...}, ...],
-        "topics": {slug: {"primary": theme_slug, "also": [theme_slug, ...]}},
-      }
-    """
+
+def _code_hierarchy() -> dict:
+    """The hierarchy straight from the code constants -- the fail-safe fallback
+    the resolver returns when the DB tables are empty or unreachable."""
     return {
         "themes": [{"slug": s, "label": label} for s, label in ETHER_THEMES.items()],
         "topics": {
             slug: {
                 "primary": ETHER_TOPIC_PRIMARY[slug],
-                "also": ETHER_TOPIC_SECONDARY.get(slug, []),
+                "also": list(ETHER_TOPIC_SECONDARY.get(slug, [])),
+                "label": _label_for(slug),
             }
             for slug in ETHER_TAXONOMY.keys()
         },
     }
+
+
+# === DB-aware resolver (Phase 1 of the admin taxonomy editor) ==============
+#
+# Phase 1 makes the DB the PRESENTATION source of truth for the theme list,
+# labels, each topic's primary theme, secondary facets, and order. The tagger
+# (VALID_SLUGS + taxonomy_for_prompt) stays CODE-driven and is untouched here.
+#
+# topic_hierarchy(db) prefers DB rows and FALLS BACK to the code constants when
+# the tables are empty or the DB read fails (fail-safe -- the public page never
+# breaks). Resolved data is cached module-level with a short TTL and BUSTED on
+# any admin write, mirroring the kill-switch propagation pattern.
+
+import logging as _logging
+import time as _time
+
+_logger = _logging.getLogger(__name__)
+
+_RESOLVER_TTL = 30.0  # seconds; edits propagate within this window without a restart
+_resolver_cache: dict = {"data": None, "expires": 0.0}
+# Phase 2a: cached (valid_slugs, prompt_text) for the tagger definitions.
+_defs_cache: dict = {"data": None, "expires": 0.0}
+
+
+def bust_taxonomy_cache() -> None:
+    """Drop the cached hierarchy + tagger definitions so the next read rebuilds
+    from the DB. Called by every admin write (and the flag toggle) so edits
+    propagate immediately."""
+    _resolver_cache["data"] = None
+    _resolver_cache["expires"] = 0.0
+    _defs_cache["data"] = None
+    _defs_cache["expires"] = 0.0
+
+
+def _db_hierarchy(db) -> dict | None:
+    """Build the hierarchy from the ether_themes/ether_topics rows, or return
+    None when ether_themes is empty (signals: use the code fallback). Imports
+    the models lazily -- this module is imported very early."""
+    from app.models import EtherTheme, EtherTopic
+
+    themes = (
+        db.query(EtherTheme)
+        .order_by(EtherTheme.sort_order.asc(), EtherTheme.id.asc())
+        .all()
+    )
+    if not themes:
+        return None
+    topics = (
+        db.query(EtherTopic)
+        .order_by(EtherTopic.sort_order.asc(), EtherTopic.id.asc())
+        .all()
+    )
+    return {
+        "themes": [{"slug": t.slug, "label": t.label} for t in themes],
+        "topics": {
+            tp.slug: {
+                "primary": tp.primary_theme_slug,
+                "also": list(tp.secondary_themes or []),
+                "label": tp.label,
+            }
+            for tp in topics
+        },
+    }
+
+
+def topic_hierarchy(db=None) -> dict:
+    """The hierarchy in one payload: themes (ordered) + per-topic primary/also/label.
+
+    Shape:
+      {
+        "themes": [{"slug": ..., "label": ...}, ...],
+        "topics": {slug: {"primary": theme_slug, "also": [theme_slug, ...], "label": ...}},
+      }
+
+    Called with no db -> the code constants (used by import-time / non-request
+    callers). Called with a db Session -> the DB rows (cached, TTL'd), falling
+    back to the code constants if the tables are empty or the read fails.
+    """
+    if db is None:
+        return _code_hierarchy()
+
+    now = _time.monotonic()
+    cached = _resolver_cache["data"]
+    if cached is not None and now < _resolver_cache["expires"]:
+        return cached
+
+    data = None
+    try:
+        data = _db_hierarchy(db)
+    except Exception:
+        _logger.exception("ether taxonomy DB resolve failed; using code fallback")
+        data = None
+    if data is None:
+        data = _code_hierarchy()
+
+    _resolver_cache["data"] = data
+    _resolver_cache["expires"] = now + _RESOLVER_TTL
+    return data
+
+
+def themes(db=None) -> list[dict]:
+    """Ordered themes [{slug, label}] -- DB-preferred, code fallback."""
+    return topic_hierarchy(db)["themes"]
+
+
+def topics(db=None) -> dict:
+    """Per-topic mapping {slug: {primary, also, label}} -- DB-preferred."""
+    return topic_hierarchy(db)["topics"]
+
+
+# === Idempotent seed =======================================================
+#
+# Called once at startup (after migrations). If ether_themes is empty, seed both
+# tables from the code constants -- order = dict order, topic labels = humanized
+# slug. NEVER overwrites existing rows, so an admin's edits are safe across
+# restarts. Fail-soft: a seed hiccup must not block startup (the resolver still
+# falls back to code).
+
+
+def seed_taxonomy_if_empty(db) -> bool:
+    """Seed ether_themes + ether_topics from the code constants when empty.
+    Returns True if anything was inserted. Idempotent."""
+    from app.models import EtherTheme, EtherTopic
+
+    inserted = False
+
+    if db.query(EtherTheme).count() == 0:
+        for i, (slug, label) in enumerate(ETHER_THEMES.items()):
+            db.add(EtherTheme(slug=slug, label=label, sort_order=i))
+        inserted = True
+
+    if db.query(EtherTopic).count() == 0:
+        for i, slug in enumerate(ETHER_TAXONOMY.keys()):
+            db.add(EtherTopic(
+                slug=slug,
+                label=_label_for(slug),
+                primary_theme_slug=ETHER_TOPIC_PRIMARY[slug],
+                secondary_themes=list(ETHER_TOPIC_SECONDARY.get(slug, [])),
+                sort_order=i,
+                scope=ETHER_TAXONOMY[slug]["scope"],
+                examples=_code_examples_for(slug),
+            ))
+        inserted = True
+
+    if inserted:
+        db.commit()
+        bust_taxonomy_cache()
+    return inserted
+
+
+# === Phase 2a: DB-driven tagger definitions ================================
+#
+# When the `taxonomy_db_driven.enabled` flag is ON, the live ether tagger builds
+# its prompt + valid-slug set from the ether_topics scope/examples rows instead
+# of the code constants. Fail-safe: an empty/unreachable DB (or the flag off)
+# returns the CODE definitions, so a flip is reversible and an outage degrades to
+# code. The code render is kept byte-identical so flipping the flag does not
+# drift the prompt for the seeded topics.
+
+
+def _code_examples_for(slug: str) -> list[dict]:
+    """Code examples for a topic as JSON-friendly dicts (the stored shape)."""
+    return [
+        {"artist": a, "title": t, "why": w}
+        for (a, t, w) in ETHER_TAXONOMY.get(slug, {}).get("examples", [])
+    ]
+
+
+def backfill_topic_definitions(db) -> int:
+    """Idempotent: fill scope/examples on ether_topics rows that predate the
+    Phase-2a columns (the Phase-1 seed inserted them without definitions). Only
+    touches rows whose scope IS NULL and whose slug exists in the code taxonomy;
+    never overwrites an admin-authored definition. Returns rows updated."""
+    from app.models import EtherTopic
+
+    updated = 0
+    rows = db.query(EtherTopic).filter(EtherTopic.scope.is_(None)).all()
+    for row in rows:
+        if row.slug in ETHER_TAXONOMY:
+            row.scope = ETHER_TAXONOMY[row.slug]["scope"]
+            row.examples = _code_examples_for(row.slug)
+            updated += 1
+    if updated:
+        db.commit()
+        bust_taxonomy_cache()
+    return updated
+
+
+def _render_definitions(defs: list[tuple]) -> str:
+    """Render [(slug, scope, examples)] as the prompt taxonomy block. Mirrors
+    _code_taxonomy_for_prompt byte-for-byte (same em-dash example form)."""
+    lines = []
+    for slug, scope, examples in defs:
+        lines.append(f"  {slug}: {scope}")
+        for ex in examples or []:
+            if isinstance(ex, dict):
+                a, t, w = ex.get("artist", ""), ex.get("title", ""), ex.get("why", "")
+            else:  # tolerate a [artist, title, why] tuple/list shape
+                a = ex[0] if len(ex) > 0 else ""
+                t = ex[1] if len(ex) > 1 else ""
+                w = ex[2] if len(ex) > 2 else ""
+            lines.append(f"    e.g. {a} — \"{t}\" ({w})")
+    return "\n".join(lines)
+
+
+def _db_definitions(db) -> list[tuple] | None:
+    """[(slug, scope, examples)] for topics that carry a non-empty scope, in
+    sort order. None when no topic has a definition (signals: code fallback)."""
+    from app.models import EtherTopic
+
+    rows = (
+        db.query(EtherTopic)
+        .order_by(EtherTopic.sort_order.asc(), EtherTopic.id.asc())
+        .all()
+    )
+    defs = [
+        (r.slug, r.scope, list(r.examples or []))
+        for r in rows
+        if (r.scope or "").strip()
+    ]
+    return defs or None
+
+
+def _resolve_definitions(db) -> tuple:
+    """(valid_slugs frozenset, prompt_text). DB when the flag is on AND at least
+    one topic has a definition; else the code constants. Fail-safe to code."""
+    use_db = False
+    if db is not None:
+        try:
+            from app.services.feature_flags import is_taxonomy_db_driven
+            use_db = is_taxonomy_db_driven(db)
+        except Exception:
+            _logger.exception("taxonomy flag read failed; using code definitions")
+            use_db = False
+
+    if use_db:
+        try:
+            defs = _db_definitions(db)
+        except Exception:
+            _logger.exception("taxonomy DB definitions read failed; using code")
+            defs = None
+        if defs:
+            return frozenset(s for s, _, _ in defs), _render_definitions(defs)
+
+    return VALID_SLUGS, _code_taxonomy_for_prompt()
+
+
+def _cached_definitions(db) -> tuple:
+    now = _time.monotonic()
+    cached = _defs_cache["data"]
+    if cached is not None and now < _defs_cache["expires"]:
+        return cached
+    data = _resolve_definitions(db)
+    _defs_cache["data"] = data
+    _defs_cache["expires"] = now + _RESOLVER_TTL
+    return data
+
+
+def valid_slugs(db=None) -> frozenset:
+    """The set of taggable topic slugs. No db -> the code frozenset (import-time /
+    terminal callers). With a db -> DB-resolved when the flag is on, else code."""
+    if db is None:
+        return VALID_SLUGS
+    return _cached_definitions(db)[0]
+
+
+def taxonomy_for_prompt(db=None) -> str:
+    """The taxonomy block for the tagger/synthesis prompt. No db -> the code
+    render (unchanged for legacy callers). With a db -> DB-resolved when the flag
+    is on, else code."""
+    if db is None:
+        return _code_taxonomy_for_prompt()
+    return _cached_definitions(db)[1]

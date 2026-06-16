@@ -34,7 +34,8 @@ from anthropic import Anthropic
 
 from app.config import settings
 from app.services.claude_meter import tracked_create
-from app.services.ether_taxonomy import VALID_SLUGS, taxonomy_for_prompt
+from app.services import ether_taxonomy as tax
+from app.services.ether_taxonomy import VALID_SLUGS
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,20 @@ def generate_album_synthesis(
     if not scored:
         return {}
 
+    # Resolve the taxonomy from a short-lived session (DB-driven when the flag is
+    # on, else code). Same fail-safe contract as the per-song tagger.
+    try:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            taxonomy_text = tax.taxonomy_for_prompt(db)
+            valid_slugs = tax.valid_slugs(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("album_synthesis taxonomy resolve failed; using code taxonomy")
+        taxonomy_text, valid_slugs = tax.taxonomy_for_prompt(), VALID_SLUGS
+
     agg_label = TIER_LABELS.get(aggregate_color or "", aggregate_color or "")
     type_label = {"album": "album", "ep": "EP", "single": "single"}.get(release_type, "album")
 
@@ -164,7 +179,7 @@ def generate_album_synthesis(
 
     lines.append("")
     lines.append("Ether Art Chart taxonomy (for the album's deadpan_line + topics, dominant-first):")
-    lines.append(taxonomy_for_prompt())
+    lines.append(taxonomy_text)
     lines.append("")
     lines.append("Write the JSON object now, compiled from the song readings above.")
     user_prompt = "\n".join(lines)
@@ -216,7 +231,7 @@ def generate_album_synthesis(
         out["deadpan_line"] = deadpan
 
     raw_topics = parsed.get("topics")
-    valid = [t for t in raw_topics if isinstance(t, str) and t in VALID_SLUGS][:3] \
+    valid = [t for t in raw_topics if isinstance(t, str) and t in valid_slugs][:3] \
         if isinstance(raw_topics, list) else []
     audit = parsed.get("topic_audit")
     if not isinstance(audit, dict):

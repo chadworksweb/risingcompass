@@ -1,0 +1,476 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'taxonomy' %}
+{% block title %}Taxonomy — Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+  .tax-note { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.8rem 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
+  .tax-note strong { color: var(--text); }
+  .tax-panel { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem 1.2rem; margin-bottom: 1.8rem; }
+  .tax-panel > h2 { margin-top: 0; }
+  .tax-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border: 1px solid var(--border-soft); border-radius: 5px; margin-bottom: 0.5rem; background: var(--panel); flex-wrap: wrap; }
+  .tax-order { display: flex; flex-direction: column; gap: 1px; }
+  .tax-order button { width: 22px; height: 16px; padding: 0; font-size: 0.6rem; line-height: 1; background: #fff; color: var(--text-dim); border: 1px solid var(--border); border-radius: 3px; font-weight: 700; }
+  .tax-order button:hover { color: var(--accent); border-color: var(--accent); }
+  .tax-order button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .tax-slug { font-family: monospace; font-size: 0.78rem; color: var(--text-hint); min-width: 9rem; }
+  .tax-row input.tax-label { flex: 1; min-width: 9rem; }
+  .tax-row select { width: auto; min-width: 11rem; }
+  .tax-row .btn-sm { padding: 0.32rem 0.7rem; font-size: 0.78rem; }
+  .tax-badge { font-size: 0.68rem; font-weight: 700; padding: 0.12rem 0.45rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tax-badge.db-only { background: #fff0d0; color: var(--tier-orange); }
+  .tax-group { margin-bottom: 1.4rem; }
+  .tax-group-head { font-size: 0.82rem; font-weight: 700; color: var(--accent-strong); text-transform: uppercase; letter-spacing: 0.05em; margin: 0.4rem 0 0.5rem; display: flex; align-items: baseline; gap: 0.5rem; }
+  .tax-group-head .cnt { font-weight: 500; color: var(--text-hint); font-size: 0.74rem; }
+  .tax-secondary { display: flex; flex-wrap: wrap; gap: 0.3rem 0.7rem; flex: 1 1 100%; padding: 0.2rem 0 0.1rem 1.7rem; }
+  .tax-secondary label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.76rem; color: var(--text-dim); font-weight: 500; margin: 0; }
+  .tax-secondary input { width: auto; }
+  .tax-add { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end; margin-top: 0.8rem; padding-top: 0.9rem; border-top: 1px dashed var(--border-soft); }
+  .tax-add .fld { display: flex; flex-direction: column; gap: 0.25rem; }
+  .tax-add .fld label { font-size: 0.74rem; }
+  .tax-add input, .tax-add select { width: auto; }
+  .tax-add input.add-slug { width: 11rem; font-family: monospace; }
+  .tax-rowmsg { font-size: 0.74rem; color: var(--text-dim); margin-left: 0.3rem; }
+  .tax-rowmsg.err { color: var(--red); }
+  .tax-rowmsg.ok { color: var(--accent-strong); }
+  /* Tagger-source banner */
+  .tax-source { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; border-radius: 6px; padding: 0.7rem 1rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+  .tax-source.code { background: #fff6e6; border-color: var(--tier-orange); }
+  .tax-source.db { background: #e6f5ef; border-color: var(--accent); }
+  .tax-source .lead { font-size: 0.88rem; }
+  .tax-source .src { font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tax-source.code .src { color: var(--tier-orange); }
+  .tax-source.db .src { color: var(--accent-strong); }
+  .tax-source .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+  /* Definition editor (scope + examples) */
+  .tax-defn { flex: 1 1 100%; padding: 0.6rem 0 0.2rem 1.7rem; display: none; }
+  .tax-defn.open { display: block; }
+  .tax-defn label.fld-label { font-size: 0.74rem; color: var(--text-dim); font-weight: 700; display: block; margin: 0.3rem 0 0.2rem; }
+  .tax-defn textarea.scope { width: 100%; min-height: 48px; font-size: 0.82rem; }
+  .tax-ex-row { display: flex; gap: 0.4rem; margin-bottom: 0.3rem; align-items: center; }
+  .tax-ex-row input { font-size: 0.78rem; padding: 0.3rem 0.4rem; }
+  .tax-ex-row .ex-artist { width: 9rem; } .tax-ex-row .ex-title { width: 11rem; } .tax-ex-row .ex-why { flex: 1; min-width: 8rem; }
+  .tax-ex-row .ex-del { width: 24px; height: 24px; padding: 0; font-size: 0.8rem; background: #fff; color: var(--red); border: 1px solid var(--border); border-radius: 4px; }
+  .tax-defn-btn { background: #fff; color: var(--text-dim); border: 1px solid var(--border); }
+  .tax-defn-btn.has { color: var(--accent-strong); border-color: var(--accent); }
+  .tax-defn-btn.missing { color: var(--tier-orange); border-color: var(--tier-orange); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tax-note">
+  <strong>Taxonomy editor.</strong> The database is the source of truth for the theme list, each topic's
+  primary theme, secondary facets, labels, ordering, and the tagger <strong>definitions</strong> (scope +
+  examples). Presentation edits (labels / hierarchy / order) go live on the public Topic Trends page within
+  ~30 seconds. The definitions only drive the <em>live tagger</em> once you switch the tagger source to
+  DATABASE below; a topic with no scope is flagged <span class="tax-badge db-only">no tagger definition</span>
+  and cannot be tagged. The topic <strong>slug</strong> is still fixed (rename/retag is the next phase).
+  <span id="taxTopMsg" class="tax-rowmsg"></span>
+</div>
+
+<!-- Tagger source (Phase 2a cutover) -->
+<div id="taxSource" class="tax-source code">
+  <span class="lead">Live tagger reads from: <span class="src" id="taxSourceLabel">...</span></span>
+  <span style="font-size:0.8rem;color:var(--text-dim);flex:1 1 14rem;" id="taxSourceHint"></span>
+  <button class="btn-sm" id="taxSourceBtn" onclick="toggleTaggerSource()">...</button>
+  <span id="taxSourceMsg" class="tax-rowmsg"></span>
+</div>
+
+<!-- ===================== Themes ===================== -->
+<div class="tax-panel">
+  <h2 class="section-title">Themes</h2>
+  <p style="font-size:0.82rem;color:var(--text-dim);margin:0 0 0.8rem;">
+    The top-level shelves. A topic's <em>primary</em> theme is the only mapping any share rollup sums on, so
+    deleting a theme is blocked while any topic still uses it as primary. Renaming a theme slug rewrites the
+    topics that reference it in the same transaction.
+  </p>
+  <div id="themesList"><div style="color:var(--text-dim);">Loading...</div></div>
+
+  <div class="tax-add">
+    <div class="fld"><label>New theme slug</label><input class="add-slug" id="newThemeSlug" placeholder="e.g. body-place" spellcheck="false"></div>
+    <div class="fld"><label>Label</label><input id="newThemeLabel" placeholder="Body &amp; Place"></div>
+    <button class="btn-sm" onclick="addTheme()">Add theme</button>
+    <span id="addThemeMsg" class="tax-rowmsg"></span>
+  </div>
+</div>
+
+<!-- ===================== Topics ===================== -->
+<div class="tax-panel">
+  <h2 class="section-title">Topics</h2>
+  <p style="font-size:0.82rem;color:var(--text-dim);margin:0 0 0.8rem;">
+    Grouped under their primary theme. Per topic: label, primary-theme dropdown, secondary facet checkboxes,
+    order, and the tagger <strong>Definition</strong> (scope + examples). The topic <strong>slug is fixed</strong>
+    &mdash; songs store topic slugs, so a rename would orphan history (the next phase's alias migration). Edit
+    the label or definition instead.
+  </p>
+  <div id="topicsList"><div style="color:var(--text-dim);">Loading...</div></div>
+
+  <div class="tax-add">
+    <div class="fld"><label>New topic slug</label><input class="add-slug" id="newTopicSlug" placeholder="e.g. wanderlust" spellcheck="false"></div>
+    <div class="fld"><label>Label</label><input id="newTopicLabel" placeholder="wanderlust"></div>
+    <div class="fld"><label>Primary theme</label><select id="newTopicPrimary"></select></div>
+    <button class="btn-sm" onclick="addTopic()">Add topic</button>
+    <span id="addTopicMsg" class="tax-rowmsg"></span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let THEMES = [];   // [{slug,label,sort_order}]
+let TOPICS = [];   // [{slug,label,primary_theme,secondary,sort_order,has_definition}]
+
+function onAdminReady() { loadTaxonomy(); }
+
+function setMsg(el, text, kind) {
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'tax-rowmsg' + (kind ? ' ' + kind : '');
+}
+
+async function loadTaxonomy() {
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    THEMES = data.themes || [];
+    TOPICS = data.topics || [];
+    renderTaggerSource(!!data.tagger_db_driven);
+    renderThemes();
+    renderTopics();
+    fillPrimaryDropdown(document.getElementById('newTopicPrimary'));
+  } catch (e) {
+    setMsg(document.getElementById('taxTopMsg'), 'Load failed: ' + e.message, 'err');
+  }
+}
+
+function fillPrimaryDropdown(sel, selected) {
+  if (!sel) return;
+  sel.innerHTML = THEMES.map(t =>
+    `<option value="${escHtml(t.slug)}" ${t.slug === selected ? 'selected' : ''}>${escHtml(t.label)}</option>`
+  ).join('');
+}
+
+// ---------- Tagger source (Phase 2a cutover) ----------
+
+let TAGGER_DB = false;
+
+function renderTaggerSource(dbDriven) {
+  TAGGER_DB = dbDriven;
+  const box = document.getElementById('taxSource');
+  const label = document.getElementById('taxSourceLabel');
+  const hint = document.getElementById('taxSourceHint');
+  const btn = document.getElementById('taxSourceBtn');
+  box.className = 'tax-source ' + (dbDriven ? 'db' : 'code');
+  label.textContent = dbDriven ? 'DATABASE' : 'CODE';
+  hint.textContent = dbDriven
+    ? 'The live tagger builds its prompt from the definitions below. Edits take effect within ~30s.'
+    : 'Definition edits below are saved but do NOT affect live tagging yet. The tagger reads the frozen code taxonomy.';
+  btn.textContent = dbDriven ? 'Switch to CODE' : 'Switch to DATABASE';
+}
+
+async function toggleTaggerSource() {
+  const target = !TAGGER_DB;
+  const msg = document.getElementById('taxSourceMsg');
+  if (target && !confirm('Point the LIVE tagger at the database definitions? New calibrations will classify from the scope/examples edited here. Reversible.')) return;
+  setMsg(msg, 'Saving...');
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/tagger-source', {
+      method: 'POST', headers: adminHeaders(), body: JSON.stringify({ enabled: target }),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'HTTP ' + resp.status);
+    setMsg(msg, 'Saved', 'ok');
+    await loadTaxonomy();
+  } catch (e) { setMsg(msg, e.message, 'err'); }
+}
+
+// ---------- Themes ----------
+
+function renderThemes() {
+  const wrap = document.getElementById('themesList');
+  if (!THEMES.length) { wrap.innerHTML = '<div style="color:var(--text-dim);">No themes.</div>'; return; }
+  wrap.innerHTML = THEMES.map((t, i) => `
+    <div class="tax-row" data-theme="${escHtml(t.slug)}">
+      <div class="tax-order">
+        <button onclick="moveTheme('${escHtml(t.slug)}',-1)" ${i === 0 ? 'disabled' : ''} title="Move up">&#9650;</button>
+        <button onclick="moveTheme('${escHtml(t.slug)}',1)" ${i === THEMES.length - 1 ? 'disabled' : ''} title="Move down">&#9660;</button>
+      </div>
+      <input class="tax-slug" style="border:1px solid var(--border-soft);" value="${escHtml(t.slug)}" id="thslug-${escHtml(t.slug)}" spellcheck="false" title="Theme slug (rename allowed)">
+      <input class="tax-label" value="${escHtml(t.label)}" id="thlabel-${escHtml(t.slug)}" placeholder="Label">
+      <button class="btn-sm" onclick="saveTheme('${escHtml(t.slug)}')">Save</button>
+      <button class="btn-sm btn-danger" onclick="deleteTheme('${escHtml(t.slug)}')">Delete</button>
+      <span class="tax-rowmsg" id="thmsg-${escHtml(t.slug)}"></span>
+    </div>
+  `).join('');
+}
+
+async function saveTheme(slug) {
+  const msg = document.getElementById('thmsg-' + slug);
+  const newSlug = document.getElementById('thslug-' + slug).value.trim();
+  const label = document.getElementById('thlabel-' + slug).value.trim();
+  setMsg(msg, 'Saving...');
+  const body = { label };
+  if (newSlug && newSlug !== slug) body.slug = newSlug;
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/themes/' + encodeURIComponent(slug), {
+      method: 'PATCH', headers: adminHeaders(), body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'HTTP ' + resp.status);
+    setMsg(msg, 'Saved', 'ok');
+    await loadTaxonomy();
+  } catch (e) { setMsg(msg, e.message, 'err'); }
+}
+
+async function deleteTheme(slug) {
+  if (!confirm(`Delete theme "${slug}"? Blocked if any topic uses it as primary.`)) return;
+  const msg = document.getElementById('thmsg-' + slug);
+  setMsg(msg, 'Deleting...');
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/themes/' + encodeURIComponent(slug), { method: 'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'HTTP ' + resp.status);
+    await loadTaxonomy();
+  } catch (e) { setMsg(msg, e.message, 'err'); }
+}
+
+async function addTheme() {
+  const slug = document.getElementById('newThemeSlug').value.trim();
+  const label = document.getElementById('newThemeLabel').value.trim();
+  const msg = document.getElementById('addThemeMsg');
+  if (!slug || !label) { setMsg(msg, 'Slug and label required.', 'err'); return; }
+  setMsg(msg, 'Adding...');
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/themes', {
+      method: 'POST', headers: adminHeaders(), body: JSON.stringify({ slug, label }),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'HTTP ' + resp.status);
+    document.getElementById('newThemeSlug').value = '';
+    document.getElementById('newThemeLabel').value = '';
+    setMsg(msg, 'Added', 'ok');
+    await loadTaxonomy();
+  } catch (e) { setMsg(msg, e.message, 'err'); }
+}
+
+async function moveTheme(slug, dir) {
+  const i = THEMES.findIndex(t => t.slug === slug);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= THEMES.length) return;
+  const order = THEMES.map(t => t.slug);
+  [order[i], order[j]] = [order[j], order[i]];
+  await postReorder('themes', order);
+}
+
+// ---------- Topics ----------
+
+function renderTopics() {
+  const wrap = document.getElementById('topicsList');
+  if (!TOPICS.length) { wrap.innerHTML = '<div style="color:var(--text-dim);">No topics.</div>'; return; }
+  let html = '';
+  for (const th of THEMES) {
+    const inGroup = TOPICS.filter(tp => tp.primary_theme === th.slug);
+    html += `<div class="tax-group">
+      <div class="tax-group-head">${escHtml(th.label)} <span class="cnt">${inGroup.length} topic${inGroup.length === 1 ? '' : 's'}</span></div>`;
+    if (!inGroup.length) {
+      html += '<div style="color:var(--text-hint);font-size:0.78rem;padding-left:1.7rem;">(none)</div>';
+    } else {
+      inGroup.forEach((tp, idx) => { html += topicRow(tp, idx, inGroup.length); });
+    }
+    html += '</div>';
+  }
+  // Orphans (primary theme missing) -- surface, don't hide.
+  const known = new Set(THEMES.map(t => t.slug));
+  const orphans = TOPICS.filter(tp => !known.has(tp.primary_theme));
+  if (orphans.length) {
+    html += `<div class="tax-group"><div class="tax-group-head" style="color:var(--red);">Orphaned (primary theme missing) <span class="cnt">${orphans.length}</span></div>`;
+    orphans.forEach((tp, idx) => { html += topicRow(tp, idx, orphans.length); });
+    html += '</div>';
+  }
+  wrap.innerHTML = html;
+  // Wire up the primary selects + secondary checkboxes + examples after injection.
+  TOPICS.forEach(tp => {
+    fillPrimaryDropdown(document.getElementById('tpprimary-' + tp.slug), tp.primary_theme);
+    renderSecondary(tp);
+    renderExamples(tp.slug, tp.examples || []);
+  });
+}
+
+function topicRow(tp, idx, groupLen) {
+  const badge = tp.has_definition ? '' : '<span class="tax-badge db-only" title="No scope -- the tagger cannot use this topic">no tagger definition</span>';
+  const defnCls = tp.has_definition ? 'has' : 'missing';
+  return `
+    <div class="tax-row" data-topic="${escHtml(tp.slug)}">
+      <div class="tax-order">
+        <button onclick="moveTopic('${escHtml(tp.slug)}',-1)" ${idx === 0 ? 'disabled' : ''} title="Move up">&#9650;</button>
+        <button onclick="moveTopic('${escHtml(tp.slug)}',1)" ${idx === groupLen - 1 ? 'disabled' : ''} title="Move down">&#9660;</button>
+      </div>
+      <span class="tax-slug">${escHtml(tp.slug)}</span>
+      <input class="tax-label" value="${escHtml(tp.label)}" id="tplabel-${escHtml(tp.slug)}" placeholder="Label">
+      <select id="tpprimary-${escHtml(tp.slug)}" onchange="renderSecondaryFromSelect('${escHtml(tp.slug)}')"></select>
+      ${badge}
+      <button class="btn-sm tax-defn-btn ${defnCls}" onclick="toggleDefn('${escHtml(tp.slug)}')">Definition</button>
+      <button class="btn-sm" onclick="saveTopic('${escHtml(tp.slug)}')">Save</button>
+      <button class="btn-sm btn-danger" onclick="deleteTopic('${escHtml(tp.slug)}')">Delete</button>
+      <span class="tax-rowmsg" id="tpmsg-${escHtml(tp.slug)}"></span>
+      <div class="tax-secondary" id="tpsec-${escHtml(tp.slug)}"></div>
+      <div class="tax-defn" id="tpdefn-${escHtml(tp.slug)}">
+        <label class="fld-label">Scope (the one-line meaning the tagger classifies from)</label>
+        <textarea class="scope" id="tpscope-${escHtml(tp.slug)}" placeholder="e.g. Heartbreak, leaving, ending of a romantic bond.">${escHtml(tp.scope || '')}</textarea>
+        <label class="fld-label">Examples (anchors: artist / title / why)</label>
+        <div id="tpex-${escHtml(tp.slug)}"></div>
+        <button class="btn-sm" style="margin-top:0.3rem;background:#fff;color:var(--text-dim);border:1px solid var(--border);" onclick="addExample('${escHtml(tp.slug)}')">+ Add example</button>
+      </div>
+    </div>`;
+}
+
+function toggleDefn(slug) {
+  const el = document.getElementById('tpdefn-' + slug);
+  if (el) el.classList.toggle('open');
+}
+
+// ---------- Examples editor ----------
+
+function renderExamples(slug, examples) {
+  const box = document.getElementById('tpex-' + slug);
+  if (!box) return;
+  box.innerHTML = (examples || []).map(ex => exampleRowHtml(ex)).join('');
+}
+
+function exampleRowHtml(ex) {
+  ex = ex || {};
+  return `<div class="tax-ex-row">
+    <input class="ex-artist" placeholder="artist" value="${escHtml(ex.artist || '')}">
+    <input class="ex-title" placeholder="title" value="${escHtml(ex.title || '')}">
+    <input class="ex-why" placeholder="why this fits" value="${escHtml(ex.why || '')}">
+    <button class="ex-del" title="Remove" onclick="this.parentElement.remove()">&times;</button>
+  </div>`;
+}
+
+function addExample(slug) {
+  const box = document.getElementById('tpex-' + slug);
+  if (box) box.insertAdjacentHTML('beforeend', exampleRowHtml({}));
+}
+
+function collectExamples(slug) {
+  const box = document.getElementById('tpex-' + slug);
+  if (!box) return [];
+  return [...box.querySelectorAll('.tax-ex-row')].map(r => ({
+    artist: r.querySelector('.ex-artist').value.trim(),
+    title: r.querySelector('.ex-title').value.trim(),
+    why: r.querySelector('.ex-why').value.trim(),
+  })).filter(e => e.artist || e.title || e.why);
+}
+
+// Render the secondary-facet checkboxes for a topic: every theme except its
+// currently-selected primary, checked if it's in the topic's secondary list.
+function renderSecondary(tp, primaryOverride, keepChecked) {
+  const box = document.getElementById('tpsec-' + tp.slug);
+  if (!box) return;
+  const primary = primaryOverride || (document.getElementById('tpprimary-' + tp.slug) || {}).value || tp.primary_theme;
+  const checked = keepChecked || new Set(tp.secondary || []);
+  box.innerHTML = '<span style="font-size:0.72rem;color:var(--text-hint);align-self:center;">also:</span>' +
+    THEMES.filter(t => t.slug !== primary).map(t => `
+      <label><input type="checkbox" value="${escHtml(t.slug)}" ${checked.has(t.slug) ? 'checked' : ''}> ${escHtml(t.label)}</label>
+    `).join('');
+}
+
+function renderSecondaryFromSelect(slug) {
+  const tp = TOPICS.find(t => t.slug === slug);
+  if (!tp) return;
+  // Preserve currently-checked boxes across a primary change.
+  const cur = collectSecondary(slug);
+  const primary = document.getElementById('tpprimary-' + slug).value;
+  renderSecondary(tp, primary, new Set(cur.filter(s => s !== primary)));
+}
+
+function collectSecondary(slug) {
+  const box = document.getElementById('tpsec-' + slug);
+  if (!box) return [];
+  return [...box.querySelectorAll('input[type="checkbox"]:checked')].map(c => c.value);
+}
+
+async function saveTopic(slug) {
+  const msg = document.getElementById('tpmsg-' + slug);
+  const label = document.getElementById('tplabel-' + slug).value.trim();
+  const primary_theme = document.getElementById('tpprimary-' + slug).value;
+  const secondary = collectSecondary(slug);
+  const scope = document.getElementById('tpscope-' + slug).value.trim();
+  const examples = collectExamples(slug);
+  setMsg(msg, 'Saving...');
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/topics/' + encodeURIComponent(slug), {
+      method: 'PATCH', headers: adminHeaders(),
+      body: JSON.stringify({ label, primary_theme, secondary, scope, examples }),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'HTTP ' + resp.status);
+    setMsg(msg, 'Saved', 'ok');
+    await loadTaxonomy();
+  } catch (e) { setMsg(msg, e.message, 'err'); }
+}
+
+async function deleteTopic(slug) {
+  if (!confirm(`Delete topic "${slug}" from the hierarchy? (The tagger definition in code, if any, is untouched.)`)) return;
+  const msg = document.getElementById('tpmsg-' + slug);
+  setMsg(msg, 'Deleting...');
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/topics/' + encodeURIComponent(slug), { method: 'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'HTTP ' + resp.status);
+    await loadTaxonomy();
+  } catch (e) { setMsg(msg, e.message, 'err'); }
+}
+
+async function addTopic() {
+  const slug = document.getElementById('newTopicSlug').value.trim();
+  const label = document.getElementById('newTopicLabel').value.trim();
+  const primary_theme = document.getElementById('newTopicPrimary').value;
+  const msg = document.getElementById('addTopicMsg');
+  if (!slug || !label || !primary_theme) { setMsg(msg, 'Slug, label, primary theme required.', 'err'); return; }
+  setMsg(msg, 'Adding...');
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/topics', {
+      method: 'POST', headers: adminHeaders(),
+      body: JSON.stringify({ slug, label, primary_theme, secondary: [] }),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'HTTP ' + resp.status);
+    document.getElementById('newTopicSlug').value = '';
+    document.getElementById('newTopicLabel').value = '';
+    setMsg(msg, 'Added', 'ok');
+    await loadTaxonomy();
+  } catch (e) { setMsg(msg, e.message, 'err'); }
+}
+
+// Move a topic up/down within its own primary-theme group, then persist the
+// full topic order (grouped: theme order, each group in display order).
+async function moveTopic(slug, dir) {
+  const tp = TOPICS.find(t => t.slug === slug);
+  if (!tp) return;
+  const group = TOPICS.filter(t => t.primary_theme === tp.primary_theme);
+  const i = group.findIndex(t => t.slug === slug);
+  const j = i + dir;
+  if (j < 0 || j >= group.length) return;
+  [group[i], group[j]] = [group[j], group[i]];
+  // Rebuild the global order: walk themes in order, emit each group's topics in
+  // their (possibly reordered) sequence, then any orphans last.
+  const order = [];
+  for (const th of THEMES) {
+    const g = (th.slug === tp.primary_theme)
+      ? group
+      : TOPICS.filter(t => t.primary_theme === th.slug);
+    g.forEach(t => order.push(t.slug));
+  }
+  const known = new Set(THEMES.map(t => t.slug));
+  TOPICS.filter(t => !known.has(t.primary_theme)).forEach(t => order.push(t.slug));
+  await postReorder('topics', order);
+}
+
+async function postReorder(kind, order) {
+  try {
+    const resp = await adminFetch('/api/admin/taxonomy/reorder', {
+      method: 'POST', headers: adminHeaders(), body: JSON.stringify({ kind, order }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    await loadTaxonomy();
+  } catch (e) {
+    setMsg(document.getElementById('taxTopMsg'), 'Reorder failed: ' + e.message, 'err');
+  }
+}
+</script>
+{% endblock %}

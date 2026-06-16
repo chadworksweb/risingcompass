@@ -211,6 +211,7 @@ _ADMIN_SECTIONS = {
     "chart-anomalies": "admin/anomalies.html",
     "faultline": "admin/faultline.html",
     "runs": "admin/runs.html",
+    "taxonomy": "admin/taxonomy.html",
     "clutter": "admin/clutter.html",
     "song-merge": "admin/song_merge.html",
     "agents": "admin/agents.html",
@@ -272,16 +273,17 @@ def recalibrate_dashboard(
 def ether_audits_dashboard(
     request: Request,
     admin=Depends(optional_admin_session),
+    db: Session = Depends(get_db),
 ):
     """Serve the Ether Audits triage UI. Returns 404 to unauthed callers."""
     if admin is None:
         raise HTTPException(status_code=404)
     _gate_admin_section(request, "ether-audits")
-    from app.services.ether_taxonomy import VALID_SLUGS
+    from app.services.ether_taxonomy import valid_slugs
     return templates.TemplateResponse(
         request=request,
         name="ether_audits.html",
-        context={"ether_slugs": sorted(VALID_SLUGS)},
+        context={"ether_slugs": sorted(valid_slugs(db))},
     )
 
 

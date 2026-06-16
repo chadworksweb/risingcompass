@@ -335,6 +335,27 @@ def set_launch_locked_message(db: Session, message: str | None) -> None:
 # system_flags; it is inert.
 
 
+# --- Taxonomy: DB drives the tagger (Phase 2a cutover) ---------------------
+# When ON, the live ether tagger builds its prompt + valid-slug set from the
+# ether_topics scope/examples rows instead of the code constants (ETHER_TAXONOMY).
+# Fail-CLOSED (absent flag = OFF): the tagger reads CODE until an admin flips
+# this, so a half-finished DB definition can't silently corrupt live
+# classification. The code constants stay as the automatic fallback even when
+# this is on (empty/unreachable DB -> code), so a flip is reversible. Mirrors
+# the launch.locked fail-closed toggle pattern.
+
+TAXONOMY_DB_DRIVEN_KEY = "taxonomy_db_driven.enabled"
+
+
+def is_taxonomy_db_driven(db: Session) -> bool:
+    # Absent flag -> OFF (fail closed). Only an explicit "true" routes to the DB.
+    return (_get_flag(db, TAXONOMY_DB_DRIVEN_KEY) or "false").lower() == "true"
+
+
+def set_taxonomy_db_driven(db: Session, enabled: bool) -> None:
+    _set_flag(db, TAXONOMY_DB_DRIVEN_KEY, enabled)
+
+
 # --- Faultline (internal error ledger) kill switch -------------------------
 # Gates Faultline capture writes. Capture is fail-safe regardless -- this is a
 # deliberate off switch for the writes/noise, not a safety mechanism. Fails

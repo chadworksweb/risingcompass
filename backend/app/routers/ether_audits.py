@@ -41,7 +41,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import Song
 from app.routers.admin import verify_admin_key
-from app.services.ether_taxonomy import VALID_SLUGS
+from app.services.ether_taxonomy import valid_slugs
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ def remap_audit(
     `topic_audit`. The deadpan_line is preserved.
     """
     topic = (data.topic or "").strip()
-    if topic not in VALID_SLUGS:
+    if topic not in valid_slugs(db):
         raise HTTPException(400, f"'{topic}' is not in the current taxonomy")
 
     song = _load_audit_song(db, song_id)

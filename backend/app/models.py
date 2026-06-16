@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    CheckConstraint, Column, Integer, BigInteger, String, Text, Float, Boolean, Date, DateTime, ForeignKey, Index, LargeBinary, UniqueConstraint, text
+    CheckConstraint, Column, Integer, BigInteger, String, Text, Float, Boolean, Date, DateTime, ForeignKey, Index, JSON, LargeBinary, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -1186,6 +1186,59 @@ class SystemFlag(Base):
 
     key = Column(Text, primary_key=True)
     value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EtherTheme(Base):
+    """A top-level Ether theme -- the shelf a topic is filed under. Phase 1 of
+    the admin taxonomy editor makes the DB the source of truth for the theme
+    LIST, LABELS, and ORDER (presentation-authoritative). The live song tagger
+    is unchanged: its topic slug set + scope/examples stay code-driven in
+    services/ether_taxonomy.py. Seeded once from the ETHER_THEMES code constant;
+    the resolver falls back to the code constants when this table is empty or
+    unreachable, so the public surface never breaks. See
+    RISING-COMPASS-TAXONOMY-EDITOR-SCOPE.md.
+    """
+    __tablename__ = "ether_themes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(Text, nullable=False, unique=True)
+    label = Column(Text, nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EtherTopic(Base):
+    """A topic and its placement in the theme hierarchy. Phase 1 stores the
+    PRESENTATION facts only: display label, the single primary theme (the strict
+    tree every rollup sums on), secondary theme facets (never summed), and order.
+    NO scope/examples here in Phase 1 -- those stay in ETHER_TAXONOMY (code) for
+    the tagger. A topic row whose slug is not in ETHER_TAXONOMY is "DB-only" (the
+    tagger cannot classify it yet); the admin surfaces that as a badge.
+
+    Topic-slug renames are disabled in Phase 1 because songs.topics JSON stores
+    slugs -- a rename would orphan history (a Phase 2 alias-migration concern).
+    Theme-slug renames ARE safe (only these rows reference a theme; updated in
+    the same transaction).
+    """
+    __tablename__ = "ether_topics"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(Text, nullable=False, unique=True)
+    label = Column(Text, nullable=False)
+    primary_theme_slug = Column(Text, nullable=False)
+    # JSON array of theme slugs; optional facets, never summed.
+    secondary_themes = Column(JSON, nullable=False, default=list)
+    sort_order = Column(Integer, nullable=False, default=0)
+    # Phase 2: the tagger DEFINITION. `scope` is the one-line meaning the
+    # classifier reads; `examples` is a JSON list of {artist, title, why}. NULL
+    # scope = a topic the tagger cannot use yet (no definition). When the
+    # `taxonomy_db_driven.enabled` flag is on, these drive the live tagger prompt
+    # + the valid-slug set; otherwise the code constants (ETHER_TAXONOMY) do.
+    scope = Column(Text, nullable=True)
+    examples = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

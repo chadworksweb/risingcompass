@@ -20,7 +20,8 @@ from anthropic import Anthropic
 
 from app.config import settings
 from app.services.claude_meter import tracked_create
-from app.services.ether_taxonomy import ETHER_TAXONOMY, VALID_SLUGS, taxonomy_for_prompt
+from app.services import ether_taxonomy as tax
+from app.services.ether_taxonomy import VALID_SLUGS
 
 logger = logging.getLogger(__name__)
 
@@ -195,14 +196,14 @@ Output:
 """
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(taxonomy_text: str, count: int) -> str:
     return "\n".join([
         _VOICE_BLOCK,
         "═══════════════════════════════════════════════════════════════════════",
-        f"TOPICS — closed taxonomy of {len(ETHER_TAXONOMY)} (do not invent)",
+        f"TOPICS — closed taxonomy of {count} (do not invent)",
         "═══════════════════════════════════════════════════════════════════════",
         "",
-        taxonomy_for_prompt(),
+        taxonomy_text,
         "",
         _TOPIC_RANKING_BLOCK,
         _AUDIT_BLOCK,
@@ -211,7 +212,27 @@ def _build_system_prompt() -> str:
     ])
 
 
-SYSTEM_PROMPT = _build_system_prompt()
+def _resolve_tagging_context() -> tuple[str, frozenset]:
+    """(system_prompt, valid_slugs) for one tagging run.
+
+    Resolves the taxonomy from its OWN short-lived session: tag_song runs in a
+    worker thread (asyncio.to_thread), so it must never touch the request's
+    Session. When the `taxonomy_db_driven.enabled` flag is on the definitions
+    come from the DB (cached, TTL'd); otherwise from the code constants. Any
+    failure falls back to the frozen code taxonomy so tagging never breaks.
+    """
+    try:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            taxonomy_text = tax.taxonomy_for_prompt(db)
+            slugs = tax.valid_slugs(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("ether_tagger taxonomy resolve failed; using code taxonomy")
+        taxonomy_text, slugs = tax.taxonomy_for_prompt(), VALID_SLUGS
+    return _build_system_prompt(taxonomy_text, len(slugs)), slugs
 
 
 def _build_user_prompt(
@@ -297,6 +318,7 @@ def _sanitize(
     *,
     title: str,
     artist: str,
+    valid_slugs: frozenset = VALID_SLUGS,
 ) -> dict | None:
     """Apply the build pack §9 invariants. Returns the cleaned dict or None if
     the deadpan_line is missing entirely (caller decides whether to retry)."""
@@ -317,7 +339,7 @@ def _sanitize(
         if not isinstance(slug, str):
             continue
         slug = slug.strip()
-        if slug in VALID_SLUGS and slug not in valid_topics:
+        if slug in valid_slugs and slug not in valid_topics:
             valid_topics.append(slug)
         elif slug:
             invalid_dropped.append(slug)
@@ -354,6 +376,7 @@ def _sanitize(
 def _call_model(
     client: Anthropic,
     *,
+    system_prompt: str,
     title: str,
     artist: str,
     lyrics: str,
@@ -375,7 +398,7 @@ def _call_model(
             model=AGENT_MODEL,
             max_tokens=512,
             temperature=0,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
         return (response.content[0].text or "").strip()
@@ -407,9 +430,14 @@ def tag_song(
 
     client = Anthropic(api_key=settings.anthropic_api_key)
 
+    # Resolve the taxonomy ONCE per song (DB-driven when the flag is on, else
+    # code). Both attempts share the same prompt + valid-slug set.
+    system_prompt, valid = _resolve_tagging_context()
+
     for attempt in (1, 2):
         raw = _call_model(
             client,
+            system_prompt=system_prompt,
             title=title, artist=artist, lyrics=lyrics,
             rubric_color=rubric_color, charge_value=charge_value,
             charge_summary=charge_summary, listener_effects_prose=listener_effects_prose,
@@ -425,7 +453,7 @@ def tag_song(
             )
             continue
 
-        cleaned = _sanitize(parsed, title=title, artist=artist)
+        cleaned = _sanitize(parsed, title=title, artist=artist, valid_slugs=valid)
         if cleaned is None:
             logger.warning(
                 "ether_tagger attempt %d returned empty deadpan_line for %s / %s",

@@ -449,6 +449,7 @@
       <a class="admin-nav-item {% if active == 'recalibrate' %}active{% endif %}" href="/api/admin/recalibrate">Recalibrate</a>
       <a class="admin-nav-item {% if active == 'misread' %}active{% endif %}" href="/api/admin/dashboard/misread">Misread Reports</a>
       <a class="admin-nav-item {% if active == 'ether-audits' %}active{% endif %}" href="/api/admin/ether-audits">Ether Audits</a>
+      <a class="admin-nav-item {% if active == 'taxonomy' %}active{% endif %}" href="/api/admin/dashboard/taxonomy">Taxonomy</a>
       <a class="admin-nav-item {% if active == 'backfill' %}active{% endif %}" href="/api/admin/backfill">Backfill</a>
       <a class="admin-nav-item {% if active == 'v1-test' %}active{% endif %}" href="/api/admin/dashboard/v1-test">V1 Test</a>
       <a class="admin-nav-item {% if active == 'alltime' %}active{% endif %}" href="/api/admin/dashboard/alltime">All-Time Charts</a>
@@ -525,6 +526,7 @@
       'v1-test': 'V1 Test',
       'recalibrate': 'Recalibrate',
       'ether-audits': 'Ether Audits',
+      'taxonomy': 'Taxonomy',
       'backfill': 'Backfill Console',
       'alerts': 'Alerts',
       'users': 'Users',
@@ -754,6 +756,7 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
     { g: 'page', label: 'Recalibrate', url: '/api/admin/recalibrate', kw: 'calibration recalc song' },
     { g: 'page', label: 'Misread Reports', url: '/api/admin/dashboard/misread', kw: 'wrong queue calibration flag' },
     { g: 'page', label: 'Ether Audits', url: '/api/admin/ether-audits', kw: 'taxonomy topics tags' },
+    { g: 'page', label: 'Taxonomy', url: '/api/admin/dashboard/taxonomy', kw: 'taxonomy themes topics hierarchy primary secondary facets reorder labels ether editor' },
     { g: 'page', label: 'Backfill', url: '/api/admin/backfill', kw: 'historical billboard import console year' },
     { g: 'page', label: 'V1 Test', url: '/api/admin/dashboard/v1-test', kw: 'frozen tenets' },
     { g: 'page', label: 'All-Time Charts', url: '/api/admin/dashboard/alltime', kw: 'best selling albums most streamed songs all time billboard riaa spotify global sweep' },
