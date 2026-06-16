@@ -3,41 +3,18 @@
 import asyncio
 import json
 import logging
-import re
 from typing import Callable
 
-from anthropic import AsyncAnthropic
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Song
-from app.services.charge_composition import (
-    CompositionError,
-    compose,
-    evaluate_escalation,
-    validate_components,
-)
-from app.services.claude_meter import tracked_create_async
-from app.services.agents.compass_agent_rubric import (
-    build_few_shot_examples,
-    build_calibration_prompt,
-)
-from app.services.agents.summary_guard import (
-    CORRECTIVE_NUDGE as _SUMMARY_NUDGE,
-    summary_from_json_text,
-    summary_has_absence_framing,
-)
 
 logger = logging.getLogger(__name__)
 
+# Re-exported for compass_agent (which reads it for run metadata + logging). The
+# scoring model itself now lives in LEC; this stays only as a convenience handle.
 AGENT_MODEL = settings.agent_model
-
-# The structured format (CALIBRATION_FORMAT) requires an explicit
-# "Contamination: none" / "Contamination: <artifact>" line before the VERDICT.
-# This is a binary determination made independently of charge_value; folding an
-# artifact into the charge and skipping the flag is the failure this guards.
-_CONTAM_LINE_RE = re.compile(r"(?im)^\s*Contamination:\s*\S")
 
 
 # Calibration methods authoritative enough to serve as a cache hit -- a crowd
@@ -268,148 +245,6 @@ async def ensure_full_calibration(
     return calibration
 
 
-async def _read_v3(
-    client: AsyncAnthropic,
-    model: str,
-    system_prompt: str,
-    user_prompt: str,
-    *,
-    title: str,
-    artist: str,
-    target_year: int | None,
-) -> dict | None:
-    """Run ONE calibration read at `model`: call, split reasoning from JSON,
-    run the output guards, parse, and validate into v3 components -- with one
-    corrective retry shared across every failure kind. Failure kinds:
-
-      1. CONTAMINATION guard -- the format requires an explicit
-         "Contamination:" line in the reasoning (guard_trips).
-      2. charge_summary absence/verdict framing (guard_trips; see
-         summary_guard.py).
-      3. Unparseable JSON or components failing validation (parse_retries).
-
-    Guards keep the v2 proceed-with-warning posture: a read whose components
-    validate but whose guards still trip after the retry is returned with
-    guard_trip_survived=True (an escalation trigger). A read whose JSON never
-    validates returns None -- the caller turns that into the explicit
-    needs-human-review failure, never a defaulted verdict."""
-    messages = [{"role": "user", "content": user_prompt}]
-    guard_trips = 0
-    parse_retries = 0
-    best: dict | None = None
-    attempts = 2
-    for attempt in range(1, attempts + 1):
-        response = await tracked_create_async(
-            client,
-            call_site="calibrator",
-            context={"title": title, "artist": artist, "target_year": target_year},
-            model=model,
-            max_tokens=3500,
-            temperature=0,
-            system=system_prompt,
-            messages=messages,
-        )
-        raw = response.content[0].text.strip()
-
-        # Split reasoning from JSON -- reasoning comes first, JSON starts at
-        # the first {. Strip a trailing ``` fence if the JSON got wrapped.
-        reasoning = ""
-        json_str = raw
-        brace_idx = raw.find("{")
-        if brace_idx > 0:
-            reasoning = raw[:brace_idx].strip()
-            json_str = raw[brace_idx:]
-        if json_str.rstrip().endswith("```"):
-            json_str = json_str.rstrip()[:-3]
-        json_str = json_str.strip()
-
-        problems: list[str] = []
-        corrective_parts: list[str] = []
-
-        contam_ok = bool(_CONTAM_LINE_RE.search(reasoning))
-        summary_ok = not summary_has_absence_framing(
-            summary_from_json_text(json_str)
-        )
-        guards_ok = contam_ok and summary_ok
-        if not guards_ok:
-            guard_trips += 1
-        if not contam_ok:
-            problems.append("omitted the mandatory 'Contamination:' line")
-            corrective_parts.append(
-                "Re-run the full structured format with an explicit "
-                "'Contamination: none' or 'Contamination: <artifact>' line "
-                "before the VERDICT. "
-            )
-        if not summary_ok:
-            problems.append("used absence/verdict framing in charge_summary")
-            corrective_parts.append(_SUMMARY_NUDGE)
-
-        parsed = None
-        components = None
-        try:
-            parsed = json.loads(json_str)
-        except json.JSONDecodeError:
-            parse_retries += 1
-            problems.append("output did not end in a parseable JSON object")
-            corrective_parts.append(
-                "Re-emit the full structured reasoning followed by ONE valid "
-                "JSON object in the exact required shape. "
-            )
-        if parsed is not None:
-            try:
-                components = validate_components(parsed)
-            except CompositionError as exc:
-                parse_retries += 1
-                problems.append(f"JSON failed component validation ({exc})")
-                corrective_parts.append(
-                    "Fix the JSON fields named above to the required types and "
-                    "ranges from the JSON contract. "
-                )
-
-        read = None
-        if components is not None:
-            read = {
-                "raw": raw,
-                "reasoning": reasoning,
-                "parsed": parsed,
-                "components": components,
-                "confidence": float(parsed.get("confidence") or 0.0),
-                "guard_trips": guard_trips,
-                "parse_retries": parse_retries,
-                "guard_trip_survived": not guards_ok,
-                "model": model,
-            }
-        if read is not None:
-            # A usable read -- components validated and the charge composes.
-            # Ship it immediately, whether the soft guards (contamination line /
-            # charge_summary framing) were clean or drifted. A drifted guard is
-            # already recorded on the read (guard_trip_survived) and surfaces as
-            # an escalation signal downstream, exactly as it did when the old
-            # second pass also tripped. We deliberately do NOT spend a second
-            # full-rubric Opus call just to re-coax formatting: that turned every
-            # submission into TWO calibrator calls (the dominant latency in the
-            # public charger). The corrective retry below is reserved for the
-            # genuine no-usable-read case -- unparseable JSON or failed component
-            # validation -- where a second attempt is the only path to a result.
-            return read
-
-        logger.warning(
-            "calibrator output problems for '%s' by %s at %s (attempt %d/%d): %s",
-            title, artist, model, attempt, attempts, "; ".join(problems),
-        )
-        if attempt < attempts:
-            corrective = (
-                "Your response had these problems: " + "; ".join(problems)
-                + ". " + "".join(corrective_parts)
-            )
-            messages = [
-                {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": raw},
-                {"role": "user", "content": corrective},
-            ]
-    return best
-
-
 def _scrub_calibration_quotes(
     calibration: dict, lyrics: str | None, title: str = "", artist: str = "",
 ) -> None:
@@ -469,190 +304,30 @@ async def calibrate_song_async(
                     "without an API call", title, artist)
         return _null_result(title, artist)
 
-    # LEC cutover (Phase 2). When the lec.enabled flag is on, score through the
-    # Libra Engine Compass service over HTTP instead of in-process. The result
-    # is mapped back into this exact calibration shape, then run through the same
-    # verbatim-quote guard + generation as the in-process read, so the caller
-    # can't tell which engine scored it. ANY LEC failure (flag-read error,
-    # transport, unscorable) falls through to the in-process block below -- LEC
-    # is on the live path, so it degrades to the proven local calibrator rather
-    # than failing the read. The flag is read from a short-lived session because
-    # this path is usually called with db=None (the LC read->AI->write split).
-    try:
-        from app.database import SessionLocal
-        from app.services.feature_flags import is_lec_calibration_enabled
-        _flag_db = SessionLocal()
-        try:
-            _lec_on = is_lec_calibration_enabled(_flag_db)
-        finally:
-            _flag_db.close()
-    except Exception:
-        logger.warning("LEC flag read failed; scoring in-process", exc_info=True)
-        _lec_on = False
-
-    if _lec_on:
-        from app.services import lec_client  # lazy: keep httpx off the in-process path
-        lec_calibration = await lec_client.score_via_lec(
-            title, artist, lyrics, artifact_type="lyric",
-        )
-        if lec_calibration is not None:
-            logger.info("Scored '%s' by %s via LEC", title, artist)
-            # Same post-read steps as the in-process path: clear any verbatim
-            # lyric run from the note fields, then complete the generated fields.
-            _scrub_calibration_quotes(lec_calibration, lyrics, title, artist)
-            await _ensure_generation(title, artist, lyrics, lec_calibration, progress_cb)
-            return lec_calibration
-        logger.info("LEC returned no calibration for '%s' by %s; scoring in-process",
-                    title, artist)
-
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-
-    # Few-shot examples disabled. Today's corpus skews 1960s and creates a
-    # self-reinforcing loop (today's call becomes tomorrow's example), so the
-    # rubric stands alone. The tenet definitions + the curated precedent table
-    # carry the anchoring without a corpus draw.
-    examples = ""
-
-    system_prompt, user_prompt = build_calibration_prompt(
-        title, artist, lyrics=lyrics, examples=examples
+    # LEC is the sole scorer (Phase 3). RC no longer carries an in-process
+    # calibrator: the scoring brain was extracted into the Libra Engine Compass
+    # (LEC) service so calibrator tuning stops colliding with RC feature work.
+    # Score through LEC over HTTP, map the result back into this calibration
+    # shape, then run the same verbatim-quote guard + generation the path has
+    # always run. A LEC failure (unreachable / non-200 / unscorable) returns the
+    # explicit needs-human-review result -- never a defaulted verdict, and never
+    # a silent in-process re-score, because there is no in-process scorer left.
+    from app.services import lec_client
+    lec_calibration = await lec_client.score_via_lec(
+        title, artist, lyrics, artifact_type="lyric",
     )
-
-    # First pass at the default model. The model emits components only; the
-    # server composes the charge and derives the tier (charge_composition).
-    if progress_cb:
-        progress_cb("calibrating")
-    read = await _read_v3(
-        client, AGENT_MODEL, system_prompt, user_prompt,
-        title=title, artist=artist, target_year=target_year,
-    )
-    if read is None:
-        # Output never validated, even after the corrective retry. Explicit
-        # needs-human-review failure -- never a defaulted verdict.
-        logger.error("Calibration read failed validation for %s by %s", title, artist)
+    if lec_calibration is None:
+        logger.error("LEC scoring failed for '%s' by %s; needs human review",
+                     title, artist)
         return _fallback_result(title, artist, "")
 
-    composed = compose(read["components"])
-    triggers = evaluate_escalation(
-        composed, read["components"],
-        guard_trip_survived=read["guard_trip_survived"],
-        # Server feeders read original-language lyrics; translated runs exist
-        # only on the terminal path, which stamps its own flag.
-        translated=False,
-        confidence=read["confidence"],
-        confidence_floor=settings.escalation_confidence_floor,
-    )
-
-    # Escalation gate (spec 2.4). Triggers are ALWAYS recorded on the run;
-    # the re-pass only fires when config enables it AND the escalation model
-    # actually differs (with Opus-everywhere defaults the gate logs only).
-    escalated = False
-    first_pass = None
-    escalation_model = settings.escalation_model or AGENT_MODEL
-    if triggers and settings.escalation_repass_enabled and escalation_model != AGENT_MODEL:
-        logger.warning("Escalation re-pass for '%s' by %s (triggers: %s)",
-                       title, artist, ", ".join(triggers))
-        repass = await _read_v3(
-            client, escalation_model, system_prompt, user_prompt,
-            title=title, artist=artist, target_year=target_year,
-        )
-        if repass is not None:
-            first_pass = {
-                "model": AGENT_MODEL,
-                "charge": composed.charge,
-                "tier": composed.rubric_color,
-                "triggers": triggers,
-            }
-            read = repass
-            composed = compose(read["components"])
-            triggers = evaluate_escalation(
-                composed, read["components"],
-                guard_trip_survived=read["guard_trip_survived"],
-                translated=False,
-                confidence=read["confidence"],
-                confidence_floor=settings.escalation_confidence_floor,
-            )
-            escalated = True
-    elif triggers:
-        logger.warning("Escalation triggers recorded for '%s' by %s (no re-pass): %s",
-                       title, artist, ", ".join(triggers))
-
-    if read["reasoning"]:
-        logger.info("Agent reasoning for '%s' by %s:\n%s", title, artist, read["reasoning"])
-
-    c = read["components"]
-    parsed = read["parsed"]
-
-    # Contamination is cross-derived from the axis data (a discrete harm
-    # artifact on a read the harm axis does not govern). The model's own flag
-    # is a cross-check: a mismatch is recorded, the derivation wins. The note
-    # stays the model's words, kept only when the flag holds.
-    contaminated = composed.contaminated
-    signals = list(composed.signals)
-    if bool(parsed.get("contaminated", False)) != contaminated:
-        signals.append("contamination_flag_mismatch")
-        logger.warning(
-            "contamination flag mismatch for '%s' by %s: model=%s derived=%s",
-            title, artist, bool(parsed.get("contaminated", False)), contaminated,
-        )
-
-    escalation_flags = None
-    if triggers or signals or first_pass:
-        escalation_flags = {"triggers": triggers, "signals": signals}
-        if first_pass:
-            escalation_flags["first_pass"] = first_pass
-
-    calibration = {
-        "rubric_color": composed.rubric_color,
-        "charge_value": composed.charge,
-        "contaminated": contaminated,
-        "contamination_note": parsed.get("contamination_note") if contaminated else None,
-        "dogma_referenced": bool(parsed.get("dogma_referenced", False)),
-        "dogma_note": parsed.get("dogma_note"),
-        "charge_summary": parsed.get("charge_summary", ""),
-        "confidence": read["confidence"],
-        # The agent's structured argument (the prose before the JSON). Carried
-        # through to the calibration run, where log_run's _guard_reasoning
-        # scrubs any verbatim lyric runs before it is stored.
-        "reasoning": read["reasoning"] or None,
-        # v3 components + incoherence signals -> calibration_runs columns
-        # (log_run). Internal-only; song_sync's column whitelist keeps them
-        # off the songs row.
-        "visceral_charge": c.visceral_charge,
-        "route": c.route,
-        "harm": {"value": c.harm_value, "pervasive": c.harm_pervasive},
-        "transcendence": {"value": c.transcendence_value},
-        "governing_axis": composed.governing_axis,
-        "center": c.center,
-        "vernier": c.vernier,
-        "precedent_refs": c.precedent_refs,
-        "gut_divergence": composed.gut_divergence,
-        "guard_trips": read["guard_trips"],
-        "parse_retries": read["parse_retries"],
-        "escalation_flags": escalation_flags,
-        "escalated": escalated,
-    }
-
-    # If the summary STILL carries absence/verdict framing after the retry, ship
-    # it (a false-positive must never blank a valid summary) but log loudly so the
-    # drift is visible. Mirrors the proceed-with-warning posture of the guards.
-    if lyrics and summary_has_absence_framing(calibration["charge_summary"]):
-        logger.warning(
-            "charge_summary retained absence/verdict framing after retry for '%s' by %s: %r",
-            title, artist, calibration["charge_summary"],
-        )
-
-    # Verbatim-lyric backstop on the calibrator's quote-prone short note fields,
-    # both of which render on the public song page. The rubric now asks for
-    # paraphrase; if a verbatim run slips through anyway, clear the field so no
-    # copyrighted lyric text ever ships. (Shared with the LEC path above.)
-    _scrub_calibration_quotes(calibration, lyrics, title, artist)
-
-    # Complete the generated fields (effects prose, ether tagging, societal
-    # prose) in the same pass -- the calibration path returns one whole object.
-    if lyrics:
-        await _ensure_generation(title, artist, lyrics, calibration, progress_cb)
-
-    return calibration
+    logger.info("Scored '%s' by %s via LEC", title, artist)
+    # Clear any verbatim lyric run from the calibrator's short note fields, then
+    # complete the generated fields (effects prose, ether tagging, societal
+    # prose) -- the calibration path returns one whole object.
+    _scrub_calibration_quotes(lec_calibration, lyrics, title, artist)
+    await _ensure_generation(title, artist, lyrics, lec_calibration, progress_cb)
+    return lec_calibration
 
 
 def calibrate_song(

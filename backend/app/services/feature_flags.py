@@ -324,24 +324,15 @@ def set_launch_locked_message(db: Session, message: str | None) -> None:
     db.commit()
 
 
-# --- LEC calibration cutover -----------------------------------------------
-# Routes the calibrator's scoring half through the Libra Engine Compass (LEC)
-# service over HTTP instead of running it in-process. Fail-CLOSED (absent flag =
-# OFF): until an admin explicitly enables it, RC scores in-process exactly as
-# before. The in-process calibrator stays as the AUTOMATIC fallback even when
-# this is on, so a flip is reversible and a LEC outage degrades to in-process.
-# Mirrors the launch.locked toggle pattern.
-
-LEC_ENABLED_KEY = "lec.enabled"
-
-
-def is_lec_calibration_enabled(db: Session) -> bool:
-    # Absent flag -> disabled (fail closed). Only an explicit "true" routes to LEC.
-    return (_get_flag(db, LEC_ENABLED_KEY) or "false").lower() == "true"
-
-
-def set_lec_calibration_enabled(db: Session, enabled: bool) -> None:
-    _set_flag(db, LEC_ENABLED_KEY, enabled)
+# --- LEC calibration ------------------------------------------------------
+# The lec.enabled flag was the Phase-2 migration toggle that let RC route the
+# calibrator's scoring half to the Libra Engine Compass (LEC) service while
+# keeping the in-process calibrator as a fallback. Phase 3 (2026-06-16) deleted
+# RC's in-process scorer entirely: LEC is now the sole scorer, unconditionally,
+# so the toggle and its fail-closed fallback no longer have a meaning. The flag
+# (and its is_lec_calibration_enabled / set_lec_calibration_enabled accessors)
+# were removed with that deletion. A stale `lec.enabled` row may linger in prod
+# system_flags; it is inert.
 
 
 # --- Faultline (internal error ledger) kill switch -------------------------
