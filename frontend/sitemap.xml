@@ -117,6 +117,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://risingcompass.net/topic-trends/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://risingcompass.net/lyrical-charger/activity/</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
