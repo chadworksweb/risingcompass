@@ -75,9 +75,10 @@
     <div class="note" id="status">rendering...</div>
   </div>
 
-  <!-- Broadcast-only fork (3:4, flush border). The ?v= is belt-and-suspenders;
-       Cloudflare now bypasses cache for this path via a cache rule. -->
-  <script src="/lyrical-charger/rc-charge-card-generator-social.js?v=20260617-34grid"></script>
+  <!-- Broadcast-only fork (3:4, flush border, tactical layout). Lives UNDER
+       /cards/ so the Cloudflare /cards/* cache-bypass rule covers it -- origin
+       edits show immediately, no version-bump chase. -->
+  <script src="/cards/rc-charge-card-generator-social.js?v=20260617-tactical"></script>
   <script>
     (function () {
       'use strict';
