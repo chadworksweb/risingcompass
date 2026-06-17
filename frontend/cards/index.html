@@ -66,7 +66,7 @@
 </head>
 <body>
   <div class="wrap">
-    <canvas id="card" width="1080" height="1350"></canvas>
+    <canvas id="card" width="1080" height="1440"></canvas>
     <div class="controls">
       <button id="dl">Download PNG</button>
       <a class="seg" href="?type=reading">Reading card</a>
@@ -75,9 +75,9 @@
     <div class="note" id="status">rendering...</div>
   </div>
 
-  <!-- Versioned to bust Cloudflare's edge cache of the generator (bump on any
-       rc-charge-card-generator.js change, else the cached copy renders stale). -->
-  <script src="/lyrical-charger/rc-charge-card-generator.js?v=20260617-45ratio"></script>
+  <!-- Broadcast-only fork (3:4, flush border). The ?v= is belt-and-suspenders;
+       Cloudflare now bypasses cache for this path via a cache rule. -->
+  <script src="/lyrical-charger/rc-charge-card-generator-social.js?v=20260617-34grid"></script>
   <script>
     (function () {
       'use strict';
@@ -136,10 +136,10 @@
 
       function draw() {
         var data = passed || (type === 'song' ? SAMPLE_SONG : SAMPLE_READING);
-        // 4:5 portrait (1080x1350) -- the format Instagram + X feed posts use.
+        // 3:4 portrait (1080x1440, the fork's default) -- matches IG grid thumbs.
         var p = (type === 'song')
-          ? RCChargeCard.render(data, canvas, { brand: 'compass', height: 1350 })
-          : RCChargeCard.renderReading(data, canvas, { height: 1350 });
+          ? RCSocialCard.render(data, canvas, { brand: 'compass' })
+          : RCSocialCard.renderReading(data, canvas);
         return p.then(function () {
           window.__cardReady = true;
           statusEl.textContent = type + ' card ready -- ' + (passed ? 'live data' : 'sample data');

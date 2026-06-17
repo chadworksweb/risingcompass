@@ -1,21 +1,29 @@
 /* ============================================================
-   Rising Compass -- Charge Card Generator (rc-charge-card-generator)
-   The mechanism that builds the rc-charge-card. Client-side canvas
-   renderer: draws a 1080x1080 card from a calibrate result and hands
-   it to the native share sheet (or a download fallback). Shared by the
-   song detail page (rc-charge-card) and the Lyrical Charger
-   (rc-lc-charge-card). No backend, no dependency.
+   Rising Compass -- SOCIAL BROADCAST Charge Card Generator
+   (rc-charge-card-generator-social)
 
-   Composition: "deadpan quip is hero" --
-     - deadpan_line set large as the statement
-     - charge + tier ride as a corner badge
-     - tier-colored phosphor glow on the card border (CRT device look)
-     - title/artist + topics + Lyrical Charger watermark
+   FORK of rc-charge-card-generator.js, dedicated to the Build 6 social
+   broadcaster's cards. Kept separate so broadcast-only design (portrait ratio,
+   flush border, per-chart kicker) can evolve WITHOUT touching the public
+   song-page / Lyrical Charger share card (which stays 1:1 in the original file).
+   Exposes window.RCSocialCard. No backend, no dependency.
+
+   Broadcast specifics vs the public card:
+     - 3:4 portrait (1080x1440) by default -- matches Instagram's profile-grid
+       thumbnail crop exactly, so the card fills the grid cell with no side trim.
+     - phosphor border sits flush to the image edge (no dark margin around it).
    ============================================================ */
 (function () {
   'use strict';
 
-  var SIZE = 1080;
+  var SIZE = 1080;       // card WIDTH (the canvas is always SIZE wide)
+  var POST_H = 1440;     // 3:4 portrait height -- matches the IG profile-grid thumb
+
+  // Resolve the card height from opts.height, defaulting to the 3:4 post height.
+  function cardHeight(opts) {
+    var h = opts && opts.height;
+    return (typeof h === 'number' && h > 0) ? h : POST_H;
+  }
 
   // Canonical RC tier palette (matches main.css :root --rc-*).
   var TIER_HEX = {
@@ -202,59 +210,17 @@
     var compass = await loadCompass(chargeToRot(chargeNum)); // needle points at the charge
     var compassFlat = await loadCompass(0);                  // upright mark for the brand tag
 
+    var H = cardHeight(opts);
     canvas.width = SIZE;
-    canvas.height = SIZE;
+    canvas.height = H;
     var ctx = canvas.getContext('2d');
     var v = pick(data);
     var P = 100;   // top / bottom padding
     var PX = 110;  // left / right padding (+10%)
 
-    // --- Background: deep vertical gradient
-    var bg = ctx.createLinearGradient(0, 0, 0, SIZE);
-    bg.addColorStop(0, '#0e0e1a');
-    bg.addColorStop(0.55, '#0a0a14');
-    bg.addColorStop(1, '#060609');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // Faint tier glow blooming from behind the hero
-    var rg = ctx.createRadialGradient(SIZE / 2, SIZE * 0.46, 40, SIZE / 2, SIZE * 0.46, SIZE * 0.62);
-    rg.addColorStop(0, hexToRgba(v.hex, 0.18));
-    rg.addColorStop(1, hexToRgba(v.hex, 0));
-    ctx.fillStyle = rg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // --- CRT scanlines (subtle horizontal banding)
-    ctx.fillStyle = 'rgba(0,0,0,0.05)';
-    for (var sy = 0; sy < SIZE; sy += 4) ctx.fillRect(0, sy, SIZE, 2);
-
-    // --- Vignette for CRT depth
-    var vg = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.34, SIZE / 2, SIZE / 2, SIZE * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // --- Square card border with tier phosphor glow (INNER glow only, cranked up)
-    var bx = 30, bw = SIZE - 60, blw = 7; // 0 radius; thicker border
-    // Inner glow: clip to the card interior so the bloom falls only inward.
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(bx, bx, bw, bw);
-    ctx.clip();
-    ctx.shadowColor = v.hex;
-    ctx.shadowBlur = 66; // tighter spread; passes below keep the strength
-    ctx.strokeStyle = v.hex;
-    ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw); // extra passes crank the inner bloom
-    ctx.restore();
-    // Crisp square border edge on top (no shadow, full width)
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = v.hex;
-    ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
+    // Shared CRT chrome (background, tier bloom behind the hero, scanlines,
+    // vignette, rectangular phosphor border) -- same routine the reading card uses.
+    drawChrome(ctx, v.hex, H * 0.46, H);
 
     // ===== HERO (top, left-aligned): title, deadpan, artist, charge -- equidistant rows =====
     var leftX = PX;
@@ -343,7 +309,7 @@
     // The brand wordmark baseline. Topics sit equidistant above it as the URL
     // sits below it (both 44px from this line), so the bottom block reads as
     // three evenly-spaced rows: #topics / wordmark / url.
-    var fy = SIZE - P - 44;
+    var fy = H - P - 44;
 
     // Topics -- 44px above the wordmark line.
     if (v.topics.length) {
@@ -387,7 +353,7 @@
     ctx.fillStyle = '#6a6a82';
     ctx.font = '400 20px "JetBrains Mono"';
     ctx.fillText(brand === 'compass' ? 'risingcompass.net' : 'risingcompass.net/lyrical-charger',
-      leftX, SIZE - P);
+      leftX, H - P);
 
     return canvas;
   }
@@ -448,56 +414,63 @@
       dateLong: formatLongDate(r.date),
       editorial: (r.editorial && String(r.editorial).trim()) ? String(r.editorial).trim() : '',
       metaStr: metaStr, songs: songs, songCount: songCount,
+      // Chart kicker (top-left label). Defaults to DAILY LISTENS so the daily
+      // reading card is unchanged; the broadcaster passes DAILY DOWNLOADS /
+      // SHAZAM / YOUTUBE for the other daily-chart cards in the carousel.
+      kicker: (r.kicker && String(r.kicker).trim()) ? String(r.kicker).trim() : 'DAILY LISTENS',
     };
   }
 
   // Draw the shared CRT card chrome (background, tier bloom, scanlines,
   // vignette, phosphor border). `glowY` centers the tier bloom for the layout.
-  function drawChrome(ctx, hex, glowY) {
-    var bg = ctx.createLinearGradient(0, 0, 0, SIZE);
+  function drawChrome(ctx, hex, glowY, H) {
+    H = H || POST_H;
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#0e0e1a');
     bg.addColorStop(0.55, '#0a0a14');
     bg.addColorStop(1, '#060609');
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, SIZE, H);
 
     var rg = ctx.createRadialGradient(SIZE / 2, glowY, 40, SIZE / 2, glowY, SIZE * 0.62);
     rg.addColorStop(0, hexToRgba(hex, 0.18));
     rg.addColorStop(1, hexToRgba(hex, 0));
     ctx.fillStyle = rg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, SIZE, H);
 
     ctx.fillStyle = 'rgba(0,0,0,0.05)';
-    for (var sy = 0; sy < SIZE; sy += 4) ctx.fillRect(0, sy, SIZE, 2);
+    for (var sy = 0; sy < H; sy += 4) ctx.fillRect(0, sy, SIZE, 2);
 
-    var vg = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.34, SIZE / 2, SIZE / 2, SIZE * 0.72);
+    var vg = ctx.createRadialGradient(SIZE / 2, H / 2, SIZE * 0.34, SIZE / 2, H / 2, SIZE * 0.78);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
     vg.addColorStop(1, 'rgba(0,0,0,0.45)');
     ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, SIZE, H);
 
-    var bx = 30, bw = SIZE - 60, blw = 7;
+    // Flush to the image edge -- the border IS the edge (no dark margin around it).
+    var blw = 7, bx = Math.round(blw / 2), bw = SIZE - blw, bh = H - blw;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(bx, bx, bw, bw);
+    ctx.rect(bx, bx, bw, bh);
     ctx.clip();
     ctx.shadowColor = hex;
     ctx.shadowBlur = 66;
     ctx.strokeStyle = hex;
     ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw);
+    ctx.strokeRect(bx, bx, bw, bh);
+    ctx.strokeRect(bx, bx, bw, bh);
+    ctx.strokeRect(bx, bx, bw, bh);
     ctx.restore();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = hex;
     ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
+    ctx.strokeRect(bx, bx, bw, bh);
   }
 
   // Draw the bottom brand block (compass mark + "THE RISING COMPASS" + url).
-  function drawCompassBrand(ctx, compassFlat, leftX) {
-    var fy = SIZE - 100 - 44;
+  function drawCompassBrand(ctx, compassFlat, leftX, H) {
+    H = H || POST_H;
+    var fy = H - 100 - 44;
     var markSize = 32;
     if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
     ctx.textBaseline = 'middle';
@@ -509,7 +482,7 @@
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#6a6a82';
     ctx.font = '400 20px "JetBrains Mono"';
-    ctx.fillText('risingcompass.net', leftX, SIZE - 100);
+    ctx.fillText('risingcompass.net', leftX, H - 100);
   }
 
   async function renderReading(reading, canvas, opts) {
@@ -518,15 +491,16 @@
     var compass = await loadCompass(chargeToRot(v.score)); // needle at the day's charge
     var compassFlat = await loadCompass(0);
 
+    var H = cardHeight(opts);
     canvas.width = SIZE;
-    canvas.height = SIZE;
+    canvas.height = H;
     var ctx = canvas.getContext('2d');
     var P = 100;
     var PX = 110;
     var leftX = PX;
     var contentW = SIZE - PX * 2;
 
-    drawChrome(ctx, v.hex, SIZE * 0.40);
+    drawChrome(ctx, v.hex, H * 0.40, H);
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
@@ -552,7 +526,7 @@
     ctx.fillStyle = hexToRgba(v.hex, 0.92);
     ctx.font = '700 26px "JetBrains Mono"';
     setLS(ctx, 3);
-    ctx.fillText('DAILY LISTENS', leftX, P + 22);
+    ctx.fillText(v.kicker, leftX, P + 22);
     setLS(ctx, 0);
 
     var dFit = fitText(ctx, v.dateLong, '"Inter"', '700', colW, 2, 56, 40);
@@ -583,13 +557,19 @@
     }
 
     // ----- Top-5 song list -----
-    var listTop = y + 64;
-    var brandTop = SIZE - P - 44 - 40; // keep clear of the bottom brand block
     var rows = v.songs.slice(0, 5);
+    var brandTop = H - P - 44 - 40; // keep clear of the bottom brand block
+    var listTop = y + 64;
     var rowH = 64;
-    // If the editorial ran long, shrink the gap so 5 rows still fit.
+    // Never let the list cross the brand block. First pull the list up toward
+    // the editorial; if it still cannot fit (pathologically long editorial),
+    // shrink the row height so every row fits the available band instead of
+    // overlapping the footer.
     if (listTop + rows.length * rowH > brandTop) {
       listTop = Math.max(y + 36, brandTop - rows.length * rowH);
+    }
+    if (rows.length && listTop + rows.length * rowH > brandTop) {
+      rowH = Math.max(48, Math.floor((brandTop - listTop) / rows.length));
     }
     for (var ri = 0; ri < rows.length; ri++) {
       var s = rows[ri];
@@ -630,7 +610,7 @@
       ctx.fillText(artistStr, textX, ry + 50);
     }
 
-    drawCompassBrand(ctx, compassFlat, leftX);
+    drawCompassBrand(ctx, compassFlat, leftX, H);
     return canvas;
   }
 
@@ -685,7 +665,7 @@
     return 'downloaded';
   }
 
-  window.RCChargeCard = {
+  window.RCSocialCard = {
     render: render,
     renderReading: renderReading,
     shareOrDownload: shareOrDownload,
