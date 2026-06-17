@@ -145,9 +145,14 @@ def _chart_from_snapshot(db, label: str, src: str) -> dict | None:
     if not head.published or head.compass_degree is None:
         return None  # not yet approved/painted -> not a card-ready chart today
 
+    # ChartSnapshot stores no contamination_count -- it is counted from the
+    # looked-up songs (mirrors chart_snapshots.py). Resolve every row once, count
+    # contamination over all, build the card's song rows from the top 5.
+    resolved = [find_song_by_title_artist(db, s.title, s.artist) for s in snaps]
+    contam = sum(1 for so in resolved if so and so.contaminated)
     songs = []
-    for s in snaps[:5]:
-        song = find_song_by_title_artist(db, s.title, s.artist)
+    for i, s in enumerate(snaps[:5]):
+        song = resolved[i]
         songs.append({
             "position": s.position,
             "title": s.title,
@@ -162,7 +167,7 @@ def _chart_from_snapshot(db, label: str, src: str) -> dict | None:
         "date": latest.isoformat(),
         "degree": head.compass_degree,
         "charge": head.charge_level,
-        "contaminationCount": head.contamination_count or 0,
+        "contaminationCount": contam,
         "editorial": head.editorial or "",
         "songs": songs,
         "kicker": kicker,
@@ -170,8 +175,7 @@ def _chart_from_snapshot(db, label: str, src: str) -> dict | None:
     score = round((90 - head.compass_degree) * 100 / 90)
     return {
         "label": label, "kicker": kicker, "score": score, "tier": head.charge_level,
-        "card_data": cd, "date": latest, "count": len(snaps),
-        "contam": head.contamination_count or 0,
+        "card_data": cd, "date": latest, "count": len(snaps), "contam": contam,
     }
 
 
