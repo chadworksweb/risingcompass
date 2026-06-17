@@ -1234,7 +1234,8 @@ vector in the plan; the rest is organic-search pull). The most compliant
 automation there is: proactive publisher-posts-its-own-work, no scraping/DMs/
 individual outreach, no terminal Anthropic. Package `app/services/social/`,
 routers `social_broadcast.py` (cron + public card) + `social_admin.py` (admin),
-migration 121. Plan: `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 6.
+migration 121. Plan: `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 6. Full operator +
+code reference: `RISING-COMPASS-SOCIAL-BROADCASTER.md`.
 
 **Reorientation (2026-06-17):** the original "top-3 trending songs + reading"
 model was dropped. The automated job is now the **daily charts only**; individual
