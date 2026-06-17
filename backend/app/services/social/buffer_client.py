@@ -88,15 +88,18 @@ def profile_map() -> dict[str, str]:
 
 
 async def _create_post(client: httpx.AsyncClient, channel_id: str, text_body: str,
-                       image_url: str, metadata: dict | None = None) -> dict:
-    """Issue one createPost mutation for a single channel. Returns either
-    {"id": <post id>} on success or {"error": <message>} on a handled failure."""
+                       image_urls: list[str], metadata: dict | None = None) -> dict:
+    """Issue one createPost mutation for a single channel. image_urls is an
+    ordered list of publicly-fetchable image URLs: one = a single image post,
+    several = a carousel (Instagram/TikTok). Returns {"id": <post id>} on success
+    or {"error": <message>} on a handled failure."""
+    assets = [{"image": {"url": u}} for u in image_urls if u]
     payload = {
         "query": _CREATE_POST,
         "variables": {
             "channelId": channel_id,
             "text": text_body,
-            "assets": [{"image": {"url": image_url}}],
+            "assets": assets,
             "metadata": metadata,
         },
     }
@@ -116,64 +119,36 @@ async def _create_post(client: httpx.AsyncClient, channel_id: str, text_body: st
     return {"error": result.get("message") or "createPost returned no post"}
 
 
-async def create_update(text_body: str, image_url: str, profile_ids: list[str]) -> dict:
-    """Push one update (text + the card image) to the given Buffer channels.
-
-    Fans out one createPost mutation per channel and returns the classic-shaped
-    `{success, updates: [{id, profile_id}], errors: [...]}` so the rest of the
-    package is agnostic to the GraphQL change. `profile_id` carries the channel
-    id. Raises only on a transport/non-2xx error; a per-channel GraphQL failure
-    is collected in `errors` (a partial fan-out still records what landed).
+async def post_items(items: list[dict]) -> dict:
+    """Push one post PER platform. Each item is
+    {"platform", "channel_id", "text", "image_urls": [...]} -- a single image or a
+    carousel. Returns {"posted": {platform: post_id}, "errors": {platform: msg}}.
+    Per-platform failures are collected (a partial run still records what landed);
+    only a missing token/empty items raises.
     """
-    if not profile_ids:
-        raise RuntimeError("no Buffer channel ids to post to")
+    if not items:
+        return {"posted": {}, "errors": {}}
 
     base = settings.buffer_api_base.rstrip("/")
     headers = {
         "Authorization": f"Bearer {settings.buffer_access_token}",
         "Content-Type": "application/json",
     }
-    id_to_platform = {pid: plat for plat, pid in profile_map().items()}
-    updates: list[dict] = []
-    errors: list[dict] = []
-    async with httpx.AsyncClient(base_url=base, headers=headers, timeout=30) as client:
-        for channel_id in profile_ids:
-            metadata = _platform_metadata(id_to_platform.get(str(channel_id), ""))
+    posted: dict[str, str] = {}
+    errors: dict[str, str] = {}
+    async with httpx.AsyncClient(base_url=base, headers=headers, timeout=60) as client:
+        for it in items:
+            platform = it["platform"]
+            metadata = _platform_metadata(platform)
             try:
-                outcome = await _create_post(client, channel_id, text_body, image_url, metadata)
+                outcome = await _create_post(
+                    client, it["channel_id"], it["text"], it["image_urls"], metadata
+                )
             except httpx.HTTPError as exc:
                 outcome = {"error": str(exc)}
             if outcome.get("id"):
-                updates.append({"id": outcome["id"], "profile_id": str(channel_id)})
+                posted[platform] = outcome["id"]
             else:
-                errors.append({"profile_id": str(channel_id), "message": outcome.get("error")})
-                logger.warning("Buffer createPost failed for channel %s: %s",
-                               channel_id, outcome.get("error"))
-
-    return {"success": not errors, "updates": updates, "errors": errors}
-
-
-def map_updates_to_platforms(resp: dict, platforms: list[str]) -> dict[str, str]:
-    """Reverse Buffer's per-channel update list back to platform -> post id,
-    using the configured channel map. Best-effort: unmatched channels are skipped."""
-    pmap = profile_map()
-    id_to_platform = {pid: plat for plat, pid in pmap.items()}
-    out: dict[str, str] = {}
-    for upd in (resp or {}).get("updates", []) or []:
-        plat = id_to_platform.get(str(upd.get("profile_id")))
-        if plat and upd.get("id"):
-            out[plat] = str(upd["id"])
-    return out
-
-
-def map_errors_to_platforms(resp: dict) -> dict[str, str]:
-    """Reverse the per-channel `errors` list back to platform -> error message,
-    so a partial fan-out records which channels failed (and why)."""
-    pmap = profile_map()
-    id_to_platform = {pid: plat for plat, pid in pmap.items()}
-    out: dict[str, str] = {}
-    for err in (resp or {}).get("errors", []) or []:
-        plat = id_to_platform.get(str(err.get("profile_id")))
-        if plat:
-            out[plat] = err.get("message") or "buffer push failed"
-    return out
+                errors[platform] = outcome.get("error") or "buffer push failed"
+                logger.warning("Buffer createPost failed for %s: %s", platform, errors[platform])
+    return {"posted": posted, "errors": errors}

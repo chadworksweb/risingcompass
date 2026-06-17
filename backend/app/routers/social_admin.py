@@ -46,7 +46,7 @@ def list_broadcasts(status: str = Query(""), db: Session = Depends(get_db)):
     order: list = []
     song_ids: set[int] = set()
     for r in rows:
-        key = ("song", r.song_id) if r.scope == "song" else ("reading", r.reading_date)
+        key = (r.scope, r.song_id if r.scope == "song" else r.reading_date)
         if key not in items:
             items[key] = {
                 "scope": r.scope,
@@ -80,8 +80,11 @@ def list_broadcasts(status: str = Query(""), db: Session = Depends(get_db)):
         it = items[key]
         if it["scope"] == "song" and it["song_id"] in titles:
             it["title"], it["artist"] = titles[it["song_id"]]
+        elif it["scope"] == "charts":
+            it["title"] = it.get("reading_date") and f"Daily charts {it['reading_date']}"
+            it["artist"] = None
         else:
-            it["title"] = it.get("reading_date") and f"Daily reading {it['reading_date']}"
+            it["title"] = it.get("reading_date") and f"Daily Listens {it['reading_date']}"
             it["artist"] = None
         it["platforms"].sort(key=lambda p: DEFAULT_PLATFORMS.index(p["platform"])
                              if p["platform"] in DEFAULT_PLATFORMS else 99)

@@ -66,7 +66,7 @@
 </head>
 <body>
   <div class="wrap">
-    <canvas id="card" width="1080" height="1080"></canvas>
+    <canvas id="card" width="1080" height="1350"></canvas>
     <div class="controls">
       <button id="dl">Download PNG</button>
       <a class="seg" href="?type=reading">Reading card</a>
@@ -134,9 +134,10 @@
 
       function draw() {
         var data = passed || (type === 'song' ? SAMPLE_SONG : SAMPLE_READING);
+        // 4:5 portrait (1080x1350) -- the format Instagram + X feed posts use.
         var p = (type === 'song')
-          ? RCChargeCard.render(data, canvas, { brand: 'compass' })
-          : RCChargeCard.renderReading(data, canvas);
+          ? RCChargeCard.render(data, canvas, { brand: 'compass', height: 1350 })
+          : RCChargeCard.renderReading(data, canvas, { height: 1350 });
         return p.then(function () {
           window.__cardReady = true;
           statusEl.textContent = type + ' card ready -- ' + (passed ? 'live data' : 'sample data');

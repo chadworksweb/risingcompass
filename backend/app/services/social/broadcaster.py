@@ -1,20 +1,24 @@
-"""Build 6 broadcaster -- select -> render -> push -> ledger, once per run.
+"""Build 6 broadcaster -- the automated DAILY CHARTS broadcast.
 
-Each run broadcasts up to N (default 3) trending calibrated per-song verdicts
-plus the day's daily-aggregate reading, in RC's "Plain instrument" voice, to RC's
-own Buffer queue (fan-out to every connected platform). Every (item, platform) is
-recorded in `social_posts` keyed by a unique dedup_key, so nothing is broadcast
-twice and the next run cheaply excludes what already went out.
+One manually-triggered run per day publishes RC's own daily-chart readings to
+its own accounts through ONE Buffer integration:
 
-Selection sources:
-- trending = the latest Shazam + YouTube snapshot rows, resolved to calibrated
-  songs, ranked by |charge| (the strongest verdict travels), top N, excluding
-  any song already broadcast.
-- reading = the most recent DailyReading, unless it has already been broadcast.
+- Instagram + TikTok get a CAROUSEL of the day's published daily-chart cards,
+  always led by Daily Listens, then Daily Downloads / Shazam / YouTube if each
+  is published (graceful -- a missing chart is simply not a slide).
+- Every other platform (X / Bluesky / Threads / Facebook) gets the single
+  Daily Listens card.
 
-Ships DARK: when Buffer is not configured the pipeline still selects, renders,
-stores the card, and writes the ledger rows -- as status='dark', not pushed --
-so the whole machine is verifiable before any account or credential exists.
+Captions are objective, data-only, tuned per channel (inline UTM link where links
+are clickable; "link in bio" on the carousel platforms; per-channel hashtags).
+
+Trending per-song selection was removed: individual songs are posted by hand,
+off-platform, not through this machine. Each (platform) result is recorded in
+social_posts keyed by a per-date dedup_key, so a same-day re-run never double-posts.
+
+Ships DARK: when Buffer is not configured the run still gathers + renders + stores
+the cards and writes the ledger as status='dark', pushing nothing -- so the whole
+pipeline is verifiable before any account or credential exists.
 """
 
 import logging
@@ -29,7 +33,6 @@ from sqlalchemy.orm import joinedload
 from app.config import settings
 from app.database import SessionLocal
 from app.models import ChartSnapshot, DailyReading, ReadingSong, SocialCard, SocialPost
-from app.services.artist_utils import generate_song_slug
 from app.services.social import buffer_client
 from app.services.social.card_render import render_card
 from app.services.song_store import find_song_by_title_artist
@@ -44,40 +47,41 @@ TIER_LABELS = {
     "red": "Corrupted",
 }
 
-# Trending feeders (Build 1): the social-discovery gutter charts. (source tag,
-# chart_snapshots.chart_source slug).
-TRENDING_SOURCES = [
-    ("shazam", "shazam_top200_usa"),
-    ("youtube", "youtube_trending_usa"),
+# The non-reading daily charts, in carousel order after Daily Listens.
+# (label shown in the caption, chart_snapshots.chart_source slug).
+DAILY_CHART_SNAPSHOTS = [
+    ("Daily Downloads", "itunes_download_usa"),
+    ("Shazam", "shazam_top200_usa"),
+    ("YouTube", "youtube_trending_usa"),
 ]
 
-# The six locked platforms (Build 6). Used for the dark/ledger fan-out when no
-# Buffer profile map is configured yet; once configured, profile_map() drives it.
+# Platforms that get the multi-card carousel; everyone else gets single Daily Listens.
+CAROUSEL_PLATFORMS = ("instagram", "tiktok")
+
+# Fan-out target when no Buffer channel map is configured yet (dark ledger).
 DEFAULT_PLATFORMS = ["x", "bluesky", "threads", "instagram", "tiktok", "facebook"]
 
 # A post is "already broadcast" only once it is actually out (or queued). 'dark'
-# rows are NOT live -- they can be upgraded to a real post on a later configured
-# run, so selection still picks them up.
+# rows are NOT live -- a later configured run can upgrade them to a real post.
 LIVE_STATUSES = ("queued", "posted")
 
 
-def _parse_topics(raw):
-    import json
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-    except (ValueError, TypeError):
-        return []
-    return [t for t in parsed if isinstance(t, str)][:3] if isinstance(parsed, list) else []
+# --- small helpers --------------------------------------------------------
+
+def _platforms() -> list[str]:
+    return list(buffer_client.profile_map().keys()) or DEFAULT_PLATFORMS
 
 
 def _reading_score(reading: DailyReading) -> int:
     return round((90 - reading.compass_degree) * 100 / 90)
 
 
-def _platforms() -> list[str]:
-    return list(buffer_client.profile_map().keys()) or DEFAULT_PLATFORMS
+def _score_str(score: int) -> str:
+    return ("+" if score > 0 else "") + str(score)
+
+
+def _long_date(d) -> str:
+    return f"{month_name[d.month]} {d.day}, {d.year}"
 
 
 def _tagged_link(path: str, campaign_scope: str) -> str:
@@ -86,82 +90,13 @@ def _tagged_link(path: str, campaign_scope: str) -> str:
             f"&utm_campaign=rc_broadcast_{campaign_scope}")
 
 
-# --- selection ------------------------------------------------------------
+# --- chart gathering (card data per published daily chart) -----------------
 
-def _broadcast_song_ids(db) -> set[int]:
-    rows = db.query(SocialPost.song_id).filter(
-        SocialPost.scope == "song",
-        SocialPost.song_id.isnot(None),
-        SocialPost.status.in_(LIVE_STATUSES),
-    ).all()
-    return {sid for (sid,) in rows if sid}
-
-
-def select_trending(db, limit: int) -> list[dict]:
-    """Top trending calibrated songs not yet broadcast, ranked by |charge|."""
-    already = _broadcast_song_ids(db)
-    candidates: dict[int, dict] = {}
-    for source, slug in TRENDING_SOURCES:
-        latest = db.query(func.max(ChartSnapshot.date)).filter(
-            ChartSnapshot.chart_source == slug
-        ).scalar()
-        if not latest:
-            continue
-        rows = db.query(ChartSnapshot).filter(
-            ChartSnapshot.chart_source == slug,
-            ChartSnapshot.date == latest,
-        ).order_by(ChartSnapshot.position).all()
-        for r in rows:
-            song = find_song_by_title_artist(db, r.title, r.artist)
-            if not song or not song.rubric_color or song.charge_value is None:
-                continue  # uncalibrated -> not a verdict we can post (no Opus spend)
-            if song.instrumental or song.preorder:
-                continue
-            if song.id in already or song.id in candidates:
-                continue
-            candidates[song.id] = {"song": song, "source": source, "position": r.position}
-    ranked = sorted(candidates.values(), key=lambda c: abs(c["song"].charge_value), reverse=True)
-    return ranked[:limit]
-
-
-def select_reading(db) -> DailyReading | None:
-    """The latest daily reading, unless it has already been broadcast."""
-    reading = (
-        db.query(DailyReading)
-        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.song))
-        .order_by(DailyReading.date.desc())
-        .first()
-    )
-    if not reading:
-        return None
-    posted = db.query(SocialPost.id).filter(
-        SocialPost.scope == "reading",
-        SocialPost.reading_date == reading.date,
-        SocialPost.status.in_(LIVE_STATUSES),
-    ).first()
-    return None if posted else reading
-
-
-# --- payloads (card data + post text) -------------------------------------
-
-def _song_card_data(song) -> dict:
-    return {
-        "title": song.title,
-        "artist": song.artist,
-        "charge": song.charge_value,
-        "tier": song.rubric_color,
-        "tier_label": TIER_LABELS.get(song.rubric_color, ""),
-        "deadpan_line": song.deadpan_line or "",
-        "charge_summary": song.charge_summary or "",
-        "topics": _parse_topics(song.topics),
-    }
-
-
-def _reading_card_data(reading: DailyReading) -> dict:
-    songs = []
+def _reading_songs(reading: DailyReading) -> list[dict]:
+    out = []
     for rs in sorted(reading.songs, key=lambda s: s.position):
         s = rs.song
-        songs.append({
+        out.append({
             "position": rs.position,
             "title": rs.title,
             "artist": rs.artist,
@@ -170,35 +105,112 @@ def _reading_card_data(reading: DailyReading) -> dict:
             "instrumental": bool(s.instrumental) if s else False,
             "preorder": bool(s.preorder) if s else False,
         })
-    return {
+    return out
+
+
+def _chart_from_reading(reading: DailyReading) -> dict:
+    cd = {
         "date": reading.date.isoformat(),
         "degree": reading.compass_degree,
         "charge": reading.charge_level,
         "contaminationCount": reading.contamination_count,
         "editorial": reading.editorial_summary or "",
-        "songs": songs,
+        "songs": _reading_songs(reading),
+        "kicker": "DAILY LISTENS",
+    }
+    return {
+        "label": "Daily Listens", "kicker": "DAILY LISTENS",
+        "score": _reading_score(reading), "tier": reading.charge_level,
+        "card_data": cd, "date": reading.date,
+        "count": len(reading.songs), "contam": reading.contamination_count or 0,
     }
 
 
-def _song_post_text(song) -> str:
-    cs = ("+" if song.charge_value >= 0 else "") + str(song.charge_value)
-    label = TIER_LABELS.get(song.rubric_color, "")
-    link = _tagged_link(f"/songs/{generate_song_slug(song.title, song.artist)}", "song")
-    return (f'Rising Compass measured "{song.title}" by {song.artist}.\n'
-            f'Charge: {cs} ({label}).\n\n{link}')
+def _chart_from_snapshot(db, label: str, src: str) -> dict | None:
+    """Build a reading-card chart from the latest published snapshot for `src`.
+    Returns None unless the snapshot is published AND carries the aggregate
+    (compass_degree) a card needs -- so an un-approved chart is simply skipped."""
+    latest = db.query(func.max(ChartSnapshot.date)).filter(
+        ChartSnapshot.chart_source == src
+    ).scalar()
+    if not latest:
+        return None
+    snaps = db.query(ChartSnapshot).filter(
+        ChartSnapshot.chart_source == src,
+        ChartSnapshot.date == latest,
+    ).order_by(ChartSnapshot.position).all()
+    if not snaps:
+        return None
+    head = snaps[0]
+    if not head.published or head.compass_degree is None:
+        return None  # not yet approved/painted -> not a card-ready chart today
+
+    songs = []
+    for s in snaps[:5]:
+        song = find_song_by_title_artist(db, s.title, s.artist)
+        songs.append({
+            "position": s.position,
+            "title": s.title,
+            "artist": s.artist,
+            "rubric_color": song.rubric_color if song else None,
+            "charge_value": song.charge_value if song else None,
+            "instrumental": bool(song.instrumental) if song else False,
+            "preorder": bool(song.preorder) if song else False,
+        })
+    kicker = label.upper()
+    cd = {
+        "date": latest.isoformat(),
+        "degree": head.compass_degree,
+        "charge": head.charge_level,
+        "contaminationCount": head.contamination_count or 0,
+        "editorial": head.editorial or "",
+        "songs": songs,
+        "kicker": kicker,
+    }
+    score = round((90 - head.compass_degree) * 100 / 90)
+    return {
+        "label": label, "kicker": kicker, "score": score, "tier": head.charge_level,
+        "card_data": cd, "date": latest, "count": len(snaps),
+        "contam": head.contamination_count or 0,
+    }
 
 
-def _reading_post_text(reading: DailyReading) -> str:
-    score = _reading_score(reading)
-    ss = ("+" if score > 0 else "") + str(score)
-    label = TIER_LABELS.get(reading.charge_level, "")
-    n = len(reading.songs)
-    m = reading.contamination_count
-    d = reading.date
-    datestr = f"{month_name[d.month]} {d.day}, {d.year}"
-    link = _tagged_link("/charts/daily-listens/", "reading")
-    return (f"The Rising Compass daily reading for {datestr}: {ss} ({label}).\n"
-            f"{n} songs measured, {m} contaminated.\n\n{link}")
+def _gather_charts(db) -> tuple[list[dict], DailyReading | None]:
+    """The day's card-ready daily charts, Daily Listens first. Requires a daily
+    reading (the anchor); the other three are added only when published."""
+    reading = (
+        db.query(DailyReading)
+        .options(joinedload(DailyReading.songs).joinedload(ReadingSong.song))
+        .order_by(DailyReading.date.desc())
+        .first()
+    )
+    if not reading:
+        return [], None
+    charts = [_chart_from_reading(reading)]
+    for label, src in DAILY_CHART_SNAPSHOTS:
+        c = _chart_from_snapshot(db, label, src)
+        if c:
+            charts.append(c)
+    return charts, reading
+
+
+# --- captions (objective, data-only, per channel) -------------------------
+
+def _carousel_caption(charts: list[dict], date) -> str:
+    lines = ["Rising Compass daily charts, " + _long_date(date)]
+    for c in charts:
+        lines.append(f"{c['label']}: {_score_str(c['score'])} ({TIER_LABELS.get(c['tier'], '')})")
+    lines.append("Full readings: link in bio.")
+    return "\n".join(lines) + "\n\n#RisingCompass #musiccharts #dailycharts"
+
+
+def _daily_listens_caption(daily: dict, platform: str, date) -> str:
+    line1 = (f"Rising Compass Daily Listens, {_long_date(date)}: "
+             f"{_score_str(daily['score'])} ({TIER_LABELS.get(daily['tier'], '')}).")
+    line2 = f"{daily['count']} measured, {daily['contam']} contaminated."
+    link = _tagged_link("/charts/daily-listens/", "charts")
+    tail = "\n\n#RisingCompass" if platform in ("x", "bluesky") else ""
+    return f"{line1}\n{line2}\n\n{link}{tail}"
 
 
 # --- card store + ledger --------------------------------------------------
@@ -213,6 +225,13 @@ def _store_card(db, scope: str, ref: str, png: bytes) -> str:
 def _card_url(token: str) -> str:
     base = settings.social_link_base.rstrip("/")
     return f"{base}/api/social/card/{token}.png"
+
+
+def _already_live(db, dedup_key: str) -> bool:
+    return db.query(SocialPost.id).filter(
+        SocialPost.dedup_key == dedup_key,
+        SocialPost.status.in_(LIVE_STATUSES),
+    ).first() is not None
 
 
 def _upsert_post(db, **vals) -> None:
@@ -240,74 +259,7 @@ def _upsert_post(db, **vals) -> None:
 
 # --- orchestrator ---------------------------------------------------------
 
-async def _broadcast_item(db, *, kind: str, card_type: str, card_scope_ref: str,
-                          card_data: dict, post_text: str, song_id, reading_date,
-                          charge_value, tier, trending_source, configured: bool,
-                          platforms: list[str]) -> dict:
-    png = await render_card(card_type, card_data)
-    token = _store_card(db, kind, card_scope_ref, png)
-    # Commit the card NOW so the public card route (a separate DB session) can
-    # serve it: Buffer fetches image_url during create_update, and an uncommitted
-    # row is invisible cross-session -> Buffer would 404 the image.
-    db.commit()
-    image_url = _card_url(token)
-
-    ext: dict[str, str] = {}
-    errs: dict[str, str] = {}
-    if configured:
-        pmap = buffer_client.profile_map()
-        profile_ids = [pmap[p] for p in platforms if p in pmap]
-        resp = await buffer_client.create_update(post_text, image_url, profile_ids)
-        ext = buffer_client.map_updates_to_platforms(resp, platforms)
-        errs = buffer_client.map_errors_to_platforms(resp)
-
-    now = datetime.utcnow()
-    for p in platforms:
-        if kind == "song":
-            dedup_key = f"song:{song_id}:{p}"
-        else:
-            dedup_key = f"reading:{reading_date.isoformat()}:{p}"
-        # Per-platform outcome: dark when unconfigured; posted when Buffer
-        # returned a post id; error otherwise (so a failed channel stays
-        # non-live and is re-selected on the next run rather than looking sent).
-        if not configured:
-            p_status, p_ext, p_err, p_posted = "dark", None, None, None
-        elif p in ext:
-            p_status, p_ext, p_err, p_posted = "posted", ext[p], None, now
-        else:
-            p_status, p_ext, p_err, p_posted = "error", None, errs.get(p, "buffer push failed"), None
-        _upsert_post(
-            db,
-            scope=kind,
-            song_id=song_id,
-            reading_date=reading_date,
-            platform=p,
-            dedup_key=dedup_key,
-            post_text=post_text,
-            card_token=token,
-            charge_value=charge_value,
-            tier=tier,
-            trending_source=trending_source,
-            post_external_id=p_ext,
-            status=p_status,
-            error=p_err,
-            posted_at=p_posted,
-        )
-    db.commit()
-    if not configured:
-        item_status = "dark"
-    elif ext and not errs:
-        item_status = "posted"
-    elif ext:
-        item_status = "partial"
-    else:
-        item_status = "error"
-    return {"kind": kind, "ref": card_scope_ref, "status": item_status,
-            "platforms": platforms, "pushed": sorted(ext.keys()),
-            "failed": sorted(errs.keys()), "card_token": token}
-
-
-async def run_social_broadcast(trigger: str = "cron") -> dict:
+async def run_social_broadcast(trigger: str = "manual") -> dict:
     db = SessionLocal()
     configured = buffer_client.is_configured()
     platforms = _platforms()
@@ -316,61 +268,79 @@ async def run_social_broadcast(trigger: str = "cron") -> dict:
         "buffer_configured": configured,
         "platforms": platforms,
         "items": [],
-        "pushed": 0,
+        "posted": 0,
         "dark": 0,
         "errors": 0,
     }
     try:
-        work: list[tuple[str, object]] = []
-        for cand in select_trending(db, settings.social_trending_count):
-            work.append(("song", cand))
-        reading = select_reading(db)
-        if reading is not None:
-            work.append(("reading", reading))
-
-        if not work:
-            summary["note"] = "nothing new to broadcast"
+        charts, reading = _gather_charts(db)
+        if not charts:
+            summary["note"] = "no daily reading to broadcast"
             return summary
+        date = reading.date
+        daily = charts[0]
+        summary["charts"] = [c["label"] for c in charts]
 
-        for kind, obj in work:
-            try:
-                if kind == "song":
-                    song = obj["song"]
-                    result = await _broadcast_item(
-                        db, kind="song", card_type="song",
-                        card_scope_ref=str(song.id),
-                        card_data=_song_card_data(song),
-                        post_text=_song_post_text(song),
-                        song_id=song.id, reading_date=None,
-                        charge_value=song.charge_value, tier=song.rubric_color,
-                        trending_source=obj["source"], configured=configured,
-                        platforms=platforms,
-                    )
-                    result["title"] = song.title
-                    result["artist"] = song.artist
-                else:
-                    result = await _broadcast_item(
-                        db, kind="reading", card_type="reading",
-                        card_scope_ref=obj.date.isoformat(),
-                        card_data=_reading_card_data(obj),
-                        post_text=_reading_post_text(obj),
-                        song_id=None, reading_date=obj.date,
-                        charge_value=_reading_score(obj), tier=obj.charge_level,
-                        trending_source=None, configured=configured,
-                        platforms=platforms,
-                    )
-                summary["items"].append(result)
-                if result["status"] == "dark":
-                    summary["dark"] += 1
-                elif result["status"] == "error":
-                    summary["errors"] += 1
-                else:  # posted / partial -> at least one channel landed
-                    summary["pushed"] += 1
-            except Exception as exc:
-                db.rollback()
-                logger.exception("social broadcast item failed (%s)", kind)
-                summary["errors"] += 1
-                summary["items"].append({"kind": kind, "status": "error", "error": str(exc)})
+        # Render + store each chart card, then COMMIT so the public card route
+        # (a separate DB session) can serve them when Buffer fetches the URLs.
+        for c in charts:
+            png = await render_card("reading", c["card_data"])
+            c["token"] = _store_card(db, "charts", f"{c['kicker']}:{date.isoformat()}", png)
+        db.commit()
+        for c in charts:
+            c["url"] = _card_url(c["token"])
+
+        pmap = buffer_client.profile_map() if configured else {}
+        items = []   # push items (configured only)
+        plan = []    # ledger entries (always)
+        for p in platforms:
+            if p in CAROUSEL_PLATFORMS:
+                scope, dedup = "charts", f"charts:{date.isoformat()}:{p}"
+                text = _carousel_caption(charts, date)
+                urls = [c["url"] for c in charts]
+            else:
+                scope, dedup = "reading", f"reading:{date.isoformat()}:{p}"
+                text = _daily_listens_caption(daily, p, date)
+                urls = [daily["url"]]
+            if _already_live(db, dedup):
+                continue
+            plan.append({"platform": p, "scope": scope, "dedup": dedup, "text": text})
+            if configured and p in pmap:
+                items.append({"platform": p, "channel_id": pmap[p],
+                              "text": text, "image_urls": urls})
+
+        posted, errors = {}, {}
+        if configured and items:
+            res = await buffer_client.post_items(items)
+            posted, errors = res["posted"], res["errors"]
+
+        now = datetime.utcnow()
+        for e in plan:
+            p = e["platform"]
+            if not configured:
+                st, ext, err, pa = "dark", None, None, None
+            elif p in posted:
+                st, ext, err, pa = "posted", posted[p], None, now
+            else:
+                st, ext, err, pa = "error", None, errors.get(p, "buffer push failed"), None
+            _upsert_post(
+                db, scope=e["scope"], song_id=None, reading_date=date, platform=p,
+                dedup_key=e["dedup"], post_text=e["text"], card_token=daily["token"],
+                charge_value=daily["score"], tier=daily["tier"], trending_source=None,
+                post_external_id=ext, status=st, error=err, posted_at=pa,
+            )
+            summary["items"].append({"platform": p, "scope": e["scope"], "status": st,
+                                     "external_id": ext, "error": err})
+            summary["posted" if st == "posted" else ("errors" if st == "error" else "dark")] += 1
+        db.commit()
+        if not plan:
+            summary["note"] = "all platforms already broadcast for this date"
+        return summary
+    except Exception as exc:
+        db.rollback()
+        logger.exception("social broadcast failed")
+        summary["errors"] += 1
+        summary["items"].append({"status": "error", "error": str(exc)})
         return summary
     finally:
         db.close()
