@@ -246,6 +246,10 @@ async def _broadcast_item(db, *, kind: str, card_type: str, card_scope_ref: str,
                           platforms: list[str]) -> dict:
     png = await render_card(card_type, card_data)
     token = _store_card(db, kind, card_scope_ref, png)
+    # Commit the card NOW so the public card route (a separate DB session) can
+    # serve it: Buffer fetches image_url during create_update, and an uncommitted
+    # row is invisible cross-session -> Buffer would 404 the image.
+    db.commit()
     image_url = _card_url(token)
 
     ext: dict[str, str] = {}

@@ -33,14 +33,17 @@ logger = logging.getLogger(__name__)
 # One createPost per channel, published immediately with the card image attached
 # by public URL. `automatic` scheduling = Buffer publishes directly to the
 # connected channel (vs `notification`, a mobile reminder to post by hand).
+# `metadata` carries the per-service required fields (e.g. Instagram demands a
+# post type); it is null for channels that need none.
 _CREATE_POST = """
-mutation CreatePost($channelId: ChannelId!, $text: String!, $assets: [AssetInput!]!) {
+mutation CreatePost($channelId: ChannelId!, $text: String!, $assets: [AssetInput!]!, $metadata: PostInputMetaData) {
   createPost(input: {
     channelId: $channelId
     text: $text
     schedulingType: automatic
     mode: shareNow
     assets: $assets
+    metadata: $metadata
   }) {
     __typename
     ... on PostActionSuccess { post { id } }
@@ -48,6 +51,14 @@ mutation CreatePost($channelId: ChannelId!, $text: String!, $assets: [AssetInput
   }
 }
 """.strip()
+
+
+def _platform_metadata(platform: str) -> dict | None:
+    """Per-service createPost metadata. Instagram requires an explicit post type
+    (post|story|reel); a plain feed image is `post`. Others need none (so far)."""
+    if platform == "instagram":
+        return {"instagram": {"type": "post"}}
+    return None
 
 
 def is_configured() -> bool:
@@ -76,7 +87,7 @@ def profile_map() -> dict[str, str]:
 
 
 async def _create_post(client: httpx.AsyncClient, channel_id: str, text_body: str,
-                       image_url: str) -> dict:
+                       image_url: str, metadata: dict | None = None) -> dict:
     """Issue one createPost mutation for a single channel. Returns either
     {"id": <post id>} on success or {"error": <message>} on a handled failure."""
     payload = {
@@ -85,6 +96,7 @@ async def _create_post(client: httpx.AsyncClient, channel_id: str, text_body: st
             "channelId": channel_id,
             "text": text_body,
             "assets": [{"image": {"url": image_url}}],
+            "metadata": metadata,
         },
     }
     resp = await client.post("", json=payload)
@@ -120,12 +132,14 @@ async def create_update(text_body: str, image_url: str, profile_ids: list[str]) 
         "Authorization": f"Bearer {settings.buffer_access_token}",
         "Content-Type": "application/json",
     }
+    id_to_platform = {pid: plat for plat, pid in profile_map().items()}
     updates: list[dict] = []
     errors: list[dict] = []
     async with httpx.AsyncClient(base_url=base, headers=headers, timeout=30) as client:
         for channel_id in profile_ids:
+            metadata = _platform_metadata(id_to_platform.get(str(channel_id), ""))
             try:
-                outcome = await _create_post(client, channel_id, text_body, image_url)
+                outcome = await _create_post(client, channel_id, text_body, image_url, metadata)
             except httpx.HTTPError as exc:
                 outcome = {"error": str(exc)}
             if outcome.get("id"):
