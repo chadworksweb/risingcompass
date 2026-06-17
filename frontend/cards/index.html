@@ -75,7 +75,9 @@
     <div class="note" id="status">rendering...</div>
   </div>
 
-  <script src="/lyrical-charger/rc-charge-card-generator.js"></script>
+  <!-- Versioned to bust Cloudflare's edge cache of the generator (bump on any
+       rc-charge-card-generator.js change, else the cached copy renders stale). -->
+  <script src="/lyrical-charger/rc-charge-card-generator.js?v=20260617-45ratio"></script>
   <script>
     (function () {
       'use strict';
