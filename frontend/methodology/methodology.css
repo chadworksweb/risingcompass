@@ -6,11 +6,19 @@
    ============================================================ */
 
 .m-main {
-  max-width: 880px;
+  max-width: var(--rc-max-width);
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 2rem 1.5rem 4rem;
   color: var(--rc-text);
 }
+
+/* Full-width page, readable prose: cap the running text to a comfortable
+   measure (left-aligned, not a centered slab) while the page wrapper, the
+   section headers, and the flow visual use the whole site width. */
+.m-section-body,
+.m-preamble,
+.m-living-callout,
+.m-origin { max-width: 74ch; }
 
 /* ─── Hero / Preamble ─────────────────────────────────────── */
 

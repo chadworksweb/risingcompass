@@ -1,0 +1,144 @@
+/* ============================================================================
+   Compass Flow -- "How the compass reads a song"
+   ONE continuous serpentine of native station cards. On entry (or on Replay) a
+   single dramatic pulse runs the whole path ONCE as an intro splash, lighting
+   each module as it passes; then everything rests. No ongoing loop. The
+   calibrator is the whole pipeline (the carwash); the agent is the track running
+   the song through it. Reading cards teal, scoring cards violet; the handoff and
+   verdict are native cards too, just specially coloured.
+
+   Portable: needs only /css/main.css (brand tokens) + this file + the small
+   inline trigger script next to the markup.
+   ============================================================================ */
+
+.cflow {
+  --cf-read: var(--rc-accent);
+  --cf-decide: var(--rc-violet);
+  --cf-flow: var(--cf-read);
+  --cf-pipe: rgba(255,255,255,0.13);
+  position: relative;
+  width: 100%; max-width: var(--rc-max-width); margin: 0 auto; padding: 2.5rem 1.5rem 3rem;
+}
+.cflow-breakout { width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
+
+/* replay-intro button, top-right next to the heading */
+.cflow-replay {
+  position: absolute; top: 2.4rem; right: 1.5rem; z-index: 5;
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  font-family: var(--rc-font-mono); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--rc-text-dim); background: var(--rc-bg-panel); border: 1px solid var(--rc-border); border-radius: 999px;
+  padding: 0.42rem 0.85rem; cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease;
+}
+.cflow-replay:hover { color: var(--cf-read); border-color: var(--cf-read); }
+.cflow-replay svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.cflow-head { text-align: center; margin-bottom: 2.75rem; }
+.cflow-eyebrow { font-family: var(--rc-font-mono); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--cf-read); margin-bottom: 0.7rem; }
+.cflow-title { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 700; color: var(--rc-text-bright); letter-spacing: -0.01em; line-height: 1.15; margin-bottom: 0.7rem; }
+.cflow-sub { max-width: 64ch; margin: 0 auto; font-size: 1rem; line-height: 1.6; color: var(--rc-text-dim); }
+.cflow-sub b { color: var(--rc-text); font-weight: 600; }
+
+/* ---- the single serpentine grid ------------------------------------------ */
+.cflow-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+@media (min-width: 900px) {
+  .cflow-grid { grid-template-columns: repeat(4, 1fr); gap: 3.5rem 2.5rem; }
+  .cflow-cell:nth-child(5)  { grid-area: 2 / 4; }
+  .cflow-cell:nth-child(6)  { grid-area: 2 / 3; }
+  .cflow-cell:nth-child(7)  { grid-area: 2 / 2; }
+  .cflow-cell:nth-child(8)  { grid-area: 2 / 1; }   /* handoff */
+  .cflow-cell:nth-child(9)  { grid-area: 3 / 1; }
+  .cflow-cell:nth-child(10) { grid-area: 3 / 2; }
+  .cflow-cell:nth-child(11) { grid-area: 3 / 3; }
+  .cflow-cell:nth-child(12) { grid-area: 3 / 4; }   /* verdict */
+}
+
+/* a native station card */
+.cflow-cell { position: relative; background: var(--rc-bg-panel); border: 1px solid var(--rc-border); border-top: 3px solid var(--cf-flow); border-radius: 12px; padding: 1rem 1.1rem 1.1rem; }
+.cflow-cell.is-decide { --cf-flow: var(--cf-decide); }
+.cflow-cell-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.6rem; }
+.cflow-dot { position: relative; flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--rc-bg-dark); border: 2px solid var(--cf-flow); color: var(--cf-flow); box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
+.cflow-dot svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cflow-step { font-family: var(--rc-font-mono); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rc-text-dim); margin-bottom: 0.1rem; }
+.cflow-name { font-size: 1rem; font-weight: 700; color: var(--rc-text-bright); line-height: 1.2; }
+.cflow-plain { font-size: 0.88rem; line-height: 1.5; color: var(--rc-text); margin: 0; }
+.cflow-plain b { color: var(--rc-text-bright); font-weight: 600; }
+.cflow-chip { display: inline-block; margin-left: 0.4rem; vertical-align: middle; font-family: var(--rc-font-mono); font-size: 0.54rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cf-read); background: rgba(0,212,170,0.1); border: 1px solid rgba(0,212,170,0.35); border-radius: 999px; padding: 0.1rem 0.4rem; }
+
+/* ---- specially coloured native cards: handoff + verdict ------------------ */
+.cflow-cell.is-handoff {
+  --cf-flow: var(--cf-decide); border-top-color: transparent;
+  background:
+    linear-gradient(90deg, var(--cf-read), var(--cf-decide)) top / 100% 4px no-repeat border-box,
+    linear-gradient(135deg, rgba(0,212,170,0.28), rgba(153,51,255,0.34)) padding-box,
+    var(--rc-bg-panel) padding-box;
+  box-shadow: 0 0 30px rgba(120,90,210,0.3);
+}
+.cflow-cell.is-handoff .cflow-dot { border-color: transparent; color: var(--rc-text-bright);
+  background: linear-gradient(var(--rc-bg-dark), var(--rc-bg-dark)) padding-box, linear-gradient(135deg, var(--cf-read), var(--cf-decide)) border-box; border: 2px solid transparent; }
+.cflow-cell.is-verdict {
+  --cf-flow: var(--cf-decide); border-top-color: transparent;
+  background:
+    linear-gradient(90deg, var(--rc-violet), var(--rc-blue), var(--rc-green), var(--rc-orange), var(--rc-red)) top / 100% 4px no-repeat border-box,
+    linear-gradient(135deg, rgba(153,51,255,0.3), rgba(51,136,255,0.16), rgba(255,51,51,0.26)) padding-box,
+    var(--rc-bg-panel) padding-box;
+  box-shadow: 0 0 30px rgba(150,80,200,0.28);
+}
+.cflow-cell.is-verdict .cflow-dot { border-color: transparent; color: var(--rc-text-bright);
+  background: linear-gradient(var(--rc-bg-dark), var(--rc-bg-dark)) padding-box, linear-gradient(135deg, var(--rc-violet), var(--rc-red)) border-box; border: 2px solid transparent; }
+
+/* ---- static pipes + arrows (the path) ------------------------------------ */
+@media (min-width: 900px) {
+  .cflow-cell.to-right::before, .cflow-cell.to-left::before {
+    content: ""; position: absolute; top: 50%; height: 4px; width: 2.5rem; transform: translateY(-50%); border-radius: 4px; background: var(--cf-pipe); z-index: 0;
+  }
+  .cflow-cell.to-right::before { right: -2.5rem; }
+  .cflow-cell.to-left::before { left: -2.5rem; }
+  .cflow-cell.to-down::before {
+    content: ""; position: absolute; left: 50%; bottom: -3.5rem; width: 4px; height: 3.1rem; transform: translateX(-50%); border-radius: 4px; background: var(--cf-pipe); z-index: 0;
+  }
+  /* arrowheads, perfectly centred in the gap between two modules (X and Y) */
+  .cflow-cell.to-right::after, .cflow-cell.to-left::after { content: ""; position: absolute; top: 50%; border-top: 7px solid transparent; border-bottom: 7px solid transparent; z-index: 1; }
+  .cflow-cell.to-right::after { right: -1.25rem; transform: translate(50%, -50%); border-left: 10px solid var(--cf-flow); }
+  .cflow-cell.to-left::after { left: -1.25rem; transform: translate(-50%, -50%); border-right: 10px solid var(--cf-flow); }
+  .cflow-cell.to-down::after { content: ""; position: absolute; left: 50%; bottom: -1.75rem; transform: translate(-50%, 50%); border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 10px solid var(--cf-flow); z-index: 1; }
+}
+
+/* ---- the intro: a fast laser flash ---------------------------------------- */
+/* Each module flashes in turn, ~110ms apart, the whole staggered burst inside
+   ~1.5s. Only modules in the viewport flash -- the trigger script adds .flash
+   with a per-module inline animation-delay. */
+.cflow-cell.flash { animation: cflow-flash 0.4s ease-out backwards; }
+@keyframes cflow-flash {
+  0%, 100% { transform: scale(1); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  35% { transform: scale(1.04); box-shadow: 0 0 46px 8px var(--cf-flow), 0 10px 26px rgba(0,0,0,0.5); }
+}
+@media (prefers-reduced-motion: reduce) { .cflow-cell.flash { animation: none !important; } }
+
+/* mini in-card glyphs ------------------------------------------------------ */
+.cflow-mini { margin-top: 0.7rem; }
+.cflow-axes { display: flex; gap: 0.35rem; }
+.cflow-axis { flex: 1; height: 7px; border-radius: 4px; }
+.cflow-axis.harm { background: linear-gradient(to right, var(--rc-red), var(--rc-orange)); }
+.cflow-axis.up { background: linear-gradient(to right, var(--rc-blue), var(--rc-violet)); }
+.cflow-axes-labels { display: flex; justify-content: space-between; margin-top: 0.28rem; font-family: var(--rc-font-mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rc-text-dim); }
+.cflow-line { position: relative; height: 22px; }
+.cflow-line-bar { position: absolute; top: 9px; left: 0; right: 0; height: 3px; border-radius: 3px; background: var(--rc-border); }
+.cflow-tick { position: absolute; top: 4px; width: 2px; height: 13px; background: var(--rc-text-dim); border-radius: 2px; }
+.cflow-place { position: absolute; top: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--cf-read); box-shadow: 0 0 10px 1px var(--cf-read); border: 2px solid var(--rc-bg-panel); transform: translateX(-50%); }
+
+/* compact verdict spectrum (fits a native cell) */
+.cflow-spectrum-bar { position: relative; display: flex; height: 20px; border-radius: 5px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
+.cflow-seg { flex: 1; }
+.cflow-seg.violet { background: var(--rc-violet); }
+.cflow-seg.blue { background: var(--rc-blue); }
+.cflow-seg.green { background: var(--rc-green); }
+.cflow-seg.orange { background: var(--rc-orange); }
+.cflow-seg.red { background: var(--rc-red); }
+.cflow-spectrum-ends { display: flex; justify-content: space-between; margin-top: 0.4rem; font-family: var(--rc-font-mono); font-size: 0.54rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--rc-text-dim); }
+.cflow-needle { position: absolute; top: -4px; bottom: -4px; left: 50%; width: 3px; background: var(--rc-text-bright); border-radius: 3px; box-shadow: 0 0 8px rgba(255,255,255,0.6); }
+.cflow-needle::before { content: ""; position: absolute; top: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--rc-text-bright); }
+
+@media (max-width: 600px) {
+  .cflow { padding: 2rem 1rem 2.5rem; }
+  .cflow-replay { position: static; margin: 0 auto 1.25rem; display: flex; width: max-content; }
+}

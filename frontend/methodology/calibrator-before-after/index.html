@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- INCLUDE:analytics -->
+<link rel="stylesheet" href="/css/consent.css">
+<!-- PostHog + Google Analytics. Edit the config here, then run
+     scripts/build_partials.py (deploy.sh runs it automatically) to bake the
+     change into every page's <head>.
+
+     CONSENT-GATED: the real init now lives in window.rcInitAnalytics(), which
+     js/consent.js calls ONLY when the visitor has consented to analytics
+     (geo-aware default: EU/UK opt-in, rest opt-out). rcInitAnalytics() still
+     enforces the hard overrides itself -- prod host only, admin rc_ph_optout
+     cookie, the ?skip-analytics personal opt-out, and Do Not Track -- so
+     consent can never override those. The PostHog stub below queues calls
+     until array.js loads, so posthog.* (e.g. auth.js identify) is safe to call
+     immediately, even before init. -->
+<script>
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  (function () {
+    // Personal opt-out: ?skip-analytics=1 sets a persistent flag for this
+    // browser, =0 clears it. Runs immediately (independent of consent) so the
+    // operator can exclude their own devices regardless of admin login.
+    try {
+      var p = new URLSearchParams(window.location.search).get('skip-analytics');
+      if (p === '1') localStorage.setItem('rc_skip_analytics', '1');
+      else if (p === '0') localStorage.removeItem('rc_skip_analytics');
+    } catch (e) {}
+  })();
+  // Actual analytics init -- called by js/consent.js once analytics consent is
+  // granted. Idempotent: a second call (e.g. reopen + re-accept) is a no-op.
+  window.rcInitAnalytics = function () {
+    if (window.__rcAnalyticsInit) return;
+    // Production host only -- never capture from localhost / dev / staging,
+    // so test traffic doesn't pollute the prod project.
+    var h = window.location.hostname;
+    if (h !== 'risingcompass.net' && h !== 'www.risingcompass.net') return;
+    // Admin session: the admin login sets a readable rc_ph_optout=1 cookie
+    // (path=/). When present we never init, so nothing is captured.
+    if (document.cookie.split('; ').indexOf('rc_ph_optout=1') !== -1) return;
+    // Personal device opt-out (set above / on a prior visit).
+    try { if (localStorage.getItem('rc_skip_analytics') === '1') return; } catch (e) {}
+    // Do Not Track: honor it for BOTH PostHog and GA. PostHog also has its own
+    // respect_dnt; this gate additionally covers GA, which has no built-in DNT.
+    var dnt = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+    if (dnt === '1' || dnt === 'yes') return;
+    // Global Privacy Control (CCPA/CPRA opt-out signal): honor like DNT. A GPC
+    // signal is a legally recognized opt-out in several US states, so we never
+    // init analytics when it's set, regardless of stored consent.
+    if (navigator.globalPrivacyControl === true) return;
+    window.__rcAnalyticsInit = true;
+    // PostHog -- first-party proxy (nginx /ph/* -> PostHog; see
+    // deploy/_ph_proxy_patch.py) so ad-blockers don't drop events. ui_host
+    // points the toolbar/links at the real PostHog app.
+    posthog.init('phc_oNyndpLonvCtB78foyro2icFUa4erjz3eCXegEuMJBGs',{api_host:'https://risingcompass.net/ph', ui_host:'https://us.posthog.com', respect_dnt:true, defaults:'2026-01-30'});
+    // Google Analytics (gtag) -- kept alongside PostHog for a quick traffic
+    // look. Same gating as above (prod-only, admin-excluded, opt-out, DNT, and
+    // now analytics consent). Loads direct (not proxied).
+    try {
+      var GA_ID = 'G-D1R63RVHMS';
+      var gs = document.createElement('script');
+      gs.async = true;
+      gs.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+      document.head.appendChild(gs);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', GA_ID);
+    } catch (e) {}
+  };
+</script>
+<!-- /INCLUDE:analytics -->
+  <title>The Calibrator, Before and After &mdash; The Rising Compass</title>
+  <meta name="description" content="A public, dated record of the Calibrator v3 rebuild: how a song was read before versus how it is read now, what the charge meant before versus now, and what the change means for existing calibrations.">
+  <link rel="canonical" href="https://risingcompass.net/methodology/calibrator-before-after/">
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://risingcompass.net/methodology/calibrator-before-after/">
+  <meta property="og:title" content="The Calibrator, Before and After &mdash; The Rising Compass">
+  <meta property="og:description" content="A public record of the v3 rebuild: how a song was read before, how it is read now, and what changed underneath the tenets.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The Calibrator, Before and After">
+  <meta name="twitter:description" content="A public record of the v3 rebuild: what changed underneath the tenets.">
+  <meta name="twitter:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/methodology/methodology.css">
+</head>
+<body>
+  <a class="skip-nav" href="#main">Skip to content</a>
+
+  <!-- INCLUDE:header -->
+<header class="rc-header">
+  <div class="rc-header-inner">
+  <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+      <path d="M 5,20 A 11,11 0 0,1 5.84,15.79" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 5.84,15.79 A 11,11 0 0,1 11.79,9.84" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 11.79,9.84 A 11,11 0 0,1 20.21,9.84" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 20.21,9.84 A 11,11 0 0,1 26.16,15.79" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+      <path d="M 26.16,15.79 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+      <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+      <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+    </svg>
+    <span>The Rising Compass</span>
+  </a>
+  <div class="rc-search" id="rcSearch">
+    <input type="search" id="rcSearchInput" class="rc-search-input"
+      placeholder="Search artists or songs..." autocomplete="off"
+      aria-label="Search artists or songs" role="combobox"
+      aria-expanded="false" aria-controls="rcSearchPanel" aria-autocomplete="list">
+    <div class="rc-search-panel" id="rcSearchPanel" role="listbox" hidden></div>
+  </div>
+  <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span class="rc-account-label">Sign in</span>
+  </a>
+  </div>
+  <script>
+    (function(){
+      function sync() {
+        try {
+          var link = document.getElementById('rc-account-link');
+          if (!link) return;
+          var label = link.querySelector('.rc-account-label');
+          var authed = localStorage.getItem('rc_authed') === '1';
+          if (authed) {
+            if (label) label.textContent = 'Account';
+            link.setAttribute('data-state', 'in');
+            link.href = '/account/';
+          } else {
+            if (label) label.textContent = 'Sign in';
+            link.setAttribute('data-state', 'out');
+            // Preserve where the user came from so /account/ can route
+            // them back after sign-in / sign-up. Only path + query +
+            // hash; never an absolute URL.
+            var ret = window.location.pathname + window.location.search + window.location.hash;
+            if (ret && !ret.startsWith('/account/')) {
+              link.href = '/account/?returnTo=' + encodeURIComponent(ret);
+            } else {
+              link.href = '/account/';
+            }
+          }
+        } catch (_) {}
+      }
+      sync();
+      // bfcache restore: pages cached by back/forward don't re-execute
+      // scripts, but pageshow fires. Re-read localStorage so a sign-out
+      // in another tab / on /account/ is reflected when the user
+      // navigates back here.
+      window.addEventListener('pageshow', sync);
+      // Cross-tab sync: storage events fire in OTHER tabs when one tab
+      // writes to localStorage. Catches the case where the user signs
+      // out in one tab and switches to a tab that still says Account.
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'rc_authed' || e.key === null) sync();
+      });
+    })();
+  </script>
+  <script src="/js/header-search.js" defer></script>
+</header>
+<!-- /INCLUDE:header -->
+
+    <main id="main" class="m-main">
+
+    <section class="m-hero">
+      <p class="m-eyebrow">The Record</p>
+      <h1 class="m-title">The Calibrator, Before and After</h1>
+      <p class="m-kicker">A public record of the v3 rebuild. Part one (Before) written 2026-06-11, while the old calibrator was still running. Part two (After) written 2026-06-11, the day v3 shipped.</p>
+
+      <div class="m-preamble">
+        <p>The Rising Compass is changing how it reads songs. Not what it values, and not the tenets, which stay word for word. What changes is the procedure: the steps the reading agent walks through, who decides the final number, and how repeat readings get combined. A change that deep should not happen quietly. This document captures how the calibrator worked on the day before the rebuild began, because once the new one exists, the old one is gone and the "before" can never be reconstructed honestly. The "after" half gets appended at deploy, and the two halves together are the record.</p>
+        <p>This is written for a reader with no technical background. Where the <a href="/methodology/">methodology page</a> explains what the compass believes, this page explains what the machinery did.</p>
+      </div>
+
+      <nav class="m-jump" aria-label="Jump to section">
+        <a href="#before" class="m-jump-link"><span class="m-jump-num">1</span><span class="m-jump-label">Before</span></a>
+        <a href="#after" class="m-jump-link"><span class="m-jump-num">2</span><span class="m-jump-label">After</span></a>
+      </nav>
+    </section>
+
+
+    <!-- ===== PART ONE: BEFORE ===== -->
+    <section class="m-section" id="before">
+      <div class="m-section-header">
+        <span class="m-section-num">1</span>
+        <div>
+          <p class="m-section-eyebrow">The v2 calibrator, as it ran on 2026-06-11</p>
+          <h2 class="m-section-title">Before</h2>
+        </div>
+      </div>
+
+      <div class="m-section-body methodology-content">
+
+        <div class="method-block">
+          <h2 class="method-block-first">How a song was read</h2>
+          <p>Every reading started the same way: the agent was handed lyrics with the instruction to forget everything it knows about the artist. No reputation, no chart history, no cultural baggage. The page is all there is.</p>
+          <p>From there it walked a fixed sequence. First it named the song's dominant arc, the thing the lyrics are fundamentally about. Then it argued both directions from a starting position of zero: a case for moving the song up, citing specific lines that match the higher tenets, and a case for moving it down, citing lines that match the lower ones. If the upward case rested on personal growth, a transformation check asked whether the narrator actually changed by the end of the song or merely wished to. A contamination check then looked for isolated dark moments inside otherwise clean songs. A summary check tightened the public one-line description. Last came the verdict: a tier, a number, and a one-sentence reason.</p>
+          <p>The order matters, and it is the part v3 changes most. The old procedure went straight from reading into analysis. There was no step where the agent recorded its first impression before the reasoning started. That gap turned out to be the source of the calibrator's strangest failures, which part two will return to.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>How the charge was produced</h2>
+          <p>The agent itself named both the tier (the color band) and the charge (the precise number from -100 to +100). To keep the number honest it was given fifteen reference points, audited example placements like "-42: self-deprecation ratified as identity" or "+80: cosmic oneness with calm certainty," and asked to place each new song relative to them.</p>
+          <p>Then the server stepped in, but only as a janitor. If the agent's number fell outside the range of the tier it had named, the server silently clamped the number back inside the band. A song called Decent with a charge of -40 became a song called Decent with a charge of -24. Whatever tension existed between the tier and the number, the clamp erased it before anyone could see it. Disagreement between the two was actually useful information, a sign the reading was strained, and the system threw it away.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>How the tier was chosen</h2>
+          <p>Two different answers, depending on the path. On a single fresh reading, the tier was whatever the agent said it was. On the consensus path, where multiple readings of the same song get merged, the tier was derived mathematically from the merged charge. Two sources of truth for the same fact. They usually agreed. When they did not, nobody was watching the seam.</p>
+          <p>There was one more quiet failure here: if the agent ever returned a tier name the system did not recognize, the song silently defaulted to Decent, the middle of the scale. No error, no flag for review. Just a shrug rendered as a verdict.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>How repeat readings combined</h2>
+          <p>Every reading of a song was logged as a run, and a song's public charge drifted toward the combined view of its runs. The combining method was a weighted average, where each run's weight was the agent's own self-reported confidence. The agent graded its own homework, and the grade carried real power.</p>
+          <p>Two problems lived in that design. An average lets one strange reading drag the result, so a single outlier run could pull a settled song toward a tier boundary. And self-reported confidence turned out to be nearly worthless as a quality signal: the calibrator's worst documented misread shipped with a confidence of roughly 0.9. The agent was most sure of itself precisely when it had reasoned its way into the wrong answer.</p>
+          <p>Older songs also carried "seed" runs, snapshots of whatever the song's reading was before run-logging existed. Some of those snapshots came from the early chart-reading era and were stale, yet they kept voting in the average forever.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>The failure modes, named plainly</h2>
+          <p>These are the documented ways v2 got things wrong, the case file that motivated the rebuild.</p>
+          <ul class="key-points">
+            <li><strong>The hatch.</strong> A song with a sympathetic surface (heartbreak, a party, a love story) and a harmful payload running through every chorus could slip the payload into the "contamination" footnote while keeping a kind tier. The payload should have set the tier. The agent found a hatch in the rules and the structure let it.</li>
+            <li><strong>Confident self-deception.</strong> On certain songs the agent's first instinct was correct, and its long chain of careful reasoning then talked it out of the right answer. Because nothing recorded the first instinct, the drift was invisible. The misread shipped with high confidence attached.</li>
+            <li><strong>The route error.</strong> A song reaching a high tier through encouragement, or witness, or collective protest was sometimes judged by the wrong checklist, like capping an encouragement song for failing a personal-transformation test that was never meant to apply to it. The rules had carve-outs for this stacked into a maze of scope disclaimers, and the maze occasionally lost.</li>
+            <li><strong>The silent green default.</strong> Described above. Unrecognized output became Decent instead of becoming a flag for human review.</li>
+            <li><strong>The clamp.</strong> Also described above. Tier and number could disagree, and the system hid it.</li>
+            <li><strong>The wasted reading.</strong> A song submitted with no lyrics still triggered a full reading request, an expensive round trip whose only possible answer was "cannot calibrate."</li>
+            <li><strong>Outlier drag and stale seeds.</strong> The averaging problems from the previous section.</li>
+          </ul>
+          <p>None of these were daily events. The calibrator's readings were adjudicated by a human every single day, and most verdicts held up. But each failure in this list happened at least once in the audited record, and each one traces back to the same root: the procedure let deliberation run unchecked, and the final number belonged to the wrong party.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>What the charge meant, before</h2>
+          <p>Through all of this, the meaning of the published number never wavered: -100 is all-out war, with the self or with others, and +100 is all-out peace. That meaning survives the rebuild untouched. What changes is how the number gets made.</p>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ===== PART TWO: AFTER ===== -->
+    <section class="m-section" id="after">
+      <div class="m-section-header">
+        <span class="m-section-num">2</span>
+        <div>
+          <p class="m-section-eyebrow">The v3 calibrator, as it shipped on 2026-06-11</p>
+          <h2 class="m-section-title">After</h2>
+        </div>
+      </div>
+
+      <div class="m-section-body methodology-content">
+
+        <div class="method-block">
+          <p class="method-block-first">The rebuild kept every value the compass holds and rewrote the procedure around them. The tenets read the same, word for word. What follows is what changed underneath them.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>How a song is read now</h2>
+          <p>The reading still opens the same way, with the agent handed lyrics and told to forget the artist. The first real change comes one step later, and it is the most important change in the whole rebuild.</p>
+          <p>Before any argument starts, the agent now records its gut read: a single honest first number, the impression the song leaves before reasoning gets a vote. That number is written down and kept. Everything after it is checked against it. When the careful reasoning ends up far from the gut, more than a quarter of the scale away, the system treats that gap as a warning rather than a result. The reading is reconciled, and if the gap holds it gets escalated for a harder look instead of shipped. The old calibrator let deliberation run wherever it wanted because nothing remembered where it started. The new one remembers, and the memory is load-bearing.</p>
+          <p>From there the agent walks a clearer path than before. It makes an explicit decision about how the song reaches whatever tier it reaches: through encouragement, through witness, through collective protest, through personal transformation, and so on down a fixed set of routes. Naming the route up front is what closes the old "wrong checklist" failure, because the route decides which tests even apply. An encouragement song is no longer quietly failed for not being a transformation song.</p>
+          <p>Then it reads the song along two axes at once, and it is required to say whether any harm it finds is isolated or runs through the whole song. That single required call, pervasive or not, is the fix for the worst old failure. A harmful message carried by every chorus can no longer be filed away as a footnote while the song keeps a kind tier. Pervasive harm sets the tier, every time, with no exceptions and no discretion.</p>
+          <p>Last, instead of inventing a number against a handful of example placements, the agent places the song against a standing table of precedents, audited reference readings the compass has already committed to. It does not copy a precedent's number. It argues that the new song sits above this one, below that one, between these two. The number falls out of where it lands.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>How the charge is produced now</h2>
+          <p>This is the cleanest break from the old design. The agent no longer names the final number at all.</p>
+          <p>The agent reports its pieces: the gut read, the route, the harm and whether it is pervasive, a center point for the charge, and four small adjustments that nudge the number up or down within the band. The server takes those pieces and computes the published charge with fixed arithmetic. The center is the anchored read; the four adjustments are bounded so they can fine-tune the position but can never cross into another tier or overpower the center. The math is the same every time and belongs to no one's opinion.</p>
+          <p>The old janitor-clamp is gone with it. There is nothing left to silently clamp, because the number is built from the parts rather than guessed and then corrected.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>How the tier is chosen now</h2>
+          <p>One answer now, on every path. The server derives the tier from the composed charge, using one tier function and only that function. The agent never names the tier. The two-sources-of-truth seam from the old design, where a fresh reading trusted the agent and a merged reading trusted the math, is closed because only the math decides.</p>
+          <p>The silent green default is gone too. If a reading comes back malformed or unreadable, it no longer collapses into Decent and ships. It is held back as a reading that needs a human, which is what it always should have been.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>How repeat readings combine now</h2>
+          <p>A song's public charge still moves toward the combined view of its logged readings, but the combining is now the median of the live readings instead of a weighted average. The median ignores a lone outlier, so one strange reading can no longer drag a settled song toward a tier boundary. And the agent's self-reported confidence no longer carries any weight in the result. It is still recorded, and it still helps decide whether a reading should be escalated, but it stopped being allowed to grade its own homework. The old stale snapshots from the early chart-reading era are excluded once a song has enough fresh readings, so they stop voting forever.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>The failure modes, closed</h2>
+          <p>The same case file from part one, each item and how the rebuild closes it.</p>
+          <ul class="key-points">
+            <li><strong>The hatch.</strong> Closed by the required pervasiveness call. A payload running through every chorus is pervasive by definition, and pervasive harm sets the tier. There is no footnote to hide in.</li>
+            <li><strong>Confident self-deception.</strong> Closed by the recorded gut read plus the divergence check. The first instinct is now written down, and a long argument that walks away from it gets caught and reconciled instead of shipped.</li>
+            <li><strong>The route error.</strong> Closed by the explicit route step. The route is chosen up front and decides which tests apply, so an encouragement song is never graded as a transformation song.</li>
+            <li><strong>The silent green default.</strong> Closed. Unreadable output becomes a flag for a human, not a shrug rendered as Decent.</li>
+            <li><strong>The clamp.</strong> Gone. The number is composed from parts, so there is no agent guess to clamp and no hidden disagreement to erase.</li>
+            <li><strong>The wasted reading.</strong> Closed. A song submitted with no lyrics short-circuits with no reading request at all, so there is no expensive round trip whose only answer was "cannot calibrate."</li>
+            <li><strong>Outlier drag and stale seeds.</strong> Closed by the median and by excluding the early chart-reading snapshots once fresh readings exist.</li>
+          </ul>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>What the era boundary means</h2>
+          <p>A change this deep raises an honest question about everything read before it. The day v3 shipped, the compass drew a line. Every reading logged under the old calibrator was marked as belonging to the previous era, more than four hundred of them, so that the new consensus math never mixes old-procedure readings with new-procedure ones.</p>
+          <p>What this did not do is rewrite the past in place. The published verdict on every already-calibrated song, more than a thousand of them, was left exactly as it stood. Nothing flipped tier overnight. What changed is that those songs are now open to be read again under the new procedure, and when they are, the fresh reading is what counts. The compass did not pretend the old readings never happened, and it did not pretend they were produced the new way. It retired them honestly and let the new procedure earn each verdict back.</p>
+        </div>
+
+        <div class="method-block method-block-ruled">
+          <h2>What the charge means, after</h2>
+          <p>Unchanged, as promised. Minus one hundred is all-out war, with the self or with others, and plus one hundred is all-out peace. The rebuild never touched what the number means. It only changed how the number gets made, and it moved the final say from the party most able to talk itself into the wrong answer to a procedure that cannot.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- INCLUDE:footer -->
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a href="/" class="footer-logo" aria-label="The Rising Compass home">
+        <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="6" fill="#0a0a14"/>
+          <path d="M 5,20 A 11,11 0 0,1 5.84,15.79" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+          <path d="M 5.84,15.79 A 11,11 0 0,1 11.79,9.84" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+          <path d="M 11.79,9.84 A 11,11 0 0,1 20.21,9.84" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+          <path d="M 20.21,9.84 A 11,11 0 0,1 26.16,15.79" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+          <path d="M 26.16,15.79 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+          <polygon points="16,10 14.2,20 17.8,20" fill="#eeeef4"/>
+          <circle cx="16" cy="20" r="3" fill="#00d4aa"/>
+        </svg>
+        <span>The Rising Compass</span>
+      </a>
+      <p class="footer-tagline">Visualizing the vibrational charge of the songs that dominate popular culture.</p>
+    </div>
+
+    <div class="footer-menus">
+    <nav class="footer-col" aria-label="Explore">
+      <h2 class="footer-head">Explore</h2>
+      <ul class="footer-links">
+        <li><a href="/library/">Library</a></li>
+        <li><a href="/search/">Search</a></li>
+        <li><a href="/artists/">Artists</a></li>
+        <li><a href="/calendar/">Calendar</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Charts">
+      <h2 class="footer-head">Charts</h2>
+      <ul class="footer-links">
+        <li><a href="/charts/spotify/">Spotify (US)</a></li>
+        <li><a href="/charts/itunes/">iTunes</a></li>
+        <li><a href="/charts/shazam/">Shazam</a></li>
+        <li><a href="/charts/youtube/">YouTube</a></li>
+        <li><a href="/charts/new-music-friday/">New Music Friday</a></li>
+        <li><a href="/charts/streamed-all-time/">Most Streamed of All Time</a></li>
+        <li><a href="/charts/most-streamed-albums/">Most Streamed Albums</a></li>
+        <li><a href="/charts/best-selling-albums/">Best-Selling Albums</a></li>
+        <li><a href="/ether-art-chart/">Ether Art Chart</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Lyrical Charger">
+      <h2 class="footer-head">Lyrical Charger</h2>
+      <ul class="footer-links">
+        <li><a href="/lyrical-charger/">Lyrical Charger</a></li>
+        <li><a href="/lyrical-charger/activity/">Charger Activity</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Concept">
+      <h2 class="footer-head">Concept</h2>
+      <ul class="footer-links">
+        <li><a href="/methodology/">Methodology</a></li>
+        <li><a href="/methodology/calibrator-before-after/">Calibrator: Before &amp; After</a></li>
+        <li><a href="/tenets/">Tenets</a></li>
+        <li><a href="/amendments/">Amendments</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Framework">
+      <h2 class="footer-head">Framework</h2>
+      <ul class="footer-links">
+        <li><a href="/calibration-log/">Calibration Log</a></li>
+        <li><a href="/dev/">Dev Ledger</a></li>
+        <li><a href="https://status.risingcompass.net/">Status</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="Participate">
+      <h2 class="footer-head">Participate</h2>
+      <ul class="footer-links">
+        <li><a href="/subscribe/">Subscribe</a></li>
+        <li><a href="/account/">Account</a></li>
+        <li><a href="/motion-desk/">Motion Desk</a></li>
+      </ul>
+    </nav>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <div class="footer-bottom-inner">
+    <p class="footer-copy">&copy; 2026 The Rising Compass. All rights reserved.</p>
+    <nav class="footer-legal" aria-label="Site and legal">
+      <a href="/sponsors/">Sponsors</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="/terms.html">Terms</a>
+      <a href="/fair-use.html">Fair Use</a>
+      <a href="/sitemap.xml">Sitemap</a>
+      <a href="#" onclick="if(window.rcOpenCookiePrefs){rcOpenCookiePrefs();}return false;">Cookie preferences</a>
+    </nav>
+    </div>
+  </div>
+</footer>
+<script defer src="/js/consent.js"></script>
+<!-- /INCLUDE:footer -->
+<script defer src="/js/consent.js"></script>
+</body>
+</html>
