@@ -272,3 +272,58 @@ def clean_title_artist(title, artist):
     if not normalize_for_search(a):
         a = raw_artist
     return t.strip(), a.strip()
+
+
+def is_feeder_upload(title, artist):
+    """True when (title, artist) looks like a RAW platform-upload string -- the
+    YouTube/Shazam shape that mints cruft rows: an upload signal in the title
+    (Official Video/MV/Audio, Lyric Video, visualizer), a channel/label/VEVO/
+    '- Topic' artist, or a leading 'ARTIST - ' prefix that matches the credited
+    artist.
+
+    This gates DISPLAY cleaning (clean_feeder_display) so a normal chart entry
+    like 'GIRLS (feat. Kehlani)' -- which clean_title_artist WOULD strip the
+    feature paren from -- is left untouched: only genuine upload cruft is
+    rewritten. The clean *key* (canonical_key_clean) still collapses feature
+    parens for dedup; only the stored display string + exact key are protected.
+    Pure; no DB."""
+    t = title or ""
+    a = artist or ""
+    if _UPLOAD_SIGNAL_RE.search(t):
+        return True
+    if _VEVO_RE.search(a) or _TOPIC_RE.search(a) or _OFFICIAL_ARTIST_RE.search(a):
+        return True
+    if _primary_is_label_channel(a):
+        return True
+    if " - " in t:
+        prefix = t.split(" - ", 1)[0]
+        pn = normalize_for_search(prefix)
+        if pn and pn == normalize_for_search(_primary(clean_artist(a))):
+            return True
+    return False
+
+
+def clean_feeder_display(title, artist):
+    """Display-safe feeder cleaning for the write chokepoint.
+
+    Rewrites (title, artist) with clean_title_artist ONLY when it looks like raw
+    platform-upload cruft (is_feeder_upload); otherwise returns the raw strings
+    unchanged. This is what callers use to store a clean display title + clean
+    exact key for feeder rows, while leaving legitimate '(feat. X)' chart titles
+    exactly as the chart published them. Pure; no DB."""
+    if not is_feeder_upload(title, artist):
+        return (title or "").strip(), (artist or "").strip()
+    ct, ca = clean_title_artist(title, artist)
+    # Recover the real artist spelling from a leading "ARTIST - " title prefix.
+    # clean_artist strips a VEVO suffix but cannot re-space the channel handle
+    # ("OliviaRodrigoVEVO" -> "OliviaRodrigo"), which would mint a near-duplicate
+    # artist entity instead of matching "Olivia Rodrigo". When the title prefix
+    # normalizes to the same artist, adopt its spacing/casing. Same normalized
+    # canonical key (normalize drops spaces), so this only fixes the display +
+    # the artist entity the credit links to.
+    raw_t = title or ""
+    if " - " in raw_t:
+        prefix = raw_t.split(" - ", 1)[0].strip()
+        if prefix and normalize_for_search(prefix) == normalize_for_search(_primary(ca)):
+            ca = prefix
+    return ct.strip(), ca.strip()

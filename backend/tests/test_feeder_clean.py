@@ -15,7 +15,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services.feeder_clean import clean_title_artist
+from app.services.feeder_clean import (
+    clean_title_artist, is_feeder_upload, clean_feeder_display,
+)
 from app.services.song_identity import (
     compute_canonical_key,
     compute_canonical_key_clean,
@@ -192,6 +194,57 @@ def test_different_artist_same_title_stays_distinct():
     a = ("Hold On", "Justin Bieber")
     b = ("Hold On", "Wilson Phillips")
     assert compute_canonical_key_clean(*a) != compute_canonical_key_clean(*b)
+
+
+# --- feeder-display guard (is_feeder_upload / clean_feeder_display) ---------- #
+# These protect the STORED display title/artist at the write chokepoint: only a
+# raw platform-upload string is rewritten; a normal chart title is left verbatim.
+
+def test_feeder_upload_detected_for_cruft():
+    for t, a in [
+        ("Olivia Rodrigo - stupid song (Official Music Video)", "OliviaRodrigoVEVO"),
+        ("Olivia Rodrigo - honeybee (Lyric Video)", "Olivia Rodrigo"),
+        ("G Herbo - Mad People (Official Video)", "G Herbo"),
+        ("Espresso", "Sabrina Carpenter - Topic"),
+        ("ILLIT 'ICONIC BY MISTAKE' Official MV", "HYBE LABELS"),
+    ]:
+        assert is_feeder_upload(t, a), (t, a)
+
+
+def test_feeder_upload_not_flagged_for_clean_titles():
+    # Legit chart titles -- a feature paren, a remix tag, an apostrophe, a bare
+    # title -- must NOT be treated as upload cruft (so display is left intact).
+    for t, a in [
+        ("GIRLS (feat. Kehlani) - Remix", "The Kid LAROI, Kehlani"),
+        ("good 4 u", "Olivia Rodrigo"),
+        ("Somethin' Stupid", "Frank & Nancy Sinatra"),
+        ("Anti-Hero", "Taylor Swift"),
+    ]:
+        assert not is_feeder_upload(t, a), (t, a)
+
+
+def test_clean_feeder_display_leaves_feature_titles_verbatim():
+    # The display cleaner must be a no-op on a non-upload title: the feature paren
+    # stays (clean_title_artist WOULD strip it -- that is only for the dedup key).
+    pair = ("GIRLS (feat. Kehlani) - Remix", "The Kid LAROI, Kehlani")
+    assert clean_feeder_display(*pair) == pair
+
+
+def test_clean_feeder_display_recovers_vevo_artist_spacing():
+    # The VEVO channel cleans to a despaced "OliviaRodrigo"; the title prefix
+    # carries the real spacing, so the display artist must be "Olivia Rodrigo"
+    # (matching the existing artist entity, not minting "OliviaRodrigo").
+    ct, ca = clean_feeder_display(
+        "Olivia Rodrigo - stupid song (Official Music Video)", "OliviaRodrigoVEVO")
+    assert (ct, ca) == ("stupid song", "Olivia Rodrigo"), (ct, ca)
+
+
+def test_clean_feeder_display_same_key_as_raw():
+    # Whatever the display rewrite, the normalized canonical key is unchanged --
+    # cleaning never moves a feeder row onto a different identity.
+    raw = ("Olivia Rodrigo - stupid song (Official Music Video)", "OliviaRodrigoVEVO")
+    ct, ca = clean_feeder_display(*raw)
+    assert compute_canonical_key(ct, ca) == compute_canonical_key_clean(*raw)
 
 
 def _run():

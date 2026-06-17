@@ -29,7 +29,6 @@ from sqlalchemy.orm import Session
 from app.models import (
     CalibrationRun, SongRecalibration, Artist, SongArtist, Song,
 )
-from app.services.song_identity import compute_canonical_key
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +61,16 @@ def resolve_unified_song(
         if new_id:
             return db.query(Song).get(new_id)
     if title and artist:
-        key = compute_canonical_key(title, artist)
-        song = db.query(Song).filter(Song.canonical_key == key).first()
-        if song:
-            return song
+        # Full identity ladder (exact canonical_key -> cleaned key -> trgm dark),
+        # not just the exact key. After the feeder-cruft guard a re-entry's RAW
+        # string ("ARTIST - Title (Official Music Video)" / "...VEVO") no longer
+        # matches the now-clean stored row on the exact key, but the clean rung
+        # resolves it -- so the run ledger logs against the right song instead of
+        # missing and falling through. Credit-path stays the final fallback.
+        from app.services.song_identity import resolve_song_identity
+        res = resolve_song_identity(db, title, artist)
+        if res.song_id:
+            return db.query(Song).get(res.song_id)
         return _find_song_via_credits(db, title, artist)
     return None
 

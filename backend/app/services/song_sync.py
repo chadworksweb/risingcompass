@@ -63,6 +63,16 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
     title, artist = row.get("title"), row.get("artist")
     if not title or not artist:
         return None
+    # Feeder-cruft guard: the social-discovery feeds (source 'compass' =
+    # chart_reading: YouTube Trending, Shazam, iTunes, ...) carry raw upload
+    # strings ("ARTIST - Title (Official Music Video)" / "ARTISTVEVO"). Clean the
+    # DISPLAY title/artist here, at the sole songs INSERT, so the stored row +
+    # canonical_key + slug are clean instead of minting a cruft duplicate. No-op
+    # on already-clean strings and on normal "(feat. X)" titles (gated by
+    # is_feeder_upload). The clean key already dedups; this fixes the display.
+    if source == "compass":
+        from app.services.feeder_clean import clean_feeder_display
+        title, artist = clean_feeder_display(title, artist)
     key = compute_canonical_key(title, artist)
     clean_key = compute_canonical_key_clean(title, artist)
     method = _METHOD[source]
@@ -302,6 +312,19 @@ def store_calibrated_song(
     commit."""
     if calibration.get("rubric_color") is None:
         return None, False
+    # Feeder-cruft guard (mirrors upsert_unified_song): for chart feeds, clean the
+    # display title/artist AND re-derive the artist credits from the cleaned
+    # artist, so the song_artists link points at the real performer ("Olivia
+    # Rodrigo") instead of the upload channel ("OliviaRodrigoVEVO"). Done here so
+    # the `existed` resolution + the link below both use the clean identity. No-op
+    # on clean strings (is_feeder_upload gate); non-feeder sources untouched.
+    if source == "compass":
+        from app.services.feeder_clean import clean_feeder_display
+        ct, ca = clean_feeder_display(title, artist)
+        if (ct, ca) != (title, artist):
+            title, artist = ct, ca
+            from app.services.artist_linker import parse_artist_string
+            artist_entries = parse_artist_string(artist or "")
     # charge_summary absence/verdict-framing guard at the write chokepoint -- the
     # last net before persistence. Covers every writer (calibrator API path,
     # terminal-supplied backfill, Album Charger, library/manual admin). Non-
