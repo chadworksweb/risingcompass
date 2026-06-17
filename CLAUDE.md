@@ -1227,59 +1227,88 @@ runner applies only versions above the current max.)
   `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 2; session notes
   `2026-06-10b` / `2026-06-10c` / `2026-06-14`.
 
-## Social broadcaster (Hockey Stick Build 6, 2026-06-13) -- ships DARK
+## Social broadcaster (Hockey Stick Build 6, reoriented 2026-06-17) -- LIVE
 
-Automated own-account broadcast of RC's OWN verdicts (the only reach vector in the
-plan; the rest is organic-search pull). Posts the objective charge of whatever is
-trending TODAY + the daily-aggregate reading, to RC's own accounts, fanned out
-through ONE Buffer integration. Distinct from The Lookout (reactive, human-sent
-outreach): this is proactive publisher-posts-its-own-work, the most compliant
-automation there is. Package `app/services/social/`, router
-`routers/social_broadcast.py`, migration 121. Plan:
-`RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 6.
+Automated own-account broadcast of RC's OWN daily-chart readings (the only reach
+vector in the plan; the rest is organic-search pull). The most compliant
+automation there is: proactive publisher-posts-its-own-work, no scraping/DMs/
+individual outreach, no terminal Anthropic. Package `app/services/social/`,
+routers `social_broadcast.py` (cron + public card) + `social_admin.py` (admin),
+migration 121. Plan: `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 6.
 
-- **Ships DARK.** `settings.social_broadcast_enabled` (default false) + Buffer
-  config gate the push. Dark = the cron still selects, renders, stores the card,
-  and writes the ledger as `status='dark'`, but never calls Buffer -- so the whole
-  pipeline is verifiable before any account/credential exists. Go live = connect
-  the accounts to Buffer, set `BUFFER_ACCESS_TOKEN` + `BUFFER_PROFILE_IDS` (JSON
-  map platform->profile id), flip `SOCIAL_BROADCAST_ENABLED=true`.
-- **Card render = Playwright, NOT Pillow.** The card is authored once in JS
-  (`frontend/lyrical-charger/rc-charge-card-generator.js`: `RCChargeCard.render`
-  for per-song, `renderReading` for the daily aggregate -- same CRT chrome / badge
-  / wordmark). `frontend/cards/index.html` is the render surface: it draws either
-  card from `?type=song|reading` + `?data=<urlsafe-base64 JSON>` and exposes
-  `window.__cardReady` + `window.__cardPng()` (1080x1080 PNG data URL), doubling as
-  a human preview + PNG download. `services/social/card_render.py` drives headless
-  Chromium to that page and screenshots the canvas. The prod image already runs
-  `playwright install chromium` (Dockerfile), so no image change. Local: point
-  `CARD_RENDER_BASE_URL` at the dev server (e.g. http://localhost:3005).
-- **Selection** (`broadcaster.run_social_broadcast`): top-N (`SOCIAL_TRENDING_COUNT`,
-  default 3) trending CALIBRATED songs -- latest Shazam + YouTube `chart_snapshots`
-  resolved to `songs` via `find_song_by_title_artist`, dropped if uncalibrated /
-  instrumental / preorder, ranked by |charge_value| (the strongest verdict
-  travels), deduped against the ledger -- PLUS the latest `DailyReading` (skipped
-  if already broadcast). Corpus-hit only: no Opus spend, no auto-calibration.
-- **Ledger** (migration 121): `social_cards` (the rendered PNG, served public at
-  `GET /api/social/card/{token}.png` so Buffer can fetch the media; mounted
-  unauthed like geo/subscribe) + `social_posts` (one row per (item, platform),
-  UNIQUE `dedup_key` = `song:{id}:{platform}` | `reading:{date}:{platform}`).
-  Writes are an ON CONFLICT upsert that never overwrites a live (queued/posted)
-  row, so a dark row upgrades to a real post on a later configured run, and
-  re-runs are idempotent. Selection treats only queued/posted as "already
-  broadcast" -- dark rows stay selectable.
-- **Post text = locked "Plain instrument" voice** (Build 6 decision): per-song
-  `Rising Compass measured "{title}" by {artist}.` / `Charge: {+/-N} ({tier}).` /
-  UTM-tagged song link; reading = the parallel one-line measurement + the
-  daily-listens chart link. No editorializing (objectivity lock).
-- **Admin:** Site Admin -> Community -> **Broadcasts** (`routers/social_admin.py`,
-  `templates/admin/social.html`, section `social`). A LIVE/DARK config banner +
-  status stat-cards, and the ledger collapsed to one card per broadcast ITEM (the
-  rendered card thumbnail via the public route + the post text + a per-platform
-  status strip). "Run broadcast now" calls the same orchestrator (cookie auth).
-- **Cron:** `POST /api/admin/agent/cron/social-broadcast` (`X-Reading-Cron-Key`,
-  reuses the reading lane -- no new secret), script `deploy/social-broadcast.sh`,
-  intended droplet lane AFTER youtube (reading 08:00 -> itunes 09:00 -> shazam
-  10:00 -> youtube 11:00 -> social 12:00 UTC). Not yet in the server crontab.
-- **Compliance:** own-account broadcast of own corpus-hit content; no scraping,
-  no DMs, no individual outreach. No terminal Anthropic calls.
+**Reorientation (2026-06-17):** the original "top-3 trending songs + reading"
+model was dropped. The automated job is now the **daily charts only**; individual
+songs are posted by hand, off-platform. The classic Buffer REST API turned out to
+be closed to new accounts, so the client was rewritten to Buffer's GraphQL API.
+
+- **What it posts.** The day's card-ready daily charts, Daily Listens first:
+  Daily Listens (from the latest `DailyReading`, always the anchor -- no reading,
+  no run) plus Daily Downloads / Shazam / YouTube **only when published with
+  aggregates** (`ChartSnapshot.published` + `compass_degree` stamped at approval;
+  unapproved charts are gracefully skipped). `broadcaster._gather_charts`.
+- **Routing.** `CAROUSEL_PLATFORMS = (instagram, tiktok)` get a **carousel** of
+  all card-ready charts; every other platform (x/bluesky/threads/facebook) gets
+  the **single Daily Listens** card. `_platforms()` = configured channels.
+- **Buffer = GraphQL** (`services/social/buffer_client.py`). Targets
+  `https://api.buffer.com` (the classic `api.bufferapp.com/1` REST API is closed
+  to new accounts). Auth = a **personal API key** as `Authorization: Bearer`.
+  `post_items(items)` sends ONE `createPost` mutation per platform with
+  `schedulingType: automatic`, `mode: shareNow` (publish now), and an ordered
+  `assets:[{image:{url}}]` list (one image = single, several = carousel). Returns
+  `{posted:{platform:id}, errors:{platform:msg}}` -- per-platform failures are
+  collected, not fatal. **Per-service metadata** via `_platform_metadata`:
+  Instagram REQUIRES `{instagram:{type:"post", shouldShareToFeed:true}}`; other
+  services send none (TikTok's photo-post metadata is unverified -- confirm at
+  first TikTok run, same way IG needed type/shouldShareToFeed).
+- **Card render = Playwright** screenshot of `frontend/cards/index.html`
+  (`?type=reading&data=<urlsafe-b64>`, exposes `window.__cardReady`/`__cardPng()`).
+  `services/social/card_render.py` drives headless Chromium (prod image runs
+  `playwright install chromium`). The broadcaster renders one card per chart
+  (kicker = DAILY LISTENS / DAILY DOWNLOADS / SHAZAM / YOUTUBE) and **commits the
+  `social_cards` row BEFORE pushing** so the public card URL is fetchable by
+  Buffer cross-session (an uncommitted row 404s -> image fetch fails).
+- **Card generator is FORKED.** Broadcast cards use
+  `frontend/cards/rc-charge-card-generator-social.js` (`window.RCSocialCard`):
+  **3:4 portrait (1080x1440)** to match the Instagram profile-grid thumbnail crop,
+  border drawn **flush to the edge**, 2.3x chart kicker, two-line date, no
+  songs/contaminated meta line, summary up to 6 lines, a centered "View full chart
+  at risingcompass.net" CTA box under the 5th song + centered compass wordmark
+  (no url line). The PUBLIC song-page / Lyrical Charger share card
+  (`frontend/lyrical-charger/rc-charge-card-generator.js`, `RCChargeCard`) is
+  **unchanged (1:1)** -- the fork exists precisely so broadcast tweaks never touch
+  it. The fork lives UNDER `/cards/` on purpose (see Cloudflare note below).
+- **Captions: objective, data-only, per channel** (`broadcaster`). Carousel
+  (IG/TikTok): date header + one line per published chart (`Daily Listens: -14
+  (Degraded)`) + "Full readings: link in bio." + hashtags. Single Daily Listens
+  (clickable-link platforms): the measurement line + `N measured, M contaminated`
+  + a UTM `/charts/daily-listens/` link (+ `#RisingCompass` on x/bluesky). No
+  editorializing.
+- **Ledger** (migration 121): `social_cards` (rendered PNG, served public at
+  `GET /api/social/card/{token}.png`, mounted unauthed) + `social_posts` (one row
+  per platform). `dedup_key` per date: `charts:{date}:{platform}` (carousel) |
+  `reading:{date}:{platform}` (single). ON CONFLICT upsert never overwrites a live
+  (queued/posted) row; a same-day re-run is a no-op. Per-platform `status`
+  posted/error/dark. (A carousel row stores the Daily Listens card as its
+  `card_token` thumbnail; the multiple images are assembled at post time.)
+- **Trigger: MANUAL, no cron.** Chad approves the day's charts, then Site Admin ->
+  Community -> **Broadcasts** -> "Run broadcast now" (`social_admin`, cookie auth).
+  The cron endpoint `POST /api/admin/agent/cron/social-broadcast`
+  (`X-Reading-Cron-Key`) still exists and is reused for manual server triggers,
+  but `deploy/social-broadcast.sh` is intentionally NOT in the crontab.
+- **Cloudflare gotcha (important).** `risingcompass.net` is behind Cloudflare,
+  which edge-caches the card JS and throws a managed challenge at `/cards/`. Two
+  zone rules fix it: a **Cache Rule** (bypass cache) and a **WAF Skip rule** for
+  `starts_with(path,"/cards/") or path eq "/lyrical-charger/rc-charge-card-
+  generator.js"`. The broadcast fork is kept UNDER `/cards/` so the bypass covers
+  it -- otherwise the edge serves a stale card and design edits never appear.
+  Headless Chromium passes the managed challenge, so renders work regardless.
+- **Env (prod `.env` + docker-compose passthrough):** `SOCIAL_BROADCAST_ENABLED=
+  true`, `BUFFER_ACCESS_TOKEN` (personal GraphQL key), `BUFFER_PROFILE_IDS` (JSON
+  platform->Buffer CHANNEL id), `BUFFER_API_BASE` (default `https://api.buffer.com`),
+  `CARD_RENDER_BASE_URL` / `SOCIAL_LINK_BASE` (default `https://risingcompass.net`).
+  Get channel ids by querying the Buffer GraphQL `account{organizations{id}}` then
+  `channels(input:{organizationId})`.
+- **Status:** LIVE 2026-06-17 on **X + Instagram** (the two connected channels).
+  Bluesky / Threads / TikTok / Facebook not yet connected to Buffer -- add their
+  channel ids to `BUFFER_PROFILE_IDS` when connected (carousel auto-extends to
+  TikTok; the rest take the single Daily Listens).
