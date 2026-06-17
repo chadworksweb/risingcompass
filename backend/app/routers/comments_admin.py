@@ -27,6 +27,7 @@ from app.auth import require_admin_session
 from app.database import get_db
 from app.models import Comment, CommentReport, ModerationEvent, User
 from app.services import clerk as clerk_svc
+from app.services.feature_flags import is_comments_disabled, set_comments_disabled
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,38 @@ def _get_comment_or_404(db: Session, comment_id: int) -> Comment:
     if comment is None:
         raise HTTPException(status_code=404, detail="Comment not found")
     return comment
+
+
+# ---------- dark switch (Discussion kill switch) ----------
+
+class CommentsStatusOut(BaseModel):
+    disabled: bool
+
+
+class CommentsToggleIn(BaseModel):
+    disabled: bool
+
+
+@router.get("/status", response_model=CommentsStatusOut)
+def comments_status(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin_session),
+):
+    """Current Discussion open/closed state (fail-closed flag)."""
+    return CommentsStatusOut(disabled=is_comments_disabled(db))
+
+
+@router.post("/toggle", response_model=CommentsStatusOut)
+def comments_toggle(
+    payload: CommentsToggleIn,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin_session),
+):
+    """Open / close public Discussion site-wide. Closed hides the widget on
+    every song + artist page and 503s writes. Mirrors the Album Charger
+    toggle; takes effect immediately (next page load / availability check)."""
+    set_comments_disabled(db, payload.disabled)
+    return CommentsStatusOut(disabled=is_comments_disabled(db))
 
 
 # ---------- queue ----------

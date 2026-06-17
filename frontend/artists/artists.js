@@ -238,7 +238,8 @@
       if (data && data.id && typeof Comments !== 'undefined') {
         const cmtEl = document.getElementById('artist-comments');
         if (cmtEl) {
-          cmtEl.hidden = false;
+          // Mount owns visibility: checks the Discussion dark switch and unhides
+          // only when open (stays hidden/dark when closed).
           Comments.mount(cmtEl, {
             targetType: 'artist',
             targetSource: null,

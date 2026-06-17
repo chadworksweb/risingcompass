@@ -28,7 +28,19 @@
   .cmt-report-row .reason { font-weight: 600; color: var(--text); margin-right: 0.4rem; }
   .cmt-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.4rem; }
   .cmt-actions button { padding: 0.25rem 0.7rem; font-size: 0.78rem; }
+  .disc-toggle-card { display:flex; align-items:center; justify-content:space-between; gap:1rem; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 6px; padding: 0.85rem 1rem; margin-bottom: 1rem; }
+  .disc-toggle-card.is-closed { border-left: 3px solid var(--tier-orange); }
+  .disc-toggle-card.is-open { border-left: 3px solid var(--accent, #00a884); }
+  .disc-toggle-sub { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.15rem; }
 </style>
+
+<div class="disc-toggle-card" id="discToggleCard">
+  <div>
+    <strong>Discussion (public comments)</strong>
+    <div class="disc-toggle-sub" id="discStatusText">Loading status...</div>
+  </div>
+  <button class="btn-sm" id="discToggleBtn" disabled>...</button>
+</div>
 
 <div class="filter-bar" id="cmtFilters">
   <button class="filter-btn active" data-filter="reported">Reported</button>
@@ -55,7 +67,50 @@ function onAdminReady() {
       loadQueue();
     });
   });
+  loadDiscussionStatus();
   loadQueue();
+}
+
+// --- Discussion dark switch (fail-closed; mirrors the Album Charger toggle) ---
+function renderDiscussionToggle(disabled) {
+  const card = document.getElementById('discToggleCard');
+  const txt = document.getElementById('discStatusText');
+  const btn = document.getElementById('discToggleBtn');
+  card.classList.toggle('is-closed', disabled);
+  card.classList.toggle('is-open', !disabled);
+  txt.textContent = disabled
+    ? 'Closed -- the Discussion panel is hidden on every song & artist page.'
+    : 'Open -- the Discussion panel is live on song & artist pages.';
+  btn.textContent = disabled ? 'Open Discussion' : 'Close Discussion';
+  btn.disabled = false;
+  btn.onclick = () => toggleDiscussion(!disabled);
+}
+
+async function loadDiscussionStatus() {
+  try {
+    const resp = await adminFetch('/api/admin/comments/status');
+    if (!resp.ok) throw new Error(await resp.text());
+    renderDiscussionToggle((await resp.json()).disabled);
+  } catch (err) {
+    document.getElementById('discStatusText').textContent = 'Could not load status.';
+  }
+}
+
+async function toggleDiscussion(disabled) {
+  const btn = document.getElementById('discToggleBtn');
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/admin/comments/toggle', {
+      method: 'POST', headers: adminHeaders(), body: JSON.stringify({ disabled }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderDiscussionToggle(data.disabled);
+    showMsg(document.getElementById('cmtStatus'), `Discussion ${data.disabled ? 'closed' : 'opened'}.`, 'success');
+  } catch (err) {
+    showMsg(document.getElementById('cmtStatus'), err.message || String(err), 'error');
+    btn.disabled = false;
+  }
 }
 
 async function loadQueue() {

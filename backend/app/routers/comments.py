@@ -29,6 +29,7 @@ from app.auth import require_clerk_user, optional_clerk_user
 from app.database import get_db
 from app.models import Comment, User
 from app.services import comments as comments_svc
+from app.services.feature_flags import is_comments_disabled
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,25 @@ def _validate_target_query(target_type: str, target_source: Optional[str]) -> No
     comments_svc.validate_target(target_type, target_source)
 
 
+def _check_comments_enabled_or_503(db: Session) -> None:
+    """Block writes while Discussion is closed (the fail-closed dark switch).
+    Defense-in-depth: the widget already hides itself via /availability."""
+    if is_comments_disabled(db):
+        raise HTTPException(status_code=503, detail="Discussion is closed right now.")
+
+
 # ---------- endpoints ----------
+
+class AvailabilityOut(BaseModel):
+    enabled: bool
+
+
+@router.get("/availability", response_model=AvailabilityOut)
+def availability(db: Session = Depends(get_db)):
+    """Public, auth-free gate for the Discussion widget (mirrors the Album
+    Charger config check). When enabled=false the frontend leaves the widget
+    hidden (dark). Fail-closed: absent flag => disabled."""
+    return AvailabilityOut(enabled=not is_comments_disabled(db))
 
 @router.get("", response_model=ThreadListOut)
 def list_threads(
@@ -183,6 +202,11 @@ def list_threads(
       most_active   -- thread roots by max(reply.created_at) DESC
     """
     _validate_target_query(target_type, target_source)
+
+    # Dark switch: when Discussion is closed, read as empty (the widget hides
+    # itself via /availability; this keeps direct reads consistent).
+    if is_comments_disabled(db):
+        return ThreadListOut(threads=[], total_threads=0, total_comments=0)
 
     target_filter = and_(
         Comment.target_type == target_type,
@@ -280,6 +304,7 @@ def post_comment(
     db: Session = Depends(get_db),
     user: User = Depends(require_clerk_user),
 ):
+    _check_comments_enabled_or_503(db)
     _require_handle(user)
     comment = comments_svc.create_top_level(
         db=db,
@@ -299,6 +324,7 @@ def post_reply(
     db: Session = Depends(get_db),
     user: User = Depends(require_clerk_user),
 ):
+    _check_comments_enabled_or_503(db)
     _require_handle(user)
     reply = comments_svc.create_reply(db, user, comment_id, payload.content)
     return _serialize(reply, user, user)
@@ -316,6 +342,7 @@ def post_report(
     db: Session = Depends(get_db),
     user: User = Depends(require_clerk_user),
 ):
+    _check_comments_enabled_or_503(db)
     _require_handle(user)
     _, auto_hidden = comments_svc.file_report(
         db=db,

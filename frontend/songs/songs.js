@@ -104,7 +104,8 @@
       if (song.song_source && song.song_id && typeof Comments !== 'undefined') {
         const cmtEl = document.getElementById('song-comments');
         if (cmtEl) {
-          cmtEl.hidden = false;
+          // Mount owns visibility: it checks the Discussion dark switch and
+          // unhides only when open (stays hidden/dark when closed).
           Comments.mount(cmtEl, {
             targetType: 'song',
             targetSource: song.song_source,

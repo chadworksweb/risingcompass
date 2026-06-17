@@ -495,11 +495,28 @@ const Comments = (() => {
     }
   }
 
+  // Dark-switch gate (mirrors the Album Charger config check). A fail-closed
+  // availability flag, fetched WITHOUT auth so it is independent of Clerk. When
+  // Discussion is closed, the container is left hidden (dark) and nothing
+  // mounts. The caller no longer pre-unhides -- visibility is owned here.
   function mount(container, opts) {
     if (!container) throw new Error('Comments.mount: container required');
     if (!opts || !opts.targetType || !opts.targetId) {
       throw new Error('Comments.mount: targetType + targetId required');
     }
+    (async () => {
+      let enabled = false;
+      try {
+        const r = await fetch(`${API_BASE}/api/comments/availability`);
+        enabled = r.ok && ((await r.json()).enabled === true);
+      } catch (_) { enabled = false; }
+      if (!enabled) { container.hidden = true; return; }
+      container.hidden = false;
+      _mountEnabled(container, opts);
+    })();
+  }
+
+  function _mountEnabled(container, opts) {
     container.innerHTML = '';
     container.classList.add('rc-comments');
 

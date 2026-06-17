@@ -136,6 +136,29 @@ def set_album_charger_disabled_message(db: Session, message: str | None) -> None
     db.commit()
 
 
+# --- Discussion (public per-song/artist comments) kill switch --------------
+# Closes the public Discussion widget on song + artist pages. Fails CLOSED --
+# an absent flag means disabled, so Discussion ships DARK until an admin opens
+# it (no users yet). Mirrors album_charger.disabled / launch.locked. The widget
+# checks /api/comments/availability and stays hidden when closed; writes 503.
+
+COMMENTS_DISABLED_KEY = "comments.disabled"
+
+
+def is_comments_disabled(db: Session) -> bool:
+    # Absent flag -> disabled (fail closed). Only an explicit "false" opens it.
+    return (_get_flag(db, COMMENTS_DISABLED_KEY) or "true").lower() == "true"
+
+
+def set_comments_disabled(db: Session, disabled: bool) -> None:
+    row = db.query(SystemFlag).filter(SystemFlag.key == COMMENTS_DISABLED_KEY).first()
+    if row:
+        row.value = "true" if disabled else "false"
+    else:
+        db.add(SystemFlag(key=COMMENTS_DISABLED_KEY, value="true" if disabled else "false"))
+    db.commit()
+
+
 # --- Lyrical Charger daily rate limits -------------------------------------
 # Per-IP (anon) and per-user (signed-in) daily caps for the calibrate-*
 # endpoints, tunable from the LC admin section. Stored as text in
