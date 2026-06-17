@@ -232,7 +232,7 @@
     try {
       renderBreakdown(data.stats);
     } catch (err) { console.error('renderBreakdown failed:', err); }
-    // Lobby comments anchored on the artist row. Needs the integer id
+    // Discussion comments anchored on the artist row. Needs the integer id
     // returned by the summary endpoint (added 2026-05-19).
     try {
       if (data && data.id && typeof Comments !== 'undefined') {

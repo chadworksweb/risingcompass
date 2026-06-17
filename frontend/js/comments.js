@@ -1,4 +1,4 @@
-/* === Public Participation Lobby comment widget ===
+/* === Public Participation Discussion comment widget ===
 
    Mount onto any container with:
 
@@ -530,7 +530,7 @@ const Comments = (() => {
     function renderHeader(totalComments, totalThreads) {
       headerEl.innerHTML = '';
       const title = el('h2', { class: 'rc-cmt-title' },
-        totalComments === 0 ? 'Lobby' : `Lobby (${totalComments})`);
+        totalComments === 0 ? 'Discussion' : `Discussion (${totalComments})`);
       const sortSel = el('select', {
         class: 'rc-cmt-sort', 'aria-label': 'Sort comments',
         onchange: (ev) => { sort = ev.target.value; reload(); },

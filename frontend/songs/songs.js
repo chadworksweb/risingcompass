@@ -98,7 +98,7 @@
           .then(block => { if (block) renderArtistVerifiedBlock(block); })
           .catch(err => console.warn('Artist verified block unavailable:', err));
       }
-      // Lobby comments -- only mountable when we have a polymorphic (source, id)
+      // Discussion comments -- only mountable when we have a polymorphic (source, id)
       // pair. Songs without a compass/library mapping have no stable id to
       // anchor a thread to, so the section stays hidden.
       if (song.song_source && song.song_id && typeof Comments !== 'undefined') {

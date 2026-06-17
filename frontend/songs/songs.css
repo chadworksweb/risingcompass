@@ -374,16 +374,25 @@
 /* Full-bleed cards span their whole row regardless of siblings. */
 .song-row > .song-section--full { flex-basis: 100%; }
 
-/* Comments sit at 3/4 width, centred in the dashboard column. Higher
-   specificity + max-width:none to beat the 760px cap in comments.css
-   (which is linked after songs.css). */
-.song-main > #song-comments {
-  width: 75%;
+/* Discussion -- nested panel at the foot of the Audience Vibe section. The
+   comments widget mounts into #song-comments (which also gets .rc-comments from
+   comments.js), so the panel chrome rides the same element. id+class specificity
+   beats the .rc-comments 760px/centred defaults in comments.css. */
+#song-comments.vibe-discussion {
+  margin: var(--rc-gap-panel) 0 0;
   max-width: none;
-  align-self: center;
+  padding: var(--rc-card-padding);
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
 }
-@media (max-width: 768px) {
-  .song-main > #song-comments { width: 100%; }
+/* The widget's own header already carries a bottom rule; stop the section-h2
+   treatment (size + underline) from doubling up on the "Discussion" title. */
+#song-comments .rc-cmt-title {
+  font-size: 1.1rem;
+  margin: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .song-section h2:not(.song-page-title) {

@@ -1,4 +1,4 @@
-/* Public Participation Lobby comments. Mounted into per-page containers
+/* Public Participation Discussion comments. Mounted into per-page containers
    via Comments.mount(el, opts). Inherits the global :root tokens from
    main.css so it matches the surrounding page. */
 

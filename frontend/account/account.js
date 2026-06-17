@@ -250,7 +250,7 @@
     }
     if (el.notifMarkRead) el.notifMarkRead.hidden = unread === 0;
     if (!items.length) {
-      el.notifState.textContent = 'No notifications yet. Replies and @mentions in the Lobby show up here.';
+      el.notifState.textContent = 'No notifications yet. Replies and @mentions show up here.';
       return;
     }
     el.notifState.hidden = true;

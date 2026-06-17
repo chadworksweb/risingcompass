@@ -185,7 +185,7 @@ def emit_comment_created(*, handle: str, target_type: str, target_source: Option
       <blockquote style="margin:0 0 16px;padding:10px 14px;background:#f7f7f9;border-left:3px solid #008f72;border-radius:0 4px 4px 0;font-size:14px;color:#333;white-space:pre-wrap;">{escape(snippet)}</blockquote>
       <p style="margin:0;font-size:13px;color:#555;">
         Comment #{comment_id} &middot;
-        <a href="{site}/api/admin/dashboard/lobby-mod" style="color:#008f72;">Lobby Mod queue</a>
+        <a href="{site}/api/admin/dashboard/lobby-mod" style="color:#008f72;">Moderation queue</a>
       </p>
     </div>
     """

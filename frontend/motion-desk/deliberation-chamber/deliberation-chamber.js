@@ -227,7 +227,7 @@
       : esc(a.author_anon_id || 'unknown');
     // The Chamber shows the verified legal name when the author consented
     // to public display; the handle drops to a secondary line. Otherwise
-    // the handle is the author identity (same as Lobby/Misread).
+    // the handle is the author identity (same as Discussion/Misread).
     const author = a.author_legal_name
       ? `${esc(a.author_legal_name)}<span class="dc-post-handle">${handleText}</span>`
       : handleText;

@@ -641,6 +641,10 @@
           <p>So a single "push lower" on a song with few votes moves the needle a little (often a point or two), not all the way down &mdash; and it can never run away.</p>
         </div>
       </details>
+
+      <!-- Discussion -- nested panel at the foot of Audience Vibe; the comments
+           widget mounts into #song-comments after the song resolves (songs.js). -->
+      <div id="song-comments" class="vibe-discussion" hidden></div>
     </section>
 
     <!-- Section: Calibration Log — unified per-song history (recalibrations + pre-publish corrections) -->
@@ -694,9 +698,6 @@
     <div class="rc-subscribe" data-source="song_page"
          data-heading="Follow the readings"
          data-blurb="Get the daily reading straight to your inbox."></div>
-
-    <!-- Lobby comments -- mounted by songs.js after the song resolves. -->
-    <section id="song-comments" class="song-section song-section--full" hidden></section>
 
     <!-- Terminal state: song not found, or a load failure. Copy + actions are
          set by songs.js depending on which one it is. -->
