@@ -55,9 +55,10 @@ mutation CreatePost($channelId: ChannelId!, $text: String!, $assets: [AssetInput
 
 def _platform_metadata(platform: str) -> dict | None:
     """Per-service createPost metadata. Instagram requires an explicit post type
-    (post|story|reel); a plain feed image is `post`. Others need none (so far)."""
+    (post|story|reel; a plain feed image is `post`) AND shouldShareToFeed (a
+    required Boolean -- true publishes to the main feed). Others need none (so far)."""
     if platform == "instagram":
-        return {"instagram": {"type": "post"}}
+        return {"instagram": {"type": "post", "shouldShareToFeed": True}}
     return None
 
 
