@@ -60,12 +60,13 @@ services:
       - PROVENANCE_BLOCK_EXPLORER=${PROVENANCE_BLOCK_EXPLORER:-https://blockstream.info/block-height/}
       # Build 6 social broadcaster. Ships DARK: with SOCIAL_BROADCAST_ENABLED
       # unset/false (or Buffer unconfigured) the cron selects/renders/ledgers but
-      # never pushes. BUFFER_PROFILE_IDS is a JSON map platform->Buffer profile id.
+      # never pushes. BUFFER_PROFILE_IDS is a JSON map platform->Buffer channel id.
+      # BUFFER_ACCESS_TOKEN is a personal Buffer GraphQL API key (Bearer).
       # CARD_RENDER_BASE_URL is where /cards/ is served for the Playwright shot.
       - SOCIAL_BROADCAST_ENABLED=${SOCIAL_BROADCAST_ENABLED:-false}
       - BUFFER_ACCESS_TOKEN=${BUFFER_ACCESS_TOKEN}
       - BUFFER_PROFILE_IDS=${BUFFER_PROFILE_IDS}
-      - BUFFER_API_BASE=${BUFFER_API_BASE:-https://api.bufferapp.com/1}
+      - BUFFER_API_BASE=${BUFFER_API_BASE:-https://api.buffer.com}
       - CARD_RENDER_BASE_URL=${CARD_RENDER_BASE_URL:-https://risingcompass.net}
       - SOCIAL_LINK_BASE=${SOCIAL_LINK_BASE:-https://risingcompass.net}
       - SOCIAL_TRENDING_COUNT=${SOCIAL_TRENDING_COUNT:-3}

@@ -249,21 +249,29 @@ async def _broadcast_item(db, *, kind: str, card_type: str, card_scope_ref: str,
     image_url = _card_url(token)
 
     ext: dict[str, str] = {}
-    status = "dark"
-    posted_at = None
+    errs: dict[str, str] = {}
     if configured:
         pmap = buffer_client.profile_map()
         profile_ids = [pmap[p] for p in platforms if p in pmap]
         resp = await buffer_client.create_update(post_text, image_url, profile_ids)
         ext = buffer_client.map_updates_to_platforms(resp, platforms)
-        status = "queued"
-        posted_at = datetime.utcnow()
+        errs = buffer_client.map_errors_to_platforms(resp)
 
+    now = datetime.utcnow()
     for p in platforms:
         if kind == "song":
             dedup_key = f"song:{song_id}:{p}"
         else:
             dedup_key = f"reading:{reading_date.isoformat()}:{p}"
+        # Per-platform outcome: dark when unconfigured; posted when Buffer
+        # returned a post id; error otherwise (so a failed channel stays
+        # non-live and is re-selected on the next run rather than looking sent).
+        if not configured:
+            p_status, p_ext, p_err, p_posted = "dark", None, None, None
+        elif p in ext:
+            p_status, p_ext, p_err, p_posted = "posted", ext[p], None, now
+        else:
+            p_status, p_ext, p_err, p_posted = "error", None, errs.get(p, "buffer push failed"), None
         _upsert_post(
             db,
             scope=kind,
@@ -276,14 +284,23 @@ async def _broadcast_item(db, *, kind: str, card_type: str, card_scope_ref: str,
             charge_value=charge_value,
             tier=tier,
             trending_source=trending_source,
-            post_external_id=ext.get(p),
-            status=status,
-            error=None,
-            posted_at=posted_at,  # set only when pushed (queued); None when dark
+            post_external_id=p_ext,
+            status=p_status,
+            error=p_err,
+            posted_at=p_posted,
         )
     db.commit()
-    return {"kind": kind, "ref": card_scope_ref, "status": status,
-            "platforms": platforms, "card_token": token}
+    if not configured:
+        item_status = "dark"
+    elif ext and not errs:
+        item_status = "posted"
+    elif ext:
+        item_status = "partial"
+    else:
+        item_status = "error"
+    return {"kind": kind, "ref": card_scope_ref, "status": item_status,
+            "platforms": platforms, "pushed": sorted(ext.keys()),
+            "failed": sorted(errs.keys()), "card_token": token}
 
 
 async def run_social_broadcast(trigger: str = "cron") -> dict:
@@ -339,7 +356,12 @@ async def run_social_broadcast(trigger: str = "cron") -> dict:
                         platforms=platforms,
                     )
                 summary["items"].append(result)
-                summary["pushed" if configured else "dark"] += 1
+                if result["status"] == "dark":
+                    summary["dark"] += 1
+                elif result["status"] == "error":
+                    summary["errors"] += 1
+                else:  # posted / partial -> at least one channel landed
+                    summary["pushed"] += 1
             except Exception as exc:
                 db.rollback()
                 logger.exception("social broadcast item failed (%s)", kind)

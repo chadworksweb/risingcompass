@@ -198,14 +198,17 @@ class Settings(BaseSettings):
     # verifiable before any account/credential exists. Flip enabled True and set
     # the Buffer token + profile map to go live.
     social_broadcast_enabled: bool = False
-    # Buffer push. access_token = a personal Buffer access token; profile_ids =
-    # a JSON map of platform -> Buffer profile id, e.g.
+    # Buffer push targets the current Buffer GraphQL API (api.buffer.com). The
+    # classic REST API (api.bufferapp.com/1/updates/create) no longer issues
+    # credentials for new accounts, so the client posts via GraphQL with a
+    # personal API key (public beta). access_token = that Bearer key;
+    # profile_ids = a JSON map of platform -> Buffer CHANNEL id (the GraphQL
+    # successor to "profile"), e.g.
     # {"x":"abc","bluesky":"def","threads":"...","instagram":"...","tiktok":"...","facebook":"..."}.
-    # Verify the exact endpoint/token shape against Buffer's current API at
-    # connect time (the plan flags the Free-plan channel cap too).
+    # The Free-plan channel cap still applies; six channels likely needs a paid tier.
     buffer_access_token: str = ""
-    buffer_profile_ids: str = ""  # JSON: {platform: profile_id}
-    buffer_api_base: str = "https://api.bufferapp.com/1"
+    buffer_profile_ids: str = ""  # JSON: {platform: channel_id}
+    buffer_api_base: str = "https://api.buffer.com"
     # Where frontend/cards/ is served for the Playwright screenshot. Prod = the
     # deployed static site; local points at the dev server (e.g.
     # http://localhost:3005). The cron navigates {base}/cards/?type=...&data=...
