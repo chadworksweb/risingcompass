@@ -378,6 +378,17 @@
     return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 
+  // Date split into two lines: day-of-week, then "Month D, YYYY".
+  function formatDateParts(dateStr) {
+    if (!dateStr) return { dow: '', mdy: '' };
+    var d = new Date(String(dateStr) + 'T00:00:00');
+    if (isNaN(d.getTime())) return { dow: String(dateStr), mdy: '' };
+    return {
+      dow: d.toLocaleDateString('en-US', { weekday: 'long' }),
+      mdy: d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+    };
+  }
+
   // Signed compass score from a 0..180 degree (0deg = +100, 90deg = 0,
   // 180deg = -100). Mirrors chart-shell.degreeToScore + charge_calc.py.
   function degreeToScore(degree) {
@@ -411,7 +422,7 @@
       '  ·  ' + contam + ' contaminated';
     return {
       hex: hex, label: label, score: score, scoreStr: scoreStr,
-      dateLong: formatLongDate(r.date),
+      dateParts: formatDateParts(r.date),
       editorial: (r.editorial && String(r.editorial).trim()) ? String(r.editorial).trim() : '',
       metaStr: metaStr, songs: songs, songCount: songCount,
       // Chart kicker (top-left label). Defaults to DAILY LISTENS so the daily
@@ -521,32 +532,31 @@
     var badgeBottom = tileY + tile + 92;
     ctx.textAlign = 'left';
 
-    // ----- Left column: kicker, date, meta -----
+    // ----- Left column: kicker (2.3x), date (two lines), meta -----
     var colW = tileX - leftX - 30;
+    var kickSize = 60; // ~2.3x the prior 26px chart kicker
     ctx.fillStyle = hexToRgba(v.hex, 0.92);
-    ctx.font = '700 26px "JetBrains Mono"';
+    ctx.font = '700 ' + kickSize + 'px "JetBrains Mono"';
     setLS(ctx, 3);
-    ctx.fillText(v.kicker, leftX, P + 22);
+    var kickBaseline = P + kickSize - 8;
+    ctx.fillText(v.kicker, leftX, kickBaseline);
     setLS(ctx, 0);
 
-    var dFit = fitText(ctx, v.dateLong, '"Inter"', '700', colW, 2, 56, 40);
-    var dy = P + 22 + 34 + dFit.size;
+    // Date: day-of-week on its own line, then "Month D, YYYY" below it.
+    var dateSize = 56, dateLH = Math.round(dateSize * 1.18);
     ctx.fillStyle = '#f4f4fa';
-    ctx.font = '700 ' + dFit.size + 'px "Inter"';
-    for (var i = 0; i < dFit.lines.length; i++) {
-      ctx.fillText(dFit.lines[i], leftX, dy + i * dFit.lineHeight);
-    }
-    var leftBottom = dy + (dFit.lines.length - 1) * dFit.lineHeight;
+    ctx.font = '700 ' + dateSize + 'px "Inter"';
+    var dowY = kickBaseline + 44 + dateSize;
+    ctx.fillText(ellipsize(ctx, v.dateParts.dow, colW), leftX, dowY);
+    ctx.fillText(ellipsize(ctx, v.dateParts.mdy, colW), leftX, dowY + dateLH);
+    var leftBottom = dowY + dateLH;
 
-    ctx.fillStyle = '#9a9ab0';
-    ctx.font = '400 30px "Inter"';
-    ctx.fillText(v.metaStr, leftX, leftBottom + 50);
-    leftBottom += 50;
-
-    // ----- Editorial: the day's statement, full width -----
-    var y = Math.max(leftBottom, badgeBottom) + 64;
+    // ----- Editorial: the day's statement, full width. No songs/contaminated
+    // meta line -- the summary takes that space and gets more lines, since it
+    // can run long. -----
+    var y = Math.max(leftBottom, badgeBottom) + 40;
     if (v.editorial) {
-      var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 3, 44, 30);
+      var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 6, 42, 28);
       y += eFit.size;
       ctx.fillStyle = '#e8e8f0';
       ctx.font = '600 ' + eFit.size + 'px "Inter"';
@@ -556,61 +566,94 @@
       y += (eFit.lines.length - 1) * eFit.lineHeight;
     }
 
-    // ----- Top-5 song list -----
+    // ----- Top-5 song list (text groups 1.5x, with row margin) -----
     var rows = v.songs.slice(0, 5);
-    var brandTop = H - P - 44 - 40; // keep clear of the bottom brand block
-    var listTop = y + 64;
-    var rowH = 64;
-    // Never let the list cross the brand block. First pull the list up toward
-    // the editorial; if it still cannot fit (pathologically long editorial),
-    // shrink the row height so every row fits the available band instead of
-    // overlapping the footer.
+    // Reserve the bottom band for the CTA box + centered brand (no url line).
+    var bottomReserve = 250;
+    var brandTop = H - bottomReserve;
+    var listTop = y + 48;
+    var rowH = 100; // title/artist group + bottom margin
     if (listTop + rows.length * rowH > brandTop) {
-      listTop = Math.max(y + 36, brandTop - rows.length * rowH);
+      listTop = Math.max(y + 32, brandTop - rows.length * rowH);
     }
     if (rows.length && listTop + rows.length * rowH > brandTop) {
-      rowH = Math.max(48, Math.floor((brandTop - listTop) / rows.length));
+      rowH = Math.max(82, Math.floor((brandTop - listTop) / rows.length));
     }
     for (var ri = 0; ri < rows.length; ri++) {
       var s = rows[ri];
       var ry = listTop + ri * rowH;
       var sHex = TIER_HEX[s.rubric_color] || '#6a6a82';
+      var dim = (s.instrumental || s.preorder);
       // position
       ctx.fillStyle = '#9a9ab0';
-      ctx.font = '700 30px "JetBrains Mono"';
+      ctx.font = '700 34px "JetBrains Mono"';
       ctx.textAlign = 'left';
       var posStr = String(s.position == null ? ri + 1 : s.position) + (s.position_letter || '');
-      ctx.fillText(posStr, leftX, ry + 30);
+      ctx.fillText(posStr, leftX, ry + 40);
       // tier dot
       ctx.beginPath();
-      ctx.arc(leftX + 62, ry + 20, 9, 0, Math.PI * 2);
-      ctx.fillStyle = (s.instrumental || s.preorder) ? '#6a6a82' : sHex;
+      ctx.arc(leftX + 66, ry + 30, 11, 0, Math.PI * 2);
+      ctx.fillStyle = dim ? '#6a6a82' : sHex;
       ctx.fill();
       // charge (right)
       var chargeStr = '';
       if (s.preorder) chargeStr = 'Pre';
       else if (s.instrumental) chargeStr = 'Instr';
       else if (s.charge_value != null) chargeStr = (s.charge_value > 0 ? '+' : '') + s.charge_value;
-      ctx.font = '700 30px "JetBrains Mono"';
+      ctx.font = '700 32px "JetBrains Mono"';
       ctx.textAlign = 'right';
-      ctx.fillStyle = (s.instrumental || s.preorder) ? '#6a6a82' : sHex;
-      ctx.fillText(chargeStr, SIZE - PX, ry + 30);
-      var chargeW = chargeStr ? ctx.measureText(chargeStr).width + 28 : 0;
-      // title + artist (single line, ellipsized to the remaining width)
+      ctx.fillStyle = dim ? '#6a6a82' : sHex;
+      ctx.fillText(chargeStr, SIZE - PX, ry + 40);
+      var chargeW = chargeStr ? ctx.measureText(chargeStr).width + 30 : 0;
+      // title + artist, single line ellipsized to the remaining width
       ctx.textAlign = 'left';
-      var textX = leftX + 88;
+      var textX = leftX + 96;
       var textW = (SIZE - PX) - chargeW - textX;
-      ctx.font = '600 32px "Inter"';
+      ctx.font = '600 41px "Inter"';
       ctx.fillStyle = '#f4f4fa';
-      var titleStr = ellipsize(ctx, s.title || 'Untitled', textW);
-      ctx.fillText(titleStr, textX, ry + 22);
-      ctx.font = '400 24px "Inter"';
+      ctx.fillText(ellipsize(ctx, s.title || 'Untitled', textW), textX, ry + 38);
+      ctx.font = '400 31px "Inter"';
       ctx.fillStyle = '#9a9ab0';
-      var artistStr = ellipsize(ctx, s.artist || '', textW);
-      ctx.fillText(artistStr, textX, ry + 50);
+      ctx.fillText(ellipsize(ctx, s.artist || '', textW), textX, ry + 74);
     }
+    var listBottom = listTop + rows.length * rowH;
 
-    drawCompassBrand(ctx, compassFlat, leftX, H);
+    // ----- CTA box (centered) under the last song -----
+    var ctaText = 'View full chart at risingcompass.net';
+    ctx.font = '600 28px "Inter"';
+    var boxW = ctx.measureText(ctaText).width + 72, boxH = 72;
+    var boxX = (SIZE - boxW) / 2, boxY = listBottom + 40;
+    ctx.save();
+    roundRect(ctx, boxX, boxY, boxW, boxH, 12);
+    ctx.fillStyle = hexToRgba(v.hex, 0.12);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = hexToRgba(v.hex, 0.85);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#f4f4fa';
+    ctx.font = '600 28px "Inter"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ctaText, SIZE / 2, boxY + boxH / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+
+    // ----- Brand (compass mark + wordmark) centered below the box. No url. -----
+    var brandY = boxY + boxH + 52;
+    var markSize = 34, wm = 'THE RISING COMPASS';
+    ctx.font = '700 24px "JetBrains Mono"';
+    setLS(ctx, 2);
+    var totalW = markSize + 14 + ctx.measureText(wm).width;
+    var startX = (SIZE - totalW) / 2;
+    if (compassFlat) ctx.drawImage(compassFlat, startX, brandY - markSize / 2, markSize, markSize);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#c8c8d8';
+    ctx.fillText(wm, startX + markSize + 14, brandY + 1);
+    setLS(ctx, 0);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
     return canvas;
   }
 
