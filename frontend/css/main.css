@@ -652,7 +652,7 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 .trajectory-expand-btn svg { flex: none; }
 
 /* Reserve room on the right of the era-tabs so tab text never runs under the
-   button. Scoped to the trajectory panel only. */
+   expand button. Scoped to the trajectory panel only. */
 #trajectory-panel .era-tabs {
   padding-right: 7rem;
 }
@@ -1436,9 +1436,14 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
    touch-action: pan-y lets the page scroll vertically when the user
    gestures vertically over the chart; horizontal drags are still
    captured for pan. Hint with a grab cursor and hide the hover tooltip
-   during drag. */
-.traj-chart-area { cursor: grab; touch-action: pan-y; }
+   during drag. The grab cursor is scoped to the plot itself (the
+   transparent .traj-hover-area rect = x:padL..W-padR, y:padT..chartH), NOT
+   the whole chart area -- otherwise the hand shows over the axis-label
+   gutters/margins before the cursor is actually inside the trajectory. */
+.traj-chart-area { touch-action: pan-y; }
+.traj-chart-area .traj-hover-area { cursor: grab; }
 .traj-chart-area.traj-dragging { cursor: grabbing; }
+.traj-chart-area.traj-dragging .traj-hover-area { cursor: grabbing; }
 .traj-chart-area.traj-dragging .traj-tooltip,
 .traj-chart-area.traj-dragging #traj-hover-line,
 .traj-chart-area.traj-dragging #traj-hover-dot {
@@ -1697,6 +1702,18 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   font-size: 0.5rem;
   fill: var(--rc-text-dim);
   text-anchor: end;
+  cursor: pointer;
+  transition: fill var(--rc-ease);
+}
+/* The whole y-axis gutter is the scale toggle's tap target. Hovering anywhere
+   in it brightens all labels (the strip sits before the labels in the SVG, so
+   the general-sibling selector reaches them). */
+.traj-y-hit {
+  cursor: pointer;
+}
+.trajectory-y-label:hover,
+.traj-y-hit:hover ~ .trajectory-y-label {
+  fill: var(--rc-text-bright);
 }
 
 /* === Trajectory Hover === */

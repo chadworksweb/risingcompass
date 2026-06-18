@@ -73,6 +73,7 @@ const App = (() => {
     initNav();
     initEraTabs();
     initCalendarPicker();
+    initScaleToggle();
     // The trajectory Expand toggle (js/trajectory-expand.js) fires this after it
     // changes the panel width, so the daily chart re-renders at the new width
     // (recomputed viewBox = undistorted) instead of being stretched by CSS.
@@ -366,9 +367,93 @@ const App = (() => {
   let tmSpeedIdx = 1;
   const TM_BASE_SPEED = 1.5;
 
+  // --- Charge-axis scale ---------------------------------------------------
+  // The trajectory charts span +scale .. -scale vertically, where `scale` is
+  // resolved per chart from its own data. Two modes, flipped by the Scale toggle
+  // in the panel header:
+  //   'fit'  (default) -- auto-fit: the axis reaches SCALE_FIT_PAD beyond the
+  //          furthest charge in either direction, so swings fill the plot instead
+  //          of reading flat in the full +/-100 domain. Floored at SCALE_FIT_MIN
+  //          and capped at 100.
+  //   'full' -- the literal +/-100 domain (identical to the legacy
+  //          compass_degree / 180 mapping, so it is a no-op regression-wise).
+  const SCALE_FIT_PAD = 5;   // units of headroom past the furthest reach
+  const SCALE_FIT_MIN = 10;  // never zoom tighter than +/-10 (avoid noise drama)
+  let scaleMode = 'fit';
+
+  // compass_degree (0 = +100, 90 = 0, 180 = -100) -> charge value (+100 .. -100).
+  function degreeToCharge(degree) {
+    return (90 - degree) / 0.9;
+  }
+  // Resolve the axis half-range for a dataset under the current mode. `data` is
+  // the FULL dataset for that chart (not the zoom window), so the scale stays
+  // stable while panning/zooming/time-machine instead of breathing every frame.
+  function resolveScale(data) {
+    if (scaleMode === 'full' || !data || !data.length) return 100;
+    let maxAbs = 0;
+    for (const d of data) {
+      const a = Math.abs(degreeToCharge(d.compass_degree));
+      if (a > maxAbs) maxAbs = a;
+    }
+    return Math.min(100, Math.max(SCALE_FIT_MIN, Math.ceil(maxAbs) + SCALE_FIT_PAD));
+  }
+
+  // charge value -> fractional plot position [0,1] under `scale`, clamped so
+  // out-of-window charges pin to the top/bottom edge.
+  function chargeToFrac(charge, scale) {
+    return Math.max(0, Math.min(1, (scale - charge) / (2 * scale)));
+  }
+  function chargeDegreeToY(degree, padT, chartH, scale) {
+    return padT + chargeToFrac(degreeToCharge(degree), scale) * chartH;
+  }
+  // Grid rows for `scale`: ends + center labeled, quarters unlabeled.
+  function chargeGridRows(scale) {
+    return [
+      { charge: scale, label: '+' + scale },
+      { charge: scale / 2, label: '' },
+      { charge: 0, label: '0' },
+      { charge: -scale / 2, label: '' },
+      { charge: -scale, label: '-' + scale },
+    ];
+  }
+
+  // Redraw both trajectory charts (main + mini-overview, both tabs) at the
+  // current scale, preserving each tab's zoom window and viewport position.
+  function rerenderChartsForScale() {
+    const daily = document.getElementById('daily-chart-container');
+    const hist = document.getElementById('trajectory-container');
+    if (hist && chartData.length) {
+      applyZoomChartOnly(hist);
+      renderOverview(hist);
+      updateOverviewViewport(hist);
+    }
+    if (daily && dailyChartLoaded) {
+      applyDailyZoomChartOnly(daily);
+      renderDailyOverview(daily);
+      updateDailyOverviewViewport(daily);
+    }
+  }
+
+  // The charge-axis labels (+N / 0 / -N) ARE the scale toggle: click any of them
+  // to flip between auto-fit and the full +/-100 domain. The labels are
+  // re-rendered on every draw, so the click is delegated off the stable panel.
+  function initScaleToggle() {
+    const panel = document.getElementById('trajectory-panel');
+    if (!panel) return;
+    panel.addEventListener('click', (e) => {
+      const hit = e.target.closest && e.target.closest('.trajectory-y-label, .traj-y-hit');
+      if (!hit) return;
+      scaleMode = scaleMode === 'fit' ? 'full' : 'fit';
+      rerenderChartsForScale();
+    });
+  }
+
   function renderTrajectoryChart(data, container) {
     if (!data.length) return;
     chartData = data;
+    // Fit to the FULL year set (allYearData), not the zoom window, so the axis
+    // stays put while panning/zooming.
+    const scale = resolveScale(allYearData.length ? allYearData : data);
 
     const H = 120;
     // Same as the daily chart: when the panel is expanded the chart box is much
@@ -392,7 +477,7 @@ const App = (() => {
 
     chartPoints = data.map((d, i) => ({
       x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
-      y: padT + (d.compass_degree / 180) * chartH,
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
       degree: d.compass_degree,
       year: d.year,
       color: d.charge_level,
@@ -430,10 +515,15 @@ const App = (() => {
     </defs>`;
 
     // Grid lines
-    [{ deg: 0, label: '+100' }, { deg: 45, label: '' }, { deg: 90, label: '0' }, { deg: 135, label: '' }, { deg: 180, label: '-100' }].forEach(({ deg, label }) => {
-      const y = padT + (deg / 180) * chartH;
+    // Full-height transparent strip over the y-axis gutter -> the whole axis is
+    // the scale toggle's tap target (the labels alone are <17px, and "0" is ~5px
+    // wide, far below a touch target). Rendered before the labels so the text's
+    // own :hover still fires when pointed directly.
+    svg += `<rect class="traj-y-hit" x="0" y="0" width="${padL}" height="${H}" fill="transparent" />`;
+    chargeGridRows(scale).forEach(({ charge, label }) => {
+      const y = padT + chargeToFrac(charge, scale) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
-      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}">${label}</text>`;
+      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
 
     // Clipped line + area
@@ -535,7 +625,15 @@ const App = (() => {
       if (tooltip) tooltip.style.display = 'none';
     }
 
-    wrap.addEventListener('mousemove', (e) => showHoverAt(e.clientX));
+    wrap.addEventListener('mousemove', (e) => {
+      // Only show the tooltip inside the plot box -- not over the y-label
+      // gutters or the margins left/right of the data.
+      const r = svgEl.getBoundingClientRect();
+      const inX = e.clientX >= r.left + (padL / W) * r.width && e.clientX <= r.left + ((W - padR) / W) * r.width;
+      const inY = e.clientY >= r.top + (padT / H) * r.height && e.clientY <= r.top + ((padT + chartH) / H) * r.height;
+      if (!inX || !inY) { hideHover(); return; }
+      showHoverAt(e.clientX);
+    });
     wrap.addEventListener('mouseleave', hideHover);
 
     // Touch: single-finger drag on the chart body scrubs the tooltip across the
@@ -852,10 +950,11 @@ const App = (() => {
     const padT = 4, padB = 4;
     const chartH = H - padT - padB;
     const data = allYearData;
+    const scale = resolveScale(data);
     const maxIdx = data.length - 1;
     const pts = data.map((d, i) => ({
       x: maxIdx > 0 ? (i / maxIdx) * W : W / 2,
-      y: padT + (d.compass_degree / 180) * chartH,
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
     }));
     const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     overviewEl.innerHTML = `
@@ -1026,6 +1125,15 @@ const App = (() => {
     const chartArea = container.querySelector('.traj-chart-area');
     if (!chartArea) return;
 
+    // A pan must START inside the actual plot box (the transparent
+    // .traj-hover-area rect), not the surrounding axis-label gutters/margins.
+    const insidePlot = (clientX, clientY) => {
+      const r = chartArea.querySelector('.traj-hover-area');
+      if (!r) return true;
+      const b = r.getBoundingClientRect();
+      return clientX >= b.left && clientX <= b.right && clientY >= b.top && clientY <= b.bottom;
+    };
+
     let drag = null;
     let rafPending = false;
     const scheduleRender = () => {
@@ -1109,6 +1217,7 @@ const App = (() => {
 
     chartArea.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
+      if (!insidePlot(e.clientX, e.clientY)) return;
       start(e.clientX, e.clientY);
       e.preventDefault();
     });
@@ -1184,6 +1293,7 @@ const App = (() => {
     chartArea.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         const t = e.touches[0];
+        if (!insidePlot(t.clientX, t.clientY)) return;
         start(t.clientX, t.clientY);
       } else if (e.touches.length === 2) {
         startPinch(e.touches[0], e.touches[1]);
@@ -1623,10 +1733,11 @@ const App = (() => {
     const W = 320, H = 28;
     const padT = 4, padB = 4;
     const chartH = H - padT - padB;
+    const scale = resolveScale(dailyChartData);
     const maxIdx = dailyChartData.length - 1;
     const pts = dailyChartData.map((d, i) => ({
       x: maxIdx > 0 ? (i / maxIdx) * W : W / 2,
-      y: padT + (d.compass_degree / 180) * chartH,
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
     }));
     const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     overviewEl.innerHTML = `
@@ -1753,6 +1864,14 @@ const App = (() => {
   function initDailyChartPanZoom(container) {
     const chartArea = container.querySelector('.traj-chart-area');
     if (!chartArea) return;
+    // A pan must START inside the actual plot box (the transparent
+    // .traj-hover-area rect), not the surrounding axis-label gutters/margins.
+    const insidePlot = (clientX, clientY) => {
+      const r = chartArea.querySelector('.traj-hover-area');
+      if (!r) return true;
+      const b = r.getBoundingClientRect();
+      return clientX >= b.left && clientX <= b.right && clientY >= b.top && clientY <= b.bottom;
+    };
     let drag = null;
     let rafPending = false;
     const scheduleRender = () => {
@@ -1813,6 +1932,7 @@ const App = (() => {
     };
     chartArea.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
+      if (!insidePlot(e.clientX, e.clientY)) return;
       startDrag(e.clientX, e.clientY);
       e.preventDefault();
     });
@@ -1876,6 +1996,7 @@ const App = (() => {
     chartArea.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         const t = e.touches[0];
+        if (!insidePlot(t.clientX, t.clientY)) return;
         startDrag(t.clientX, t.clientY);
       } else if (e.touches.length === 2) {
         startPinch(e.touches[0], e.touches[1]);
@@ -1940,6 +2061,9 @@ const App = (() => {
   function renderDailyChart(data, container) {
     if (!data.length) return;
     data = interpolateSkippedDegrees(data);
+    // Fit to the FULL daily series (dailyChartData), not the zoom window, so the
+    // axis stays put while panning/zooming/time-machine.
+    const scale = resolveScale(dailyChartData.length ? dailyChartData : data);
 
     const H = 120;
     // Default viewBox width keeps the established 320x120 (2.667:1) shape, which
@@ -1966,7 +2090,7 @@ const App = (() => {
 
     dailyChartPoints = data.map((d, i) => ({
       x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
-      y: padT + (d.compass_degree / 180) * chartH,
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
       degree: d.compass_degree,
       date: d.date,
       color: d.charge_level,
@@ -1994,10 +2118,15 @@ const App = (() => {
     </defs>`;
 
     // Grid lines
-    [{ deg: 0, label: '+100' }, { deg: 45, label: '' }, { deg: 90, label: '0' }, { deg: 135, label: '' }, { deg: 180, label: '-100' }].forEach(({ deg, label }) => {
-      const y = padT + (deg / 180) * chartH;
+    // Full-height transparent strip over the y-axis gutter -> the whole axis is
+    // the scale toggle's tap target (the labels alone are <17px, and "0" is ~5px
+    // wide, far below a touch target). Rendered before the labels so the text's
+    // own :hover still fires when pointed directly.
+    svg += `<rect class="traj-y-hit" x="0" y="0" width="${padL}" height="${H}" fill="transparent" />`;
+    chargeGridRows(scale).forEach(({ charge, label }) => {
+      const y = padT + chargeToFrac(charge, scale) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
-      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}">${label}</text>`;
+      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
 
     // Clipped line + area
@@ -2122,7 +2251,15 @@ const App = (() => {
       if (tooltip) tooltip.style.display = 'none';
     }
 
-    wrap.addEventListener('mousemove', (e) => showHoverAt(e.clientX));
+    wrap.addEventListener('mousemove', (e) => {
+      // Only show the tooltip inside the plot box -- not over the y-label
+      // gutters or the margins left/right of the data.
+      const r = svgEl.getBoundingClientRect();
+      const inX = e.clientX >= r.left + (padL / W) * r.width && e.clientX <= r.left + ((W - padR) / W) * r.width;
+      const inY = e.clientY >= r.top + (padT / H) * r.height && e.clientY <= r.top + ((padT + chartH) / H) * r.height;
+      if (!inX || !inY) { hideHover(); return; }
+      showHoverAt(e.clientX);
+    });
     wrap.addEventListener('mouseleave', hideHover);
 
     // Touch: single-finger drag on the chart body scrubs the tooltip across the
