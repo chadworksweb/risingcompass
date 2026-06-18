@@ -4,8 +4,9 @@
 
 {% block head_extra %}
 <style>
-  .db-song-link { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
-  .db-song-link:hover { text-decoration: underline; }
+  /* Match the normal cell text; only nudge on hover. */
+  .db-song-link { color: inherit; font: inherit; font-weight: inherit; text-decoration: none; }
+  .db-song-link:hover { color: var(--accent-strong); text-decoration: underline; }
 </style>
 {% endblock %}
 
