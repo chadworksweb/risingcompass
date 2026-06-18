@@ -2,6 +2,13 @@
 {% set active_section = 'db' %}
 {% block title %}DB Explorer — Admin{% endblock %}
 
+{% block head_extra %}
+<style>
+  .db-song-link { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
+  .db-song-link:hover { text-decoration: underline; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div id="tab-db">
   <div class="db-sub-tabs" id="dbSubTabs"></div>
@@ -251,6 +258,9 @@ const DB_SOURCE_TO_TABLE = {
   stream: 'cl_stream_songs',
 };
 const DB_MERGEABLE = new Set(['compass_songs', 'library_songs', 'submitted_songs', 'cl_stream_songs', 'all_songs']);
+// Tables whose row id maps to songs.id, so the title cell can deep-link to the
+// per-song admin detail page (/api/admin/dashboard/song/{id}).
+const DB_SONG_DETAIL_TABLES = new Set(['all_songs', 'songs']);
 let dbMergeSource = null;
 
 function renderDbResults(data) {
@@ -332,6 +342,10 @@ function renderDbResults(data) {
           return `<td class="db-td-charge ${colorCls}">${cvDisplay}</td>`;
         }
         const v = row[c.name];
+        // Title cell deep-links to the per-song admin detail page on song tables.
+        if (c.name === 'title' && DB_SONG_DETAIL_TABLES.has(dbActiveTable) && row.id != null && v != null) {
+          return `<td title="${esc(String(v))}"><a class="db-song-link" href="/api/admin/dashboard/song/${row.id}" target="_blank" rel="noopener">${esc(String(v))}</a></td>`;
+        }
         const isColorCol = DB_COLOR_COLS.has(c.name) && v && colorLabels[v];
         const display = v == null
           ? '<span class="db-null">—</span>'
