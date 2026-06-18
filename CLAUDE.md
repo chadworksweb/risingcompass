@@ -1262,22 +1262,41 @@ be closed to new accounts, so the client was rewritten to Buffer's GraphQL API.
   services send none (TikTok's photo-post metadata is unverified -- confirm at
   first TikTok run, same way IG needed type/shouldShareToFeed).
 - **Card render = Playwright** screenshot of `frontend/cards/index.html`
-  (`?type=reading&data=<urlsafe-b64>`, exposes `window.__cardReady`/`__cardPng()`).
-  `services/social/card_render.py` drives headless Chromium (prod image runs
-  `playwright install chromium`). The broadcaster renders one card per chart
-  (kicker = DAILY LISTENS / DAILY DOWNLOADS / SHAZAM / YOUTUBE) and **commits the
-  `social_cards` row BEFORE pushing** so the public card URL is fetchable by
-  Buffer cross-session (an uncommitted row 404s -> image fetch fails).
-- **Card generator is FORKED.** Broadcast cards use
-  `frontend/cards/rc-charge-card-generator-social.js` (`window.RCSocialCard`):
-  **3:4 portrait (1080x1440)** to match the Instagram profile-grid thumbnail crop,
-  border drawn **flush to the edge**, 2.3x chart kicker, two-line date, no
-  songs/contaminated meta line, summary up to 6 lines, a centered "View full chart
-  at risingcompass.net" CTA box under the 5th song + centered compass wordmark
-  (no url line). The PUBLIC song-page / Lyrical Charger share card
-  (`frontend/lyrical-charger/rc-charge-card-generator.js`, `RCChargeCard`) is
-  **unchanged (1:1)** -- the fork exists precisely so broadcast tweaks never touch
-  it. The fork lives UNDER `/cards/` on purpose (see Cloudflare note below).
+  (`?type=reading|song&data=<urlsafe-b64>&ratio=square|portrait`, exposes
+  `window.__cardReady`/`__cardPng()`). `services/social/card_render.py` drives
+  headless Chromium (prod image runs `playwright install chromium`). The
+  broadcaster renders one card per chart (kicker = DAILY LISTENS / DAILY DOWNLOADS
+  / SHAZAM / YOUTUBE) and **commits the `social_cards` row BEFORE pushing** so the
+  public card URL is fetchable by Buffer cross-session (an uncommitted row 404s ->
+  image fetch fails). The backend passes no `ratio`, so broadcast renders at the
+  `portrait` default.
+- **ONE master card generator (consolidated 2026-06-18).**
+  `frontend/cards/rc-charge-card-generator.js` (`window.RCChargeCard`) is the
+  SINGLE generator for the whole site: the broadcaster AND the public song-page /
+  Lyrical Charger share card. The old public file
+  (`frontend/lyrical-charger/rc-charge-card-generator.js`) and the broadcast fork
+  (`rc-charge-card-generator-social.js`) are DELETED. It exposes `render` (song
+  card), `renderReading` (daily/chart card), `shareOrDownload`, `_pick`,
+  `_pickReading`.
+  - **Ratio:** `opts.ratio` = `'square'` (1080x1080) | `'portrait'` (1080x1440);
+    `opts.height` (number) overrides; default `portrait`. Broadcast uses portrait;
+    the public song card defaults `square`.
+  - **Public ratio toggle (Square 1:1 / Instagram 3:4):** on the song page
+    (`#charge-card-ratio` in `songs/song.html`, wired in `songs/songs.js`) and the
+    Lyrical Charger result modal (`#cc-ratio` in `lyrical-charger/index.html`,
+    wired in `charger.js` -- re-renders the preview live). Both surfaces render
+    SONG cards, so the toggle only ever drives `render()` (not the reading card).
+  - **Design (new):** the tier badge is a **tier-colored rounded box** with the
+    charge score (large) over the tier label -- it replaced the old compass-gauge
+    tile; text flips dark/light by tier luminance (`textOn`). Song card: title +
+    charge box share a top row dropped to `P+99`, deadpan + summary below
+    (tighter on square), auto-shrinking summary (`fitText` 44->32 / 54->38), and a
+    **centered enlarged footer** (#topics / wordmark / url). Reading card: kicker
+    top-left, charge box **to the right of the date** (vertically centered, top-
+    right corner left EMPTY so IG's carousel icon never overlaps), editorial
+    (38px, up to 7 lines), top-5 song list, centered enlarged footer. Flush phosphor
+    border. All loaders carry a `?v=` cache-bust (`song.html`,
+    `lyrical-charger/index.html`, `cards/index.html`).
 - **Captions: objective, data-only, per channel** (`broadcaster`). Carousel
   (IG/TikTok): date header + one line per published chart (`Daily Listens: -14
   (Degraded)`) + "Full readings: link in bio." + hashtags. Single Daily Listens
@@ -1300,8 +1319,10 @@ be closed to new accounts, so the client was rewritten to Buffer's GraphQL API.
   which edge-caches the card JS and throws a managed challenge at `/cards/`. Two
   zone rules fix it: a **Cache Rule** (bypass cache) and a **WAF Skip rule** for
   `starts_with(path,"/cards/") or path eq "/lyrical-charger/rc-charge-card-
-  generator.js"`. The broadcast fork is kept UNDER `/cards/` so the bypass covers
+  generator.js"`. The master generator lives UNDER `/cards/` so the bypass covers
   it -- otherwise the edge serves a stale card and design edits never appear.
+  (The `/lyrical-charger/rc-charge-card-generator.js` clause is now vestigial --
+  that file was deleted in the 2026-06-18 consolidation -- but harmless; leave it.)
   Headless Chromium passes the managed challenge, so renders work regardless.
 - **Env (prod `.env` + docker-compose passthrough):** `SOCIAL_BROADCAST_ENABLED=
   true`, `BUFFER_ACCESS_TOKEN` (personal GraphQL key), `BUFFER_PROFILE_IDS` (JSON
