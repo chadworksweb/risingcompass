@@ -172,19 +172,28 @@
   }
   function textOn(hex) { return relLum(hex) > 0.55 ? '#0a0a14' : '#f4f4fa'; }
 
-  // The badge that replaces the old compass-gauge tile: a tier-colored box with
-  // the charge score (where the gauge used to be) over the tier label. Shared by
-  // the song card and the reading card. rightEdgeX = right inner edge; topY = top.
-  // Returns the box geometry so the body column can wrap against its left edge.
-  function drawBadge(ctx, hex, label, scoreStr, rightEdgeX, topY) {
-    ctx.font = '700 64px "JetBrains Mono"';
+  // The tier-colored charge box: the charge score (where the compass gauge used
+  // to be) over the tier label, on a tier-colored fill. Shared by the song card
+  // and the reading card. rightEdgeX = right inner edge; topY = top. opts tunes
+  // the score/label sizes and padding; opts.anchorBottomY positions the box by
+  // its bottom instead of its top (so it can hug the footer band). Returns the
+  // box geometry so the body can lay out around it.
+  function drawBadge(ctx, hex, label, scoreStr, rightEdgeX, topY, opts) {
+    opts = opts || {};
+    var scoreSize = opts.scoreSize || 64;
+    var labelSize = opts.labelSize || 30;
+    var padX = (opts.padX != null) ? opts.padX : 28;
+    var padTop = (opts.padTop != null) ? opts.padTop : 20;
+    var gap = (opts.gap != null) ? opts.gap : 14;
+    var padBottom = (opts.padBottom != null) ? opts.padBottom : 22;
+    ctx.font = '700 ' + scoreSize + 'px "JetBrains Mono"';
     var sw = ctx.measureText(scoreStr).width;
-    ctx.font = '600 30px "Inter"';
+    ctx.font = '600 ' + labelSize + 'px "Inter"';
     var lw = ctx.measureText(label).width;
-    var boxW = Math.max(168, Math.max(sw, lw) + 56);
-    var boxH = 150;
+    var boxW = Math.max(opts.minW || 168, Math.max(sw, lw) + padX * 2);
+    var boxH = padTop + scoreSize + gap + labelSize + padBottom;
     var boxX = rightEdgeX - boxW;
-    var boxY = topY;
+    var boxY = (opts.anchorBottomY != null) ? (opts.anchorBottomY - boxH) : topY;
     ctx.save();
     roundRect(ctx, boxX, boxY, boxW, boxH, 16);
     ctx.shadowColor = hex;
@@ -197,12 +206,12 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = fg;
-    ctx.font = '700 64px "JetBrains Mono"';
-    ctx.fillText(scoreStr, cx, boxY + 84);
-    ctx.font = '600 30px "Inter"';
-    ctx.fillText(label, cx, boxY + 122);
+    ctx.font = '700 ' + scoreSize + 'px "JetBrains Mono"';
+    ctx.fillText(scoreStr, cx, boxY + padTop + scoreSize * 0.82);
+    ctx.font = '600 ' + labelSize + 'px "Inter"';
+    ctx.fillText(label, cx, boxY + padTop + scoreSize + gap + labelSize * 0.82);
     ctx.textAlign = 'left';
-    return { left: boxX, right: rightEdgeX, top: boxY, bottom: boxY + boxH };
+    return { left: boxX, right: rightEdgeX, top: boxY, bottom: boxY + boxH, width: boxW, height: boxH };
   }
 
   // Small outlined speech bubble (the comment indicator from the RC badge).
@@ -270,9 +279,11 @@
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // ----- Badge (top-right): tier-colored box with the charge score over the
-    // tier label (replaces the old compass-gauge tile). -----
-    var badge = drawBadge(ctx, v.hex, v.label, v.chargeStr, SIZE - PX, P);
+    // ----- Badge (top-right): tier-colored box, charge score over the tier
+    // label, sized up so the charge reads as the dominant element. Single image
+    // (no IG carousel icon), so the top-right corner is fine here. -----
+    var badge = drawBadge(ctx, v.hex, v.label, v.chargeStr, SIZE - PX, P,
+      { scoreSize: 92, labelSize: 30, minW: 200, padX: 30 });
     var tileX = badge.left;
     var badgeBottom = badge.bottom;
 
@@ -307,6 +318,10 @@
       ctx.font = '400 46px "Inter"';
       ctx.fillText(v.artist, leftX, y - 28);
     }
+
+    // Push the deadpan + summary down, away from the title/artist, so the body
+    // sits lower and reads with more breathing room.
+    y += 56;
 
     // Deadpan -- below the artist, within the 4/5 column (10% smaller)
     if (v.deadpan) {
@@ -546,14 +561,17 @@
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // ----- Badge (top-right): tier-colored box with the score over the tier
-    // label (replaces the old compass-gauge tile). -----
-    var badge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, P);
-    var tileX = badge.left;
-    var badgeBottom = badge.bottom;
+    // ----- Giant charge (bottom-right): the biggest element on the card. The
+    // top-right corner is intentionally left empty so Instagram's carousel icon
+    // (drawn there on every slide) has nothing to collide with. -----
+    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, 0, {
+      scoreSize: 150, labelSize: 38, padX: 38, padTop: 18, gap: 4, padBottom: 18,
+      minW: 300, anchorBottomY: H - P,
+    });
 
-    // ----- Left column: kicker (2.3x), date (two lines), meta -----
-    var colW = tileX - leftX - 30;
+    // ----- Left column: kicker (2.3x) + date (two lines). Full width now that
+    // the charge no longer sits top-right. -----
+    var colW = contentW;
     var kickSize = 60; // ~2.3x the prior 26px chart kicker
     ctx.fillStyle = hexToRgba(v.hex, 0.92);
     ctx.font = '700 ' + kickSize + 'px "JetBrains Mono"';
@@ -574,7 +592,7 @@
     // ----- Editorial: the day's statement, full width. No songs/contaminated
     // meta line -- the summary takes that space and gets more lines, since it
     // can run long. -----
-    var y = Math.max(leftBottom, badgeBottom) + 40;
+    var y = leftBottom + 40;
     if (v.editorial) {
       var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 6, 42, 28);
       y += eFit.size;
@@ -588,9 +606,8 @@
 
     // ----- Top-5 song list (text groups 1.5x, with row margin) -----
     var rows = v.songs.slice(0, 5);
-    // Reserve the bottom band for the CTA box + centered brand (no url line).
-    var bottomReserve = 250;
-    var brandTop = H - bottomReserve;
+    // The song list must stay above the giant charge box / footer band.
+    var brandTop = charge.top - 30;
     var listTop = y + 48;
     var rowH = 100; // title/artist group + bottom margin
     if (listTop + rows.length * rowH > brandTop) {
@@ -638,41 +655,22 @@
     }
     var listBottom = listTop + rows.length * rowH;
 
-    // ----- CTA box (centered) under the last song -----
-    var ctaText = 'View full chart at risingcompass.net';
-    ctx.font = '600 28px "Inter"';
-    var boxW = ctx.measureText(ctaText).width + 72, boxH = 72;
-    var boxX = (SIZE - boxW) / 2, boxY = listBottom + 40;
-    ctx.save();
-    roundRect(ctx, boxX, boxY, boxW, boxH, 12);
-    ctx.fillStyle = hexToRgba(v.hex, 0.12);
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = hexToRgba(v.hex, 0.85);
-    ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle = '#f4f4fa';
-    ctx.font = '600 28px "Inter"';
-    ctx.textAlign = 'center';
+    // ----- Footer brand, left-aligned in the bottom band beside the giant
+    // charge: compass mark + wordmark + url, centered against the charge box. -----
+    var midY = (charge.top + (H - P)) / 2;
+    var markSize = 34;
+    if (compassFlat) ctx.drawImage(compassFlat, leftX, midY - markSize / 2 - 14, markSize, markSize);
     ctx.textBaseline = 'middle';
-    ctx.fillText(ctaText, SIZE / 2, boxY + boxH / 2 + 1);
-    ctx.textBaseline = 'alphabetic';
-
-    // ----- Brand (compass mark + wordmark) centered below the box. No url. -----
-    var brandY = boxY + boxH + 52;
-    var markSize = 34, wm = 'THE RISING COMPASS';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#c8c8d8';
     ctx.font = '700 24px "JetBrains Mono"';
     setLS(ctx, 2);
-    var totalW = markSize + 14 + ctx.measureText(wm).width;
-    var startX = (SIZE - totalW) / 2;
-    if (compassFlat) ctx.drawImage(compassFlat, startX, brandY - markSize / 2, markSize, markSize);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#c8c8d8';
-    ctx.fillText(wm, startX + markSize + 14, brandY + 1);
+    ctx.fillText('THE RISING COMPASS', leftX + markSize + 14, midY - 13);
     setLS(ctx, 0);
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#6a6a82';
+    ctx.font = '400 22px "JetBrains Mono"';
+    ctx.fillText('risingcompass.net', leftX, midY + 30);
 
     return canvas;
   }
