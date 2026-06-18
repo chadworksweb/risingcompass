@@ -565,7 +565,7 @@
     // top-right corner is intentionally left empty so Instagram's carousel icon
     // (drawn there on every slide) has nothing to collide with. -----
     var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, 0, {
-      scoreSize: 150, labelSize: 38, padX: 38, padTop: 18, gap: 4, padBottom: 18,
+      scoreSize: 132, labelSize: 38, padX: 46, padTop: 30, gap: -8, padBottom: 30,
       minW: 300, anchorBottomY: H - P,
     });
 
