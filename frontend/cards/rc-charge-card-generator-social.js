@@ -282,7 +282,10 @@
     // ----- Badge (top-right): tier-colored box, charge score over the tier
     // label, sized up so the charge reads as the dominant element. Single image
     // (no IG carousel icon), so the top-right corner is fine here. -----
-    var badge = drawBadge(ctx, v.hex, v.label, v.chargeStr, SIZE - PX, P,
+    // Drop the title/charge row to the same start the reading card uses for its
+    // charge row (kicker height + gap), so the two cards share a vertical rhythm.
+    var rowTop = P + 99;
+    var badge = drawBadge(ctx, v.hex, v.label, v.chargeStr, SIZE - PX, rowTop,
       { scoreSize: 92, labelSize: 30, minW: 200, padX: 30 });
     var tileX = badge.left;
     var badgeBottom = badge.bottom;
@@ -302,7 +305,7 @@
       titleStart = Math.max(52, Math.round(100 - (titleText.length - 22) * 1.6));
     }
     var tFit = fitText(ctx, titleText, '"Inter"', '700', titleColW, 3, titleStart, 44);
-    var ty = P + tFit.size;
+    var ty = rowTop + tFit.size;
     ctx.fillStyle = '#f4f4fa';
     ctx.font = '700 ' + tFit.size + 'px "Inter"';
     for (var ti = 0; ti < tFit.lines.length; ti++) {
@@ -351,55 +354,61 @@
       }
     }
 
-    // ===== BOTTOM (left-aligned, extra padding from the base) =====
-    // The brand wordmark baseline. Topics sit equidistant above it as the URL
-    // sits below it (both 44px from this line), so the bottom block reads as
-    // three evenly-spaced rows: #topics / wordmark / url.
-    var fy = H - P - 44;
+    // ===== FOOTER (centered, enlarged) =====
+    // #topics / wordmark / url, all centered. Matches the reading card's footer.
+    var fy = H - P - 70;
 
-    // Topics -- 44px above the wordmark line.
+    // Topics -- centered above the brand.
     if (v.topics.length) {
       ctx.fillStyle = hexToRgba(v.hex, 0.9);
-      ctx.font = '400 26px "JetBrains Mono"';
+      ctx.font = '400 28px "JetBrains Mono"';
+      ctx.textAlign = 'center';
       var tline = v.topics.map(function (t) { return '#' + String(t).replace(/^#/, ''); }).join('   ');
-      ctx.fillText(tline, leftX, fy - 44);
+      ctx.fillText(tline, SIZE / 2, fy - 58);
+      ctx.textAlign = 'left';
     }
 
-    // Brand wordmark. Default: LYRICAL CHARGER, powered by the RISING COMPASS.
-    // brand==='compass' (song pages): just THE RISING COMPASS.
-    var markSize = 32;
-    if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
+    // Brand wordmark, centered + enlarged. compass: THE RISING COMPASS.
+    var markSize = 42;
     ctx.textBaseline = 'middle';
-    var tx = leftX + markSize + 14;
     if (brand === 'compass') {
-      ctx.fillStyle = '#c8c8d8';
-      ctx.font = '700 22px "JetBrains Mono"';
+      ctx.font = '700 32px "JetBrains Mono"';
       setLS(ctx, 2);
-      ctx.fillText('THE RISING COMPASS', tx, fy + 1);
+      var wm = 'THE RISING COMPASS';
+      var wmW = ctx.measureText(wm).width;
+      var startX = (SIZE - (markSize + 16 + wmW)) / 2;
+      if (compassFlat) ctx.drawImage(compassFlat, startX, fy - markSize / 2, markSize, markSize);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#c8c8d8';
+      ctx.fillText(wm, startX + markSize + 16, fy + 1);
       setLS(ctx, 0);
     } else {
-      // Both brand names share one style; the connective is the dim link.
-      ctx.fillStyle = '#c8c8d8';
-      ctx.font = '700 22px "JetBrains Mono"';
-      setLS(ctx, 2);
-      ctx.fillText('LYRICAL CHARGER', tx, fy + 1);
-      tx += ctx.measureText('LYRICAL CHARGER').width + 6;
+      // LYRICAL CHARGER, powered by the RISING COMPASS -- measured + centered.
+      ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      var p1 = 'LYRICAL CHARGER', w1 = ctx.measureText(p1).width;
+      setLS(ctx, 0); ctx.font = '400 20px "JetBrains Mono"';
+      var p2 = ', powered by the ', w2 = ctx.measureText(p2).width;
+      ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      var p3 = 'RISING COMPASS', w3 = ctx.measureText(p3).width;
       setLS(ctx, 0);
-      ctx.fillStyle = '#6a6a82';
-      ctx.font = '400 18px "JetBrains Mono"';
-      ctx.fillText(', powered by the ', tx, fy + 1);
-      tx += ctx.measureText(', powered by the ').width + 4;
-      ctx.fillStyle = '#c8c8d8';
-      ctx.font = '700 22px "JetBrains Mono"';
-      setLS(ctx, 2);
-      ctx.fillText('RISING COMPASS', tx, fy + 1);
-      setLS(ctx, 0);
+      var sX = (SIZE - (markSize + 16 + w1 + 6 + w2 + 4 + w3)) / 2;
+      if (compassFlat) ctx.drawImage(compassFlat, sX, fy - markSize / 2, markSize, markSize);
+      var cx2 = sX + markSize + 16;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#c8c8d8'; ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      ctx.fillText(p1, cx2, fy + 1); cx2 += w1 + 6; setLS(ctx, 0);
+      ctx.fillStyle = '#6a6a82'; ctx.font = '400 20px "JetBrains Mono"';
+      ctx.fillText(p2, cx2, fy + 1); cx2 += w2 + 4;
+      ctx.fillStyle = '#c8c8d8'; ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      ctx.fillText(p3, cx2, fy + 1); setLS(ctx, 0);
     }
     ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'center';
     ctx.fillStyle = '#6a6a82';
-    ctx.font = '400 20px "JetBrains Mono"';
+    ctx.font = '400 26px "JetBrains Mono"';
     ctx.fillText(brand === 'compass' ? 'risingcompass.net' : 'risingcompass.net/lyrical-charger',
-      leftX, H - P);
+      SIZE / 2, fy + 48);
+    ctx.textAlign = 'left';
 
     return canvas;
   }
