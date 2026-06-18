@@ -561,40 +561,39 @@
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // ----- Giant charge (bottom-right): the biggest element on the card. The
-    // top-right corner is intentionally left empty so Instagram's carousel icon
-    // (drawn there on every slide) has nothing to collide with. -----
-    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, 0, {
-      scoreSize: 132, labelSize: 38, padX: 46, padTop: 30, gap: -8, padBottom: 30,
-      minW: 300, anchorBottomY: H - P,
-    });
-
-    // ----- Left column: kicker (2.3x) + date (two lines). Full width now that
-    // the charge no longer sits top-right. -----
-    var colW = contentW;
+    // ----- Kicker (2.3x), full width at the top. Top-right corner stays empty
+    // so Instagram's carousel icon has nothing to collide with. -----
     var kickSize = 60; // ~2.3x the prior 26px chart kicker
     ctx.fillStyle = hexToRgba(v.hex, 0.92);
     ctx.font = '700 ' + kickSize + 'px "JetBrains Mono"';
     setLS(ctx, 3);
     var kickBaseline = P + kickSize - 8;
-    ctx.fillText(v.kicker, leftX, kickBaseline);
+    ctx.fillText(ellipsize(ctx, v.kicker, contentW), leftX, kickBaseline);
     setLS(ctx, 0);
 
-    // Date: day-of-week on its own line, then "Month D, YYYY" below it.
+    // ----- Charge: to the RIGHT of the date, just under the kicker (clears the
+    // IG icon, lets the body below breathe). The dominant element. -----
+    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 16, {
+      scoreSize: 116, labelSize: 36, padX: 44, padTop: 22, gap: -6, padBottom: 22,
+      minW: 280,
+    });
+
+    // ----- Date (left of the charge): day-of-week, then "Month D, YYYY". -----
+    var dateColW = charge.left - leftX - 40;
     var dateSize = 56, dateLH = Math.round(dateSize * 1.18);
     ctx.fillStyle = '#f4f4fa';
     ctx.font = '700 ' + dateSize + 'px "Inter"';
     var dowY = kickBaseline + 44 + dateSize;
-    ctx.fillText(ellipsize(ctx, v.dateParts.dow, colW), leftX, dowY);
-    ctx.fillText(ellipsize(ctx, v.dateParts.mdy, colW), leftX, dowY + dateLH);
+    ctx.fillText(ellipsize(ctx, v.dateParts.dow, dateColW), leftX, dowY);
+    ctx.fillText(ellipsize(ctx, v.dateParts.mdy, dateColW), leftX, dowY + dateLH);
     var leftBottom = dowY + dateLH;
 
     // ----- Editorial: the day's statement, full width. No songs/contaminated
     // meta line -- the summary takes that space and gets more lines, since it
     // can run long. -----
-    var y = leftBottom + 40;
+    var y = Math.max(leftBottom, charge.bottom) + 56;
     if (v.editorial) {
-      var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 6, 42, 28);
+      var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 7, 38, 26);
       y += eFit.size;
       ctx.fillStyle = '#e8e8f0';
       ctx.font = '600 ' + eFit.size + 'px "Inter"';
@@ -606,9 +605,9 @@
 
     // ----- Top-5 song list (text groups 1.5x, with row margin) -----
     var rows = v.songs.slice(0, 5);
-    // The song list must stay above the giant charge box / footer band.
-    var brandTop = charge.top - 30;
-    var listTop = y + 48;
+    // The song list sits between the editorial and the bottom footer band.
+    var brandTop = H - 190;
+    var listTop = y + 56;
     var rowH = 100; // title/artist group + bottom margin
     if (listTop + rows.length * rowH > brandTop) {
       listTop = Math.max(y + 32, brandTop - rows.length * rowH);
@@ -655,22 +654,22 @@
     }
     var listBottom = listTop + rows.length * rowH;
 
-    // ----- Footer brand, left-aligned in the bottom band beside the giant
-    // charge: compass mark + wordmark + url, centered against the charge box. -----
-    var midY = (charge.top + (H - P)) / 2;
-    var markSize = 34;
-    if (compassFlat) ctx.drawImage(compassFlat, leftX, midY - markSize / 2 - 14, markSize, markSize);
+    // ----- Footer (bottom-left): brand + url, larger text. (OG-image footer
+    // layout is a later pass.) -----
+    var fy = H - P - 46;
+    var markSize = 38;
+    if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#c8c8d8';
-    ctx.font = '700 24px "JetBrains Mono"';
+    ctx.font = '700 28px "JetBrains Mono"';
     setLS(ctx, 2);
-    ctx.fillText('THE RISING COMPASS', leftX + markSize + 14, midY - 13);
+    ctx.fillText('THE RISING COMPASS', leftX + markSize + 16, fy + 1);
     setLS(ctx, 0);
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#6a6a82';
-    ctx.font = '400 22px "JetBrains Mono"';
-    ctx.fillText('risingcompass.net', leftX, midY + 30);
+    ctx.font = '400 24px "JetBrains Mono"';
+    ctx.fillText('risingcompass.net', leftX, H - P + 2);
 
     return canvas;
   }
