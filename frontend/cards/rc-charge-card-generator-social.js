@@ -571,19 +571,21 @@
     ctx.fillText(ellipsize(ctx, v.kicker, contentW), leftX, kickBaseline);
     setLS(ctx, 0);
 
-    // ----- Charge: to the RIGHT of the date, just under the kicker (clears the
-    // IG icon, lets the body below breathe). The dominant element. -----
-    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 16, {
+    // ----- Charge: to the RIGHT of the date, below the kicker (clears the IG
+    // icon, lets the body below breathe). The dominant element. The row is
+    // nudged down a touch from the kicker. -----
+    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 40, {
       scoreSize: 116, labelSize: 36, padX: 44, padTop: 22, gap: -6, padBottom: 22,
       minW: 280,
     });
 
-    // ----- Date (left of the charge): day-of-week, then "Month D, YYYY". -----
+    // ----- Date (left of the charge), vertically centered against the charge
+    // box: day-of-week, then "Month D, YYYY". -----
     var dateColW = charge.left - leftX - 40;
     var dateSize = 56, dateLH = Math.round(dateSize * 1.18);
     ctx.fillStyle = '#f4f4fa';
     ctx.font = '700 ' + dateSize + 'px "Inter"';
-    var dowY = kickBaseline + 44 + dateSize;
+    var dowY = Math.round(charge.top + charge.height / 2 - (dateLH - dateSize * 0.72) / 2);
     ctx.fillText(ellipsize(ctx, v.dateParts.dow, dateColW), leftX, dowY);
     ctx.fillText(ellipsize(ctx, v.dateParts.mdy, dateColW), leftX, dowY + dateLH);
     var leftBottom = dowY + dateLH;
@@ -605,8 +607,8 @@
 
     // ----- Top-5 song list (text groups 1.5x, with row margin) -----
     var rows = v.songs.slice(0, 5);
-    // The song list sits between the editorial and the bottom footer band.
-    var brandTop = H - 190;
+    // The song list sits between the editorial and the centered footer band.
+    var brandTop = H - 230;
     var listTop = y + 56;
     var rowH = 100; // title/artist group + bottom margin
     if (listTop + rows.length * rowH > brandTop) {
@@ -654,22 +656,28 @@
     }
     var listBottom = listTop + rows.length * rowH;
 
-    // ----- Footer (bottom-left): brand + url, larger text. (OG-image footer
-    // layout is a later pass.) -----
-    var fy = H - P - 46;
-    var markSize = 38;
-    if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
+    // ----- Footer (centered): brand + url, enlarged, nudged up. (OG-image
+    // footer layout is a later pass.) -----
+    var markSize = 42;
+    ctx.font = '700 32px "JetBrains Mono"';
+    setLS(ctx, 2);
+    var wm = 'THE RISING COMPASS';
+    var wmW = ctx.measureText(wm).width;
+    var totalW = markSize + 16 + wmW;
+    var startX = (SIZE - totalW) / 2;
+    var fy = H - P - 78;
+    if (compassFlat) ctx.drawImage(compassFlat, startX, fy - markSize / 2, markSize, markSize);
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#c8c8d8';
-    ctx.font = '700 28px "JetBrains Mono"';
-    setLS(ctx, 2);
-    ctx.fillText('THE RISING COMPASS', leftX + markSize + 16, fy + 1);
+    ctx.fillText(wm, startX + markSize + 16, fy + 1);
     setLS(ctx, 0);
     ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'center';
     ctx.fillStyle = '#6a6a82';
-    ctx.font = '400 24px "JetBrains Mono"';
-    ctx.fillText('risingcompass.net', leftX, H - P + 2);
+    ctx.font = '400 26px "JetBrains Mono"';
+    ctx.fillText('risingcompass.net', SIZE / 2, fy + 48);
+    ctx.textAlign = 'left';
 
     return canvas;
   }
