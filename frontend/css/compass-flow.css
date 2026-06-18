@@ -58,7 +58,7 @@
 .cflow-cell-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.6rem; }
 .cflow-dot { position: relative; flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--rc-bg-dark); border: 2px solid var(--cf-flow); color: var(--cf-flow); box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
 .cflow-dot svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.cflow-step { font-family: var(--rc-font-mono); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rc-text-dim); margin-bottom: 0.1rem; }
+.cflow-step { font-family: var(--rc-font-mono); font-size: 0.81rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rc-text-dim); margin-bottom: 0.1rem; }
 .cflow-name { font-size: 1rem; font-weight: 700; color: var(--rc-text-bright); line-height: 1.2; }
 .cflow-plain { font-size: 0.88rem; line-height: 1.5; color: var(--rc-text); margin: 0; }
 .cflow-plain b { color: var(--rc-text-bright); font-weight: 600; }
@@ -116,11 +116,14 @@
 
 /* mini in-card glyphs ------------------------------------------------------ */
 .cflow-mini { margin-top: 0.7rem; }
-.cflow-axes { display: flex; gap: 0.35rem; }
-.cflow-axis { flex: 1; height: 7px; border-radius: 4px; }
-.cflow-axis.harm { background: linear-gradient(to right, var(--rc-red), var(--rc-orange)); }
-.cflow-axis.up { background: linear-gradient(to right, var(--rc-blue), var(--rc-violet)); }
-.cflow-axes-labels { display: flex; justify-content: space-between; margin-top: 0.28rem; font-family: var(--rc-font-mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rc-text-dim); }
+/* step 5: a 2-axis plot -- a uplift(left) <-> harm(right) spectrum crossed by a
+   dim vertical axis. Reads as an instrument axis, not a flat bar. */
+.cflow-plane { position: relative; height: 56px; }
+.cflow-plane-x { position: absolute; top: 50%; left: 0; right: 0; height: 6px; transform: translateY(-50%); border-radius: 4px;
+  background: linear-gradient(to right, var(--rc-violet), var(--rc-blue) 28%, rgba(255,255,255,0.16) 50%, var(--rc-orange) 72%, var(--rc-red)); }
+.cflow-plane-y { position: absolute; left: 50%; top: 0; bottom: 0; width: 6px; transform: translateX(-50%); border-radius: 4px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.24), rgba(255,255,255,0.05)); }
+.cflow-plane-labels { display: flex; justify-content: space-between; margin-top: 0.28rem; font-family: var(--rc-font-mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rc-text-dim); }
 .cflow-line { position: relative; height: 22px; }
 .cflow-line-bar { position: absolute; top: 9px; left: 0; right: 0; height: 3px; border-radius: 3px; background: var(--rc-border); }
 .cflow-tick { position: absolute; top: 4px; width: 2px; height: 13px; background: var(--rc-text-dim); border-radius: 2px; }
@@ -138,7 +141,28 @@
 .cflow-needle { position: absolute; top: -4px; bottom: -4px; left: 50%; width: 3px; background: var(--rc-text-bright); border-radius: 3px; box-shadow: 0 0 8px rgba(255,255,255,0.6); }
 .cflow-needle::before { content: ""; position: absolute; top: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--rc-text-bright); }
 
+/* ---- mobile: single column with the same flow language, vertical -----------
+   Below the desktop grid the 12 cards stack in DOM order (already the correct
+   1->12 sequence). We carry the desktop pipe+arrow vocabulary straight down:
+   a dim pipe in every gap and a phase-coloured arrowhead pointing into the next
+   card. The arrow uses the SOURCE card's --cf-flow, so reading stays teal, the
+   handoff is the pivot, and scoring runs violet -- the teal->violet transition
+   reads top-to-bottom exactly like it does left-to-right on desktop. */
+@media (max-width: 899px) {
+  .cflow-grid { gap: 3rem; }
+  .cflow-cell:not(:last-child)::before {
+    content: ""; position: absolute; left: 50%; bottom: -3rem; width: 4px; height: 2.6rem;
+    transform: translateX(-50%); border-radius: 4px; background: var(--cf-pipe); z-index: 0;
+  }
+  .cflow-cell:not(:last-child)::after {
+    content: ""; position: absolute; left: 50%; bottom: -1.5rem; transform: translate(-50%, 50%);
+    border-left: 7px solid transparent; border-right: 7px solid transparent;
+    border-top: 10px solid var(--cf-flow); z-index: 1;
+  }
+  /* replay drops out of the corner so it never crowds the centred heading */
+  .cflow-replay { position: static; margin: 0 auto 1.25rem; display: flex; width: max-content; }
+}
+
 @media (max-width: 600px) {
   .cflow { padding: 2rem 1rem 2.5rem; }
-  .cflow-replay { position: static; margin: 0 auto 1.25rem; display: flex; width: max-content; }
 }
