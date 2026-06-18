@@ -266,6 +266,7 @@
     var compassFlat = await loadCompass(0);                  // upright mark for the brand tag
 
     var H = cardHeight(opts);
+    var isSquare = (H === SIZE);  // 1:1 is tighter -- nudge the body up + footer down
     canvas.width = SIZE;
     canvas.height = H;
     var ctx = canvas.getContext('2d');
@@ -328,8 +329,8 @@
     }
 
     // Push the deadpan + summary down, away from the title/artist, so the body
-    // sits lower and reads with more breathing room.
-    y += 56;
+    // sits lower and reads with more breathing room. Tighter on 1:1.
+    y += isSquare ? 31 : 56;
 
     // Deadpan -- below the artist, within the 4/5 column (10% smaller)
     if (v.deadpan) {
@@ -361,7 +362,8 @@
 
     // ===== FOOTER (centered, enlarged) =====
     // #topics / wordmark / url, all centered. Matches the reading card's footer.
-    var fy = H - P - 70;
+    // Sits a touch lower on 1:1.
+    var fy = H - P - (isSquare ? 50 : 70);
 
     // Topics -- centered above the brand.
     if (v.topics.length) {
