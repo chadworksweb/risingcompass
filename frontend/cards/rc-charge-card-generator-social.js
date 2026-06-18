@@ -162,6 +162,49 @@
     ctx.closePath();
   }
 
+  // Relative luminance, to pick dark/light text that stays legible on a tier fill.
+  function relLum(hex) {
+    var h = hex.replace('#', '');
+    var r = parseInt(h.substring(0, 2), 16) / 255;
+    var g = parseInt(h.substring(2, 4), 16) / 255;
+    var b = parseInt(h.substring(4, 6), 16) / 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function textOn(hex) { return relLum(hex) > 0.55 ? '#0a0a14' : '#f4f4fa'; }
+
+  // The badge that replaces the old compass-gauge tile: a tier-colored box with
+  // the charge score (where the gauge used to be) over the tier label. Shared by
+  // the song card and the reading card. rightEdgeX = right inner edge; topY = top.
+  // Returns the box geometry so the body column can wrap against its left edge.
+  function drawBadge(ctx, hex, label, scoreStr, rightEdgeX, topY) {
+    ctx.font = '700 64px "JetBrains Mono"';
+    var sw = ctx.measureText(scoreStr).width;
+    ctx.font = '600 30px "Inter"';
+    var lw = ctx.measureText(label).width;
+    var boxW = Math.max(168, Math.max(sw, lw) + 56);
+    var boxH = 150;
+    var boxX = rightEdgeX - boxW;
+    var boxY = topY;
+    ctx.save();
+    roundRect(ctx, boxX, boxY, boxW, boxH, 16);
+    ctx.shadowColor = hex;
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = hex;
+    ctx.fill();
+    ctx.restore();
+    var fg = textOn(hex);
+    var cx = boxX + boxW / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = fg;
+    ctx.font = '700 64px "JetBrains Mono"';
+    ctx.fillText(scoreStr, cx, boxY + 84);
+    ctx.font = '600 30px "Inter"';
+    ctx.fillText(label, cx, boxY + 122);
+    ctx.textAlign = 'left';
+    return { left: boxX, right: rightEdgeX, top: boxY, bottom: boxY + boxH };
+  }
+
   // Small outlined speech bubble (the comment indicator from the RC badge).
   function drawBubble(ctx, x, y, color) {
     var w = 30, h = 22, r = 7;
@@ -206,8 +249,6 @@
   async function render(data, canvas, opts) {
     var brand = (opts && opts.brand) || 'lyrical-charger';
     await ensureFonts();
-    var chargeNum = (data.charge != null) ? data.charge : 0;
-    var compass = await loadCompass(chargeToRot(chargeNum)); // needle points at the charge
     var compassFlat = await loadCompass(0);                  // upright mark for the brand tag
 
     var H = cardHeight(opts);
@@ -229,21 +270,11 @@
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // ----- Badge column (right 1/5): big compass gauge + tier label + charge, stacked -----
-    var tile = 138;
-    var tileX = SIZE - PX - tile;
-    var tileY = P;
-    var badgeCx = tileX + tile / 2;
-    if (compass) ctx.drawImage(compass, tileX, tileY, tile, tile);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = v.hex;
-    ctx.font = '600 30px "Inter"';
-    ctx.fillText(v.label, badgeCx, tileY + tile + 38);
-    ctx.fillStyle = '#f4f4fa';
-    ctx.font = '700 50px "JetBrains Mono"';
-    ctx.fillText(v.chargeStr, badgeCx, tileY + tile + 92);
-    var badgeBottom = tileY + tile + 92;
-    ctx.textAlign = 'left';
+    // ----- Badge (top-right): tier-colored box with the charge score over the
+    // tier label (replaces the old compass-gauge tile). -----
+    var badge = drawBadge(ctx, v.hex, v.label, v.chargeStr, SIZE - PX, P);
+    var tileX = badge.left;
+    var badgeBottom = badge.bottom;
 
     // ----- Left 4/5 column: title, artist, deadpan -- stacked from the top -----
     var colW = tileX - leftX - 30;
@@ -295,7 +326,7 @@
     if (v.summary) {
       var y2 = Math.max(y, badgeBottom);
       var sFit = v.deadpan
-        ? fitText(ctx, v.summary, '"Inter"', '400', contentW, 3, 32, 26)
+        ? fitText(ctx, v.summary, '"Inter"', '400', contentW, 4, 44, 32)
         : fitText(ctx, v.summary, '"Inter"', '400', contentW, 6, 54, 38);
       y2 += 44 + sFit.size;
       ctx.fillStyle = '#b8b8c6';
@@ -499,7 +530,6 @@
   async function renderReading(reading, canvas, opts) {
     await ensureFonts();
     var v = pickReading(reading);
-    var compass = await loadCompass(chargeToRot(v.score)); // needle at the day's charge
     var compassFlat = await loadCompass(0);
 
     var H = cardHeight(opts);
@@ -516,21 +546,11 @@
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // ----- Badge column (top-right): compass gauge + tier label + score -----
-    var tile = 138;
-    var tileX = SIZE - PX - tile;
-    var tileY = P;
-    var badgeCx = tileX + tile / 2;
-    if (compass) ctx.drawImage(compass, tileX, tileY, tile, tile);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = v.hex;
-    ctx.font = '600 30px "Inter"';
-    ctx.fillText(v.label, badgeCx, tileY + tile + 38);
-    ctx.fillStyle = '#f4f4fa';
-    ctx.font = '700 50px "JetBrains Mono"';
-    ctx.fillText(v.scoreStr, badgeCx, tileY + tile + 92);
-    var badgeBottom = tileY + tile + 92;
-    ctx.textAlign = 'left';
+    // ----- Badge (top-right): tier-colored box with the score over the tier
+    // label (replaces the old compass-gauge tile). -----
+    var badge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, P);
+    var tileX = badge.left;
+    var badgeBottom = badge.bottom;
 
     // ----- Left column: kicker (2.3x), date (two lines), meta -----
     var colW = tileX - leftX - 30;
