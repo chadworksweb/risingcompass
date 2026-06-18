@@ -1313,3 +1313,17 @@ be closed to new accounts, so the client was rewritten to Buffer's GraphQL API.
   Bluesky / Threads / TikTok / Facebook not yet connected to Buffer -- add their
   channel ids to `BUFFER_PROFILE_IDS` when connected (carousel auto-extends to
   TikTok; the rest take the single Daily Listens).
+
+- **Single-song one-click publish (2026-06-18).** Manual path to publish ONE
+  calibrated song's charge card, separate from the daily machine.
+  `broadcaster.publish_song(song_id, platforms=None, force=False)` reuses the
+  render -> commit-card -> push -> ledger spine but `scope='song'`, dedup key
+  `song:{id}:{platform}` (NO date -> posts once per channel unless `force`). Renders
+  the `type=song` card; refuses uncalibrated songs; dark path identical. Endpoints
+  in `social_admin.py` (cookie auth): `GET /api/admin/social/config`,
+  `GET /api/admin/social/song-search?q=` (calibrated only, charge-DESC, cap 12),
+  `POST /api/admin/social/publish-song {song_id, platforms?, force?}`. Two UIs:
+  a "Broadcast to Buffer" card on `templates/admin/song_detail.html` and a "Publish
+  a single song" search panel atop `templates/admin/social.html`. **BUILT local,
+  py-compile clean, NOT deployed/smoke-tested.** Full reference:
+  `RISING-COMPASS-SOCIAL-BROADCASTER.md` "Single-song publish".

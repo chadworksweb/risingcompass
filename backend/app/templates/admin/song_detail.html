@@ -56,6 +56,22 @@
   .sd-run-noreason { font-style: italic; color: var(--text-hint); font-size: 0.8rem; margin-top: 0.35rem; }
   .sd-v3-strip { font-size: 0.72rem; color: var(--text-dim); font-family: ui-monospace, 'Cascadia Mono', monospace; margin: 0.3rem 0; line-height: 1.6; }
   .sd-empty { color: var(--text-dim); padding: 0.8rem; font-size: 0.88rem; }
+  /* Broadcast panel */
+  .sd-bc-badge { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; padding: 0.12rem 0.55rem; border-radius: 3px; }
+  .sd-bc-badge.live { background: rgba(0,143,114,0.15); color: var(--accent-strong); }
+  .sd-bc-badge.dark { background: rgba(160,160,160,0.18); color: var(--text-dim); }
+  .sd-bc-channels { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0.7rem 0; }
+  .sd-bc-channels label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--text); cursor: pointer; }
+  .sd-bc-force { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-dim); cursor: pointer; }
+  .sd-bc-btn { font-size: 0.82rem; font-weight: 700; padding: 0.4rem 0.9rem; border-radius: 6px; border: 1px solid var(--accent); color: #fff; background: var(--accent-strong); cursor: pointer; }
+  .sd-bc-btn:hover { filter: brightness(1.08); }
+  .sd-bc-btn:disabled { opacity: 0.55; cursor: default; }
+  .sd-bc-result { font-size: 0.8rem; color: var(--text-dim); margin-left: 0.6rem; }
+  .sd-bc-chips { margin-top: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .sd-bc-chip { font-size: 0.7rem; padding: 0.12rem 0.55rem; border-radius: 3px; border: 1px solid var(--border); color: var(--text-dim); }
+  .sd-bc-chip.posted { border-color: var(--accent); color: var(--accent-strong); }
+  .sd-bc-chip.error { border-color: var(--red); color: var(--red); }
+  .sd-bc-chip.dark { border-color: var(--text-dim); }
 </style>
 {% endblock %}
 
@@ -66,8 +82,61 @@
 {% block scripts %}
 <script>
 const SONG_ID = {{ song_id | tojson }};
+const PLATFORM_LABELS = { x: 'X', bluesky: 'Bluesky', threads: 'Threads', instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook' };
 
 function onAdminReady() { loadSong(); }
+
+async function initBroadcast() {
+  const head = document.getElementById('sdBcHead');
+  const chans = document.getElementById('sdBcChannels');
+  if (!head || !chans) return;
+  try {
+    const resp = await adminFetch('/api/admin/social/config');
+    if (!resp.ok) { head.textContent = 'Could not load broadcast config.'; return; }
+    const c = (await resp.json()).config || {};
+    const live = c.enabled && c.buffer_configured;
+    const badge = live
+      ? '<span class="sd-bc-badge live">LIVE</span>'
+      : '<span class="sd-bc-badge dark">DARK</span>';
+    const why = live ? '' : (!c.enabled ? ' broadcasting is off' : ' Buffer not configured -- posts will be held dark');
+    head.innerHTML = badge + '<span style="color:var(--text-hint);margin-left:0.5rem;">' + why + '</span>';
+    const platforms = c.platforms || [];
+    chans.innerHTML = platforms.map(p =>
+      `<label><input type="checkbox" class="sd-bc-ch" value="${escHtml(p)}" checked> ${PLATFORM_LABELS[p] || escHtml(p)}</label>`
+    ).join('') || '<span class="sd-empty" style="padding:0;">No channels configured.</span>';
+  } catch (e) { console.error(e); head.textContent = 'Could not load broadcast config.'; }
+}
+
+async function publishSong() {
+  const btn = document.getElementById('sdBcBtn');
+  const out = document.getElementById('sdBcResult');
+  const chips = document.getElementById('sdBcChips');
+  const platforms = Array.from(document.querySelectorAll('.sd-bc-ch:checked')).map(el => el.value);
+  if (!platforms.length) { out.textContent = 'Select at least one channel.'; return; }
+  const force = document.getElementById('sdBcForce').checked;
+  const live = document.querySelector('#sdBcHead .sd-bc-badge.live');
+  const verb = live ? 'PUBLISH this song to' : 'queue (held dark) this song for';
+  if (!confirm(`This will ${verb} ${platforms.length} channel(s)${force ? ', forcing a re-publish where it already posted' : ''}. Continue?`)) return;
+  btn.disabled = true; out.textContent = 'Publishing...'; chips.innerHTML = '';
+  try {
+    const resp = await adminFetch('/api/admin/social/publish-song', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ song_id: SONG_ID, platforms, force }),
+    });
+    const d = await resp.json();
+    if (!resp.ok) { out.textContent = `Failed (${resp.status}).`; btn.disabled = false; return; }
+    if (d.note && !(d.items && d.items.length)) { out.textContent = d.note; btn.disabled = false; return; }
+    const verbDone = d.buffer_configured ? 'pushed' : 'held dark';
+    out.textContent = `${d.posted} posted, ${d.dark} dark, ${d.skipped} skipped, ${d.errors} error (${verbDone}).`;
+    chips.innerHTML = (d.items || []).map(it => {
+      const cls = it.status === 'posted' ? 'posted' : (it.status === 'error' ? 'error' : (it.status === 'dark' ? 'dark' : ''));
+      const t = it.error ? ` title="${escHtml(it.error)}"` : '';
+      return `<span class="sd-bc-chip ${cls}"${t}>${PLATFORM_LABELS[it.platform] || escHtml(it.platform || '?')}: ${escHtml(it.status)}</span>`;
+    }).join('');
+  } catch (e) { console.error(e); out.textContent = 'Error.'; }
+  btn.disabled = false;
+}
 
 function chargeClass(v) { return (v > 0) ? 'pos' : (v < 0 ? 'neg' : 'zero'); }
 function dot(color) { return color ? `<span class="color-dot ${escHtml(color)}"></span>` : ''; }
@@ -93,6 +162,7 @@ async function loadSong() {
     const d = await resp.json();
     render(d);
     applyAdminTz(body);
+    initBroadcast();
   } catch (e) {
     console.error(e);
     body.innerHTML = '<p class="sd-empty">Failed to load song.</p>';
@@ -215,6 +285,18 @@ function render(d) {
         <span class="sd-run-trig">${d.live_run_count}/${d.run_cap} live runs</span>
         ${translatedToggle}
       </div>
+    </div>
+
+    <div class="sd-card" id="sdBroadcastCard">
+      <h2>Broadcast to Buffer</h2>
+      <div id="sdBcHead" class="sd-empty" style="padding:0;">Loading channels...</div>
+      <div id="sdBcChannels" class="sd-bc-channels"></div>
+      <label class="sd-bc-force"><input type="checkbox" id="sdBcForce"> Force re-publish (override channels it already posted to)</label>
+      <div style="margin-top:0.7rem;">
+        <button type="button" class="sd-bc-btn" id="sdBcBtn" onclick="publishSong()">Publish to Buffer</button>
+        <span id="sdBcResult" class="sd-bc-result"></span>
+      </div>
+      <div id="sdBcChips" class="sd-bc-chips"></div>
     </div>
 
     <div class="sd-card">

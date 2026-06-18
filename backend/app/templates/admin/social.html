@@ -5,6 +5,13 @@
 {% block content %}
 <div id="socialConfig" style="margin-bottom:0.6rem;"></div>
 
+<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.7rem;">
+  <div style="font-size:0.85rem;font-weight:bold;margin-bottom:0.45rem;">Publish a single song</div>
+  <input id="songQ" type="text" autocomplete="off" placeholder="Search calibrated songs by title or artist..." oninput="songSearchDebounced()" style="width:100%;max-width:440px;padding:0.4rem 0.6rem;font-size:0.85rem;background:var(--panel-strong,#1a1a24);color:var(--text,#eee);border:1px solid var(--border);border-radius:4px;">
+  <div id="songResults" style="margin-top:0.5rem;"></div>
+  <div id="songPublish" style="margin-top:0.5rem;"></div>
+</div>
+
 <div class="stats-grid">
   <div class="stat-card"><div class="val" id="bcItems">—</div><div class="label">Broadcast items</div></div>
   <div class="stat-card"><div class="val" id="bcPosted">—</div><div class="label">Posted</div></div>
@@ -37,7 +44,87 @@ const PLATFORM_LABELS = { x: 'X', bluesky: 'Bluesky', threads: 'Threads', instag
 const TIER_LABELS = { violet: 'Ascended', blue: 'Elevated', green: 'Decent', orange: 'Degraded', red: 'Corrupted' };
 const TIER_HEX = { violet: '#aa54ff', blue: '#3388ff', green: '#33cc55', orange: '#ffbb33', red: '#ff3333' };
 
+let BC_CONFIG = {};
+let songSearchTimer = null;
+let selectedSong = null;
+
 function onAdminReady() { loadBroadcasts(); }
+
+function songSearchDebounced() {
+  clearTimeout(songSearchTimer);
+  songSearchTimer = setTimeout(doSongSearch, 250);
+}
+
+async function doSongSearch() {
+  const q = document.getElementById('songQ').value.trim();
+  const box = document.getElementById('songResults');
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  try {
+    const resp = await fetch('/api/admin/social/song-search?q=' + encodeURIComponent(q), { headers: adminHeaders() });
+    if (!resp.ok) { box.innerHTML = '<span style="color:#888;font-size:0.78rem;">Search failed.</span>'; return; }
+    const rows = (await resp.json()).results || [];
+    if (!rows.length) { box.innerHTML = '<span style="color:#888;font-size:0.78rem;">No calibrated songs match.</span>'; return; }
+    box.innerHTML = rows.map(r => {
+      const hex = TIER_HEX[r.rubric_color] || '#888';
+      const chg = r.charge_value == null ? '' : (r.charge_value > 0 ? '+' : '') + r.charge_value;
+      return `<div onclick='selectSong(${JSON.stringify(r).replace(/'/g, "&#39;")})' style="cursor:pointer;border:1px solid var(--border);border-left:3px solid ${hex};border-radius:4px;padding:0.4rem 0.6rem;margin-bottom:0.3rem;font-size:0.82rem;">
+        ${escHtml(r.title || '')} <span style="color:#888;">— ${escHtml(r.artist || '')}</span>
+        <span style="color:${hex};font-weight:bold;margin-left:0.4rem;">${chg} ${escHtml(r.tier_label || '')}</span></div>`;
+    }).join('');
+  } catch (e) { console.error(e); }
+}
+
+function selectSong(r) {
+  selectedSong = r;
+  document.getElementById('songResults').innerHTML = '';
+  document.getElementById('songQ').value = `${r.title} — ${r.artist}`;
+  const platforms = BC_CONFIG.platforms || [];
+  const checks = platforms.map(p =>
+    `<label style="display:inline-flex;align-items:center;gap:0.3rem;font-size:0.82rem;margin-right:0.8rem;"><input type="checkbox" class="ps-ch" value="${escHtml(p)}" checked> ${PLATFORM_LABELS[p] || escHtml(p)}</label>`
+  ).join('') || '<span style="color:#888;font-size:0.78rem;">No channels configured.</span>';
+  document.getElementById('songPublish').innerHTML =
+    `<div style="border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.8rem;">
+       <div style="font-size:0.82rem;margin-bottom:0.4rem;">Publish <strong>${escHtml(r.title || '')}</strong> by ${escHtml(r.artist || '')}</div>
+       <div style="margin-bottom:0.45rem;">${checks}</div>
+       <label style="display:inline-flex;align-items:center;gap:0.3rem;font-size:0.78rem;color:#999;margin-bottom:0.5rem;"><input type="checkbox" id="psForce"> Force re-publish</label>
+       <div>
+         <button onclick="publishSelectedSong()" style="padding:0.35rem 0.8rem;font-size:0.8rem;">Publish to Buffer</button>
+         <span id="psResult" style="font-size:0.8rem;color:#888;margin-left:0.5rem;"></span>
+       </div>
+       <div id="psChips" style="margin-top:0.45rem;"></div>
+     </div>`;
+}
+
+async function publishSelectedSong() {
+  if (!selectedSong) return;
+  const out = document.getElementById('psResult');
+  const chips = document.getElementById('psChips');
+  const platforms = Array.from(document.querySelectorAll('.ps-ch:checked')).map(el => el.value);
+  if (!platforms.length) { out.textContent = 'Select at least one channel.'; return; }
+  const force = document.getElementById('psForce').checked;
+  const live = BC_CONFIG.enabled && BC_CONFIG.buffer_configured;
+  const verb = live ? 'PUBLISH this song to' : 'queue (held dark) this song for';
+  if (!confirm(`This will ${verb} ${platforms.length} channel(s)${force ? ', forcing a re-publish' : ''}. Continue?`)) return;
+  out.textContent = 'Publishing...'; chips.innerHTML = '';
+  try {
+    const resp = await fetch('/api/admin/social/publish-song', {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ song_id: selectedSong.song_id, platforms, force }),
+    });
+    const d = await resp.json();
+    if (!resp.ok) { out.textContent = `Failed (${resp.status}).`; return; }
+    if (d.note && !(d.items && d.items.length)) { out.textContent = d.note; loadBroadcasts(); return; }
+    const verbDone = d.buffer_configured ? 'pushed' : 'held dark';
+    out.textContent = `${d.posted} posted, ${d.dark} dark, ${d.skipped} skipped, ${d.errors} error (${verbDone}).`;
+    chips.innerHTML = (d.items || []).map(it => {
+      const col = statusColor(it.status);
+      const t = it.error ? ` title="${escHtml(it.error)}"` : '';
+      return `<span${t} style="display:inline-block;font-size:0.7rem;padding:1px 7px;border-radius:3px;border:1px solid ${col};color:${col};margin:0 0.25rem 0.25rem 0;">${PLATFORM_LABELS[it.platform] || escHtml(it.platform || '?')}: ${escHtml(it.status)}</span>`;
+    }).join('');
+    loadBroadcasts();
+  } catch (e) { console.error(e); out.textContent = 'Error.'; }
+}
 
 function bcFilter(val) {
   bcStatus = val;
@@ -78,6 +165,7 @@ async function loadBroadcasts() {
 }
 
 function renderConfig(c) {
+  BC_CONFIG = c;
   const live = c.enabled && c.buffer_configured;
   const badge = live
     ? `<span style="background:rgba(0,143,114,0.15);color:var(--accent);font-weight:bold;padding:2px 9px;border-radius:3px;">LIVE</span>`

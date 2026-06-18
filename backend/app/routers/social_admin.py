@@ -9,7 +9,8 @@ admin/social.html (Community group).
 import logging
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func
+from pydantic import BaseModel
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -17,13 +18,37 @@ from app.database import get_db
 from app.models import SocialPost, Song
 from app.routers.admin import verify_admin_key
 from app.services.social import buffer_client
-from app.services.social.broadcaster import DEFAULT_PLATFORMS, run_social_broadcast
+from app.services.social.broadcaster import (
+    DEFAULT_PLATFORMS,
+    publish_song,
+    run_social_broadcast,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["social-admin"])
 
 _ROW_CAP = 1200  # ~200 items at 6 platforms each
+_SONG_SEARCH_CAP = 12
+
+TIER_LABELS = {
+    "violet": "Ascended", "blue": "Elevated", "green": "Decent",
+    "orange": "Degraded", "red": "Corrupted",
+}
+
+
+def _broadcast_config() -> dict:
+    return {
+        "enabled": settings.social_broadcast_enabled,
+        "buffer_configured": buffer_client.is_configured(),
+        "platforms": list(buffer_client.profile_map().keys()) or DEFAULT_PLATFORMS,
+    }
+
+
+class PublishSongIn(BaseModel):
+    song_id: int
+    platforms: list[str] | None = None
+    force: bool = False
 
 
 @router.get("/api/admin/social/broadcasts", dependencies=[Depends(verify_admin_key)])
@@ -117,3 +142,57 @@ async def admin_run_broadcast():
     """Admin 'Run broadcast now' trigger (cookie auth). Same orchestrator as the
     cron -- selects, renders, ledgers, and (if Buffer is configured) pushes."""
     return await run_social_broadcast(trigger="admin")
+
+
+@router.get("/api/admin/social/config", dependencies=[Depends(verify_admin_key)])
+def social_config():
+    """Lightweight config (enabled / buffer_configured / channels) for the
+    one-click publish UIs (song detail + Broadcasts search), without the heavy
+    broadcast item list."""
+    return {"config": _broadcast_config()}
+
+
+@router.get("/api/admin/social/song-search", dependencies=[Depends(verify_admin_key)])
+def song_search(q: str = Query("", min_length=2), db: Session = Depends(get_db)):
+    """Find calibrated songs by title/artist for one-click publishing. Only
+    calibrated rows (tier + charge present) are returned -- the rest can't render
+    a card."""
+    term = q.strip()
+    if len(term) < 2:
+        return {"results": []}
+    like = f"%{term}%"
+    rows = (
+        db.query(Song)
+        .filter(
+            Song.rubric_color.isnot(None),
+            Song.charge_value.isnot(None),
+            or_(Song.title.ilike(like), Song.artist.ilike(like)),
+        )
+        .order_by(Song.charge_value.desc())
+        .limit(_SONG_SEARCH_CAP)
+        .all()
+    )
+    return {
+        "results": [
+            {
+                "song_id": s.id,
+                "title": s.title,
+                "artist": s.artist,
+                "charge_value": s.charge_value,
+                "rubric_color": s.rubric_color,
+                "tier_label": TIER_LABELS.get(s.rubric_color or "", ""),
+            }
+            for s in rows
+        ]
+    }
+
+
+@router.post("/api/admin/social/publish-song", dependencies=[Depends(verify_admin_key)])
+async def admin_publish_song(body: PublishSongIn):
+    """One-click publish a single calibrated song's charge card to the selected
+    channels (cookie auth). Renders -> commits the card -> pushes (if Buffer is
+    configured) -> ledgers scope='song'. Skips channels the song already went out
+    on unless force=true."""
+    return await publish_song(
+        body.song_id, platforms=body.platforms, force=body.force, trigger="admin"
+    )

@@ -21,6 +21,7 @@ the cards and writes the ledger as status='dark', pushing nothing -- so the whol
 pipeline is verifiable before any account or credential exists.
 """
 
+import json
 import logging
 import secrets
 from calendar import month_name
@@ -32,9 +33,10 @@ from sqlalchemy.orm import joinedload
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import ChartSnapshot, DailyReading, ReadingSong, SocialCard, SocialPost
+from app.models import ChartSnapshot, DailyReading, ReadingSong, SocialCard, SocialPost, Song
 from app.services.social import buffer_client
 from app.services.social.card_render import render_card
+from app.services.song_search import _attach_slugs
 from app.services.song_store import find_song_by_title_artist
 
 logger = logging.getLogger(__name__)
@@ -343,6 +345,175 @@ async def run_social_broadcast(trigger: str = "manual") -> dict:
     except Exception as exc:
         db.rollback()
         logger.exception("social broadcast failed")
+        summary["errors"] += 1
+        summary["items"].append({"status": "error", "error": str(exc)})
+        return summary
+    finally:
+        db.close()
+
+
+# --- single-song publish (manual, one-click from admin) -------------------
+#
+# A song is posted by hand off the daily-charts machine: an admin picks one
+# calibrated song and one-click publishes its charge card to the selected
+# channels. Same render -> commit -> push -> ledger spine as the daily run, but
+# scope='song' (dedup_key 'song:{id}:{platform}', so a song posts once per
+# platform unless an admin forces a re-publish). Captions are objective + data
+# only, mirroring the daily ones.
+
+# Char-limited platforms get the compact caption (no summary body).
+COMPACT_PLATFORMS = ("x", "bluesky")
+
+
+def _song_card_data(s: Song) -> dict:
+    """Card payload for the 'song' render surface (frontend/cards/index.html)."""
+    try:
+        topics = json.loads(s.topics) if isinstance(s.topics, str) else (s.topics or [])
+    except (ValueError, TypeError):
+        topics = []
+    return {
+        "title": s.title or "",
+        "artist": s.artist or "",
+        "charge": s.charge_value,
+        "tier": s.rubric_color,
+        "tier_label": TIER_LABELS.get(s.rubric_color or "", ""),
+        "deadpan_line": s.deadpan_line or "",
+        "charge_summary": s.charge_summary or "",
+        "topics": topics if isinstance(topics, list) else [],
+    }
+
+
+def _song_caption(song: dict, platform: str) -> str:
+    """Objective, data-only caption for one song, tuned per channel. `song`
+    carries title/artist/charge/tier/charge_summary/slug."""
+    tier = TIER_LABELS.get(song.get("tier") or "", "")
+    line1 = (f"{song['title']} by {song['artist']}: "
+             f"{_score_str(song['charge'])} ({tier}).")
+    if platform in CAROUSEL_PLATFORMS:
+        body = [line1]
+        if song.get("charge_summary"):
+            body.append(song["charge_summary"])
+        body.append("Full reading: link in bio.")
+        return "\n\n".join(body) + "\n\n#RisingCompass #musicanalysis"
+    link = _tagged_link(f"/songs/{song['slug']}/", "song") if song.get("slug") else ""
+    if platform in COMPACT_PLATFORMS:
+        return f"{line1}\n\n{link}\n\n#RisingCompass".rstrip()
+    body = [line1]
+    if song.get("charge_summary"):
+        body.append(song["charge_summary"])
+    if link:
+        body.append(link)
+    return "\n\n".join(body)
+
+
+async def publish_song(song_id: int, platforms: list[str] | None = None,
+                       force: bool = False, trigger: str = "admin") -> dict:
+    """Publish ONE calibrated song's charge card to the selected channels.
+
+    platforms=None -> every configured channel (or DEFAULT_PLATFORMS when Buffer
+    is dark, so the ledger still records a dark row). force=True re-publishes to a
+    platform the song already went out on (the default skips it).
+    """
+    db = SessionLocal()
+    configured = buffer_client.is_configured()
+    summary = {
+        "trigger": trigger,
+        "buffer_configured": configured,
+        "song_id": song_id,
+        "items": [],
+        "posted": 0,
+        "dark": 0,
+        "errors": 0,
+        "skipped": 0,
+    }
+    try:
+        s = db.get(Song, song_id)
+        if s is None:
+            summary["note"] = f"song {song_id} not found"
+            return summary
+        if s.rubric_color is None or s.charge_value is None:
+            summary["note"] = "song is not calibrated yet (no tier/charge)"
+            return summary
+
+        slug_items = [{"id": s.id, "title": s.title or "", "artist": s.artist}]
+        _attach_slugs(slug_items, db)
+        song = {
+            "title": s.title or "",
+            "artist": s.artist or "",
+            "charge": s.charge_value,
+            "tier": s.rubric_color,
+            "charge_summary": s.charge_summary or "",
+            "slug": slug_items[0].get("slug"),
+        }
+        summary["title"] = song["title"]
+        summary["artist"] = song["artist"]
+        summary["slug"] = song["slug"]
+
+        all_platforms = list(buffer_client.profile_map().keys()) or DEFAULT_PLATFORMS
+        if platforms:
+            targets = [p for p in all_platforms if p in platforms]
+        else:
+            targets = all_platforms
+        if not targets:
+            summary["note"] = "no matching channels selected"
+            return summary
+
+        # Render + store + COMMIT the card so the public card route (separate
+        # session) can serve it when Buffer fetches the URL.
+        png = await render_card("song", _song_card_data(s))
+        token = _store_card(db, "song", str(song_id), png)
+        db.commit()
+        url = _card_url(token)
+
+        pmap = buffer_client.profile_map() if configured else {}
+        items = []   # push items (configured only)
+        plan = []    # ledger entries
+        for p in targets:
+            dedup = f"song:{song_id}:{p}"
+            if _already_live(db, dedup):
+                if not force:
+                    summary["skipped"] += 1
+                    summary["items"].append({"platform": p, "status": "skipped",
+                                             "error": "already published"})
+                    continue
+                # Force: drop the prior row so the upsert lands a fresh post.
+                db.query(SocialPost).filter(SocialPost.dedup_key == dedup).delete()
+            text = _song_caption(song, p)
+            plan.append({"platform": p, "dedup": dedup, "text": text})
+            if configured and p in pmap:
+                items.append({"platform": p, "channel_id": pmap[p],
+                              "text": text, "image_urls": [url]})
+
+        posted, errors = {}, {}
+        if configured and items:
+            res = await buffer_client.post_items(items)
+            posted, errors = res["posted"], res["errors"]
+
+        now = datetime.utcnow()
+        for e in plan:
+            p = e["platform"]
+            if not configured:
+                st, ext, err, pa = "dark", None, None, None
+            elif p in posted:
+                st, ext, err, pa = "posted", posted[p], None, now
+            else:
+                st, ext, err, pa = "error", None, errors.get(p, "buffer push failed"), None
+            _upsert_post(
+                db, scope="song", song_id=song_id, reading_date=None, platform=p,
+                dedup_key=e["dedup"], post_text=e["text"], card_token=token,
+                charge_value=s.charge_value, tier=s.rubric_color, trending_source=None,
+                post_external_id=ext, status=st, error=err, posted_at=pa,
+            )
+            summary["items"].append({"platform": p, "status": st,
+                                     "external_id": ext, "error": err})
+            summary["posted" if st == "posted" else ("errors" if st == "error" else "dark")] += 1
+        db.commit()
+        if not plan:
+            summary["note"] = "all selected channels already published for this song"
+        return summary
+    except Exception as exc:
+        db.rollback()
+        logger.exception("single-song publish failed")
         summary["errors"] += 1
         summary["items"].append({"status": "error", "error": str(exc)})
         return summary
