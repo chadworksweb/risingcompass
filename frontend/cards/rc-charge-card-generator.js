@@ -363,7 +363,7 @@
     // ===== FOOTER (centered, enlarged) =====
     // #topics / wordmark / url, all centered. Matches the reading card's footer.
     // Sits a touch lower on 1:1.
-    var fy = H - P - (isSquare ? 50 : 70);
+    var fy = H - P - (isSquare ? 30 : 50);
 
     // Topics -- centered above the brand.
     if (v.topics.length) {
