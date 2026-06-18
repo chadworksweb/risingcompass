@@ -78,7 +78,7 @@
   <!-- Broadcast-only fork (3:4, flush border, tactical layout). Lives UNDER
        /cards/ so the Cloudflare /cards/* cache-bypass rule covers it -- origin
        edits show immediately, no version-bump chase. -->
-  <script src="/cards/rc-charge-card-generator-social.js?v=20260618-songfooter"></script>
+  <script src="/cards/rc-charge-card-generator.js?v=20260618-master"></script>
   <script>
     (function () {
       'use strict';
@@ -130,6 +130,7 @@
       var statusEl = document.getElementById('status');
       var params = getParams();
       var type = (params.get('type') === 'song') ? 'song' : 'reading';
+      var ratio = (params.get('ratio') === 'square') ? 'square' : 'portrait';
       var passed = decodeData(params.get('data'));
 
       window.__cardReady = false;
@@ -139,8 +140,8 @@
         var data = passed || (type === 'song' ? SAMPLE_SONG : SAMPLE_READING);
         // 3:4 portrait (1080x1440, the fork's default) -- matches IG grid thumbs.
         var p = (type === 'song')
-          ? RCSocialCard.render(data, canvas, { brand: 'compass' })
-          : RCSocialCard.renderReading(data, canvas);
+          ? RCChargeCard.render(data, canvas, { brand: 'compass', ratio: ratio })
+          : RCChargeCard.renderReading(data, canvas, { ratio: ratio });
         return p.then(function () {
           window.__cardReady = true;
           statusEl.textContent = type + ' card ready -- ' + (passed ? 'live data' : 'sample data');

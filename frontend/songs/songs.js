@@ -838,6 +838,19 @@
       topics: Array.isArray(song.topics) ? song.topics : [],
     };
 
+    // Shape toggle (Square 1:1 / Instagram 3:4). Default 1:1 (the classic card).
+    let cardRatio = 'square';
+    const ratioWrap = document.getElementById('charge-card-ratio');
+    if (ratioWrap) {
+      ratioWrap.hidden = false;
+      ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((opt) => {
+        opt.onclick = () => {
+          cardRatio = opt.dataset.ratio === 'portrait' ? 'portrait' : 'square';
+          ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((o) => o.classList.toggle('is-active', o === opt));
+        };
+      });
+    }
+
     btn.onclick = async () => {
       const canvas = document.getElementById('charge-card-canvas');
       if (!canvas) return;
@@ -845,7 +858,7 @@
       showCardToast('Downloading now…', { spinner: true });
       const startedAt = Date.now();
       try {
-        const cardOpts = { brand: 'compass' };
+        const cardOpts = { brand: 'compass', ratio: cardRatio };
         await window.RCChargeCard.render(cardData, canvas, cardOpts);
         await window.RCChargeCard.shareOrDownload(canvas, cardData, true, cardOpts);
         // Hold the "Downloading now" state briefly so it doesn't flash past on

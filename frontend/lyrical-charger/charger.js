@@ -1394,12 +1394,29 @@ function closeChargeCardModal() {
   chargeCardModal.setAttribute('aria-hidden', 'true');
 }
 
+// Card shape (Square 1:1 / Instagram 3:4). Default 1:1, re-renders the preview on change.
+let cardRatio = 'square';
+async function renderChargeCard() {
+  if (!lastResult || !window.RCChargeCard) return;
+  await window.RCChargeCard.render(lastResult, chargeCardCanvas, { ratio: cardRatio });
+}
+const ccRatioWrap = document.getElementById('cc-ratio');
+if (ccRatioWrap) {
+  ccRatioWrap.querySelectorAll('.cc-ratio-opt').forEach((opt) => {
+    opt.addEventListener('click', async () => {
+      cardRatio = opt.dataset.ratio === 'portrait' ? 'portrait' : 'square';
+      ccRatioWrap.querySelectorAll('.cc-ratio-opt').forEach((o) => o.classList.toggle('is-active', o === opt));
+      try { await renderChargeCard(); } catch (_) {}
+    });
+  });
+}
+
 if (btnShare) {
   btnShare.addEventListener('click', async () => {
     if (!lastResult || !window.RCChargeCard) return;
     btnShare.disabled = true;
     try {
-      await window.RCChargeCard.render(lastResult, chargeCardCanvas);
+      await renderChargeCard();
       if (btnShareNative) {
         const canNative = !!(navigator.canShare && window.File);
         btnShareNative.style.display = canNative ? '' : 'none';

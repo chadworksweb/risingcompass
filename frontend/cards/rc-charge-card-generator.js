@@ -1,21 +1,34 @@
 /* ============================================================
-   Rising Compass -- Charge Card Generator (rc-charge-card-generator)
-   The mechanism that builds the rc-charge-card. Client-side canvas
-   renderer: draws a 1080x1080 card from a calibrate result and hands
-   it to the native share sheet (or a download fallback). Shared by the
-   song detail page (rc-charge-card) and the Lyrical Charger
-   (rc-lc-charge-card). No backend, no dependency.
+   Rising Compass -- Charge Card Generator (MASTER)
+   (rc-charge-card-generator)
 
-   Composition: "deadpan quip is hero" --
-     - deadpan_line set large as the statement
-     - charge + tier ride as a corner badge
-     - tier-colored phosphor glow on the card border (CRT device look)
-     - title/artist + topics + Lyrical Charger watermark
+   The single card generator for the whole site: the public song-page / Lyrical
+   Charger share card AND the social broadcaster's cards. Exposes
+   window.RCChargeCard. No backend, no dependency. (This consolidates the old
+   public 1:1 generator and the broadcast 3:4 fork into one source of truth.)
+
+   Aspect ratio is selectable per render via opts.ratio:
+     - 'square'   -> 1080x1080 (1:1)
+     - 'portrait' -> 1080x1440 (3:4, Instagram profile-grid crop)
+   opts.height (a number) overrides both. Default is 'portrait'. Public callers
+   pass 'square' for the classic 1:1 card; the ratio toggle on the song / Lyrical
+   Charger pages flips it. The phosphor border sits flush to the image edge.
    ============================================================ */
 (function () {
   'use strict';
 
-  var SIZE = 1080;
+  var SIZE = 1080;       // card WIDTH (the canvas is always SIZE wide)
+  var POST_H = 1440;     // 3:4 portrait height -- matches the IG profile-grid thumb
+
+  // Resolve the card height: explicit opts.height wins, else opts.ratio
+  // ('square' = 1:1, 'portrait' = 3:4), else the 3:4 post height.
+  function cardHeight(opts) {
+    var h = opts && opts.height;
+    if (typeof h === 'number' && h > 0) return h;
+    if (opts && opts.ratio === 'square') return SIZE;
+    if (opts && opts.ratio === 'portrait') return POST_H;
+    return POST_H;
+  }
 
   // Canonical RC tier palette (matches main.css :root --rc-*).
   var TIER_HEX = {
@@ -154,6 +167,58 @@
     ctx.closePath();
   }
 
+  // Relative luminance, to pick dark/light text that stays legible on a tier fill.
+  function relLum(hex) {
+    var h = hex.replace('#', '');
+    var r = parseInt(h.substring(0, 2), 16) / 255;
+    var g = parseInt(h.substring(2, 4), 16) / 255;
+    var b = parseInt(h.substring(4, 6), 16) / 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function textOn(hex) { return relLum(hex) > 0.55 ? '#0a0a14' : '#f4f4fa'; }
+
+  // The tier-colored charge box: the charge score (where the compass gauge used
+  // to be) over the tier label, on a tier-colored fill. Shared by the song card
+  // and the reading card. rightEdgeX = right inner edge; topY = top. opts tunes
+  // the score/label sizes and padding; opts.anchorBottomY positions the box by
+  // its bottom instead of its top (so it can hug the footer band). Returns the
+  // box geometry so the body can lay out around it.
+  function drawBadge(ctx, hex, label, scoreStr, rightEdgeX, topY, opts) {
+    opts = opts || {};
+    var scoreSize = opts.scoreSize || 64;
+    var labelSize = opts.labelSize || 30;
+    var padX = (opts.padX != null) ? opts.padX : 28;
+    var padTop = (opts.padTop != null) ? opts.padTop : 20;
+    var gap = (opts.gap != null) ? opts.gap : 14;
+    var padBottom = (opts.padBottom != null) ? opts.padBottom : 22;
+    ctx.font = '700 ' + scoreSize + 'px "JetBrains Mono"';
+    var sw = ctx.measureText(scoreStr).width;
+    ctx.font = '600 ' + labelSize + 'px "Inter"';
+    var lw = ctx.measureText(label).width;
+    var boxW = Math.max(opts.minW || 168, Math.max(sw, lw) + padX * 2);
+    var boxH = padTop + scoreSize + gap + labelSize + padBottom;
+    var boxX = rightEdgeX - boxW;
+    var boxY = (opts.anchorBottomY != null) ? (opts.anchorBottomY - boxH) : topY;
+    ctx.save();
+    roundRect(ctx, boxX, boxY, boxW, boxH, 16);
+    ctx.shadowColor = hex;
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = hex;
+    ctx.fill();
+    ctx.restore();
+    var fg = textOn(hex);
+    var cx = boxX + boxW / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = fg;
+    ctx.font = '700 ' + scoreSize + 'px "JetBrains Mono"';
+    ctx.fillText(scoreStr, cx, boxY + padTop + scoreSize * 0.82);
+    ctx.font = '600 ' + labelSize + 'px "Inter"';
+    ctx.fillText(label, cx, boxY + padTop + scoreSize + gap + labelSize * 0.82);
+    ctx.textAlign = 'left';
+    return { left: boxX, right: rightEdgeX, top: boxY, bottom: boxY + boxH, width: boxW, height: boxH };
+  }
+
   // Small outlined speech bubble (the comment indicator from the RC badge).
   function drawBubble(ctx, x, y, color) {
     var w = 30, h = 22, r = 7;
@@ -198,63 +263,19 @@
   async function render(data, canvas, opts) {
     var brand = (opts && opts.brand) || 'lyrical-charger';
     await ensureFonts();
-    var chargeNum = (data.charge != null) ? data.charge : 0;
-    var compass = await loadCompass(chargeToRot(chargeNum)); // needle points at the charge
     var compassFlat = await loadCompass(0);                  // upright mark for the brand tag
 
+    var H = cardHeight(opts);
     canvas.width = SIZE;
-    canvas.height = SIZE;
+    canvas.height = H;
     var ctx = canvas.getContext('2d');
     var v = pick(data);
     var P = 100;   // top / bottom padding
     var PX = 110;  // left / right padding (+10%)
 
-    // --- Background: deep vertical gradient
-    var bg = ctx.createLinearGradient(0, 0, 0, SIZE);
-    bg.addColorStop(0, '#0e0e1a');
-    bg.addColorStop(0.55, '#0a0a14');
-    bg.addColorStop(1, '#060609');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // Faint tier glow blooming from behind the hero
-    var rg = ctx.createRadialGradient(SIZE / 2, SIZE * 0.46, 40, SIZE / 2, SIZE * 0.46, SIZE * 0.62);
-    rg.addColorStop(0, hexToRgba(v.hex, 0.18));
-    rg.addColorStop(1, hexToRgba(v.hex, 0));
-    ctx.fillStyle = rg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // --- CRT scanlines (subtle horizontal banding)
-    ctx.fillStyle = 'rgba(0,0,0,0.05)';
-    for (var sy = 0; sy < SIZE; sy += 4) ctx.fillRect(0, sy, SIZE, 2);
-
-    // --- Vignette for CRT depth
-    var vg = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.34, SIZE / 2, SIZE / 2, SIZE * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // --- Square card border with tier phosphor glow (INNER glow only, cranked up)
-    var bx = 30, bw = SIZE - 60, blw = 7; // 0 radius; thicker border
-    // Inner glow: clip to the card interior so the bloom falls only inward.
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(bx, bx, bw, bw);
-    ctx.clip();
-    ctx.shadowColor = v.hex;
-    ctx.shadowBlur = 66; // tighter spread; passes below keep the strength
-    ctx.strokeStyle = v.hex;
-    ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw); // extra passes crank the inner bloom
-    ctx.restore();
-    // Crisp square border edge on top (no shadow, full width)
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = v.hex;
-    ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
+    // Shared CRT chrome (background, tier bloom behind the hero, scanlines,
+    // vignette, rectangular phosphor border) -- same routine the reading card uses.
+    drawChrome(ctx, v.hex, H * 0.46, H);
 
     // ===== HERO (top, left-aligned): title, deadpan, artist, charge -- equidistant rows =====
     var leftX = PX;
@@ -263,21 +284,16 @@
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // ----- Badge column (right 1/5): big compass gauge + tier label + charge, stacked -----
-    var tile = 138;
-    var tileX = SIZE - PX - tile;
-    var tileY = P;
-    var badgeCx = tileX + tile / 2;
-    if (compass) ctx.drawImage(compass, tileX, tileY, tile, tile);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = v.hex;
-    ctx.font = '600 30px "Inter"';
-    ctx.fillText(v.label, badgeCx, tileY + tile + 38);
-    ctx.fillStyle = '#f4f4fa';
-    ctx.font = '700 50px "JetBrains Mono"';
-    ctx.fillText(v.chargeStr, badgeCx, tileY + tile + 92);
-    var badgeBottom = tileY + tile + 92;
-    ctx.textAlign = 'left';
+    // ----- Badge (top-right): tier-colored box, charge score over the tier
+    // label, sized up so the charge reads as the dominant element. Single image
+    // (no IG carousel icon), so the top-right corner is fine here. -----
+    // Drop the title/charge row to the same start the reading card uses for its
+    // charge row (kicker height + gap), so the two cards share a vertical rhythm.
+    var rowTop = P + 99;
+    var badge = drawBadge(ctx, v.hex, v.label, v.chargeStr, SIZE - PX, rowTop,
+      { scoreSize: 92, labelSize: 30, minW: 200, padX: 30 });
+    var tileX = badge.left;
+    var badgeBottom = badge.bottom;
 
     // ----- Left 4/5 column: title, artist, deadpan -- stacked from the top -----
     var colW = tileX - leftX - 30;
@@ -294,7 +310,7 @@
       titleStart = Math.max(52, Math.round(100 - (titleText.length - 22) * 1.6));
     }
     var tFit = fitText(ctx, titleText, '"Inter"', '700', titleColW, 3, titleStart, 44);
-    var ty = P + tFit.size;
+    var ty = rowTop + tFit.size;
     ctx.fillStyle = '#f4f4fa';
     ctx.font = '700 ' + tFit.size + 'px "Inter"';
     for (var ti = 0; ti < tFit.lines.length; ti++) {
@@ -310,6 +326,10 @@
       ctx.font = '400 46px "Inter"';
       ctx.fillText(v.artist, leftX, y - 28);
     }
+
+    // Push the deadpan + summary down, away from the title/artist, so the body
+    // sits lower and reads with more breathing room.
+    y += 56;
 
     // Deadpan -- below the artist, within the 4/5 column (10% smaller)
     if (v.deadpan) {
@@ -329,7 +349,7 @@
     if (v.summary) {
       var y2 = Math.max(y, badgeBottom);
       var sFit = v.deadpan
-        ? fitText(ctx, v.summary, '"Inter"', '400', contentW, 3, 32, 26)
+        ? fitText(ctx, v.summary, '"Inter"', '400', contentW, 4, 44, 32)
         : fitText(ctx, v.summary, '"Inter"', '400', contentW, 6, 54, 38);
       y2 += 44 + sFit.size;
       ctx.fillStyle = '#b8b8c6';
@@ -339,55 +359,61 @@
       }
     }
 
-    // ===== BOTTOM (left-aligned, extra padding from the base) =====
-    // The brand wordmark baseline. Topics sit equidistant above it as the URL
-    // sits below it (both 44px from this line), so the bottom block reads as
-    // three evenly-spaced rows: #topics / wordmark / url.
-    var fy = SIZE - P - 44;
+    // ===== FOOTER (centered, enlarged) =====
+    // #topics / wordmark / url, all centered. Matches the reading card's footer.
+    var fy = H - P - 70;
 
-    // Topics -- 44px above the wordmark line.
+    // Topics -- centered above the brand.
     if (v.topics.length) {
       ctx.fillStyle = hexToRgba(v.hex, 0.9);
-      ctx.font = '400 26px "JetBrains Mono"';
+      ctx.font = '400 28px "JetBrains Mono"';
+      ctx.textAlign = 'center';
       var tline = v.topics.map(function (t) { return '#' + String(t).replace(/^#/, ''); }).join('   ');
-      ctx.fillText(tline, leftX, fy - 44);
+      ctx.fillText(tline, SIZE / 2, fy - 58);
+      ctx.textAlign = 'left';
     }
 
-    // Brand wordmark. Default: LYRICAL CHARGER, powered by the RISING COMPASS.
-    // brand==='compass' (song pages): just THE RISING COMPASS.
-    var markSize = 32;
-    if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
+    // Brand wordmark, centered + enlarged. compass: THE RISING COMPASS.
+    var markSize = 42;
     ctx.textBaseline = 'middle';
-    var tx = leftX + markSize + 14;
     if (brand === 'compass') {
-      ctx.fillStyle = '#c8c8d8';
-      ctx.font = '700 22px "JetBrains Mono"';
+      ctx.font = '700 32px "JetBrains Mono"';
       setLS(ctx, 2);
-      ctx.fillText('THE RISING COMPASS', tx, fy + 1);
+      var wm = 'THE RISING COMPASS';
+      var wmW = ctx.measureText(wm).width;
+      var startX = (SIZE - (markSize + 16 + wmW)) / 2;
+      if (compassFlat) ctx.drawImage(compassFlat, startX, fy - markSize / 2, markSize, markSize);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#c8c8d8';
+      ctx.fillText(wm, startX + markSize + 16, fy + 1);
       setLS(ctx, 0);
     } else {
-      // Both brand names share one style; the connective is the dim link.
-      ctx.fillStyle = '#c8c8d8';
-      ctx.font = '700 22px "JetBrains Mono"';
-      setLS(ctx, 2);
-      ctx.fillText('LYRICAL CHARGER', tx, fy + 1);
-      tx += ctx.measureText('LYRICAL CHARGER').width + 6;
+      // LYRICAL CHARGER, powered by the RISING COMPASS -- measured + centered.
+      ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      var p1 = 'LYRICAL CHARGER', w1 = ctx.measureText(p1).width;
+      setLS(ctx, 0); ctx.font = '400 20px "JetBrains Mono"';
+      var p2 = ', powered by the ', w2 = ctx.measureText(p2).width;
+      ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      var p3 = 'RISING COMPASS', w3 = ctx.measureText(p3).width;
       setLS(ctx, 0);
-      ctx.fillStyle = '#6a6a82';
-      ctx.font = '400 18px "JetBrains Mono"';
-      ctx.fillText(', powered by the ', tx, fy + 1);
-      tx += ctx.measureText(', powered by the ').width + 4;
-      ctx.fillStyle = '#c8c8d8';
-      ctx.font = '700 22px "JetBrains Mono"';
-      setLS(ctx, 2);
-      ctx.fillText('RISING COMPASS', tx, fy + 1);
-      setLS(ctx, 0);
+      var sX = (SIZE - (markSize + 16 + w1 + 6 + w2 + 4 + w3)) / 2;
+      if (compassFlat) ctx.drawImage(compassFlat, sX, fy - markSize / 2, markSize, markSize);
+      var cx2 = sX + markSize + 16;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#c8c8d8'; ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      ctx.fillText(p1, cx2, fy + 1); cx2 += w1 + 6; setLS(ctx, 0);
+      ctx.fillStyle = '#6a6a82'; ctx.font = '400 20px "JetBrains Mono"';
+      ctx.fillText(p2, cx2, fy + 1); cx2 += w2 + 4;
+      ctx.fillStyle = '#c8c8d8'; ctx.font = '700 26px "JetBrains Mono"'; setLS(ctx, 2);
+      ctx.fillText(p3, cx2, fy + 1); setLS(ctx, 0);
     }
     ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'center';
     ctx.fillStyle = '#6a6a82';
-    ctx.font = '400 20px "JetBrains Mono"';
+    ctx.font = '400 26px "JetBrains Mono"';
     ctx.fillText(brand === 'compass' ? 'risingcompass.net' : 'risingcompass.net/lyrical-charger',
-      leftX, SIZE - P);
+      SIZE / 2, fy + 48);
+    ctx.textAlign = 'left';
 
     return canvas;
   }
@@ -410,6 +436,17 @@
     var d = new Date(String(dateStr) + 'T00:00:00');
     if (isNaN(d.getTime())) return String(dateStr);
     return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  // Date split into two lines: day-of-week, then "Month D, YYYY".
+  function formatDateParts(dateStr) {
+    if (!dateStr) return { dow: '', mdy: '' };
+    var d = new Date(String(dateStr) + 'T00:00:00');
+    if (isNaN(d.getTime())) return { dow: String(dateStr), mdy: '' };
+    return {
+      dow: d.toLocaleDateString('en-US', { weekday: 'long' }),
+      mdy: d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+    };
   }
 
   // Signed compass score from a 0..180 degree (0deg = +100, 90deg = 0,
@@ -445,59 +482,66 @@
       '  ·  ' + contam + ' contaminated';
     return {
       hex: hex, label: label, score: score, scoreStr: scoreStr,
-      dateLong: formatLongDate(r.date),
+      dateParts: formatDateParts(r.date),
       editorial: (r.editorial && String(r.editorial).trim()) ? String(r.editorial).trim() : '',
       metaStr: metaStr, songs: songs, songCount: songCount,
+      // Chart kicker (top-left label). Defaults to DAILY LISTENS so the daily
+      // reading card is unchanged; the broadcaster passes DAILY DOWNLOADS /
+      // SHAZAM / YOUTUBE for the other daily-chart cards in the carousel.
+      kicker: (r.kicker && String(r.kicker).trim()) ? String(r.kicker).trim() : 'DAILY LISTENS',
     };
   }
 
   // Draw the shared CRT card chrome (background, tier bloom, scanlines,
   // vignette, phosphor border). `glowY` centers the tier bloom for the layout.
-  function drawChrome(ctx, hex, glowY) {
-    var bg = ctx.createLinearGradient(0, 0, 0, SIZE);
+  function drawChrome(ctx, hex, glowY, H) {
+    H = H || POST_H;
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#0e0e1a');
     bg.addColorStop(0.55, '#0a0a14');
     bg.addColorStop(1, '#060609');
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, SIZE, H);
 
     var rg = ctx.createRadialGradient(SIZE / 2, glowY, 40, SIZE / 2, glowY, SIZE * 0.62);
     rg.addColorStop(0, hexToRgba(hex, 0.18));
     rg.addColorStop(1, hexToRgba(hex, 0));
     ctx.fillStyle = rg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, SIZE, H);
 
     ctx.fillStyle = 'rgba(0,0,0,0.05)';
-    for (var sy = 0; sy < SIZE; sy += 4) ctx.fillRect(0, sy, SIZE, 2);
+    for (var sy = 0; sy < H; sy += 4) ctx.fillRect(0, sy, SIZE, 2);
 
-    var vg = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.34, SIZE / 2, SIZE / 2, SIZE * 0.72);
+    var vg = ctx.createRadialGradient(SIZE / 2, H / 2, SIZE * 0.34, SIZE / 2, H / 2, SIZE * 0.78);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
     vg.addColorStop(1, 'rgba(0,0,0,0.45)');
     ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, SIZE, H);
 
-    var bx = 30, bw = SIZE - 60, blw = 7;
+    // Flush to the image edge -- the border IS the edge (no dark margin around it).
+    var blw = 7, bx = Math.round(blw / 2), bw = SIZE - blw, bh = H - blw;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(bx, bx, bw, bw);
+    ctx.rect(bx, bx, bw, bh);
     ctx.clip();
     ctx.shadowColor = hex;
     ctx.shadowBlur = 66;
     ctx.strokeStyle = hex;
     ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw);
-    ctx.strokeRect(bx, bx, bw, bw);
+    ctx.strokeRect(bx, bx, bw, bh);
+    ctx.strokeRect(bx, bx, bw, bh);
+    ctx.strokeRect(bx, bx, bw, bh);
     ctx.restore();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = hex;
     ctx.lineWidth = blw;
-    ctx.strokeRect(bx, bx, bw, bw);
+    ctx.strokeRect(bx, bx, bw, bh);
   }
 
   // Draw the bottom brand block (compass mark + "THE RISING COMPASS" + url).
-  function drawCompassBrand(ctx, compassFlat, leftX) {
-    var fy = SIZE - 100 - 44;
+  function drawCompassBrand(ctx, compassFlat, leftX, H) {
+    H = H || POST_H;
+    var fy = H - 100 - 44;
     var markSize = 32;
     if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
     ctx.textBaseline = 'middle';
@@ -509,70 +553,63 @@
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#6a6a82';
     ctx.font = '400 20px "JetBrains Mono"';
-    ctx.fillText('risingcompass.net', leftX, SIZE - 100);
+    ctx.fillText('risingcompass.net', leftX, H - 100);
   }
 
   async function renderReading(reading, canvas, opts) {
     await ensureFonts();
     var v = pickReading(reading);
-    var compass = await loadCompass(chargeToRot(v.score)); // needle at the day's charge
     var compassFlat = await loadCompass(0);
 
+    var H = cardHeight(opts);
     canvas.width = SIZE;
-    canvas.height = SIZE;
+    canvas.height = H;
     var ctx = canvas.getContext('2d');
     var P = 100;
     var PX = 110;
     var leftX = PX;
     var contentW = SIZE - PX * 2;
 
-    drawChrome(ctx, v.hex, SIZE * 0.40);
+    drawChrome(ctx, v.hex, H * 0.40, H);
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // ----- Badge column (top-right): compass gauge + tier label + score -----
-    var tile = 138;
-    var tileX = SIZE - PX - tile;
-    var tileY = P;
-    var badgeCx = tileX + tile / 2;
-    if (compass) ctx.drawImage(compass, tileX, tileY, tile, tile);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = v.hex;
-    ctx.font = '600 30px "Inter"';
-    ctx.fillText(v.label, badgeCx, tileY + tile + 38);
-    ctx.fillStyle = '#f4f4fa';
-    ctx.font = '700 50px "JetBrains Mono"';
-    ctx.fillText(v.scoreStr, badgeCx, tileY + tile + 92);
-    var badgeBottom = tileY + tile + 92;
-    ctx.textAlign = 'left';
-
-    // ----- Left column: kicker, date, meta -----
-    var colW = tileX - leftX - 30;
+    // ----- Kicker (2.3x), full width at the top. Top-right corner stays empty
+    // so Instagram's carousel icon has nothing to collide with. -----
+    var kickSize = 60; // ~2.3x the prior 26px chart kicker
     ctx.fillStyle = hexToRgba(v.hex, 0.92);
-    ctx.font = '700 26px "JetBrains Mono"';
+    ctx.font = '700 ' + kickSize + 'px "JetBrains Mono"';
     setLS(ctx, 3);
-    ctx.fillText('DAILY LISTENS', leftX, P + 22);
+    var kickBaseline = P + kickSize - 8;
+    ctx.fillText(ellipsize(ctx, v.kicker, contentW), leftX, kickBaseline);
     setLS(ctx, 0);
 
-    var dFit = fitText(ctx, v.dateLong, '"Inter"', '700', colW, 2, 56, 40);
-    var dy = P + 22 + 34 + dFit.size;
+    // ----- Charge: to the RIGHT of the date, below the kicker (clears the IG
+    // icon, lets the body below breathe). The dominant element. The row is
+    // nudged down a touch from the kicker. -----
+    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 47, {
+      scoreSize: 116, labelSize: 36, padX: 44, padTop: 22, gap: -6, padBottom: 22,
+      minW: 280,
+    });
+
+    // ----- Date (left of the charge), vertically centered against the charge
+    // box: day-of-week, then "Month D, YYYY". -----
+    var dateColW = charge.left - leftX - 40;
+    var dateSize = 56, dateLH = Math.round(dateSize * 1.18);
     ctx.fillStyle = '#f4f4fa';
-    ctx.font = '700 ' + dFit.size + 'px "Inter"';
-    for (var i = 0; i < dFit.lines.length; i++) {
-      ctx.fillText(dFit.lines[i], leftX, dy + i * dFit.lineHeight);
-    }
-    var leftBottom = dy + (dFit.lines.length - 1) * dFit.lineHeight;
+    ctx.font = '700 ' + dateSize + 'px "Inter"';
+    var dowY = Math.round(charge.top + charge.height / 2 - (dateLH - dateSize * 0.72) / 2);
+    ctx.fillText(ellipsize(ctx, v.dateParts.dow, dateColW), leftX, dowY);
+    ctx.fillText(ellipsize(ctx, v.dateParts.mdy, dateColW), leftX, dowY + dateLH);
+    var leftBottom = dowY + dateLH;
 
-    ctx.fillStyle = '#9a9ab0';
-    ctx.font = '400 30px "Inter"';
-    ctx.fillText(v.metaStr, leftX, leftBottom + 50);
-    leftBottom += 50;
-
-    // ----- Editorial: the day's statement, full width -----
-    var y = Math.max(leftBottom, badgeBottom) + 64;
+    // ----- Editorial: the day's statement, full width. No songs/contaminated
+    // meta line -- the summary takes that space and gets more lines, since it
+    // can run long. -----
+    var y = Math.max(leftBottom, charge.bottom) + 56;
     if (v.editorial) {
-      var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 3, 44, 30);
+      var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 7, 38, 26);
       y += eFit.size;
       ctx.fillStyle = '#e8e8f0';
       ctx.font = '600 ' + eFit.size + 'px "Inter"';
@@ -582,55 +619,80 @@
       y += (eFit.lines.length - 1) * eFit.lineHeight;
     }
 
-    // ----- Top-5 song list -----
-    var listTop = y + 64;
-    var brandTop = SIZE - P - 44 - 40; // keep clear of the bottom brand block
+    // ----- Top-5 song list (text groups 1.5x, with row margin) -----
     var rows = v.songs.slice(0, 5);
-    var rowH = 64;
-    // If the editorial ran long, shrink the gap so 5 rows still fit.
+    // The song list sits between the editorial and the centered footer band.
+    var brandTop = H - 230;
+    var listTop = y + 56;
+    var rowH = 100; // title/artist group + bottom margin
     if (listTop + rows.length * rowH > brandTop) {
-      listTop = Math.max(y + 36, brandTop - rows.length * rowH);
+      listTop = Math.max(y + 32, brandTop - rows.length * rowH);
+    }
+    if (rows.length && listTop + rows.length * rowH > brandTop) {
+      rowH = Math.max(82, Math.floor((brandTop - listTop) / rows.length));
     }
     for (var ri = 0; ri < rows.length; ri++) {
       var s = rows[ri];
       var ry = listTop + ri * rowH;
       var sHex = TIER_HEX[s.rubric_color] || '#6a6a82';
+      var dim = (s.instrumental || s.preorder);
       // position
       ctx.fillStyle = '#9a9ab0';
-      ctx.font = '700 30px "JetBrains Mono"';
+      ctx.font = '700 34px "JetBrains Mono"';
       ctx.textAlign = 'left';
       var posStr = String(s.position == null ? ri + 1 : s.position) + (s.position_letter || '');
-      ctx.fillText(posStr, leftX, ry + 30);
+      ctx.fillText(posStr, leftX, ry + 40);
       // tier dot
       ctx.beginPath();
-      ctx.arc(leftX + 62, ry + 20, 9, 0, Math.PI * 2);
-      ctx.fillStyle = (s.instrumental || s.preorder) ? '#6a6a82' : sHex;
+      ctx.arc(leftX + 66, ry + 30, 11, 0, Math.PI * 2);
+      ctx.fillStyle = dim ? '#6a6a82' : sHex;
       ctx.fill();
       // charge (right)
       var chargeStr = '';
       if (s.preorder) chargeStr = 'Pre';
       else if (s.instrumental) chargeStr = 'Instr';
       else if (s.charge_value != null) chargeStr = (s.charge_value > 0 ? '+' : '') + s.charge_value;
-      ctx.font = '700 30px "JetBrains Mono"';
+      ctx.font = '700 32px "JetBrains Mono"';
       ctx.textAlign = 'right';
-      ctx.fillStyle = (s.instrumental || s.preorder) ? '#6a6a82' : sHex;
-      ctx.fillText(chargeStr, SIZE - PX, ry + 30);
-      var chargeW = chargeStr ? ctx.measureText(chargeStr).width + 28 : 0;
-      // title + artist (single line, ellipsized to the remaining width)
+      ctx.fillStyle = dim ? '#6a6a82' : sHex;
+      ctx.fillText(chargeStr, SIZE - PX, ry + 40);
+      var chargeW = chargeStr ? ctx.measureText(chargeStr).width + 30 : 0;
+      // title + artist, single line ellipsized to the remaining width
       ctx.textAlign = 'left';
-      var textX = leftX + 88;
+      var textX = leftX + 96;
       var textW = (SIZE - PX) - chargeW - textX;
-      ctx.font = '600 32px "Inter"';
+      ctx.font = '600 41px "Inter"';
       ctx.fillStyle = '#f4f4fa';
-      var titleStr = ellipsize(ctx, s.title || 'Untitled', textW);
-      ctx.fillText(titleStr, textX, ry + 22);
-      ctx.font = '400 24px "Inter"';
+      ctx.fillText(ellipsize(ctx, s.title || 'Untitled', textW), textX, ry + 38);
+      ctx.font = '400 31px "Inter"';
       ctx.fillStyle = '#9a9ab0';
-      var artistStr = ellipsize(ctx, s.artist || '', textW);
-      ctx.fillText(artistStr, textX, ry + 50);
+      ctx.fillText(ellipsize(ctx, s.artist || '', textW), textX, ry + 74);
     }
+    var listBottom = listTop + rows.length * rowH;
 
-    drawCompassBrand(ctx, compassFlat, leftX);
+    // ----- Footer (centered): brand + url, enlarged, nudged up. (OG-image
+    // footer layout is a later pass.) -----
+    var markSize = 42;
+    ctx.font = '700 32px "JetBrains Mono"';
+    setLS(ctx, 2);
+    var wm = 'THE RISING COMPASS';
+    var wmW = ctx.measureText(wm).width;
+    var totalW = markSize + 16 + wmW;
+    var startX = (SIZE - totalW) / 2;
+    var fy = H - P - 78;
+    if (compassFlat) ctx.drawImage(compassFlat, startX, fy - markSize / 2, markSize, markSize);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#c8c8d8';
+    ctx.fillText(wm, startX + markSize + 16, fy + 1);
+    setLS(ctx, 0);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#6a6a82';
+    ctx.font = '400 26px "JetBrains Mono"';
+    ctx.fillText('risingcompass.net', SIZE / 2, fy + 48);
+    ctx.textAlign = 'left';
+
     return canvas;
   }
 

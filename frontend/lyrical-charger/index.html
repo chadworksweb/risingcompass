@@ -679,6 +679,10 @@
     <div class="charge-card-modal__inner">
       <button id="btn-share-close" class="charge-card-modal__close" aria-label="Close">&times;</button>
       <canvas id="charge-card-canvas" class="charge-card-modal__canvas" width="1080" height="1080"></canvas>
+      <div class="cc-ratio" id="cc-ratio" role="group" aria-label="Card shape">
+        <button type="button" class="cc-ratio-opt is-active" data-ratio="square">Square 1:1</button>
+        <button type="button" class="cc-ratio-opt" data-ratio="portrait">Instagram 3:4</button>
+      </div>
       <div class="charge-card-modal__actions">
         <button id="btn-share-native" class="btn btn-primary">Share</button>
         <button id="btn-share-download" class="btn btn-secondary">Download PNG</button>
@@ -810,7 +814,7 @@
 <!-- /INCLUDE:footer -->
 
   <script src="/js/auth.js" defer></script>
-  <script src="rc-charge-card-generator.js" defer></script>
+  <script src="/cards/rc-charge-card-generator.js?v=20260618-master" defer></script>
   <script src="charger.js" defer></script>
 </body>
 </html>

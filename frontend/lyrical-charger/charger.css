@@ -2031,11 +2031,30 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
 
 .charge-card-modal__canvas {
   width: min(86vw, 460px);
-  height: auto;
-  aspect-ratio: 1 / 1;
+  height: auto;            /* follows the canvas intrinsic ratio (1:1 or 3:4) */
   border-radius: 6px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
+
+/* Card shape toggle (Square 1:1 / Instagram 3:4) */
+.cc-ratio {
+  display: inline-flex;
+  border: 1px solid var(--lc-border, #2a2a3a);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.cc-ratio-opt {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.34rem 0.8rem;
+  background: transparent;
+  color: var(--lc-text-dim, #9a9ab0);
+  border: 0;
+  cursor: pointer;
+}
+.cc-ratio-opt + .cc-ratio-opt { border-left: 1px solid var(--lc-border, #2a2a3a); }
+.cc-ratio-opt:hover { color: var(--lc-text, #f4f4fa); }
+.cc-ratio-opt.is-active { background: var(--lc-accent, #00d4aa); color: #06121a; font-weight: 600; }
 
 .charge-card-modal__actions {
   display: flex;
