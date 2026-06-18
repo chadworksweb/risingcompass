@@ -574,7 +574,7 @@
     // ----- Charge: to the RIGHT of the date, below the kicker (clears the IG
     // icon, lets the body below breathe). The dominant element. The row is
     // nudged down a touch from the kicker. -----
-    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 40, {
+    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 47, {
       scoreSize: 116, labelSize: 36, padX: 44, padTop: 22, gap: -6, padBottom: 22,
       minW: 280,
     });
