@@ -199,20 +199,33 @@ const ChartShell = (() => {
   // the title dim with an "untagged" pill rather than pretending the data is
   // there. Tier accent on the left tick matches the song's row on the left card.
   function etherRowHtml(item) {
-    const tierHex = COLOR_HEX[item.rubric_color] || 'transparent';
+    // Null dispositions (instrumental / preorder / lyrics-unavailable) carry no
+    // reading: they hold space, render grey, and never borrow a tier accent.
+    // Instrumentals store a placeholder green tier so the cache/approval gate
+    // treats them as "done", but that tier is NOT a reading -- only a genuinely
+    // calibrated row tints its tick. Mirrors the left list, where the dot greys
+    // for these via .song-item.instrumental etc.
+    const nullDisposition = !!(item.instrumental || item.preorder || item.lyrics_unavailable);
+    const tierHex = nullDisposition
+      ? 'var(--rc-text-dim)'
+      : (COLOR_HEX[item.rubric_color] || 'transparent');
     const tickStyle = `border-left:9px solid ${tierHex};`;
-    const songHref = (item.song_slug && item.rubric_color) ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
+    const songHref = (item.song_slug && item.rubric_color && !nullDisposition) ? `/songs/${encodeURIComponent(item.song_slug)}` : null;
 
     if (!item.deadpan_line) {
+      const nullPill = item.instrumental ? 'instrumental'
+        : item.preorder ? 'pre-order'
+        : item.lyrics_unavailable ? 'lyrics n/a'
+        : 'untagged';
       const titleHtml = songHref
         ? `<a href="${songHref}" class="ether-title-link">${escapeHtml(item.title)}</a>`
         : `<span class="ether-title-link">${escapeHtml(item.title)}</span>`;
       return `
-        <li class="ether-row ether-row--untagged" style="${tickStyle}">
+        <li class="ether-row ether-row--untagged${nullDisposition ? ' ether-row--null' : ''}" style="${tickStyle}">
           <span class="ether-pos">${positionDisplay(item)}</span>
           <div class="ether-text">
             <div class="ether-deadpan">${titleHtml}</div>
-            <div class="ether-meta">${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')} <span class="ether-untagged-pill">untagged</span></div>
+            <div class="ether-meta">${artistHtml(item.artist, item.artist_slug, 'ether-meta-artist')} <span class="ether-untagged-pill">${nullPill}</span></div>
           </div>
         </li>`;
     }
