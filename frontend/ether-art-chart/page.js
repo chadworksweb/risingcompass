@@ -47,6 +47,12 @@
   }
 
   function chargeText(item) {
+    // Instrumentals carry a placeholder green tier (so the cache/approval gate
+    // counts them done), but they are a null disposition: no reading, grey tick,
+    // no charge. Mirrors the canon chart shell and the left chart-list.
+    if (item.instrumental) {
+      return '<span class="eac-charge"><span class="eac-tier-tick" style="background:var(--rc-text-dim)"></span>Instrumental</span>';
+    }
     const tier = item.rubric_color;
     if (!tier) return '';
     const label = TIER_LABELS[tier] || tier;
@@ -70,7 +76,7 @@
         <li class="eac-row eac-row--untagged">
           <span class="eac-pos">${item.position}</span>
           <div class="eac-text">
-            <p class="eac-deadpan">${titleHtml}<span class="eac-untagged-pill">untagged</span></p>
+            <p class="eac-deadpan">${titleHtml}<span class="eac-untagged-pill">${item.instrumental ? 'instrumental' : 'untagged'}</span></p>
             <div class="eac-meta">
               ${artistHtml(item.artist, item.artist_slug, 'eac-artist')}
               ${chargeText(item) ? `<span class="eac-meta-sep">·</span>${chargeText(item)}` : ''}

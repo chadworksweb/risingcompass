@@ -54,6 +54,7 @@ class EtherTodayItem(BaseModel):
     song_slug: str
     rubric_color: Optional[str]
     charge_value: Optional[int]
+    instrumental: bool = False
     artist_slug: Optional[str] = None
 
 
@@ -142,6 +143,7 @@ def _render_reading_as_ether(reading: Optional[DailyReading], db: Session) -> Et
             song_slug=generate_song_slug(rs.title, rs.artist),
             rubric_color=song.rubric_color if song else None,
             charge_value=song.charge_value if song else None,
+            instrumental=bool(song.instrumental) if song else False,
             artist_slug=slug_map.get(primary),
         ))
     return EtherTodayOut(date=reading.date, items=items)
