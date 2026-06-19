@@ -480,7 +480,7 @@
 
     <!-- ROW 2 LEFT: Daily Top 20 Songs -->
     <!-- ROW 2 RIGHT: The Ether Art Chart — same 20 songs, deadpan + topic lens -->
-    <!-- ROW 2.5 LEFT: iTunes Download Chart | RIGHT: its Ether Art Chart (deadpan + topic) -->
+    <!-- ROW 2.5 LEFT: New Music Friday | RIGHT: its Ether Art Chart (deadpan + topic) -->
     <!-- ROW 3: Weekly Top 10 Albums (full width) -->
 
     <div class="card" id="reading-panel">
@@ -561,16 +561,18 @@
 </section>
 <script defer src="/js/support.js"></script>
 <!-- /INCLUDE:support-callout -->
-    <!-- ROW 2.5 LEFT: iTunes Download Chart (mirrors the Daily reading layout) -->
-    <!-- ROW 2.5 RIGHT: The Ether Art Chart — same iTunes 20, deadpan + topic lens -->
+    <!-- ROW 2.5 LEFT: New Music Friday (mirrors the Daily reading layout) -->
+    <!-- ROW 2.5 RIGHT: The Ether Art Chart — same New Music Friday 20, deadpan + topic lens -->
+    <!-- Element ids stay itunes-* — this slot previously held the iTunes Download
+         Chart; only the source + labels swapped to New Music Friday. -->
     <div class="card" id="itunes-reading-panel" style="display:none;">
-      <div class="card-header">iTunes</div>
-      <p class="card-desc">iTunes Downloads — USA. Today's top-selling songs, individually charged. A second source through the same compass.</p>
+      <div class="card-header">New Music Friday</div>
+      <p class="card-desc">New Music Friday. Spotify's weekly new-release playlist for the US, read through the same compass.</p>
       <div id="itunes-reading-content"></div>
     </div>
     <div class="card" id="itunes-ether-panel" style="display:none;">
       <div class="card-header">The Ether Art Chart</div>
-      <p class="card-desc">The same iTunes top 20, named for what the lyrics really say.</p>
+      <p class="card-desc">The same New Music Friday 20, named for what the lyrics really say.</p>
       <div id="itunes-ether-content"></div>
     </div>
     <div class="card" id="album-reading-panel" style="display:none;">

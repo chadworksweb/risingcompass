@@ -188,13 +188,14 @@ const App = (() => {
     `;
   }
 
-  // iTunes Download Chart — live snapshot row (the secondary-chart slot),
-  // laid out exactly like the Daily reading row: the chart (left) + its Ether
-  // Art Chart deadpan/topic lens (right), both fed by one snapshot fetch
-  // (/api/compass/chart/itunes/current). Hidden entirely until the first daily
-  // run is fed (the endpoint 404s with no snapshot), so the pair only appears
-  // once populated. Uncalibrated rows render neutral / "untagged" until lyrics
-  // are supplied.
+  // New Music Friday — live snapshot row (the secondary-chart slot), laid out
+  // exactly like the Daily reading row: the chart (left) + its Ether Art Chart
+  // deadpan/topic lens (right), both fed by one snapshot fetch
+  // (/api/compass/chart/new-music-friday/current). Hidden entirely until a
+  // snapshot is published (the endpoint 404s otherwise), so the pair only
+  // appears once populated. Uncalibrated rows render neutral / "untagged" until
+  // lyrics are supplied. (Element ids stay itunes-* — this slot previously held
+  // the iTunes Download Chart; only the source + labels swapped to NMF.)
   async function renderItunesPanel() {
     const panel = document.getElementById('itunes-reading-panel');
     const container = document.getElementById('itunes-reading-content');
@@ -205,7 +206,7 @@ const App = (() => {
 
     let data;
     try {
-      data = await API.getChartSnapshot('itunes');
+      data = await API.getChartSnapshot('new-music-friday');
     } catch (err) {
       hideBoth();  // no snapshot fed yet — leave the pair out
       return;
@@ -217,9 +218,9 @@ const App = (() => {
     if (etherPanel) etherPanel.style.display = '';
 
     const header = panel.querySelector('.card-header');
-    if (header) header.textContent = 'iTunes';
+    if (header) header.textContent = 'New Music Friday';
     const desc = panel.querySelector('.card-desc');
-    if (desc) desc.textContent = `iTunes Downloads — USA. iTunes' top-selling songs, read through the same compass. Updated ${formatDate(data.date)}.`;
+    if (desc) desc.textContent = `New Music Friday. Spotify's weekly new-release playlist for the US, read through the same compass. Updated ${formatDate(data.date)}.`;
 
     // The iTunes snapshot now carries its own aggregate (compass_degree /
     // charge_level / contamination_count / editorial), so the panel renders the
