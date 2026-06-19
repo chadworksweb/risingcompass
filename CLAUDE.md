@@ -573,6 +573,16 @@ centered column) with button-style letter nav, group cards, and smooth scroll.
 
 ## Chart snapshots: iTunes Download Chart (homepage panel, LIVE 2026-06-07)
 
+> **HOMEPAGE SECONDARY SLOT NOW SHOWS NEW MUSIC FRIDAY (2026-06-19).**
+> `renderItunesPanel()` was repointed from `itunes` to `new-music-friday`
+> (fetch source + labels only; element ids stay `itunes-*`, the function name is
+> unchanged). The iTunes Download Chart still exists as a standalone `/charts/itunes/`
+> page + the Calendar Daily Downloads toggle -- only the homepage panel swapped.
+> The section below still describes the iTunes chart mechanism, which is intact.
+> NOTE: `chart-shell.js` / `app.js` / chart `page.js` are Cloudflare-edge-cached
+> (4h TTL); any edit to those needs a `?v=` bump on the script tag (currently
+> `?v=20260619b`) or the edge serves stale.
+
 A secondary chart panel on the homepage, separate from the daily reading.
 Originally the Spotify Viral 50, but Spotify retired its Viral 50 charts in May
 2026 (the playlist 404s), so the slot was reskinned to the **iTunes Download
@@ -644,19 +654,23 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
   editorial; `ChartSnapshotOut` exposes
   `compass_degree`/`charge_level`/`contamination_count`/`editorial`.
 
-  **Editorial is REGENERATED at approval (2026-06-13).** `approve_draft`
-  re-runs `_generate_editorial` over the FINAL calibrated song set right before
-  stamping the DailyReading / ChartSnapshot -- so the published editorial always
-  reflects the whole reading, for the daily reading AND every chart. This closed
-  a gap: the draft editorial is generated at draft-creation time over only the
-  cache-hit songs, and the terminal calibration SOP (`calibrate_song.py`,
-  `terminal_mode`) skips editorial regen (no Anthropic from terminal), so a
-  fresh-release-heavy reading (New Music Friday) used to publish a stale "one
-  calibrated song in a field of twenty" editorial. Approval is browser/admin, so
-  the Anthropic call is allowed there; it ALWAYS regenerates (a hand-edited
-  editorial set via `PUT /drafts` before approval is overwritten) and is
-  fail-soft (keeps the existing editorial on error). NOTE: this means approval
-  now makes one editorial Anthropic call.
+  **Editorial is TERMINAL-SUPPLIED (2026-06-19).** The Anthropic API account ran
+  dry indefinitely, and the editorial was the one server-side Anthropic call left
+  in the daily/chart reading pipeline (calibration is cache-hits + terminal; ether
+  and prose are already terminal-skipped in `supply_lyrics`). So it moved to
+  terminal: `settings.editorial_terminal_only` (env `EDITORIAL_TERMINAL_ONLY`, TRUE
+  in prod) gates `_generate_editorial` to a no-op, so NEITHER draft-creation NOR
+  approval makes the call. Claude Code writes the editorial during the reading
+  calibration session and supplies it via `POST /api/admin/agent/drafts/{ref}/
+  editorial` (`scripts/set_editorial.py`, lyrics-supply key -- the same lane
+  `calibrate_song.py` uses). Approval no longer regenerates: `_generate_editorial`
+  returns None under the flag and the approval regen already fail-softs (keeps the
+  existing editorial on None), so the terminal-supplied editorial publishes.
+  **SOP:** calibrate every song -> `python scripts/set_editorial.py <draft_ref>
+  --editorial "..."` -> approve. Flip `EDITORIAL_TERMINAL_ONLY` false to restore
+  the server-side regen if credits ever return. (History: approval USED to ALWAYS
+  regenerate over the full calibrated set, 2026-06-13, to fix the stale
+  draft-creation editorial -- now gated off behind the flag.)
 
   **Adding a chart shell (the whole recipe):**
   1. Backend: register a `CHART_REGISTRY` entry (`routers/chart_snapshots.py`) +
