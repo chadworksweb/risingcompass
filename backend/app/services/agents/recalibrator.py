@@ -7,6 +7,7 @@ does not write anything to the database. Persistence + admin review is
 handled by the admin recalibration router.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -20,8 +21,7 @@ from app.services.charge_composition import (
     CompositionError, compose, validate_components,
 )
 from app.services.agents.compass_agent_rubric import (
-    RUBRIC_DEFINITION, CALIBRATION_FORMAT, build_few_shot_examples,
-    build_calibration_prompt,
+    RUBRIC_DEFINITION, CALIBRATION_FORMAT,
 )
 from app.services.claude_meter import tracked_create
 
@@ -201,80 +201,45 @@ def recalibrate_song_rubric_update(
     lyrics: str,
     db: Session,
 ) -> dict:
-    """Re-read a song under the current (possibly updated) standard rubric.
+    """Re-read a song against the LIVE LEC rubric.
 
-    Used when a rubric rule or tenet has been added/changed. No lens overlay —
-    just runs calibrate with full reasoning capture. Caller passes the
-    rubric_change_slug/note separately and stores them on the recalibration
-    audit row. Returns a proposal dict matching the satire recalibrator shape
-    so the accept endpoint can apply it uniformly.
+    Used when a rubric rule or tenet has changed. Post-decoupling RC no longer
+    scores in-process: this re-scores through LEC (the source of truth for the
+    rubric), then maps the result into the proposal-dict shape the satire
+    recalibrator returns so the accept endpoint applies it uniformly. Caller
+    passes the rubric_change_slug/note separately and stores them on the audit
+    row. A LEC failure raises -- needs human review, never a defaulted tier.
+    Unlike satire, this path has no lens overlay, so it is a plain /api/score
+    call with no in-process model call.
     """
     if not lyrics or not lyrics.strip():
         raise ValueError("Lyrics are required for rubric_update recalibration.")
 
-    client = Anthropic(api_key=settings.anthropic_api_key)
-    # Few-shot examples disabled — see calibrator.py for rationale.
-    examples = ""
-
-    system_prompt, user_prompt = build_calibration_prompt(
-        title, artist, lyrics=lyrics, examples=examples,
+    # Lazy import mirrors calibrator.py: keeps the lec_client dependency off the
+    # module import graph. score_via_lec is async; this function is called from
+    # the sync /start endpoint (threadpool), so asyncio.run is safe here, exactly
+    # as calibrator.calibrate_song wraps calibrate_song_async.
+    from app.services import lec_client
+    calibration = asyncio.run(
+        lec_client.score_via_lec(title, artist, lyrics, artifact_type="lyric")
     )
-
-    response = tracked_create(
-        client,
-        call_site="rubric_update_recalibrator",
-        context={"title": title, "artist": artist},
-        model=AGENT_MODEL,
-        max_tokens=3500,
-        temperature=0,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-
-    raw = response.content[0].text.strip()
-
-    reasoning = ""
-    json_str = raw
-    brace_idx = raw.find("{")
-    if brace_idx > 0:
-        reasoning = raw[:brace_idx].strip()
-        json_str = raw[brace_idx:]
-
-    if reasoning:
-        logger.info("Rubric-update recalibrator reasoning for '%s' by %s:\n%s",
-                    title, artist, reasoning)
-
-    if json_str.rstrip().endswith("```"):
-        json_str = json_str.rstrip()[:-3]
-    json_str = json_str.strip()
-
-    try:
-        result = json.loads(json_str)
-    except json.JSONDecodeError:
-        logger.error("Failed to parse rubric_update response for %s by %s: %s",
-                     title, artist, raw)
-        raise RuntimeError("Rubric-update recalibration agent returned unparseable output.")
-
-    # Calibrator v3: compose color/charge from the component JSON (the server
-    # owns the number on every read path, recalibrations included).
-    try:
-        components = validate_components(result)
-    except CompositionError as exc:
-        logger.error("Rubric-update recalibration output failed component "
-                     "validation for %s by %s: %s", title, artist, exc)
+    if calibration is None:
+        logger.error("LEC scoring failed for rubric_update recalibration of "
+                     "'%s' by %s; needs human review", title, artist)
         raise RuntimeError(
-            f"Rubric-update recalibration agent output failed component validation: {exc}"
+            "LEC scoring failed for rubric_update recalibration; needs human review."
         )
-    composed = compose(components)
-    contaminated = composed.contaminated
 
+    contaminated = bool(calibration.get("contaminated", False))
     return {
-        "rubric_color": composed.rubric_color,
-        "charge_value": composed.charge,
+        "rubric_color": calibration.get("rubric_color"),
+        "charge_value": calibration.get("charge_value"),
         "contaminated": contaminated,
-        "contamination_note": result.get("contamination_note") if contaminated else None,
-        "charge_summary": result.get("charge_summary", ""),
-        "confidence": float(result.get("confidence", 0.5)),
-        "ai_rationale": reasoning,
+        "contamination_note": calibration.get("contamination_note") if contaminated else None,
+        "charge_summary": calibration.get("charge_summary", ""),
+        "confidence": float(calibration.get("confidence", 0.5) or 0.5),
+        "ai_rationale": calibration.get("reasoning") or "",
+        # LEC scores with the same model id as RC's AGENT_MODEL (kept in lockstep
+        # for parity), so the proposal's model field is unchanged in meaning.
         "ai_model": AGENT_MODEL,
     }

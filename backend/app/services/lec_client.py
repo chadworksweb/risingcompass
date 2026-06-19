@@ -8,10 +8,12 @@ _ensure_generation), so the rest of the path -- the verbatim-quote guard,
 generation, and persistence -- runs unchanged on the result.
 
 Fail-soft by contract: ANY problem (missing config, transport error, non-200,
-unscorable read, malformed body) returns None so the caller falls back to RC's
-in-process calibrator. LEC sits on the live scoring path, so it must never
-harden a failure into a user-facing error while the in-process path is a working
-fallback.
+unscorable read, malformed body) returns None. There is no in-process scorer to
+fall back to -- it was deleted when LEC became RC's sole scorer (Phase 3). The
+callers (calibrator.calibrate_song_async, recalibrator.recalibrate_song_rubric_update)
+turn None into an explicit needs-human-review result, never a defaulted verdict.
+LEC sits on the live scoring path, so this module must never harden a failure
+into a user-facing error -- it returns None and lets the caller decide.
 """
 
 import logging
@@ -30,8 +32,9 @@ async def score_via_lec(
     artifact_type: str = "lyric",
 ) -> dict | None:
     """POST one artifact to LEC /api/score and map the response into RC's
-    calibration-dict shape (the same keys the in-process calibrator emits before
-    enrichment). Returns None on any failure so the caller scores in-process."""
+    calibration-dict shape (the same keys the calibration path uses before
+    enrichment). Returns None on any failure; the caller surfaces an explicit
+    needs-human-review result (there is no in-process scorer to fall back to)."""
     base = (settings.lec_base_url or "").rstrip("/")
     if not base:
         return None
@@ -53,27 +56,26 @@ async def score_via_lec(
         async with httpx.AsyncClient(timeout=settings.lec_timeout_seconds) as client:
             resp = await client.post(f"{base}/api/score", json=payload, headers=headers)
     except Exception:
-        logger.warning("LEC /api/score request failed for %s / %s; falling back in-process",
+        logger.warning("LEC /api/score request failed for %s / %s; needs human review",
                        title, artist, exc_info=True)
         return None
 
     if resp.status_code != 200:
-        logger.warning("LEC /api/score returned %s for %s / %s; falling back in-process",
+        logger.warning("LEC /api/score returned %s for %s / %s; needs human review",
                        resp.status_code, title, artist)
         return None
 
     try:
         data = resp.json()
     except Exception:
-        logger.warning("LEC /api/score returned non-JSON for %s / %s; falling back in-process",
+        logger.warning("LEC /api/score returned non-JSON for %s / %s; needs human review",
                        title, artist)
         return None
 
     if data.get("status") != "scored" or data.get("color_key") is None:
-        # Unscorable / null read -> fall back to the in-process calibrator, which
-        # may succeed (a transient LEC parse failure) or return its own explicit
-        # null. Never default a tier here.
-        logger.info("LEC scored %s / %s as %s; falling back in-process",
+        # Unscorable / null read -> return None; the caller surfaces an explicit
+        # needs-human-review result. Never default a tier here.
+        logger.info("LEC scored %s / %s as %s; needs human review",
                     title, artist, data.get("status"))
         return None
 
@@ -108,3 +110,36 @@ async def score_via_lec(
         "escalation_flags": comp.get("escalation_flags"),
         "escalated": comp.get("escalated"),
     }
+
+
+async def fetch_rubric_version() -> str | None:
+    """GET LEC's published rubric version hash (the /api/rubric `version`).
+
+    Used by the drift notifier to detect when LEC's scoring rubric changes.
+    Fail-soft: returns None on any problem, which the caller treats as
+    'unreachable' (NOT drift), so a transient LEC blip never raises a false
+    drift alert."""
+    base = (settings.lec_base_url or "").rstrip("/")
+    if not base:
+        return None
+
+    headers = {}
+    if settings.lec_api_key:
+        headers["X-Api-Key"] = settings.lec_api_key
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.lec_timeout_seconds) as client:
+            resp = await client.get(f"{base}/api/rubric", headers=headers)
+    except Exception:
+        logger.warning("LEC /api/rubric request failed", exc_info=True)
+        return None
+
+    if resp.status_code != 200:
+        logger.warning("LEC /api/rubric returned %s", resp.status_code)
+        return None
+
+    try:
+        return resp.json().get("version")
+    except Exception:
+        logger.warning("LEC /api/rubric returned non-JSON")
+        return None

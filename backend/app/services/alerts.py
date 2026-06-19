@@ -385,6 +385,39 @@ def emit_provenance_integrity(*, mismatches: list[str], health: dict) -> None:
     )
 
 
+def emit_lec_rubric_drift(*, old_version: str, new_version: str) -> None:
+    """Moderation alert -- LEC's published scoring rubric version changed.
+
+    Post-decoupling LEC owns the scoring rubric and RC's core.json is display /
+    governance only, so a LEC rubric change means RC's public tenets page +
+    motion targets may now be out of sync with what actually scores. The drift
+    cron repins after alerting, so this fires once per change -- a 'go reconcile
+    the tenets' nudge, not a heartbeat."""
+    site = settings.site_url.rstrip("/")
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 12px;font-size:14px;color:#333;">
+        <strong>LEC scoring rubric changed.</strong> The Libra Engine Compass
+        published rubric version moved from <code>{escape(old_version)}</code> to
+        <code>{escape(new_version)}</code>. LEC owns the scoring rubric; RC's
+        <code>core.json</code> is display / governance only, so the public tenets
+        page and motion targets may now be out of sync with what actually scores.
+        Reconcile RC's tenets with the live LEC rubric.
+      </p>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/tenets" style="color:#008f72;">RC tenets</a> &middot;
+        LEC published rubric: <code>/api/rubric</code>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="moderation",
+        alert_key="lec_rubric_drift",
+        subject=f"LEC rubric changed: {old_version} -> {new_version}",
+        html_body=html,
+    )
+
+
 def emit_prompt_cache_warranted(*, stats: dict, window_days: int) -> None:
     """One-time nudge: calibrator API traffic is now dense enough that turning
     on prompt caching would save money. See app/services/cache_advisor.py for

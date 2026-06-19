@@ -137,6 +137,9 @@ def _init_database():
     # All-time streams monthly refresh: emailed when chart songs aren't yet
     # calibrated (need manual lyrics). On by default; toggleable in the Alerts UI.
     ensure_pref_default("alltime_streams_awaiting", enabled=True)
+    # LEC rubric drift: emailed when LEC's published scoring rubric version
+    # changes, so RC's display-only tenets can be reconciled. Default-on.
+    ensure_pref_default("lec_rubric_drift", enabled=True)
 
 
 @asynccontextmanager
@@ -380,6 +383,8 @@ from app.routers import faultline_agent
 app.include_router(faultline_agent.router)
 from app.routers import leit_sweep
 app.include_router(leit_sweep.router)
+from app.routers import lec_drift
+app.include_router(lec_drift.router)
 from app.routers import social_broadcast
 app.include_router(social_broadcast.router)  # cron: X-Reading-Cron-Key
 app.include_router(social_broadcast.public_router)  # public card PNG (Buffer fetches it)
