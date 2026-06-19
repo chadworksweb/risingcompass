@@ -496,7 +496,7 @@
 
   // Draw the shared CRT card chrome (background, tier bloom, scanlines,
   // vignette, phosphor border). `glowY` centers the tier bloom for the layout.
-  function drawChrome(ctx, hex, glowY, H) {
+  function drawChrome(ctx, hex, glowY, H, glowOnly) {
     H = H || POST_H;
     var bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#0e0e1a');
@@ -521,7 +521,27 @@
     ctx.fillRect(0, 0, SIZE, H);
 
     // Flush to the image edge -- the border IS the edge (no dark margin around it).
-    var blw = 7, bx = Math.round(blw / 2), bw = SIZE - blw, bh = H - blw;
+    var blw = 10, bx = Math.round(blw / 2), bw = SIZE - blw, bh = H - blw;
+
+    // Glow-only mode: no hard border line, just an inward phosphor glow at the
+    // edges. The casting stroke is drawn fully OUTSIDE the clipped canvas, so
+    // only its blurred shadow bleeds inward -- nothing crisp is painted.
+    if (glowOnly) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, SIZE, H);
+      ctx.clip();
+      ctx.shadowColor = hex;
+      ctx.shadowBlur = 72;
+      ctx.strokeStyle = hex;
+      ctx.lineWidth = 26;
+      ctx.strokeRect(-44, -44, SIZE + 88, H + 88);
+      ctx.strokeRect(-44, -44, SIZE + 88, H + 88);
+      ctx.restore();
+      ctx.shadowBlur = 0;
+      return;
+    }
+
     ctx.save();
     ctx.beginPath();
     ctx.rect(bx, bx, bw, bh);
@@ -563,7 +583,9 @@
     var v = pickReading(reading);
     var compassFlat = await loadCompass(0);
 
-    var H = cardHeight(opts);
+    // Reading cards are portrait-only (3:4). Square is reserved for song cards,
+    // so the ratio/height opts are intentionally ignored here.
+    var H = POST_H;
     canvas.width = SIZE;
     canvas.height = H;
     var ctx = canvas.getContext('2d');
@@ -572,7 +594,7 @@
     var leftX = PX;
     var contentW = SIZE - PX * 2;
 
-    drawChrome(ctx, v.hex, H * 0.40, H);
+    drawChrome(ctx, v.hex, H * 0.40, H, true);  // reading card: glow only, no border line
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
@@ -590,8 +612,8 @@
     // ----- Charge: to the RIGHT of the date, below the kicker (clears the IG
     // icon, lets the body below breathe). The dominant element. The row is
     // nudged down a touch from the kicker. -----
-    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 47, {
-      scoreSize: 116, labelSize: 36, padX: 44, padTop: 22, gap: -6, padBottom: 22,
+    var charge = drawBadge(ctx, v.hex, v.label, v.scoreStr, SIZE - PX, kickBaseline + 74, {
+      scoreSize: 90, labelSize: 36, padX: 44, padTop: 18, gap: -6, padBottom: 18,
       minW: 280,
     });
 
@@ -609,7 +631,7 @@
     // ----- Editorial: the day's statement, full width. No songs/contaminated
     // meta line -- the summary takes that space and gets more lines, since it
     // can run long. -----
-    var y = Math.max(leftBottom, charge.bottom) + 56;
+    var y = Math.max(leftBottom, charge.bottom) + 48;
     if (v.editorial) {
       var eFit = fitText(ctx, v.editorial, '"Inter"', '600', contentW, 7, 38, 26);
       y += eFit.size;
@@ -623,8 +645,14 @@
 
     // ----- Top-5 song list (text groups 1.5x, with row margin) -----
     var rows = v.songs.slice(0, 5);
-    // The song list sits between the editorial and the centered footer band.
-    var brandTop = H - 230;
+    // Bottom band, laid out from the image edge up: centered footer wordmark,
+    // the "View full chart" CTA above it, then the song list above that.
+    var markSize = 42;
+    var footerY = H - P - 30;                       // wordmark baseline (middle)
+    var ctaH = 74;
+    var ctaBottom = footerY - markSize / 2 - 40;    // gap between CTA and footer
+    var ctaTop = ctaBottom - ctaH;
+    var brandTop = ctaTop - 36;                     // song list must end above the CTA
     var listTop = y + 56;
     var rowH = 100; // title/artist group + bottom margin
     if (listTop + rows.length * rowH > brandTop) {
@@ -672,27 +700,42 @@
     }
     var listBottom = listTop + rows.length * rowH;
 
-    // ----- Footer (centered): brand + url, enlarged, nudged up. (OG-image
-    // footer layout is a later pass.) -----
-    var markSize = 42;
+    // ----- CTA box (centered): "View full chart at risingcompass.net", a
+    // tier-outlined pill above the footer. Carries the url, so the footer below
+    // is just the wordmark. -----
+    var ctaText = 'View full chart at risingcompass.net';
+    ctx.font = '600 30px "Inter"';
+    var ctaW = ctx.measureText(ctaText).width + 76;
+    var ctaX = (SIZE - ctaW) / 2;
+    ctx.save();
+    roundRect(ctx, ctaX, ctaTop, ctaW, ctaH, 14);
+    ctx.fillStyle = hexToRgba(v.hex, 0.12);
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = hexToRgba(v.hex, 0.85);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#f4f4fa';
+    ctx.font = '600 30px "Inter"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ctaText, SIZE / 2, ctaTop + ctaH / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+
+    // ----- Footer (centered): compass mark + wordmark. URL lives in the CTA. -----
     ctx.font = '700 32px "JetBrains Mono"';
     setLS(ctx, 2);
     var wm = 'THE RISING COMPASS';
     var wmW = ctx.measureText(wm).width;
-    var totalW = markSize + 16 + wmW;
-    var startX = (SIZE - totalW) / 2;
-    var fy = H - P - 78;
-    if (compassFlat) ctx.drawImage(compassFlat, startX, fy - markSize / 2, markSize, markSize);
+    var startX = (SIZE - (markSize + 16 + wmW)) / 2;
+    if (compassFlat) ctx.drawImage(compassFlat, startX, footerY - markSize / 2, markSize, markSize);
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#c8c8d8';
-    ctx.fillText(wm, startX + markSize + 16, fy + 1);
+    ctx.fillText(wm, startX + markSize + 16, footerY + 1);
     setLS(ctx, 0);
     ctx.textBaseline = 'alphabetic';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#6a6a82';
-    ctx.font = '400 26px "JetBrains Mono"';
-    ctx.fillText('risingcompass.net', SIZE / 2, fy + 48);
     ctx.textAlign = 'left';
 
     return canvas;

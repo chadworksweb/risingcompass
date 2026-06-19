@@ -838,27 +838,20 @@
       topics: Array.isArray(song.topics) ? song.topics : [],
     };
 
-    // Shape toggle (Square 1:1 / Instagram 3:4). Default 1:1 (the classic card).
+    // Shape sub-selector (Square 1:1 / Instagram 3:4). Hidden until the primary
+    // button is clicked, then it reveals as a sub-step and each shape downloads
+    // that ratio. Default 1:1 (the classic card).
     let cardRatio = 'square';
     const ratioWrap = document.getElementById('charge-card-ratio');
-    if (ratioWrap) {
-      ratioWrap.hidden = false;
-      ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((opt) => {
-        opt.onclick = () => {
-          cardRatio = opt.dataset.ratio === 'portrait' ? 'portrait' : 'square';
-          ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((o) => o.classList.toggle('is-active', o === opt));
-        };
-      });
-    }
 
-    btn.onclick = async () => {
+    async function downloadCard(ratio) {
       const canvas = document.getElementById('charge-card-canvas');
       if (!canvas) return;
       btn.disabled = true;
       showCardToast('Downloading now…', { spinner: true });
       const startedAt = Date.now();
       try {
-        const cardOpts = { brand: 'compass', ratio: cardRatio };
+        const cardOpts = { brand: 'compass', ratio: ratio };
         await window.RCChargeCard.render(cardData, canvas, cardOpts);
         await window.RCChargeCard.shareOrDownload(canvas, cardData, true, cardOpts);
         // Hold the "Downloading now" state briefly so it doesn't flash past on
@@ -871,6 +864,26 @@
         showCardToast('Couldn’t make the card — try again', { error: true, autohideMs: 4000 });
       }
       btn.disabled = false;
+    }
+
+    if (ratioWrap) {
+      ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((opt) => {
+        opt.onclick = () => {
+          cardRatio = opt.dataset.ratio === 'portrait' ? 'portrait' : 'square';
+          ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((o) => o.classList.toggle('is-active', o === opt));
+          downloadCard(cardRatio);
+        };
+      });
+    }
+
+    // The primary button reveals the shape sub-selector (it no longer downloads
+    // directly -- choosing a shape does). With no selector present, it falls
+    // back to a straight download.
+    btn.onclick = () => {
+      if (!ratioWrap) { downloadCard(cardRatio); return; }
+      const show = ratioWrap.hidden;
+      ratioWrap.hidden = !show;
+      btn.setAttribute('aria-expanded', String(show));
     };
   }
 

@@ -23,7 +23,9 @@ pipeline is verifiable before any account or credential exists.
 
 import json
 import logging
+import re
 import secrets
+import unicodedata
 from calendar import month_name
 from datetime import datetime
 
@@ -383,6 +385,37 @@ def _song_card_data(s: Song) -> dict:
     }
 
 
+def _hashtag(text: str) -> str:
+    """Turn free text (a title or artist) into ONE safe #PascalCase hashtag, so
+    spaces and punctuation can't break the tag. Strips accents to ASCII, drops
+    every non-alphanumeric char, and capitalizes each whitespace word so the tag
+    stays readable (e.g. "Choosin' Texas" -> "#ChoosinTexas", "Olivia Rodrigo"
+    -> "#OliviaRodrigo"). Returns "" when nothing usable remains."""
+    if not text:
+        return ""
+    norm = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode("ascii")
+    parts = []
+    for word in re.split(r"\s+", norm.strip()):
+        cleaned = re.sub(r"[^A-Za-z0-9]", "", word)
+        if cleaned:
+            parts.append(cleaned[:1].upper() + cleaned[1:])
+    tag = "".join(parts)
+    return ("#" + tag) if tag else ""
+
+
+def _song_hashtags(song: dict, *base: str) -> str:
+    """Hashtag line for a song caption: the base tags plus a sanitized title
+    hashtag and artist hashtag (deduped, blanks dropped)."""
+    tags = list(base) + [_hashtag(song.get("title")), _hashtag(song.get("artist"))]
+    seen, out = set(), []
+    for t in tags:
+        key = t.lower()
+        if t and key not in seen:
+            seen.add(key)
+            out.append(t)
+    return " ".join(out)
+
+
 def _song_caption(song: dict, platform: str) -> str:
     """Objective, data-only caption for one song, tuned per channel. `song`
     carries title/artist/charge/tier/charge_summary/slug."""
@@ -394,10 +427,10 @@ def _song_caption(song: dict, platform: str) -> str:
         if song.get("charge_summary"):
             body.append(song["charge_summary"])
         body.append("Full reading: link in bio.")
-        return "\n\n".join(body) + "\n\n#RisingCompass #musicanalysis"
+        return "\n\n".join(body) + "\n\n" + _song_hashtags(song, "#RisingCompass", "#musicanalysis")
     link = _tagged_link(f"/songs/{song['slug']}/", "song") if song.get("slug") else ""
     if platform in COMPACT_PLATFORMS:
-        return f"{line1}\n\n{link}\n\n#RisingCompass".rstrip()
+        return f"{line1}\n\n{link}\n\n{_song_hashtags(song, '#RisingCompass')}".rstrip()
     body = [line1]
     if song.get("charge_summary"):
         body.append(song["charge_summary"])

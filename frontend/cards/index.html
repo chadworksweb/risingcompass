@@ -78,7 +78,7 @@
   <!-- Broadcast-only fork (3:4, flush border, tactical layout). Lives UNDER
        /cards/ so the Cloudflare /cards/* cache-bypass rule covers it -- origin
        edits show immediately, no version-bump chase. -->
-  <script src="/cards/rc-charge-card-generator.js?v=20260618-foot20"></script>
+  <script src="/cards/rc-charge-card-generator.js?v=20260619-glow2"></script>
   <script>
     (function () {
       'use strict';
@@ -138,10 +138,11 @@
 
       function draw() {
         var data = passed || (type === 'song' ? SAMPLE_SONG : SAMPLE_READING);
-        // 3:4 portrait (1080x1440, the fork's default) -- matches IG grid thumbs.
+        // Song cards honor the square/portrait toggle; reading cards are
+        // portrait-only (renderReading ignores ratio), so don't pass it.
         var p = (type === 'song')
           ? RCChargeCard.render(data, canvas, { brand: 'compass', ratio: ratio })
-          : RCChargeCard.renderReading(data, canvas, { ratio: ratio });
+          : RCChargeCard.renderReading(data, canvas);
         return p.then(function () {
           window.__cardReady = true;
           statusEl.textContent = type + ' card ready -- ' + (passed ? 'live data' : 'sample data');
