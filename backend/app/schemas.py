@@ -461,6 +461,14 @@ class DraftUpdate(BaseModel):
     songs: Optional[list[DraftSongUpdate]] = None
 
 
+class EditorialSupplyIn(BaseModel):
+    """Terminal-supplied editorial for a daily/chart reading draft. Set via
+    POST /drafts/{ref}/editorial with the lyrics-supply key, the same lane
+    calibrate_song.py uses, so the server never makes the editorial Anthropic
+    call (see settings.editorial_terminal_only)."""
+    editorial_summary: str = Field(..., min_length=10, max_length=2000)
+
+
 class PaginatedDrafts(BaseModel):
     items: list[DraftSummary]
     total: int

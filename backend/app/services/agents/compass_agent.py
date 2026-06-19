@@ -514,6 +514,13 @@ def run_compass_agent(
 
 def _generate_editorial(calibrated_songs: list[dict]) -> str | None:
     """Generate a one-line editorial summary using Claude."""
+    if settings.editorial_terminal_only:
+        # Editorials are supplied from terminal (Claude Code) via
+        # POST /drafts/{ref}/editorial -- the server makes zero Anthropic calls
+        # for the editorial, keeping the reading pipeline API-free. Both callers
+        # (draft creation + approval regen) fail-soft on None, so approval keeps
+        # the terminal-supplied editorial. See scripts/set_editorial.py.
+        return None
     if not settings.anthropic_api_key:
         return None
 

@@ -20,6 +20,7 @@ from app.schemas import (
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
     SupplyLyricsIn, PreorderIn, LyricsUnavailableIn,
     PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
+    EditorialSupplyIn,
 )
 from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
 from app.config import settings
@@ -812,6 +813,32 @@ def _compose_terminal_calibration(result: dict) -> dict:
     if triggers or signals:
         result["escalation_flags"] = {"triggers": triggers, "signals": signals}
     return result
+
+
+@router.post("/drafts/{draft_ref}/editorial", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
+def supply_editorial(draft_ref: str, data: EditorialSupplyIn, db: Session = Depends(get_db)):
+    """Set a draft's editorial summary from terminal (Claude Code) or admin.
+
+    The editorial is the one server-side Anthropic call left in the daily/chart
+    reading pipeline. With settings.editorial_terminal_only, the server never
+    makes it -- Claude Code writes the editorial during the reading calibration
+    session and supplies it here (lyrics-supply key), the same lane
+    calibrate_song.py uses for per-song calibration. Approval no longer overwrites
+    it: _generate_editorial no-ops under the flag, and the approval regen already
+    fail-softs (keeps the existing editorial) on a None result, so the supplied
+    editorial is what publishes. Only mutates the editorial; aggregates are
+    untouched.
+    """
+    draft = _resolve_draft(draft_ref, db)
+    if draft.status != "pending":
+        raise HTTPException(status_code=400, detail="Draft is not pending")
+    draft.editorial_summary = data.editorial_summary.strip()
+    db.commit()
+    db.refresh(draft)
+    out = _resolve_draft(draft_ref, db)
+    _ = list(out.songs)
+    db.expunge_all()
+    return out
 
 
 @router.post("/drafts/{draft_ref}/songs/{song_id}/lyrics", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
