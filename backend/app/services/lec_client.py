@@ -10,8 +10,9 @@ generation, and persistence -- runs unchanged on the result.
 Fail-soft by contract: ANY problem (missing config, transport error, non-200,
 unscorable read, malformed body) returns None. There is no in-process scorer to
 fall back to -- it was deleted when LEC became RC's sole scorer (Phase 3). The
-callers (calibrator.calibrate_song_async, recalibrator.recalibrate_song_rubric_update)
-turn None into an explicit needs-human-review result, never a defaulted verdict.
+callers (calibrator.calibrate_song_async, recalibration.recalibrate_song_rubric_update,
+recalibration.recalibrate_song_satire) turn None into an explicit needs-human-review
+result, never a defaulted verdict.
 LEC sits on the live scoring path, so this module must never harden a failure
 into a user-facing error -- it returns None and lets the caller decide.
 """
@@ -30,11 +31,19 @@ async def score_via_lec(
     artist: str,
     lyrics: str,
     artifact_type: str = "lyric",
+    satire: bool = False,
 ) -> dict | None:
     """POST one artifact to LEC /api/score and map the response into RC's
     calibration-dict shape (the same keys the calibration path uses before
     enrichment). Returns None on any failure; the caller surfaces an explicit
-    needs-human-review result (there is no in-process scorer to fall back to)."""
+    needs-human-review result (there is no in-process scorer to fall back to).
+
+    `satire=True` asks LEC to re-read through its universal satire MODIFIER (apply
+    the standard rubric first, then re-read for expose-vs-endorse). The satire
+    argument rides back in components.reasoning (the LITERAL_SUMMARY / MODE_BREAKDOWN
+    / SATIRE_READING / CEILING_CHECK block), mapped to `reasoning` below. LEC is
+    stateless: the overlay derives its own literal starting point, so no original
+    calibration is sent. Satire is lyric-only; LEC 422s satire on any other type."""
     base = (settings.lec_base_url or "").rstrip("/")
     if not base:
         return None
@@ -48,6 +57,8 @@ async def score_via_lec(
         # yet (Phase 1), so LEC scores statelessly for now and ignores this true.
         "use_precedents": True,
     }
+    if satire:
+        payload["satire"] = True
     headers = {}
     if settings.lec_api_key:
         headers["X-Api-Key"] = settings.lec_api_key

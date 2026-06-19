@@ -56,7 +56,7 @@ from app.models import (
 )
 from app.routers.admin import verify_admin_key
 from app.auth import verify_admin_or_lyrics_key
-from app.services.agents.recalibrator import (
+from app.services.recalibration import (
     recalibrate_song_satire, recalibrate_song_rubric_update,
 )
 from app.services.calibration_corpus import (
