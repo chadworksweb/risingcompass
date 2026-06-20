@@ -1,10 +1,30 @@
-"""Terminal-mode song calibration. Claude Code is the model.
+"""Terminal-mode song calibration. Claude Code IS the model -- ZERO Anthropic
+calls, for calibration, prose, summary, ether, or anything else.
 
 Sends lyrics + a Claude-Code-supplied calibration to the supply-lyrics
-endpoint. Server skips every Anthropic call (calibrator, ether tagger,
-effects prose, societal effects prose, editorial regen) because the
-calibration object is supplied. The compass_songs row is created via
-_store_calibration and linked to the draft_song.
+endpoint. The server skips a server-side Anthropic call ONLY for the pieces the
+calibration object actually carries:
+  - calibrator     -- skipped: color/charge/summary/components are supplied.
+  - ether tagger   -- not invoked on the terminal path at all (omitting
+                      --topic is safe; topics just stay NULL).
+  - listener prose -- skipped ONLY if listener_effects_prose is supplied. If it
+                      is ABSENT, the server's record_and_reconcile hook calls
+                      Anthropic to generate it. So --listener-effects-prose-file
+                      is REQUIRED; this script enforces it.
+  - societal prose -- fires only when topics are supplied without the prose;
+                      guarded by the --societal-prose-file requirement below.
+  - editorial      -- separate endpoint (set_editorial.py), gated off by
+                      EDITORIAL_TERMINAL_ONLY.
+
+CANONICAL RUBRIC: load the latest LEC golden snapshot
+(Local Sites/libra-engine-compass/backend/app/rubric/lec-golden-<latest>/
+core.json + precedents.json) plus the v3 FORMAT from LEC's lec_rubric_builder /
+lec_compass_agent_rubric. Do NOT load this repo's
+backend/app/services/agents/tenets/ copy -- it is NOT canonical and drifts (it
+was a week stale vs the LEC golden on 2026-06-20). LEC owns the rubric.
+
+The compass_songs row is created via _store_calibration and linked to the
+draft_song.
 
 Why not supply_lyrics.py: that script sends lyrics only and hits the
 on-server Anthropic calibrator. Why not correct_song.py: that script
@@ -22,7 +42,7 @@ charge and derives the tier, still with zero server-side Anthropic calls):
         --summary "Heartbreak carried by..." \\
         [--contaminated --contam-note "..."] \\
         [--dogma --dogma-note "..."] \\
-        [--listener-effects-prose-file path/to/prose.txt] \\
+        --listener-effects-prose-file path/to/prose.txt \\
         [--societal-prose-file path/to/societal.txt] \\
         [--deadpan "Doomed-romance lament"] \\
         [--topic breakup --topic longing] \\
@@ -115,6 +135,19 @@ def main() -> int:
     key = os.environ.get("RC_LYRICS_SUPPLY_KEY")
     if not key:
         print("RC_LYRICS_SUPPLY_KEY not set in backend/.env", file=sys.stderr)
+        return 2
+
+    # Claude Code is the model in terminal: write the two-paragraph listener
+    # effects prose yourself and supply it. If it is omitted, the server's
+    # record_and_reconcile hook calls Anthropic to generate it -- a forbidden
+    # terminal API call. See feedback_rc_no_api_in_terminal.
+    if not args.listener_effects_prose_file:
+        print(
+            "--listener-effects-prose-file is REQUIRED (terminal = zero Anthropic). "
+            "Omitting it makes the server generate the prose via Anthropic. Write "
+            "the listener-effects prose yourself and supply it.",
+            file=sys.stderr,
+        )
         return 2
 
     if args.lyrics_file:

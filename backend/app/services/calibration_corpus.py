@@ -504,6 +504,7 @@ def record_and_reconcile(
     direct_song_id: int | None = None,
     is_new_row: bool = False,
     lyrics: str | None = None,
+    allow_prose_generation: bool = True,
 ) -> dict:
     """Full consensus flow: log the run, seed prior state if needed, compute
     consensus, update the canonical row, audit tier flips.
@@ -575,7 +576,12 @@ def record_and_reconcile(
         cur_summary = getattr(song, "charge_summary", None)
         tier_or_summary_changed = (prior_color != cur_color) or (prior_summary != cur_summary)
         prose_missing = not getattr(song, "listener_effects_prose", None)
-        if cur_color and cur_summary and (prose_missing or tier_or_summary_changed):
+        # allow_prose_generation is False for terminal (Claude-Code-supplied)
+        # calibrations: Claude Code IS the model and supplies the prose, so the
+        # server must NEVER call Anthropic here. When it forgets, the column stays
+        # NULL (page falls back to tier-generic) rather than drawing on the
+        # public-traffic budget. See feedback_rc_no_api_in_terminal.
+        if allow_prose_generation and cur_color and cur_summary and (prose_missing or tier_or_summary_changed):
             try:
                 from app.services.listener_effects_prose import generate_listener_effects_prose
                 prose = generate_listener_effects_prose(
@@ -600,7 +606,7 @@ def record_and_reconcile(
         # compass_agent right after the tagger sets topics.
         soc_missing = not getattr(song, "societal_effects_prose", None)
         has_topics = bool(getattr(song, "topics", None))
-        if (cur_color and cur_summary and has_topics
+        if (allow_prose_generation and cur_color and cur_summary and has_topics
                 and (soc_missing or tier_or_summary_changed)):
             try:
                 from app.services.societal_effects_prose import generate_societal_effects_prose

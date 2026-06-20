@@ -917,12 +917,15 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
     write_db = SessionLocal()
     try:
         # Terminal-mode listener_effects_prose / societal_effects_prose travel inside
-        # `result` and are written by _store_calibration, which gates the
-        # Anthropic prose-gen hook inside record_and_reconcile.
+        # `result` and are written by _store_calibration. In terminal mode we also
+        # pass allow_prose_generation=False so record_and_reconcile NEVER calls
+        # Anthropic to backfill missing prose -- Claude Code is the model and
+        # supplies it; a forgotten file leaves the column NULL, never an API call.
         cs_id = _store_calibration(
             snap["title"], snap["artist"], snap["position"],
             snap["chart_source"], result, True, write_db,
             lyrics=data.lyrics,
+            allow_prose_generation=not terminal_mode,
         )
 
         draft = _resolve_draft(draft_ref, write_db)
@@ -1343,6 +1346,9 @@ def feed_song(data: CompassSongFeedIn, db: Session = Depends(get_db)):
             direct_song_source="songs",
             direct_song_id=song_id,
             is_new_row=True,
+            # Manually-fed calibration is supplied, not server-computed; never
+            # spend the public-traffic ANTHROPIC_API_KEY backfilling prose for it.
+            allow_prose_generation=False,
         )
         db.commit()
     except Exception:

@@ -198,10 +198,11 @@ class UserCalibration(Base):
     risk a cross-transaction visibility race. The account read filters by
     user_id, which is enough.
 
-    song_source / song_id point at the canonical row the submission reconciled
-    against (compass / library / submitted), matching the slug link. The
-    snapshot fields (rubric_color, charge_value, charge_summary) are denormalized
-    so the account list renders without joining four song tables.
+    song_id points at the canonical unified `songs` row the submission reconciled
+    against (post song-entity renovation, schema_version 88 -- the old polymorphic
+    song_source + four-table model is gone), matching the slug link. The snapshot
+    fields (rubric_color, charge_value, charge_summary) are denormalized so the
+    account list renders without joining the song table.
     """
     __tablename__ = "user_calibrations"
     __table_args__ = (

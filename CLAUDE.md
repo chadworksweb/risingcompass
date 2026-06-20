@@ -147,8 +147,11 @@ the Site Admin host.
   via the `X-Lyrics-Supply-Key` header, in addition to the browser session cookie.
   Terminal scripts that use this:
   - `backend/scripts/calibrate_song.py` — fresh calibration, sends lyrics +
-    Claude-Code-supplied calibration object. Server skips every Anthropic
-    call. Use this for any song with no prior `songs` row.
+    Claude-Code-supplied calibration object. The server skips Anthropic ONLY
+    for what the object carries; `--listener-effects-prose-file` is REQUIRED
+    (omitting it makes `record_and_reconcile` call Anthropic to generate the
+    prose). Use this for any song with no prior `songs` row. See the
+    "Terminal calibration" section below.
   - `backend/scripts/correct_song.py` — override of an already-calibrated
     song. Writes through to the unified `songs` row via the draft's
     `agent_draft_songs.song_id`; do not use for fresh songs.
@@ -171,6 +174,41 @@ cd backend
 Prompts for username + password (12-char minimum). Re-running with the
 same username resets the password and clears the lockout. Pass
 `--revoke-sessions` to kill any active sessions for the user.
+
+## Terminal calibration (Claude Code is the model -- ZERO Anthropic)
+
+Operator-initiated calibration in a terminal / Claude Code session (daily +
+chart reading, backfill, recalibration, draft repair) makes ZERO Anthropic
+calls -- not for calibration, prose, summary, ether, or editorial. The droplet's
+`ANTHROPIC_API_KEY` is for live public traffic only, and the account has run
+dry; Claude Code does the model's job and SUPPLIES the result, then writes it
+through the live server (`calibrate_song.py` POSTs to the prod `/lyrics`
+endpoint, which stores a supplied calibration with no model call).
+
+**Canonical rubric = LEC, NOT this repo.** LEC
+(`Local Sites/libra-engine-compass`) owns the v3 rubric. Load the latest dated
+golden snapshot `backend/app/rubric/lec-golden-<latest>/core.json` +
+`precedents.json` (currently `lec-golden-2026-06-18`, rubric_version
+`51a300921a63`) plus the v3 FORMAT from LEC's `lec_rubric_builder.py` /
+`lec_compass_agent_rubric.py`. Confirm it is live by matching that
+`rubric_version` against LEC prod `GET /api/rubric` before calibrating. **Do NOT
+load this repo's `backend/app/services/agents/tenets/` copy** -- it is a
+non-canonical mirror that drifts (it was a week stale vs the LEC golden on
+2026-06-20: core.json 54,282 bytes / Jun 11 vs the golden's 57,467 / Jun 18).
+Reading LEC files or `/api/rubric` is not an Anthropic call -- it is just loading
+the rubric text.
+
+**No server-side prose generation from terminal.** The terminal `/lyrics` path
+(`calibrate_song.py` -> `_store_calibration` -> `record_and_reconcile`) calls
+Anthropic to generate `listener_effects_prose` whenever the calibration object
+does not carry it (`prose_missing`, `calibration_corpus.py`), and
+`societal_effects_prose` whenever topics are supplied without the societal prose.
+So Claude Code WRITES both prose pieces and supplies them:
+`--listener-effects-prose-file` is REQUIRED (the script now enforces it);
+`--societal-prose-file` is required whenever any ether field is supplied. The
+ether tagger does NOT run on the terminal path, so omitting `--topic` is safe
+(topics stay NULL, no API call). Editorial is supplied separately via
+`set_editorial.py` and gated off by `EDITORIAL_TERMINAL_ONLY`.
 
 ## Public Participation (Phases 1-3.2 built)
 
@@ -656,8 +694,11 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
 
   **Editorial is TERMINAL-SUPPLIED (2026-06-19).** The Anthropic API account ran
   dry indefinitely, and the editorial was the one server-side Anthropic call left
-  in the daily/chart reading pipeline (calibration is cache-hits + terminal; ether
-  and prose are already terminal-skipped in `supply_lyrics`). So it moved to
+  in the daily/chart reading pipeline (calibration is cache-hits + terminal; the
+  ether tagger does not run on the terminal path, and prose is skipped only when
+  Claude Code SUPPLIES it -- `calibrate_song.py` requires the listener prose file
+  so the `record_and_reconcile` hook never calls Anthropic; see "Terminal
+  calibration"). So it moved to
   terminal: `settings.editorial_terminal_only` (env `EDITORIAL_TERMINAL_ONLY`, TRUE
   in prod) gates `_generate_editorial` to a no-op, so NEITHER draft-creation NOR
   approval makes the call. Claude Code writes the editorial during the reading

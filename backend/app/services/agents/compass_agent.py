@@ -115,7 +115,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                           chart_source: str, result: dict, lyrics_available: bool,
                           db: Session, *, lyrics: str | None = None,
                           year: int | None = None,
-                          chart_position_letter: str = "") -> int | None:
+                          chart_position_letter: str = "",
+                          allow_prose_generation: bool = True) -> int | None:
     """Store or update a calibration on the unified `songs` row + a
     chart_appearance for this (chart, year, position).
 
@@ -135,6 +136,11 @@ def _store_calibration(title: str, artist: str, chart_position: int,
 
     The `lyrics` kwarg drives the verbatim-lyric lock below -- this is the single
     storage chokepoint where every grading path converges.
+
+    `allow_prose_generation=False` (terminal / Claude-Code-supplied path) hard-
+    disables the Anthropic listener/societal prose-gen hooks in
+    record_and_reconcile: terminal work supplies its own prose and must never draw
+    on the public-traffic ANTHROPIC_API_KEY. See feedback_rc_no_api_in_terminal.
     """
     # Skip storing if calibration failed (rubric_color is None)
     if result.get("rubric_color") is None:
@@ -223,6 +229,7 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                 direct_song_id=song_id,
                 is_new_row=True,
                 lyrics=lyrics,
+                allow_prose_generation=allow_prose_generation,
             )
             db.commit()
         except Exception:
