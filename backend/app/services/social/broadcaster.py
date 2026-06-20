@@ -69,6 +69,21 @@ DEFAULT_PLATFORMS = ["x", "bluesky", "threads", "instagram", "tiktok", "facebook
 # rows are NOT live -- a later configured run can upgrade them to a real post.
 LIVE_STATUSES = ("queued", "posted")
 
+# Per-platform hard caption limits (characters). The editorial summary is fitted
+# into whatever room each platform's limit leaves after the fixed caption parts,
+# so a long editorial is truncated tighter on X than on Threads or Instagram.
+PLATFORM_CHAR_LIMIT = {
+    "x": 280,
+    "bluesky": 300,
+    "threads": 500,
+    "facebook": 1500,
+    "instagram": 2200,
+    "tiktok": 2200,
+}
+DEFAULT_CHAR_LIMIT = 1000
+# Below this much leftover room an editorial stub isn't worth showing.
+MIN_EDITORIAL = 40
+
 
 # --- small helpers --------------------------------------------------------
 
@@ -92,6 +107,31 @@ def _tagged_link(path: str, campaign_scope: str) -> str:
     base = settings.social_link_base.rstrip("/")
     return (f"{base}{path}?utm_source=social&utm_medium=buffer"
             f"&utm_campaign=rc_broadcast_{campaign_scope}")
+
+
+def _truncate(text: str, limit: int) -> str:
+    """Cut `text` to at most `limit` chars (including a trailing '...'), preferring
+    a word boundary in the back half so we don't slice mid-word."""
+    if len(text) <= limit:
+        return text
+    cut = text[: max(0, limit - 3)].rstrip()
+    sp = cut.rfind(" ")
+    if sp > limit * 0.5:
+        cut = cut[:sp].rstrip()
+    return cut.rstrip(",.;:-") + "..."
+
+
+def _fit_editorial(editorial: str, platform: str, used: int) -> str:
+    """Fit the editorial into whatever room the platform's caption limit leaves
+    after `used` chars of fixed caption (lines, link, hashtags, separators).
+    Returns "" when there's no editorial or too little room for a useful stub."""
+    editorial = (editorial or "").strip()
+    if not editorial:
+        return ""
+    room = PLATFORM_CHAR_LIMIT.get(platform, DEFAULT_CHAR_LIMIT) - used
+    if room < MIN_EDITORIAL:
+        return ""
+    return _truncate(editorial, room)
 
 
 # --- chart gathering (card data per published daily chart) -----------------
@@ -205,20 +245,36 @@ def _gather_charts(db) -> tuple[list[dict], DailyReading | None]:
 # --- captions (objective, data-only, per channel) -------------------------
 
 def _carousel_caption(charts: list[dict], date) -> str:
-    lines = ["Rising Compass daily charts, " + _long_date(date)]
-    for c in charts:
-        lines.append(f"{c['label']}: {_score_str(c['score'])} ({TIER_LABELS.get(c['tier'], '')})")
-    lines.append("Full readings: link in bio.")
-    return "\n".join(lines) + "\n\n#RisingCompass #musiccharts #dailycharts"
+    header = "Rising Compass daily charts, " + _long_date(date)
+    chart_lines = [f"{c['label']}: {_score_str(c['score'])} ({TIER_LABELS.get(c['tier'], '')})"
+                   for c in charts]
+    block = "\n".join([header, *chart_lines])
+    foot = "Full readings: link in bio.\n\n#RisingCompass #musiccharts #dailycharts"
+    # Editorial of the lead chart (Daily Listens), fitted to the carousel limit.
+    editorial = charts[0]["card_data"]["editorial"] if charts else ""
+    ed = _fit_editorial(editorial, "instagram", len(block) + len(foot) + 4)
+    middle = f"\n\n{ed}" if ed else ""
+    return f"{block}{middle}\n\n{foot}"
 
 
 def _daily_listens_caption(daily: dict, platform: str, date) -> str:
     line1 = (f"Rising Compass Daily Listens, {_long_date(date)}: "
              f"{_score_str(daily['score'])} ({TIER_LABELS.get(daily['tier'], '')}).")
     line2 = f"{daily['count']} measured, {daily['contam']} contaminated."
-    link = _tagged_link("/charts/daily-listens/", "charts")
-    tail = "\n\n#RisingCompass" if platform in ("x", "bluesky") else ""
-    return f"{line1}\n{line2}\n\n{link}{tail}"
+    head = f"{line1}\n{line2}"
+    # X drops the link entirely so those characters go to the editorial; it keeps
+    # only the hashtag. Every other platform carries the UTM chart link.
+    if platform == "x":
+        foot = "#RisingCompass"
+    else:
+        link = _tagged_link("/charts/daily-listens/", "charts")
+        tail = "\n\n#RisingCompass" if platform == "bluesky" else ""
+        foot = f"{link}{tail}"
+    # Editorial sits between the measurement block and the link, truncated to fit
+    # the platform's caption limit (two "\n\n" separators = 4 chars).
+    ed = _fit_editorial(daily["card_data"]["editorial"], platform, len(head) + len(foot) + 4)
+    middle = f"\n\n{ed}" if ed else ""
+    return f"{head}{middle}\n\n{foot}"
 
 
 # --- card store + ledger --------------------------------------------------
