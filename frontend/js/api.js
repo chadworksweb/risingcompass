@@ -67,9 +67,15 @@ const API = (() => {
   // POST JSON. Mutating, so it does NOT auto-retry on 5xx (no double-submit);
   // it re-grants the shield session once on a 403 and retries that single time.
   // On a 4xx the parsed `detail` (if any) is thrown so callers can show it.
-  async function post(path, body, { timeoutMs = 12000 } = {}) {
+  async function post(path, body, { timeoutMs = 12000, auth = false } = {}) {
     const headers = { 'Content-Type': 'application/json' };
     if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    // Attribute to the signed-in user when asked: add the Clerk bearer token
+    // (optional_clerk_user also reads the __session cookie, but the explicit
+    // header wins over a stale cookie). Mirrors charger.js.
+    if (auth && typeof window !== 'undefined' && window.Auth && window.Auth.getToken) {
+      try { const t = await window.Auth.getToken(); if (t) headers['Authorization'] = `Bearer ${t}`; } catch (_) {}
+    }
     try { await sessionReady; } catch (_) {}
     let regranted = false;
     for (let attempt = 0; attempt < 2; attempt++) {

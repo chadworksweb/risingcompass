@@ -132,7 +132,8 @@ async function doSubmit() {
       consent: state.consent,
       slice_token: state.sliceToken || null,
       flagged: state.decision === 'flag',
-    });
+      flag_reason: state.decision === 'flag' ? state.flagReason.trim() : null,
+    }, { auth: true });
     state.step += 1;
     render();
   } catch (e) {

@@ -2347,6 +2347,9 @@ class Resonance(Base):
     consent_tier = Column(String(20), nullable=False, default="private")
     # none | flagged | in_review | upheld | corrected.
     flag_state = Column(String(20), nullable=False, default="none")
+    # The contesting note ("did we misread your story") -- the training signal
+    # for the resonance rubric. Set at submit (preemptive flag) or via /flag.
+    flag_reason = Column(Text, nullable=True)
     # Hand-authored build/demo seed; excluded from every real aggregate.
     is_synthetic = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))

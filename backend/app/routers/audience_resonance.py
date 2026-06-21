@@ -154,6 +154,13 @@ class SubmitIn(BaseModel):
     slice_token: str | None = None
     # The "did we misread your story" lever, set at the reveal step.
     flagged: bool = False
+    # Short note on what the slicer got wrong (stored when flagged).
+    flag_reason: str | None = Field(default=None, max_length=2000)
+
+
+class FlagIn(BaseModel):
+    # Optional note when flagging an already-posted resonance from the display.
+    reason: str | None = Field(default=None, max_length=2000)
 
 
 # ---------- reads (public) ----------
@@ -299,6 +306,7 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
     # The "did we misread your story" lever, set at the reveal step, routes the
     # row to human review before it can publish (distinct from the song satire flag).
     flag_state = "flagged" if body.flagged else "none"
+    flag_reason = (body.flag_reason or "").strip()[:2000] if body.flagged else None
 
     row = Resonance(
         song_id=body.song_id,
@@ -311,6 +319,7 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
         slice_attribution=slice_attribution,
         consent_tier=consent,
         flag_state=flag_state,
+        flag_reason=flag_reason,
         is_synthetic=False,
     )
     db.add(row)
@@ -323,13 +332,15 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
 
 
 @router.post("/{resonance_id}/flag")
-def flag(resonance_id: int, db: Session = Depends(get_db),
+def flag(resonance_id: int, body: FlagIn | None = None, db: Session = Depends(get_db),
          current_user: User | None = Depends(optional_clerk_user)):
     row = db.query(Resonance).filter(Resonance.id == resonance_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="not_found")
     # "Did we misread your story" -> routes to human review before publish.
     row.flag_state = "flagged"
+    if body and body.reason:
+        row.flag_reason = body.reason.strip()[:2000]
     db.commit()
     return {"id": resonance_id, "flag": "flagged"}
 
