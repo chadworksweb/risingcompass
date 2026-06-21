@@ -5,15 +5,12 @@ import logging
 import re
 from datetime import date, datetime
 
-from anthropic import Anthropic
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import AgentDraft, AgentDraftSong
 from app.services.agents.calibrator import calibrate_song, lookup_calibrated, AGENT_MODEL
-from app.services.agents.compass_agent_rubric import build_editorial_prompt
 from app.services.agents.email_notifier import send_draft_email
-from app.services.claude_meter import tracked_create
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
 from app.services.contamination import count_contaminated, enforce_contamination_rule
@@ -463,7 +460,7 @@ def run_compass_agent(
     charge = degree_to_charge(degree)
     contam = count_contaminated(calibrated_songs)
 
-    # Generate editorial summary (Anthropic call, no DB session held)
+    # Editorial is terminal-supplied (Claude Code); the server generates none.
     editorial = _generate_editorial(calibrated_songs)
     agent_notes = "; ".join(agent_notes_parts) if agent_notes_parts else None
 
@@ -520,31 +517,11 @@ def run_compass_agent(
 
 
 def _generate_editorial(calibrated_songs: list[dict]) -> str | None:
-    """Generate a one-line editorial summary using Claude."""
-    if settings.editorial_terminal_only:
-        # Editorials are supplied from terminal (Claude Code) via
-        # POST /drafts/{ref}/editorial -- the server makes zero Anthropic calls
-        # for the editorial, keeping the reading pipeline API-free. Both callers
-        # (draft creation + approval regen) fail-soft on None, so approval keeps
-        # the terminal-supplied editorial. See scripts/set_editorial.py.
-        return None
-    if not settings.anthropic_api_key:
-        return None
+    """Editorial is terminal-supplied (Claude Code), never generated server-side.
 
-    try:
-        client = Anthropic(api_key=settings.anthropic_api_key)
-        system_prompt, user_prompt = build_editorial_prompt(calibrated_songs)
-
-        response = tracked_create(
-            client,
-            call_site="editorial_summary",
-            context={"song_count": len(calibrated_songs)},
-            model=AGENT_MODEL,
-            max_tokens=256,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-        return response.content[0].text.strip()
-    except Exception:
-        logger.exception("Failed to generate editorial summary")
-        return None
+    The reading pipeline carries no rubric or editorial prompt: scoring runs
+    through LEC and the editorial arrives via POST /drafts/{ref}/editorial
+    (scripts/set_editorial.py). This stays a None-returning stub so its callers
+    (draft creation + the approval regen) keep their existing fail-soft behavior.
+    """
+    return None

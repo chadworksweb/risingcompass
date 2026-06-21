@@ -223,7 +223,9 @@ So Claude Code WRITES both prose pieces and supplies them:
 `--societal-prose-file` is required whenever any ether field is supplied. The
 ether tagger does NOT run on the terminal path, so omitting `--topic` is safe
 (topics stay NULL, no API call). Editorial is supplied separately via
-`set_editorial.py` and gated off by `EDITORIAL_TERMINAL_ONLY`.
+`set_editorial.py`; the server has no editorial-generation path at all (the
+in-process rubric apparatus was removed 2026-06-21), so editorial is always
+terminal-supplied.
 
 ## Public Participation (Phases 1-3.2 built)
 
@@ -707,26 +709,29 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
   editorial; `ChartSnapshotOut` exposes
   `compass_degree`/`charge_level`/`contamination_count`/`editorial`.
 
-  **Editorial is TERMINAL-SUPPLIED (2026-06-19).** The Anthropic API account ran
-  dry indefinitely, and the editorial was the one server-side Anthropic call left
-  in the daily/chart reading pipeline (calibration is cache-hits + terminal; the
-  ether tagger does not run on the terminal path, and prose is skipped only when
-  Claude Code SUPPLIES it -- `calibrate_song.py` requires the listener prose file
-  so the `record_and_reconcile` hook never calls Anthropic; see "Terminal
-  calibration"). So it moved to
-  terminal: `settings.editorial_terminal_only` (env `EDITORIAL_TERMINAL_ONLY`, TRUE
-  in prod) gates `_generate_editorial` to a no-op, so NEITHER draft-creation NOR
-  approval makes the call. Claude Code writes the editorial during the reading
-  calibration session and supplies it via `POST /api/admin/agent/drafts/{ref}/
-  editorial` (`scripts/set_editorial.py`, lyrics-supply key -- the same lane
-  `calibrate_song.py` uses). Approval no longer regenerates: `_generate_editorial`
-  returns None under the flag and the approval regen already fail-softs (keeps the
-  existing editorial on None), so the terminal-supplied editorial publishes.
-  **SOP:** calibrate every song -> `python scripts/set_editorial.py <draft_ref>
-  --editorial "..."` -> approve. Flip `EDITORIAL_TERMINAL_ONLY` false to restore
-  the server-side regen if credits ever return. (History: approval USED to ALWAYS
-  regenerate over the full calibrated set, 2026-06-13, to fix the stale
-  draft-creation editorial -- now gated off behind the flag.)
+  **Editorial is TERMINAL-SUPPLIED (server has NO generation path, 2026-06-21).**
+  The editorial used to be the one server-side Anthropic call left in the daily/
+  chart reading pipeline (calibration is cache-hits + terminal; the ether tagger
+  does not run on the terminal path, and prose is skipped only when Claude Code
+  SUPPLIES it -- `calibrate_song.py` requires the listener prose file so the
+  `record_and_reconcile` hook never calls Anthropic; see "Terminal calibration").
+  The Decoupling removed RC's in-process rubric apparatus entirely
+  (`compass_agent_rubric` / `rubric_builder` / `agents/tenets/`), so
+  `_generate_editorial` is now a permanent None-returning stub -- NEITHER
+  draft-creation NOR approval ever generates an editorial, and the
+  `editorial_terminal_only` flag is gone (there is nothing left to gate). Claude
+  Code writes the editorial during the reading calibration session and supplies it
+  via `POST /api/admin/agent/drafts/{ref}/editorial` (`scripts/set_editorial.py`,
+  lyrics-supply key -- the same lane `calibrate_song.py` uses). Approval does not
+  regenerate: `_generate_editorial` returns None and the approval regen fail-softs
+  (keeps the existing editorial on None), so the terminal-supplied editorial
+  publishes. **SOP:** calibrate every song -> `python scripts/set_editorial.py
+  <draft_ref> --editorial "..."` -> approve. Restoring a server-side editorial would
+  now require re-introducing a rubric source (LEC owns it); the dry-account
+  workaround is permanent design, not a flag. (History: approval USED to ALWAYS
+  regenerate over the full calibrated set, 2026-06-13; then gated behind
+  `EDITORIAL_TERMINAL_ONLY`, 2026-06-19; then the generation path was removed
+  outright, 2026-06-21.)
 
   **Adding a chart shell (the whole recipe):**
   1. Backend: register a `CHART_REGISTRY` entry (`routers/chart_snapshots.py`) +

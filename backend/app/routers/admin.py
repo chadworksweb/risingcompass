@@ -181,7 +181,6 @@ _ADMIN_SECTIONS = {
     "lc-activity": "admin/lc_activity.html",
     "api-monitor": "admin/api_monitor.html",
     "claude-usage": "admin/claude_usage.html",
-    "v1-test": "admin/v1_test.html",
     "lc-status": "admin/lc_status.html",
     "lobby-mod": "admin/comments.html",
     "alerts": "admin/alerts.html",

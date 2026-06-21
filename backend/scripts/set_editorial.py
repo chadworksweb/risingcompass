@@ -1,14 +1,14 @@
 """Set a daily/chart reading draft's editorial summary from terminal.
 
 Claude Code writes the editorial during a reading calibration session and supplies
-it here, the same way calibrate_song.py supplies per-song calibration. With
-settings.editorial_terminal_only on, the server makes zero Anthropic calls for the
-editorial -- this is the supply path that keeps the reading pipeline API-free
-(see feedback_rc_no_api_in_terminal).
+it here, the same way calibrate_song.py supplies per-song calibration. The server
+has no editorial-generation path (the in-process rubric apparatus was removed in
+the Decoupling), so the editorial is always terminal-supplied and the reading
+pipeline makes zero Anthropic calls (see feedback_rc_no_api_in_terminal).
 
 Run this AFTER every song in the draft is calibrated, BEFORE approval. Approval
-does not overwrite a supplied editorial (the regen no-ops under the flag and
-fail-softs otherwise), so what you set here is what publishes.
+does not overwrite a supplied editorial (the regen is a None-returning stub and
+fail-softs), so what you set here is what publishes.
 
 Editorial register (match the daily readings): two sentences, present tense,
 reader-facing -- name the dominant charge of the reading, then the undercurrent.

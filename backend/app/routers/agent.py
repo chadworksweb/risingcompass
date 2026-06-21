@@ -819,12 +819,12 @@ def _compose_terminal_calibration(result: dict) -> dict:
 def supply_editorial(draft_ref: str, data: EditorialSupplyIn, db: Session = Depends(get_db)):
     """Set a draft's editorial summary from terminal (Claude Code) or admin.
 
-    The editorial is the one server-side Anthropic call left in the daily/chart
-    reading pipeline. With settings.editorial_terminal_only, the server never
-    makes it -- Claude Code writes the editorial during the reading calibration
-    session and supplies it here (lyrics-supply key), the same lane
+    The editorial is always terminal-supplied: the server carries no
+    editorial-generation path (the in-process rubric apparatus was removed in
+    the Decoupling). Claude Code writes the editorial during the reading
+    calibration session and supplies it here (lyrics-supply key), the same lane
     calibrate_song.py uses for per-song calibration. Approval no longer overwrites
-    it: _generate_editorial no-ops under the flag, and the approval regen already
+    it: _generate_editorial is a None-returning stub, and the approval regen
     fail-softs (keeps the existing editorial) on a None result, so the supplied
     editorial is what publishes. Only mutates the editorial; aggregates are
     untouched.

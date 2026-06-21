@@ -464,8 +464,8 @@ class DraftUpdate(BaseModel):
 class EditorialSupplyIn(BaseModel):
     """Terminal-supplied editorial for a daily/chart reading draft. Set via
     POST /drafts/{ref}/editorial with the lyrics-supply key, the same lane
-    calibrate_song.py uses, so the server never makes the editorial Anthropic
-    call (see settings.editorial_terminal_only)."""
+    calibrate_song.py uses; the server has no editorial-generation path, so the
+    editorial is always terminal-supplied."""
     editorial_summary: str = Field(..., min_length=10, max_length=2000)
 
 

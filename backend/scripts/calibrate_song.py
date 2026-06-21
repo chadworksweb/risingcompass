@@ -13,15 +13,14 @@ calibration object actually carries:
                       is REQUIRED; this script enforces it.
   - societal prose -- fires only when topics are supplied without the prose;
                       guarded by the --societal-prose-file requirement below.
-  - editorial      -- separate endpoint (set_editorial.py), gated off by
-                      EDITORIAL_TERMINAL_ONLY.
+  - editorial      -- separate endpoint (set_editorial.py); the server has no
+                      editorial-generation path, so it is always terminal-supplied.
 
 CANONICAL RUBRIC: load the latest LEC golden snapshot
 (Local Sites/libra-engine-compass/backend/app/rubric/lec-golden-<latest>/
 core.json + precedents.json) plus the v3 FORMAT from LEC's lec_rubric_builder /
-lec_compass_agent_rubric. Do NOT load this repo's
-backend/app/services/agents/tenets/ copy -- it is NOT canonical and drifts (it
-was a week stale vs the LEC golden on 2026-06-20). LEC owns the rubric.
+lec_compass_agent_rubric. LEC owns the rubric; RC no longer carries an
+in-process rubric copy (the agents/tenets/ apparatus was removed 2026-06-21).
 
 The compass_songs row is created via _store_calibration and linked to the
 draft_song.

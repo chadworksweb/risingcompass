@@ -22,7 +22,7 @@ from app.migrate import run_migrations
 # startup, migrations, and every swallowed "non-fatal" exception persist.
 configure_logging()
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ApiCallLog
-from app.routers import compass, drift, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, prose_admin, charger_activity, topic_trends
+from app.routers import compass, drift, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, prose_admin, charger_activity, topic_trends
 
 logger = logging.getLogger(__name__)
 
@@ -401,7 +401,6 @@ app.include_router(chart_snapshots.admin_router)
 # Scrape Shield session-token grant (Layer 2). Public, origin-gated, no key dep.
 from app.routers import shield as shield_router
 app.include_router(shield_router.router)
-app.include_router(v1_test.router)
 
 
 # slowapi rate limiter (defined in analyzer.py, shared across routers)

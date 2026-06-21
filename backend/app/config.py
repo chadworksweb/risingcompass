@@ -57,13 +57,6 @@ class Settings(BaseSettings):
     escalation_model: str = ""
     escalation_repass_enabled: bool = False
     escalation_confidence_floor: float = 0.6
-    # Editorials are the one server-side Anthropic call left in the daily/chart
-    # reading pipeline (everything else is cache hits or terminal-supplied). When
-    # true, _generate_editorial no-ops (draft-creation AND approval skip the call)
-    # and the editorial is supplied from terminal (Claude Code) via
-    # POST /drafts/{ref}/editorial -- keeping the reading pipeline API-free. See
-    # scripts/set_editorial.py and feedback_rc_no_api_in_terminal.
-    editorial_terminal_only: bool = False
 
     # Libra Engine Compass (LEC) -- the extracted scoring brain, and (since
     # Phase 3, 2026-06-16) RC's SOLE scorer: the in-process calibrator was

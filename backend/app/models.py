@@ -222,29 +222,6 @@ class UserCalibration(Base):
     created_at = Column(DateTime, default=datetime.utcnow)     # first run time
 
 
-class V1Test(Base):
-    """Isolated write target for v1-frozen control calibrations.
-
-    Every run of the admin "V1 Test" tab writes one row. Intentionally
-    separate from compass_songs / submitted_songs / calibration_runs so
-    v1 control runs never mix into the canonical corpus.
-    """
-    __tablename__ = "v1_tests"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(Text, nullable=False)
-    artist = Column(Text, nullable=False)
-    rubric_color = Column(Text)
-    charge_value = Column(Integer)
-    contaminated = Column(Boolean, default=False)
-    contamination_note = Column(Text)
-    charge_summary = Column(Text)
-    confidence = Column(Float)
-    rubric_commit = Column(Text, nullable=False)
-    error = Column(Text)  # populated when the calibrator raised / returned no color
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-
 class LcEvent(Base):
     """Every Lyrical Charger interaction — page views, searches, submissions, failures.
 
