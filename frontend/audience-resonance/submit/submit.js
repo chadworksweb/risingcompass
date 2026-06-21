@@ -332,12 +332,32 @@ function wire() {
   });
 }
 
+function renderComingSoon() {
+  root.innerHTML = `
+    <div class="ar-coming-soon">
+      <h3 class="ar-step-h">Audience Resonance is opening soon</h3>
+      <p class="ar-step-sub">You will be able to share what a song actually did to you, and see how it read, here. Sharing is not open yet.</p>
+      <p class="ar-door">In the meantime, explore the <a href="/audience-resonance/" class="accent-link">Audience Resonance map</a>.</p>
+    </div>`;
+}
+
 async function boot() {
+  const params = new URLSearchParams(location.search);
+
+  // Dark-launch lock (Album Charger pattern): when submissions are closed, show
+  // a coming-soon panel instead of the wizard, so the entry reads as locked
+  // rather than letting someone fill it all in and hit a wall. ?demo previews
+  // the wizard regardless.
+  if (!DEMO && api()) {
+    try {
+      const cfg = await api().get('/api/audience-resonance/config');
+      if (cfg && cfg.submissions_open === false) { renderComingSoon(); return; }
+    } catch (_) { /* config unreachable -> fall through; /submit still 503s */ }
+  }
+
   // Best-effort username prefill from a signed-in handle (only if auth.js is on
   // the page); otherwise the user types one.
   try { if (window.Auth && window.Auth.getMe) { const me = await window.Auth.getMe(); if (me && me.handle) state.username = me.handle; } } catch (_) {}
-
-  const params = new URLSearchParams(location.search);
 
   // Song-bound entry (from a song page's "Share a Resonance" link): pre-select
   // the song from ?slug and start at the story step.

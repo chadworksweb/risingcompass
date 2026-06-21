@@ -178,6 +178,16 @@ class FlagIn(BaseModel):
     reason: str | None = Field(default=None, max_length=2000)
 
 
+# ---------- config (public) ----------
+
+@router.get("/config")
+def config(db: Session = Depends(get_db)):
+    """Lightweight public config. submissions_open is the dark-launch lock
+    (audience_resonance.enabled): when false the feature is VISIBLE but the
+    submit entry is closed, like the Album Charger's disabled tab."""
+    return {"submissions_open": is_audience_resonance_enabled(db)}
+
+
 # ---------- reads (public) ----------
 
 def _visible(query, db):

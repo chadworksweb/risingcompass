@@ -301,3 +301,6 @@
   color: var(--rc-text-dim, #8a93a8);
   vertical-align: middle;
 }
+
+/* Submit page locked state (dark-launch coming-soon). */
+.ar-coming-soon { padding: 1.5rem 0; }
