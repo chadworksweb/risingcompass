@@ -62,7 +62,6 @@ from app.services.recalibration import (
 from app.services.calibration_corpus import (
     hash_lyrics, log_run, _seed_initial_run_if_missing, _derive_tier,
 )
-from app.services.ether_taxonomy import VALID_SLUGS
 
 logger = logging.getLogger(__name__)
 
@@ -199,15 +198,6 @@ class ApplySuppliedIn(BaseModel):
     internal_notes: Optional[str] = Field(None, max_length=4000)
     rubric_change_note: Optional[str] = Field(None, max_length=2000)
     agent_model: Optional[str] = "claude-code"
-    # Optional Claude-Code-supplied prose + ether (terminal = zero Anthropic).
-    # When present they are written onto the song, the prior values archived to
-    # prior_*, and the societal provenance seal re-stamped as terminal_supplied.
-    # Unlike the server prose path (accept_proposal -> _regenerate_song_prose,
-    # which calls Opus), nothing here runs the model -- the text IS the supply.
-    listener_effects_prose: Optional[str] = None
-    societal_effects_prose: Optional[str] = None
-    deadpan_line: Optional[str] = None
-    topics: Optional[list[str]] = None
 
 
 def _proposal_to_out(p: SongRecalibrationProposal, db: Session) -> dict:
@@ -733,55 +723,6 @@ def reject_proposal(
     return {"applied": False, "proposal_id": p.id, "status": p.status}
 
 
-def _apply_supplied_prose(song: Song, data: "ApplySuppliedIn") -> dict:
-    """Write Claude-Code-supplied prose + ether onto a published song. NO model
-    call -- the supplied text is the verdict. Archives prior_* and re-stamps the
-    societal provenance seal as terminal_supplied (the next anchor sweep
-    republishes the new hash). Mirrors prose_admin/_regenerate_song_prose's
-    write block, but from supplied text instead of an Opus generation.
-
-    Ether discipline mirrors calibrate_song.py: topics require a deadpan_line,
-    valid taxonomy slugs (<=3), and the societal prose. Returns which fields were
-    written.
-    """
-    listener = (data.listener_effects_prose or "").strip() or None
-    societal = (data.societal_effects_prose or "").strip() or None
-    deadpan = (data.deadpan_line or "").strip() or None
-    topics = data.topics or None
-    if not any([listener, societal, deadpan, topics]):
-        return {"listener": False, "societal": False, "ether": False}
-
-    if topics:
-        if len(topics) > 3:
-            raise HTTPException(400, f"max 3 topics, got {len(topics)}")
-        invalid = [t for t in topics if t not in VALID_SLUGS]
-        if invalid:
-            raise HTTPException(400, f"invalid taxonomy slug(s): {invalid}. Valid: {sorted(VALID_SLUGS)}")
-        if not deadpan:
-            raise HTTPException(400, "deadpan_line required when topics are supplied")
-        if not societal:
-            raise HTTPException(400, "societal_effects_prose required when topics are supplied")
-
-    now = datetime.utcnow()
-    if listener:
-        song.prior_listener_effects_prose = song.listener_effects_prose
-        song.listener_effects_prose = listener
-    if societal:
-        song.prior_societal_effects_prose = song.societal_effects_prose
-        song.prior_societal_prose_generated_at = song.societal_prose_generated_at
-        song.prior_societal_prose_model = song.societal_prose_model
-        song.societal_effects_prose = societal
-        song.societal_prose_generated_at = now
-        song.societal_prose_model = "terminal_supplied"
-    if deadpan:
-        song.deadpan_line = deadpan
-    if topics:
-        song.topics = json.dumps(topics)
-        song.topic_audit = None
-    return {"listener": bool(listener), "societal": bool(societal),
-            "ether": bool(deadpan or topics)}
-
-
 @router.post("/apply-supplied")
 def apply_supplied_correction(
     data: ApplySuppliedIn,
@@ -839,10 +780,6 @@ def apply_supplied_correction(
         song.charge_summary = data.charge_summary
     song.contaminated = bool(data.contaminated)
     song.contamination_note = data.contamination_note if data.contaminated else None
-
-    # Optional Claude-Code-supplied prose + ether (zero model call). Raises 400
-    # on bad ether before any run/audit row is written.
-    prose_written = _apply_supplied_prose(song, data)
 
     # Supersede prior live runs so consensus restarts against the new verdict.
     now = datetime.utcnow()
@@ -910,7 +847,7 @@ def apply_supplied_correction(
         "after": {"charge": data.charge_value, "color": color},
         "superseded_runs": len(prior),
         "reasoning_stored": bool(run.reasoning),
-        "prose_rewritten": prose_written,
+        "prose_rewritten": False,
     }
 
 
