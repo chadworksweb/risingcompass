@@ -19,14 +19,12 @@ from sqlalchemy.orm import Session
 
 from app.auth import optional_admin_session
 from app.database import get_db
-from app.models import PrePublishCorrection, SongRecalibration, RubricChange
+from app.models import PrePublishCorrection, SongRecalibration
 from app.schemas import FeedEntry, FeedListOut
 from app.services.calibration_log_feed import (
     list_feed_entries,
     _correction_to_entry,
     _recalibration_to_entry,
-    _rubric_change_to_entry,
-    linked_songs_by_slug,
 )
 
 router = APIRouter(prefix="/api/admin/calibration-log", tags=["calibration-log"])
@@ -37,13 +35,12 @@ public_router = APIRouter(prefix="/api/calibration-log", tags=["calibration-log"
 _TABLE_REGISTRY = {
     "pre_publish_corrections": (PrePublishCorrection, "pre-publish correction"),
     "song_recalibrations": (SongRecalibration, "recalibration"),
-    "rubric_changes": (RubricChange, "rubric change"),
 }
 
 
 @public_router.get("", response_model=FeedListOut)
 def list_calibration_log(
-    event_type: Optional[str] = Query(default=None, description="Filter: pre_publish_correction, recalibration, rubric_change"),
+    event_type: Optional[str] = Query(default=None, description="Filter: pre_publish_correction, recalibration"),
     song_source: Optional[str] = Query(default=None, description="With song_id: restrict to one song's events"),
     song_id: Optional[int] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -106,9 +103,6 @@ def get_calibration_log_entry(
     slug_cache: dict = {}
     if source_table == "pre_publish_corrections":
         data = _correction_to_entry(row, db, slug_cache)
-    elif source_table == "rubric_changes":
-        linked = linked_songs_by_slug(db, [row.change_slug], slug_cache).get(row.change_slug)
-        data = _rubric_change_to_entry(row, db, slug_cache, linked_songs=linked)
     else:
         data = _recalibration_to_entry(row, db, slug_cache)
     return FeedEntry.model_validate(data)

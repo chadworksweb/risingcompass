@@ -22,7 +22,7 @@ from app.migrate import run_migrations
 # startup, migrations, and every swallowed "non-fatal" exception persist.
 configure_logging()
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ApiCallLog
-from app.routers import compass, drift, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, tenets, amendments, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, motions, motions_admin, chamber, prose_admin, charger_activity, topic_trends
+from app.routers import compass, drift, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, v1_test, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, prose_admin, charger_activity, topic_trends
 
 logger = logging.getLogger(__name__)
 
@@ -72,20 +72,6 @@ def _init_database():
     Base.metadata.create_all(bind=engine)
     # Apply versioned migrations (handles ALTER TABLE on existing tables)
     run_migrations(engine)
-
-    # Calibration Log: detect instrument-level (rubric/tenet/rule/modifier)
-    # changes from tenets/core.json and log them as 'rubric_change' feed events.
-    # Runs after migrations so rubric_changes exists; fail-soft so a detector
-    # hiccup never blocks startup.
-    try:
-        from app.services.rubric_change_detector import detect_rubric_changes
-        db = SessionLocal()
-        try:
-            detect_rubric_changes(db)
-        finally:
-            db.close()
-    except Exception:
-        logger.exception("rubric_change_detector failed at startup (non-fatal)")
 
     # Seed the Ether taxonomy editor tables (Phase 1) from the code constants
     # the first time they're empty. Idempotent; never overwrites admin edits.
@@ -288,8 +274,6 @@ from app.routers import sitemap as sitemap_router
 app.include_router(sitemap_router.router)
 app.include_router(vibe.user_router)  # Clerk-authed, no X-Api-Key; before the gated router
 app.include_router(vibe.router, dependencies=_api_key_dep)
-app.include_router(tenets.router, dependencies=_api_key_dep)
-app.include_router(amendments.router, dependencies=_api_key_dep)
 app.include_router(ether_art_chart.router, dependencies=_public_read_dep)
 app.include_router(topic_trends.router, dependencies=_public_read_dep)
 app.include_router(chart_snapshots.public_router, dependencies=_public_read_dep)
@@ -320,17 +304,6 @@ app.include_router(comments.router)
 app.include_router(comments_admin.router)
 app.include_router(alerts_admin.router)
 app.include_router(users_admin.router)
-
-# Public Participation Motion Desk (Phase 3.2). Filing requires Tier 2
-# (id_verified); reads are public. Admin queue mounts below alongside
-# the other admin routers.
-app.include_router(motions.router)
-app.include_router(motions_admin.router)
-
-# Public Participation Deliberation Chamber (Phase 4). Posting requires
-# Tier 2; reads are public. Mounted under each motion via the prefix
-# /api/motions/{id}/arguments.
-app.include_router(chamber.router)
 
 # Dev Ledger -- the "dev side, exposed" (changelog / roadmap / feature requests
 # / bug reports, CalVer-versioned). Reads are public; submit + vote require
