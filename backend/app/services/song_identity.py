@@ -13,6 +13,7 @@ US = unit separator (0x1f), an char that never appears in normalized text.
 """
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 from sqlalchemy import text
@@ -23,6 +24,32 @@ from app.services.artist_linker import parse_artist_string
 logger = logging.getLogger(__name__)
 
 CANON_SEP = "\x1f"
+
+# Soundtrack-cast identity bridge (rung 2b in resolve_song_identity). A track
+# whose title embeds a source marker -- '... (From "Show")' -- is globally
+# unique BY TITLE: the show name is baked into the title. Such tracks are
+# credited to a cast/ensemble whose string is UNSTABLE across feeds (a channel
+# may collapse 'Kylie Cantrall, Malia Baker, & Descendants Wicked Wonderland -
+# Cast' to a short 'Descendants - Cast'). The two credit strings are genuinely
+# different token sets, so neither the set clean key nor the lead key matches
+# across the collapse and the song re-listed as awaiting-lyrics every day. When
+# BOTH signals are present (soundtrack title marker + generic ensemble credit)
+# the clean title alone is a safe identity. Gating on the ensemble credit keeps
+# a NAMED cover of the same soundtrack song minting its own row.
+_SOUNDTRACK_MARKER_RE = re.compile(r"[\(\[]\s*from\b", re.I)
+_ENSEMBLE_CREDIT_RE = re.compile(r"\b(?:cast|ensemble|company|soundtrack)\b", re.I)
+
+
+def _has_soundtrack_marker(title) -> bool:
+    """True when the title embeds a source marker like '(From "Show")'."""
+    return bool(title and _SOUNDTRACK_MARKER_RE.search(title))
+
+
+def _is_ensemble_credit(artist) -> bool:
+    """True when the credit is a generic cast/ensemble label, not a single named
+    performer -- so a named cover of the same soundtrack song still mints its own
+    row instead of merging into the cast recording."""
+    return bool(artist and _ENSEMBLE_CREDIT_RE.search(artist))
 
 
 def extract_primary_artist(artist):
@@ -186,6 +213,28 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
         ).first()
         if row:
             return Resolution(song_id=row[0], via="clean")
+
+    # Rung 2b: soundtrack-cast title bridge. The (From "...") marker makes the
+    # title a globally unique identity; gated on a generic ensemble/cast credit
+    # (so a NAMED cover of the same soundtrack song still mints its own row),
+    # match a stored row with the SAME clean title part no matter how the cast
+    # credit was formatted. LIKE (not split_part) keeps it dialect-portable; the
+    # title part is normalize_for_search output (alphanumeric only) so it carries
+    # no LIKE metacharacters to escape.
+    if clean_key and _has_soundtrack_marker(title) and _is_ensemble_credit(artist):
+        title_part = clean_key.split(CANON_SEP, 1)[0]
+        if title_part:
+            row = db.execute(
+                text(
+                    "SELECT id FROM songs "
+                    "WHERE canonical_key_clean LIKE :prefix "
+                    "AND canonical_key <> :k "
+                    "ORDER BY id ASC LIMIT 1"
+                ),
+                {"prefix": f"{title_part}{CANON_SEP}%", "k": key},
+            ).first()
+            if row:
+                return Resolution(song_id=row[0], via="clean")
 
     # Rung 3: pg_trgm fuzzy fallback. Ships DARK behind identity_trgm.enabled
     # (fail-closed). Fully fail-soft: any error (flag table, missing extension,
