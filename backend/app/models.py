@@ -2360,3 +2360,20 @@ class Resonance(Base):
         Index("ix_resonances_consent", "consent_tier"),
         Index("ix_resonances_flag", "flag_state"),
     )
+
+
+class ResonanceSliceJob(Base):
+    """Durable async slice job for Audience Resonance (start -> token -> poll ->
+    reveal). Backs the slicer across worker restarts and multiple uvicorn workers
+    so /submit can resolve the server-computed verdict by token. slice_json holds
+    the computed slice dict (prop_*, slice_attribution, status). See migration 132."""
+
+    __tablename__ = "resonance_slice_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_token = Column(String(64), nullable=False, unique=True)
+    status = Column(String(20), nullable=False, default="queued")  # queued|running|done|error
+    slice_json = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"), onupdate=datetime.utcnow)

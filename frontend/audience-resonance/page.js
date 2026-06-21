@@ -81,7 +81,9 @@ async function boot() {
       a: ru.mean.adjacent / 100,
       color: ru.song.color,
       r: dotRadius(ru.n),
-      href: `/songs/${ru.song.slug}`,
+      // Demo dots are fictional songs with no real page -- not clickable. Live
+      // dots link to the real song page.
+      href: (!isDemo && ru.song.slug) ? `/songs/${ru.song.slug}` : null,
       tooltipHtml: tipHtml(ru),
       dim: filter === 'dis' && !isDisagreement(ru.song.charge, ru.mean.true),
     }));

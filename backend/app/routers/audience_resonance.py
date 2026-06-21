@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
 from app.auth import optional_clerk_user
-from app.models import Resonance, Song, SongSlug, User
+from app.models import Resonance, ResonanceSliceJob, Song, SongSlug, User
 from app.services import resonance_slicer
 from app.services.feature_flags import is_audience_resonance_enabled
 # Reuse the single-song calibrate path's bot protection + app-registered limiter,
@@ -58,37 +58,53 @@ def _color(tier):
     return COLOR_HEX.get(tier or "", "#888888")
 
 
-# ---------- slice jobs (in-memory, transient) ----------
-# A slice is ONE short classification, so the start -> token -> poll -> reveal
-# pattern (from the Lyrical Charger async path) runs against an in-process
-# registry rather than its own DB table: the durable result lands on the
-# resonances row at /submit, and a slice ships dark (neutral) until the flag is
-# flipped, so cross-restart job survival is not needed for v1. If a robust,
-# cross-session job ledger is wanted later, mirror album_charge_jobs (migration).
-_slice_jobs: dict[str, dict] = {}
+# ---------- slice jobs (durable, DB-backed) ----------
+# The start -> token -> poll -> reveal flow is backed by resonance_slice_jobs so
+# the job + computed slice survive a worker restart and resolve across multiple
+# uvicorn workers (a token minted on one worker must be readable by another at
+# /submit). Mirrors album_charge_jobs. Module set holds in-flight asyncio tasks
+# so the loop doesn't GC them.
 _slice_tasks: set[asyncio.Task] = set()
 
-# A slice resolves in well under a minute; anything older is dropped on poll
-# (covers a container restart -- the in-process task is gone) and pruned.
+# A slice resolves in well under a minute; a job stuck past this (e.g. a
+# container restart killed the worker) is reported errored on poll.
 SLICE_JOB_TTL = timedelta(minutes=10)
 
 
+def _update_slice_job(token: str, **fields) -> None:
+    """Short-lived write to the job row. Bumps updated_at; swallows errors so
+    slice telemetry can never crash the worker."""
+    fields["updated_at"] = datetime.utcnow()
+    db = SessionLocal()
+    try:
+        db.query(ResonanceSliceJob).filter(
+            ResonanceSliceJob.job_token == token).update(fields)
+        db.commit()
+    except Exception:
+        logger.exception("resonance slice job %s update failed", token)
+    finally:
+        db.close()
+
+
 def _prune_slice_jobs() -> None:
-    """Drop expired job entries so the registry can't grow unbounded."""
-    now = datetime.utcnow()
-    stale = [t for t, j in _slice_jobs.items()
-             if (now - j.get("created_at", now)) > SLICE_JOB_TTL]
-    for t in stale:
-        _slice_jobs.pop(t, None)
+    """Delete job rows older than the TTL so the table stays bounded (the slice
+    result a submission needs is copied onto the resonances row at /submit)."""
+    db = SessionLocal()
+    try:
+        cutoff = datetime.utcnow() - SLICE_JOB_TTL
+        db.query(ResonanceSliceJob).filter(
+            ResonanceSliceJob.created_at < cutoff).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        logger.exception("resonance slice job prune failed")
+    finally:
+        db.close()
 
 
 async def _run_slice(token: str, song_id: int, story: str) -> None:
     """Background worker: classify one testimony and store the slice on the job
-    entry. Never raises into the event loop -- failures land as a neutral slice."""
-    job = _slice_jobs.get(token)
-    if job is None:
-        return
-    job["status"] = "running"
+    row. Never raises into the event loop -- failures land as a neutral slice."""
+    _update_slice_job(token, status="running")
     db = SessionLocal()
     try:
         song = db.query(Song).filter(Song.id == song_id).first()
@@ -96,16 +112,13 @@ async def _run_slice(token: str, song_id: int, story: str) -> None:
         artist = song.artist if song else ""
         slice_result = await resonance_slicer.slice_story(
             story=story, title=title, artist=artist, db=db)
-        job["slice"] = slice_result
-        job["status"] = "done"
     except Exception:
         logger.exception("resonance slice job %s failed", token)
-        job["status"] = "done"
-        # Fail-soft: a neutral slice so the wizard can still proceed to consent.
         from app.services import resonance_rubric
-        job["slice"] = resonance_rubric.neutral_slice("worker_error")
+        slice_result = resonance_rubric.neutral_slice("worker_error")
     finally:
         db.close()
+    _update_slice_job(token, status="done", slice_json=json.dumps(slice_result))
 
 
 # ---------- schemas ----------
@@ -265,10 +278,8 @@ async def start_slice(body: SliceIn, request: Request, db: Session = Depends(get
 
     _prune_slice_jobs()
     token = uuid.uuid4().hex
-    _slice_jobs[token] = {
-        "status": "queued", "slice": None,
-        "created_at": datetime.utcnow(),
-    }
+    db.add(ResonanceSliceJob(job_token=token, status="queued"))
+    db.commit()
     task = asyncio.create_task(_run_slice(token, body.song_id, body.story.strip()))
     _slice_tasks.add(task)
     task.add_done_callback(_slice_tasks.discard)
@@ -277,18 +288,23 @@ async def start_slice(body: SliceIn, request: Request, db: Session = Depends(get
 
 @router.get("/slice/{token}")
 @limiter.limit("600/hour")
-async def slice_status(token: str, request: Request):
+async def slice_status(token: str, request: Request, db: Session = Depends(get_db)):
     """Poll a slice. Returns the proportional verdict + line-by-line attribution
     once done. Reveal-on-commit: the frontend shows this, then the person accepts
     or flags, then chooses consent and calls /submit with this same token."""
-    job = _slice_jobs.get(token)
+    job = db.query(ResonanceSliceJob).filter(ResonanceSliceJob.job_token == token).first()
     if job is None:
-        # Unknown or expired (e.g. a restart wiped the registry).
         raise HTTPException(status_code=404, detail="unknown_slice")
-    if job["status"] in ("queued", "running") \
-            and (datetime.utcnow() - job["created_at"]) > SLICE_JOB_TTL:
+    if job.status in ("queued", "running") and job.updated_at \
+            and (datetime.utcnow() - job.updated_at) > SLICE_JOB_TTL:
         return {"status": "error", "error": "slice_timed_out"}
-    return {"status": job["status"], "slice": job.get("slice")}
+    sl = None
+    if job.slice_json:
+        try:
+            sl = json.loads(job.slice_json)
+        except Exception:
+            logger.exception("slice job %s result parse failed", token)
+    return {"status": job.status, "slice": sl}
 
 
 # ---------- writes ----------
@@ -310,8 +326,15 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
     # (which is also the steady state while the slicer ships dark).
     prop_true = prop_camouflage = prop_adjacent = 0
     slice_attribution = None
-    job = _slice_jobs.get(body.slice_token) if body.slice_token else None
-    sliced = job.get("slice") if job else None
+    job = (db.query(ResonanceSliceJob)
+           .filter(ResonanceSliceJob.job_token == body.slice_token).first()
+           if body.slice_token else None)
+    sliced = None
+    if job and job.slice_json:
+        try:
+            sliced = json.loads(job.slice_json)
+        except Exception:
+            sliced = None
     if sliced and sliced.get("status") == "done":
         prop_true = sliced.get("prop_true", 0)
         prop_camouflage = sliced.get("prop_camouflage", 0)
@@ -339,11 +362,11 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
         is_synthetic=False,
     )
     db.add(row)
+    # Slice consumed -> drop the job row in the same transaction.
+    if job is not None:
+        db.delete(job)
     db.commit()
     db.refresh(row)
-    # Slice consumed -> drop it from the registry.
-    if body.slice_token:
-        _slice_jobs.pop(body.slice_token, None)
     return {"id": row.id, "status": "received", "consent": consent, "flag": flag_state}
 
 

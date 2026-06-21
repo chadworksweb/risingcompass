@@ -4,8 +4,12 @@ This is NOT the song moral rubric (LEC / the compass). The song rubric scores
 lyrics; the resonance rubric classifies TESTIMONY about songs into a proportional
 verdict across three buckets that sum to 100:
 
-  True       -- the song itself elevated the listener (the gold; the thing this
-                feature exists to catch, even when the compass scored the song low).
+  True       -- the song itself did real work on the listener. Not only the
+                bright forms (lifted, elevated, changed) but the quiet ones too:
+                it held them, steadied them, sat with them, kept them alive. The
+                mark is that the work is real and the SONG is its source, whatever
+                the intensity (the gold; the thing this feature exists to catch,
+                even when the compass scored the song low).
   Camouflage -- it rang, but the note was degraded. Counterfeit lift: resentment
                 or despair dressed as catharsis. Felt like ascension, was not.
   Adjacent   -- the song did not do the work; the listener's own life did. The
@@ -37,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when the rubric text or the output contract changes. Stored alongside a
 # slice so a re-slice under a newer rubric is distinguishable from the original.
-RESONANCE_RUBRIC_VERSION = "1.0.0"
+RESONANCE_RUBRIC_VERSION = "1.1.0"
 
 # Bucket keys are the storage contract (resonances.prop_true / _camouflage /
 # _adjacent). Order is the decision order, not a ranking.
@@ -54,8 +58,12 @@ which KIND of resonance their words describe. Your output is a proportional
 verdict across three buckets that sum to exactly 100.
 
 THE THREE BUCKETS
-- True: the song ITSELF elevated this listener. The music or the words did real
-  work on them. Clean lift.
+- True: the song ITSELF did real work on this listener, and the note was clean.
+  This is NOT only euphoric lift. The quiet forms count fully: a song that held
+  them, steadied them, sat with them through it, or kept them alive did real
+  work. "It did not lift me so much as sit with me, but that kept me alive" is
+  True -- the song was the source of the holding. Intensity does not matter; what
+  matters is that the work was real and the SONG did it.
 - Camouflage: the song rang, but the note was degraded. Counterfeit lift --
   resentment, despair, or self-pity dressed up as catharsis. It felt like
   ascension and was not.
@@ -69,6 +77,11 @@ DECIDE IN THIS ORDER
 2. For the part the song did cause: is the note clean (True) or degraded
    (Camouflage)?
 A single testimony usually blends buckets. Read the proportions from the text.
+The True/Adjacent line is about SOURCE, not intensity: if the song's presence did
+the holding (sat with them, kept them company through it), that is True; it is
+only Adjacent to the extent the listener's own life did the work and the song was
+merely the bookmark. Do not downgrade a quiet, low-key testimony to Adjacent just
+because nothing dramatic happened -- ask who did the work.
 
 HARD RULES
 - Read the TEXT, not the person. Phrase your work as "these words read as ..."
