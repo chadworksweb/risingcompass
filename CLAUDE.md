@@ -52,8 +52,12 @@ this so lanes get isolated env, venv, and ports instead of colliding.
   `... remove <name> [-DeleteBranch]`. Integrate: rebase (`... sync <name>`) then
   merge `track/<name>` into master.
 - SHARED DATABASE: the DB is remote and shared by every track and main. Code and
-  frontend lanes parallelize freely; run schema/migration work on ONE track at a
-  time, or repoint that track's `DATABASE_URL` at a throwaway DB.
+  frontend lanes parallelize freely. Migration NUMBERING is no longer a collision
+  risk -- the runner keys on filename, not a high-water version (see Database
+  below), so two tracks can pick the same number and both apply, and you do NOT
+  need to renumber a migration that another track raced ahead of. Still serialize
+  the actual DDL run (one track at a time, or repoint that track's `DATABASE_URL`
+  at a throwaway DB) to avoid lock contention while a migration is executing.
 
 If you are running inside a track worktree (cwd under `rc-tracks/`), commit only
 to this track's branch; never reach into sibling worktrees.
@@ -91,6 +95,17 @@ the move. Set `DATABASE_URL` in both local `backend/.env` and prod
   `migrations/NNN_*.py` are SQLite-dialect history and are NOT replayed on PG
   (a fresh baseline was stamped to v062). New migrations (063+) must be
   PG-compatible.
+- **Migration runner = filename identity (`app/migrate.py`, 2026-06-21).** Tracked
+  in `schema_migrations` (name PK), NOT by `MAX(version)`. The old high-water gate
+  silently SKIPPED a genuinely-unapplied migration whenever a parallel track had
+  recorded an equal-or-higher number against the shared DB (the 099/100 -> 102/103
+  and the governance-drop 130 -> 134 renumbers were both this bug). Now every file
+  runs exactly once keyed on its name: a reused number can't shadow another track,
+  and a late-added lower number still applies. A one-time bridge imported the
+  already-applied history from `schema_version` (still read for that, still stamped
+  by baseline tooling) and froze the high-water mark with a `__legacy_baseline__`
+  sentinel. New migrations: just use the next free number; do NOT renumber to dodge
+  another track. Self-test: `python -m app.migrate_selftest` (10/10).
 - Backups: DO managed daily backups + 7-day PITR, PLUS the custom 30-day S3
   copy (`pg_dump` -> DO Spaces) via the cron at `POST /api/admin/backup`.
 
@@ -1224,9 +1239,11 @@ RC's OWN email-subscriber layer -- the top of RC's subscriber funnel (NOT
 chadlewine; you cannot sign people up to chadlewine from RC). Separate from
 `lyrical_charger_subscribers` (the LC-outage notice list). Tables: `rc_subscribers`
 (migration 102) + `users.email_hash` (102) + `rc_subscribers.last_digest_key`
-(103); see `RISING-COMPASS-DATABASE-SCHEMA.md` section 10. (Renumbered from
-099/100 to 102/103 on deploy: migration 101 had already shipped, and the
-runner applies only versions above the current max.)
+(103); see `RISING-COMPASS-DATABASE-SCHEMA.md` section 10. (Historically renumbered
+from 099/100 to 102/103 on deploy because migration 101 had already shipped and the
+old runner skipped any version <= the current max. That renumber-to-dodge dance is
+no longer needed -- the runner now keys on filename, see Database > Migration
+runner.)
 
 - **Capture (double opt-in).** Router `routers/subscribe.py`, mounted UNAUTHED like
   `geo.router` (the POST is honeypot+Turnstile+`10/hour` protected; the GET links are
