@@ -206,12 +206,13 @@ golden snapshot `backend/app/rubric/lec-golden-<latest>/core.json` +
 `precedents.json` (currently `lec-golden-2026-06-18`, rubric_version
 `51a300921a63`) plus the v3 FORMAT from LEC's `lec_rubric_builder.py` /
 `lec_compass_agent_rubric.py`. Confirm it is live by matching that
-`rubric_version` against LEC prod `GET /api/rubric` before calibrating. **Do NOT
-load this repo's `backend/app/services/agents/tenets/` copy** -- it is a
-non-canonical mirror that drifts (it was a week stale vs the LEC golden on
-2026-06-20: core.json 54,282 bytes / Jun 11 vs the golden's 57,467 / Jun 18).
-Reading LEC files or `/api/rubric` is not an Anthropic call -- it is just loading
-the rubric text.
+`rubric_version` against LEC prod `GET /api/rubric` before calibrating. This repo
+no longer carries any rubric copy: RC's `backend/app/services/agents/tenets/`
+mirror (and the whole in-process rubric apparatus) was REMOVED 2026-06-21, so the
+LEC golden is the only rubric source -- there is no local copy left to drift (it
+HAD been a week stale before removal: core.json 54,282 bytes / Jun 11 vs the
+golden's 57,467 / Jun 18). Reading LEC files or `/api/rubric` is not an Anthropic
+call -- it is just loading the rubric text.
 
 **No server-side prose generation from terminal.** The terminal `/lyrics` path
 (`calibrate_song.py` -> `_store_calibration` -> `record_and_reconcile`) calls
@@ -227,9 +228,14 @@ ether tagger does NOT run on the terminal path, so omitting `--topic` is safe
 in-process rubric apparatus was removed 2026-06-21), so editorial is always
 terminal-supplied.
 
-## Public Participation (Phases 1-3.2 built)
+## Public Participation (Lobby + Misread)
 
-Three audience-facing surfaces live alongside the dashboard:
+Two audience-facing surfaces live alongside the dashboard. (Governance --
+Motion Desk, the Deliberation Chamber, and the amendment pipeline -- MOVED OFF
+Rising Compass to the Libra Engine Compass legislature at lecg.libraengine.com;
+RC's governance routers + tables `motions` / `motion_arguments` / `rubric_changes`
+were REMOVED + DROPPED. RC is the music/lyric lens that consumes LEC; it does not
+own the rubric or the law.)
 
 **Lobby** (Phase 1) -- Reddit-style threaded comments on song / artist
 pages. Email-verified Tier 1 account required to post; anonymous read
@@ -240,29 +246,6 @@ allowed. Auto-hide after 3 reports. Tables: `users`, `comments`,
 flag. Tier 1 gated. Admin can spawn a recalibration directly from the
 queue. Migration 057 added `user_id` FK on `misread_submissions`.
 
-**Motion Desk** (Phase 3.2) -- formal proposals about the framework.
-Three routed pages: `/motion-desk/` (landing), `/motion-desk/file-a-motion/`
-(Tier 2 gated form), `/motion-desk/motion-ledger/` (public list).
-Motions deliberate tenets / rules / modifiers / methodology -- never
-songs. Tables: `motions` (migration 060 + taxonomy correction in 061),
-`account_verifications` (migration 059).
-
-Motion types: `amend_tenet | new_tenet | remove_tenet | amend_rule |
-new_rule | remove_rule | process`. Target via polymorphic
-`target_kind` + `target_ref`. The `recalibration_challenge` type from
-the original plan was dropped before any real motions were filed --
-that conflated motions with misread reports.
-
-**Deliberation Chamber** (Phase 4, in progress) -- sub-room of Motion
-Desk that hosts the structured argument thread for any motion in
-`in_deliberation`. Route: `/motion-desk/deliberation-chamber/{id}/`.
-Posts are typed (`argument_for | argument_against | rebuttal | citation
-| clarification`), Tier 2 gated to write, public to read. 2-level depth:
-top-level posts + flat rebuttals. Table: `motion_arguments`
-(migration 062). Spec lives in
-`Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-PUBLIC-PARTICIPATION-BUILD-PLAN.md`
-under "Phase 4 -- Deliberation Chamber".
-
 ### Auth (Clerk-backed Tier 1, Stripe Identity Tier 2)
 
 **Tier 1:** Clerk email account + claimed handle. Provisioned lazily
@@ -271,7 +254,9 @@ on first authenticated API call via `require_clerk_user` in
 
 **Tier 2:** Real ID via Stripe Identity. Webhook at
 `/api/stripe-identity-webhook` flips `users.tier` to `id_verified`.
-Required for filing motions; Tier 1 is enough for Lobby + Misread.
+Tier 1 is enough for Lobby + Misread. (Tier 2 originally gated filing
+motions; governance has since moved off RC to the LEC legislature, so RC
+no longer hosts a Tier-2-gated motion form.)
 
 **Frontend auth singleton:** `frontend/js/auth.js` -- wraps Clerk JS,
 exposes `authedFetch`, `getMe`, `openSignIn`, `signOut`, `onChange`.
@@ -299,12 +284,14 @@ locally like prod). Backend on :8000. Stripe CLI listener: `stripe listen
 `--events "identity.verification_session.*"` — that filter is invalid and
 forwards nothing; omit it or use a valid comma-separated event list).
 
-### Deliberation venue aesthetic
+### Deliberation venue aesthetic (moved to LEC legislature)
 
-Motion Desk + amendments share a cream/brown palette (Cardo + Cormorant
-SC). Tenets stays dark on purpose -- "the constitution and the room
-where the constitution is argued over should not look the same."
-Tokens documented in `STYLE-GUIDE.md` "Deliberation Venue Palette".
+The cream/brown deliberation palette (Cardo + Cormorant SC) and the dark
+constitution/tenets surface moved off RC with governance -- they now live on the
+LEC legislature (lecg.libraengine.com) + the LEC instrument (lec.libraengine.com).
+The guiding line stands where it lives now: "the constitution and the room where
+the constitution is argued over should not look the same." RC no longer ships a
+Motion Desk or its palette.
 
 ## Ether taxonomy editor (Site Admin -> Calibration -> Taxonomy, 2026-06-16)
 
@@ -770,8 +757,9 @@ Album Charger's "need more than 15 tracks?" link (`?topic=album_charger&source=.
 - Email alert `general_inquiry` (Moderation `[RC-MOD]`, default-on) via
   `alerts.emit_general_inquiry`.
 - The form **disclaims** that score/calibration/algorithm questions are not
-  answered there and routes them to the Misread report (song page) or the Motion
-  Desk (`/motion-desk/file-a-motion/`).
+  answered there and routes them to the Misread report (song page). (It used to
+  also point framework questions at RC's Motion Desk; governance moved off RC to
+  the LEC legislature at lecg.libraengine.com, so that route is gone.)
 
 ## Monetization core (M0-M6, built 2026-05-28)
 
@@ -945,11 +933,13 @@ scheme was dropped. `anon_id` remains only as the stable public ID + URL key).
   (handle/anon_id ILIKE; the Users list page has a search box). New admin-gated
   endpoints under `/api/admin/users/{ident}/`: `comments`, `calibrations`
   (signed-in Lyrical Charger runs from `user_calibrations`), `submissions`
-  (misread/satirical), `motions` (filed + chamber arguments), `payments`
-  (billing + `credit_ledger`), and `activity` (unified reverse-chron timeline
-  merging all of the above + verifications; pulls <=300/source, merges, slices).
+  (misread/satirical), `payments` (billing + `credit_ledger`), and `activity`
+  (unified reverse-chron timeline merging all of the above + verifications; pulls
+  <=300/source, merges, slices). (The former `motions` endpoint / Motions tab --
+  filed motions + chamber arguments -- went away when governance moved off RC and
+  the `motions` / `motion_arguments` tables were dropped.)
 - `templates/admin/user_detail.html` -- tabs Profile | Activity | Calibrations |
-  Submissions | Motions | Payments | Comments (Activity default), plus a
+  Submissions | Payments | Comments (Activity default), plus a
   **"View in PostHog"** button (hidden unless `POSTHOG_PROJECT_ID` set).
 - General Inquiries are intentionally NOT linked (no user_id; `users` stores no
   email -- Clerk holds it).

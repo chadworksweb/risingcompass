@@ -102,11 +102,18 @@ The database is REMOTE (DO Postgres via `DATABASE_URL`) and SHARED by every
 track and by main. Worktrees isolate code, not data. So:
 
 - Pure code or frontend work runs in parallel safely. Go wide.
-- Schema and migration work runs on ONE track at a time. Two tracks writing
-  migrations against the same database will fight.
-- If a track needs a throwaway schema, point its `backend/.env` `DATABASE_URL`
-  at a separate database before running migrations. The env file is per-track,
-  so this does not leak into other lanes.
+- Migration NUMBERING is no longer a collision risk. The runner (`app/migrate.py`)
+  keys on FILENAME via a `schema_migrations` ledger (name PK), NOT on a high-water
+  `MAX(version)` gate. So two tracks can pick the SAME next number and BOTH apply
+  (each recorded by name), and a late-added lower number still runs. Just take the
+  next free number on each track; do NOT renumber a migration because another track
+  raced ahead of it. (The old "renumber on collision" / "version <= max gets
+  skipped" dance is OBSOLETE -- that skip bug is exactly what the filename runner
+  fixed.)
+- Still SERIALIZE the actual DDL run: run schema/migration work on ONE track at a
+  time, or point a track's `backend/.env` `DATABASE_URL` at a throwaway database
+  before running migrations, to avoid lock contention while a migration executes.
+  The env file is per-track, so a throwaway DSN does not leak into other lanes.
 
 ## Integrating finished work
 
