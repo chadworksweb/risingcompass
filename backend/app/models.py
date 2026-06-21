@@ -2318,3 +2318,42 @@ class SocialPost(Base):
         Index("ix_social_posts_reading_date", "reading_date"),
         Index("ix_social_posts_created_at", "created_at"),
     )
+
+
+class Resonance(Base):
+    """Audience Resonance -- one person's testimony about one already-scored song,
+    sliced into a PROPORTIONAL verdict (True / Camouflage / Adjacent, summing to
+    100). RC's fourth instrument (its own section, not Audience Vibe); never
+    overrides the rubric. Isolated table, FK to the unified songs(id). The
+    "did we misread your story" review rides on flag_state (distinct from the
+    song-charge satire flag). is_synthetic fences build/demo seed from real
+    aggregates. See migration 130."""
+
+    __tablename__ = "resonances"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    # Signed-in attribution; mirrors user_calibrations / audience_vibe_pushes (no FK).
+    user_id = Column(Integer, nullable=True)
+    username = Column(String(120), nullable=False)
+    story_text = Column(Text, nullable=False)
+    # Proportional verdict; the three sum to 100.
+    prop_true = Column(Integer, nullable=False, default=0)
+    prop_camouflage = Column(Integer, nullable=False, default=0)
+    prop_adjacent = Column(Integer, nullable=False, default=0)
+    # JSON-encoded line-by-line "shows its work" (TEXT-JSON, like songs.topics).
+    slice_attribution = Column(Text, nullable=True)
+    # publish | private (delete is a hard row removal, not a status).
+    consent_tier = Column(String(20), nullable=False, default="private")
+    # none | flagged | in_review | upheld | corrected.
+    flag_state = Column(String(20), nullable=False, default="none")
+    # Hand-authored build/demo seed; excluded from every real aggregate.
+    is_synthetic = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"), onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_resonances_song", "song_id"),
+        Index("ix_resonances_consent", "consent_tier"),
+        Index("ix_resonances_flag", "flag_state"),
+    )

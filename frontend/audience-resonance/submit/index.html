@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Share a Resonance - Rising Compass</title>
   <!-- INCLUDE:analytics -->
 <link rel="stylesheet" href="/css/consent.css">
 <!-- PostHog + Google Analytics. Edit the config here, then run
@@ -72,28 +73,10 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>YouTube -- The Rising Compass</title>
-  <meta name="description" content="YouTube -- today's trending songs on YouTube Trending USA, each individually charged by The Rising Compass.">
-  <link rel="canonical" href="https://risingcompass.net/charts/youtube/">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/charts/youtube/">
-  <meta property="og:title" content="YouTube -- The Rising Compass">
-  <meta property="og:description" content="Today's trending songs, individually charged.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-  <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
-  <link rel="apple-touch-icon" href="/img/favicon-192.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/css/responsive.css">
-  <link rel="stylesheet" href="/charts/chart.css">
+  <link rel="stylesheet" href="/audience-resonance/style.css">
 </head>
 <body>
-  <a class="skip-nav" href="#chart-main">Skip to content</a>
-
   <!-- INCLUDE:header -->
 <header class="rc-header">
   <div class="rc-header-inner">
@@ -167,25 +150,13 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="chart-main" class="chart-page">
-    <div class="chart-page-intro">
-      <h1 class="chart-page-title">YouTube</h1>
-      <p class="chart-page-source">YouTube Trending -- USA</p>
-      <nav class="chart-page-links" aria-label="Related views">
-        <a href="/charts/spotify/">Spotify (US)</a>
-        <a href="/charts/itunes/">iTunes</a>
-        <a href="/charts/shazam/">Shazam</a>
-        <a href="/charts/new-music-friday/">New Music Friday</a>
-        <a href="/ether-art-chart/">Ether Art Chart</a>
-      </nav>
-    </div>
-    <div id="chart-root"></div>
+  <main class="ar-page">
+    <section class="card">
+      <div class="card-header">Share a Resonance</div>
+      <p class="ar-kicker">Tell us what a song actually did to you. We will read it back honestly, and you decide what happens next.</p>
+      <div id="ar-wizard" class="ar-wizard"></div>
+    </section>
   </main>
-
-  <script>window.RC_CHART = { source: 'youtube', title: 'YouTube', sub: 'YouTube Trending — USA' };</script>
-  <script src="/js/api.js"></script>
-  <script src="/js/chart-shell.js?v=20260619b"></script>
-  <script src="/charts/chart.js"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
@@ -289,5 +260,7 @@
 </footer>
 <script defer src="/js/consent.js"></script>
 <!-- /INCLUDE:footer -->
+  <script src="/js/api.js"></script>
+  <script src="/audience-resonance/submit/submit.js" type="module"></script>
 </body>
 </html>

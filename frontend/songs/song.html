@@ -90,6 +90,7 @@
   <link rel="stylesheet" href="/artists/artists.css">
   <link rel="stylesheet" href="/songs/songs.css">
   <link rel="stylesheet" href="/css/comments.css">
+  <link rel="stylesheet" href="/audience-resonance/style.css">
   <style>
     /* Artist Verified block */
     .song-section--verified {
@@ -657,6 +658,16 @@
       <div id="song-comments" class="vibe-discussion" hidden></div>
     </section>
 
+    <!-- Section: Audience Resonance — the fourth instrument. Listener testimony
+         sliced True / Camouflage / Adjacent. Mounted by song-page.js (live data
+         only; stays hidden for uncalibrated songs or when the API is unreachable). -->
+    <section class="song-section song-section--full" id="section-audience-resonance" hidden>
+      <h2>Audience Resonance</h2>
+      <p class="direct-answer">The compass reads the song; the Audience Vibe reads whether the crowd agrees. Audience Resonance reads something else: what the song actually did to the people who lived with it, and whether the lift it gave was real. <a href="/audience-resonance/" class="accent-link">See the whole map &rarr;</a></p>
+      <div id="ar-song-mount" class="ar-song-mount"></div>
+      <p class="ar-song-cta"><a href="/audience-resonance/submit/" id="ar-share-cta" class="accent-link">Share a Resonance for this song &rarr;</a></p>
+    </section>
+
     <!-- Section: Calibration Log — unified per-song history (recalibrations + pre-publish corrections) -->
     <section class="song-section song-section--full" id="section-history" hidden>
       <h2>Calibration Log</h2>
@@ -748,6 +759,8 @@
   <script src="/js/comments.js" defer></script>
   <script src="/cards/rc-charge-card-generator.js?v=20260619-glow2"></script>
   <script src="/songs/songs.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/audience-resonance/song-page.js" type="module"></script>
   <script src="/js/subscribe.js" defer></script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
@@ -777,6 +790,7 @@
         <li><a href="/search/">Search</a></li>
         <li><a href="/artists/">Artists</a></li>
         <li><a href="/calendar/">Calendar</a></li>
+        <li><a href="/audience-resonance/">Audience Resonance</a></li>
       </ul>
     </nav>
 
@@ -828,6 +842,7 @@
         <li><a href="/subscribe/">Subscribe</a></li>
         <li><a href="/account/">Account</a></li>
         <li><a href="/motion-desk/">Motion Desk</a></li>
+        <li><a href="/audience-resonance/submit/">Share a Resonance</a></li>
       </ul>
     </nav>
     </div>

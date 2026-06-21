@@ -409,6 +409,7 @@ def song_search(q: str = "", limit: int = 20):
 
             slug = _get_or_create_slug(row.title, row.artist or "", "songs", row.id, db)
             results.append({
+                "id": row.id,
                 "title": row.title,
                 "artist": row.artist,
                 "slug": slug,

@@ -295,6 +295,8 @@ app.include_router(topic_trends.router, dependencies=_public_read_dep)
 app.include_router(chart_snapshots.public_router, dependencies=_public_read_dep)
 from app.routers import alltime_charts
 app.include_router(alltime_charts.public_router, dependencies=_public_read_dep)
+from app.routers import audience_resonance
+app.include_router(audience_resonance.router, dependencies=_public_read_dep)
 
 # Public Participation Tier 1 user endpoints. Self-authenticating via
 # Clerk session JWT (require_clerk_user) -- no X-Api-Key gate here, since

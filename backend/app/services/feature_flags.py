@@ -46,6 +46,21 @@ def is_identity_trgm_autolink_enabled(db: Session) -> bool:
     return (_get_flag(db, IDENTITY_TRGM_AUTOLINK_KEY) or "false").lower() == "true"
 
 
+# --- Audience Resonance slicer (ships DARK) --------------------------------
+# Gates the live testimony classifier (services/resonance_slicer.py). Fail-CLOSED:
+# absent flag = OFF, so submissions store a neutral verdict and NO model call is
+# made until the approach + credits are settled and the model seam is wired.
+RESONANCE_SLICER_KEY = "resonance_slicer.enabled"
+
+
+def is_resonance_slicer_enabled(db: Session) -> bool:
+    return (_get_flag(db, RESONANCE_SLICER_KEY) or "false").lower() == "true"
+
+
+def set_resonance_slicer_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, RESONANCE_SLICER_KEY, enabled)
+
+
 def _set_flag(db: Session, key: str, enabled: bool) -> None:
     row = db.query(SystemFlag).filter(SystemFlag.key == key).first()
     val = "true" if enabled else "false"

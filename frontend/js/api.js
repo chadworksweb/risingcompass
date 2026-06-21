@@ -64,7 +64,39 @@ const API = (() => {
     throw lastErr;
   }
 
+  // POST JSON. Mutating, so it does NOT auto-retry on 5xx (no double-submit);
+  // it re-grants the shield session once on a 403 and retries that single time.
+  // On a 4xx the parsed `detail` (if any) is thrown so callers can show it.
+  async function post(path, body, { timeoutMs = 12000 } = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    try { await sessionReady; } catch (_) {}
+    let regranted = false;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const resp = await fetch(`${BASE}${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body || {}),
+        credentials: 'same-origin',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (resp.ok) return resp.json();
+      if (resp.status === 403 && !regranted) {
+        regranted = true;
+        sessionReady = grantSession();
+        try { await sessionReady; } catch (_) {}
+        continue;
+      }
+      let detail;
+      try { detail = (await resp.json()).detail; } catch (_) {}
+      const err = new Error(detail || `API error: ${resp.status}`);
+      err.status = resp.status;
+      throw err;
+    }
+  }
+
   return {
+    post,
     get,
     getCompassCurrent: () => get('/api/compass/current'),
     getHistory: (page = 1, perPage = 10) => get(`/api/compass/history?page=${page}&per_page=${perPage}`),
@@ -103,3 +135,7 @@ const API = (() => {
     },
   };
 })();
+
+// Expose on window so ES-module pages (which don't share the classic-script
+// lexical scope) can reach the same helper: window.API.get(...).
+if (typeof window !== 'undefined') window.API = API;
