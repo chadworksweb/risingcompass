@@ -33,6 +33,7 @@ from app.database import SessionLocal, get_db
 from app.auth import optional_clerk_user
 from app.models import Resonance, ResonanceSliceJob, Song, SongSlug, User
 from app.services import resonance_slicer
+from app.services import resonance_coherence
 from app.services.feature_flags import is_audience_resonance_enabled
 # Reuse the single-song calibrate path's bot protection + app-registered limiter,
 # exactly as album_charger does -- one source of truth for both.
@@ -347,11 +348,21 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
     flag_state = "flagged" if body.flagged else "none"
     flag_reason = (body.flag_reason or "").strip()[:2000] if body.flagged else None
 
+    # Coherence check -- a fabrication SIGNAL, never a truth verdict and never
+    # exposed to the submitter. A non-coherent story (farmed across songs / too
+    # thin / -- once the model layer lands -- not tracking with the song) is held
+    # for human review. It never overrides a user's own flag.
+    story_clean = body.story.strip()
+    coherence = resonance_coherence.assess_coherence(db, story_clean, song)
+    coherence_json = json.dumps(coherence)
+    if flag_state == "none" and not coherence.get("coherent", True):
+        flag_state = "in_review"
+
     row = Resonance(
         song_id=body.song_id,
         user_id=(current_user.id if current_user else None),
         username=body.username.strip(),
-        story_text=body.story.strip(),
+        story_text=story_clean,
         prop_true=prop_true,
         prop_camouflage=prop_camouflage,
         prop_adjacent=prop_adjacent,
@@ -359,6 +370,7 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
         consent_tier=consent,
         flag_state=flag_state,
         flag_reason=flag_reason,
+        coherence_json=coherence_json,
         is_synthetic=False,
     )
     db.add(row)

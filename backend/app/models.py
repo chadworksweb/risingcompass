@@ -2350,6 +2350,9 @@ class Resonance(Base):
     # The contesting note ("did we misread your story") -- the training signal
     # for the resonance rubric. Set at submit (preemptive flag) or via /flag.
     flag_reason = Column(Text, nullable=True)
+    # Coherence-check result (fabrication signal): JSON {coherent, score, reasons,
+    # layer}. A non-coherent result routes the row to flag_state='in_review'.
+    coherence_json = Column(Text, nullable=True)
     # Hand-authored build/demo seed; excluded from every real aggregate.
     is_synthetic = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
