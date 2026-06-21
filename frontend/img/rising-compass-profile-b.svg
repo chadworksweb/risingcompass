@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;600&amp;display=swap');
+      .t-light { font-family: 'Inter','Segoe UI',Arial,sans-serif; font-weight: 300; font-size: 50px; letter-spacing: 0.15em; fill: #eeeef4; }
+      .t-bold  { font-family: 'Inter','Segoe UI',Arial,sans-serif; font-weight: 600; font-size: 50px; letter-spacing: 0.15em; fill: #00d4aa; }
+    </style>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e0e1a"/><stop offset="55%" stop-color="#0a0a14"/><stop offset="100%" stop-color="#060609"/>
+    </linearGradient>
+    <radialGradient id="bloom" cx="50%" cy="48%" r="55%">
+      <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.12"/><stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="72%">
+      <stop offset="42%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.55"/>
+    </radialGradient>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="4" height="2" fill="#000000" fill-opacity="0.05"/></pattern>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#bloom)"/>
+  <rect width="1024" height="1024" fill="url(#scan)"/>
+  <rect width="1024" height="1024" fill="url(#vignette)"/>
+
+  <!-- Real compass dial: color band only, no needle / hub / labels -->
+  <g transform="translate(98.000,300.400) scale(2.3)">
+    <g fill="none" stroke-width="34" stroke-linecap="butt"><path d="M 41.000 170.000 A 139 139 0 0 1 51.581 116.807" stroke="#aa54ff"/><path d="M 51.581 116.807 A 139 139 0 0 1 126.807 41.581" stroke="#3388ff"/><path d="M 126.807 41.581 A 139 139 0 0 1 233.193 41.581" stroke="#33cc55"/><path d="M 233.193 41.581 A 139 139 0 0 1 308.419 116.807" stroke="#ffbb33"/><path d="M 308.419 116.807 A 139 139 0 0 1 319.000 170.000" stroke="#ff3333"/></g>
+  </g>
+
+  <!-- Homepage h1 lockup, centered inside the dial's concave -->
+  <text class="t-light" x="512" y="555" text-anchor="middle">THE RISING</text>
+  <text class="t-bold"  x="512" y="600" text-anchor="middle">COMPASS</text>
+</svg>
