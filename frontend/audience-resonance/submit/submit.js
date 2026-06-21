@@ -137,7 +137,11 @@ async function doSubmit() {
     state.step += 1;
     render();
   } catch (e) {
-    state.submitError = e.message || 'Something went wrong. Please try again.';
+    if (e && e.status === 503) {
+      state.submitError = 'Audience Resonance is in preview. Submissions open at launch.';
+    } else {
+      state.submitError = (e && e.message) || 'Something went wrong. Please try again.';
+    }
     render();
   }
 }

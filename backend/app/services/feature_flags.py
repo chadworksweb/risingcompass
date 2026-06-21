@@ -61,6 +61,22 @@ def set_resonance_slicer_enabled(db: Session, enabled: bool) -> None:
     _set_flag(db, RESONANCE_SLICER_KEY, enabled)
 
 
+# --- Audience Resonance feature gate (dark launch, like album_charger) -------
+# Fail-CLOSED: absent = DARK. While DARK the public reads serve the curated
+# is_synthetic demo set (demo=true) and /submit is closed; when ON, reads serve
+# only real rows and submissions work (the slicer is still gated separately by
+# RESONANCE_SLICER_KEY). Flip live -> the synthetic demo auto-hides.
+AR_ENABLED_KEY = "audience_resonance.enabled"
+
+
+def is_audience_resonance_enabled(db: Session) -> bool:
+    return (_get_flag(db, AR_ENABLED_KEY) or "false").lower() == "true"
+
+
+def set_audience_resonance_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, AR_ENABLED_KEY, enabled)
+
+
 def _set_flag(db: Session, key: str, enabled: bool) -> None:
     row = db.query(SystemFlag).filter(SystemFlag.key == key).first()
     val = "true" if enabled else "false"

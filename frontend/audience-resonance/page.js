@@ -58,6 +58,20 @@ async function boot() {
   let filter = 'all';
   const demoSuffix = isDemo ? ' (demo data)' : '';
 
+  // Dark-launch watermark: a clear, unmissable DEMO DATA mark over the chart so
+  // no one mistakes the seeded preview for real listener data.
+  if (isDemo && mount) {
+    const card = mount.closest('.card') || mount.parentElement;
+    if (card && !card.querySelector('.ar-watermark')) {
+      if (!card.style.position) card.style.position = 'relative';
+      const wm = document.createElement('div');
+      wm.className = 'ar-watermark';
+      wm.setAttribute('aria-hidden', 'true');
+      wm.textContent = 'DEMO DATA';
+      card.appendChild(wm);
+    }
+  }
+
   const CAPTION = 'Each dot is a song, placed by what its resonances did: the closer to a corner, the more of that verdict. Size shows how many resonances; color is the compass charge.';
 
   function buildPoints() {

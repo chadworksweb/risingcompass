@@ -272,3 +272,32 @@
   padding: 1rem 0;
 }
 .ar-song-cta { margin-top: 1rem; }
+
+/* Dark-launch DEMO DATA marks (corpus watermark + per-song badge). */
+.ar-watermark {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  font-family: var(--rc-font-mono, monospace);
+  font-size: clamp(2.2rem, 7vw, 5rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.10);
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 5;
+  user-select: none;
+}
+.ar-demo-badge {
+  display: inline-block;
+  margin-left: 0.6rem;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: 4px;
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: var(--rc-text-dim, #8a93a8);
+  vertical-align: middle;
+}

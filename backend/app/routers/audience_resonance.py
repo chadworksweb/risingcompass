@@ -33,6 +33,7 @@ from app.database import SessionLocal, get_db
 from app.auth import optional_clerk_user
 from app.models import Resonance, Song, SongSlug, User
 from app.services import resonance_slicer
+from app.services.feature_flags import is_audience_resonance_enabled
 # Reuse the single-song calibrate path's bot protection + app-registered limiter,
 # exactly as album_charger does -- one source of truth for both.
 from app.routers.analyzer import limiter, _check_bot_protection
@@ -165,21 +166,30 @@ class FlagIn(BaseModel):
 
 # ---------- reads (public) ----------
 
-def _published(query):
-    """Only published, non-synthetic, non-contested rows are ever public. A row
+def _visible(query, db):
+    """Flag-aware public read.
+
+    LIVE (audience_resonance.enabled): real, published, resolved rows only. A row
     in flagged / in_review is held back until a human upholds or corrects it
-    (SCOPE: a flagged verdict routes to review before anything goes public);
-    none / upheld / corrected are the publishable states."""
+    (SCOPE: a flagged verdict routes to review before anything goes public).
+    DARK (default): serve the curated is_synthetic DEMO set instead, so the
+    surfaces are populated for the dark launch (the frontend watermarks it).
+    Real submissions collected while dark stay hidden until the flag flips."""
+    if is_audience_resonance_enabled(db):
+        return query.filter(
+            Resonance.consent_tier == "publish",
+            Resonance.is_synthetic.is_(False),
+            Resonance.flag_state.notin_(("flagged", "in_review")),
+        )
     return query.filter(
         Resonance.consent_tier == "publish",
-        Resonance.is_synthetic.is_(False),
-        Resonance.flag_state.notin_(("flagged", "in_review")),
+        Resonance.is_synthetic.is_(True),
     )
 
 
 @router.get("/song/{song_id}")
 def song_resonances(song_id: int, db: Session = Depends(get_db)):
-    rows = _published(db.query(Resonance).filter(Resonance.song_id == song_id)).all()
+    rows = _visible(db.query(Resonance).filter(Resonance.song_id == song_id), db).all()
     n = len(rows)
     mt = sum(r.prop_true for r in rows) / n if n else 0.0
     mc = sum(r.prop_camouflage for r in rows) / n if n else 0.0
@@ -197,12 +207,14 @@ def song_resonances(song_id: int, db: Session = Depends(get_db)):
         "count": n,
         "mean": {"true": mt, "camouflage": mc, "adjacent": ma},
         "resonances": cards,
+        "demo": not is_audience_resonance_enabled(db),
     }
 
 
 @router.get("/corpus")
 def corpus(db: Session = Depends(get_db)):
-    rows = _published(db.query(Resonance)).all()
+    demo = not is_audience_resonance_enabled(db)
+    rows = _visible(db.query(Resonance), db).all()
     agg = {}
     for r in rows:
         a = agg.setdefault(r.song_id, {"n": 0, "t": 0, "c": 0, "a": 0})
@@ -211,7 +223,7 @@ def corpus(db: Session = Depends(get_db)):
         a["c"] += r.prop_camouflage
         a["a"] += r.prop_adjacent
     if not agg:
-        return {"songs": []}
+        return {"songs": [], "demo": demo}
     ids = list(agg.keys())
     songs = {s.id: s for s in db.query(Song).filter(Song.id.in_(ids)).all()}
     # Slug per song for dot click-through (/songs/{slug}). First slug wins.
@@ -231,7 +243,7 @@ def corpus(db: Session = Depends(get_db)):
             charge=s.charge_value, color=_color(s.rubric_color),
             n=n, mean_true=a["t"] / n, mean_camouflage=a["c"] / n, mean_adjacent=a["a"] / n,
         ))
-    return {"songs": out}
+    return {"songs": out, "demo": demo}
 
 
 # ---------- slice (the async slicer: start -> token -> poll -> reveal) ----------
@@ -284,6 +296,10 @@ async def slice_status(token: str, request: Request):
 @router.post("/submit")
 def submit(body: SubmitIn, db: Session = Depends(get_db),
            current_user: User | None = Depends(optional_clerk_user)):
+    # Dark launch (like album_charger): submissions are closed until the feature
+    # flag flips. Reveal/preview still works; only the write is gated.
+    if not is_audience_resonance_enabled(db):
+        raise HTTPException(status_code=503, detail="audience_resonance_not_live")
     song = db.query(Song).filter(Song.id == body.song_id).first()
     if not song:
         raise HTTPException(status_code=404, detail="song_not_found")

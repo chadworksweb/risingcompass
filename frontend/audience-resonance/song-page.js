@@ -41,17 +41,31 @@ async function boot() {
   if (cta) cta.href = `/audience-resonance/submit/?slug=${encodeURIComponent(slug)}`;
 
   let resonances = [];
+  let demo = false;
   try {
     const r = await api().get(`/api/audience-resonance/song/${song.id}`);
     resonances = r.resonances || [];
+    demo = !!r.demo;
   } catch (_) { resonances = []; }
 
   if (resonances.length) {
     renderSongSection(mount, { song, resonances });
-  } else {
+    if (demo) {
+      // Dark-launch: mark the seeded example and hide the (gated) share CTA.
+      const badge = document.createElement('span');
+      badge.className = 'ar-demo-badge';
+      badge.textContent = 'DEMO DATA';
+      const h = section.querySelector('h2');
+      if (h && !section.querySelector('.ar-demo-badge')) h.appendChild(badge);
+      if (cta) cta.parentElement.hidden = true;
+    }
+    section.hidden = false;
+  } else if (!demo) {
+    // Live with no resonances yet: the bootstrap entry point.
     mount.innerHTML = '<p class="ar-empty">No resonances yet. Be the first to say what this song actually did to you.</p>';
+    section.hidden = false;
   }
-  section.hidden = false;
+  // Dark + no demo data for this song: leave the section hidden entirely.
 }
 
 boot();

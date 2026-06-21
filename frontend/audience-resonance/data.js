@@ -57,7 +57,8 @@ function rollupFromLive(payload) {
     mean: { true: s.mean_true, camouflage: s.mean_camouflage, adjacent: s.mean_adjacent },
   }));
   const totalResonances = rollups.reduce((acc, r) => acc + r.n, 0);
-  return { rollups, totalResonances, isDemo: false };
+  // demo flag comes from the API: true while the feature is dark (synthetic set).
+  return { rollups, totalResonances, isDemo: !!(payload && payload.demo) };
 }
 
 // Corpus map: every song with at least one published resonance, pre-rolled.
@@ -86,7 +87,7 @@ export async function fetchSongResonances(songId) {
       const live = await api().get(`/api/audience-resonance/song/${songId}`);
       const resonances = live.resonances || [];
       if (resonances.length > 0 || m === 'live') {
-        return { resonances, mean: live.mean, count: live.count, isDemo: false };
+        return { resonances, mean: live.mean, count: live.count, isDemo: !!live.demo };
       }
     } catch (err) {
       if (m === 'live') throw err;
