@@ -4,8 +4,13 @@ The published-song analogue of correct_song.py (which is draft-only). Uses
 RC_LYRICS_SUPPLY_KEY, no admin session needed. The server runs NO model: it
 writes the supplied tier/charge straight onto the song, supersedes prior runs,
 and logs the correction as a fresh calibration_run (visible in the Runs admin),
-plus an immutable SongRecalibration audit row. Prose is NOT rewritten (that
-would call the model); regenerate prose separately if needed.
+plus an immutable SongRecalibration audit row.
+
+Prose + ether are OPTIONAL and, like the tier/charge, terminal-SUPPLIED (zero
+Anthropic). When --listener-effects-prose-file / --societal-prose-file are
+passed, the server archives the prior prose to prior_* and re-seals the societal
+provenance as terminal_supplied. Omit them and the prior prose stands. (The only
+server prose-REGENERATION path runs Opus and is not used from terminal.)
 
 Usage:
     python correct_published_song.py <song_id> --color red --charge -82 \\
@@ -13,11 +18,14 @@ Usage:
         --summary "..." \\
         --public-summary "Why this changed (>=20 chars, public-facing)." \\
         [--rubric-note "charge-anchor corpus correction"] \\
-        [--reasoning-file path] [--lyrics-file path]
+        [--reasoning-file path] [--lyrics-file path] \\
+        [--listener-effects-prose-file path] [--societal-prose-file path] \\
+        [--deadpan-line "..."] [--topic slug --topic slug]
 
 Color must be one of: violet, blue, green, orange, red. The charge must fall in
 that color's tier band and orange/red cannot be contaminated -- the server
-enforces both.
+enforces both. Topics (max 3) require --deadpan-line + --societal-prose-file and
+must be valid ether taxonomy slugs -- the server enforces that too.
 """
 import argparse
 import json
@@ -58,8 +66,25 @@ def main() -> int:
     p.add_argument("--reasoning-file", default=None)
     p.add_argument("--lyrics-file", default=None,
                    help="Lyrics file: used only to scrub the stored reasoning; never persisted.")
+    p.add_argument("--listener-effects-prose-file", default=None,
+                   help="UTF-8 file with the two-paragraph listener-effects prose (supplied, not generated).")
+    p.add_argument("--societal-prose-file", default=None,
+                   help="UTF-8 file with the societal-effects prose. Required when --topic is supplied.")
+    p.add_argument("--deadpan-line", default=None,
+                   help="Ether deadpan_line: flat literal naming of the song. Required when --topic is supplied.")
+    p.add_argument("--topic", action="append", dest="topics", default=None,
+                   help="Ether taxonomy slug, dominant-first. Repeatable, max 3.")
     p.add_argument("--model", default="claude-code")
     args = p.parse_args()
+
+    # Local guard mirrors the server: topics need a deadpan line + societal prose.
+    if args.topics:
+        if not args.deadpan_line:
+            print("--deadpan-line is required when --topic is supplied", file=sys.stderr)
+            return 2
+        if not args.societal_prose_file:
+            print("--societal-prose-file is required when --topic is supplied", file=sys.stderr)
+            return 2
 
     key = os.environ.get("RC_LYRICS_SUPPLY_KEY")
     if not key:
@@ -98,6 +123,14 @@ def main() -> int:
         body["lyrics"] = lyrics
     if args.model:
         body["agent_model"] = args.model
+    if args.listener_effects_prose_file:
+        body["listener_effects_prose"] = Path(args.listener_effects_prose_file).read_text(encoding="utf-8").strip()
+    if args.societal_prose_file:
+        body["societal_effects_prose"] = Path(args.societal_prose_file).read_text(encoding="utf-8").strip()
+    if args.deadpan_line is not None:
+        body["deadpan_line"] = args.deadpan_line
+    if args.topics:
+        body["topics"] = args.topics
 
     url = f"{API_BASE}/api/admin/recalibrations/apply-supplied"
     req = urllib.request.Request(
@@ -119,7 +152,8 @@ def main() -> int:
         f"OK  song_id={resp.get('song_id')} ({resp.get('title')})  "
         f"{b.get('color')}/{b.get('charge')} -> {a.get('color')}/{a.get('charge')}  "
         f"run_id={resp.get('run_id')}  superseded={resp.get('superseded_runs')}  "
-        f"reasoning_stored={resp.get('reasoning_stored')}"
+        f"reasoning_stored={resp.get('reasoning_stored')}  "
+        f"prose={resp.get('prose_rewritten')}"
     )
     return 0
 
