@@ -667,46 +667,6 @@ class PrePublishCorrection(Base):
     promoted_at = Column(DateTime, default=datetime.utcnow)
 
 
-class RubricChange(Base):
-    """Instrument-level change log -- the record of how the rubric / calibration
-    pipeline ITSELF changes, as opposed to how a single song's reading changes
-    (the other two Calibration Log capture tables are per-song).
-
-    Auto-detected at startup from tenets/core.json by
-    services/rubric_change_detector.py: every tenet, rule, the contamination
-    modifier, and the top-level schema each carry a version + ratified_at, so a
-    change is any (item_id, item_version) pair never logged before. Surfaced as
-    the 'rubric_change' event_type in the unified feed (no song_anchor).
-
-    public_summary is OPTIONAL here (unlike SongRecalibration's NOT NULL) -- the
-    factual entry (what item, the text, when it was ratified) stands on its own;
-    the voice overlay is enriched by an admin later. change_slug ('R14@1.0') is
-    the stable join key that song_recalibrations.rubric_change_slug points at, so
-    a rubric change can surface the songs it recalibrated.
-    """
-    __tablename__ = "rubric_changes"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    item_kind = Column(String(20), nullable=False)   # tenet | rule | modifier | schema | tier
-    item_id = Column(String(60), nullable=False)     # 'violet-13' | 'R14' | 'contamination' | 'schema'
-    item_version = Column(String(20), nullable=False)  # '1.0', '1.2'
-    change_type = Column(String(20), nullable=False)   # added | revised | retired
-    tier_slug = Column(String(20))                     # tenets only: violet|blue|green|orange|red
-    title = Column(Text)                               # rule/modifier title; headline for tenets
-    before_text = Column(Text)                         # prior version's text (revisions only)
-    after_text = Column(Text)                          # the new/current text
-    ratified_at = Column(DateTime)                     # from core.json -- the authoritative event time
-    schema_version = Column(String(20))                # core.json schema_version at detection
-    motion_id = Column(Integer, ForeignKey("motions.id", ondelete="SET NULL"))  # optional: ratified via a motion
-    public_summary = Column(Text)                      # optional voice overlay (admin-enriched)
-    internal_notes = Column(Text)
-    change_slug = Column(String(100), unique=True, nullable=False)  # 'R14@1.0' -- join key
-    detected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    # Auto-promoted to the public feed like every other capture table (2026-04-23 pattern).
-    promoted_to_feed = Column(Boolean, default=True, nullable=False)
-    promoted_at = Column(DateTime, default=datetime.utcnow)
-
-
 class AudienceVibeNeedle(Base):
     """Persistent vibe position for one song. Lives wherever the crowd has
     pushed it. Never auto-resets — yearly reset is per-person eligibility,
@@ -1453,79 +1413,6 @@ class CommentNotification(Base):
     comment_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
     actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     read_at = Column(DateTime)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-
-
-class Motion(Base):
-    """Public Participation Phase 3.2 -- Motion Desk filing.
-
-    Motions deliberate the framework, never a single song's output.
-    motion_type taxonomy:
-
-      amend_tenet | new_tenet | remove_tenet -- changes to the tenets
-        (the five tiers and their numbered criteria).
-      amend_rule  | new_rule  | remove_rule  -- changes to the
-        procedural rules (R1, R2, ...) in tenets/core.json.
-      process    -- proposals about methodology / morality / AI
-        framework that do not target a single tenet or rule id.
-
-    target_kind / target_ref are polymorphic:
-      target_kind='tenet'    target_ref='violet-01'    (or rule, modifier)
-      target_kind='rule'     target_ref='R1'
-      target_kind='modifier' target_ref='contamination'
-      Both NULL for process motions and new_tenet/new_rule.
-
-    Lifecycle: filed -> in_deliberation -> ratified | rejected | covered.
-    'covered' means already addressed by an existing tenet/rule.
-
-    Tier 2 (id_verified) gates filing. Anonymous + Tier 1 read.
-
-    Songs are NEVER targets. Songs can be cited inside the reasoning
-    text as evidence ("songs A and B both read like X under this tenet,
-    which is why I'm filing this"). Per-song "the agent got this wrong"
-    lives in MisreadSubmission, not here.
-    """
-    __tablename__ = "motions"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    motion_type = Column(Text, nullable=False)
-    target_kind = Column(Text)  # tenet | rule | modifier | NULL (process / new_*)
-    target_ref = Column(Text)  # id within target_kind, or NULL
-    claim = Column(Text, nullable=False)  # one-line summary
-    reasoning = Column(Text, nullable=False)  # full argument
-    citations = Column(Text)  # JSON array of URL strings
-    filed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    status = Column(Text, nullable=False, default="filed")
-    resolution_summary = Column(Text)
-    resolved_at = Column(DateTime)
-    resolved_by_admin_id = Column(Integer)
-    filed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-
-
-class MotionArgument(Base):
-    """Public Participation Phase 4 -- Deliberation Chamber post.
-
-    One row per structured argument on a motion in_deliberation. Five
-    post types: argument_for, argument_against, rebuttal, citation,
-    clarification. Rebuttals reference a parent post via parent_id;
-    every other type has parent_id NULL. Shape rules and lifecycle
-    checks (motion.status must be in_deliberation to POST) live in
-    app/services/chamber.py, not here.
-
-    Tier 2 (id_verified) is required to write. Anonymous + Tier 1 read.
-    Threads remain public after the motion resolves; the room becomes
-    read-only at that point.
-    """
-    __tablename__ = "motion_arguments"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    motion_id = Column(Integer, ForeignKey("motions.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    post_type = Column(Text, nullable=False)
-    parent_id = Column(Integer, ForeignKey("motion_arguments.id"))
-    summary = Column(Text, nullable=False)  # 1-280 chars
-    body = Column(Text, nullable=False)  # 50-5000 chars
-    citations = Column(Text)  # JSON array of URL strings
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 

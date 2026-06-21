@@ -9,9 +9,10 @@
   <a class="admin-subtab active" href="#" data-tab="activity" id="tab-activity">Activity</a>
   <a class="admin-subtab" href="#" data-tab="calibrations" id="tab-calibrations">Calibrations</a>
   <a class="admin-subtab" href="#" data-tab="submissions" id="tab-submissions">Submissions</a>
-  <a class="admin-subtab" href="#" data-tab="motions" id="tab-motions">Motions</a>
   <a class="admin-subtab" href="#" data-tab="payments" id="tab-payments">Payments</a>
   <a class="admin-subtab" href="#" data-tab="comments" id="tab-comments">Comments</a>
+  <!-- motions tab removed: governance moved to the Libra Engine Compass (lecg) -->
+
 </nav>
 {% endblock %}
 
@@ -90,7 +91,6 @@
 <div id="ud-panel-activity"></div>
 <div id="ud-panel-calibrations" style="display:none;"></div>
 <div id="ud-panel-submissions" style="display:none;"></div>
-<div id="ud-panel-motions" style="display:none;"></div>
 <div id="ud-panel-payments" style="display:none;"></div>
 <div id="ud-panel-comments" style="display:none;">
   <div class="ud-comments-filters" id="udCommentFilters">
@@ -109,7 +109,7 @@
 {% block scripts %}
 <script>
 const USER_IDENT = {{ anon_id | tojson }};
-const TABS = ['profile', 'activity', 'calibrations', 'submissions', 'motions', 'payments', 'comments'];
+const TABS = ['profile', 'activity', 'calibrations', 'submissions', 'payments', 'comments'];
 let commentFilter = '';
 
 function onAdminReady() {
@@ -134,7 +134,6 @@ const LOADERS = {
   activity: loadActivity,
   calibrations: loadCalibrations,
   submissions: loadSubmissions,
-  motions: loadMotions,
   payments: loadPayments,
   comments: loadComments,
 };
@@ -222,7 +221,6 @@ function renderProfile(data) {
         <div><dt>Comments</dt><dd>${u.comment_count}</dd></div>
         <div><dt>Calibrations</dt><dd>${u.calibration_count}</dd></div>
         <div><dt>Misreads</dt><dd>${u.misread_count}</dd></div>
-        <div><dt>Motions / arguments</dt><dd>${u.motion_count} / ${u.argument_count}</dd></div>
         <div><dt>Joined</dt><dd>${dt(u.created_at)}</dd></div>
       </dl>
     </div>
@@ -296,41 +294,6 @@ async function loadSubmissions() {
           <div style="font-weight:600;">"${esc(s.song_title)}" <span style="color:var(--text-dim);font-weight:400;">by ${esc(s.song_artist)} (${esc(s.song_color)})</span></div>
           <div style="font-size:0.84rem;color:var(--text);margin-top:0.25rem;white-space:pre-wrap;">${esc(s.message)}</div>
         </div>`).join('');
-    el.dataset.loaded = '1';
-  } catch (err) { fail(el, err); }
-}
-
-// ---------- Motions + arguments ----------
-async function loadMotions() {
-  const el = document.getElementById('ud-panel-motions');
-  loading(el);
-  try {
-    const data = await fetchJson(`/api/admin/users/${encodeURIComponent(USER_IDENT)}/motions?limit=300`);
-    const motions = data.motions.length
-      ? data.motions.map((m) => `
-          <div class="ud-li">
-            <div class="ud-li-meta">
-              <span class="ud-pill">${esc(m.motion_type)}</span>
-              <span class="ud-pill">${esc(m.status)}</span>
-              ${m.target_kind ? `<span style="color:var(--text-hint);">${esc(m.target_kind)}:${esc(m.target_ref || '')}</span>` : ''}
-              <span>${dt(m.filed_at)}</span>
-            </div>
-            <div>${esc(m.claim)}</div>
-          </div>`).join('')
-      : '<p style="color:var(--text-hint);">None filed.</p>';
-    const args = data.arguments.length
-      ? data.arguments.map((a) => `
-          <div class="ud-li">
-            <div class="ud-li-meta">
-              <span class="ud-pill">${esc(a.post_type)}</span>
-              <span><a href="/motion-desk/deliberation-chamber/${a.motion_id}/" target="_blank" rel="noopener">motion #${a.motion_id}</a></span>
-              <span>${dt(a.created_at)}</span>
-            </div>
-            <div>${esc(a.summary)}</div>
-          </div>`).join('')
-      : '<p style="color:var(--text-hint);">None posted.</p>';
-    el.innerHTML = `<div class="ud-subhead">Motions filed (${data.motions.length})</div>${motions}
-                    <div class="ud-subhead">Chamber arguments (${data.arguments.length})</div>${args}`;
     el.dataset.loaded = '1';
   } catch (err) { fail(el, err); }
 }

@@ -40,8 +40,6 @@ from app.models import (
     Comment,
     CreditLedger,
     MisreadSubmission,
-    Motion,
-    MotionArgument,
     User,
     UserCalibration,
 )
@@ -80,8 +78,6 @@ class UserAdminOut(BaseModel):
     misread_count: int
     # Detail-only enrichments (omitted / defaulted in the list view).
     calibration_count: int = 0
-    motion_count: int = 0
-    argument_count: int = 0
     subscription_tier: Optional[str] = None
     subscription_status: Optional[str] = None
     subscription_period_end: Optional[str] = None
@@ -233,16 +229,6 @@ def get_user_detail(
         .filter(UserCalibration.user_id == u.id)
         .scalar()
     ) or 0
-    motion_count = (
-        db.query(func.count(Motion.id))
-        .filter(Motion.filed_by_user_id == u.id)
-        .scalar()
-    ) or 0
-    argument_count = (
-        db.query(func.count(MotionArgument.id))
-        .filter(MotionArgument.user_id == u.id)
-        .scalar()
-    ) or 0
 
     return UserDetailOut(
         user=UserAdminOut(
@@ -262,8 +248,6 @@ def get_user_detail(
             comment_count=comment_count,
             misread_count=misread_count,
             calibration_count=calibration_count,
-            motion_count=motion_count,
-            argument_count=argument_count,
             subscription_tier=u.subscription_tier,
             subscription_status=u.subscription_status,
             subscription_period_end=(u.subscription_period_end.isoformat() + "Z") if u.subscription_period_end else None,
@@ -478,77 +462,6 @@ def get_user_submissions(
     )
 
 
-# ---------- motions + chamber arguments ----------
-
-class UserMotionOut(BaseModel):
-    id: int
-    motion_type: str
-    target_kind: Optional[str]
-    target_ref: Optional[str]
-    claim: str
-    status: str
-    filed_at: Optional[str]
-
-
-class UserArgumentOut(BaseModel):
-    id: int
-    motion_id: int
-    post_type: str
-    summary: str
-    created_at: Optional[str]
-
-
-class UserMotionsOut(BaseModel):
-    motions: list[UserMotionOut]
-    arguments: list[UserArgumentOut]
-
-
-@router.get("/{anon_id}/motions", response_model=UserMotionsOut)
-def get_user_motions(
-    anon_id: str,
-    limit: int = Query(default=100, ge=1, le=500),
-    db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin_session),
-):
-    u = _resolve_user(db, anon_id)
-    motions = (
-        db.query(Motion)
-        .filter(Motion.filed_by_user_id == u.id)
-        .order_by(Motion.filed_at.desc())
-        .limit(limit).all()
-    )
-    arguments = (
-        db.query(MotionArgument)
-        .filter(MotionArgument.user_id == u.id)
-        .order_by(MotionArgument.created_at.desc())
-        .limit(limit).all()
-    )
-    return UserMotionsOut(
-        motions=[
-            UserMotionOut(
-                id=m.id,
-                motion_type=m.motion_type,
-                target_kind=m.target_kind,
-                target_ref=m.target_ref,
-                claim=m.claim,
-                status=m.status,
-                filed_at=(m.filed_at.isoformat() + "Z") if m.filed_at else None,
-            )
-            for m in motions
-        ],
-        arguments=[
-            UserArgumentOut(
-                id=a.id,
-                motion_id=a.motion_id,
-                post_type=a.post_type,
-                summary=a.summary,
-                created_at=(a.created_at.isoformat() + "Z") if a.created_at else None,
-            )
-            for a in arguments
-        ],
-    )
-
-
 # ---------- payments / credit ledger ----------
 
 class CreditLedgerRowOut(BaseModel):
@@ -703,7 +616,7 @@ def set_user_comp(
 # ---------- unified activity timeline ----------
 
 class ActivityEntryOut(BaseModel):
-    type: str          # comment | calibration | misread | motion | argument | payment | verification
+    type: str          # comment | calibration | misread | payment | verification
     when: str          # ISO8601 Z
     summary: str
     link: Optional[str] = None  # admin sub-section / public path, when meaningful
@@ -766,27 +679,6 @@ def get_user_activity(
             type="misread",
             when=_iso(r.created_at) or "",
             summary=f"[{r.status}] {r.report_type} report on \"{r.song_title}\" by {r.song_artist}",
-        ))
-
-    for m in (
-        db.query(Motion).filter(Motion.filed_by_user_id == u.id)
-        .order_by(Motion.filed_at.desc()).limit(_ACTIVITY_PER_SOURCE).all()
-    ):
-        entries.append(ActivityEntryOut(
-            type="motion",
-            when=_iso(m.filed_at) or "",
-            summary=f"[{m.status}] filed {m.motion_type}: {m.claim[:120]}",
-        ))
-
-    for a in (
-        db.query(MotionArgument).filter(MotionArgument.user_id == u.id)
-        .order_by(MotionArgument.created_at.desc()).limit(_ACTIVITY_PER_SOURCE).all()
-    ):
-        entries.append(ActivityEntryOut(
-            type="argument",
-            when=_iso(a.created_at) or "",
-            summary=f"{a.post_type} on motion #{a.motion_id}: {a.summary[:120]}",
-            link=f"/motion-desk/deliberation-chamber/{a.motion_id}/",
         ))
 
     for r in (

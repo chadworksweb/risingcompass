@@ -17,7 +17,7 @@ from app.auth import (
 from app.config import settings
 from app.database import get_db
 from app.models import (
-    Song, Artist, User, GeneralInquiry, Motion,
+    Song, Artist, User, GeneralInquiry,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -155,24 +155,6 @@ def admin_search(q: str = "", db: Session = Depends(get_db)):
             for i in inquiries
         ]})
 
-    # Motions by their one-line claim. Lands on the Motions section.
-    motions = (
-        db.query(Motion)
-        .filter(Motion.claim.ilike(like))
-        .order_by(Motion.id.desc())
-        .limit(6)
-        .all()
-    )
-    if motions:
-        groups.append({"type": "Motions", "items": [
-            {
-                "label": m.claim,
-                "sublabel": f"{m.motion_type} . {m.status}",
-                "url": "/api/admin/dashboard/motions",
-            }
-            for m in motions
-        ]})
-
     return {"groups": groups}
 
 
@@ -204,7 +186,6 @@ _ADMIN_SECTIONS = {
     "lobby-mod": "admin/comments.html",
     "alerts": "admin/alerts.html",
     "users": "admin/users.html",
-    "motions": "admin/motions.html",
     "dev-ledger": "admin/dev_ledger.html",
     "inquiries": "admin/inquiries.html",
     "provenance": "admin/provenance.html",
