@@ -35,6 +35,8 @@ OUTPUT_PATH = FRONTEND_DIR / "sitemap.xml"
 EXCLUDED_DIR_NAMES = {
     "css", "img", "js", "scripts",
     "songs",  # no index.html; only hosts the individual song page template
+    "sentinel",  # Sentinel Auditor Team ships DARK -- keep out of the sitemap
+                 # until launch (remove this line when sentinel_auditor goes live).
 }
 
 EXCLUDED_FILE_NAMES = {
