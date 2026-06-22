@@ -92,6 +92,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://risingcompass.net/sentinel/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://risingcompass.net/sponsors/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
