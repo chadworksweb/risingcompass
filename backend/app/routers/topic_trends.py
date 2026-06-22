@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import math
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends
@@ -277,3 +278,108 @@ def get_topic_trends(db: Session = Depends(get_db)):
     return TopicTrendsOut(
         taxonomy=taxonomy, themes=themes, years=years_out, coverage=coverage,
     )
+
+
+# --- Trailing window (sub-yearly) -----------------------------------------
+#
+# The per-year endpoint above powers the Historical tab. The Topic Trends panel
+# also has a "Trailing 365 days" tab that needs sub-yearly resolution. The
+# modern path already keys off daily_readings.date, so we can bucket by calendar
+# month over the last 12 months. Historical chart appearances carry no fine date
+# (year only), so they are intentionally excluded here -- the trailing window is
+# a recent-mix view, fed by the live daily reading.
+
+
+class PeriodPoint(BaseModel):
+    key: str                    # "YYYY-MM"
+    label: str                  # "Jul 2025"
+    songs_with_topics: int
+    total_pairs: int
+    distinct_topics: int
+    shannon: float
+    effective_topics: float
+    distribution: list[TopicCount]
+
+
+class TopicTrendsTrailingOut(BaseModel):
+    bucket: str                 # "month"
+    window_start: str           # earliest bucket key, "YYYY-MM"
+    periods: list[PeriodPoint]  # always 12, oldest -> newest (empty months included)
+
+
+_MONTH_ABBR = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _last_n_month_keys(n: int) -> list[str]:
+    """The last n 'YYYY-MM' keys ending with the current month, oldest first."""
+    today = date.today()
+    y, m = today.year, today.month
+    keys: list[str] = []
+    for _ in range(n):
+        keys.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+    return list(reversed(keys))
+
+
+@router.get("/trailing", response_model=TopicTrendsTrailingOut)
+def get_topic_trends_trailing(db: Session = Depends(get_db)):
+    """Topic distribution + diversity bucketed by calendar month over the last
+    12 months (the "Trailing 365 days" tab). Modern path only; empty months are
+    returned so the x-axis is a continuous 12-bucket span."""
+    months = _last_n_month_keys(12)
+    start_y, start_m = months[0].split("-")
+    start_date = f"{start_y}-{start_m}-01"
+
+    rows = db.execute(
+        text(
+            """
+            WITH month_songs AS (
+              SELECT DISTINCT
+                to_char(dr.date, 'YYYY-MM') AS ym,
+                s.id, s.topics
+              FROM songs s
+              JOIN reading_songs rs ON rs.song_id = s.id
+              JOIN daily_readings dr ON dr.id = rs.reading_id
+              WHERE s.topics IS NOT NULL
+                AND dr.date >= CAST(:start AS date)
+            )
+            SELECT ms.ym, ms.id AS song_id, je.value AS topic
+            FROM month_songs ms,
+                 json_array_elements_text(ms.topics::json) AS je(value)
+            """
+        ),
+        {"start": start_date},
+    ).fetchall()
+
+    per_month: dict[str, dict[str, int]] = {}
+    songs_by_month: dict[str, set[int]] = {}
+    for r in rows:
+        per_month.setdefault(r.ym, {})
+        per_month[r.ym][r.topic] = per_month[r.ym].get(r.topic, 0) + 1
+        songs_by_month.setdefault(r.ym, set()).add(int(r.song_id))
+
+    periods: list[PeriodPoint] = []
+    for key in months:
+        counts = per_month.get(key, {})
+        total = sum(counts.values())
+        dist = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        shannon = _shannon_bits([c for _, c in dist])
+        _, mm = key.split("-")
+        periods.append(PeriodPoint(
+            key=key,
+            label=f"{_MONTH_ABBR[int(mm)]} {key[:4]}",
+            songs_with_topics=len(songs_by_month.get(key, set())),
+            total_pairs=total,
+            distinct_topics=len(dist),
+            shannon=round(shannon, 4),
+            effective_topics=round(2.0 ** shannon, 3),
+            distribution=[
+                TopicCount(topic=t, count=c, percent=round(c / total, 4) if total else 0.0)
+                for t, c in dist
+            ],
+        ))
+
+    return TopicTrendsTrailingOut(bucket="month", window_start=months[0], periods=periods)

@@ -190,41 +190,43 @@
 
     <div class="tt-caveat" id="tt-caveat" hidden></div>
 
-    <div class="tt-toggle" role="group" aria-label="Group topics by theme or show all topics">
-      <button type="button" class="tt-toggle-btn is-active" data-mode="themes" aria-pressed="true">Themes</button>
-      <button type="button" class="tt-toggle-btn" data-mode="topics" aria-pressed="false">All 30 topics</button>
+    <div class="card tt-card" id="tt-panel">
+      <div class="tt-head">
+        <div class="era-tabs" role="tablist" aria-label="Time period">
+          <button class="era-tab active" data-period="trailing" type="button" role="tab" aria-selected="true">
+            <span class="era-tab-title">Trailing 365 Days</span>
+            <span class="era-tab-tagline">the last year, month by month</span>
+          </button>
+          <button class="era-tab" data-period="historical" type="button" role="tab" aria-selected="false">
+            <span class="era-tab-title">Historical</span>
+            <span class="era-tab-tagline">every tagged year, scrub &amp; zoom</span>
+          </button>
+        </div>
+
+        <div class="tt-controls">
+          <div class="tt-control">
+            <span class="tt-control-lbl">Chart</span>
+            <div class="tt-fgroup">
+              <button class="tt-fbtn active" data-chart="stream" type="button">Stream</button>
+              <button class="tt-fbtn" data-chart="point" type="button">Point</button>
+            </div>
+          </div>
+          <div class="tt-control">
+            <span class="tt-control-lbl">Group</span>
+            <div class="tt-fgroup">
+              <button class="tt-fbtn active" data-mode="themes" type="button">Themes</button>
+              <button class="tt-fbtn" data-mode="topics" type="button">Topics</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="tt-chart-sub" id="tt-chart-sub"></p>
+
+      <div class="era-content active" id="tt-host">
+        <div class="tt-chart-status" id="tt-status">Loading&hellip;</div>
+      </div>
     </div>
-
-    <section class="tt-section" aria-labelledby="index-heading">
-      <header class="tt-section-head">
-        <h2 id="index-heading" class="tt-section-title">The Narrowing Index</h2>
-        <p class="tt-section-sub">
-          Effective number of topics per year &mdash; 2<sup>H</sup> of the topic mix.
-          When the line falls, fewer topics are carrying more of the music.
-        </p>
-      </header>
-      <div class="tt-chart-wrap" id="index-wrap">
-        <div class="tt-chart-status" id="index-status">Loading the index&hellip;</div>
-        <div class="tt-chart-area" id="index-chart"></div>
-        <div class="tt-tooltip" id="index-tooltip" hidden></div>
-      </div>
-    </section>
-
-    <section class="tt-section" aria-labelledby="river-heading">
-      <header class="tt-section-head">
-        <h2 id="river-heading" class="tt-section-title">The Topic River</h2>
-        <p class="tt-section-sub">
-          Every topic flowing through the music over time. A wide, braided field
-          of many topics, or a few thick channels crowding out the rest.
-        </p>
-      </header>
-      <div class="tt-chart-wrap" id="river-wrap">
-        <div class="tt-chart-status" id="river-status">Loading the river&hellip;</div>
-        <div class="tt-chart-area" id="river-chart"></div>
-        <div class="tt-tooltip" id="river-tooltip" hidden></div>
-      </div>
-      <div class="tt-legend" id="river-legend" hidden></div>
-    </section>
 
     <section class="tt-section tt-method" aria-labelledby="method-heading">
       <h2 id="method-heading" class="tt-section-title">How this is measured</h2>

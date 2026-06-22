@@ -88,6 +88,240 @@
   background: var(--rc-accent, #00d4aa);
 }
 
+/* ─── Explorer panel (reuses homepage .card / .era-tabs / .traj-* chrome) ─── */
+
+.tt-card { margin-top: 1.5rem; }
+
+/* Header: shrunk era-tabs (left) + inline Chart/Group filters (right), sharing
+   one underline that runs the full card width. */
+.tt-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  border-bottom: 1px solid var(--rc-border, #2a2a3e);
+  margin: -0.5rem -0.5rem 1.1rem;
+  padding: 0 0.5rem;
+}
+.tt-card .era-tabs { border-bottom: none; margin: 0; padding: 0; flex: 0 1 auto; }
+.tt-card .era-tab { flex: 0 0 auto; }
+
+.tt-controls { display: flex; align-items: flex-end; gap: 1.3rem; padding-bottom: 0.5rem; }
+.tt-control { display: inline-flex; align-items: center; gap: 0.5rem; }
+.tt-control-lbl {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim, #c0c0ca);
+}
+.tt-fgroup { display: inline-flex; gap: 0.4rem; }
+.tt-fbtn {
+  font: 600 0.8rem/1 var(--rc-font, Inter, system-ui, sans-serif);
+  color: var(--rc-text-dim, #c0c0ca);
+  background: transparent;
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: 7px;
+  padding: 0.36rem 0.72rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.tt-fbtn:hover { color: var(--rc-text-bright, #eeeef4); border-color: var(--rc-text-dim, #c0c0ca); }
+.tt-fbtn.active {
+  color: var(--rc-accent, #00d4aa);
+  border-color: var(--rc-accent, #00d4aa);
+  background: rgba(0, 212, 170, 0.12);
+}
+
+/* Inline band labels in the left gutter + leader lines. */
+.tt-lbl {
+  font-family: var(--rc-font, Inter, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+  transition: opacity 0.15s;
+}
+.tt-lbl.is-dim { opacity: 0.22; }
+.tt-lbl-lead { stroke-width: 1; opacity: 0.5; }
+.tt-lbl-dot { opacity: 0.9; }
+.tt-chart-sub {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--rc-text-dim, #c0c0ca);
+  margin: 0 0 0.9rem;
+}
+
+/* Our chart SVGs fill the chart-area like the homepage trajectory svg does. */
+#tt-chart svg { display: block; width: 100%; height: auto; }
+#tt-chart { cursor: grab; }
+.traj-overview.is-active ~ * #tt-chart, #tt-chart:active { cursor: grabbing; }
+
+/* ─── (legacy) Unified explorer panel ──────────────────────────────── */
+
+.tt-panel {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rc-border, #2a2a3e);
+}
+
+.tt-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.6rem;
+  align-items: center;
+  margin-bottom: 1.2rem;
+}
+.tt-filter { display: inline-flex; align-items: center; gap: 0.5rem; }
+.tt-filter-lbl {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim, #c0c0ca);
+}
+
+.tt-seg {
+  display: inline-flex;
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: 999px;
+  padding: 0.2rem;
+  background: var(--rc-bg-panel, #12121e);
+}
+.tt-seg-btn {
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--rc-text-dim, #c0c0ca);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+.tt-seg-btn:hover { color: var(--rc-text-bright, #eeeef4); }
+.tt-seg-btn.is-active {
+  color: var(--rc-bg-dark, #0a0a14);
+  background: var(--rc-accent, #00d4aa);
+}
+
+.tt-panel-head { margin-bottom: 1rem; }
+
+.tt-segment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+.tt-segment[hidden] { display: none; }
+.tt-seg-row { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+
+/* Mini-overview locator + draggable brace */
+.tt-overview {
+  position: relative;
+  height: 32px;
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: var(--rc-radius-sm, 4px);
+  background: var(--rc-bg-panel, #12121e);
+  cursor: pointer;
+  user-select: none;
+}
+.tt-ov-svg { display: block; width: 100%; height: 100%; }
+.tt-ov-line { stroke: var(--rc-text-dim, #c0c0ca); opacity: 0.45; stroke-width: 1; }
+.tt-ov-vp {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(0, 212, 170, 0.16);
+  border: 1px solid var(--rc-accent, #00d4aa);
+  border-radius: 3px;
+  cursor: grab;
+  box-sizing: border-box;
+}
+.tt-overview.is-active .tt-ov-vp { cursor: grabbing; }
+.tt-ov-h {
+  position: absolute;
+  top: -1px; bottom: -1px;
+  width: 9px;
+  cursor: ew-resize;
+}
+.tt-ov-h--l { left: -5px; }
+.tt-ov-h--r { right: -5px; }
+.tt-ov-h::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px; height: 14px;
+  background: var(--rc-accent, #00d4aa);
+  border-radius: 1px;
+}
+
+/* Time Machine */
+.tt-tm:empty { display: none; }
+.tt-tm-slider {
+  width: 100%;
+  accent-color: var(--rc-accent, #00d4aa);
+  cursor: pointer;
+}
+.tt-tm-pb { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+.tt-tm-btn {
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--rc-text-dim, #c0c0ca);
+  background: var(--rc-bg-panel, #12121e);
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: 999px;
+  min-width: 1.9rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.tt-tm-btn:hover { color: var(--rc-text-bright, #eeeef4); border-color: var(--rc-accent, #00d4aa); }
+.tt-tm-prog {
+  flex: 1;
+  height: 3px;
+  background: var(--rc-border, #2a2a3e);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.tt-tm-prog-fill { height: 100%; background: var(--rc-accent, #00d4aa); }
+.tt-tm-reset { margin-left: auto; }
+
+.tt-tm-marker {
+  stroke: var(--rc-accent, #00d4aa);
+  stroke-width: 1;
+  opacity: 0.8;
+  stroke-dasharray: 3 2;
+}
+.tt-span-btn {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--rc-text-dim, #c0c0ca);
+  background: var(--rc-bg-panel, #12121e);
+  border: 1px solid var(--rc-border, #2a2a3e);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.tt-span-btn + .tt-span-btn { margin-left: 0.3rem; }
+.tt-span-btn:hover { color: var(--rc-text-bright, #eeeef4); }
+.tt-span-btn.is-active {
+  color: var(--rc-bg-dark, #0a0a14);
+  background: var(--rc-accent, #00d4aa);
+  border-color: var(--rc-accent, #00d4aa);
+}
+.tt-span-readout {
+  font-family: var(--rc-font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.78rem;
+  color: var(--rc-text-dim, #c0c0ca);
+}
+
 /* ─── Sections ─────────────────────────────────────────────────────── */
 
 .tt-section {
@@ -155,6 +389,13 @@
   font-size: 11px;
 }
 .tt-tick { stroke: var(--rc-text-dim, #c0c0ca); stroke-width: 0.5; opacity: 0.5; }
+.tt-axis-title {
+  fill: var(--rc-text-dim, #c0c0ca);
+  font-family: var(--rc-font, Inter, system-ui, sans-serif);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
 
 .tt-index-line {
   stroke: var(--rc-accent, #00d4aa);
@@ -179,7 +420,8 @@
 
 .tt-band {
   stroke: var(--rc-bg-panel, #12121e);
-  stroke-width: 0.6;
+  stroke-width: 1;
+  stroke-linejoin: round;
   transition: opacity 0.18s ease;
   cursor: pointer;
 }

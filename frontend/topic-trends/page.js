@@ -1,36 +1,44 @@
-/* === Topic Trends — "The Narrowing" ===
+/* === Topic Trends — unified explorer panel ===
  *
- * Two homepage-branded views built on the same pure-SVG + vanilla-JS toolkit
- * as the homepage trajectory chart (no chart library):
+ * One chart area driven by three sibling filters (pure SVG + vanilla JS, no
+ * chart library):
  *
- *   1. The Narrowing Index — a year-over-year line of the effective number of
- *      topics/themes (2^H). Falling line = the field is narrowing. Mirrors the
- *      trajectory chart's padded-viewBox + gridlines + spring draw-in.
- *   2. The Topic River — a normalized share streamgraph (silhouette baseline,
- *      Catmull-Rom smoothing) of prevalence over time.
+ *   - Chart type : Stream (the Topic River, a 100% stacked-area "carving") or
+ *                  Point (the Narrowing Index, the effective-topic-count line).
+ *   - Period     : Trailing 365 days (12 monthly buckets, /api/topic-trends/
+ *                  trailing) or Historical (per-year, /api/topic-trends) with a
+ *                  span/segment control.
+ *   - Group      : Themes (the 9 primary themes) or all 30 topics.
  *
- * A Topics/Themes toggle rolls the 25 fine topics up into their 7 primary
- * themes (see ETHER_TOPIC_PRIMARY in the backend taxonomy). The rollup uses
- * PRIMARY theme only, so shares always sum cleanly; secondary facets (`also`)
- * are surfaced in tooltips, never summed.
- *
- * Colors are a CATEGORICAL palette (taxonomy / theme order), NOT the 5 Compass
- * tier colors — topics are a different axis.
- *
- * Data: GET /api/topic-trends (backend/app/routers/topic_trends.py).
+ * The three combine freely. Colours are a CATEGORICAL palette (taxonomy / theme
+ * order), NOT the 5 Compass tier colours — topics are a different axis.
  */
 (() => {
   'use strict';
 
-  const RIVER_TOP_N = 12;   // distinct topic bands; remainder folds into "other"
+  const RIVER_TOP_N = 12;   // distinct topic bands in stream mode; rest -> "other"
 
-  let DATA = null;          // raw API payload
-  let MODE = 'themes';      // 'themes' | 'topics'
+  // ---- State ---------------------------------------------------------------
+  const STATE = { chart: 'stream', period: 'trailing', mode: 'themes' };
+
+  let YEARLY = null;        // /api/topic-trends payload
+  let TRAIL = null;         // /api/topic-trends/trailing payload
+
+  // Historical zoom window (year values) + Time Machine, mirroring the homepage
+  // trajectory toolkit: a draggable brace over a mini-overview sets the window;
+  // the Time Machine scrubs a clip across the windowed chart.
+  let ALLYEARS = [];        // historical years that have data, sorted
+  let zoomLo = null, zoomHi = null;
+  let TMGEO = null;         // geometry of the last historical render, for TM clip
+  let tmPos = 0, tmPlaying = false, tmDir = 1, tmAnim = null, tmSpeedIdx = 1;
+  const TM_SPEEDS = [0.5, 1, 2, 4], TM_BASE = 1.6;
   let TOPIC_MAP = {};       // slug -> {primary, also:[]}
   let THEME_LABEL = {};     // theme slug -> label
   let THEME_ORDER = [];     // theme slugs in canonical order
-  let TOPIC_COLOR = {};     // slug -> hsl
-  let THEME_COLOR = {};     // theme slug -> hsl
+  let BANDCOLOR = {};       // key -> hsl, assigned per render from the stack order
+  let TAX_N = 30;           // taxonomy size (for the topic-mode index scale)
+
+  const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   function escapeHtml(s) {
     if (s == null) return '';
@@ -38,32 +46,32 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-
   function labelize(slug) { return String(slug).replace(/-/g, ' '); }
 
-  // ---- Color indexes (stable, keyed to canonical order) --------------------
-  function buildColors(taxonomy, themes) {
-    TOPIC_COLOR = {};
-    const n = taxonomy.length || 25;
-    taxonomy.forEach((t, i) => {
-      const hue = Math.round((i * 360) / n);
-      const light = i % 2 === 0 ? 62 : 52;
-      TOPIC_COLOR[t.slug] = `hsl(${hue}, 58%, ${light}%)`;
-    });
-    THEME_COLOR = {};
-    const m = themes.length || 7;
-    themes.forEach((t, i) => {
-      const hue = Math.round((i * 360) / m + 12);
-      THEME_COLOR[t.slug] = `hsl(${hue}, 60%, 58%)`;
-    });
+  // ---- Colours -------------------------------------------------------------
+  // Riff on the two Rising Compass baselines -- teal (~170deg) and blue (~214deg).
+  // Walk the stack from teal to blue with a 3-step lightness cycle so NO two
+  // bands repeat and adjacent bands stay clearly distinct on the dark field.
+  function shade(i, n) {
+    const t = n > 1 ? i / (n - 1) : 0;
+    const hue = Math.round(170 + 44 * t);   // 170 teal -> 214 blue
+    const light = 40 + (i % 3) * 13;        // 40 / 53 / 66 cycle
+    const sat = 70 - Math.round(20 * t);    // 70 -> 50
+    return `hsl(${hue}, ${sat}%, ${light}%)`;
+  }
+  // Assign each band a distinct colour for THIS render, from its stack order.
+  function assignBandColors(keys) {
+    BANDCOLOR = {};
+    const n = keys.length;
+    keys.forEach((k, i) => { BANDCOLOR[k] = k === 'other' ? '#5a5a72' : shade(i, n); });
   }
   function colorForKey(key) {
     if (key === 'other') return '#5a5a72';
-    return MODE === 'themes' ? (THEME_COLOR[key] || '#7a7a92') : (TOPIC_COLOR[key] || '#7a7a92');
+    return BANDCOLOR[key] || 'hsl(190, 60%, 52%)';
   }
   function labelForKey(key) {
     if (key === 'other') return 'other';
-    return MODE === 'themes' ? (THEME_LABEL[key] || key) : labelize(key);
+    return STATE.mode === 'themes' ? (THEME_LABEL[key] || key) : labelize(key);
   }
 
   // ---- Diversity math ------------------------------------------------------
@@ -74,18 +82,22 @@
     for (const c of counts) { if (c > 0) { const p = c / total; h -= p * Math.log2(p); } }
     return Math.pow(2, h);
   }
+  function maxEffective() { return STATE.mode === 'themes' ? THEME_ORDER.length : TAX_N; }
+  function unitNoun(n) {
+    const base = STATE.mode === 'themes' ? 'theme' : 'topic';
+    return n === 1 ? base : base + 's';
+  }
 
-  // Roll one year's topic distribution into the current mode's buckets.
-  // Returns { items: [{key, count}], total }.
-  function rollupYear(yearObj) {
-    if (MODE === 'topics') {
+  // Roll one column's topic distribution into the current group's buckets.
+  function rollupCol(col) {
+    if (STATE.mode === 'topics') {
       return {
-        items: yearObj.distribution.map((d) => ({ key: d.topic, count: d.count })),
-        total: yearObj.total_pairs,
+        items: col.distribution.map((d) => ({ key: d.topic, count: d.count })),
+        total: col.total_pairs,
       };
     }
     const acc = {};
-    yearObj.distribution.forEach((d) => {
+    col.distribution.forEach((d) => {
       const theme = (TOPIC_MAP[d.topic] && TOPIC_MAP[d.topic].primary) || 'other';
       acc[theme] = (acc[theme] || 0) + d.count;
     });
@@ -93,13 +105,14 @@
     return { items, total: items.reduce((s, i) => s + i.count, 0) };
   }
 
-  function maxEffective() { return MODE === 'themes' ? THEME_ORDER.length : 25; }
-  function unitNoun(n) {
-    const base = MODE === 'themes' ? 'theme' : 'topic';
-    return n === 1 ? base : base + 's';
+  // ---- Path builders -------------------------------------------------------
+  function straightPath(points) {
+    if (!points.length) return '';
+    let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+    for (let i = 1; i < points.length; i++) d += ` L ${points[i].x.toFixed(2)} ${points[i].y.toFixed(2)}`;
+    return d;
   }
-
-  // ---- Catmull-Rom -> cubic bezier smoothing -------------------------------
+  // Catmull-Rom -> cubic bezier (used by the Point/Index line only).
   function smoothPath(points) {
     if (!points.length) return '';
     if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
@@ -117,8 +130,8 @@
     return d;
   }
 
-  function xLabelYears(years) {
-    const lo = years[0].year, hi = years[years.length - 1].year;
+  function xLabelYears(cols) {
+    const lo = cols[0].year, hi = cols[cols.length - 1].year;
     const span = hi - lo;
     const step = span > 40 ? 10 : span > 15 ? 5 : span > 8 ? 2 : 1;
     const set = new Set([lo, hi]);
@@ -126,194 +139,208 @@
     return set;
   }
 
-  // =========================================================================
-  // 1. THE NARROWING INDEX
-  // =========================================================================
-  function renderIndex() {
-    const status = document.getElementById('index-status');
-    const chartEl = document.getElementById('index-chart');
-    const tooltip = document.getElementById('index-tooltip');
-    if (!chartEl) return;
-    const years = DATA.years;
-    if (!years.length) { if (status) status.textContent = 'No tagged years yet.'; return; }
-    if (status) status.hidden = true;
-
-    const W = 960, H = 380, padL = 46, padR = 22, padT = 24, padB = 40;
-    const chartW = W - padL - padR, chartH = H - padT - padB, maxIdx = years.length - 1;
-    const yMax = maxEffective();
-
-    const pts = years.map((d, i) => {
-      const { items } = rollupYear(d);
-      const eff = effectiveCount(items.map((it) => it.count));
-      const distinct = items.filter((it) => it.count > 0).length;
-      return {
-        x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
-        y: padT + (1 - eff / yMax) * chartH,
-        year: d.year, eff, distinct, songs: d.songs_with_topics,
-      };
+  // ---- Bin per-year rows into N-year buckets (stream historical) -----------
+  function binYears(years, size) {
+    const groups = new Map();
+    years.forEach((y) => {
+      const start = Math.floor(y.year / size) * size;
+      let g = groups.get(start);
+      if (!g) { g = { start, lo: y.year, hi: y.year, dist: {}, songs: 0, pairs: 0 }; groups.set(start, g); }
+      g.lo = Math.min(g.lo, y.year); g.hi = Math.max(g.hi, y.year);
+      g.songs += y.songs_with_topics || 0;
+      g.pairs += y.total_pairs || 0;
+      (y.distribution || []).forEach((d) => { g.dist[d.topic] = (g.dist[d.topic] || 0) + d.count; });
     });
-
-    const linePath = smoothPath(pts);
-    const areaPath = (maxIdx > 0)
-      ? linePath + ` L ${pts[maxIdx].x.toFixed(2)} ${(padT + chartH).toFixed(2)} L ${pts[0].x.toFixed(2)} ${(padT + chartH).toFixed(2)} Z`
-      : '';
-
-    let svg = `<svg class="tt-index-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Effective number of ${unitNoun(2)} per year">`;
-    svg += `<defs><linearGradient id="tt-index-area" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.28"/><stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/>
-      </linearGradient></defs>`;
-
-    const gridStep = yMax <= 8 ? 1 : 5;
-    for (let v = 0; v <= yMax; v += gridStep) {
-      const y = padT + (1 - v / yMax) * chartH;
-      svg += `<line class="tt-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"/>`;
-      svg += `<text class="tt-y-label" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
-    }
-
-    if (areaPath) svg += `<path class="tt-index-area" d="${areaPath}" fill="url(#tt-index-area)"/>`;
-    svg += `<path class="tt-index-line" d="${linePath}" fill="none"/>`;
-
-    const labels = xLabelYears(years);
-    pts.forEach((p) => {
-      if (labels.has(p.year)) {
-        svg += `<text class="tt-x-label" x="${p.x.toFixed(1)}" y="${H - 14}" text-anchor="middle">${p.year}</text>`;
-        svg += `<line class="tt-tick" x1="${p.x.toFixed(1)}" y1="${padT + chartH}" x2="${p.x.toFixed(1)}" y2="${padT + chartH + 4}"/>`;
-      }
-    });
-    pts.forEach((p, i) => { svg += `<circle class="tt-index-dot" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"/>`; });
-    svg += `<line id="tt-index-hline" class="tt-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
-    svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="tt-hover-area"/></svg>`;
-    chartEl.innerHTML = svg;
-
-    // Spring draw-in
-    const lineNode = chartEl.querySelector('.tt-index-line');
-    if (lineNode && lineNode.getTotalLength) {
-      const len = lineNode.getTotalLength();
-      lineNode.style.strokeDasharray = len;
-      lineNode.style.strokeDashoffset = len;
-      lineNode.style.transition = 'stroke-dashoffset 1.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
-      requestAnimationFrame(() => requestAnimationFrame(() => { lineNode.style.strokeDashoffset = '0'; }));
-    }
-
-    const svgEl = chartEl.querySelector('.tt-index-svg');
-    const hline = chartEl.querySelector('#tt-index-hline');
-    const wrap = document.getElementById('index-wrap');
-    function showAt(clientX) {
-      const rect = svgEl.getBoundingClientRect();
-      const svgX = ((clientX - rect.left) / rect.width) * W;
-      let near = 0, best = Infinity;
-      pts.forEach((p, i) => { const dx = Math.abs(p.x - svgX); if (dx < best) { best = dx; near = i; } });
-      const p = pts[near];
-      hline.setAttribute('x1', p.x.toFixed(1)); hline.setAttribute('x2', p.x.toFixed(1)); hline.style.display = '';
-      if (tooltip) {
-        const wr = wrap.getBoundingClientRect();
-        const px = clientX - wr.left;
-        tooltip.innerHTML =
-          `<div class="tt-tt-head">${p.year}</div>`
-          + `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}</span></div>`
-          + `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`;
-        tooltip.hidden = false;
-        tooltip.style.left = px + 'px';
-        tooltip.style.transform = px > wr.width * 0.7 ? 'translateX(-100%)' : px < wr.width * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
-      }
-    }
-    wrap.onmousemove = (e) => showAt(e.clientX);
-    wrap.onmouseleave = () => { hline.style.display = 'none'; if (tooltip) tooltip.hidden = true; };
+    return Array.from(groups.values()).sort((a, b) => a.start - b.start).map((g) => ({
+      year: g.start,
+      label: g.lo === g.hi ? `${g.lo}` : `${g.lo}–${String(g.hi).slice(-2)}`,
+      axisLabel: String(g.start),
+      distribution: Object.keys(g.dist).map((t) => ({ topic: t, count: g.dist[t] })),
+      total_pairs: g.pairs,
+      songs_with_topics: g.songs,
+    }));
   }
 
-  // =========================================================================
-  // 2. THE TOPIC RIVER (normalized share streamgraph)
-  // =========================================================================
-  function bandKeysForMode(years) {
-    if (MODE === 'themes') return { keys: THEME_ORDER.slice(), hasOther: false };
+  // ---- Build the column set for the current (period, chart) ----------------
+  // Returns { cols, unit } where unit is 'year' | 'month'. Empty columns are
+  // dropped so a sparse trailing window shows only its populated buckets.
+  function buildCols() {
+    if (STATE.period === 'trailing') {
+      const cols = (TRAIL.periods || [])
+        .filter((p) => p.total_pairs > 0)
+        .map((p) => ({
+          year: parseInt(p.key.slice(0, 4), 10),
+          label: p.label,
+          axisLabel: `${MONTHS[parseInt(p.key.slice(5, 7), 10)]} '${p.key.slice(2, 4)}`,
+          distribution: p.distribution,
+          total_pairs: p.total_pairs,
+          songs_with_topics: p.songs_with_topics,
+        }));
+      return { cols, unit: 'month' };
+    }
+    let years = ALLYEARS.filter((y) => y.year >= zoomLo && y.year <= zoomHi);
+    if (!years.length) years = ALLYEARS.slice();
+    if (STATE.chart === 'stream') {
+      const bin = years.length > 30 ? 5 : years.length > 15 ? 2 : 1;
+      return { cols: binYears(years, bin), unit: 'year' };
+    }
+    // Point historical: per-year, no binning (the index is a per-period measure).
+    const cols = years.map((y) => ({
+      year: y.year, label: String(y.year), axisLabel: String(y.year),
+      distribution: y.distribution, total_pairs: y.total_pairs,
+      songs_with_topics: y.songs_with_topics,
+    }));
+    return { cols, unit: 'year' };
+  }
+
+  function bandKeysForMode(cols) {
+    if (STATE.mode === 'themes') return { keys: THEME_ORDER.slice(), hasOther: false };
     const totals = {};
-    years.forEach((y) => y.distribution.forEach((d) => { totals[d.topic] = (totals[d.topic] || 0) + d.count; }));
+    cols.forEach((c) => c.distribution.forEach((d) => { totals[d.topic] = (totals[d.topic] || 0) + d.count; }));
     const ranked = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
     return { keys: ranked.slice(0, RIVER_TOP_N), hasOther: ranked.length > RIVER_TOP_N };
   }
 
-  function renderRiver() {
-    const status = document.getElementById('river-status');
-    const chartEl = document.getElementById('river-chart');
-    const legend = document.getElementById('river-legend');
-    const tooltip = document.getElementById('river-tooltip');
-    if (!chartEl) return;
-    const years = DATA.years;
+  function xAxisSvg(cols, xs, unit, W, H, padT, chartH, padL, axisTitle) {
+    let svg = '';
+    if (unit === 'year') {
+      const labels = xLabelYears(cols);
+      cols.forEach((c, i) => {
+        if (labels.has(c.year)) svg += `<text class="tt-x-label" x="${xs[i].toFixed(1)}" y="${H - 12}" text-anchor="middle">${c.axisLabel}</text>`;
+      });
+    } else {
+      const step = cols.length > 9 ? 2 : 1;
+      cols.forEach((c, i) => {
+        if (i % step === 0 || i === cols.length - 1) svg += `<text class="tt-x-label" x="${xs[i].toFixed(1)}" y="${H - 12}" text-anchor="middle">${c.axisLabel}</text>`;
+      });
+    }
+    if (axisTitle) {
+      const cy = padT + chartH / 2;
+      svg += `<text class="tt-axis-title" transform="rotate(-90 14 ${cy.toFixed(1)})" x="14" y="${cy.toFixed(1)}" text-anchor="middle">${axisTitle}</text>`;
+    }
+    return svg;
+  }
 
-    if (years.length < 2) { renderSingleYearField(years[0], status, chartEl, legend); return; }
-    if (status) status.hidden = true;
+  // =========================================================================
+  // STREAM (the Topic River — 100% stacked carving)
+  // =========================================================================
+  function renderStream(cols, unit) {
+    const chartEl = document.getElementById('tt-chart');
+    const legend = document.getElementById('tt-legend');
+    const tooltip = document.getElementById('tt-tooltip');
+    const wrap = document.getElementById('tt-wrap');
 
-    const { keys, hasOther } = bandKeysForMode(years);
+    const { keys, hasOther } = bandKeysForMode(cols);
     const bandKeys = hasOther ? keys.concat(['other']) : keys.slice();
     const keepSet = new Set(keys);
 
-    const valuesByYear = years.map((y) => {
+    const valuesByCol = cols.map((c) => {
       const row = {}; bandKeys.forEach((k) => (row[k] = 0));
-      const { items } = rollupYear(y);
-      items.forEach((it) => {
+      rollupCol(c).items.forEach((it) => {
         if (keepSet.has(it.key)) row[it.key] += it.count;
         else if (hasOther) row['other'] += it.count;
       });
       return row;
     });
-    const yearTotals = valuesByYear.map((r) => bandKeys.reduce((s, k) => s + r[k], 0));
+    const colTotals = valuesByCol.map((r) => bandKeys.reduce((s, k) => s + r[k], 0));
 
-    const W = 960, H = 420, padL = 16, padR = 16, padT = 18, padB = 34;
-    const chartW = W - padL - padR, chartH = H - padT - padB, maxIdx = years.length - 1;
-    const xs = years.map((_, i) => padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2));
+    // Left gutter: label text occupies the first ~13%, then a clear gap before
+    // the bands begin (padL) so the leader lines have room to point.
+    const W = 960, H = 420, padL = Math.round(W * 0.20), padR = 16, padT = 18, padB = 34;
+    const chartW = W - padL - padR, chartH = H - padT - padB, maxIdx = cols.length - 1;
+    const xs = cols.map((_, i) => padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2));
 
-    // Inside-out stacking: largest band toward the middle.
-    const totalFor = (k) => valuesByYear.reduce((s, r) => s + r[k], 0);
-    const byTotal = bandKeys.slice().sort((a, b) => totalFor(b) - totalFor(a));
-    const order = [];
-    byTotal.forEach((k, i) => { if (i % 2 === 0) order.push(k); else order.unshift(k); });
+    // Stable order: largest share carved at the top, "other" pinned to the floor.
+    const totalFor = (k) => valuesByCol.reduce((s, r) => s + r[k], 0);
+    const order = bandKeys.slice().sort((a, b) => {
+      if (a === 'other') return 1;
+      if (b === 'other') return -1;
+      return totalFor(b) - totalFor(a);
+    });
+    assignBandColors(order);   // distinct teal->blue shade per band, no reuse
 
-    // Normalize each year to share (100% stacked) — sampling rate differs by
-    // era, so raw volume isn't comparable; share is the narrowing axis.
+    // Each column normalized to 100%. No smoothing: a zero is a true zero.
     const bandEdges = {};
     order.forEach((k) => (bandEdges[k] = []));
-    valuesByYear.forEach((row, yi) => {
-      const total = yearTotals[yi] || 1;
+    valuesByCol.forEach((row, ci) => {
+      const total = colTotals[ci] || 1;
       let cursor = padT;
       order.forEach((k) => {
         const h = (row[k] / total) * chartH;
-        bandEdges[k].push({ x: xs[yi], y0: cursor, y1: cursor + h });
+        bandEdges[k].push({ x: xs[ci], y0: cursor, y1: cursor + h });
         cursor += h;
       });
     });
 
-    let svg = `<svg class="tt-river-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${MODE === 'themes' ? 'Theme' : 'Topic'} prevalence over time">`;
-    const labels = xLabelYears(years);
-    years.forEach((y, i) => {
-      if (labels.has(y.year)) svg += `<text class="tt-x-label" x="${xs[i].toFixed(1)}" y="${H - 12}" text-anchor="middle">${y.year}</text>`;
-    });
+    let svg = `<svg class="tt-river-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${STATE.mode === 'themes' ? 'Theme' : 'Topic'} prevalence over time">`;
+    svg += `<defs><clipPath id="tt-clip"><rect id="tt-clip-rect" x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>`;
+    svg += xAxisSvg(cols, xs, unit, W, H, padT, chartH, padL, null);
+    svg += '<g clip-path="url(#tt-clip)">';
     order.forEach((k) => {
       const edges = bandEdges[k];
       const top = edges.map((e) => ({ x: e.x, y: e.y0 }));
       const botRev = edges.map((e) => ({ x: e.x, y: e.y1 })).reverse();
-      const d = `${smoothPath(top)} ${smoothPath(botRev).replace(/^M/, 'L')} Z`;
+      const d = `${straightPath(top)} ${straightPath(botRev).replace(/^M/, 'L')} Z`;
       svg += `<path class="tt-band" data-key="${escapeHtml(k)}" d="${d}" fill="${colorForKey(k)}"/>`;
     });
-    svg += '</svg>';
-    chartEl.innerHTML = svg;
+    svg += '</g>';
+    svg += `<line id="tt-tm-marker" class="tt-tm-marker" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
 
-    if (legend) {
-      legend.hidden = false;
-      legend.innerHTML = order.slice().sort((a, b) => totalFor(b) - totalFor(a))
-        .map((k) => `<span class="tt-legend-item" data-key="${escapeHtml(k)}">`
-          + `<span class="tt-legend-swatch" style="background:${colorForKey(k)}"></span>${escapeHtml(labelForKey(k))}</span>`)
-        .join('');
+    // ---- Left label gutter: each band named at its level, with a leader line
+    // when bands are too thin / crowded to sit at their own center. (Replaces
+    // the bottom legend; anchored to the band centers in the leftmost column.)
+    {
+      const LBL_X = Math.round(W * 0.13);   // right edge of the label text
+      const ELBOW = padL - 8;               // where the leader turns toward the band
+      const SP = 16;
+      const top = padT + 6, bot = padT + chartH - 6;
+      const items = order.map((k) => {
+        const e = bandEdges[k][0];
+        return { key: k, anchorY: (e.y0 + e.y1) / 2 };
+      }).sort((a, b) => a.anchorY - b.anchorY);
+      let prev = top - SP;
+      items.forEach((it) => { it.labelY = Math.max(it.anchorY, prev + SP); prev = it.labelY; });
+      if (items.length && items[items.length - 1].labelY > bot) {
+        let next = bot + SP;
+        for (let i = items.length - 1; i >= 0; i--) { items[i].labelY = Math.min(items[i].labelY, next - SP); next = items[i].labelY; }
+      }
+      items.forEach((it) => {
+        it.labelY = Math.max(top, Math.min(bot, it.labelY));
+        const col = colorForKey(it.key);
+        // Always connect the label to its band: a run out from the text, then an
+        // elbow down/up into the band's left-edge centre.
+        svg += `<polyline class="tt-lbl-lead" points="${LBL_X + 6},${it.labelY.toFixed(1)} ${ELBOW},${it.labelY.toFixed(1)} ${padL},${it.anchorY.toFixed(1)}" fill="none" stroke="${col}"/>`;
+        svg += `<circle class="tt-lbl-dot" cx="${padL}" cy="${it.anchorY.toFixed(1)}" r="2" fill="${col}"/>`;
+        svg += `<text class="tt-lbl" data-key="${escapeHtml(it.key)}" x="${LBL_X}" y="${(it.labelY + 3.5).toFixed(1)}" text-anchor="end" fill="${col}">${escapeHtml(labelForKey(it.key))}</text>`;
+      });
     }
 
+    svg += '</svg>';
+    chartEl.innerHTML = svg;
+    TMGEO = { xs, maxIdx, padT, chartH, padL, W };
+
+    if (legend) legend.hidden = true;
+
     const bands = Array.from(chartEl.querySelectorAll('.tt-band'));
-    const wrap = document.getElementById('river-wrap');
-    function highlight(key) { bands.forEach((b) => b.classList.toggle('is-dim', key != null && b.getAttribute('data-key') !== key)); }
+    const labelEls = Array.from(chartEl.querySelectorAll('.tt-lbl'));
+    function highlight(key) {
+      bands.forEach((b) => b.classList.toggle('is-dim', key != null && b.getAttribute('data-key') !== key));
+      labelEls.forEach((l) => l.classList.toggle('is-dim', key != null && l.getAttribute('data-key') !== key));
+    }
     function showTip(key, clientX, clientY) {
       if (!tooltip) return;
-      const last = valuesByYear[maxIdx], total = yearTotals[maxIdx] || 1;
-      const cnt = last[key] || 0, pct = (cnt / total) * 100, yr = years[maxIdx].year;
+      let ci = maxIdx;
+      const svgEl = chartEl.querySelector('.tt-river-svg');
+      if (svgEl) {
+        const r = svgEl.getBoundingClientRect();
+        const svgX = ((clientX - r.left) / r.width) * W;
+        let best = Infinity;
+        xs.forEach((x, i) => { const dx = Math.abs(x - svgX); if (dx < best) { best = dx; ci = i; } });
+      }
+      const row = valuesByCol[ci], total = colTotals[ci] || 1;
+      const cnt = row[key] || 0, pct = (cnt / total) * 100, when = cols[ci].label;
       let extra = '';
-      if (MODE === 'topics' && TOPIC_MAP[key]) {
+      if (STATE.mode === 'topics' && TOPIC_MAP[key]) {
         const prim = THEME_LABEL[TOPIC_MAP[key].primary] || '';
         const also = (TOPIC_MAP[key].also || []).map((t) => THEME_LABEL[t] || t);
         extra = `<div class="tt-tt-theme">${escapeHtml(prim)}${also.length ? ' · also ' + escapeHtml(also.join(', ')) : ''}</div>`;
@@ -321,7 +348,7 @@
       tooltip.innerHTML =
         `<div class="tt-tt-head"><span class="tt-legend-swatch" style="background:${colorForKey(key)}"></span>${escapeHtml(labelForKey(key))}</div>`
         + extra
-        + `<div class="tt-tt-sub">${pct.toFixed(1)}% of ${yr} · ${cnt} song${cnt === 1 ? '' : 's'}</div>`;
+        + `<div class="tt-tt-sub">${pct.toFixed(1)}% of ${escapeHtml(when)} · ${cnt} song${cnt === 1 ? '' : 's'}</div>`;
       tooltip.hidden = false;
       const wr = wrap.getBoundingClientRect();
       const px = clientX - wr.left, py = clientY - wr.top;
@@ -333,19 +360,110 @@
       if (k) { highlight(k); showTip(k, e.clientX, e.clientY); }
     };
     chartEl.onmouseleave = () => { highlight(null); if (tooltip) tooltip.hidden = true; };
-    if (legend) {
-      legend.onmouseover = (e) => { const it = e.target.closest('.tt-legend-item'); if (it) highlight(it.getAttribute('data-key')); };
-      legend.onmouseleave = () => highlight(null);
-    }
   }
 
-  function renderSingleYearField(year, status, chartEl, legend) {
-    if (!year) { if (status) status.textContent = 'No tagged years yet.'; return; }
-    if (status) {
-      status.hidden = false; status.classList.add('tt-chart-note');
-      status.innerHTML = `Only ${year.year} is tagged so far, so the river can&rsquo;t flow yet. Here is this year&rsquo;s field &mdash; the stream forms as more years are tagged.`;
+  // =========================================================================
+  // POINT (the Narrowing Index — effective topic/theme count line)
+  // =========================================================================
+  function renderPoint(cols, unit) {
+    const chartEl = document.getElementById('tt-chart');
+    const legend = document.getElementById('tt-legend');
+    const tooltip = document.getElementById('tt-tooltip');
+    const wrap = document.getElementById('tt-wrap');
+    legend.hidden = true;
+
+    const W = 960, H = 420, padL = 46, padR = 22, padT = 24, padB = 40;
+    const chartW = W - padL - padR, chartH = H - padT - padB, maxIdx = cols.length - 1;
+    const yMax = maxEffective();
+
+    const pts = cols.map((c, i) => {
+      const { items } = rollupCol(c);
+      const eff = effectiveCount(items.map((it) => it.count));
+      const distinct = items.filter((it) => it.count > 0).length;
+      return {
+        x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
+        y: padT + (1 - eff / yMax) * chartH,
+        label: c.label, axisLabel: c.axisLabel, year: c.year,
+        eff, distinct, songs: c.songs_with_topics,
+      };
+    });
+
+    const linePath = smoothPath(pts);
+    const areaPath = (maxIdx > 0)
+      ? linePath + ` L ${pts[maxIdx].x.toFixed(2)} ${(padT + chartH).toFixed(2)} L ${pts[0].x.toFixed(2)} ${(padT + chartH).toFixed(2)} Z`
+      : '';
+
+    let svg = `<svg class="tt-index-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Effective number of ${unitNoun(2)} over time">`;
+    svg += `<defs><linearGradient id="tt-index-area" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.28"/><stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/>
+      </linearGradient>
+      <clipPath id="tt-clip"><rect id="tt-clip-rect" x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>`;
+
+    const gridStep = yMax <= 8 ? 1 : 5;
+    for (let v = 0; v <= yMax; v += gridStep) {
+      const y = padT + (1 - v / yMax) * chartH;
+      svg += `<line class="tt-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"/>`;
+      svg += `<text class="tt-y-label" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
     }
-    const { items, total } = rollupYear(year);
+    svg += xAxisSvg(cols, pts.map((p) => p.x), unit, W, H, padT, chartH, padL, `Effective ${unitNoun(2)}`);
+
+    svg += '<g clip-path="url(#tt-clip)">';
+    if (areaPath) svg += `<path class="tt-index-area" d="${areaPath}" fill="url(#tt-index-area)"/>`;
+    svg += `<path class="tt-index-line" d="${linePath}" fill="none"/>`;
+    pts.forEach((p, i) => { svg += `<circle class="tt-index-dot" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"/>`; });
+    svg += '</g>';
+    svg += `<line id="tt-tm-marker" class="tt-tm-marker" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
+    svg += `<line id="tt-index-hline" class="tt-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
+    svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="tt-hover-area"/></svg>`;
+    chartEl.innerHTML = svg;
+    TMGEO = { xs: pts.map((p) => p.x), maxIdx, padT, chartH, padL, W };
+
+    const lineNode = chartEl.querySelector('.tt-index-line');
+    if (lineNode && lineNode.getTotalLength) {
+      const len = lineNode.getTotalLength();
+      lineNode.style.strokeDasharray = len;
+      lineNode.style.strokeDashoffset = len;
+      lineNode.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      requestAnimationFrame(() => requestAnimationFrame(() => { lineNode.style.strokeDashoffset = '0'; }));
+    }
+
+    const svgEl = chartEl.querySelector('.tt-index-svg');
+    const hline = chartEl.querySelector('#tt-index-hline');
+    function showAt(clientX) {
+      const rect = svgEl.getBoundingClientRect();
+      const svgX = ((clientX - rect.left) / rect.width) * W;
+      let near = 0, best = Infinity;
+      pts.forEach((p, i) => { const dx = Math.abs(p.x - svgX); if (dx < best) { best = dx; near = i; } });
+      const p = pts[near];
+      hline.setAttribute('x1', p.x.toFixed(1)); hline.setAttribute('x2', p.x.toFixed(1)); hline.style.display = '';
+      if (tooltip) {
+        const wr = wrap.getBoundingClientRect();
+        const px = clientX - wr.left;
+        tooltip.innerHTML =
+          `<div class="tt-tt-head">${escapeHtml(p.label)}</div>`
+          + `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}</span></div>`
+          + `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`;
+        tooltip.hidden = false;
+        tooltip.style.left = px + 'px';
+        tooltip.style.top = '12px';
+        tooltip.style.transform = px > wr.width * 0.7 ? 'translateX(-100%)' : px < wr.width * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
+      }
+    }
+    chartEl.onmousemove = (e) => showAt(e.clientX);
+    chartEl.onmouseleave = () => { hline.style.display = 'none'; if (tooltip) tooltip.hidden = true; };
+  }
+
+  // ---- Sparse / empty fallbacks -------------------------------------------
+  function renderField(cols) {
+    const chartEl = document.getElementById('tt-chart');
+    const legend = document.getElementById('tt-legend');
+    if (legend) legend.hidden = true;
+    if (!cols.length) {
+      chartEl.innerHTML = '<p class="tt-chart-note">No tagged data in this window yet.</p>';
+      return;
+    }
+    const col = cols[cols.length - 1];
+    const { items, total } = rollupCol(col);
     const rows = items.slice().sort((a, b) => b.count - a.count);
     const denom = total || 1;
     const maxShare = (rows[0] ? rows[0].count : 1) / denom;
@@ -357,7 +475,298 @@
         <span class="tt-field-pct">${pct.toFixed(1)}%</span>
       </div>`;
     }).join('')}</div>`;
-    if (legend) legend.hidden = true;
+  }
+
+  // ---- Chrome (mirrors the homepage trajectory panel exactly) --------------
+  let ovDrag = null, panDrag = null, gWired = false, tmDrawerOpen = false, rerafPending = false;
+
+  function fullLo() { return ALLYEARS[0].year; }
+  function fullHi() { return ALLYEARS[ALLYEARS.length - 1].year; }
+  function snapPreset(zoom) {
+    zoomHi = fullHi();
+    zoomLo = zoom === 'all' ? fullLo() : Math.max(fullLo(), zoomHi - (parseInt(zoom, 10) - 1));
+  }
+  function matchedPreset() {
+    if (zoomLo === fullLo() && zoomHi === fullHi()) return 'all';
+    if (zoomHi !== fullHi()) return null;
+    const span = zoomHi - zoomLo + 1;
+    return (span === 30 || span === 20 || span === 10) ? String(span) : null;
+  }
+  function markPresetActive() {
+    const active = matchedPreset();
+    document.querySelectorAll('#tt-presets .traj-zoom-btn').forEach((b) => {
+      b.classList.toggle('active', b.getAttribute('data-zoom') === active);
+    });
+  }
+  function updateZoomWindowLabel() {
+    const lbl = document.getElementById('tt-zoom-window');
+    if (lbl) lbl.textContent = `${zoomLo} – ${zoomHi}`;
+  }
+
+  // Build the inner chrome into the era-content host, mirroring the homepage
+  // historical container: zoom bar (window + presets + inline overview), the
+  // chart area, then the collapsible Time Machine drawer.
+  function buildHost() {
+    const host = document.getElementById('tt-host');
+    if (!host) return;
+    const isHist = STATE.period === 'historical';
+    let html = '';
+    if (isHist) {
+      html += '<div class="traj-zoom-bar">'
+        + '<span class="traj-zoom-window" id="tt-zoom-window" aria-live="polite"></span>'
+        + '<div class="traj-zoom-presets" id="tt-presets">'
+        + '<button class="traj-zoom-btn active" data-zoom="all" type="button">All</button>'
+        + '<button class="traj-zoom-btn" data-zoom="30" type="button">30Y</button>'
+        + '<button class="traj-zoom-btn" data-zoom="20" type="button">20Y</button>'
+        + '<button class="traj-zoom-btn" data-zoom="10" type="button">10Y</button>'
+        + '</div>'
+        + '<div class="traj-overview" id="tt-overview" role="slider" aria-label="Year range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>'
+        + '</div>';
+    }
+    html += '<div class="traj-chart-area" id="tt-wrap"><div id="tt-chart"></div><div class="tt-tooltip" id="tt-tooltip" hidden></div></div>';
+    if (isHist) {
+      html += '<button class="traj-tm-toggle" id="tt-tm-toggle" type="button" aria-expanded="false" aria-controls="tt-tm-drawer">'
+        + '<svg class="traj-tm-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.5"/><line class="traj-tm-clock-min" x1="12" y1="12" x2="12" y2="6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line class="traj-tm-clock-hr" x1="12" y1="12" x2="15.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>'
+        + '<span class="traj-tm-label">Time Machine</span>'
+        + '<svg class="traj-tm-chevron" viewBox="0 0 24 24" width="10" height="10" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        + '</button>'
+        + '<div class="traj-tm-drawer" id="tt-tm-drawer" inert><div class="traj-tm-drawer-inner"><div class="timemachine-controls" id="tt-tm"></div></div></div>';
+    }
+    html += '<div class="tt-legend" id="tt-legend" hidden></div>';
+    host.innerHTML = html;
+  }
+
+  // ---- Mini-overview locator + draggable brace (homepage classes) ----------
+  function renderOverview() {
+    const host = document.getElementById('tt-overview');
+    if (!host || !ALLYEARS.length) return;
+    const W = 320, H = 28, padT = 4, chartH = H - 8;
+    const yMax = maxEffective(), maxI = ALLYEARS.length - 1;
+    const pts = ALLYEARS.map((y, i) => ({
+      x: maxI > 0 ? (i / maxI) * W : W / 2,
+      y: padT + (1 - effectiveCount(rollupCol(y).items.map((it) => it.count)) / yMax) * chartH,
+    }));
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    host.innerHTML =
+      `<svg class="traj-overview-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="traj-overview-line" d="${d}" fill="none" stroke-width="1"/></svg>`
+      + `<div class="traj-overview-viewport" data-handle="pan">`
+      + `<div class="traj-overview-handle traj-overview-handle--left" data-handle="left"></div>`
+      + `<div class="traj-overview-handle traj-overview-handle--right" data-handle="right"></div>`
+      + `<div class="traj-overview-grip" aria-hidden="true"></div></div>`;
+  }
+  function updateBrace() {
+    const host = document.getElementById('tt-overview');
+    const vp = host && host.querySelector('.traj-overview-viewport');
+    if (!vp) return;
+    const span = Math.max(1, fullHi() - fullLo());
+    vp.style.left = (((zoomLo - fullLo()) / span) * 100) + '%';
+    vp.style.width = Math.max(2, ((zoomHi - zoomLo) / span) * 100) + '%';
+  }
+
+  // Re-render the chart only (during a drag), keeping brace + label synced.
+  function scheduleRerender() {
+    if (rerafPending) return;
+    rerafPending = true;
+    requestAnimationFrame(() => {
+      rerafPending = false;
+      const { cols, unit } = buildCols();
+      if (cols.length < 2) renderField(cols);
+      else if (STATE.chart === 'stream') renderStream(cols, unit);
+      else renderPoint(cols, unit);
+      updateBrace(); updateZoomWindowLabel(); resetClip();
+    });
+  }
+
+  // ---- Drag handlers (window listeners wired once; targets per render) -----
+  function ovStart(e) {
+    if (e.button !== 0) return;
+    const host = document.getElementById('tt-overview');
+    const rect = host.getBoundingClientRect();
+    const el = e.target.closest('[data-handle]');
+    if (el) { ovDrag = { handle: el.dataset.handle, x: e.clientX, s: zoomLo, e: zoomHi, width: rect.width || 1 }; host.classList.add('is-active'); }
+    else {
+      const lo = fullLo(), hi = fullHi();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const center = Math.round(lo + pct * (hi - lo)), w = zoomHi - zoomLo;
+      let ns = center - Math.floor(w / 2), ne = ns + w;
+      if (ns < lo) { ns = lo; ne = ns + w; } if (ne > hi) { ne = hi; ns = ne - w; }
+      zoomLo = ns; zoomHi = ne; render();
+    }
+    e.preventDefault();
+  }
+  function ovMove(clientX) {
+    if (!ovDrag) return;
+    const lo = fullLo(), hi = fullHi(), span = Math.max(1, hi - lo);
+    const dy = Math.round((clientX - ovDrag.x) / (ovDrag.width / span));
+    let ns = ovDrag.s, ne = ovDrag.e;
+    if (ovDrag.handle === 'pan') {
+      const w = ne - ns; ns += dy; ne = ns + w;
+      if (ns < lo) { ns = lo; ne = ns + w; }
+      if (ne > hi) { ne = hi; ns = ne - w; }
+    } else if (ovDrag.handle === 'left') ns = Math.max(lo, Math.min(ne - 1, ns + dy));
+    else if (ovDrag.handle === 'right') ne = Math.min(hi, Math.max(ns + 1, ne + dy));
+    if (ns !== zoomLo || ne !== zoomHi) { zoomLo = ns; zoomHi = ne; scheduleRerender(); }
+  }
+  function ovEnd() {
+    if (!ovDrag) return;
+    ovDrag = null;
+    const host = document.getElementById('tt-overview'); if (host) host.classList.remove('is-active');
+    render();
+  }
+  function panStart(e) {
+    if (e.button !== 0 || STATE.period !== 'historical') return;
+    const chartEl = document.getElementById('tt-chart');
+    panDrag = { x: e.clientX, y: e.clientY, s: zoomLo, e: zoomHi, width: chartEl.getBoundingClientRect().width || 1, moved: false };
+    e.preventDefault();
+  }
+  function panMove(clientX, clientY) {
+    if (!panDrag) return;
+    const dx = clientX - panDrag.x, dyv = clientY - panDrag.y;
+    if (!panDrag.moved && Math.abs(dx) < 4 && Math.abs(dyv) < 4) return;
+    panDrag.moved = true;
+    const lo = fullLo(), hi = fullHi(), initSpan = panDrag.e - panDrag.s + 1;
+    const shift = -dx / (panDrag.width / initSpan);
+    const target = Math.max(1, Math.round(initSpan * Math.pow(2, dyv / 200)));
+    const center = (panDrag.s + panDrag.e) / 2 + shift;
+    let ns = Math.round(center - target / 2), ne = ns + target - 1;
+    if (ns < lo) { ns = lo; ne = Math.min(hi, ns + target - 1); }
+    if (ne > hi) { ne = hi; ns = Math.max(lo, ne - target + 1); }
+    ns = Math.max(lo, ns); ne = Math.min(hi, ne);
+    if (ns !== zoomLo || ne !== zoomHi) { zoomLo = ns; zoomHi = ne; scheduleRerender(); }
+  }
+  function panEnd() {
+    if (panDrag && panDrag.moved) { panDrag = null; render(); } else panDrag = null;
+  }
+  function wireGlobalDrag() {
+    if (gWired) return;
+    gWired = true;
+    window.addEventListener('mousemove', (e) => { if (ovDrag) ovMove(e.clientX); else if (panDrag) panMove(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', () => { if (ovDrag) ovEnd(); else if (panDrag) panEnd(); });
+  }
+  function attachHistoricalChrome() {
+    const ov = document.getElementById('tt-overview'); if (ov) ov.onmousedown = ovStart;
+    const chartEl = document.getElementById('tt-chart'); if (chartEl) chartEl.onmousedown = panStart;
+    document.querySelectorAll('#tt-presets .traj-zoom-btn').forEach((btn) => {
+      btn.onclick = () => { snapPreset(btn.getAttribute('data-zoom')); render(); };
+    });
+    const toggle = document.getElementById('tt-tm-toggle');
+    if (toggle) toggle.onclick = () => { tmDrawerOpen = !tmDrawerOpen; applyDrawerState(); };
+    applyDrawerState();
+  }
+  function applyDrawerState() {
+    const d = document.getElementById('tt-tm-drawer'), t = document.getElementById('tt-tm-toggle');
+    if (d) { d.classList.toggle('is-open', tmDrawerOpen); if (tmDrawerOpen) d.removeAttribute('inert'); else d.setAttribute('inert', ''); }
+    if (t) t.setAttribute('aria-expanded', String(tmDrawerOpen));
+  }
+
+  // ---- Time Machine (homepage timemachine-* markup + ids) ------------------
+  function resetClip() {
+    const rectEl = document.getElementById('tt-clip-rect');
+    if (rectEl && TMGEO) rectEl.setAttribute('width', TMGEO.W);
+    const marker = document.getElementById('tt-tm-marker');
+    if (marker) marker.style.display = 'none';
+  }
+  function renderTM() {
+    const host = document.getElementById('tt-tm');
+    if (!host) return;
+    tmStop();
+    if (!TMGEO || TMGEO.maxIdx < 1) { host.innerHTML = ''; return; }
+    const max = TMGEO.maxIdx;
+    tmPos = max;
+    host.innerHTML = `
+      <div class="timemachine-wrap">
+        <input type="range" class="timemachine-slider" id="timemachine-slider" min="0" max="${max}" value="${max}" step="1" aria-label="Time machine slider">
+      </div>
+      <div class="timemachine-playback">
+        <button class="timemachine-play-btn" id="timemachine-rev" title="Play backward" aria-label="Play backward"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg></button>
+        <button class="timemachine-play-btn" id="timemachine-play" title="Play forward" aria-label="Play forward"><svg viewBox="0 0 24 24" width="14" height="14" id="timemachine-play-icon" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></button>
+        <button class="timemachine-play-btn" id="timemachine-fwd" title="Play forward fast" aria-label="Play forward fast"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg></button>
+        <div class="timemachine-progress"><div class="timemachine-progress-fill" id="timemachine-progress" style="width:100%"></div></div>
+        <button class="timemachine-speed-btn" id="timemachine-speed" aria-label="Playback speed">1x</button>
+        <button class="timemachine-reset" id="timemachine-reset" aria-label="Reset time machine" style="display:none;">Reset</button>
+      </div>`;
+    const slider = document.getElementById('timemachine-slider');
+    document.getElementById('timemachine-play').onclick = () => { if (tmPlaying) tmStop(); else tmPlay(1); };
+    document.getElementById('timemachine-rev').onclick = () => { if (tmPlaying && tmDir === -1) { tmStop(); return; } tmStop(); tmPlay(-1); };
+    document.getElementById('timemachine-fwd').onclick = () => { if (tmPlaying && tmDir === 1) { tmStop(); return; } tmStop(); tmPlay(1); };
+    document.getElementById('timemachine-speed').onclick = (e) => { tmSpeedIdx = (tmSpeedIdx + 1) % TM_SPEEDS.length; e.currentTarget.textContent = TM_SPEEDS[tmSpeedIdx] + 'x'; };
+    document.getElementById('timemachine-reset').onclick = () => { tmStop(); tmPos = max; updateTM(tmPos); document.getElementById('timemachine-reset').style.display = 'none'; };
+    slider.oninput = () => { tmStop(); tmPos = parseInt(slider.value, 10); updateTM(tmPos); };
+    resetClip();
+  }
+  function updateTM(pos) {
+    if (!TMGEO) return;
+    const max = TMGEO.maxIdx, i = Math.floor(pos), frac = pos - i;
+    const a = TMGEO.xs[Math.min(i, max)], b = TMGEO.xs[Math.min(i + 1, max)];
+    const px = a + (b - a) * frac;
+    const rectEl = document.getElementById('tt-clip-rect');
+    if (rectEl) rectEl.setAttribute('width', (px + 2).toFixed(1));
+    const marker = document.getElementById('tt-tm-marker');
+    if (marker) { marker.setAttribute('x1', px.toFixed(1)); marker.setAttribute('x2', px.toFixed(1)); marker.style.display = ''; }
+    const prog = document.getElementById('timemachine-progress');
+    if (prog) prog.style.width = (max > 0 ? (pos / max) * 100 : 100) + '%';
+    const slider = document.getElementById('timemachine-slider');
+    if (slider) slider.value = Math.round(pos);
+    const reset = document.getElementById('timemachine-reset');
+    if (reset) reset.style.display = pos < max ? '' : 'none';
+  }
+  function tmAnimate(ts) {
+    if (!tmPlaying) return;
+    if (!tmAnimate.last) tmAnimate.last = ts;
+    const dt = (ts - tmAnimate.last) / 1000; tmAnimate.last = ts;
+    const max = TMGEO ? TMGEO.maxIdx : 0;
+    tmPos += TM_BASE * TM_SPEEDS[tmSpeedIdx] * tmDir * dt;
+    if (tmDir === 1 && tmPos >= max) { tmPos = max; updateTM(tmPos); tmStop(); return; }
+    if (tmDir === -1 && tmPos <= 0) { tmPos = 0; updateTM(tmPos); tmStop(); return; }
+    updateTM(tmPos);
+    tmAnim = requestAnimationFrame(tmAnimate);
+  }
+  function tmPlay(dir) {
+    const max = TMGEO ? TMGEO.maxIdx : 0;
+    tmDir = dir;
+    if (dir === 1 && tmPos >= max) tmPos = 0;
+    if (dir === -1 && tmPos <= 0) tmPos = max;
+    tmPlaying = true; tmAnimate.last = null;
+    const playBtn = document.getElementById('timemachine-play');
+    const playIcon = document.getElementById('timemachine-play-icon');
+    if (playBtn) playBtn.classList.add('active');
+    if (playIcon) playIcon.innerHTML = '<rect fill="currentColor" x="6" y="4" width="4" height="16"/><rect fill="currentColor" x="14" y="4" width="4" height="16"/>';
+    tmAnim = requestAnimationFrame(tmAnimate);
+  }
+  function tmStop() {
+    tmPlaying = false;
+    if (tmAnim) cancelAnimationFrame(tmAnim);
+    const playBtn = document.getElementById('timemachine-play');
+    const playIcon = document.getElementById('timemachine-play-icon');
+    if (playBtn) playBtn.classList.remove('active');
+    if (playIcon) playIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
+  }
+
+  // ---- Dispatch ------------------------------------------------------------
+  function render() {
+    tmStop();
+    buildHost();   // rebuild the era-content chrome for the active period
+    const isHist = STATE.period === 'historical';
+    const sub = document.getElementById('tt-chart-sub');
+    const { cols, unit } = buildCols();
+
+    const periodPhrase = !isHist
+      ? 'the last 12 months'
+      : (zoomLo === fullLo() && zoomHi === fullHi() ? 'every tagged year' : `${zoomLo}–${zoomHi}`);
+    if (sub) {
+      sub.textContent = STATE.chart === 'stream'
+        ? `Share of each ${unit === 'month' ? 'month' : 'period'}'s ${STATE.mode === 'themes' ? 'themes' : 'topics'}, across ${periodPhrase}.`
+        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}. When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
+    }
+
+    if (cols.length < 2) { renderField(cols); TMGEO = null; }
+    else if (STATE.chart === 'stream') renderStream(cols, unit);
+    else renderPoint(cols, unit);
+
+    if (isHist) {
+      renderOverview(); updateBrace(); attachHistoricalChrome();
+      renderTM(); markPresetActive(); updateZoomWindowLabel();
+    }
   }
 
   // ---- Coverage caveat -----------------------------------------------------
@@ -374,45 +783,57 @@
     box.innerHTML = msg; box.hidden = false;
   }
 
-  function renderAll() { renderIndex(); renderRiver(); }
-
-  function wireToggle() {
-    const btns = Array.from(document.querySelectorAll('.tt-toggle-btn'));
-    btns.forEach((b) => b.addEventListener('click', () => {
-      const mode = b.getAttribute('data-mode');
-      if (mode === MODE) return;
-      MODE = mode;
-      btns.forEach((x) => {
-        const active = x === b;
-        x.classList.toggle('is-active', active);
-        x.setAttribute('aria-pressed', active ? 'true' : 'false');
+  // ---- Filters -------------------------------------------------------------
+  // The era-tabs (period) + the Chart/Group controls are static in the markup,
+  // so they're bound once. The zoom presets live in the per-render chrome and
+  // are wired in attachHistoricalChrome().
+  function wireFilters() {
+    function bind(attr, key) {
+      document.querySelectorAll(`[data-${attr}]`).forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const val = btn.getAttribute(`data-${attr}`);
+          if (STATE[key] === val) return;
+          STATE[key] = val;
+          document.querySelectorAll(`[data-${attr}]`).forEach((b) => {
+            const on = b === btn;
+            b.classList.toggle('active', on);
+            if (b.hasAttribute('aria-selected')) b.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          render();
+        });
       });
-      renderAll();
-    }));
+    }
+    bind('chart', 'chart');
+    bind('mode', 'mode');
+    bind('period', 'period');
   }
 
   // ---- Boot ----------------------------------------------------------------
   async function boot() {
     try {
-      DATA = await API.getTopicTrends();
+      [YEARLY, TRAIL] = await Promise.all([API.getTopicTrends(), API.getTopicTrendsTrailing()]);
     } catch (err) {
       console.error('Failed to load /topic-trends:', err);
-      const is = document.getElementById('index-status'); if (is) is.textContent = 'Could not load the index.';
-      const rs = document.getElementById('river-status'); if (rs) rs.textContent = 'Could not load the river.';
+      const s = document.getElementById('tt-status'); if (s) s.textContent = 'Could not load topic trends.';
       return;
     }
-    DATA.years = DATA.years || [];
-    const taxonomy = DATA.taxonomy || [];
-    const themes = DATA.themes || [];
+    YEARLY.years = YEARLY.years || [];
+    TRAIL = TRAIL || { periods: [] };
+    const taxonomy = YEARLY.taxonomy || [];
+    const themes = YEARLY.themes || [];
+    TAX_N = taxonomy.length || 30;
     TOPIC_MAP = {};
     taxonomy.forEach((t) => { TOPIC_MAP[t.slug] = { primary: t.primary, also: t.also || [] }; });
     THEME_LABEL = {}; THEME_ORDER = [];
     themes.forEach((t) => { THEME_LABEL[t.slug] = t.label; THEME_ORDER.push(t.slug); });
-    buildColors(taxonomy, themes);
 
-    renderCaveat(DATA.coverage);
-    wireToggle();
-    renderAll();
+    ALLYEARS = YEARLY.years.filter((y) => y.total_pairs > 0);
+    if (ALLYEARS.length) { zoomLo = ALLYEARS[0].year; zoomHi = ALLYEARS[ALLYEARS.length - 1].year; }
+
+    renderCaveat(YEARLY.coverage);
+    wireGlobalDrag();
+    wireFilters();
+    render();
   }
 
   document.addEventListener('DOMContentLoaded', boot);
