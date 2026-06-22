@@ -200,19 +200,21 @@ dry; Claude Code does the model's job and SUPPLIES the result, then writes it
 through the live server (`calibrate_song.py` POSTs to the prod `/lyrics`
 endpoint, which stores a supplied calibration with no model call).
 
-**Canonical rubric = LEC, NOT this repo.** LEC
-(`Local Sites/libra-engine-compass`) owns the v3 rubric. Load the latest dated
-golden snapshot `backend/app/rubric/lec-golden-<latest>/core.json` +
-`precedents.json` (currently `lec-golden-2026-06-18`, rubric_version
-`51a300921a63`) plus the v3 FORMAT from LEC's `lec_rubric_builder.py` /
-`lec_compass_agent_rubric.py`. Confirm it is live by matching that
-`rubric_version` against LEC prod `GET /api/rubric` before calibrating. This repo
-no longer carries any rubric copy: RC's `backend/app/services/agents/tenets/`
-mirror (and the whole in-process rubric apparatus) was REMOVED 2026-06-21, so the
-LEC golden is the only rubric source -- there is no local copy left to drift (it
-HAD been a week stale before removal: core.json 54,282 bytes / Jun 11 vs the
-golden's 57,467 / Jun 18). Reading LEC files or `/api/rubric` is not an Anthropic
-call -- it is just loading the rubric text.
+**Canonical rubric = LEC LIVE, NOT a local file (always pull it).** LEC owns the
+rubric, and the canonical copy is whatever LEC prod is serving NOW. **Pull it live
+from `GET /api/rubric`; do NOT calibrate against a local `lec-golden-*` snapshot.**
+The goldens are immutable pre-Decoupling reference snapshots and DRIFT behind the
+live deploy (verified 2026-06-22: live `716339b3385f` matched none of the three
+on-disk goldens `51a300921a63` / `9f0b59cbb111` / `ebcbf1a1a58d`). The endpoint is
+service-key gated, so query it from inside the RC backend container, which already
+holds `LEC_BASE_URL` (`http://lec:8012`) + `LEC_API_KEY`:
+`docker compose exec -T backend python3 -c "import os,urllib.request,json; req=urllib.request.Request(os.environ['LEC_BASE_URL']+'/api/rubric', headers={'X-Api-Key':os.environ['LEC_API_KEY']}); print(json.load(urllib.request.urlopen(req))['version'])"`.
+The response `rubric_text` is the full live system prompt (tiers, all 58 tenets,
+the live rule set, the routes, Start-at-Zero) — calibrate against that. This repo
+carries ZERO rubric/calibration code (the `agents/tenets/` mirror + the whole
+in-process apparatus were REMOVED 2026-06-21). Reading LEC files or `/api/rubric`
+is not an Anthropic call. (Local goldens are an OK offline fallback if prod is
+unreachable; note the version mismatch and treat them as approximate.)
 
 **No server-side prose generation from terminal.** The terminal `/lyrics` path
 (`calibrate_song.py` -> `_store_calibration` -> `record_and_reconcile`) calls
@@ -1418,53 +1420,59 @@ be closed to new accounts, so the client was rewritten to Buffer's GraphQL API.
 
 ## Sentinel Auditor Team (DEPLOYED DARK 2026-06-22)
 
-A bug-bounty-style red-team program: instead of defending RC's reputation from people
+A mission-driven red-team program: instead of defending RC's reputation from people
 hunting for holes in its results/algorithm, RC invites them in. Vetted outsiders apply,
 get approved, and file findings (inconsistencies, algorithm/methodology holes, data
-errors, suggestions); Chad triages each one; auditors earn reputation. **Ships DARK**
-behind the fail-closed flag `sentinel_auditor.enabled` -- the whole public surface 503s
-/ renders closed until an admin flips it; the admin triage side works while dark. Full
-spec: `RISING-COMPASS-SENTINEL-AUDITOR-SCOPE.md`.
+errors, suggestions); Chad triages each one. **NOT gamified** -- no score, no rank, no
+leaderboard, no payout; it is for people who care whether the readings are right. **Ships
+DARK** behind the fail-closed flag `sentinel_auditor.enabled` -- apply/me/findings 503 and
+the portal renders closed until an admin flips it; the admin triage side + the notify-me
+waitlist work while dark. Full spec: `RISING-COMPASS-SENTINEL-AUDITOR-SCOPE.md`.
 
-- **Locked design:** apply + admin approve; reputation-only (no credits); findings are
-  structured -- `scope='song'` (FK songs) OR `scope='general'` with a category enum
+- **Locked design:** apply + admin approve; NOT gamified (the only auditor-facing metric is
+  a plain contribution record, findings filed / confirmed); findings are structured --
+  `scope='song'` (FK songs) OR `scope='general'` with a category enum
   (algorithm/methodology/data/ux/other), an auditor-proposed severity the admin can override.
-- **Tables (migration 136, models in `models.py`):** `sentinel_auditors` (one row per
+- **Tables (migrations 136 + 137, models in `models.py`):** `sentinel_auditors` (one row per
   applying user, `user_id` UNIQUE, status pending|approved|rejected|revoked; mirrors the
   artist_verifications funnel) + `sentinel_findings` (auditor_id, song_id SET NULL, scope,
   category, title, description, evidence_url, proposed/accepted_severity, status,
-  disposition, points_awarded, `environment` local|prod). **Reputation is DERIVED** --
-  `points_awarded` is the only denorm, stamped when a finding enters `accepted` (from
-  accepted_severity, fallback proposed) and zeroed on reopen; leaderboard =
-  `SUM(points_awarded) WHERE status='accepted'`. Severity points 1/3/8/20; tiers
-  Recruit(0)/Scout(10)/Sentinel(40)/Vanguard(120).
+  disposition, points_awarded, `environment` local|prod) + `sentinel_waitlist` (email unique,
+  created_at, notified_at -- the notify-me list, mirrors `lyrical_charger_subscribers`).
+  `contribution()` (`{filed, confirmed}`) is the auditor-facing metric. `points_awarded` is
+  kept ONLY as an internal admin severity weight (stamped on entry to `accepted` from
+  accepted_severity/proposed `1/3/8/20`, zeroed on reopen); never shown to users. NO
+  leaderboard / tiers (removed in the de-gamification).
 - **Lifecycle (mirrors faultline_triage, in `services/sentinel.py`):**
   `new -> triaged -> investigating -> confirmed -> fixed -> accepted`, plus terminal
   `rejected|duplicate|wont_fix`; active -> any active/terminal, terminal -> reopen to
   {triaged,investigating} only, unknown status -> 400.
 - **Backend:** flag accessors in `feature_flags.py`; shared logic `services/sentinel.py`
-  (no HTTP/auth); public router `routers/sentinel.py` (prefix `/api/sentinel`, mounted
-  BARE, self-auths via `require_clerk_user`, reuses `analyzer.limiter` + bot check, every
-  endpoint but `/config` is 503 while dark, posting needs a claimed handle); admin router
-  `routers/sentinel_admin.py` (prefix `/api/admin/sentinel`, cookie auth, NOT flag-gated,
-  applications review + findings triage + severity + the flag toggle). Both registered in
-  `main.py`. Findings carry `environment=settings.environment`; the admin findings queue
-  defaults to `prod` (local-dev shares the tunnel DB -- filter to Local to see test rows).
+  (no HTTP/auth); waitlist dispatcher `services/sentinel_waitlist_notifier.py` (Resend,
+  mirrors `lc_subscriber_notifier`); public router `routers/sentinel.py` (prefix
+  `/api/sentinel`, mounted BARE, self-auths via `require_clerk_user`, reuses
+  `analyzer.limiter` + bot check; `/config` + `POST /waitlist` stay open while dark, the rest
+  503; posting findings needs a claimed handle); admin router `routers/sentinel_admin.py`
+  (prefix `/api/admin/sentinel`, cookie auth, NOT flag-gated, applications review + findings
+  triage + severity + flag toggle + `GET /waitlist` & `POST /waitlist/notify`). Both
+  registered in `main.py`. Findings carry `environment=settings.environment`; the admin
+  findings queue defaults to `prod` (local-dev shares the tunnel DB -- filter to Local).
 - **Admin UI:** Site Admin -> Community -> **Sentinel Auditors** (`templates/admin/sentinel.html`,
-  section `sentinel`, kept OUT of `API_ADMIN_SECTIONS`). Flag toggle + Applications/Findings subtabs.
-- **Frontend:** `frontend/sentinel/` (intake landing `index.html`, `portal/`, `leaderboard/`),
-  vanilla JS, `rc-elevated`, config-gated. The landing is an RC-idiom recruitment intake
-  (deadpan callout + charge-tier spectrum + an "Auditor intake" card); its marketing copy is
-  ALWAYS visible and the card adapts to the flag + sign-in state (dark -> "Intake is closed").
-  The portal song picker calls `/api/songs/search` which returns `{items:[...]}` (NOT
-  `{results}` -- that bit the first build). Footer link **"Become an Auditor" -> /sentinel/ is
-  LIVE** (Participate column) -- the landing is a public recruitment teaser even while dark.
+  section `sentinel`, kept OUT of `API_ADMIN_SECTIONS`). Flag toggle + waitlist count/notify
+  bar + Applications/Findings subtabs.
+- **Frontend:** `frontend/sentinel/` (intake landing `index.html` + `portal/`), vanilla JS,
+  `rc-elevated`, config-gated. The landing is an RC-idiom intake (deadpan callout +
+  charge-tier spectrum + an "Auditor intake" card); copy is ALWAYS visible and the card
+  adapts: dark -> a notify-me **waitlist** email form (`POST /api/sentinel/waitlist`); live
+  signed-out -> sign-in; live signed-in -> the application form. Portal shows a plain
+  contribution panel (filed/confirmed). The portal song picker calls `/api/songs/search`
+  which returns `{items:[...]}` (NOT `{results}` -- that bit the first build). Footer link
+  **"Become an Auditor" -> /sentinel/ is LIVE** (Participate column). NO leaderboard page.
 - **Go-live (separate step):** flip `POST /api/admin/sentinel/flag/toggle {"enabled":true}`
-  (opens apply + portal + leaderboard), then add `/sentinel/` to `sitemap.xml` (remove the
-  `sentinel` entry from `generate-sitemap.py`'s EXCLUDED_DIR_NAMES). **Pre-launch TODO:**
-  wire a visible Turnstile widget onto the apply/finding forms (honeypot + rate limits are
-  already active).
-- **Verified:** Playwright E2E 37/37 against a throwaway Postgres (dark gating, admin
-  toggle, real Clerk apply->approve->file->triage->reputation->leaderboard, reopen-zeroes-
-  points, re-dark). Prod confirmed live-but-dark (config `{enabled:false}`, `/me` 401,
-  `/leaderboard` 503).
+  (opens apply + portal), then add `/sentinel/` to `sitemap.xml` (remove the `sentinel` entry
+  from `generate-sitemap.py`'s EXCLUDED_DIR_NAMES). **Pre-launch TODO:** wire a visible
+  Turnstile widget onto the apply/finding forms (honeypot + rate limits are already active).
+- **Verified:** Playwright + throwaway Postgres (dark gating, admin flag toggle + waitlist,
+  real Clerk apply->approve->file->triage->accept, contribution counts, reopen-zeroes-points,
+  re-dark). Prod confirmed live-but-dark (config `{enabled:false}`, `/me` 401, `/leaderboard`
+  404, `/waitlist` POST-only).
