@@ -57,7 +57,7 @@ from app.models import (
 from app.routers.admin import verify_admin_key
 from app.auth import verify_admin_or_lyrics_key
 from app.services.recalibration import (
-    recalibrate_song_satire, recalibrate_song_rubric_update,
+    rc_recalibrate_satire, rc_recalibrate_rubric_update,
 )
 from app.services.calibration_corpus import (
     hash_lyrics, log_run, _seed_initial_run_if_missing, _derive_tier,
@@ -293,7 +293,7 @@ def start_recalibration(
 
     try:
         if data.lens == "satire":
-            result = recalibrate_song_satire(
+            result = rc_recalibrate_satire(
                 title=song.title,
                 artist=getattr(song, "artist", "") or "",
                 lyrics=data.lyrics,
@@ -303,7 +303,7 @@ def start_recalibration(
                 original_summary=original_summary,
             )
         else:
-            result = recalibrate_song_rubric_update(
+            result = rc_recalibrate_rubric_update(
                 title=song.title,
                 artist=getattr(song, "artist", "") or "",
                 lyrics=data.lyrics,

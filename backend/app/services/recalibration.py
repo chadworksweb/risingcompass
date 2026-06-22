@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 AGENT_MODEL = settings.agent_model
 
 
-def recalibrate_song_satire(
+def rc_recalibrate_satire(
     title: str,
     artist: str,
     lyrics: str,
@@ -78,7 +78,7 @@ def recalibrate_song_satire(
     }
 
 
-def recalibrate_song_rubric_update(
+def rc_recalibrate_rubric_update(
     title: str,
     artist: str,
     lyrics: str,

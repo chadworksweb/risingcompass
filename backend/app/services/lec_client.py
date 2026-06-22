@@ -10,8 +10,8 @@ generation, and persistence -- runs unchanged on the result.
 Fail-soft by contract: ANY problem (missing config, transport error, non-200,
 unscorable read, malformed body) returns None. There is no in-process scorer to
 fall back to -- it was deleted when LEC became RC's sole scorer (Phase 3). The
-callers (calibrator.calibrate_song_async, recalibration.recalibrate_song_rubric_update,
-recalibration.recalibrate_song_satire) turn None into an explicit needs-human-review
+callers (calibrator.calibrate_song_async, recalibration.rc_recalibrate_rubric_update,
+recalibration.rc_recalibrate_satire) turn None into an explicit needs-human-review
 result, never a defaulted verdict.
 LEC sits on the live scoring path, so this module must never harden a failure
 into a user-facing error -- it returns None and lets the caller decide.
