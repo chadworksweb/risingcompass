@@ -1452,13 +1452,18 @@ spec: `RISING-COMPASS-SENTINEL-AUDITOR-SCOPE.md`.
   defaults to `prod` (local-dev shares the tunnel DB -- filter to Local to see test rows).
 - **Admin UI:** Site Admin -> Community -> **Sentinel Auditors** (`templates/admin/sentinel.html`,
   section `sentinel`, kept OUT of `API_ADMIN_SECTIONS`). Flag toggle + Applications/Findings subtabs.
-- **Frontend:** `frontend/sentinel/` (landing+apply `index.html`, `portal/`, `leaderboard/`),
-  vanilla JS, `rc-elevated`, config-gated. The portal song picker calls `/api/songs/search`
-  which returns `{items:[...]}` (NOT `{results}` -- that bit the first build).
-- **Go-live (separate step):** flip `POST /api/admin/sentinel/flag/toggle {"enabled":true}`,
-  then add the footer link (`partials/footer.html` Participate column, re-bake) + a
-  `sitemap.xml` entry. **Pre-launch TODO:** wire a visible Turnstile widget onto the
-  apply/finding forms (honeypot + rate limits are already active).
+- **Frontend:** `frontend/sentinel/` (intake landing `index.html`, `portal/`, `leaderboard/`),
+  vanilla JS, `rc-elevated`, config-gated. The landing is an RC-idiom recruitment intake
+  (deadpan callout + charge-tier spectrum + an "Auditor intake" card); its marketing copy is
+  ALWAYS visible and the card adapts to the flag + sign-in state (dark -> "Intake is closed").
+  The portal song picker calls `/api/songs/search` which returns `{items:[...]}` (NOT
+  `{results}` -- that bit the first build). Footer link **"Become an Auditor" -> /sentinel/ is
+  LIVE** (Participate column) -- the landing is a public recruitment teaser even while dark.
+- **Go-live (separate step):** flip `POST /api/admin/sentinel/flag/toggle {"enabled":true}`
+  (opens apply + portal + leaderboard), then add `/sentinel/` to `sitemap.xml` (remove the
+  `sentinel` entry from `generate-sitemap.py`'s EXCLUDED_DIR_NAMES). **Pre-launch TODO:**
+  wire a visible Turnstile widget onto the apply/finding forms (honeypot + rate limits are
+  already active).
 - **Verified:** Playwright E2E 37/37 against a throwaway Postgres (dark gating, admin
   toggle, real Clerk apply->approve->file->triage->reputation->leaderboard, reopen-zeroes-
   points, re-dark). Prod confirmed live-but-dark (config `{enabled:false}`, `/me` 401,
