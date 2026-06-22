@@ -1,21 +1,21 @@
-"""Sentinel Auditor Team -- triage + reputation service.
+"""Sentinel Auditor Team -- triage service.
 
-The shared mutation core for the bug-bounty-style red-team program. Both the
-public router (auditors filing findings) and the admin router (triaging them)
-drive findings through this module, so the rules -- valid status transitions,
-severity points, the acceptance-point snapshot -- live in exactly one place. No
-HTTP, no auth here; callers pass actor_ref (the admin username or the auditor
-handle). Mirrors services/faultline_triage.py + services/clutter.py.
+The shared mutation core for the mission-driven red-team program. Both the public
+router (auditors filing findings) and the admin router (triaging them) drive
+findings through this module, so the rules -- valid status transitions, the
+acceptance stamp -- live in exactly one place. No HTTP, no auth here; callers pass
+actor_ref. Mirrors services/faultline_triage.py + services/clutter.py.
+
+This program is NOT gamified: no score, no rank, no leaderboard. The auditor-facing
+metric is just `contribution()` (findings filed / confirmed). `points_awarded`
+survives as an INTERNAL severity weight (admin-only signal of how serious a
+confirmed finding was); it is stamped when a finding ENTERS `accepted` (from
+accepted_severity, falling back to proposed_severity) and zeroed on reopen.
 
 Finding lifecycle:
 
     new -> triaged -> investigating -> confirmed -> fixed -> accepted   (valid path)
     new -> rejected | duplicate | wont_fix                              (dismissals)
-
-Reputation is DERIVED: `points_awarded` is a point-in-time snapshot stamped when
-a finding ENTERS `accepted` (from accepted_severity, falling back to
-proposed_severity) and zeroed if it is later reopened. The leaderboard sums
-points_awarded over accepted findings -- no running counter to keep in sync.
 """
 
 import logging
@@ -24,7 +24,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import SentinelAuditor, SentinelFinding, User
+from app.models import SentinelAuditor, SentinelFinding
 
 logger = logging.getLogger(__name__)
 
@@ -40,16 +40,6 @@ ACTIVE_STATUSES = {"new", "triaged", "investigating", "confirmed", "fixed"}
 TERMINAL_STATUSES = {"accepted", "rejected", "duplicate", "wont_fix"}
 ALL_STATUSES = ACTIVE_STATUSES | TERMINAL_STATUSES
 
-# --- reputation tiers (derived from total accepted points) ------------------
-# Ordered high -> low so tier_for_points returns the first one cleared.
-TIER_THRESHOLDS = [
-    (120, "Vanguard"),
-    (40, "Sentinel"),
-    (10, "Scout"),
-    (0, "Recruit"),
-]
-
-
 class TransitionError(ValueError):
     """Invalid status transition or bad input. Routers map this to a 400 so the
     caller (admin or auditor) sees why the move was rejected."""
@@ -61,13 +51,6 @@ def allowed_targets(current: str) -> set[str]:
     if current in ACTIVE_STATUSES:
         return (ACTIVE_STATUSES - {current}) | TERMINAL_STATUSES
     return {"triaged", "investigating"}  # reopen path out of a terminal state
-
-
-def tier_for_points(points: int) -> str:
-    for threshold, name in TIER_THRESHOLDS:
-        if points >= threshold:
-            return name
-    return "Recruit"
 
 
 # --- enrollment lookups -----------------------------------------------------
@@ -82,17 +65,16 @@ def is_approved_auditor(db: Session, user_id: int) -> bool:
     return bool(aud and aud.status == "approved")
 
 
-def reputation(db: Session, auditor_id: int) -> dict:
-    """Derived reputation for one auditor: summed accepted points + tier +
-    accepted-finding count. Reads only live (DB) state, no stored counter."""
-    row = (db.query(func.coalesce(func.sum(SentinelFinding.points_awarded), 0),
-                    func.count(SentinelFinding.id))
-           .filter(SentinelFinding.auditor_id == auditor_id,
-                   SentinelFinding.status == "accepted")
-           .one())
-    points = int(row[0] or 0)
-    return {"points": points, "tier": tier_for_points(points),
-            "accepted_count": int(row[1] or 0)}
+def contribution(db: Session, auditor_id: int) -> dict:
+    """An auditor's plain contribution record -- NOT a score. How many findings
+    they have filed and how many have been confirmed (status='accepted'). No
+    points, no tier, no ranking: this program is stewardship, not a game."""
+    filed = (db.query(func.count(SentinelFinding.id))
+             .filter(SentinelFinding.auditor_id == auditor_id).scalar()) or 0
+    confirmed = (db.query(func.count(SentinelFinding.id))
+                 .filter(SentinelFinding.auditor_id == auditor_id,
+                         SentinelFinding.status == "accepted").scalar()) or 0
+    return {"filed": int(filed), "confirmed": int(confirmed)}
 
 
 # --- finding creation -------------------------------------------------------
@@ -208,50 +190,3 @@ def set_severity(
         finding.points_awarded = SEVERITY_POINTS.get(accepted_severity, 0)
         finding.reviewed_by = actor_ref or finding.reviewed_by
     return finding
-
-
-# --- leaderboard (public once live) -----------------------------------------
-
-def leaderboard(db: Session, *, environment: str = "prod", limit: int = 50) -> list[dict]:
-    """Auditors ranked by summed accepted points. Reputation-only program: this
-    is the visible reward. Joins the auditor's handle (denormed snapshot, falling
-    back to the live users.handle)."""
-    limit = max(1, min(limit, 200))
-    rows = (
-        db.query(
-            SentinelFinding.auditor_id,
-            func.coalesce(func.sum(SentinelFinding.points_awarded), 0).label("points"),
-            func.count(SentinelFinding.id).label("accepted_count"),
-        )
-        .filter(SentinelFinding.status == "accepted",
-                SentinelFinding.environment == environment)
-        .group_by(SentinelFinding.auditor_id)
-        .order_by(func.sum(SentinelFinding.points_awarded).desc())
-        .limit(limit)
-        .all()
-    )
-    if not rows:
-        return []
-    auditor_ids = [r.auditor_id for r in rows]
-    auditors = {a.id: a for a in db.query(SentinelAuditor)
-                .filter(SentinelAuditor.id.in_(auditor_ids)).all()}
-    user_ids = [a.user_id for a in auditors.values()]
-    handles = {}
-    if user_ids:
-        for u in db.query(User).filter(User.id.in_(user_ids)).all():
-            handles[u.id] = u.handle
-    out = []
-    for rank, r in enumerate(rows, start=1):
-        aud = auditors.get(r.auditor_id)
-        handle = None
-        if aud:
-            handle = handles.get(aud.user_id) or aud.handle_snapshot
-        points = int(r.points or 0)
-        out.append({
-            "rank": rank,
-            "handle": handle or "auditor",
-            "points": points,
-            "tier": tier_for_points(points),
-            "accepted_count": int(r.accepted_count or 0),
-        })
-    return out

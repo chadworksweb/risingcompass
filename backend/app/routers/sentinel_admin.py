@@ -24,14 +24,16 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
-from app.models import SentinelAuditor, SentinelFinding, Song, SongSlug, User
+from app.models import SentinelAuditor, SentinelFinding, SentinelWaitlist, Song, SongSlug, User
 from app.routers.admin import verify_admin_key
 from app.services import sentinel
 from app.services.feature_flags import (
     is_sentinel_auditor_enabled,
     set_sentinel_auditor_enabled,
 )
+from app.services.sentinel_waitlist_notifier import notify_waitlist
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ def _iso(dt: datetime | None) -> str | None:
 
 # ---------- applications ----------
 
-def _app_row(a: SentinelAuditor, user: User | None, rep: dict | None) -> dict:
+def _app_row(a: SentinelAuditor, user: User | None, contrib: dict | None) -> dict:
     return {
         "id": a.id,
         "user_id": a.user_id,
@@ -59,7 +61,7 @@ def _app_row(a: SentinelAuditor, user: User | None, rep: dict | None) -> dict:
         "reviewed_by": a.reviewed_by,
         "reviewed_at": _iso(a.reviewed_at),
         "applied_at": _iso(a.applied_at),
-        "reputation": rep,
+        "contribution": contrib,
     }
 
 
@@ -81,7 +83,7 @@ def list_applications(
             users[u.id] = u
     return {"items": [
         _app_row(r, users.get(r.user_id),
-                 sentinel.reputation(db, r.id) if r.status == "approved" else None)
+                 sentinel.contribution(db, r.id) if r.status == "approved" else None)
         for r in rows
     ]}
 
@@ -290,3 +292,29 @@ def get_flag(db: Session = Depends(get_db)):
 def toggle_flag(data: FlagIn, db: Session = Depends(get_db)):
     set_sentinel_auditor_enabled(db, data.enabled)
     return {"enabled": is_sentinel_auditor_enabled(db)}
+
+
+# ---------- notify-me waitlist ----------
+
+@router.get("/waitlist", dependencies=[Depends(verify_admin_key)])
+def list_waitlist(db: Session = Depends(get_db)):
+    """Counts + the waitlist rows (emails captured while intake was closed)."""
+    total = db.query(func.count(SentinelWaitlist.id)).scalar() or 0
+    unnotified = (db.query(func.count(SentinelWaitlist.id))
+                  .filter(SentinelWaitlist.notified_at.is_(None)).scalar()) or 0
+    rows = (db.query(SentinelWaitlist)
+            .order_by(SentinelWaitlist.id.desc()).limit(500).all())
+    return {
+        "total": int(total),
+        "unnotified": int(unnotified),
+        "items": [{"id": r.id, "email": r.email,
+                   "created_at": _iso(r.created_at), "notified_at": _iso(r.notified_at)}
+                  for r in rows],
+    }
+
+
+@router.post("/waitlist/notify", dependencies=[Depends(verify_admin_key)])
+def notify_the_waitlist(db: Session = Depends(get_db)):
+    """Email everyone on the waitlist who has not been told yet that applications
+    are open. Idempotent: rows are stamped notified_at and skipped next time."""
+    return notify_waitlist(db, settings)

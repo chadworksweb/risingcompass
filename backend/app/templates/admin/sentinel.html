@@ -17,6 +17,14 @@
   <span style="color:#666;font-size:0.75rem;">Fail-closed: while OFF, every public Sentinel page and endpoint is dark (503).</span>
 </div>
 
+<!-- notify-me waitlist (emails captured while intake is dark) -->
+<div id="snWaitBar" style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.9rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;">
+  <strong style="font-size:0.85rem;">Notify-me waitlist:</strong>
+  <span id="snWaitState" style="font-size:0.85rem;color:#888;">—</span>
+  <button id="snWaitNotify" onclick="notifyWaitlist()" style="padding:0.3rem 0.9rem;font-size:0.8rem;">Email the unnotified</button>
+  <span id="snWaitMsg" style="color:#666;font-size:0.75rem;"></span>
+</div>
+
 <!-- subtabs -->
 <div class="filter-bar" id="snTabs">
   <button class="filter-btn active" onclick="snTab('apps')">Applications</button>
@@ -82,7 +90,33 @@ let findScope = '';
 
 function onAdminReady() {
   loadFlag();
+  loadWaitlist();
   loadAppStats(); loadApps();
+}
+
+async function loadWaitlist() {
+  try {
+    const resp = await fetch('/api/admin/sentinel/waitlist', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const w = await resp.json();
+    document.getElementById('snWaitState').textContent =
+      `${w.total} signed up, ${w.unnotified} not yet emailed`;
+  } catch (e) { console.error(e); }
+}
+async function notifyWaitlist() {
+  const btn = document.getElementById('snWaitNotify');
+  const msg = document.getElementById('snWaitMsg');
+  if (!confirm('Email everyone on the waitlist who has not been told yet?')) return;
+  btn.disabled = true; msg.textContent = 'Sending...';
+  try {
+    const resp = await fetch('/api/admin/sentinel/waitlist/notify', { method: 'POST', headers: adminHeaders() });
+    const r = await resp.json();
+    msg.textContent = r.configured === false
+      ? 'Email is not configured on this host.'
+      : `Sent ${r.sent}, failed ${r.failed}.`;
+    loadWaitlist();
+  } catch (e) { msg.textContent = 'Notify failed.'; console.error(e); }
+  finally { btn.disabled = false; }
 }
 
 // ---------- subtabs ----------
@@ -166,7 +200,7 @@ function renderApp(a) {
   } else {
     actions = `<button onclick="reviewApp(${a.id},'approve')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#3a3;">Approve</button>`;
   }
-  const rep = a.reputation ? ` &middot; ${a.reputation.points} pts (${escHtml(a.reputation.tier)})` : '';
+  const rep = a.contribution ? ` &middot; ${a.contribution.confirmed}/${a.contribution.filed} confirmed` : '';
   const by = a.reviewed_by ? ` &middot; by ${escHtml(a.reviewed_by)}` : '';
   return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
     <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
@@ -242,7 +276,7 @@ function renderFinding(f) {
   }
   const sevSelect = SEVERITIES.map(s => `<option value="${s}" ${s === (f.accepted_severity || '') ? 'selected' : ''}>${s}</option>`).join('');
   const statusSelect = STATUSES.map(s => `<option value="${s}" ${s === f.status ? 'selected' : ''}>${s}</option>`).join('');
-  const pts = f.points_awarded ? ` &middot; ${f.points_awarded} pts` : '';
+  const pts = '';
   const disp = f.disposition ? `<div style="color:#577;font-size:0.78rem;margin-top:0.35rem;">Disposition: ${escHtml(f.disposition)}</div>` : '';
   const ev = f.evidence_url ? ` &middot; <a href="${escHtml(f.evidence_url)}" target="_blank" rel="noopener" style="color:var(--accent);">evidence</a>` : '';
   return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">

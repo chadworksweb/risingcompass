@@ -56,10 +56,9 @@
     // approved
     setState('');
     $('sn-approved').hidden = false;
-    const rep = me.reputation || { points: 0, tier: 'Recruit', accepted_count: 0 };
-    $('sn-points').textContent = rep.points;
-    $('sn-tier').textContent = rep.tier;
-    $('sn-accepted').textContent = rep.accepted_count;
+    const c = me.contribution || { filed: 0, confirmed: 0 };
+    $('sn-filed').textContent = c.filed;
+    $('sn-confirmed').textContent = c.confirmed;
     wireScopeToggle();
     wireSongPicker();
     wireFindingForm();
@@ -181,13 +180,12 @@
             : esc(f.song_title || '(song removed)'))
         : 'general / ' + esc(f.category);
       const sev = f.accepted_severity || f.proposed_severity;
-      const pts = f.points_awarded ? ' &middot; ' + f.points_awarded + ' pts' : '';
       const disp = f.disposition ? '<div class="sn-disp">Reply: ' + esc(f.disposition) + '</div>' : '';
       return '<div class="sn-finding">'
         + '<div class="sn-fhead"><div>'
         + '<span class="sn-status">' + esc(STATUS_LABEL[f.status] || f.status) + '</span> '
         + '<strong style="margin-left:.4rem;">' + esc(f.title) + '</strong></div>'
-        + '<div style="color:#888;font-size:.78rem;">' + esc(sev) + pts + '</div></div>'
+        + '<div style="color:#888;font-size:.78rem;">' + esc(sev) + '</div></div>'
         + '<div style="color:#9a9aac;font-size:.8rem;margin-top:.25rem;">' + target + '</div>'
         + disp + '</div>';
     }).join('');

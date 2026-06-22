@@ -1,25 +1,27 @@
 /* Sentinel Auditor Team -- intake page.
-   The recruitment copy is always visible. The intake card adapts to the dark
-   flag + sign-in state: dark -> "not open"; live+signed-out -> sign-in;
-   live+signed-in -> the application form (or a pointer to the portal). */
+   Recruitment copy is always visible. The intake card adapts:
+   dark -> a "notify me when it opens" waitlist form;
+   live + signed-out -> sign-in;
+   live + signed-in -> the application form (or a pointer to the portal). */
 
 (function () {
   const $ = (id) => document.getElementById(id);
   const RETURN_TO = '/sentinel/';
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-  function note(html) {
-    const n = $('sn-intake-note');
-    if (n) { n.innerHTML = html; n.hidden = false; }
-    $('sn-apply-form').hidden = true;
+  function only(which) {
+    // show exactly one of: apply form, waitlist form, note
+    $('sn-apply-form').hidden = which !== 'apply';
+    $('sn-waitlist-form').hidden = which !== 'waitlist';
+    $('sn-intake-note').hidden = which !== 'note';
   }
-  function showForm() {
-    $('sn-intake-note').hidden = true;
-    $('sn-apply-form').hidden = false;
-    wireForm();
+  function note(html) {
+    $('sn-intake-note').innerHTML = html;
+    only('note');
   }
   function signInHref() {
     return '/account/?returnTo=' + encodeURIComponent(RETURN_TO);
@@ -29,8 +31,8 @@
     let cfg = null;
     try { cfg = await window.API.get('/api/sentinel/config'); } catch (_) {}
     if (!cfg || !cfg.enabled) {
-      note('<p class="sn-state-title">Intake is closed.</p>'
-        + '<p class="sn-state-sub">Applications open in waves. The desk reopens soon.</p>');
+      only('waitlist');
+      wireWaitlist();
       return;
     }
     try { if (window.Auth) await window.Auth.init(); } catch (_) {}
@@ -56,10 +58,11 @@
         + '<a class="sn-btn" href="/account/">Set up a handle</a>');
       return;
     }
-    showForm();
+    only('apply');
+    wireApply();
   }
 
-  function wireForm() {
+  function wireApply() {
     const form = $('sn-apply-form');
     if (!form || form.dataset.wired) return;
     form.dataset.wired = '1';
@@ -81,7 +84,7 @@
         }, { auth: true });
         msg.textContent = res.already_applied
           ? 'You have already applied. Status: ' + res.status + '.'
-          : 'Application received. We review every one by hand.';
+          : 'Application received. We read every one ourselves.';
         btn.textContent = 'Submitted';
         setTimeout(() => { window.location.href = '/sentinel/portal/'; }, 1400);
       } catch (err) {
@@ -93,6 +96,31 @@
         } else {
           msg.textContent = (err && err.message) ? err.message : 'Something went wrong. Try again.';
         }
+      }
+    });
+  }
+
+  function wireWaitlist() {
+    const form = $('sn-waitlist-form');
+    if (!form || form.dataset.wired) return;
+    form.dataset.wired = '1';
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = $('sn-wl-msg');
+      const btn = $('sn-wl-submit');
+      const email = $('sn-wl-email').value.trim();
+      if (!EMAIL_RE.test(email)) { msg.textContent = 'Please enter a valid email.'; return; }
+      btn.disabled = true;
+      msg.textContent = 'Adding you...';
+      try {
+        const res = await window.API.post('/api/sentinel/waitlist', {
+          email, hp_website: $('sn-wl-hp').value || null,
+        });
+        msg.textContent = res.message || 'You are on the list.';
+        btn.textContent = 'On the list';
+      } catch (err) {
+        btn.disabled = false;
+        msg.textContent = (err && err.message) ? err.message : 'Could not add you. Try again.';
       }
     });
   }

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sentinel Auditors - Rising Compass</title>
-  <meta name="description" content="Apply to read the readings. The Sentinel Auditor Team finds where the Rising Compass scores a song wrong.">
+  <meta name="description" content="For people who care whether the readings are right. Apply to help keep the Rising Compass honest, or ask to hear when applications open.">
   <!-- INCLUDE:analytics -->
 <link rel="stylesheet" href="/css/consent.css">
 <!-- PostHog + Google Analytics. Edit the config here, then run
@@ -158,10 +158,10 @@
       <h1>Read the readings.</h1>
       <p class="sn-deadpan">We put a number on every song we read. This is the desk where you tell us which numbers are wrong.</p>
       <p class="sn-intro">
-        The Rising Compass scores the charge of the music moving through culture. Any
-        instrument drifts. Most projects wait for critics to expose the drift in public;
-        we would rather hand you the panel and the login. Find a reading that does not
-        hold and put it on the record.
+        The Rising Compass scores the charge of the music moving through culture.
+        An instrument no one checks is just an opinion with a logo. This desk is for
+        people who care whether the readings are right and want to keep them that
+        way. Find a reading that does not hold, and we correct it in the open.
       </p>
     </header>
 
@@ -184,16 +184,16 @@
       <!-- the brief -->
       <section class="sn-brief">
         <h2 class="sn-brief-h">What counts as a finding</h2>
-        <p>A charge that does not match the lyric. A tier resting on the wrong side of a
-          line. A methodology claim that bends under a real case. A number with nothing
-          behind it. Aim at one song or at the system itself.</p>
+        <p>A charge that does not match the lyric. A tier resting on the wrong side of
+          a line. A methodology claim that bends under a real case. A number with
+          nothing behind it. Aim at one song or at the framework itself.</p>
 
         <h2 class="sn-brief-h">How intake runs</h2>
         <ol class="sn-steps">
           <li><span>Apply at this desk.</span></li>
           <li><span>We read every application ourselves.</span></li>
           <li><span>Approved auditors file findings against a song or the framework.</span></li>
-          <li><span>Confirmed findings earn rank on the <a href="/sentinel/leaderboard/">board</a>.</span></li>
+          <li><span>We re-examine each one and correct the record in the open.</span></li>
         </ol>
 
         <div class="sn-chips" aria-label="Finding categories">
@@ -204,15 +204,16 @@
           <span class="sn-chip" style="--c:#888">Anything else</span>
         </div>
 
-        <p class="sn-pay">No fee and no payout. The reward is standing: severity-weighted
-          points and a place on the leaderboard. The holes you surface get fixed, with your
-          name on them.</p>
+        <p class="sn-pay">No score, no rank, no payout. This is stewardship of the
+          instrument, not a contest. What you get back is a Compass that holds up, and
+          corrections that carry your name where they land.</p>
       </section>
 
       <!-- the intake card -->
       <aside class="sn-intake card">
         <div class="card-header">Auditor intake</div>
         <div class="sn-intake-body">
+          <!-- live + approved-able: the application -->
           <form id="sn-apply-form" hidden>
             <label class="sn-field">
               <span>Where do you want to dig?</span>
@@ -233,6 +234,22 @@
             <button type="submit" class="sn-btn" id="sn-apply-submit">Submit application</button>
             <p class="sn-form-msg" id="sn-apply-msg" role="status"></p>
           </form>
+
+          <!-- dark: ask to be told when intake opens -->
+          <form id="sn-waitlist-form" hidden>
+            <p class="sn-state-title">Intake is closed right now.</p>
+            <p class="sn-state-sub">Applications open in waves. Leave an email and we
+              will write the moment the desk reopens.</p>
+            <label class="sn-field">
+              <span>Email</span>
+              <input type="email" class="sn-input" id="sn-wl-email" maxlength="254" required
+                placeholder="you@example.com">
+            </label>
+            <input type="text" id="sn-wl-hp" class="sn-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button type="submit" class="sn-btn" id="sn-wl-submit">Notify me when it opens</button>
+            <p class="sn-form-msg" id="sn-wl-msg" role="status"></p>
+          </form>
+
           <div id="sn-intake-note"><p class="sn-state-sub">Checking the desk...</p></div>
         </div>
       </aside>

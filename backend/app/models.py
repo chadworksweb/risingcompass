@@ -2007,6 +2007,19 @@ class SentinelFinding(Base):
     )
 
 
+class SentinelWaitlist(Base):
+    """Sentinel Auditor Team -- notify-me list captured on the landing while
+    applications are closed. Single-step capture (no double opt-in); mirrors
+    LyricalChargerSubscriber. A manual admin dispatch emails everyone unnotified
+    when intake opens and stamps notified_at. Isolated from rc_subscribers."""
+    __tablename__ = "sentinel_waitlist"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(Text, nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    notified_at = Column(DateTime, nullable=True)
+
+
 class SongMergeCandidate(Base):
     """Song identity-resolution Phase 2: the human-audit queue for likely
     DUPLICATE song rows (the same song minted twice under different formatting).

@@ -1,10 +1,11 @@
 """Sentinel Auditor Team -- public API (ships DARK).
 
-The bug-bounty-style red-team program: vetted outsiders apply, dig through the
-platform, and file findings against RC's results/algorithm. Apply + admin
-approve; reputation-only reward. Every endpoint except /config is gated by the
-fail-closed flag `sentinel_auditor.enabled` (503 while dark), so the whole public
-surface stays invisible until launch. The admin triage side
+A mission-driven red-team program: people who care whether the readings are right
+apply, dig through the platform, and file findings against RC's results/algorithm.
+Apply + admin approve. NOT gamified -- no score, no rank, no leaderboard; the
+reward is a Compass that holds up. Findings + /me are gated by the fail-closed
+flag `sentinel_auditor.enabled` (503 while dark); the waitlist + /config stay open
+so people can register interest while intake is closed. The admin triage side
 (routers/sentinel_admin.py) is NOT gated by the flag, so Chad can configure and
 review while the public side is dark.
 
@@ -16,18 +17,20 @@ audience_resonance does.
 """
 
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.auth import require_clerk_user
-from app.config import settings
-from app.models import SentinelAuditor, SentinelFinding, Song, SongSlug, User
+from app.models import SentinelAuditor, SentinelFinding, SentinelWaitlist, Song, SongSlug, User
 from app.services import sentinel
 from app.services.feature_flags import is_sentinel_auditor_enabled
 from app.routers.analyzer import limiter, _check_bot_protection
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,40 @@ def config(db: Session = Depends(get_db)):
     return {"enabled": is_sentinel_auditor_enabled(db)}
 
 
+# ---------- notify-me waitlist (always available, even while dark) ----------
+
+class WaitlistIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    hp_website: str | None = None
+    turnstile_token: str | None = None
+
+
+@router.post("/waitlist")
+@limiter.limit("5/hour")
+async def join_waitlist(body: WaitlistIn, request: Request):
+    """Capture an email so we can let the person know when applications open.
+    Intentionally NOT gated by the dark flag -- the whole point is to collect
+    interest while intake is closed. Honeypot + Turnstile still apply. Single-step
+    (no double opt-in), deduped by email; mirrors the LC return-online list."""
+    await _check_bot_protection(body.hp_website or "", body.turnstile_token or "", request)
+    email = body.email.strip().lower()
+    if not _EMAIL_RE.match(email) or len(email) > 254:
+        raise HTTPException(422, "Please enter a valid email address.")
+    db = SessionLocal()
+    try:
+        existing = (db.query(SentinelWaitlist)
+                    .filter(SentinelWaitlist.email == email).first())
+        if existing:
+            return {"status": "already_on_list",
+                    "message": "You are already on the list. We will write when intake opens."}
+        db.add(SentinelWaitlist(email=email))
+        db.commit()
+        return {"status": "joined",
+                "message": "Thank you. We will write the moment applications open."}
+    finally:
+        db.close()
+
+
 # ---------- enrollment ----------
 
 @router.post("/apply")
@@ -139,7 +176,8 @@ def me(
     db: Session = Depends(get_db),
     user: User = Depends(require_clerk_user),
 ):
-    """The signed-in user's auditor state: enrollment status + derived reputation.
+    """The signed-in user's auditor state: enrollment status + a plain
+    contribution record (findings filed / confirmed). No score, no rank.
     `auditor_status` is None when they have never applied."""
     _require_live(db)
     aud = sentinel.get_or_none_auditor(db, user.id)
@@ -150,7 +188,7 @@ def me(
             "has_handle": bool(user.handle),
             "focus_area": None,
             "applied_at": None,
-            "reputation": {"points": 0, "tier": "Recruit", "accepted_count": 0},
+            "contribution": {"filed": 0, "confirmed": 0},
         }
     return {
         "auditor_status": aud.status,
@@ -158,7 +196,7 @@ def me(
         "has_handle": bool(user.handle),
         "focus_area": aud.focus_area,
         "applied_at": _iso(aud.applied_at),
-        "reputation": sentinel.reputation(db, aud.id),
+        "contribution": sentinel.contribution(db, aud.id),
     }
 
 
@@ -228,15 +266,3 @@ def my_findings(
             slugs.setdefault(sl.song_id, sl.slug)
     return {"items": [_finding_row(r, songs.get(r.song_id), slugs.get(r.song_id))
                       for r in rows]}
-
-
-# ---------- leaderboard (public once live) ----------
-
-@router.get("/leaderboard")
-def public_leaderboard(db: Session = Depends(get_db)):
-    """Reputation ranking -- the visible reward in this reputation-only program.
-    Filters to the running environment so local dev sees local findings and prod
-    sees prod."""
-    _require_live(db)
-    board = sentinel.leaderboard(db, environment=settings.environment, limit=50)
-    return {"leaderboard": board}
