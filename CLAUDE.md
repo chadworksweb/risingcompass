@@ -1415,3 +1415,51 @@ be closed to new accounts, so the client was rewritten to Buffer's GraphQL API.
   a single song" search panel atop `templates/admin/social.html`. **BUILT local,
   py-compile clean, NOT deployed/smoke-tested.** Full reference:
   `RISING-COMPASS-SOCIAL-BROADCASTER.md` "Single-song publish".
+
+## Sentinel Auditor Team (DEPLOYED DARK 2026-06-22)
+
+A bug-bounty-style red-team program: instead of defending RC's reputation from people
+hunting for holes in its results/algorithm, RC invites them in. Vetted outsiders apply,
+get approved, and file findings (inconsistencies, algorithm/methodology holes, data
+errors, suggestions); Chad triages each one; auditors earn reputation. **Ships DARK**
+behind the fail-closed flag `sentinel_auditor.enabled` -- the whole public surface 503s
+/ renders closed until an admin flips it; the admin triage side works while dark. Full
+spec: `RISING-COMPASS-SENTINEL-AUDITOR-SCOPE.md`.
+
+- **Locked design:** apply + admin approve; reputation-only (no credits); findings are
+  structured -- `scope='song'` (FK songs) OR `scope='general'` with a category enum
+  (algorithm/methodology/data/ux/other), an auditor-proposed severity the admin can override.
+- **Tables (migration 136, models in `models.py`):** `sentinel_auditors` (one row per
+  applying user, `user_id` UNIQUE, status pending|approved|rejected|revoked; mirrors the
+  artist_verifications funnel) + `sentinel_findings` (auditor_id, song_id SET NULL, scope,
+  category, title, description, evidence_url, proposed/accepted_severity, status,
+  disposition, points_awarded, `environment` local|prod). **Reputation is DERIVED** --
+  `points_awarded` is the only denorm, stamped when a finding enters `accepted` (from
+  accepted_severity, fallback proposed) and zeroed on reopen; leaderboard =
+  `SUM(points_awarded) WHERE status='accepted'`. Severity points 1/3/8/20; tiers
+  Recruit(0)/Scout(10)/Sentinel(40)/Vanguard(120).
+- **Lifecycle (mirrors faultline_triage, in `services/sentinel.py`):**
+  `new -> triaged -> investigating -> confirmed -> fixed -> accepted`, plus terminal
+  `rejected|duplicate|wont_fix`; active -> any active/terminal, terminal -> reopen to
+  {triaged,investigating} only, unknown status -> 400.
+- **Backend:** flag accessors in `feature_flags.py`; shared logic `services/sentinel.py`
+  (no HTTP/auth); public router `routers/sentinel.py` (prefix `/api/sentinel`, mounted
+  BARE, self-auths via `require_clerk_user`, reuses `analyzer.limiter` + bot check, every
+  endpoint but `/config` is 503 while dark, posting needs a claimed handle); admin router
+  `routers/sentinel_admin.py` (prefix `/api/admin/sentinel`, cookie auth, NOT flag-gated,
+  applications review + findings triage + severity + the flag toggle). Both registered in
+  `main.py`. Findings carry `environment=settings.environment`; the admin findings queue
+  defaults to `prod` (local-dev shares the tunnel DB -- filter to Local to see test rows).
+- **Admin UI:** Site Admin -> Community -> **Sentinel Auditors** (`templates/admin/sentinel.html`,
+  section `sentinel`, kept OUT of `API_ADMIN_SECTIONS`). Flag toggle + Applications/Findings subtabs.
+- **Frontend:** `frontend/sentinel/` (landing+apply `index.html`, `portal/`, `leaderboard/`),
+  vanilla JS, `rc-elevated`, config-gated. The portal song picker calls `/api/songs/search`
+  which returns `{items:[...]}` (NOT `{results}` -- that bit the first build).
+- **Go-live (separate step):** flip `POST /api/admin/sentinel/flag/toggle {"enabled":true}`,
+  then add the footer link (`partials/footer.html` Participate column, re-bake) + a
+  `sitemap.xml` entry. **Pre-launch TODO:** wire a visible Turnstile widget onto the
+  apply/finding forms (honeypot + rate limits are already active).
+- **Verified:** Playwright E2E 37/37 against a throwaway Postgres (dark gating, admin
+  toggle, real Clerk apply->approve->file->triage->reputation->leaderboard, reopen-zeroes-
+  points, re-dark). Prod confirmed live-but-dark (config `{enabled:false}`, `/me` 401,
+  `/leaderboard` 503).
