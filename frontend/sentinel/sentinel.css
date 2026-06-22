@@ -334,3 +334,15 @@
 .sn-state-title { font-size: 1.05rem; margin: 0.2rem 0 0.3rem; color: var(--rc-text, #eeeef4); }
 .sn-state-sub { font-size: 0.9rem; color: var(--rc-text-soft, #c8c8d4); margin: 0 0 0.9rem; }
 .sn-state-sub + .sn-btn { margin-top: 0.2rem; }
+
+/* ---- intake landing layout (rebalanced rows) ---- */
+.sn-top  { display:grid; grid-template-columns: 1fr 1fr; gap: 2.2rem; align-items: start; }
+.sn-cols { display:grid; grid-template-columns: 1fr 1fr; gap: 2.2rem; align-items: start; }
+@media (max-width: 860px) {
+  .sn-top, .sn-cols { grid-template-columns: 1fr; gap: 1.6rem; }
+}
+.sn-head { max-width: none; }
+.sn-top .sn-intake { align-self: stretch; }
+/* spectrum spans the full row (1/1) between the two grids */
+.sn-spectrum-block { max-width: none; }
+.sn-pay { max-width: 80ch; margin-top: 1.6rem; }
