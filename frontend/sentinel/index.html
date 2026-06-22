@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sentinel Auditors - Rising Compass</title>
-  <meta name="description" content="Help us find the holes in our readings. Apply to join the Sentinel Auditor Team and audit the Rising Compass algorithm.">
+  <meta name="description" content="Apply to read the readings. The Sentinel Auditor Team finds where the Rising Compass scores a song wrong.">
   <!-- INCLUDE:analytics -->
 <link rel="stylesheet" href="/css/consent.css">
 <!-- PostHog + Google Analytics. Edit the config here, then run
@@ -153,81 +153,90 @@
 <!-- /INCLUDE:header -->
 
   <main class="sn-page">
-    <section class="sn-hero">
+    <header class="sn-head">
       <p class="sn-eyebrow">Sentinel Auditor Team</p>
-      <h1>Come find the holes in our readings.</h1>
-      <p class="sn-lede">
-        The Rising Compass scores songs, and any scoring system can be wrong. Most
-        projects wait for critics to expose the cracks in public. We would rather
-        hand you the flashlight. Audit the algorithm, challenge a verdict, dig into
-        the data, and tell us where it breaks.
+      <h1>Read the readings.</h1>
+      <p class="sn-deadpan">We put a number on every song we read. This is the desk where you tell us which numbers are wrong.</p>
+      <p class="sn-intro">
+        The Rising Compass scores the charge of the music moving through culture. Any
+        instrument drifts. Most projects wait for critics to expose the drift in public;
+        we would rather hand you the panel and the login. Find a reading that does not
+        hold and put it on the record.
       </p>
-      <div class="sn-cta-row" id="sn-cta"></div>
-    </section>
+    </header>
 
-    <section class="sn-band" id="sn-explainer">
-      <div class="sn-grid">
-        <div class="sn-cell">
-          <h3>What an auditor does</h3>
-          <p>
-            You go through the platform looking for inconsistencies: a song whose
-            charge does not match its lyrics, a methodology claim that does not hold,
-            a data error, or a rough edge worth fixing. You file each one as a
-            finding. We read every one.
-          </p>
-        </div>
-        <div class="sn-cell">
-          <h3>Why we invite you in</h3>
-          <p>
-            A reputation gets attacked from the outside whether or not you ask for
-            it. Opening the door turns that energy into something useful. The same
-            way a company pays researchers to break into its own systems, we want
-            sharp people probing ours before anyone else does.
-          </p>
-        </div>
-        <div class="sn-cell">
-          <h3>What you earn</h3>
-          <p>
-            Reputation. Confirmed findings carry points by severity, and the
-            <a href="/sentinel/leaderboard/">leaderboard</a> ranks the auditors who
-            have sharpened the Compass the most. No money, no credits. The standing
-            is the reward, and the work is on the record.
-          </p>
-        </div>
+    <!-- the charge spectrum: RC's signature scale -->
+    <section class="sn-spectrum-block" aria-hidden="true">
+      <div class="sn-spectrum">
+        <span style="--c:#aa54ff"></span>
+        <span style="--c:#3388ff"></span>
+        <span style="--c:#33cc55"></span>
+        <span style="--c:#ffbb33"></span>
+        <span style="--c:#ff3333"></span>
       </div>
+      <div class="sn-spectrum-labels">
+        <span>Ascended</span><span>Elevated</span><span>Decent</span><span>Degraded</span><span>Corrupted</span>
+      </div>
+      <p class="sn-spectrum-cap">Every song lands on one band. Your work is the ones we placed on the wrong one.</p>
     </section>
 
-    <section class="sn-apply" id="sn-apply" hidden>
-      <h2>Apply to join</h2>
-      <p class="sn-apply-note">
-        Tell us where you want to dig and why. We review every application by hand.
-      </p>
-      <form id="sn-apply-form">
-        <label class="sn-field">
-          <span>Where do you want to focus?</span>
-          <select id="sn-focus" required>
-            <option value="algorithm">The algorithm and scoring</option>
-            <option value="methodology">The methodology and rubric</option>
-            <option value="data">Data accuracy</option>
-            <option value="ux">The site and experience</option>
-            <option value="other">Something else</option>
-          </select>
-        </label>
-        <label class="sn-field">
-          <span>Why you, and what will you look for?</span>
-          <textarea id="sn-motivation" rows="6" minlength="20" maxlength="4000" required
-            placeholder="A few sentences on your angle and what you expect to find."></textarea>
-        </label>
-        <input type="text" id="sn-hp" class="sn-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-        <button type="submit" class="sn-btn" id="sn-apply-submit">Submit application</button>
-        <p class="sn-form-msg" id="sn-apply-msg" role="status"></p>
-      </form>
-    </section>
+    <div class="sn-intake-grid">
+      <!-- the brief -->
+      <section class="sn-brief">
+        <h2 class="sn-brief-h">What counts as a finding</h2>
+        <p>A charge that does not match the lyric. A tier resting on the wrong side of a
+          line. A methodology claim that bends under a real case. A number with nothing
+          behind it. Aim at one song or at the system itself.</p>
 
-    <section class="sn-closed" id="sn-closed" hidden>
-      <h2>Not open yet</h2>
-      <p>The Sentinel Auditor Team is not accepting applications right now. Check back soon.</p>
-    </section>
+        <h2 class="sn-brief-h">How intake runs</h2>
+        <ol class="sn-steps">
+          <li><span>Apply at this desk.</span></li>
+          <li><span>We read every application ourselves.</span></li>
+          <li><span>Approved auditors file findings against a song or the framework.</span></li>
+          <li><span>Confirmed findings earn rank on the <a href="/sentinel/leaderboard/">board</a>.</span></li>
+        </ol>
+
+        <div class="sn-chips" aria-label="Finding categories">
+          <span class="sn-chip" style="--c:#3388ff">Algorithm</span>
+          <span class="sn-chip" style="--c:#33cc55">Methodology</span>
+          <span class="sn-chip" style="--c:#ffbb33">Data</span>
+          <span class="sn-chip" style="--c:#aa54ff">Interface</span>
+          <span class="sn-chip" style="--c:#888">Anything else</span>
+        </div>
+
+        <p class="sn-pay">No fee and no payout. The reward is standing: severity-weighted
+          points and a place on the leaderboard. The holes you surface get fixed, with your
+          name on them.</p>
+      </section>
+
+      <!-- the intake card -->
+      <aside class="sn-intake card">
+        <div class="card-header">Auditor intake</div>
+        <div class="sn-intake-body">
+          <form id="sn-apply-form" hidden>
+            <label class="sn-field">
+              <span>Where do you want to dig?</span>
+              <select id="sn-focus" required>
+                <option value="algorithm">The algorithm and scoring</option>
+                <option value="methodology">The methodology and rubric</option>
+                <option value="data">Data accuracy</option>
+                <option value="ux">The site and experience</option>
+                <option value="other">Something else</option>
+              </select>
+            </label>
+            <label class="sn-field">
+              <span>Why you, and what will you look for?</span>
+              <textarea id="sn-motivation" rows="6" minlength="20" maxlength="4000" required
+                placeholder="A few lines on your angle and what you expect to find."></textarea>
+            </label>
+            <input type="text" id="sn-hp" class="sn-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button type="submit" class="sn-btn" id="sn-apply-submit">Submit application</button>
+            <p class="sn-form-msg" id="sn-apply-msg" role="status"></p>
+          </form>
+          <div id="sn-intake-note"><p class="sn-state-sub">Checking the desk...</p></div>
+        </div>
+      </aside>
+    </div>
   </main>
 
   <!-- INCLUDE:footer -->
@@ -310,6 +319,7 @@
       <ul class="footer-links">
         <li><a href="/subscribe/">Subscribe</a></li>
         <li><a href="/account/">Account</a></li>
+        <li><a href="/sentinel/">Become an Auditor</a></li>
         <li><a href="https://lecg.libraengine.com/motion-desk/">Motion Desk</a></li>
         <li><a href="/audience-resonance/submit/">Share a Resonance</a></li>
       </ul>

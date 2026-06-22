@@ -199,3 +199,138 @@
 .sn-board th { color: var(--rc-text-soft, #9a9aac); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .sn-board .sn-rank { color: var(--rc-text-soft, #9a9aac); width: 3rem; }
 .sn-board .sn-pts { font-weight: 700; color: var(--rc-accent, #00d4aa); }
+
+/* ============================================================
+   Intake landing (recruitment page, RC instrument idiom)
+   ============================================================ */
+.sn-head { max-width: 70ch; }
+.sn-head h1 {
+  font-size: clamp(1.9rem, 4.2vw, 2.9rem);
+  line-height: 1.08;
+  margin: 0.2rem 0 0.9rem;
+}
+/* deadpan callout -- mirrors the one-line read RC gives each song */
+.sn-deadpan {
+  border-left: 3px solid var(--rc-accent, #00d4aa);
+  padding: 0.5rem 0 0.5rem 0.9rem;
+  margin: 0 0 1.1rem;
+  font-size: 1.12rem;
+  line-height: 1.45;
+  color: var(--rc-text, #eeeef4);
+}
+.sn-intro {
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--rc-text-soft, #c8c8d4);
+  margin: 0;
+}
+
+/* the charge spectrum: RC's five-band scale */
+.sn-spectrum-block { margin: 2.2rem 0 2.4rem; max-width: 760px; }
+.sn-spectrum {
+  display: flex;
+  height: 12px;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+}
+.sn-spectrum span { flex: 1; background: var(--c); }
+.sn-spectrum-labels {
+  display: flex;
+  margin-top: 0.45rem;
+}
+.sn-spectrum-labels span {
+  flex: 1;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-text-soft, #9a9aac);
+}
+.sn-spectrum-labels span:nth-child(2),
+.sn-spectrum-labels span:nth-child(3),
+.sn-spectrum-labels span:nth-child(4) { text-align: center; }
+.sn-spectrum-labels span:last-child { text-align: right; }
+.sn-spectrum-cap {
+  margin: 0.7rem 0 0;
+  font-size: 0.88rem;
+  color: var(--rc-text-soft, #c8c8d4);
+}
+
+/* intake layout: brief beside the application card */
+.sn-intake-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 2.2rem;
+  align-items: start;
+}
+@media (max-width: 860px) { .sn-intake-grid { grid-template-columns: 1fr; gap: 1.6rem; } }
+
+.sn-brief-h {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-accent, #00d4aa);
+  margin: 1.4rem 0 0.5rem;
+}
+.sn-brief-h:first-child { margin-top: 0; }
+.sn-brief p { font-size: 0.95rem; line-height: 1.6; color: var(--rc-text-soft, #c8c8d4); margin: 0; }
+
+.sn-steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0.2rem 0 0;
+  padding: 0;
+}
+.sn-steps li {
+  counter-increment: step;
+  display: flex;
+  gap: 0.7rem;
+  align-items: baseline;
+  padding: 0.4rem 0;
+  font-size: 0.95rem;
+  color: var(--rc-text, #eeeef4);
+}
+.sn-steps li::before {
+  content: counter(step);
+  flex: 0 0 auto;
+  width: 1.5rem; height: 1.5rem;
+  display: grid; place-items: center;
+  border: 1px solid var(--rc-accent, #00d4aa);
+  color: var(--rc-accent, #00d4aa);
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.sn-steps a { color: var(--rc-accent, #00d4aa); }
+
+.sn-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1.2rem 0 0; }
+.sn-chip {
+  font-size: 0.74rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  color: var(--c);
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+}
+.sn-pay {
+  margin: 1.3rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--rc-text-soft, #9a9aac);
+}
+
+/* application card */
+.sn-intake { padding: 0; overflow: hidden; }
+.sn-intake .card-header {
+  padding: 0.7rem 1.1rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-text-soft, #9a9aac);
+  border-bottom: 1px solid var(--rc-border, #2a2a3c);
+}
+.sn-intake-body { padding: 1.1rem; }
+.sn-intake-body #sn-apply-form { max-width: none; }
+.sn-state-title { font-size: 1.05rem; margin: 0.2rem 0 0.3rem; color: var(--rc-text, #eeeef4); }
+.sn-state-sub { font-size: 0.9rem; color: var(--rc-text-soft, #c8c8d4); margin: 0 0 0.9rem; }
+.sn-state-sub + .sn-btn { margin-top: 0.2rem; }
