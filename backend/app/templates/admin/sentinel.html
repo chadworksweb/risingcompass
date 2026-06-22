@@ -1,0 +1,301 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'sentinel' %}
+{% block title %}Sentinel Auditors — Admin{% endblock %}
+
+{% block content %}
+<p style="color:#888;font-size:0.82rem;margin:-0.2rem 0 0.7rem;">
+  The red-team program: outsiders apply to audit RC's results and algorithm, then
+  file findings. Review applications and triage findings here. This admin side
+  works while the public program is dark.
+</p>
+
+<!-- dark-launch flag -->
+<div id="snFlagBar" style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.9rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;">
+  <strong style="font-size:0.85rem;">Public program:</strong>
+  <span id="snFlagState" style="font-size:0.85rem;color:#888;">checking…</span>
+  <button id="snFlagToggle" onclick="toggleFlag()" style="padding:0.3rem 0.9rem;font-size:0.8rem;">—</button>
+  <span style="color:#666;font-size:0.75rem;">Fail-closed: while OFF, every public Sentinel page and endpoint is dark (503).</span>
+</div>
+
+<!-- subtabs -->
+<div class="filter-bar" id="snTabs">
+  <button class="filter-btn active" onclick="snTab('apps')">Applications</button>
+  <button class="filter-btn" onclick="snTab('findings')">Findings</button>
+</div>
+
+<!-- ===== Applications ===== -->
+<div id="snAppsPanel">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="val" id="snAppPending">—</div><div class="label">Pending</div></div>
+    <div class="stat-card"><div class="val" id="snAppApproved">—</div><div class="label">Approved</div></div>
+    <div class="stat-card"><div class="val" id="snAppRejected">—</div><div class="label">Rejected</div></div>
+  </div>
+  <div class="filter-bar" id="snAppStatusFilters">
+    <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">STATUS:</span>
+    <button class="filter-btn active" onclick="appFilter('pending')">Pending</button>
+    <button class="filter-btn" onclick="appFilter('approved')">Approved</button>
+    <button class="filter-btn" onclick="appFilter('rejected')">Rejected</button>
+    <button class="filter-btn" onclick="appFilter('revoked')">Revoked</button>
+    <button class="filter-btn" onclick="appFilter('')">All</button>
+  </div>
+  <div id="snAppList"></div>
+</div>
+
+<!-- ===== Findings ===== -->
+<div id="snFindingsPanel" style="display:none;">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="val" id="snFindOpen">—</div><div class="label">Open</div></div>
+    <div class="stat-card"><div class="val" id="snFindAccepted">—</div><div class="label">Accepted</div></div>
+  </div>
+  <div class="filter-bar" id="snFindEnvFilters">
+    <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">ENV:</span>
+    <button class="filter-btn active" onclick="findFilter('environment','prod')">Prod</button>
+    <button class="filter-btn" onclick="findFilter('environment','local')">Local</button>
+  </div>
+  <div class="filter-bar" id="snFindStatusFilters">
+    <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">STATUS:</span>
+    <button class="filter-btn active" onclick="findFilter('status','')">All</button>
+    <button class="filter-btn" onclick="findFilter('status','new')">New</button>
+    <button class="filter-btn" onclick="findFilter('status','triaged')">Triaged</button>
+    <button class="filter-btn" onclick="findFilter('status','investigating')">Investigating</button>
+    <button class="filter-btn" onclick="findFilter('status','confirmed')">Confirmed</button>
+    <button class="filter-btn" onclick="findFilter('status','accepted')">Accepted</button>
+  </div>
+  <div class="filter-bar" id="snFindScopeFilters">
+    <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">SCOPE:</span>
+    <button class="filter-btn active" onclick="findFilter('scope','')">All</button>
+    <button class="filter-btn" onclick="findFilter('scope','song')">Song</button>
+    <button class="filter-btn" onclick="findFilter('scope','general')">General</button>
+  </div>
+  <div id="snFindList"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SEVERITIES = ['low', 'medium', 'high', 'critical'];
+const STATUSES = ['new', 'triaged', 'investigating', 'confirmed', 'fixed', 'accepted', 'rejected', 'duplicate', 'wont_fix'];
+let appStatus = 'pending';
+let findEnv = 'prod';
+let findStatus = '';
+let findScope = '';
+
+function onAdminReady() {
+  loadFlag();
+  loadAppStats(); loadApps();
+}
+
+// ---------- subtabs ----------
+function snTab(which) {
+  document.getElementById('snAppsPanel').style.display = which === 'apps' ? '' : 'none';
+  document.getElementById('snFindingsPanel').style.display = which === 'findings' ? '' : 'none';
+  const bar = document.getElementById('snTabs');
+  bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (which === 'findings') { loadFindStats(); loadFindings(); }
+}
+
+// ---------- flag ----------
+async function loadFlag() {
+  try {
+    const resp = await fetch('/api/admin/sentinel/flag', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    renderFlag((await resp.json()).enabled);
+  } catch (e) { console.error(e); }
+}
+function renderFlag(enabled) {
+  const st = document.getElementById('snFlagState');
+  const btn = document.getElementById('snFlagToggle');
+  st.textContent = enabled ? 'LIVE (public)' : 'DARK (hidden)';
+  st.style.color = enabled ? '#3c3' : '#c93';
+  btn.textContent = enabled ? 'Take dark' : 'Go live';
+  btn.dataset.enabled = enabled ? '1' : '0';
+}
+async function toggleFlag() {
+  const btn = document.getElementById('snFlagToggle');
+  const next = btn.dataset.enabled !== '1';
+  if (next && !confirm('Open the Sentinel Auditor program to the public?')) return;
+  try {
+    const resp = await fetch('/api/admin/sentinel/flag/toggle', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ enabled: next }),
+    });
+    if (resp.ok) renderFlag((await resp.json()).enabled);
+  } catch (e) { console.error(e); }
+}
+
+// ---------- applications ----------
+function appFilter(val) {
+  appStatus = val;
+  const bar = document.getElementById('snAppStatusFilters');
+  bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadApps();
+}
+async function loadAppStats() {
+  try {
+    const resp = await fetch('/api/admin/sentinel/applications/stats', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const s = (await resp.json()).by_status || {};
+    document.getElementById('snAppPending').textContent = s.pending || 0;
+    document.getElementById('snAppApproved').textContent = s.approved || 0;
+    document.getElementById('snAppRejected').textContent = s.rejected || 0;
+  } catch (e) { console.error(e); }
+}
+async function loadApps() {
+  try {
+    const qs = appStatus ? ('?status=' + encodeURIComponent(appStatus)) : '';
+    const resp = await fetch('/api/admin/sentinel/applications' + qs, { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const rows = (await resp.json()).items || [];
+    const el = document.getElementById('snAppList');
+    if (!rows.length) { el.innerHTML = '<p style="color:#666;">No applications for this filter.</p>'; return; }
+    el.innerHTML = rows.map(renderApp).join('');
+  } catch (e) { console.error(e); }
+}
+function renderApp(a) {
+  const when = a.applied_at ? `<time data-utc="${escHtml(a.applied_at)}"></time>` : '—';
+  let actions = '';
+  if (a.status === 'pending') {
+    actions = `
+      <button onclick="reviewApp(${a.id},'approve')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#3a3;">Approve</button>
+      <button onclick="reviewApp(${a.id},'reject')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#c33;">Reject</button>`;
+  } else if (a.status === 'approved') {
+    actions = `<button onclick="reviewApp(${a.id},'revoke')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#c33;">Revoke</button>`;
+  } else {
+    actions = `<button onclick="reviewApp(${a.id},'approve')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#3a3;">Approve</button>`;
+  }
+  const rep = a.reputation ? ` &middot; ${a.reputation.points} pts (${escHtml(a.reputation.tier)})` : '';
+  const by = a.reviewed_by ? ` &middot; by ${escHtml(a.reviewed_by)}` : '';
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <span style="color:var(--accent);font-weight:bold;text-transform:uppercase;font-size:0.7rem;">${escHtml(a.status)}</span>
+        <strong style="margin-left:0.4rem;">@${escHtml(a.handle || 'unknown')}</strong>
+        <span style="color:#999;font-size:0.72rem;margin-left:0.4rem;">focus: ${escHtml(a.focus_area)}${rep}${by}</span>
+      </div>
+      <div style="color:#666;font-size:0.78rem;">${when}</div>
+    </div>
+    <div style="color:#444;font-size:0.82rem;margin-top:0.4rem;white-space:pre-wrap;">${escHtml(a.motivation || '')}</div>
+    <div style="margin-top:0.5rem;display:flex;gap:0.4rem;">${actions}</div>
+  </div>`;
+}
+async function reviewApp(id, action) {
+  if (action === 'revoke' && !confirm('Revoke this auditor? They can no longer file findings.')) return;
+  try {
+    const resp = await fetch('/api/admin/sentinel/applications/' + id + '/review', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ action }),
+    });
+    if (resp.ok) { loadAppStats(); loadApps(); }
+    else { const e = await resp.json().catch(() => ({})); alert('Failed: ' + (e.detail || resp.status)); }
+  } catch (e) { console.error(e); }
+}
+
+// ---------- findings ----------
+function findFilter(kind, val) {
+  if (kind === 'environment') findEnv = val;
+  else if (kind === 'status') findStatus = val;
+  else findScope = val;
+  const barId = kind === 'environment' ? 'snFindEnvFilters' : (kind === 'status' ? 'snFindStatusFilters' : 'snFindScopeFilters');
+  const bar = document.getElementById(barId);
+  bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadFindStats(); loadFindings();
+}
+async function loadFindStats() {
+  try {
+    const resp = await fetch('/api/admin/sentinel/findings/stats?environment=' + encodeURIComponent(findEnv), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const s = await resp.json();
+    document.getElementById('snFindOpen').textContent = s.open || 0;
+    document.getElementById('snFindAccepted').textContent = s.accepted || 0;
+  } catch (e) { console.error(e); }
+}
+async function loadFindings() {
+  try {
+    const qs = ['environment=' + encodeURIComponent(findEnv)];
+    if (findStatus) qs.push('status=' + encodeURIComponent(findStatus));
+    if (findScope) qs.push('scope=' + encodeURIComponent(findScope));
+    const resp = await fetch('/api/admin/sentinel/findings?' + qs.join('&'), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const rows = (await resp.json()).items || [];
+    const el = document.getElementById('snFindList');
+    if (!rows.length) { el.innerHTML = '<p style="color:#666;">Nothing in the queue for this filter.</p>'; return; }
+    el.innerHTML = rows.map(renderFinding).join('');
+  } catch (e) { console.error(e); }
+}
+const SEV_COLOR = { low: '#888', medium: '#39c', high: '#c93', critical: '#c33' };
+function renderFinding(f) {
+  const when = f.created_at ? `<time data-utc="${escHtml(f.created_at)}"></time>` : '—';
+  const sev = f.accepted_severity || f.proposed_severity;
+  const sevColor = SEV_COLOR[sev] || '#888';
+  let target;
+  if (f.scope === 'song') {
+    target = f.song_title
+      ? `<strong>${escHtml(f.song_title)}</strong> <span style="color:#777;">— ${escHtml(f.song_artist || '')}</span>` + (f.song_id ? ` <a href="/api/admin/dashboard/song/${f.song_id}" style="color:var(--accent);font-size:0.75rem;">admin</a>` : '')
+      : '<span style="color:#a55;font-style:italic;">(song removed)</span>';
+  } else {
+    target = `<span style="color:#999;">general &middot; ${escHtml(f.category)}</span>`;
+  }
+  const sevSelect = SEVERITIES.map(s => `<option value="${s}" ${s === (f.accepted_severity || '') ? 'selected' : ''}>${s}</option>`).join('');
+  const statusSelect = STATUSES.map(s => `<option value="${s}" ${s === f.status ? 'selected' : ''}>${s}</option>`).join('');
+  const pts = f.points_awarded ? ` &middot; ${f.points_awarded} pts` : '';
+  const disp = f.disposition ? `<div style="color:#577;font-size:0.78rem;margin-top:0.35rem;">Disposition: ${escHtml(f.disposition)}</div>` : '';
+  const ev = f.evidence_url ? ` &middot; <a href="${escHtml(f.evidence_url)}" target="_blank" rel="noopener" style="color:var(--accent);">evidence</a>` : '';
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <span style="color:var(--accent);font-weight:bold;text-transform:uppercase;font-size:0.7rem;">${escHtml(f.status)}</span>
+        <span style="color:${sevColor};font-size:0.7rem;font-weight:bold;margin-left:0.4rem;">${escHtml(sev)}${pts}</span>
+        <span style="margin-left:0.4rem;">@${escHtml(f.handle || 'auditor')}</span>
+        <span style="margin-left:0.5rem;">${target}</span>
+      </div>
+      <div style="color:#666;font-size:0.78rem;">${when}</div>
+    </div>
+    <div style="margin-top:0.4rem;"><strong>${escHtml(f.title)}</strong></div>
+    <div style="color:#444;font-size:0.82rem;margin-top:0.25rem;white-space:pre-wrap;">${escHtml(f.description || '')}${ev}</div>
+    ${disp}
+    <div style="margin-top:0.55rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:0.72rem;color:#888;">severity
+        <select id="sev-${f.id}" style="font-size:0.75rem;margin-left:0.2rem;">${sevSelect}</select>
+      </label>
+      <button onclick="saveSeverity(${f.id})" style="padding:0.22rem 0.6rem;font-size:0.72rem;">Set severity</button>
+      <span style="width:1px;height:18px;background:var(--border);"></span>
+      <label style="font-size:0.72rem;color:#888;">status
+        <select id="status-${f.id}" style="font-size:0.75rem;margin-left:0.2rem;">${statusSelect}</select>
+      </label>
+      <input id="disp-${f.id}" type="text" placeholder="disposition (optional)" style="font-size:0.75rem;padding:0.2rem 0.4rem;flex:1;min-width:160px;">
+      <button onclick="saveStatus(${f.id})" style="padding:0.22rem 0.6rem;font-size:0.72rem;">Apply status</button>
+    </div>
+  </div>`;
+}
+async function saveSeverity(id) {
+  const val = document.getElementById('sev-' + id).value;
+  try {
+    const resp = await fetch('/api/admin/sentinel/findings/' + id + '/severity', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ accepted_severity: val }),
+    });
+    if (resp.ok) { loadFindStats(); loadFindings(); }
+    else { const e = await resp.json().catch(() => ({})); alert('Failed: ' + (e.detail || resp.status)); }
+  } catch (e) { console.error(e); }
+}
+async function saveStatus(id) {
+  const to_status = document.getElementById('status-' + id).value;
+  const disposition = document.getElementById('disp-' + id).value || null;
+  try {
+    const resp = await fetch('/api/admin/sentinel/findings/' + id + '/status', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ to_status, disposition }),
+    });
+    if (resp.ok) { loadFindStats(); loadFindings(); }
+    else { const e = await resp.json().catch(() => ({})); alert('Failed: ' + (e.detail || resp.status)); }
+  } catch (e) { console.error(e); }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,201 @@
+/* Sentinel Auditor Team -- shared styles for the landing, portal, and
+   leaderboard pages. Builds on /css/main.css (rc-elevated palette). */
+
+.sn-page {
+  max-width: var(--rc-max-width, 1100px);
+  margin: 0 auto;
+  padding: 2.4rem 1.2rem 4rem;
+}
+
+.sn-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: var(--rc-accent, #00d4aa);
+  margin: 0 0 0.6rem;
+}
+
+.sn-hero h1 {
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+  line-height: 1.1;
+  margin: 0 0 0.9rem;
+}
+
+.sn-lede {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  max-width: 60ch;
+  color: var(--rc-text-soft, #c8c8d4);
+}
+
+.sn-cta-row {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.sn-btn {
+  display: inline-block;
+  padding: 0.65rem 1.3rem;
+  border-radius: 6px;
+  background: var(--rc-accent, #00d4aa);
+  color: #06121a;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.sn-btn:hover { filter: brightness(1.08); }
+
+.sn-btn-ghost {
+  background: transparent;
+  color: var(--rc-text, #eeeef4);
+  border-color: var(--rc-border, #3a3a52);
+}
+
+.sn-band {
+  margin-top: 2.6rem;
+  padding-top: 2.2rem;
+  border-top: 1px solid var(--rc-border, #2a2a3c);
+}
+
+.sn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.6rem;
+}
+
+.sn-cell h3 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+.sn-cell p {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--rc-text-soft, #c8c8d4);
+  margin: 0;
+}
+.sn-cell a { color: var(--rc-accent, #00d4aa); }
+
+/* ----- apply form ----- */
+.sn-apply, .sn-closed { margin-top: 2.8rem; }
+.sn-apply h2, .sn-closed h2 { font-size: 1.5rem; margin: 0 0 0.5rem; }
+.sn-apply-note { color: var(--rc-text-soft, #c8c8d4); font-size: 0.92rem; margin: 0 0 1.2rem; }
+
+#sn-apply-form { max-width: 620px; }
+.sn-field { display: block; margin-bottom: 1.1rem; }
+.sn-field > span {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+  color: var(--rc-text, #eeeef4);
+}
+.sn-field select,
+.sn-field textarea,
+.sn-input {
+  width: 100%;
+  background: var(--rc-input-bg, #1f1f30);
+  border: 1px solid var(--rc-border, #3a3a52);
+  border-radius: 6px;
+  color: var(--rc-text, #eeeef4);
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  font-size: 0.92rem;
+}
+.sn-field textarea { resize: vertical; }
+
+/* honeypot -- never shown to humans */
+.sn-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.sn-form-msg { margin-top: 0.8rem; font-size: 0.88rem; color: var(--rc-text-soft, #c8c8d4); min-height: 1.2em; }
+.sn-form-msg a { color: var(--rc-accent, #00d4aa); }
+
+/* ----- portal ----- */
+.sn-rep {
+  display: flex;
+  align-items: baseline;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  background: var(--rc-panel, #15151f);
+  border: 1px solid var(--rc-border, #2a2a3c);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin: 1rem 0 1.8rem;
+}
+.sn-rep .sn-points { font-size: 2rem; font-weight: 700; color: var(--rc-accent, #00d4aa); }
+.sn-rep .sn-tier { font-size: 1rem; color: var(--rc-text, #eeeef4); }
+.sn-rep .sn-rep-label { font-size: 0.78rem; color: var(--rc-text-soft, #9a9aac); text-transform: uppercase; letter-spacing: 0.08em; }
+
+.sn-scope-toggle { display: inline-flex; gap: 0.4rem; margin-bottom: 1.1rem; }
+.sn-scope-toggle button {
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--rc-border, #3a3a52);
+  background: transparent;
+  color: var(--rc-text, #eeeef4);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.sn-scope-toggle button.active {
+  background: var(--rc-accent, #00d4aa);
+  color: #06121a;
+  border-color: transparent;
+}
+
+.sn-picker-results {
+  border: 1px solid var(--rc-border, #3a3a52);
+  border-radius: 6px;
+  margin-top: 0.3rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.sn-picker-results .sn-pick {
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  border-bottom: 1px solid var(--rc-border, #2a2a3c);
+}
+.sn-picker-results .sn-pick:hover { background: var(--rc-input-bg, #1f1f30); }
+.sn-picked {
+  font-size: 0.88rem;
+  margin-top: 0.4rem;
+  color: var(--rc-text, #eeeef4);
+}
+.sn-picked button { margin-left: 0.5rem; background: none; border: none; color: #c66; cursor: pointer; font-size: 0.85rem; }
+
+.sn-findings { margin-top: 2.4rem; }
+.sn-finding {
+  background: var(--rc-panel, #15151f);
+  border: 1px solid var(--rc-border, #2a2a3c);
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.9rem;
+}
+.sn-finding .sn-fhead { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.sn-status {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+  font-weight: 700; padding: 1px 8px; border-radius: 3px;
+  background: rgba(0,212,170,0.14); color: var(--rc-accent, #00d4aa);
+}
+.sn-disp { margin-top: 0.4rem; font-size: 0.84rem; color: #7fb8b0; }
+
+/* ----- leaderboard ----- */
+.sn-board { width: 100%; border-collapse: collapse; margin-top: 1.2rem; }
+.sn-board th, .sn-board td {
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--rc-border, #2a2a3c);
+  font-size: 0.9rem;
+}
+.sn-board th { color: var(--rc-text-soft, #9a9aac); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.sn-board .sn-rank { color: var(--rc-text-soft, #9a9aac); width: 3rem; }
+.sn-board .sn-pts { font-weight: 700; color: var(--rc-accent, #00d4aa); }

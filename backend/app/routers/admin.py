@@ -194,6 +194,7 @@ _ADMIN_SECTIONS = {
     "taxonomy": "admin/taxonomy.html",
     "clutter": "admin/clutter.html",
     "song-merge": "admin/song_merge.html",
+    "sentinel": "admin/sentinel.html",
     "agents": "admin/agents.html",
     "subscribers": "admin/subscribers.html",
     "social": "admin/social.html",

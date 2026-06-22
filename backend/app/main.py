@@ -288,6 +288,12 @@ app.include_router(audience_resonance.router, dependencies=_public_read_dep)
 # authenticated hit.
 app.include_router(users.router)
 
+# Sentinel Auditor Team (ships DARK). Self-authenticates via Clerk
+# (require_clerk_user) -- no X-Api-Key gate, like users.router. Every endpoint
+# except /config is fail-closed behind sentinel_auditor.enabled (503 while dark).
+from app.routers import sentinel as sentinel_router
+app.include_router(sentinel_router.router)
+
 # Public geo lookup for the cookie consent bar's geo-aware default. No
 # X-Api-Key gate -- the consent bar loads standalone and calls it anonymously.
 from app.routers import geo
@@ -350,6 +356,8 @@ from app.routers import shield_admin
 app.include_router(shield_admin.router)
 from app.routers import launch_admin
 app.include_router(launch_admin.router)
+from app.routers import sentinel_admin
+app.include_router(sentinel_admin.router)  # Site Admin -> Sentinel Auditors (cookie auth)
 from app.routers import provenance
 app.include_router(provenance.router)
 from app.routers import faultline as faultline_router

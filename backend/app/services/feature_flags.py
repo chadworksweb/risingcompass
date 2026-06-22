@@ -431,3 +431,23 @@ def set_faultline_enabled(db: Session, enabled: bool) -> None:
     else:
         db.add(SystemFlag(key=FAULTLINE_ENABLED_KEY, value="true" if enabled else "false"))
     db.commit()
+
+
+# --- Sentinel Auditor Team (ships DARK) ------------------------------------
+# Gates the whole public Sentinel Auditor surface: the apply form, the auditor
+# portal, finding submission, and the leaderboard. Fails CLOSED (absent flag =
+# off), so the program is invisible until an admin opens it -- the admin triage
+# side (/api/admin/sentinel/*) is NOT gated by this, so applications and findings
+# can be configured/reviewed while the public side is dark. Mirrors the
+# launch.locked / album_charger.disabled fail-closed pattern.
+
+SENTINEL_AUDITOR_KEY = "sentinel_auditor.enabled"
+
+
+def is_sentinel_auditor_enabled(db: Session) -> bool:
+    # Absent flag -> disabled (fail closed). Only an explicit "true" opens it.
+    return (_get_flag(db, SENTINEL_AUDITOR_KEY) or "false").lower() == "true"
+
+
+def set_sentinel_auditor_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, SENTINEL_AUDITOR_KEY, enabled)

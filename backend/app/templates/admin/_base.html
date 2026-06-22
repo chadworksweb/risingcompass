@@ -461,6 +461,7 @@
       <a class="admin-nav-item {% if active == 'social' %}active{% endif %}" href="/api/admin/dashboard/social">Broadcasts</a>
       <a class="admin-nav-item {% if active == 'lobby-mod' %}active{% endif %}" href="/api/admin/dashboard/lobby-mod">Moderation</a>
       <a class="admin-nav-item {% if active == 'artist-verified' %}active{% endif %}" href="/api/admin/dashboard/artist-verified">Artist Verified</a>
+      <a class="admin-nav-item {% if active == 'sentinel' %}active{% endif %}" href="/api/admin/dashboard/sentinel">Sentinel Auditors</a>
     </div>
 
     <div class="admin-nav-group">
@@ -530,6 +531,7 @@
       'provenance': 'Prose Provenance',
       'chart-anomalies': 'Chart Anomalies',
       'faultline': 'Faultline',
+      'sentinel': 'Sentinel Auditors',
     } %}
     <h1>{{ section_titles.get(active|default(''), 'Admin') }}</h1>
     {# Optional sub-tab bar between H1 and content. Templates override
@@ -760,6 +762,7 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
     { g: 'page', label: 'Broadcasts', url: '/api/admin/dashboard/social', kw: 'social buffer broadcast posts trending verdict reach hockey stick build 6 dark' },
     { g: 'page', label: 'Moderation', url: '/api/admin/dashboard/lobby-mod', kw: 'comments lobby reports bans' },
     { g: 'page', label: 'Artist Verified', url: '/api/admin/dashboard/artist-verified', kw: 'verification claims' },
+    { g: 'page', label: 'Sentinel Auditors', url: '/api/admin/dashboard/sentinel', kw: 'sentinel auditor red team bug bounty findings applications inconsistency algorithm hole reputation leaderboard dark' },
     { g: 'page', label: 'LC Submissions', url: '/api/admin/dashboard/submissions', kw: 'lyrical charger songs' },
     { g: 'page', label: 'LC Activity', url: '/api/admin/dashboard/lc-activity', kw: 'lyrical charger albums events' },
     { g: 'page', label: 'LC Status', url: '/api/admin/dashboard/lc-status', kw: 'lyrical charger kill switch disabled' },

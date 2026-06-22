@@ -1921,6 +1921,92 @@ class ClutterAudit(Base):
     )
 
 
+class SentinelAuditor(Base):
+    """Sentinel Auditor Team -- enrollment funnel (ships DARK).
+
+    One row per user who applies to the bug-bounty-style red-team program. The
+    program invites outsiders to hunt for holes in RC's results/algorithm instead
+    of defending against them. Apply + admin approve: a signed-in Tier-1 user
+    submits an application (motivation + focus area); an admin moves status
+    pending -> approved | rejected, or later revoked. Only `approved` auditors
+    may file findings. Mirrors the artist_verifications review funnel; apply-once
+    is enforced by UNIQUE(user_id).
+    """
+    __tablename__ = "sentinel_auditors"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
+                     nullable=False, unique=True)
+    status = Column(String(16), nullable=False, default="pending")  # pending|approved|rejected|revoked
+    motivation = Column(Text, nullable=False)
+    focus_area = Column(String(24), nullable=False)      # algorithm|methodology|data|ux|other
+    handle_snapshot = Column(String(120))                # denorm of the handle for the admin queue
+    review_notes = Column(Text)
+    reviewed_by = Column(String(120))                    # admin username
+    reviewed_at = Column(DateTime)
+    applied_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    findings = relationship("SentinelFinding", back_populates="auditor",
+                            cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_sentinel_auditors_status", "status"),
+    )
+
+
+class SentinelFinding(Base):
+    """Sentinel Auditor Team -- a single submitted finding + its triage state.
+
+    scope='song' attaches to a specific song (song_id, ON DELETE SET NULL -- the
+    `scope` column survives the song's deletion); scope='general' carries no song
+    and uses the category enum (algorithm|methodology|data|ux|other). The auditor
+    proposes a severity; the admin can override it (accepted_severity). The status
+    lifecycle mirrors faultline_triage:
+
+      new -> triaged -> investigating -> confirmed -> fixed -> accepted   (valid)
+      new -> rejected | duplicate | wont_fix                              (dismissals)
+
+    Reputation is DERIVED, not a running counter: `points_awarded` is a
+    point-in-time snapshot stamped (from accepted_severity, falling back to
+    proposed_severity) when a finding ENTERS `accepted`, and zeroed if it is later
+    reopened. The leaderboard sums points_awarded over accepted findings. Tagged
+    `environment` like clutter_audits / faultline so the admin queue keeps local
+    test rows (shared tunnel DB) out of the prod worklist.
+    """
+    __tablename__ = "sentinel_findings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    auditor_id = Column(Integer, ForeignKey("sentinel_auditors.id", ondelete="CASCADE"),
+                        nullable=False)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
+    scope = Column(String(8), nullable=False)            # song | general
+    category = Column(String(16), nullable=False)        # algorithm|methodology|data|ux|other
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    evidence_url = Column(Text)
+    proposed_severity = Column(String(10), nullable=False)  # low|medium|high|critical
+    accepted_severity = Column(String(10))                  # admin override; reputation keys off this
+    status = Column(String(16), nullable=False, default="new")
+    disposition = Column(Text)                            # admin response shown back to the auditor
+    points_awarded = Column(Integer, nullable=False, default=0)  # snapshot at acceptance
+    environment = Column(String(10), nullable=False, default="local")  # local | prod
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    reviewed_by = Column(String(120))                    # admin username
+    reviewed_at = Column(DateTime)
+
+    auditor = relationship("SentinelAuditor", back_populates="findings")
+    song = relationship("Song")
+
+    __table_args__ = (
+        Index("ix_sentinel_findings_auditor", "auditor_id"),
+        Index("ix_sentinel_findings_status", "status"),
+        Index("ix_sentinel_findings_env_status", "environment", "status"),
+        Index("ix_sentinel_findings_song", "song_id"),
+    )
+
+
 class SongMergeCandidate(Base):
     """Song identity-resolution Phase 2: the human-audit queue for likely
     DUPLICATE song rows (the same song minted twice under different formatting).
