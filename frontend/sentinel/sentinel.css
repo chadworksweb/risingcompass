@@ -335,9 +335,26 @@
 .sn-state-sub { font-size: 0.9rem; color: var(--rc-text-soft, #c8c8d4); margin: 0 0 0.9rem; }
 .sn-state-sub + .sn-btn { margin-top: 0.2rem; }
 
-/* ---- intake landing: single column, NO columns ---- */
-.sn-head { max-width: 70ch; }
-.sn-intake { max-width: 600px; margin: 1.8rem 0 0; }
-.sn-spectrum-block { max-width: 760px; margin: 2.4rem 0; }
-.sn-brief { max-width: 72ch; margin-top: 1.8rem; }
-.sn-pay { max-width: 72ch; margin-top: 1.8rem; }
+/* ---- intake landing: three rows ----
+   Row 1 (.sn-top): hero (1/2) + intake card (1/2).
+   Row 2: charge spectrum, full width (1/1).
+   Row 3 (.sn-cols): what counts (1/2) + how intake runs (1/2). */
+.sn-head { max-width: none; }
+.sn-top,
+.sn-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.2rem;
+  align-items: start;
+}
+.sn-top { margin-bottom: 0.6rem; }
+.sn-cols { margin-top: 1.8rem; }
+@media (max-width: 760px) {
+  .sn-top, .sn-cols { grid-template-columns: 1fr; gap: 1.4rem; }
+}
+/* the card fills its column (override the earlier padding-0 card rule's siblings) */
+.sn-top .sn-intake { max-width: none; margin: 0; }
+.sn-brief { margin-top: 0; }
+/* spectrum spans the full row between the two grids */
+.sn-spectrum-block { max-width: none; margin: 2.2rem 0; }
+.sn-pay { max-width: 80ch; margin-top: 1.8rem; }
