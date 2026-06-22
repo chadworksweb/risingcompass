@@ -3274,11 +3274,14 @@ const App = (() => {
   }
 
   function degreeToTier(deg) {
-    if (deg <= 22.5) return 'violet';
-    if (deg <= 67.5) return 'blue';
-    if (deg <= 112.5) return 'green';
-    if (deg <= 157.5) return 'orange';
-    return 'red';
+    // Mirrors backend charge_calc.py::degree_to_charge -- symmetric about the
+    // neutral center, so -25 -> Degraded mirrors +25 -> Elevated (positive
+    // thresholds inclusive, negative exclusive). Keep in lockstep.
+    if (deg <= 22.5) return 'violet';   // Ascended  (+75 to +100)
+    if (deg <= 67.5) return 'blue';     // Elevated  (+25 to +74)
+    if (deg < 112.5) return 'green';    // Decent    (-24 to +24)
+    if (deg < 157.5) return 'orange';   // Degraded  (-25 to -74)
+    return 'red';                       // Corrupted (-75 to -100)
   }
 
   // --- Secondary Nav ---

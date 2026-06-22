@@ -358,6 +358,7 @@
     chartEl.onmousemove = (e) => {
       const k = e.target && e.target.getAttribute && e.target.getAttribute('data-key');
       if (k) { highlight(k); showTip(k, e.clientX, e.clientY); }
+      else { highlight(null); if (tooltip) tooltip.hidden = true; }
     };
     chartEl.onmouseleave = () => { highlight(null); if (tooltip) tooltip.hidden = true; };
   }

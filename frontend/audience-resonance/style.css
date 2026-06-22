@@ -1,8 +1,12 @@
 /* Audience Resonance page styles.
    Look and feel harvested from the homepage trajectory charts. Uses the shared
-   :root tokens from /css/main.css. Full-width page; the chart itself is capped. */
+   :root tokens from /css/main.css. Capped to the site content width
+   (--rc-max-width) and centered like every other page; the chart itself is
+   further capped inside its card. */
 
 .ar-page {
+  max-width: var(--rc-max-width, 1200px);
+  margin: 0 auto;
   padding: 1.5rem;
 }
 

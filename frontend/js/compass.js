@@ -17,7 +17,11 @@ const Compass = (() => {
   // narrow 22.5deg poles; the middle three are 45deg each.
   const BOUNDS = [0, 22.5, 67.5, 112.5, 157.5, 180];
   const TIER_LABELS = ['Ascended', 'Elevated', 'Decent', 'Degraded', 'Corrupted'];
-  const TIER_RANGE = ['+75 to +100', '+25 to +75', '-25 to +25', '-75 to -25', '-100 to -75'];
+  // Non-overlapping bands that mirror charge_calc.py exactly. Symmetric about the
+  // neutral center: each boundary score rounds toward the MORE EXTREME tier, so
+  // +75 -> Ascended mirrors -75 -> Corrupted, and +25 -> Elevated mirrors -25 ->
+  // Degraded. Decent is the symmetric center. Negatives read near-zero-first.
+  const TIER_RANGE = ['+75 to +100', '+25 to +74', '-24 to +24', '-25 to -74', '-75 to -100'];
   const TIER_DESC = [
     'Collective consciousness. Expands the listener.',
     'Processes life with dignity. Lifts.',

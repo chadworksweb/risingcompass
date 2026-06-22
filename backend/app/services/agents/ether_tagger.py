@@ -120,7 +120,7 @@ If you cannot honestly tag the song with even one topic from the
   topic_audit: {
     "reason": "no match found",
     "proposed_tag": "short-slug-suggestion",
-    "rationale": "one sentence on why none of the 25 fit and what
+    "rationale": "one sentence on why none of the listed topics fit and what
                   the new tag would capture"
   }
 

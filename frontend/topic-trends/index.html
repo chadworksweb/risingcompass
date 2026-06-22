@@ -97,7 +97,7 @@
 
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/responsive.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260622">
 </head>
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
@@ -178,8 +178,7 @@
   <main id="main" class="tt-main">
 
     <section class="tt-hero">
-      <p class="tt-kicker">Topic Trends</p>
-      <h1 class="tt-title">The Narrowing</h1>
+      <h1 class="tt-title">Topic Trends</h1>
       <p class="tt-framing">
         Every song the Compass reads is named for what it is actually about, drawn
         from a fixed set of 30 human topics. Track those topics year over year and
@@ -231,13 +230,26 @@
     <section class="tt-section tt-method" aria-labelledby="method-heading">
       <h2 id="method-heading" class="tt-section-title">How this is measured</h2>
       <p>
-        Each charting song is read once and tagged with up to three topics from a
-        locked taxonomy of 30. For a given year we count every distinct
-        (song, topic) pairing, then compute the Shannon entropy of that
-        distribution and its effective topic count, 2<sup>H</sup>. A year where
-        the music spreads evenly across many topics scores high; a year where a
-        handful of topics dominate scores low. The river below shows the same
-        counts as flowing bands, one per topic.
+        Every charting song is read once and tagged with up to three topics from
+        a fixed set of 30. Those topics roll up into 9 broader themes, so the
+        same data groups either way, and you can read it over the trailing 12
+        months or across every year tagged so far.
+      </p>
+      <p>
+        The Stream view carves each period into bands sized by share, so every
+        column adds up to 100% and you can watch which subjects widen or thin as
+        a slice of what charted. Nothing is smoothed, so a band that falls to the
+        floor really did hit zero that period. The Point view measures the spread
+        itself: for each period it counts every (song, topic) pairing and runs
+        Shannon entropy over the mix, then reports an effective subject count,
+        2<sup>H</sup>. A period spread evenly across many subjects reads high;
+        one where a few subjects dominate reads low. A steadily falling line is
+        the narrowing.
+      </p>
+      <p>
+        One caveat: the tagger only runs forward, so earlier years stay blank
+        until the historical Billboard catalog is tagged, and the trailing view
+        is still filling in (daily tagging began February 2026).
       </p>
     </section>
 
@@ -271,6 +283,8 @@
         <li><a href="/search/">Search</a></li>
         <li><a href="/artists/">Artists</a></li>
         <li><a href="/calendar/">Calendar</a></li>
+        <li><a href="/ether-art-chart/">Ether Art Chart</a></li>
+        <li><a href="/topic-trends/">Topic Trends</a></li>
         <li><a href="/audience-resonance/">Audience Resonance</a></li>
       </ul>
     </nav>
@@ -286,7 +300,6 @@
         <li><a href="/charts/streamed-all-time/">Most Streamed of All Time</a></li>
         <li><a href="/charts/most-streamed-albums/">Most Streamed Albums</a></li>
         <li><a href="/charts/best-selling-albums/">Best-Selling Albums</a></li>
-        <li><a href="/ether-art-chart/">Ether Art Chart</a></li>
       </ul>
     </nav>
 
@@ -347,6 +360,6 @@
 <!-- /INCLUDE:footer -->
 
   <script src="/js/api.js?v=20260616"></script>
-  <script src="page.js?v=20260616"></script>
+  <script src="page.js?v=20260622"></script>
 </body>
 </html>

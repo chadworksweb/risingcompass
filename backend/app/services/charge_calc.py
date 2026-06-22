@@ -10,11 +10,24 @@ CHARGE_TIERS = [
 
 
 def degree_to_charge(degree: float) -> str:
-    """Return charge level color string for a given degree (0-180)."""
-    for threshold, color, _label in CHARGE_TIERS:
-        if degree <= threshold:
-            return color
-    return "red"
+    """Return charge level color string for a given degree (0-180).
+
+    Symmetric about the neutral center (degree 90 = score 0): a boundary score
+    rounds toward the MORE EXTREME tier on both sides, so +25 -> Elevated mirrors
+    -25 -> Degraded, and +75 -> Ascended mirrors -75 -> Corrupted. Decent is the
+    symmetric center (-24 to +24). The positive thresholds are inclusive (<=) and
+    the negative ones exclusive (<) -- that asymmetry in the comparison is exactly
+    what makes the tier assignment symmetric in score.
+    """
+    if degree <= 22.5:
+        return "violet"   # Ascended  (+75 to +100)
+    if degree <= 67.5:
+        return "blue"     # Elevated  (+25 to +74)
+    if degree < 112.5:
+        return "green"    # Decent    (-24 to +24)
+    if degree < 157.5:
+        return "orange"   # Degraded  (-25 to -74)
+    return "red"          # Corrupted (-75 to -100)
 
 
 def degree_to_score(degree: float) -> int:
