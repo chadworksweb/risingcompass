@@ -76,7 +76,7 @@
 <!-- /INCLUDE:analytics -->
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/responsive.css">
-  <link rel="stylesheet" href="/sentinel/sentinel.css">
+  <link rel="stylesheet" href="/sentinel/sentinel.css?v=20260622b">
 </head>
 <body class="rc-elevated">
   <!-- INCLUDE:header -->
@@ -153,22 +153,20 @@
 <!-- /INCLUDE:header -->
 
   <main class="sn-page">
-    <!-- ROW 1: hero text (left) + intake card (right) -->
-    <div class="sn-top">
-      <header class="sn-head">
-        <p class="sn-eyebrow">Sentinel Auditor Team</p>
-        <h1>Read the readings.</h1>
-        <p class="sn-deadpan">We put a number on every song we read. This is the desk where you tell us which numbers are wrong.</p>
-        <p class="sn-intro">
-          The Rising Compass scores the charge of the music moving through culture.
-          An instrument no one checks is just an opinion with a logo. This desk is for
-          people who care whether the readings are right and want to keep them that
-          way. Find a reading that does not hold, and we correct it in the open.
-        </p>
-      </header>
+    <header class="sn-head">
+      <p class="sn-eyebrow">Sentinel Auditor Team</p>
+      <h1>Read the readings.</h1>
+      <p class="sn-deadpan">We put a number on every song we read. This is the desk where you tell us which numbers are wrong.</p>
+      <p class="sn-intro">
+        The Rising Compass scores the charge of the music moving through culture.
+        An instrument no one checks is just an opinion with a logo. This desk is for
+        people who care whether the readings are right and want to keep them that
+        way. Find a reading that does not hold, and we correct it in the open.
+      </p>
+    </header>
 
-      <!-- the intake card -->
-      <aside class="sn-intake card">
+    <!-- the intake card -->
+    <aside class="sn-intake card">
         <div class="card-header">Auditor intake</div>
         <div class="sn-intake-body">
           <!-- live + approved-able: the application -->
@@ -211,9 +209,8 @@
           <div id="sn-intake-note"><p class="sn-state-sub">Checking the desk...</p></div>
         </div>
       </aside>
-    </div>
 
-    <!-- ROW 2: the charge spectrum (full width) -->
+    <!-- the charge spectrum -->
     <section class="sn-spectrum-block" aria-hidden="true">
       <div class="sn-spectrum">
         <span style="--c:#aa54ff"></span>
@@ -228,32 +225,29 @@
       <p class="sn-spectrum-cap">Every song lands on one band. Your work is the ones we placed on the wrong one.</p>
     </section>
 
-    <!-- ROW 3: what counts (left) + how intake runs (right) -->
-    <div class="sn-cols">
-      <section class="sn-brief">
-        <h2 class="sn-brief-h">What counts as a finding</h2>
-        <p>A charge that does not match the lyric. A tier resting on the wrong side of
-          a line. A methodology claim that bends under a real case. A number with
-          nothing behind it. Aim at one song or at the framework itself.</p>
-        <div class="sn-chips" aria-label="Finding categories">
-          <span class="sn-chip" style="--c:#3388ff">Algorithm</span>
-          <span class="sn-chip" style="--c:#33cc55">Methodology</span>
-          <span class="sn-chip" style="--c:#ffbb33">Data</span>
-          <span class="sn-chip" style="--c:#aa54ff">Interface</span>
-          <span class="sn-chip" style="--c:#888">Anything else</span>
-        </div>
-      </section>
+    <section class="sn-brief">
+      <h2 class="sn-brief-h">What counts as a finding</h2>
+      <p>A charge that does not match the lyric. A tier resting on the wrong side of
+        a line. A methodology claim that bends under a real case. A number with
+        nothing behind it. Aim at one song or at the framework itself.</p>
+      <div class="sn-chips" aria-label="Finding categories">
+        <span class="sn-chip" style="--c:#3388ff">Algorithm</span>
+        <span class="sn-chip" style="--c:#33cc55">Methodology</span>
+        <span class="sn-chip" style="--c:#ffbb33">Data</span>
+        <span class="sn-chip" style="--c:#aa54ff">Interface</span>
+        <span class="sn-chip" style="--c:#888">Anything else</span>
+      </div>
+    </section>
 
-      <section class="sn-brief">
-        <h2 class="sn-brief-h">How intake runs</h2>
-        <ol class="sn-steps">
-          <li><span>Apply at this desk.</span></li>
-          <li><span>We read every application ourselves.</span></li>
-          <li><span>Approved auditors file findings against a song or the framework.</span></li>
-          <li><span>We re-examine each one and correct the record in the open.</span></li>
-        </ol>
-      </section>
-    </div>
+    <section class="sn-brief">
+      <h2 class="sn-brief-h">How intake runs</h2>
+      <ol class="sn-steps">
+        <li><span>Apply at this desk.</span></li>
+        <li><span>We read every application ourselves.</span></li>
+        <li><span>Approved auditors file findings against a song or the framework.</span></li>
+        <li><span>We re-examine each one and correct the record in the open.</span></li>
+      </ol>
+    </section>
 
     <p class="sn-pay">No score, no rank, no payout. This is stewardship of the
       instrument, not a contest. What you get back is a Compass that holds up, and
