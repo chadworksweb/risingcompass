@@ -143,6 +143,28 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     if result.get("rubric_color") is None:
         return None
 
+    # Terminal/operator write path (allow_prose_generation=False -- the Claude-Code-
+    # supplied calibrate_song.py / backfill / lyrics-supply lane) HARD-FAILS on a
+    # charge_summary that trips the absence/verdict-framing guard, so operator drift
+    # cannot land. This is the terminal analog of the live calibrator's retry: the
+    # operator IS the model, so rephrase the summary to PURE POSITIVE description of
+    # what the song IS and re-run. The live server path keeps retry-then-warn in the
+    # LEC calibrator + a loud log in store_calibrated_song; only the supplied terminal
+    # lane raises. The canonical rule + guard live in LEC and reach the operator via
+    # /api/rubric's calibration_format. See summary_guard.py.
+    if not allow_prose_generation:
+        from app.services.agents.summary_guard import (
+            CORRECTIVE_NUDGE,
+            summary_has_absence_framing,
+        )
+        _cs = result.get("charge_summary")
+        if summary_has_absence_framing(_cs):
+            raise ValueError(
+                "charge_summary tripped the absence/verdict-framing guard "
+                "(terminal hard-fail, no write performed). " + CORRECTIVE_NUDGE
+                + f" Offending summary: {_cs!r}"
+            )
+
     # Verbatim-lyric lock at the single storage chokepoint. EVERY grading path
     # converges here -- terminal (Claude-Code-supplied) and browser/admin (server
     # AI) both reach _store_calibration -- so this guarantees no copyrighted lyric

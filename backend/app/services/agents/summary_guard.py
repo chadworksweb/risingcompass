@@ -15,14 +15,25 @@ Used in two places:
     calibrations (backfill, album work) and any other direct writer surface drift
     too.
 
-DESIGN: conservative + high-precision. Negations are anchored to song-QUALITY
-verbs/nouns (explore, develop, move, substance, depth...) so that legitimate
-CONTENT negation describing what a song is about ("a narrator who isn't ready to
-commit") does NOT trip. Ambiguous descriptive constructions that the
-gold-standard corpus uses legitimately ("rather than", a bare "never", "but
-never") are intentionally NOT matched. Flag-and-retry / flag-and-log, never
-silent-strip -- a false positive must never mangle a valid summary, only surface
-it.
+DESIGN: two bands.
+  (1) QUALITY-ANCHORED negations -- a negation aimed at a song-quality verb/noun
+      (explore, develop, move, substance, depth...). High precision: legitimate
+      CONTENT negation about a non-quality noun ("a narrator who isn't ready to
+      commit") does NOT trip.
+  (2) STRUCTURAL absence/verdict tells that are absence-framing or tier-defense
+      almost everywhere they appear in a one-line summary, regardless of the
+      following noun: "rather than", "instead of", "without <gerund>" (without
+      pretending / grappling / resolving), a mid-summary verdict pivot ("..., though
+      ...", "even as", "..., yet ..."), and bare verdict words (unearned, pat, glib,
+      trite, contrived, cliched, heavy-handed, on-the-nose, half-baked). These USED
+      to be excluded as corpus-legitimate; they are now caught by deliberate policy
+      (Chad, 2026-06-23): the summary is PURE POSITIVE description of what the song
+      IS, and "X rather than Y" / "X, though Y" is exactly the second-sentence pivot
+      to assessment that the rule forbids. The false-positive cost is bounded by
+      posture: the live calibrator RETRIES once then proceeds-with-loud-log (a false
+      positive costs one retry, never a blanked summary), and the terminal/operator
+      WRITE path HARD-FAILS (raises) so drift cannot land -- the operator rephrases
+      to positive description. Never silent-strip.
 """
 
 import re
@@ -32,9 +43,18 @@ import re
 _QUALITY = (
     r"explor|examin|develop|process|resolv|question|dig|"
     r"interrogat|earn|deliver|substance|depth|growth|reflect|transform|"
-    r"unpack|grapple|introspect|"
+    r"unpack|grappl|introspect|"
     r"mov(?:e|es|ing)\s+(?:through|past|beyond|forward)|"
     r"go(?:es|ing)?\s+(?:deep|deeper|beyond|further)"
+)
+
+# Verdict/assessment words that, when a "rather than"/"instead of" contrast lands
+# on them, mark tier-defense bleeding into the summary -- as opposed to a legit
+# CONTENT contrast ("giving rather than taking", "show love rather than say it"),
+# which is left alone. Used only to anchor the contrast tells in band (2).
+_VERDICT = (
+    r"genuine|earned|unearned|slogan|mantra|sincere|growth|witness|"
+    r"transcend|verdict|clich(?:e|ed)|trite|substance|depth"
 )
 
 _SUMMARY_ABSENCE_RE = re.compile(
@@ -52,6 +72,16 @@ _SUMMARY_ABSENCE_RE = re.compile(
     r"|\blacks?\b"
     r"|(?:falls?|stops?)\s+short\b"
     r"|nothing\s+(?:underneath|beneath)\b"
+    # band (2): structural absence/verdict tells (policy 2026-06-23, narrowed). A
+    # "rather than"/"instead of" contrast is flagged ONLY when it lands on a
+    # quality/verdict word within a few tokens (tier-defense bleed); a content
+    # contrast ("giving rather than taking") is left alone. Plus "without <gerund>",
+    # a mid-summary verdict pivot, and bare verdict words.
+    r"|\b(?:rather\s+than|instead\s+of)\b\W+(?:\w+\W+){0,3}?(?:" + _QUALITY + r"|" + _VERDICT + r")"
+    r"|\bwithout\s+(?:ever\s+)?\w+ing\b"
+    r"|,\s*(?:though|yet)\b"
+    r"|\beven\s+as\b"
+    r"|\b(?:unearned|pat|glib|trite|contrived|clich(?:e|ed)|heavy-handed|on-the-nose|half-baked)\b"
     r")"
 )
 
@@ -61,13 +91,17 @@ _SUMMARY_ABSENCE_RE = re.compile(
 _SUMMARY_FIELD_RE = re.compile(r'"charge_summary"\s*:\s*"((?:[^"\\]|\\.)*)"')
 
 CORRECTIVE_NUDGE = (
-    "The charge_summary used absence or verdict framing -- it described what the "
-    "song does NOT do, what it lacks or fails or 'reaches for', or judged whether "
-    "it works. Rewrite the charge_summary as PURE POSITIVE DESCRIPTION of what the "
-    "song IS and what its lyrics actually do (subject, stance, relational frame, "
-    "imagery). State only what is present. No 'doesn't', 'without', 'fails to', "
-    "'reaches for', 'no real', 'lacks', no verdict clauses. Re-emit the full "
-    "structured format, then the JSON."
+    "The charge_summary used absence, contrast, or verdict framing -- it described "
+    "what the song does NOT do, what it lacks or falls short of, defined it by "
+    "contrast ('X rather than Y', 'instead of', 'without <doing> Y'), pivoted to an "
+    "assessment ('..., though ...', 'even as ...', '..., yet ...'), or judged whether "
+    "it works (pat, glib, unearned, trite, contrived). Rewrite the charge_summary as "
+    "PURE POSITIVE DESCRIPTION of what the song IS and what its lyrics actually do "
+    "(subject, stance, relational frame, imagery). State only what is present. No "
+    "'doesn't', 'without', 'rather than', 'instead of', 'fails to', 'no real', "
+    "'lacks', no 'though/even as/yet' verdict pivots, no judgment words. If tempted "
+    "to add a contrast or absence clause, replace it with another concrete detail of "
+    "what the song does on the page. Re-emit the full structured format, then the JSON."
 )
 
 
