@@ -2,13 +2,29 @@
 {% set active_section = 'drafts' %}
 {% block title %}Drafts — Admin{% endblock %}
 
+{% block head_extra %}
+<style>
+  .draft-board { display: flex; gap: 1rem; align-items: flex-start; overflow-x: auto; padding-bottom: 0.6rem; }
+  .draft-col { flex: 0 0 300px; width: 300px; background: rgba(0,0,0,0.025); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem; }
+  .draft-col-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; margin-bottom: 0.6rem; padding: 0 0.1rem; }
+  .draft-col-name { font-weight: 700; font-size: 0.82rem; color: var(--text); }
+  .draft-col-count { font-size: 0.7rem; color: var(--text-hint); background: rgba(0,0,0,0.06); border-radius: 10px; padding: 0.05rem 0.55rem; }
+  .draft-card { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 0.55rem 0.65rem; margin-bottom: 0.55rem; font-size: 0.83rem; }
+  .draft-card:last-child { margin-bottom: 0; }
+  .draft-card-date { font-weight: 700; font-size: 0.88rem; }
+  .draft-actions { margin-top: 0.55rem; display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .draft-actions button { padding: 0.25rem 0.6rem; font-size: 0.72rem; cursor: pointer; }
+  .draft-actions .btn-approve { background: var(--accent); color: #fff; border: none; border-radius: 4px; font-weight: 600; }
+</style>
+{% endblock %}
+
 {% block content %}
-<p style="color:var(--text-dim);font-size:0.85rem;margin:-0.3rem 0 1rem;max-width:62ch;">
-  Daily reading + chart drafts awaiting approval. Drafts pile up by date and are
-  never overwritten by the next day's run, so a backlog is safe to clear here.
-  Approving publishes the reading / chart with no email link needed. A draft is
-  approvable only once every song is calibrated (pre-order and lyrics-unavailable
-  songs are exempt).
+<p style="color:var(--text-dim);font-size:0.85rem;margin:-0.3rem 0 1rem;max-width:64ch;">
+  Drafts awaiting approval, one column per chart, stacked by date within each
+  column. Drafts pile up and are never overwritten by the next day's run, so a
+  backlog is safe to clear here. Approving publishes the reading / chart with no
+  email link needed. A draft is approvable only once every song is calibrated
+  (pre-order and lyrics-unavailable songs are exempt).
 </p>
 
 <div class="stats-grid">
@@ -26,7 +42,7 @@
 </div>
 
 <div id="draftMsg" class="status-msg"></div>
-<div id="draftList"></div>
+<div id="draftBoard" class="draft-board"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -37,6 +53,10 @@ const draftDetailCache = {};
 
 const CHARGE_LABELS = {violet:'Ascended', blue:'Elevated', green:'Decent', orange:'Degraded', red:'Corrupted'};
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Column order: readings first, then the chart slugs in their usual surface
+// order; anything unmapped (e.g. the retired Viral 50) falls to the end.
+const COL_ORDER = ['daily','spotify_top50_usa','manual','itunes_download_usa',
+                   'shazam_top200_usa','youtube_trending_usa','spotify_nmf_usa'];
 
 // The reading date is a CALENDAR day, not an instant -- format it without any
 // timezone conversion (the admin <time> formatter anchors date-only values to
@@ -53,7 +73,7 @@ function setDraftFilter(f, btn) {
   draftFilter = f;
   document.querySelectorAll('#draftFilters .filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  renderDraftList();
+  renderBoard();
 }
 
 async function loadDrafts() {
@@ -71,32 +91,42 @@ async function loadDrafts() {
     document.getElementById('dAwaiting').textContent = pending.filter(d => d.needs_lyrics > 0).length;
     document.getElementById('dRejected').textContent = allDrafts.filter(d => d.status === 'rejected').length;
 
-    renderDraftList();
+    renderBoard();
   } catch (e) { console.error(e); showMsg(msg, 'Network error loading drafts.', 'error'); }
 }
 
-function renderDraftList() {
-  const el = document.getElementById('draftList');
-  let rows = allDrafts.filter(d => draftFilter === 'all' ? true : d.status === draftFilter);
-  // Pending: oldest date first so the longest-waiting backlog reads top-down.
-  // Everything else: newest first, matching the rest of the admin.
-  rows.sort((a, b) => draftFilter === 'pending'
-    ? (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id)
-    : (a.date > b.date ? -1 : a.date < b.date ? 1 : b.id - a.id));
+function renderBoard() {
+  const el = document.getElementById('draftBoard');
+  const rows = allDrafts.filter(d => draftFilter === 'all' ? true : d.status === draftFilter);
   if (!rows.length) {
     el.innerHTML = '<p style="color:var(--text-hint);padding:0.5rem 0;">No ' +
       (draftFilter === 'all' ? '' : escHtml(draftFilter) + ' ') + 'drafts.</p>';
     return;
   }
-  el.innerHTML = rows.map(renderDraft).join('');
+  // One column per chart (draft_type); cards stacked by date within.
+  const groups = {};
+  rows.forEach(d => { (groups[d.draft_type] = groups[d.draft_type] || []).push(d); });
+  const keys = Object.keys(groups).sort((a, b) => {
+    const ra = COL_ORDER.indexOf(a), rb = COL_ORDER.indexOf(b);
+    const ia = ra < 0 ? 999 : ra, ib = rb < 0 ? 999 : rb;
+    if (ia !== ib) return ia - ib;
+    return String(groups[a][0].display_name || a).localeCompare(groups[b][0].display_name || b);
+  });
+  el.innerHTML = keys.map(k => {
+    // Oldest date at the top of the stack so the longest-waiting draft leads.
+    const list = groups[k].slice().sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : x.id - y.id);
+    const name = escHtml(list[0].display_name || k);
+    return `<div class="draft-col">
+      <div class="draft-col-head"><span class="draft-col-name">${name}</span><span class="draft-col-count">${list.length}</span></div>
+      ${list.map(renderCard).join('')}
+    </div>`;
+  }).join('');
 }
 
-function renderDraft(d) {
+function renderCard(d) {
   const pending = d.status === 'pending';
   const statusColor = pending ? 'var(--accent)' : (d.status === 'rejected' ? 'var(--red)' : '#777');
-  const name = escHtml(d.display_name || d.draft_type || 'Reading');
 
-  // Charge dot + score + level (absent until at least one song is calibrated).
   let charge = '<span style="color:var(--text-hint);">no charge yet</span>';
   if (d.compass_degree !== null && d.compass_degree !== undefined && d.charge_level) {
     const lvl = escHtml(d.charge_level);
@@ -104,43 +134,34 @@ function renderDraft(d) {
       <span style="color:var(--text-dim);">${escHtml(CHARGE_LABELS[d.charge_level] || d.charge_level)}</span>`;
   }
 
-  // Calibration readiness (mirrors the approve gate).
   let ready = '';
   if (pending) {
     ready = d.needs_lyrics > 0
-      ? `<span class="status-badge" style="background:#fce4dc;color:var(--red);">Needs lyrics: ${d.needs_lyrics}</span>`
-      : `<span class="status-badge" style="background:#dff3e8;color:var(--accent-strong);">Ready to approve</span>`;
+      ? `<span class="status-badge" style="background:#fce4dc;color:var(--red);margin:0;">Needs lyrics: ${d.needs_lyrics}</span>`
+      : `<span class="status-badge" style="background:#dff3e8;color:var(--accent-strong);margin:0;">Ready to approve</span>`;
   }
-  const preorder = d.preorder_count ? `<span style="color:var(--text-hint);">&middot; ${d.preorder_count} pre-order</span>` : '';
-  const contam = d.contamination_count ? `<span style="color:var(--red);">&middot; ${d.contamination_count} contaminated</span>` : '';
-  // Editorial is terminal-supplied; flag a pending draft with none so the
-  // published reading isn't blank (informational, not a block).
   const noEditorial = (pending && !d.editorial_summary)
-    ? '<span class="status-badge" style="background:#fef3d6;color:#8a6d00;">No editorial yet</span>' : '';
+    ? '<span class="status-badge" style="background:#fef3d6;color:#8a6d00;margin:0 0 0 0.3rem;">No editorial yet</span>' : '';
+  const preorder = d.preorder_count ? ` &middot; ${d.preorder_count} pre-order` : '';
+  const contam = d.contamination_count ? ` &middot; <span style="color:var(--red);">${d.contamination_count} contaminated</span>` : '';
 
-  let actions = `<button onclick="toggleSongs(${d.id})" style="padding:0.3rem 0.8rem;font-size:0.78rem;">Songs (${d.song_count})</button>`;
+  let actions = `<button onclick="toggleSongs(${d.id})">Songs (${d.song_count})</button>`;
   if (pending) {
-    actions = `<button onclick="approveDraft(${d.id})" style="padding:0.3rem 0.9rem;font-size:0.78rem;background:var(--accent);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;">Approve</button>
-      <button onclick="rejectDraft(${d.id})" style="padding:0.3rem 0.8rem;font-size:0.78rem;">Reject</button>
-      <button onclick="resendEmail(${d.id})" style="padding:0.3rem 0.8rem;font-size:0.78rem;">Resend email</button>` + actions;
+    actions = `<button class="btn-approve" onclick="approveDraft(${d.id})">Approve</button>
+      <button onclick="rejectDraft(${d.id})">Reject</button>
+      <button onclick="resendEmail(${d.id})">Resend email</button>` + actions;
   }
 
-  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:0.8rem 1rem;margin-bottom:0.6rem;font-size:0.88rem;">
-    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:baseline;">
-      <div>
-        <span style="color:${statusColor};font-weight:700;text-transform:uppercase;font-size:0.7rem;">${escHtml(d.status)}</span>
-        <strong style="margin-left:0.5rem;font-size:0.95rem;">${name}</strong>
-        <span style="color:var(--text-dim);margin-left:0.4rem;">${fmtReadingDate(d.date)}</span>
-        ${ready} ${noEditorial}
-      </div>
-      <div style="color:var(--text-hint);font-size:0.75rem;">created <time data-utc="${escHtml(d.created_at)}"></time></div>
+  return `<div class="draft-card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.4rem;">
+      <span class="draft-card-date">${fmtReadingDate(d.date)}</span>
+      <span style="color:${statusColor};font-weight:700;text-transform:uppercase;font-size:0.62rem;">${escHtml(d.status)}</span>
     </div>
-    <div style="margin-top:0.35rem;color:var(--text-dim);font-size:0.82rem;">
-      ${charge} <span style="color:var(--text-hint);">&middot; ${d.song_count} songs</span> ${preorder} ${contam}
-    </div>
-    <div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">${actions}</div>
-    <div id="songs-${d.id}" style="display:none;margin-top:0.6rem;"></div>
-    <div style="margin-top:0.5rem;color:var(--text-hint);font-size:0.7rem;font-family:var(--mono,monospace);">${escHtml(d.label || ('#' + d.id))}</div>
+    <div style="margin-top:0.3rem;">${ready}${noEditorial}</div>
+    <div style="margin-top:0.35rem;color:var(--text-dim);font-size:0.8rem;">${charge}</div>
+    <div style="margin-top:0.15rem;color:var(--text-hint);font-size:0.76rem;">${d.song_count} songs${preorder}${contam}</div>
+    <div class="draft-actions">${actions}</div>
+    <div id="songs-${d.id}" style="display:none;margin-top:0.5rem;"></div>
   </div>`;
 }
 
@@ -169,13 +190,12 @@ function renderSongs(songs) {
     else if (s.rubric_color) state = `<span class="color-dot ${escHtml(s.rubric_color)}"></span>${s.charge_value !== null && s.charge_value !== undefined ? s.charge_value : ''}`;
     else state = '<span style="color:var(--red);font-weight:600;">Needs lyrics</span>';
     return `<tr>
-      <td style="padding:0.2rem 0.6rem 0.2rem 0;color:var(--text-hint);text-align:right;">${s.position}</td>
-      <td style="padding:0.2rem 0.6rem 0.2rem 0;">${escHtml(s.title)}</td>
-      <td style="padding:0.2rem 0.6rem 0.2rem 0;color:var(--text-dim);">${escHtml(s.artist)}</td>
-      <td style="padding:0.2rem 0;white-space:nowrap;">${state}</td>
+      <td style="padding:0.15rem 0.4rem 0.15rem 0;color:var(--text-hint);text-align:right;">${s.position}</td>
+      <td style="padding:0.15rem 0.4rem 0.15rem 0;">${escHtml(s.title)}</td>
+      <td style="padding:0.15rem 0;white-space:nowrap;">${state}</td>
     </tr>`;
   }).join('');
-  return `<table style="width:100%;border-collapse:collapse;font-size:0.8rem;background:var(--panel-strong,transparent);border-radius:4px;">${rows}</table>`;
+  return `<table style="width:100%;border-collapse:collapse;font-size:0.76rem;">${rows}</table>`;
 }
 
 async function approveDraft(id) {
@@ -184,7 +204,7 @@ async function approveDraft(id) {
 }
 
 async function rejectDraft(id) {
-  if (!confirm('Reject this draft? It will be marked rejected (not published).')) return;
+  if (!confirm('Reject this draft? It is marked rejected (kept in the DB, not deleted, not published).')) return;
   await draftAction(id, 'reject', 'POST', 'Draft rejected.');
 }
 
