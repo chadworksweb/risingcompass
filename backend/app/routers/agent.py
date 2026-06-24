@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from app.models import AgentDraft, AgentDraftSong, ChartSnapshot, DailyReading, ReadingSong, PrePublishCorrection, Song
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
@@ -433,20 +433,44 @@ def cron_calibrate_live(db: Session = Depends(get_db)):
 def list_drafts(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    status: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    """List all agent drafts, newest first."""
-    total = db.query(AgentDraft).count()
+    """List agent drafts, newest first, with per-draft overview counts.
+
+    Optional `status` filter (pending / rejected / approved) backs the Drafts
+    admin queue. Songs are selectin-loaded (NOT joinedload -- a joined collection
+    breaks LIMIT) so each summary carries song_count / needs_lyrics / preorder
+    without an N+1 detail fetch. needs_lyrics mirrors the approve gate, so the
+    queue can flag a draft "ready to approve" vs "awaiting lyrics" inline.
+    """
+    base = db.query(AgentDraft)
+    if status:
+        base = base.filter(AgentDraft.status == status)
+    total = base.count()
     pages = math.ceil(total / per_page) if total > 0 else 1
     drafts = (
-        db.query(AgentDraft)
+        base.options(selectinload(AgentDraft.songs))
         .order_by(AgentDraft.created_at.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()
     )
+    items = []
+    for d in drafts:
+        summ = DraftSummary.model_validate(d)
+        songs = d.songs or []
+        summ.song_count = len(songs)
+        summ.needs_lyrics = sum(
+            1 for s in songs
+            if s.rubric_color is None and not s.preorder and not s.lyrics_unavailable
+        )
+        summ.preorder_count = sum(1 for s in songs if s.preorder)
+        summ.display_name = draft_display_name(d.draft_type)
+        summ.is_chart = is_chart_draft_type(d.draft_type)
+        items.append(summ)
     return PaginatedDrafts(
-        items=[DraftSummary.model_validate(d) for d in drafts],
+        items=items,
         total=total,
         page=page,
         pages=pages,

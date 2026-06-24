@@ -1,0 +1,211 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'drafts' %}
+{% block title %}Drafts — Admin{% endblock %}
+
+{% block content %}
+<p style="color:var(--text-dim);font-size:0.85rem;margin:-0.3rem 0 1rem;max-width:62ch;">
+  Daily reading + chart drafts awaiting approval. Drafts pile up by date and are
+  never overwritten by the next day's run, so a backlog is safe to clear here.
+  Approving publishes the reading / chart with no email link needed. A draft is
+  approvable only once every song is calibrated (pre-order and lyrics-unavailable
+  songs are exempt).
+</p>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="dPending">—</div><div class="label">Pending</div></div>
+  <div class="stat-card"><div class="val" id="dReady">—</div><div class="label">Ready to approve</div></div>
+  <div class="stat-card"><div class="val" id="dAwaiting">—</div><div class="label">Awaiting lyrics</div></div>
+  <div class="stat-card"><div class="val" id="dRejected">—</div><div class="label">Rejected</div></div>
+</div>
+
+<div class="filter-bar" id="draftFilters">
+  <button class="filter-btn active" onclick="setDraftFilter('pending', this)">Pending</button>
+  <button class="filter-btn" onclick="setDraftFilter('rejected', this)">Rejected</button>
+  <button class="filter-btn" onclick="setDraftFilter('all', this)">All</button>
+  <button class="filter-btn" style="margin-left:auto;" onclick="loadDrafts()">Refresh</button>
+</div>
+
+<div id="draftMsg" class="status-msg"></div>
+<div id="draftList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let draftFilter = 'pending';
+let allDrafts = [];
+const draftDetailCache = {};
+
+const CHARGE_LABELS = {violet:'Ascended', blue:'Elevated', green:'Decent', orange:'Degraded', red:'Corrupted'};
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// The reading date is a CALENDAR day, not an instant -- format it without any
+// timezone conversion (the admin <time> formatter anchors date-only values to
+// UTC midnight, which renders a day early in western zones).
+function fmtReadingDate(iso) {
+  const p = String(iso || '').split('-');
+  if (p.length !== 3) return escHtml(iso || '');
+  return MONTHS[(+p[1]) - 1] + ' ' + (+p[2]) + ', ' + p[0];
+}
+
+function onAdminReady() { loadDrafts(); }
+
+function setDraftFilter(f, btn) {
+  draftFilter = f;
+  document.querySelectorAll('#draftFilters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderDraftList();
+}
+
+async function loadDrafts() {
+  const msg = document.getElementById('draftMsg');
+  msg.className = 'status-msg';
+  try {
+    const resp = await adminFetch('/api/admin/agent/drafts?per_page=100');
+    if (!resp.ok) { showMsg(msg, 'Failed to load drafts (' + resp.status + ').', 'error'); return; }
+    const data = await resp.json();
+    allDrafts = data.items || [];
+
+    const pending = allDrafts.filter(d => d.status === 'pending');
+    document.getElementById('dPending').textContent = pending.length;
+    document.getElementById('dReady').textContent = pending.filter(d => d.needs_lyrics === 0).length;
+    document.getElementById('dAwaiting').textContent = pending.filter(d => d.needs_lyrics > 0).length;
+    document.getElementById('dRejected').textContent = allDrafts.filter(d => d.status === 'rejected').length;
+
+    renderDraftList();
+  } catch (e) { console.error(e); showMsg(msg, 'Network error loading drafts.', 'error'); }
+}
+
+function renderDraftList() {
+  const el = document.getElementById('draftList');
+  let rows = allDrafts.filter(d => draftFilter === 'all' ? true : d.status === draftFilter);
+  // Pending: oldest date first so the longest-waiting backlog reads top-down.
+  // Everything else: newest first, matching the rest of the admin.
+  rows.sort((a, b) => draftFilter === 'pending'
+    ? (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id)
+    : (a.date > b.date ? -1 : a.date < b.date ? 1 : b.id - a.id));
+  if (!rows.length) {
+    el.innerHTML = '<p style="color:var(--text-hint);padding:0.5rem 0;">No ' +
+      (draftFilter === 'all' ? '' : escHtml(draftFilter) + ' ') + 'drafts.</p>';
+    return;
+  }
+  el.innerHTML = rows.map(renderDraft).join('');
+}
+
+function renderDraft(d) {
+  const pending = d.status === 'pending';
+  const statusColor = pending ? 'var(--accent)' : (d.status === 'rejected' ? 'var(--red)' : '#777');
+  const name = escHtml(d.display_name || d.draft_type || 'Reading');
+
+  // Charge dot + score + level (absent until at least one song is calibrated).
+  let charge = '<span style="color:var(--text-hint);">no charge yet</span>';
+  if (d.compass_degree !== null && d.compass_degree !== undefined && d.charge_level) {
+    const lvl = escHtml(d.charge_level);
+    charge = `<span class="color-dot ${lvl}"></span><strong>${d.charge_score}</strong>
+      <span style="color:var(--text-dim);">${escHtml(CHARGE_LABELS[d.charge_level] || d.charge_level)}</span>`;
+  }
+
+  // Calibration readiness (mirrors the approve gate).
+  let ready = '';
+  if (pending) {
+    ready = d.needs_lyrics > 0
+      ? `<span class="status-badge" style="background:#fce4dc;color:var(--red);">Needs lyrics: ${d.needs_lyrics}</span>`
+      : `<span class="status-badge" style="background:#dff3e8;color:var(--accent-strong);">Ready to approve</span>`;
+  }
+  const preorder = d.preorder_count ? `<span style="color:var(--text-hint);">&middot; ${d.preorder_count} pre-order</span>` : '';
+  const contam = d.contamination_count ? `<span style="color:var(--red);">&middot; ${d.contamination_count} contaminated</span>` : '';
+  // Editorial is terminal-supplied; flag a pending draft with none so the
+  // published reading isn't blank (informational, not a block).
+  const noEditorial = (pending && !d.editorial_summary)
+    ? '<span class="status-badge" style="background:#fef3d6;color:#8a6d00;">No editorial yet</span>' : '';
+
+  let actions = `<button onclick="toggleSongs(${d.id})" style="padding:0.3rem 0.8rem;font-size:0.78rem;">Songs (${d.song_count})</button>`;
+  if (pending) {
+    actions = `<button onclick="approveDraft(${d.id})" style="padding:0.3rem 0.9rem;font-size:0.78rem;background:var(--accent);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;">Approve</button>
+      <button onclick="rejectDraft(${d.id})" style="padding:0.3rem 0.8rem;font-size:0.78rem;">Reject</button>
+      <button onclick="resendEmail(${d.id})" style="padding:0.3rem 0.8rem;font-size:0.78rem;">Resend email</button>` + actions;
+  }
+
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:0.8rem 1rem;margin-bottom:0.6rem;font-size:0.88rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:baseline;">
+      <div>
+        <span style="color:${statusColor};font-weight:700;text-transform:uppercase;font-size:0.7rem;">${escHtml(d.status)}</span>
+        <strong style="margin-left:0.5rem;font-size:0.95rem;">${name}</strong>
+        <span style="color:var(--text-dim);margin-left:0.4rem;">${fmtReadingDate(d.date)}</span>
+        ${ready} ${noEditorial}
+      </div>
+      <div style="color:var(--text-hint);font-size:0.75rem;">created <time data-utc="${escHtml(d.created_at)}"></time></div>
+    </div>
+    <div style="margin-top:0.35rem;color:var(--text-dim);font-size:0.82rem;">
+      ${charge} <span style="color:var(--text-hint);">&middot; ${d.song_count} songs</span> ${preorder} ${contam}
+    </div>
+    <div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">${actions}</div>
+    <div id="songs-${d.id}" style="display:none;margin-top:0.6rem;"></div>
+    <div style="margin-top:0.5rem;color:var(--text-hint);font-size:0.7rem;font-family:var(--mono,monospace);">${escHtml(d.label || ('#' + d.id))}</div>
+  </div>`;
+}
+
+async function toggleSongs(id) {
+  const box = document.getElementById('songs-' + id);
+  if (!box) return;
+  if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  if (draftDetailCache[id]) { box.innerHTML = renderSongs(draftDetailCache[id]); return; }
+  box.innerHTML = '<span style="color:var(--text-hint);font-size:0.8rem;">Loading songs...</span>';
+  try {
+    const resp = await adminFetch('/api/admin/agent/drafts/' + id);
+    if (!resp.ok) { box.innerHTML = '<span style="color:var(--red);">Failed to load songs.</span>'; return; }
+    const draft = await resp.json();
+    draftDetailCache[id] = draft.songs || [];
+    box.innerHTML = renderSongs(draftDetailCache[id]);
+  } catch (e) { box.innerHTML = '<span style="color:var(--red);">Network error.</span>'; }
+}
+
+function renderSongs(songs) {
+  if (!songs.length) return '<span style="color:var(--text-hint);">No songs.</span>';
+  const rows = songs.slice().sort((a, b) => a.position - b.position).map(s => {
+    let state;
+    if (s.preorder) state = '<span style="color:var(--text-hint);">Pre-order</span>';
+    else if (s.lyrics_unavailable) state = '<span style="color:var(--text-hint);">Lyrics N/A</span>';
+    else if (s.rubric_color) state = `<span class="color-dot ${escHtml(s.rubric_color)}"></span>${s.charge_value !== null && s.charge_value !== undefined ? s.charge_value : ''}`;
+    else state = '<span style="color:var(--red);font-weight:600;">Needs lyrics</span>';
+    return `<tr>
+      <td style="padding:0.2rem 0.6rem 0.2rem 0;color:var(--text-hint);text-align:right;">${s.position}</td>
+      <td style="padding:0.2rem 0.6rem 0.2rem 0;">${escHtml(s.title)}</td>
+      <td style="padding:0.2rem 0.6rem 0.2rem 0;color:var(--text-dim);">${escHtml(s.artist)}</td>
+      <td style="padding:0.2rem 0;white-space:nowrap;">${state}</td>
+    </tr>`;
+  }).join('');
+  return `<table style="width:100%;border-collapse:collapse;font-size:0.8rem;background:var(--panel-strong,transparent);border-radius:4px;">${rows}</table>`;
+}
+
+async function approveDraft(id) {
+  if (!confirm('Approve and publish this draft? This makes the reading / chart public.')) return;
+  await draftAction(id, 'approve', 'POST', 'Approved and published.');
+}
+
+async function rejectDraft(id) {
+  if (!confirm('Reject this draft? It will be marked rejected (not published).')) return;
+  await draftAction(id, 'reject', 'POST', 'Draft rejected.');
+}
+
+async function resendEmail(id) {
+  await draftAction(id, 'resend-email', 'POST', 'Approval email resent.', true);
+}
+
+async function draftAction(id, action, method, okMsg, keepList) {
+  const msg = document.getElementById('draftMsg');
+  msg.className = 'status-msg';
+  try {
+    const resp = await adminFetch('/api/admin/agent/drafts/' + id + '/' + action, { method });
+    if (resp.ok) {
+      showMsg(msg, okMsg, 'success');
+      if (!keepList) loadDrafts();
+      return;
+    }
+    let detail = 'Request failed (' + resp.status + ').';
+    try { const j = await resp.json(); if (j && j.detail) detail = j.detail; } catch (e) {}
+    showMsg(msg, detail, 'error');
+  } catch (e) { showMsg(msg, 'Network error.', 'error'); }
+}
+</script>
+{% endblock %}

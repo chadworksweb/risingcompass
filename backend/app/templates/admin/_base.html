@@ -445,6 +445,7 @@
     {% else %}
     <div class="admin-nav-group">
       <div class="admin-nav-group-label">Calibration</div>
+      <a class="admin-nav-item {% if active == 'drafts' %}active{% endif %}" href="/api/admin/dashboard/drafts">Drafts</a>
       <a class="admin-nav-item {% if active == 'runs' %}active{% endif %}" href="/api/admin/dashboard/runs">Runs</a>
       <a class="admin-nav-item {% if active == 'recalibrate' %}active{% endif %}" href="/api/admin/recalibrate">Recalibrate</a>
       <a class="admin-nav-item {% if active == 'misread' %}active{% endif %}" href="/api/admin/dashboard/misread">Misread Reports</a>
@@ -513,6 +514,7 @@
        the active_section key is missing. #}
     {% set section_titles = {
       'db': 'Database',
+      'drafts': 'Reading & Chart Drafts',
       'runs': 'Calibration Runs',
       'misread': 'Misread Reports',
       'lobby-mod': 'Moderation',

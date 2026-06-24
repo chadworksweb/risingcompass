@@ -174,6 +174,7 @@ def admin_dashboard_root(request: Request, admin=Depends(optional_admin_session)
 
 
 _ADMIN_SECTIONS = {
+    "drafts": "admin/drafts.html",
     "db": "admin/db.html",
     "misread": "admin/misread.html",
     "artist-verified": "admin/artist_verified.html",

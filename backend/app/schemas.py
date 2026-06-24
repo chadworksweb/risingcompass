@@ -333,6 +333,16 @@ class DraftSummary(BaseModel):
     charge_level: Optional[str] = None
     contamination_count: int = 0
     editorial_summary: Optional[str] = None
+    # Overview counts for the Drafts admin queue, populated by list_drafts from
+    # the eager-loaded songs. Defaults keep every other construction path valid.
+    # needs_lyrics mirrors the approve gate (rubric_color is None and not a
+    # preorder / lyrics-unavailable disposition), so a draft is approvable iff
+    # needs_lyrics == 0.
+    song_count: int = 0
+    needs_lyrics: int = 0
+    preorder_count: int = 0
+    display_name: Optional[str] = None
+    is_chart: bool = False
 
     @computed_field
     @property
