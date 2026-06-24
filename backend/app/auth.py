@@ -78,8 +78,16 @@ def verify_api_or_service_key(request: Request, x_api_key: str = Header(...)) ->
     return client.behavior
 
 
-def create_approval_token(draft_ref: str, ttl: int = 86400) -> str:
-    """Create an HMAC token valid for `ttl` seconds (default 24h).
+def create_approval_token(draft_ref: str, ttl: int = 1209600) -> str:
+    """Create an HMAC token valid for `ttl` seconds (default 14 days).
+
+    14 days (1209600s) so a draft email's one-click Approve link survives a
+    multi-day stretch where the admin is away and cannot approve same-day.
+    Unapproved drafts already pile up untouched across days (each draft is
+    date-keyed; the daily/chart crons only ever replace today's rows, and the
+    only deletions -- agent._cleanup_day_drafts at approval, main.
+    _cleanup_orphan_drafts at startup -- never touch an unapproved day), so the
+    longer TTL is what lets the original emails clear that backlog on return.
 
     Format: {draft_ref}:{expires_timestamp}:{signature}
     """
