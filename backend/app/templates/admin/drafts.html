@@ -57,6 +57,18 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 // order; anything unmapped (e.g. the retired Viral 50) falls to the end.
 const COL_ORDER = ['daily','spotify_top50_usa','manual','itunes_download_usa',
                    'shazam_top200_usa','youtube_trending_usa','spotify_nmf_usa'];
+// Charts whose column ALWAYS shows, even with zero drafts under the current
+// filter. Other draft_types (manual, retired Viral 50) appear only when present.
+const FIXED_COLS = ['daily','itunes_download_usa','shazam_top200_usa',
+                    'youtube_trending_usa','spotify_nmf_usa'];
+// Mirror of constants.DRAFT_TYPE_DISPLAY_NAMES -- needed to label an EMPTY column
+// (no draft means no display_name carried in the data).
+const DRAFT_TYPE_NAMES = {
+  daily: 'Daily Listens', manual: 'Manual Reading', spotify_top50_usa: 'Daily Listens',
+  itunes_download_usa: 'Daily Downloads', shazam_top200_usa: 'Shazam Top 200 - USA',
+  youtube_trending_usa: 'YouTube Trending - USA', spotify_nmf_usa: 'New Music Friday - USA',
+};
+function displayName(t, fallback) { return DRAFT_TYPE_NAMES[t] || fallback || t; }
 
 // The reading date is a CALENDAR day, not an instant -- format it without any
 // timezone conversion (the admin <time> formatter anchors date-only values to
@@ -98,27 +110,32 @@ async function loadDrafts() {
 function renderBoard() {
   const el = document.getElementById('draftBoard');
   const rows = allDrafts.filter(d => draftFilter === 'all' ? true : d.status === draftFilter);
-  if (!rows.length) {
-    el.innerHTML = '<p style="color:var(--text-hint);padding:0.5rem 0;">No ' +
-      (draftFilter === 'all' ? '' : escHtml(draftFilter) + ' ') + 'drafts.</p>';
-    return;
-  }
   // One column per chart (draft_type); cards stacked by date within.
   const groups = {};
   rows.forEach(d => { (groups[d.draft_type] = groups[d.draft_type] || []).push(d); });
-  const keys = Object.keys(groups).sort((a, b) => {
+
+  // Always render the fixed chart columns (even empty); append any other
+  // draft_type that has drafts under the current filter.
+  const keys = FIXED_COLS.slice();
+  Object.keys(groups).forEach(k => { if (!keys.includes(k)) keys.push(k); });
+  keys.sort((a, b) => {
     const ra = COL_ORDER.indexOf(a), rb = COL_ORDER.indexOf(b);
     const ia = ra < 0 ? 999 : ra, ib = rb < 0 ? 999 : rb;
     if (ia !== ib) return ia - ib;
-    return String(groups[a][0].display_name || a).localeCompare(groups[b][0].display_name || b);
+    return displayName(a, a).localeCompare(displayName(b, b));
   });
+
+  const emptyLabel = 'No ' + (draftFilter === 'all' ? '' : escHtml(draftFilter) + ' ') + 'drafts';
   el.innerHTML = keys.map(k => {
     // Oldest date at the top of the stack so the longest-waiting draft leads.
-    const list = groups[k].slice().sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : x.id - y.id);
-    const name = escHtml(list[0].display_name || k);
+    const list = (groups[k] || []).slice().sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : x.id - y.id);
+    const name = escHtml(list.length ? (list[0].display_name || displayName(k, k)) : displayName(k, k));
+    const body = list.length
+      ? list.map(renderCard).join('')
+      : `<div style="color:var(--text-hint);font-size:0.78rem;text-align:center;padding:1.1rem 0;">${emptyLabel}</div>`;
     return `<div class="draft-col">
       <div class="draft-col-head"><span class="draft-col-name">${name}</span><span class="draft-col-count">${list.length}</span></div>
-      ${list.map(renderCard).join('')}
+      ${body}
     </div>`;
   }).join('');
 }
