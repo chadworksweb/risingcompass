@@ -15,6 +15,15 @@ reader-facing -- name the dominant charge of the reading, then the undercurrent.
 Follow the global voice rules (no em-dashes, no clause triplets, no lists of
 exactly three).
 
+HARD RULES (server-enforced, the editorial endpoint rejects a violation):
+  - NO song titles. Describe the reading's charge, not its track list.
+  - NO musical-genre words (pop, rock, country, rap, ...). The compass reads the
+    lyrics, not the sound; words don't have genres.
+  - NO tier color names. Refer to a tier by its LABEL, never its color:
+    Corrupted (not red), Degraded (not orange), Decent (not green),
+    Elevated (not blue), Ascended (not violet). Or just describe the energy
+    ("holds steady at center", "sinks to the floor") without naming the tier.
+
 Usage:
     python set_editorial.py <draft_ref> --editorial "Two-sentence summary..."
     python set_editorial.py <draft_ref> --editorial-file path/to/editorial.txt

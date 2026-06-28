@@ -856,7 +856,29 @@ def supply_editorial(draft_ref: str, data: EditorialSupplyIn, db: Session = Depe
     draft = _resolve_draft(draft_ref, db)
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft is not pending")
-    draft.editorial_summary = data.editorial_summary.strip()
+    editorial = data.editorial_summary.strip()
+    # Hard guard (mirrors the terminal per-song charge_summary lane): an editorial
+    # is reader-facing, so it must name NO song titles (describe the reading's
+    # charge, not its track list), use NO musical-genre words, and use NO tier
+    # color names (use the tier label). Absence/verdict framing is not checked here
+    # -- the editorial's job is to name the dominant charge + undercurrent.
+    from app.services.agents.summary_guard import (
+        SUMMARY_RULES_NUDGE,
+        summary_violations,
+    )
+    _viol = summary_violations(
+        editorial,
+        titles=[s.title for s in draft.songs],
+        check_absence=False,
+        titles_multiword_only=False,
+    )
+    if _viol:
+        raise HTTPException(
+            status_code=400,
+            detail="editorial tripped the summary guard: " + "; ".join(_viol)
+            + ". " + SUMMARY_RULES_NUDGE,
+        )
+    draft.editorial_summary = editorial
     db.commit()
     db.refresh(draft)
     out = _resolve_draft(draft_ref, db)
