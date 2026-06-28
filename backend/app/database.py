@@ -17,19 +17,19 @@ logger = logging.getLogger(__name__)
 def _build_engine():
     return create_engine(
         settings.database_url,
-        # PgBouncer (transaction mode) multiplexes, so a larger client-side
-        # pool is cheap and is the intended lever here. The old 5+10 ceiling
-        # (15) exhausted under normal concurrency because async request
-        # handlers hold a checked-out connection across slow awaited work
-        # (Opus / external HTTP), which showed up as a pool QueuePool timeout
-        # while the DB itself sat idle. 20+40 (60) gives real headroom; the DB
-        # has room and PgBouncer absorbs the fan-in.
-        pool_size=20,
-        max_overflow=40,
+        # The DO Postgres cluster has max_connections = 25, SHARED with
+        # lec_app / lecg_app / system roles, so RC realistically gets ~15. A
+        # larger client pool (a brief 20+40=60 experiment on 2026-06-28)
+        # OVERRUNS that cap: under cold-start concurrency the app demands more
+        # server connections than the cluster can grant, transactions block
+        # waiting for a slot at 0% CPU, and the whole API wedges. 5+10=15 is the
+        # config that ran for months; drift (the only thing that used to exhaust
+        # it by holding connections for 129s) is now cached, so 15 is safe.
+        pool_size=5,
+        max_overflow=10,
         pool_pre_ping=True,
         pool_recycle=300,
-        # Fail a starved checkout in 10s instead of hanging 30s, so a spike
-        # degrades fast and visibly rather than stacking 30s waits.
+        # Fail a starved checkout in 10s instead of hanging 30s.
         pool_timeout=10,
     )
 
