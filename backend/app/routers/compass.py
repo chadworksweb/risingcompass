@@ -1,3 +1,6 @@
+import threading
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
@@ -53,7 +56,38 @@ def _reading_with_songs(reading: DailyReading, db: Session) -> DailyReadingOut:
     )
 
 
+# The historical aggregate is a scan of the ENTIRE aggregating corpus
+# (all_aggregating_appearance_rows) + compute_degree, run on EVERY
+# /api/compass/current call -- the homepage's primary request. Warm it is
+# ~0.16s, but cold (after any idle, when PgBouncer connections must be
+# re-established) the corpus query alone is ~1.7s, which is what made cold
+# homepage loads slow. It changes at most ~daily, so cache it (single-flight
+# TTL): one thread recomputes at a time, everyone else serves the last good
+# value instantly. Mirrors the drift cache.
+_HIST_TTL = 900  # seconds
+_hist_lock = threading.Lock()
+_hist_cache = {"val": None, "ts": 0.0}
+
+
 def _historical_aggregate(db: Session) -> tuple[float, str]:
+    """Cached (single-flight, 15 min TTL) wrapper over the whole-corpus
+    aggregate, so it leaves the per-request hot path."""
+    val = _hist_cache["val"]
+    if val is not None and (time.monotonic() - _hist_cache["ts"]) < _HIST_TTL:
+        return val
+    must_block = val is None  # first fill waits; refreshes serve stale
+    if _hist_lock.acquire(blocking=must_block):
+        try:
+            if _hist_cache["val"] is None or (time.monotonic() - _hist_cache["ts"]) >= _HIST_TTL:
+                _hist_cache["val"] = _compute_historical_aggregate(db)
+                _hist_cache["ts"] = time.monotonic()
+            return _hist_cache["val"]
+        finally:
+            _hist_lock.release()
+    return val  # a refresh is in flight -> serve stale now
+
+
+def _compute_historical_aggregate(db: Session) -> tuple[float, str]:
     """Compute aggregate degree from charting songs only.
 
     Uses HISTORICAL_DEGREES for legacy songs (old 3-tier "blue" = 65,
