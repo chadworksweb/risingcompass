@@ -629,6 +629,17 @@ def record_and_reconcile(
             except Exception:
                 logger.exception("societal_effects_prose hook failed for %s/%s", source, song.id)
 
+        # Push the finalized calibration to chadlewine so it serves badges from
+        # local state instead of calling RC live. Fire-and-forget + fail-soft +
+        # ships dark (no-op unless CHADLEWINE_WEBHOOK_URL/SECRET are set); the
+        # payload is built synchronously off the in-memory `song`, so the daemon
+        # thread never touches this session.
+        try:
+            from app.services.chadlewine_webhook import push_song_classification
+            push_song_classification(song)
+        except Exception:
+            logger.warning("chadlewine push hook failed (non-fatal)", exc_info=True)
+
     return {
         "run_id": run.id,
         "user_run": {

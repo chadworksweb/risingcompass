@@ -36,6 +36,10 @@ services:
       - RC_READING_CRON_KEY=${RC_READING_CRON_KEY}
       - RC_LYRICS_SUPPLY_KEY=${RC_LYRICS_SUPPLY_KEY}
       - RC_PROVENANCE_CRON_KEY=${RC_PROVENANCE_CRON_KEY}
+      # Outbound classification push to chadlewine (badge cache). Ships dark
+      # unless both are set; the secret must equal chadlewine's RC_WEBHOOK_SECRET.
+      - CHADLEWINE_WEBHOOK_URL=${CHADLEWINE_WEBHOOK_URL:-}
+      - CHADLEWINE_WEBHOOK_SECRET=${CHADLEWINE_WEBHOOK_SECRET:-}
       # Faultline (internal error ledger). ENVIRONMENT tags captured faults
       # prod-vs-local (local dev shares this DB via the tunnel, so the tag is
       # what keeps prod triage legible). RC_ERROR_AGENT_KEY arms the agent lane
