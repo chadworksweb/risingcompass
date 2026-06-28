@@ -1,4 +1,3 @@
-import logging
 import threading
 import time
 
@@ -6,17 +5,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 
-from app.database import get_db, SessionLocal
+from app.database import get_db
 from app.models import Song, DailyReading, ReadingSong
 from app.schemas import DecadeAggregate, YearAggregate
-from app.services.compass_calc import (
-    compute_degree, position_weight, compute_live_year_degree,
-)
+from app.services.compass_calc import position_weight, compute_live_year_degree
 from app.services.charge_calc import degree_to_charge
 from app.constants import HISTORICAL_DEGREES
 from app.services import song_store
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/drift", tags=["drift"])
 
@@ -26,12 +21,10 @@ DECADE_ORDER = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"]
 # --- Drift aggregate cache -------------------------------------------------
 # The decade/year drift aggregates are derived from the WHOLE historical corpus
 # plus the live readings: get_drift runs 7 corpus-wide JOINs, get_drift_years
-# runs one per historical year (60+) plus the live-year dedupe. On a cold
-# connection pool that compounded to ~2 minutes per request, and because each
-# request held a worker thread + a DB connection that long, a handful of
-# concurrent hits exhausted the threadpool and the pool and wedged the entire
-# API (the 2026-06-28 outage). The data changes at most once a day (a newly
-# approved reading), so it does not belong on the per-request hot path.
+# runs one per historical year (60+) plus the live-year dedupe. Cold (fresh
+# connections) that is minutes per request, and each request holds a worker
+# thread + a DB connection the whole time. The data changes at most once a day
+# (a newly approved reading), so it has no business on the per-request hot path.
 #
 # This caches the computed result in-process with SINGLE-FLIGHT recompute: at
 # most one thread ever recomputes at a time; while it does, every other request
@@ -71,21 +64,6 @@ class _TTLCache:
 _drift_cache = _TTLCache(_DRIFT_TTL)
 _drift_years_cache = _TTLCache(_DRIFT_TTL)
 
-
-def warm_drift_caches() -> None:
-    """Populate both drift caches with their own short-lived session. Called in
-    a daemon thread at startup so a restart self-heals without a slow first
-    request reaching a user."""
-    try:
-        db = SessionLocal()
-        try:
-            _drift_cache.get(lambda: _compute_drift(db))
-            _drift_years_cache.get(lambda: _compute_drift_years(db))
-        finally:
-            db.close()
-        logger.info("drift caches warmed")
-    except Exception:
-        logger.exception("drift cache warm failed (non-fatal)")
 
 # Cutoff: years <= this read historical chart_appearances; years > this read the
 # live DailyReading/ReadingSong daily-snapshot mechanism. Both resolve the song
