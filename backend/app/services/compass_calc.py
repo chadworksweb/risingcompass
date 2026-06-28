@@ -15,9 +15,46 @@ def charge_to_degree(charge_value: int) -> float:
     return round(90.0 - (charge_value * 0.9), 1)
 
 
-def position_weight(position: int, total: int = 20) -> int:
-    """Higher chart position = more weight. Position 1 → total, position N → 1."""
-    return max(1, total + 1 - position)
+# In-chart consumption slope for the rank-weighting law. The weight of a
+# chart position is a function of RANK ALONE -- it never references how many
+# songs are in the group. That scale-invariance is the whole point: a
+# daily-20, an annual-100, a 12-track album, and any future chart all obey
+# ONE law, and years stored at different depths (top-10 vs top-100) stay on
+# the same axis because ranks 1..10 carry identical weights regardless of how
+# deep the chart goes.
+#
+# The law is Zipf / inverse-rank-power: weight = 1 / rank**ZIPF_S.
+#   s = 1.0  -> pure Zipf, #1 is 100x the #100 (very top-heavy)
+#   s < 1.0  -> the deep tail still registers
+# Population music consumption is a power law, and the chart is the top
+# truncation of it. s = 0.7 puts #1:#20 ~= 8x and #1:#100 ~= 25x, which sits
+# in the band of real Hot-100 stream ratios -- top-heavy, but the #100 song
+# still counts (it is hugely more consumed than the #1000 or a random indie
+# release, which are simply not in the group at all). Tune here; every
+# downstream aggregate is a weighted MEAN, so only the RATIOS between weights
+# matter, never their absolute scale.
+# Full rationale + worked tables: RISING-COMPASS-CHARGE-WEIGHTING.md.
+ZIPF_S = 0.7
+
+
+def position_weight(position: int, total: int | None = None) -> float:
+    """Scale-invariant rank weight: 1 / position**ZIPF_S.
+
+    Higher chart position (position 1 = #1) gets more weight. The weight
+    depends on RANK ALONE; `total` is accepted only for backward
+    compatibility with existing callers and is deliberately ignored -- the
+    group size must not change how loudly a given rank counts.
+
+    Returns a float in (0, 1]; callers normalize via a weighted mean, so the
+    absolute scale is irrelevant.
+
+    # future: when real per-song consumption volume (streams / sales) is
+    # available, weight by that normalized magnitude directly instead of by
+    # this rank proxy. It self-calibrates the #100-vs-#1000 gap and needs no
+    # ZIPF_S knob; rank-power is the honest stand-in until then.
+    """
+    r = max(1, int(position))
+    return 1.0 / (r ** ZIPF_S)
 
 
 def compute_degree(songs: list[dict], color_degrees: dict | None = None) -> float:
@@ -40,13 +77,12 @@ def compute_degree(songs: list[dict], color_degrees: dict | None = None) -> floa
         return 90.0  # neutral if no data
 
     fallback = color_degrees or COLOR_DEGREES
-    total_weight = 0
+    total_weight = 0.0
     weighted_sum = 0.0
-    total = len(songs)
 
     for song in songs:
         pos = song.get("chart_position") or song.get("position", 5)
-        w = position_weight(pos, total)
+        w = position_weight(pos)
 
         # Use charge_value if available, otherwise fall back to fixed color degree
         cv = song.get("charge_value")
