@@ -1,8 +1,12 @@
+import logging
+import threading
+import time
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import Song, DailyReading, ReadingSong
 from app.schemas import DecadeAggregate, YearAggregate
 from app.services.compass_calc import (
@@ -12,9 +16,76 @@ from app.services.charge_calc import degree_to_charge
 from app.constants import HISTORICAL_DEGREES
 from app.services import song_store
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/drift", tags=["drift"])
 
 DECADE_ORDER = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"]
+
+
+# --- Drift aggregate cache -------------------------------------------------
+# The decade/year drift aggregates are derived from the WHOLE historical corpus
+# plus the live readings: get_drift runs 7 corpus-wide JOINs, get_drift_years
+# runs one per historical year (60+) plus the live-year dedupe. On a cold
+# connection pool that compounded to ~2 minutes per request, and because each
+# request held a worker thread + a DB connection that long, a handful of
+# concurrent hits exhausted the threadpool and the pool and wedged the entire
+# API (the 2026-06-28 outage). The data changes at most once a day (a newly
+# approved reading), so it does not belong on the per-request hot path.
+#
+# This caches the computed result in-process with SINGLE-FLIGHT recompute: at
+# most one thread ever recomputes at a time; while it does, every other request
+# serves the last good value instantly (stale-while-revalidate). That alone
+# makes the endpoint safe even cold -- a cold recompute can run only once, never
+# 40x concurrently -- and warm requests never touch the DB at all.
+_DRIFT_TTL = 900  # seconds; short enough to pick up a new daily reading
+
+
+class _TTLCache:
+    """Single-flight TTL cache. Serves stale data immediately while one thread
+    refreshes; only blocks when there is nothing yet to serve."""
+
+    def __init__(self, ttl: float):
+        self.ttl = ttl
+        self._data = None
+        self._ts = 0.0
+        self._lock = threading.Lock()
+
+    def get(self, compute):
+        now = time.monotonic()
+        data = self._data
+        if data is not None and (now - self._ts) < self.ttl:
+            return data
+        must_block = data is None  # first fill must wait; refreshes serve stale
+        if self._lock.acquire(blocking=must_block):
+            try:
+                if self._data is None or (time.monotonic() - self._ts) >= self.ttl:
+                    self._data = compute()
+                    self._ts = time.monotonic()
+                return self._data
+            finally:
+                self._lock.release()
+        return data  # a refresh is already in flight -> serve stale now
+
+
+_drift_cache = _TTLCache(_DRIFT_TTL)
+_drift_years_cache = _TTLCache(_DRIFT_TTL)
+
+
+def warm_drift_caches() -> None:
+    """Populate both drift caches with their own short-lived session. Called in
+    a daemon thread at startup so a restart self-heals without a slow first
+    request reaching a user."""
+    try:
+        db = SessionLocal()
+        try:
+            _drift_cache.get(lambda: _compute_drift(db))
+            _drift_years_cache.get(lambda: _compute_drift_years(db))
+        finally:
+            db.close()
+        logger.info("drift caches warmed")
+    except Exception:
+        logger.exception("drift cache warm failed (non-fatal)")
 
 # Cutoff: years <= this read historical chart_appearances; years > this read the
 # live DailyReading/ReadingSong daily-snapshot mechanism. Both resolve the song
@@ -130,9 +201,15 @@ def _aggregate_live_year(db: Session, year: int) -> list[dict]:
 def get_drift(db: Session = Depends(get_db)):
     """Decade-by-decade aggregate compass data for historical visualization.
 
-    One row per aggregating chart appearance in the decade (the legacy
-    per-(song,year)-row grain); a song charting in N years contributes N times.
+    Cached (single-flight, 15 min TTL): the underlying corpus-wide aggregation
+    is too heavy for the per-request path. See the cache note at the top.
     """
+    return _drift_cache.get(lambda: _compute_drift(db))
+
+
+def _compute_drift(db: Session) -> list[DecadeAggregate]:
+    """One row per aggregating chart appearance in the decade (the legacy
+    per-(song,year)-row grain); a song charting in N years contributes N times."""
     results = []
 
     for decade in DECADE_ORDER:
@@ -245,8 +322,13 @@ def get_year_songs(
 def get_drift_years(db: Session = Depends(get_db)):
     """Year-by-year aggregate compass data for Time Machine.
 
-    Historical years (chart_appearances) + live years (ReadingSong).
+    Cached (single-flight, 15 min TTL) for the same reason as get_drift.
     """
+    return _drift_years_cache.get(lambda: _compute_drift_years(db))
+
+
+def _compute_drift_years(db: Session) -> list[YearAggregate]:
+    """Historical years (chart_appearances) + live years (ReadingSong)."""
     results = []
 
     # Historical years from chart_appearances (up to cutoff)

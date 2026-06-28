@@ -145,6 +145,13 @@ async def lifespan(app: FastAPI):
     from app.services.backfill.orchestrator import reset_running_jobs_on_startup
     reset_running_jobs_on_startup()
 
+    # Warm the heavy drift aggregate caches off the boot path so the first
+    # post-restart request never pays the corpus-wide recompute. Daemon thread,
+    # fail-soft; the cache is single-flight so this can't collide with traffic.
+    import threading
+    from app.routers.drift import warm_drift_caches
+    threading.Thread(target=warm_drift_caches, name="drift-warm", daemon=True).start()
+
     logger.info("startup complete")
     yield
 
