@@ -113,7 +113,9 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                           db: Session, *, lyrics: str | None = None,
                           year: int | None = None,
                           chart_position_letter: str = "",
-                          allow_prose_generation: bool = True) -> int | None:
+                          allow_prose_generation: bool = True,
+                          source: str = "compass",
+                          triggered_by: str = "compass_daily") -> int | None:
     """Store or update a calibration on the unified `songs` row + a
     chart_appearance for this (chart, year, position).
 
@@ -138,6 +140,13 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     disables the Anthropic listener/societal prose-gen hooks in
     record_and_reconcile: terminal work supplies its own prose and must never draw
     on the public-traffic ANTHROPIC_API_KEY. See feedback_rc_no_api_in_terminal.
+
+    `source` selects the storage lane (the chart pipeline passes the default
+    "compass" = method chart_reading + a chart_appearance + origin_chart). A
+    one-off Library add passes source="library" (method catalog_backfill): an
+    authoritative write that creates NO chart_appearance and stamps NO
+    origin_chart, so the song joins the Library without claiming a chart slot or
+    entering the compass aggregate. `triggered_by` labels the calibration run.
     """
     # Skip storing if calibration failed (rubric_color is None)
     if result.get("rubric_color") is None:
@@ -201,7 +210,7 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     appearance_year = year if year is not None else date.today().year
     song_id, created = store_calibrated_song(
         db,
-        source="compass",
+        source=source,
         title=title, artist=artist,
         calibration=result,
         chart_source=chart_source,
@@ -243,7 +252,7 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                         "calibration_failed",
                     ) if result.get(k) is not None},
                 },
-                triggered_by="compass_daily",
+                triggered_by=triggered_by,
                 direct_song_source="songs",
                 direct_song_id=song_id,
                 is_new_row=True,
