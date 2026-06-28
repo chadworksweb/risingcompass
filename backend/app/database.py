@@ -17,10 +17,20 @@ logger = logging.getLogger(__name__)
 def _build_engine():
     return create_engine(
         settings.database_url,
-        pool_size=5,
-        max_overflow=10,
+        # PgBouncer (transaction mode) multiplexes, so a larger client-side
+        # pool is cheap and is the intended lever here. The old 5+10 ceiling
+        # (15) exhausted under normal concurrency because async request
+        # handlers hold a checked-out connection across slow awaited work
+        # (Opus / external HTTP), which showed up as a pool QueuePool timeout
+        # while the DB itself sat idle. 20+40 (60) gives real headroom; the DB
+        # has room and PgBouncer absorbs the fan-in.
+        pool_size=20,
+        max_overflow=40,
         pool_pre_ping=True,
         pool_recycle=300,
+        # Fail a starved checkout in 10s instead of hanging 30s, so a spike
+        # degrades fast and visibly rather than stacking 30s waits.
+        pool_timeout=10,
     )
 
 
