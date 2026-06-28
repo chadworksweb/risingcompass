@@ -104,6 +104,18 @@ _UPLOAD_SIGNAL_RE = re.compile(
     re.I,
 )
 
+# Soundtrack provenance suffix: a trailing '- From "Movie"' / '(From "Movie")'
+# tail that Spotify/Apple append to a single that ALSO exists as a plain song
+# row (the 2026-06-27 "I Knew It, I Knew You - From \"Toy Story 5\"" miss, which
+# re-listed an already-calibrated song because the clean key carried the suffix).
+# Closed by the required `From "<quoted work>"` shape -- it strips ONLY when a
+# quoted work follows "From", so a real title ending in the word "from" is safe.
+_SOUNDTRACK_SUFFIX_RE = re.compile(
+    r"\s*(?:[-:|]\s*|[\(\[]\s*)from\s+(?:the\s+)?[" + _QUOTE_CHARS
+    + r"][^" + _QUOTE_CHARS + r"]+[" + _QUOTE_CHARS + r"]\s*[\)\]]?\s*$",
+    re.I,
+)
+
 _VEVO_RE = re.compile(r"\s*vevo\s*$", re.I)
 _TOPIC_RE = re.compile(r"\s*-\s*topic\s*$", re.I)
 _OFFICIAL_ARTIST_RE = re.compile(r"\s*-\s*official\s*$", re.I)
@@ -167,6 +179,14 @@ def _strip_trailing_cruft(title):
                 changed = True
                 break
     return out
+
+
+def _strip_soundtrack_suffix(title):
+    """Drop a trailing soundtrack-provenance tail ('- From "Movie"' /
+    '(From "Movie")'). Conservative: requires the quoted-work shape, and falls
+    back to the input if stripping would blank the title."""
+    out = _SOUNDTRACK_SUFFIX_RE.sub("", title)
+    return out if out.strip() else title
 
 
 def _strip_leading_artist(title, *artist_candidates):
@@ -263,6 +283,9 @@ def clean_title_artist(title, artist):
 
     # 5. Trailing standalone cruft ("... Official MV").
     t = _strip_trailing_cruft(t)
+
+    # 6. Soundtrack-provenance suffix ('- From "Movie"' / '(From "Movie")').
+    t = _strip_soundtrack_suffix(t)
 
     t = _collapse_ws(t)
 

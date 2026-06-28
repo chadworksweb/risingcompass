@@ -151,6 +151,33 @@ def test_lyric_video_apostrophe_title_not_mangled():
     assert ct == "Don't Stop Believin'", ct
 
 
+def test_soundtrack_suffix_resolves_to_base_song():
+    # 2026-06-27 miss: a Spotify single carrying a '- From "Movie"' soundtrack
+    # tail must clean to the base title and resolve to the already-calibrated
+    # plain row (which would otherwise re-list as awaiting-lyrics every day).
+    stored = ("I Knew It, I Knew You", "Taylor Swift")
+    draft = ('I Knew It, I Knew You - From "Toy Story 5"', "Taylor Swift")
+    assert clean_title_artist(*draft) == stored, clean_title_artist(*draft)
+    assert _same_clean(stored, draft), (
+        compute_canonical_key_clean(*stored), compute_canonical_key_clean(*draft))
+    db = _FakeDB([_stored_row(3244, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id == 3244 and res.via == "clean", (res.song_id, res.via)
+
+
+def test_soundtrack_suffix_parenthetical_form():
+    # The parenthetical '(From "Movie")' form cleans the same way.
+    ct, _ = clean_title_artist('Speechless (From "Aladdin")', "Naomi Scott")
+    assert ct == "Speechless", ct
+
+
+def test_real_title_ending_in_from_not_eaten():
+    # The strip requires a quoted work after "From" -- a real title that just
+    # ends in the word "from" (no quotes) must survive untouched.
+    ct, _ = clean_title_artist("Where Do We Go From Here", "Filter")
+    assert ct == "Where Do We Go From Here", ct
+
+
 def test_no_cruft_clean_key_equals_exact():
     # A plain song carries no cruft -> the clean key equals the exact key.
     pair = ("Anti-Hero", "Taylor Swift")
