@@ -8,11 +8,14 @@ for privacy: if the DB is missing or the lookup fails, country is null and the
 frontend treats that as opt-in (analytics stay off until the visitor accepts).
 
 The `region` field is the ISO-3166-2 subdivision code (e.g. "CA" for California)
-and is populated ONLY for US visitors, from Cloudflare's `cf-region-code` header.
-That header requires the Cloudflare "Add visitor location headers" managed
-transform to be enabled on the zone; when it is off the field is null and US
-visitors fall back to the opt-out default (California is not singled out). This
-is what makes first-time California visitors opt-in for CIPA -- see consent.js.
+and is populated ONLY for US visitors, from two sources in order: (1) Cloudflare's
+`cf-region-code` header when the "Add visitor location headers" managed transform
+is enabled on the zone, then (2) the local MaxMind GeoLite2-City DB's subdivision.
+The City DB path needs no Cloudflare config, so California is singled out server-
+side by default; the header path is a no-config shortcut when the transform is on.
+When neither yields a subdivision the field is null and the US visitor falls back
+to opt-out. This is what makes first-time California visitors opt-in for CIPA --
+see consent.js.
 
 This endpoint is intentionally registered WITHOUT the machine X-Api-Key
 dependency so the consent bar (which loads standalone, before auth) can call it
@@ -31,10 +34,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["geo"])
 
 _GEOIP_DB_PATH = os.environ.get("GEOIP_DB_PATH", "/geoip/GeoLite2-Country.mmdb")
+_GEOIP_CITY_DB_PATH = os.environ.get("GEOIP_CITY_DB_PATH", "/geoip/GeoLite2-City.mmdb")
 
-# Lazily-opened, process-wide reader. None = not yet tried; False = tried and
+# Lazily-opened, process-wide readers. None = not yet tried; False = tried and
 # unavailable (missing file / import error) so we don't retry on every request.
-_reader = None
+_reader = None       # GeoLite2-Country (the country lookup)
+_city_reader = None  # GeoLite2-City (the US subdivision lookup; optional)
 
 
 class GeoOut(BaseModel):
@@ -57,8 +62,27 @@ def _get_reader():
     return _reader or None
 
 
+def _get_city_reader():
+    global _city_reader
+    if _city_reader is not None:
+        return _city_reader or None
+    try:
+        import geoip2.database  # noqa: WPS433 (optional dependency)
+
+        _city_reader = geoip2.database.Reader(_GEOIP_CITY_DB_PATH)
+        logger.info("GeoIP city DB loaded from %s", _GEOIP_CITY_DB_PATH)
+    except Exception as exc:  # missing file (city DB is optional), corrupt db
+        logger.info("GeoIP city DB unavailable (%s); US region falls back to header/null", exc)
+        _city_reader = False
+    return _city_reader or None
+
+
 def _client_ip(request: Request) -> str | None:
-    # nginx sets X-Forwarded-For; take the first hop (the real client).
+    # Behind Cloudflare the real client IP is CF-Connecting-IP; nginx also sets
+    # X-Forwarded-For (first hop = real client). Prefer CF, then XFF, then real-ip.
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
         return fwd.split(",")[0].strip()
@@ -68,14 +92,26 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-def _us_region(request: Request, country: str | None) -> str | None:
-    """US subdivision code (e.g. "CA") from Cloudflare's visitor-location
-    headers, so California can get an opt-in default. Only meaningful for the US
-    (California opt-in); null for non-US or when the managed transform is off."""
+def _us_region(request: Request, ip: str | None, country: str | None) -> str | None:
+    """US subdivision code (e.g. "CA") so California can get an opt-in default.
+    Only meaningful for the US; null for non-US. Sources, in order: Cloudflare's
+    cf-region-code header (when the managed transform is on), then the local
+    GeoLite2-City subdivision (no Cloudflare config needed)."""
     if country != "US":
         return None
     code = request.headers.get("cf-region-code")
-    return code.strip().upper() if code else None
+    if code:
+        return code.strip().upper()
+    reader = _get_city_reader()
+    if reader is not None and ip:
+        try:
+            sub = reader.city(ip).subdivisions.most_specific.iso_code
+            if sub:
+                return sub.strip().upper()
+        except Exception:
+            # Private/local/unknown IP, or address-not-found in the city DB.
+            pass
+    return None
 
 
 @router.get("/geo-country", response_model=GeoOut)
@@ -89,7 +125,7 @@ def geo_country(request: Request) -> GeoOut:
     try:
         resp = reader.country(ip)
         country = resp.country.iso_code
-        return GeoOut(country=country, region=_us_region(request, country))
+        return GeoOut(country=country, region=_us_region(request, ip, country))
     except Exception:
         # Private/local/unknown IP, or address-not-found in the DB.
         return GeoOut(country=None)

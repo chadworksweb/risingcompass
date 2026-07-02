@@ -132,8 +132,10 @@ services:
       # unset -> button hides. distinct_id is the Clerk user id (auth.js identify).
       - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID}
       - POSTHOG_UI_HOST=${POSTHOG_UI_HOST:-https://us.posthog.com}
-      # MaxMind GeoLite2 country DB path (mounted read-only above).
+      # MaxMind GeoLite2 DB paths (mounted read-only above). City DB resolves
+      # the US subdivision for the California opt-in default.
       - GEOIP_DB_PATH=${GEOIP_DB_PATH:-/geoip/GeoLite2-Country.mmdb}
+      - GEOIP_CITY_DB_PATH=${GEOIP_CITY_DB_PATH:-/geoip/GeoLite2-City.mmdb}
       - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - CLERK_JWKS_URL=${CLERK_JWKS_URL}
