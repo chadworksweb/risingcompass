@@ -1,14 +1,23 @@
-"""Public geo lookup -- the requester's ISO country code, for the cookie
-consent bar's geo-aware default (EU/UK/EEA opt-in, rest opt-out).
+"""Public geo lookup -- the requester's ISO country code (+ US subdivision), for
+the cookie consent bar's geo-aware default (EU/UK/EEA + California opt-in, rest
+opt-out).
 
 Resolves the client IP against a local MaxMind GeoLite2-Country.mmdb via the
 geoip2 package. No external call, no logging of the IP. Fail-soft = fail-closed
 for privacy: if the DB is missing or the lookup fails, country is null and the
 frontend treats that as opt-in (analytics stay off until the visitor accepts).
 
+The `region` field is the ISO-3166-2 subdivision code (e.g. "CA" for California)
+and is populated ONLY for US visitors, from Cloudflare's `cf-region-code` header.
+That header requires the Cloudflare "Add visitor location headers" managed
+transform to be enabled on the zone; when it is off the field is null and US
+visitors fall back to the opt-out default (California is not singled out). This
+is what makes first-time California visitors opt-in for CIPA -- see consent.js.
+
 This endpoint is intentionally registered WITHOUT the machine X-Api-Key
 dependency so the consent bar (which loads standalone, before auth) can call it
-anonymously. It returns nothing sensitive -- a two-letter country code.
+anonymously. It returns nothing sensitive -- a country code and, for the US, a
+state code.
 """
 
 import logging
@@ -30,6 +39,7 @@ _reader = None
 
 class GeoOut(BaseModel):
     country: str | None  # ISO-3166-1 alpha-2, or null when undetermined
+    region: str | None = None  # ISO-3166-2 subdivision (US only, e.g. "CA"), or null
 
 
 def _get_reader():
@@ -58,6 +68,16 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
+def _us_region(request: Request, country: str | None) -> str | None:
+    """US subdivision code (e.g. "CA") from Cloudflare's visitor-location
+    headers, so California can get an opt-in default. Only meaningful for the US
+    (California opt-in); null for non-US or when the managed transform is off."""
+    if country != "US":
+        return None
+    code = request.headers.get("cf-region-code")
+    return code.strip().upper() if code else None
+
+
 @router.get("/geo-country", response_model=GeoOut)
 def geo_country(request: Request) -> GeoOut:
     reader = _get_reader()
@@ -68,7 +88,8 @@ def geo_country(request: Request) -> GeoOut:
         return GeoOut(country=None)
     try:
         resp = reader.country(ip)
-        return GeoOut(country=resp.country.iso_code)
+        country = resp.country.iso_code
+        return GeoOut(country=country, region=_us_region(request, country))
     except Exception:
         # Private/local/unknown IP, or address-not-found in the DB.
         return GeoOut(country=None)

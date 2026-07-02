@@ -9,9 +9,11 @@
  * (essential:1|analytics:X), 1 year, SameSite=Lax.
  *
  * GEO-AWARE DEFAULT (before the visitor chooses):
- *   EU / UK / EEA  -> opt-IN  (analytics stay OFF until Accept)
- *   everywhere else -> opt-OUT (analytics load unless Rejected)
- * Country comes from GET /api/geo-country (MaxMind, server-side). While it
+ *   EU / UK / EEA + California -> opt-IN  (analytics stay OFF until Accept)
+ *   everywhere else            -> opt-OUT (analytics load unless Rejected)
+ * California is opt-in because CIPA treats pre-consent third-party analytics as
+ * a per-visit wiretap/pen-register liability. Country + US region come from
+ * GET /api/geo-country (MaxMind country + Cloudflare cf-region-code). While it
  * resolves, analytics stay OFF. If it returns null (DB missing / private IP),
  * we fail closed = treat as opt-in.
  *
@@ -35,6 +37,17 @@
     IS: 1, LI: 1, NO: 1,                                        // EEA
     GB: 1, CH: 1                                                // UK + Switzerland
   };
+
+  // US states that get opt-in (default-deny), keyed by ISO-3166-2 subdivision
+  // code (only consulted when country === 'US'). California -> CIPA / CPRA.
+  var OPT_IN_US_REGIONS = { CA: 1 };
+
+  function isOptInGeo(country, region) {
+    if (!country) return true;                 // null -> fail closed (opt-in)
+    if (OPT_IN[country]) return true;
+    if (country === 'US' && region && OPT_IN_US_REGIONS[region]) return true;
+    return false;
+  }
 
   function readCookie() {
     var m = document.cookie.match(new RegExp('(?:^|; )' + COOKIE + '=([^;]*)'));
@@ -186,7 +199,8 @@
       .catch(function () { return { country: null }; })
       .then(function (data) {
         var country = data && data.country;
-        var optIn = !country || !!OPT_IN[country]; // null -> fail closed (opt-in)
+        var region = data && data.region;
+        var optIn = isOptInGeo(country, region);
         if (optIn) {
           buildBar(false, false); // analytics off until Accept
         } else {
