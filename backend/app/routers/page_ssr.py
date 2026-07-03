@@ -25,7 +25,8 @@ from html import escape as _esc
 from pathlib import Path
 
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import text
 
 from app.config import settings
 from app.database import SessionLocal
@@ -175,13 +176,26 @@ def ssr_song(slug: str):
         return HTMLResponse("Not found", status_code=404)
 
     # Reuse the canonical lookup. Returns the song dict, or raises 404 -> we
-    # serve the generic template and let the client JS render not-found.
+    # serve the generic template with a REAL 404 status (a 200 here is a soft
+    # 404 to crawlers) and let the client JS render not-found.
     from app.routers.songs import song_detail
     from fastapi import HTTPException
     try:
         song = song_detail(slug)
     except HTTPException:
-        return HTMLResponse(tpl)  # generic meta; JS shows "Song not found"
+        return HTMLResponse(tpl, status_code=404)
+
+    # A song can carry alias slugs (collision suffixes, merges). Only the
+    # persisted first slug -- the one the sitemap advertises -- may serve
+    # content; 301 the rest so crawlers never see two self-canonical copies.
+    sid = song.get("song_id")
+    if sid:
+        with SessionLocal() as db:
+            canonical_slug = db.execute(text(
+                "SELECT slug FROM song_slugs WHERE song_id = :i ORDER BY id LIMIT 1"
+            ), {"i": sid}).scalar()
+        if canonical_slug and canonical_slug != slug:
+            return RedirectResponse(f"/songs/{canonical_slug}", status_code=301)
 
     title = song.get("title") or "this song"
     artist = song.get("artist")
@@ -232,7 +246,8 @@ def ssr_release(slug: str, release_slug: str):
     try:
         rel = release_detail(slug, release_slug)
     except HTTPException:
-        return HTMLResponse(tpl)  # generic meta; JS shows "Release not found"
+        # Real 404 status; generic meta, JS shows "Release not found".
+        return HTMLResponse(tpl, status_code=404)
 
     title = rel.get("title") or "this release"
     artist = (rel.get("artist") or {}).get("name")
@@ -284,7 +299,8 @@ def ssr_artist(slug: str):
     finally:
         db.close()
     if artist is None:
-        return HTMLResponse(tpl)  # generic meta; JS shows not-found
+        # Real 404 status; generic meta, JS shows not-found.
+        return HTMLResponse(tpl, status_code=404)
 
     name = artist.name
     question = f"What are {name}'s songs about?"

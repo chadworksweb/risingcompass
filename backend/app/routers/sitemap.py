@@ -58,8 +58,16 @@ _EXTRA_PAGES = [
     "/charts/most-streamed-albums/",
     "/charts/best-selling-albums/",
 ]
-_EXCLUDED_DIR_NAMES = {"css", "img", "js", "scripts", "songs"}
+# cards = the card-render harness (noindex); account = per-user sign-in;
+# dev = internal roadmap/changelog. None belong in a crawl seed list.
+_EXCLUDED_DIR_NAMES = {"css", "img", "js", "scripts", "songs", "cards", "account", "dev"}
 _EXCLUDED_FILE_NAMES = {"sitemap.xml", "robots.txt", "_headers"}
+
+# The historical backfill stamps created_at with the song's chart year (back
+# to 1960). A page can't have been modified before the site existed, and GSC
+# rejects such lastmod values as invalid dates -- omit the tag instead
+# (lastmod is optional).
+_LASTMOD_FLOOR = datetime(2025, 1, 1)
 
 _DAILY_PATHS = {
     "/", "/calibration-log/", "/artists/", "/search/", "/library/",
@@ -229,7 +237,7 @@ def _build_songs(shard: int) -> str:
         seen.add(slug)
         out.append("  <url>")
         out.append(f"    <loc>{escape(f'{_SITE}/songs/{slug}')}</loc>")
-        if lastmod is not None:
+        if lastmod is not None and lastmod >= _LASTMOD_FLOOR:
             out.append(f"    <lastmod>{lastmod.strftime('%Y-%m-%d')}</lastmod>")
         out.append("    <changefreq>weekly</changefreq>")
         out.append("    <priority>0.7</priority>")
