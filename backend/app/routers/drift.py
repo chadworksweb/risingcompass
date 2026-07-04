@@ -8,7 +8,7 @@ from sqlalchemy import func, extract
 from app.database import get_db
 from app.models import Song, DailyReading, ReadingSong
 from app.schemas import DecadeAggregate, YearAggregate
-from app.services.compass_calc import position_weight, compute_live_year_degree
+from app.services.compass_calc import position_weight, compute_degree, compute_live_year_degree
 from app.services.charge_calc import degree_to_charge
 from app.constants import HISTORICAL_DEGREES
 from app.services import song_store
@@ -73,21 +73,16 @@ LIVE_YEAR_CUTOFF = 2025
 
 
 def compute_historical_degree(songs: list[dict]) -> float:
-    """Weighted average using historical color mapping."""
-    if not songs:
-        return 90.0
-    total_weight = 0
-    weighted_sum = 0.0
-    for song in songs:
-        color = song.get("rubric_color", "green")
-        pos = song.get("chart_position", 5)
-        deg = HISTORICAL_DEGREES.get(color, 90.0)
-        w = position_weight(pos)
-        weighted_sum += deg * w
-        total_weight += w
-    if total_weight == 0:
-        return 90.0
-    return round(weighted_sum / total_weight, 1)
+    """Weighted average degree for historical (pre-live) years.
+
+    Charge-aware: uses each song's charge_value when present -- the LEC-backfilled
+    corpus carries a real per-song charge -- and falls back to the coarse
+    HISTORICAL_DEGREES color map only for genuinely legacy color-only rows
+    (charge_value NULL). Delegates to the shared compute_degree so the year/decade
+    drift chart and the homepage all-time needle (compass.py) share ONE
+    methodology instead of the old tier-only collapse.
+    """
+    return compute_degree(songs, color_degrees=HISTORICAL_DEGREES)
 
 
 def _aggregate_live_year(db: Session, year: int) -> list[dict]:
@@ -197,7 +192,10 @@ def _compute_drift(db: Session) -> list[DecadeAggregate]:
 
         # Exclude instrumentals from aggregate calculations
         scored = [(s, pos) for (s, pos) in rows if not s.instrumental]
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": pos} for (s, pos) in scored]
+        song_dicts = [
+            {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "chart_position": pos}
+            for (s, pos) in scored
+        ]
         deg = compute_historical_degree(song_dicts)
         contam = sum(1 for (s, _) in scored if s.contaminated)
 
@@ -316,7 +314,10 @@ def _compute_drift_years(db: Session) -> list[YearAggregate]:
             continue
 
         scored = [(s, pos) for (s, pos) in rows if not s.instrumental]
-        song_dicts = [{"rubric_color": s.rubric_color, "chart_position": pos} for (s, pos) in scored]
+        song_dicts = [
+            {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "chart_position": pos}
+            for (s, pos) in scored
+        ]
         deg = compute_historical_degree(song_dicts)
 
         results.append(YearAggregate(

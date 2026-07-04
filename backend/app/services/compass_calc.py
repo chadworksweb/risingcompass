@@ -27,14 +27,15 @@ def charge_to_degree(charge_value: int) -> float:
 #   s = 1.0  -> pure Zipf, #1 is 100x the #100 (very top-heavy)
 #   s < 1.0  -> the deep tail still registers
 # Population music consumption is a power law, and the chart is the top
-# truncation of it. s = 0.7 puts #1:#20 ~= 8x and #1:#100 ~= 25x, which sits
-# in the band of real Hot-100 stream ratios -- top-heavy, but the #100 song
-# still counts (it is hugely more consumed than the #1000 or a random indie
-# release, which are simply not in the group at all). Tune here; every
-# downstream aggregate is a weighted MEAN, so only the RATIOS between weights
-# matter, never their absolute scale.
+# truncation of it. s = 1.0 is Zipf's law proper: #1 counts 10x the #10 and
+# 100x the #100 -- the canonical, least-arbitrary exponent for a frequency-rank
+# popularity distribution, so the weighting needs no tuning justification. (It
+# replaced s = 0.7 on 2026-07-03; 0.7 was flatter than real top-of-chart
+# consumption and over-weighted the tail -- it let a year's #11-20 carry ~27%
+# of the vote vs ~19% at s = 1.0.) Tune here; every downstream aggregate is a
+# weighted MEAN, so only the RATIOS between weights matter, never their scale.
 # Full rationale + worked tables: RISING-COMPASS-CHARGE-WEIGHTING.md.
-ZIPF_S = 0.7
+ZIPF_S = 1.0
 
 
 def position_weight(position: int, total: int | None = None) -> float:
