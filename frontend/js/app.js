@@ -368,20 +368,21 @@ const App = (() => {
   let tmSpeedIdx = 1;
   const TM_BASE_SPEED = 1.5;
 
-  // --- Charge-axis scale ---------------------------------------------------
-  // The trajectory charts span +scale .. -scale vertically, where `scale` is
-  // resolved per chart from its own data. Two modes, flipped by the Scale toggle
-  // in the panel header:
-  //   'fit'  (default) -- auto-fit: the axis reaches SCALE_FIT_PAD beyond the
-  //          furthest charge in either direction, so swings fill the plot instead
-  //          of reading flat in the full +/-100 domain. Floored at SCALE_FIT_MIN
-  //          and capped at 100.
-  //   'full' -- the literal +/-100 domain (identical to the legacy
-  //          compass_degree / 180 mapping, so it is a no-op regression-wise).
-  const SCALE_FIT_PAD = 5;   // units of headroom past the furthest reach
-  const SCALE_FIT_MIN = 10;  // never zoom tighter than +/-10 (avoid noise drama)
+  // --- Charge-axis domain --------------------------------------------------
+  // The trajectory charts map an ASYMMETRIC charge domain {hi, lo} to the plot
+  // top/bottom, resolved per chart from its own data. Two modes, flipped by the
+  // Scale toggle in the panel header:
+  //   'fit'  (default) -- auto-fit: top = max + SCALE_FIT_PAD, bottom =
+  //          min - SCALE_FIT_PAD of the passed data, so a lopsided segment (e.g.
+  //          an era that sits entirely below zero) fills the plot instead of
+  //          hugging one edge under a symmetric axis. Clamped to +/-100 and never
+  //          tighter than SCALE_FIT_MIN_SPAN total (avoid noise drama).
+  //   'full' -- the literal +/-100 domain (legacy compass_degree / 180 mapping).
+  const SCALE_FIT_PAD = 5;        // units of headroom past the max and the min
+  const SCALE_FIT_MIN_SPAN = 20;  // never zoom to a band tighter than 20 units total
   let scaleMode = 'fit';
-  // Last scale each chart rendered with, so a re-fit can pulse the axis labels.
+  // Last domain each chart rendered with (as an "hi|lo" key), so a re-fit can
+  // pulse the axis labels.
   let lastTrajScale = null;
   let lastDailyScale = null;
 
@@ -389,37 +390,58 @@ const App = (() => {
   function degreeToCharge(degree) {
     return (90 - degree) / 0.9;
   }
-  // Resolve the axis half-range for a dataset under the current mode. Callers
-  // pass whichever slice the axis should fit: the historical chart passes its
-  // current zoom window (so the axis tightens to the selected segment), while
-  // the full-range overview locator passes allYearData (stable all-time shape).
-  function resolveScale(data) {
-    if (scaleMode === 'full' || !data || !data.length) return 100;
-    let maxAbs = 0;
+  // Resolve the visible charge domain {hi, lo} for a dataset under the current
+  // mode. Callers pass whichever slice the axis should fit: the historical chart
+  // passes its current zoom window (so the axis tightens to the selected
+  // segment), while the full-range overview locator passes allYearData.
+  function resolveDomain(data) {
+    if (scaleMode === 'full' || !data || !data.length) return { hi: 100, lo: -100 };
+    let mn = Infinity, mx = -Infinity;
     for (const d of data) {
-      const a = Math.abs(degreeToCharge(d.compass_degree));
-      if (a > maxAbs) maxAbs = a;
+      const c = degreeToCharge(d.compass_degree);
+      if (c < mn) mn = c;
+      if (c > mx) mx = c;
     }
-    return Math.min(100, Math.max(SCALE_FIT_MIN, Math.ceil(maxAbs) + SCALE_FIT_PAD));
+    let hi = Math.min(100, Math.ceil(mx) + SCALE_FIT_PAD);
+    let lo = Math.max(-100, Math.floor(mn) - SCALE_FIT_PAD);
+    // Enforce a minimum band so a flat segment doesn't magnify tiny wiggles.
+    if (hi - lo < SCALE_FIT_MIN_SPAN) {
+      const mid = (hi + lo) / 2;
+      hi = Math.min(100, mid + SCALE_FIT_MIN_SPAN / 2);
+      lo = Math.max(-100, hi - SCALE_FIT_MIN_SPAN);
+      hi = Math.min(100, lo + SCALE_FIT_MIN_SPAN);
+    }
+    return { hi, lo };
   }
 
-  // charge value -> fractional plot position [0,1] under `scale`, clamped so
-  // out-of-window charges pin to the top/bottom edge.
-  function chargeToFrac(charge, scale) {
-    return Math.max(0, Math.min(1, (scale - charge) / (2 * scale)));
+  // charge value -> fractional plot position [0,1] within the domain, clamped so
+  // out-of-band charges pin to the top/bottom edge.
+  function chargeToFrac(charge, dom) {
+    const span = (dom.hi - dom.lo) || 1;
+    return Math.max(0, Math.min(1, (dom.hi - charge) / span));
   }
-  function chargeDegreeToY(degree, padT, chartH, scale) {
-    return padT + chargeToFrac(degreeToCharge(degree), scale) * chartH;
+  function chargeDegreeToY(degree, padT, chartH, dom) {
+    return padT + chargeToFrac(degreeToCharge(degree), dom) * chartH;
   }
-  // Grid rows for `scale`: ends + center labeled, quarters unlabeled.
-  function chargeGridRows(scale) {
-    return [
-      { charge: scale, label: '+' + scale },
-      { charge: scale / 2, label: '' },
-      { charge: 0, label: '0' },
-      { charge: -scale / 2, label: '' },
-      { charge: -scale, label: '-' + scale },
-    ];
+  // Grid rows for the domain: top + bottom labeled with their charge value, a
+  // labeled 0 reference line when it falls inside the band, quarters unlabeled.
+  function chargeGridRows(dom) {
+    const span = (dom.hi - dom.lo) || 1;
+    const signed = v => { v = Math.round(v); return v > 0 ? '+' + v : String(v); };
+    // Draw a labeled 0 reference line only when it sits clearly inside the band.
+    // When 0 hugs a bound (e.g. a segment topping out near zero, hi = +3) its
+    // label would overlap the bound's, and the bound already marks near-neutral,
+    // so suppress it rather than crowd the two labels.
+    const zeroClear = dom.lo < 0 && dom.hi > 0 && Math.min(dom.hi, -dom.lo) > span * 0.1;
+    const rows = [{ charge: dom.hi, label: signed(dom.hi) }];
+    for (let q = 1; q <= 3; q++) {
+      const c = dom.hi - (q / 4) * span;
+      if (zeroClear && Math.abs(c) < span * 0.06) continue; // don't double a filler on ~0
+      rows.push({ charge: c, label: '' });
+    }
+    rows.push({ charge: dom.lo, label: signed(dom.lo) });
+    if (zeroClear) rows.push({ charge: 0, label: '0' });
+    return rows;
   }
 
   // Redraw both trajectory charts (main + mini-overview, both tabs) at the
@@ -457,15 +479,16 @@ const App = (() => {
     if (!data.length) return;
     chartData = data;
     // Fit to the CURRENTLY-ZOOMED window (`data` is the filtered year range),
-    // not the all-time set, so the axis tightens to +/-SCALE_FIT_PAD of the
-    // highest/lowest charge in the selected segment. Zooming into a 30/20/10-year
-    // span re-scales the axis to that span instead of staying pinned to all-time.
-    const scale = resolveScale(data);
-    // Pulse the y-axis labels only on the render where the scale actually
+    // not the all-time set, so the axis top/bottom tighten to max+PAD / min-PAD
+    // of the selected segment. A lopsided era (e.g. one sitting entirely below
+    // zero) fills the plot instead of hugging one edge under a symmetric axis.
+    const dom = resolveDomain(data);
+    // Pulse the y-axis labels only on the render where the domain actually
     // changed (a zoom that re-fit the axis), so the number change is legible
     // even though the trajectory line barely shifts. Skip the first render.
-    const scaleChanged = lastTrajScale !== null && lastTrajScale !== scale;
-    lastTrajScale = scale;
+    const domKey = dom.hi + '|' + dom.lo;
+    const scaleChanged = lastTrajScale !== null && lastTrajScale !== domKey;
+    lastTrajScale = domKey;
 
     const H = 120;
     // Same as the daily chart: when the panel is expanded the chart box is much
@@ -489,12 +512,20 @@ const App = (() => {
 
     chartPoints = data.map((d, i) => ({
       x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
-      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, dom),
       degree: d.compass_degree,
       year: d.year,
       color: d.charge_level,
       isYTD: d.year === currentCalYear,
     }));
+
+    // Anchor the vertical color gradient to fixed charge values (+100..-100),
+    // UNCLAMPED, so the tier colors stay correct even when the visible band is
+    // off-center: green sits at 0 and red at the deep negatives regardless of
+    // where the window lands. (In the old symmetric axis these anchors fell on
+    // the plot edges, so this is a no-op there and a fix for asymmetric bands.)
+    const gy = (c) => padT + ((dom.hi - c) / (dom.hi - dom.lo)) * chartH;
+    const gyTop = gy(100).toFixed(1), gyBot = gy(-100).toFixed(1);
 
     // Build line paths — split into solid (completed years) and dashed (YTD segment)
     const solidPoints = hasYTD ? chartPoints.slice(0, -1) : chartPoints;
@@ -511,14 +542,14 @@ const App = (() => {
 
     let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Charge trajectory chart">`;
     svg += `<defs>
-      <linearGradient id="traj-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+      <linearGradient id="traj-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${gyTop}" x2="0" y2="${gyBot}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
         <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" />
         <stop offset="75%" stop-color="${COLOR_HEX.orange}" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" />
       </linearGradient>
-      <linearGradient id="traj-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+      <linearGradient id="traj-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${gyTop}" x2="0" y2="${gyBot}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" stop-opacity="0.2" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" stop-opacity="0.05" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
@@ -532,8 +563,8 @@ const App = (() => {
     // wide, far below a touch target). Rendered before the labels so the text's
     // own :hover still fires when pointed directly.
     svg += `<rect class="traj-y-hit" x="0" y="0" width="${padL}" height="${H}" fill="transparent" />`;
-    chargeGridRows(scale).forEach(({ charge, label }) => {
-      const y = padT + chargeToFrac(charge, scale) * chartH;
+    chargeGridRows(dom).forEach(({ charge, label }) => {
+      const y = padT + chargeToFrac(charge, dom) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
       if (label) svg += `<text class="trajectory-y-label${scaleChanged ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
@@ -962,11 +993,11 @@ const App = (() => {
     const padT = 4, padB = 4;
     const chartH = H - padT - padB;
     const data = allYearData;
-    const scale = resolveScale(data);
+    const dom = resolveDomain(data);
     const maxIdx = data.length - 1;
     const pts = data.map((d, i) => ({
       x: maxIdx > 0 ? (i / maxIdx) * W : W / 2,
-      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, dom),
     }));
     const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     overviewEl.innerHTML = `
@@ -1745,11 +1776,11 @@ const App = (() => {
     const W = 320, H = 28;
     const padT = 4, padB = 4;
     const chartH = H - padT - padB;
-    const scale = resolveScale(dailyChartData);
+    const dom = resolveDomain(dailyChartData);
     const maxIdx = dailyChartData.length - 1;
     const pts = dailyChartData.map((d, i) => ({
       x: maxIdx > 0 ? (i / maxIdx) * W : W / 2,
-      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, dom),
     }));
     const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     overviewEl.innerHTML = `
@@ -2075,11 +2106,12 @@ const App = (() => {
     data = interpolateSkippedDegrees(data);
     // Fit to the FULL daily series (dailyChartData), not the zoom window, so the
     // axis stays put while panning/zooming/time-machine.
-    const scale = resolveScale(dailyChartData.length ? dailyChartData : data);
+    const dom = resolveDomain(dailyChartData.length ? dailyChartData : data);
     // Same axis-change cue as the historical chart: pulse the labels when the
-    // scale flips (here it changes on the fit/full toggle, not on zoom).
-    const scaleChanged = lastDailyScale !== null && lastDailyScale !== scale;
-    lastDailyScale = scale;
+    // domain flips (here it changes on the fit/full toggle, not on zoom).
+    const domKey = dom.hi + '|' + dom.lo;
+    const scaleChanged = lastDailyScale !== null && lastDailyScale !== domKey;
+    lastDailyScale = domKey;
 
     const H = 120;
     // Default viewBox width keeps the established 320x120 (2.667:1) shape, which
@@ -2106,26 +2138,31 @@ const App = (() => {
 
     dailyChartPoints = data.map((d, i) => ({
       x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
-      y: chargeDegreeToY(d.compass_degree, padT, chartH, scale),
+      y: chargeDegreeToY(d.compass_degree, padT, chartH, dom),
       degree: d.compass_degree,
       date: d.date,
       color: d.charge_level,
       originalDegree: (typeof d._originalDegree === 'number') ? d._originalDegree : d.compass_degree,
     }));
 
+    // Charge-anchored gradient (see renderTrajectoryChart): keep tier colors
+    // correct for an off-center band.
+    const gy = (c) => padT + ((dom.hi - c) / (dom.hi - dom.lo)) * chartH;
+    const gyTop = gy(100).toFixed(1), gyBot = gy(-100).toFixed(1);
+
     const linePath = dailyChartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     const areaPath = linePath + ` L ${dailyChartPoints[maxIdx].x.toFixed(1)} ${padT + chartH} L ${dailyChartPoints[0].x.toFixed(1)} ${padT + chartH} Z`;
 
     let svg = `<svg class="trajectory-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Charge trajectory chart">`;
     svg += `<defs>
-      <linearGradient id="daily-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+      <linearGradient id="daily-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${gyTop}" x2="0" y2="${gyBot}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" />
         <stop offset="25%" stop-color="${COLOR_HEX.blue}" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" />
         <stop offset="75%" stop-color="${COLOR_HEX.orange}" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" />
       </linearGradient>
-      <linearGradient id="daily-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}">
+      <linearGradient id="daily-area-grad" gradientUnits="userSpaceOnUse" x1="0" y1="${gyTop}" x2="0" y2="${gyBot}">
         <stop offset="0%" stop-color="${COLOR_HEX.violet}" stop-opacity="0.2" />
         <stop offset="50%" stop-color="${COLOR_HEX.green}" stop-opacity="0.05" />
         <stop offset="100%" stop-color="${COLOR_HEX.red}" stop-opacity="0.2" />
@@ -2139,8 +2176,8 @@ const App = (() => {
     // wide, far below a touch target). Rendered before the labels so the text's
     // own :hover still fires when pointed directly.
     svg += `<rect class="traj-y-hit" x="0" y="0" width="${padL}" height="${H}" fill="transparent" />`;
-    chargeGridRows(scale).forEach(({ charge, label }) => {
-      const y = padT + chargeToFrac(charge, scale) * chartH;
+    chargeGridRows(dom).forEach(({ charge, label }) => {
+      const y = padT + chargeToFrac(charge, dom) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
       if (label) svg += `<text class="trajectory-y-label${scaleChanged ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
