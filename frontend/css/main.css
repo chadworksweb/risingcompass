@@ -1715,6 +1715,24 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 .traj-y-hit:hover ~ .trajectory-y-label {
   fill: var(--rc-text-bright);
 }
+/* Scale-change cue: the trajectory line barely moves when the axis re-fits to a
+   zoomed segment, so the only signal is the +N / -N numbers changing. Flash the
+   labels teal + a quick scale pop so the eye registers the axis is now on a
+   different scale. The class is added by app.js only on the render where the
+   resolved scale actually changed. */
+@keyframes traj-y-pulse {
+  0%   { fill: var(--rc-text-dim); transform: scale(1); }
+  22%  { fill: #00d4aa; transform: scale(1.5); }
+  100% { fill: var(--rc-text-dim); transform: scale(1); }
+}
+.traj-y-pulse {
+  transform-box: fill-box;
+  transform-origin: right center;
+  animation: traj-y-pulse 640ms var(--rc-ease, ease) 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .traj-y-pulse { animation: none; }
+}
 
 /* === Trajectory Hover === */
 .traj-wrap {

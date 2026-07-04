@@ -381,6 +381,9 @@ const App = (() => {
   const SCALE_FIT_PAD = 5;   // units of headroom past the furthest reach
   const SCALE_FIT_MIN = 10;  // never zoom tighter than +/-10 (avoid noise drama)
   let scaleMode = 'fit';
+  // Last scale each chart rendered with, so a re-fit can pulse the axis labels.
+  let lastTrajScale = null;
+  let lastDailyScale = null;
 
   // compass_degree (0 = +100, 90 = 0, 180 = -100) -> charge value (+100 .. -100).
   function degreeToCharge(degree) {
@@ -458,6 +461,11 @@ const App = (() => {
     // highest/lowest charge in the selected segment. Zooming into a 30/20/10-year
     // span re-scales the axis to that span instead of staying pinned to all-time.
     const scale = resolveScale(data);
+    // Pulse the y-axis labels only on the render where the scale actually
+    // changed (a zoom that re-fit the axis), so the number change is legible
+    // even though the trajectory line barely shifts. Skip the first render.
+    const scaleChanged = lastTrajScale !== null && lastTrajScale !== scale;
+    lastTrajScale = scale;
 
     const H = 120;
     // Same as the daily chart: when the panel is expanded the chart box is much
@@ -527,7 +535,7 @@ const App = (() => {
     chargeGridRows(scale).forEach(({ charge, label }) => {
       const y = padT + chargeToFrac(charge, scale) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
-      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
+      if (label) svg += `<text class="trajectory-y-label${scaleChanged ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
 
     // Clipped line + area
@@ -2068,6 +2076,10 @@ const App = (() => {
     // Fit to the FULL daily series (dailyChartData), not the zoom window, so the
     // axis stays put while panning/zooming/time-machine.
     const scale = resolveScale(dailyChartData.length ? dailyChartData : data);
+    // Same axis-change cue as the historical chart: pulse the labels when the
+    // scale flips (here it changes on the fit/full toggle, not on zoom).
+    const scaleChanged = lastDailyScale !== null && lastDailyScale !== scale;
+    lastDailyScale = scale;
 
     const H = 120;
     // Default viewBox width keeps the established 320x120 (2.667:1) shape, which
@@ -2130,7 +2142,7 @@ const App = (() => {
     chargeGridRows(scale).forEach(({ charge, label }) => {
       const y = padT + chargeToFrac(charge, scale) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
-      if (label) svg += `<text class="trajectory-y-label" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
+      if (label) svg += `<text class="trajectory-y-label${scaleChanged ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
 
     // Clipped line + area
