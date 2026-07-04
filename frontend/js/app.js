@@ -386,9 +386,10 @@ const App = (() => {
   function degreeToCharge(degree) {
     return (90 - degree) / 0.9;
   }
-  // Resolve the axis half-range for a dataset under the current mode. `data` is
-  // the FULL dataset for that chart (not the zoom window), so the scale stays
-  // stable while panning/zooming/time-machine instead of breathing every frame.
+  // Resolve the axis half-range for a dataset under the current mode. Callers
+  // pass whichever slice the axis should fit: the historical chart passes its
+  // current zoom window (so the axis tightens to the selected segment), while
+  // the full-range overview locator passes allYearData (stable all-time shape).
   function resolveScale(data) {
     if (scaleMode === 'full' || !data || !data.length) return 100;
     let maxAbs = 0;
@@ -452,9 +453,11 @@ const App = (() => {
   function renderTrajectoryChart(data, container) {
     if (!data.length) return;
     chartData = data;
-    // Fit to the FULL year set (allYearData), not the zoom window, so the axis
-    // stays put while panning/zooming.
-    const scale = resolveScale(allYearData.length ? allYearData : data);
+    // Fit to the CURRENTLY-ZOOMED window (`data` is the filtered year range),
+    // not the all-time set, so the axis tightens to +/-SCALE_FIT_PAD of the
+    // highest/lowest charge in the selected segment. Zooming into a 30/20/10-year
+    // span re-scales the axis to that span instead of staying pinned to all-time.
+    const scale = resolveScale(data);
 
     const H = 120;
     // Same as the daily chart: when the panel is expanded the chart box is much
