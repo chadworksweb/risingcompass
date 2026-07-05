@@ -254,10 +254,15 @@
       + '</div>';
     var dailyHTML = '<div class="era-content active" id="era-daily"><div id="daily-chart-container"></div></div>';
     var histHTML = '<div class="era-content" id="era-historical"><div id="trajectory-container"></div></div>';
-    panelEl.querySelectorAll('.era-tabs, .era-content').forEach(function (n) { n.remove(); });
-    var frag = document.createElement('div');
-    frag.innerHTML = tabsHTML + dailyHTML + histHTML;
-    while (frag.firstChild) panelEl.appendChild(frag.firstChild);
+    // Adopt pre-existing era markup when the host already ships it (the homepage
+    // keeps its static tabs/contents so trajectory-expand.js -- which wires the
+    // era tabs before this mount runs -- keeps its handles). Build the structure
+    // only when the panel is empty (the chart pages ship an empty #trajectory-panel).
+    if (!panelEl.querySelector('.era-tabs')) {
+      var frag = document.createElement('div');
+      frag.innerHTML = tabsHTML + dailyHTML + histHTML;
+      while (frag.firstChild) panelEl.appendChild(frag.firstChild);
+    }
 
     var dailyContainer = panelEl.querySelector('#daily-chart-container');
     var histContainer = panelEl.querySelector('#trajectory-container');
