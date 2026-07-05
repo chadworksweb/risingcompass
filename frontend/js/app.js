@@ -381,10 +381,11 @@ const App = (() => {
   const SCALE_FIT_PAD = 5;        // units of headroom past the max and the min
   const SCALE_FIT_MIN_SPAN = 20;  // never zoom to a band tighter than 20 units total
   let scaleMode = 'fit';
-  // Last domain each chart rendered with (as an "hi|lo" key), so a re-fit can
-  // pulse the axis labels.
-  let lastTrajScale = null;
-  let lastDailyScale = null;
+  // Last domain bound each chart rendered with, tracked per edge so a re-fit
+  // pulses ONLY the axis label(s) whose value actually changed (top, bottom, or
+  // both). null = first render (never pulses).
+  let lastTrajHi = null, lastTrajLo = null;
+  let lastDailyHi = null, lastDailyLo = null;
 
   // compass_degree (0 = +100, 90 = 0, 180 = -100) -> charge value (+100 .. -100).
   function degreeToCharge(degree) {
@@ -483,12 +484,12 @@ const App = (() => {
     // of the selected segment. A lopsided era (e.g. one sitting entirely below
     // zero) fills the plot instead of hugging one edge under a symmetric axis.
     const dom = resolveDomain(data);
-    // Pulse the y-axis labels only on the render where the domain actually
-    // changed (a zoom that re-fit the axis), so the number change is legible
-    // even though the trajectory line barely shifts. Skip the first render.
-    const domKey = dom.hi + '|' + dom.lo;
-    const scaleChanged = lastTrajScale !== null && lastTrajScale !== domKey;
-    lastTrajScale = domKey;
+    // Pulse each y-axis bound label only when ITS value changed on this re-fit
+    // (top, bottom, or both), so the number change is legible even though the
+    // trajectory line barely shifts. Per-edge; skip the first render.
+    const hiChanged = lastTrajHi !== null && lastTrajHi !== dom.hi;
+    const loChanged = lastTrajLo !== null && lastTrajLo !== dom.lo;
+    lastTrajHi = dom.hi; lastTrajLo = dom.lo;
 
     const H = 120;
     // Same as the daily chart: when the panel is expanded the chart box is much
@@ -566,7 +567,8 @@ const App = (() => {
     chargeGridRows(dom).forEach(({ charge, label }) => {
       const y = padT + chargeToFrac(charge, dom) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
-      if (label) svg += `<text class="trajectory-y-label${scaleChanged ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
+      const pulse = (charge === dom.hi && hiChanged) || (charge === dom.lo && loChanged);
+      if (label) svg += `<text class="trajectory-y-label${pulse ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
 
     // Clipped line + area
@@ -2107,11 +2109,11 @@ const App = (() => {
     // Fit to the FULL daily series (dailyChartData), not the zoom window, so the
     // axis stays put while panning/zooming/time-machine.
     const dom = resolveDomain(dailyChartData.length ? dailyChartData : data);
-    // Same axis-change cue as the historical chart: pulse the labels when the
-    // domain flips (here it changes on the fit/full toggle, not on zoom).
-    const domKey = dom.hi + '|' + dom.lo;
-    const scaleChanged = lastDailyScale !== null && lastDailyScale !== domKey;
-    lastDailyScale = domKey;
+    // Same per-edge axis cue as the historical chart: pulse a bound label only
+    // when its value changed (here the domain flips on the fit/full toggle).
+    const hiChanged = lastDailyHi !== null && lastDailyHi !== dom.hi;
+    const loChanged = lastDailyLo !== null && lastDailyLo !== dom.lo;
+    lastDailyHi = dom.hi; lastDailyLo = dom.lo;
 
     const H = 120;
     // Default viewBox width keeps the established 320x120 (2.667:1) shape, which
@@ -2179,7 +2181,8 @@ const App = (() => {
     chargeGridRows(dom).forEach(({ charge, label }) => {
       const y = padT + chargeToFrac(charge, dom) * chartH;
       svg += `<line class="trajectory-grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
-      if (label) svg += `<text class="trajectory-y-label${scaleChanged ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
+      const pulse = (charge === dom.hi && hiChanged) || (charge === dom.lo && loChanged);
+      if (label) svg += `<text class="trajectory-y-label${pulse ? ' traj-y-pulse' : ''}" x="${padL - 4}" y="${y + 3}"><title>${scaleMode === 'fit' ? 'Click to show the full +/-100 range' : 'Click to auto-fit the range'}</title>${label}</text>`;
     });
 
     // Clipped line + area
