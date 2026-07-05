@@ -133,6 +133,7 @@ const API = (() => {
     getChartYears: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/years`),
     getChartYearDates: (key, year) => get(`/api/compass/chart/${encodeURIComponent(key)}/years/${year}/dates`),
     getChartReading: (key, date) => get(`/api/compass/chart/${encodeURIComponent(key)}/reading/${date}`),
+    getChartDailyChart: (key, days) => get(`/api/compass/chart/${encodeURIComponent(key)}/daily-chart${days ? '?days=' + days : ''}`),
     // Charger Activity feeds (public). overview = all three at once for first paint.
     getChargerActivityOverview: (limit = 12) => get(`/api/charger-activity/overview?limit=${limit}`),
     getChargerActivityFeed: (feed, { window, limit = 20, offset = 0 } = {}) => {

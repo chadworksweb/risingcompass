@@ -90,6 +90,7 @@
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/responsive.css">
   <link rel="stylesheet" href="/charts/chart.css">
+  <link rel="stylesheet" href="/css/compass.css">
 </head>
 <body>
   <a class="skip-nav" href="#chart-main">Skip to content</a>
@@ -179,13 +180,27 @@
         <a href="/ether-art-chart/">Ether Art Chart</a>
       </nav>
     </div>
+    <div class="dash-row1">
+      <div class="card" id="compass-panel" style="position:relative;">
+        <div class="card-header">Today's Charge</div>
+        <div id="contam-container"></div>
+        <div id="compass-container"></div>
+      </div>
+      <div class="card" id="trajectory-panel">
+        <div class="card-header">Daily Charge</div>
+        <p class="card-desc">This chart's aggregate, trailing days, day by day.</p>
+        <div id="chart-traj-container"></div>
+      </div>
+    </div>
     <div id="chart-root"></div>
   </main>
 
   <script>window.RC_CHART = { source: 'shazam', title: 'Shazam', sub: 'Shazam Top 200 — USA' };</script>
   <script src="/js/api.js"></script>
   <script src="/js/chart-shell.js?v=20260619b"></script>
-  <script src="/charts/chart.js"></script>
+  <script src="/js/compass.js"></script>
+  <script src="/js/contamination.js"></script>
+  <script src="/charts/chart.js?v=20260705"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">

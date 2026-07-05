@@ -46,7 +46,9 @@
   line-height: 1.35;
   font-weight: 700;
   color: var(--rc-text-bright);
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--rc-border);
 }
 .summary-text-big {
   font-size: 1.6rem;
@@ -537,6 +539,50 @@
 }
 
 .charge-card-btn svg { flex-shrink: 0; }
+
+/* Charge Card shape dropdown — the primary button opens a menu that floats
+   over the content (it does not reflow the page); each shape downloads that
+   ratio. (This page doesn't load charger.css, so the menu is styled here.) */
+.cc-menu { position: relative; display: inline-block; margin-top: 1rem; }
+.cc-menu .charge-card-btn { margin-top: 0; }
+/* caret points up while closed (it opens upward), flips down when open. */
+.cc-caret { flex-shrink: 0; opacity: 0.8; transform: rotate(180deg); transition: transform 0.15s ease; }
+.charge-card-btn[aria-expanded="true"] .cc-caret { transform: rotate(0deg); }
+
+.cc-ratio {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  /* dark drop for depth + an accent halo so it lifts off the background. */
+  box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.6), 0 0 26px rgba(0, 212, 170, 0.22);
+  overflow: hidden;
+}
+/* position:absolute above overrides the UA [hidden] rule, so guard it. */
+.cc-ratio[hidden] { display: none; }
+.cc-ratio-opt {
+  font-family: var(--rc-font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  padding: 0.55rem 0.95rem;
+  text-align: left;
+  white-space: nowrap;
+  /* both cells share one initial surface, shaded off the page background. */
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--rc-text-dim);
+  border: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.cc-ratio-opt + .cc-ratio-opt { border-top: 1px solid var(--rc-border); }
+/* only hover changes the cell color. */
+.cc-ratio-opt:hover { background: rgba(0, 212, 170, 0.18); color: var(--rc-text-bright); }
 
 /* Download status toast — floats bottom-center, fades + slides in. Works the
    same on desktop and mobile (fixed, centered, clamped to viewport width). */

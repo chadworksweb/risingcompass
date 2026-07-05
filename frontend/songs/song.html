@@ -88,7 +88,7 @@
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/compass.css">
   <link rel="stylesheet" href="/artists/artists.css">
-  <link rel="stylesheet" href="/songs/songs.css">
+  <link rel="stylesheet" href="/songs/songs.css?v=20260705">
   <link rel="stylesheet" href="/css/comments.css">
   <link rel="stylesheet" href="/audience-resonance/style.css">
   <style>
@@ -509,13 +509,16 @@
           <p id="recal-stamp" class="recal-stamp" hidden>
             <button type="button" id="recal-stamp-btn" class="recal-stamp-btn"></button>
           </p>
-          <button type="button" id="charge-card-btn" class="charge-card-btn" aria-expanded="false" aria-controls="charge-card-ratio" hidden>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Get shareable Charge Card</span>
-          </button>
-          <div class="cc-ratio" id="charge-card-ratio" role="group" aria-label="Pick a card shape to download" hidden>
-            <button type="button" class="cc-ratio-opt is-active" data-ratio="square">Square 1:1</button>
-            <button type="button" class="cc-ratio-opt" data-ratio="portrait">Instagram 3:4</button>
+          <div class="cc-menu" id="charge-card-menu" hidden>
+            <button type="button" id="charge-card-btn" class="charge-card-btn" aria-expanded="false" aria-controls="charge-card-ratio" aria-haspopup="menu">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Get shareable Charge Card</span>
+              <svg class="cc-caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="cc-ratio" id="charge-card-ratio" role="menu" aria-label="Pick a card shape to download" hidden>
+              <button type="button" class="cc-ratio-opt" data-ratio="square" role="menuitem">Square 1:1</button>
+              <button type="button" class="cc-ratio-opt" data-ratio="portrait" role="menuitem">Instagram 3:4</button>
+            </div>
           </div>
         </div>
       </section>
@@ -523,7 +526,6 @@
       <!-- Song-specific summary (charge_summary) — the headline read. -->
       <section class="song-section song-section--summary" id="section-summary">
         <h1 id="song-question" class="song-question">What is this song about?</h1>
-        <h2>Summary</h2>
         <p id="summary-text" class="summary-text-big is-loading">Loading summary…</p>
       </section>
     </div>
@@ -687,7 +689,7 @@
 
       <!-- Flag Activity (mirror of public submissions on this song) -->
       <section class="song-section" id="section-flags">
-        <h2>Flag Activity</h2>
+        <h2>Flag Activity on This Song</h2>
         <p class="direct-answer is-loading" id="flags-intro">Loading flag activity…</p>
         <div class="flag-counts" id="flag-counts"></div>
         <p class="flag-cta">
@@ -700,7 +702,7 @@
     <div class="song-row">
       <!-- Artist Claim CTA — inbound 'are you the artist?' lead capture -->
       <section class="song-section" id="section-artist-claim">
-        <h2>Are You the Artist?</h2>
+        <h2>Are You the Artist of This Song?</h2>
         <p class="direct-answer">If this is your song, we'd like to talk. Verification happens face-to-face (or by video with anti-deepfake protocol) — no AI shortcuts. Once you're verified, you can publish a note about this song that lives on this page.</p>
         <p class="flag-cta">
           <a id="artist-claim-link" href="/artist-claim.html" class="accent-link">Tell us about this song &rarr;</a>
@@ -709,7 +711,7 @@
 
       <!-- About / How calibrated -->
       <section class="song-section" id="section-about">
-      <h2>How Is This Song Calibrated?</h2>
+      <h2>How Was This Song Calibrated?</h2>
       <p class="direct-answer">The Rising Compass calibrates songs based exclusively on lyric content using a 58-tenet rubric. No genre, no popularity, no artist reputation. Just the words and what they transmit.</p>
       <p><a href="/#methodology" class="accent-link">Read the full methodology</a></p>
       </section>
@@ -758,7 +760,7 @@
   <script src="/js/auth.js" defer></script>
   <script src="/js/comments.js" defer></script>
   <script src="/cards/rc-charge-card-generator.js?v=20260619-glow2"></script>
-  <script src="/songs/songs.js"></script>
+  <script src="/songs/songs.js?v=20260705"></script>
   <script src="/js/api.js"></script>
   <script src="/audience-resonance/song-page.js" type="module"></script>
   <script src="/js/subscribe.js" defer></script>

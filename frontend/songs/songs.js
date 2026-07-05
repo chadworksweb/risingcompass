@@ -818,12 +818,13 @@
   // downloads it as a PNG, with a smooth status toast on desktop + mobile.
   function wireChargeCard(song, isUncalibrated, color, tierLabel) {
     const btn = document.getElementById('charge-card-btn');
+    const menu = document.getElementById('charge-card-menu');
     if (!btn) return;
     if (isUncalibrated || !window.RCChargeCard) {
-      btn.hidden = true;
+      if (menu) menu.hidden = true;
       return;
     }
-    btn.hidden = false;
+    if (menu) menu.hidden = false;
 
     // Map the song-detail shape onto the card's expected data shape. The card
     // keys off `tier` (rubric_color) and `charge` (charge_value).
@@ -866,24 +867,44 @@
       btn.disabled = false;
     }
 
+    function onDocClick(e) {
+      if (menu && !menu.contains(e.target)) closeMenu();
+    }
+    function onKeydown(e) {
+      if (e.key === 'Escape') { closeMenu(); btn.focus(); }
+    }
+    function openMenu() {
+      if (!ratioWrap) return;
+      ratioWrap.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', onDocClick, true);
+      document.addEventListener('keydown', onKeydown, true);
+    }
+    function closeMenu() {
+      if (!ratioWrap || ratioWrap.hidden) return;
+      ratioWrap.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('keydown', onKeydown, true);
+    }
+
     if (ratioWrap) {
       ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((opt) => {
         opt.onclick = () => {
           cardRatio = opt.dataset.ratio === 'portrait' ? 'portrait' : 'square';
           ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((o) => o.classList.toggle('is-active', o === opt));
+          closeMenu();
           downloadCard(cardRatio);
         };
       });
     }
 
-    // The primary button reveals the shape sub-selector (it no longer downloads
-    // directly -- choosing a shape does). With no selector present, it falls
-    // back to a straight download.
+    // The primary button opens/closes the shape dropdown (it no longer downloads
+    // directly -- choosing a shape does). With no menu present, it falls back to
+    // a straight download.
     btn.onclick = () => {
       if (!ratioWrap) { downloadCard(cardRatio); return; }
-      const show = ratioWrap.hidden;
-      ratioWrap.hidden = !show;
-      btn.setAttribute('aria-expanded', String(show));
+      if (ratioWrap.hidden) openMenu(); else closeMenu();
     };
   }
 
@@ -945,15 +966,14 @@
       const h2 = document.querySelector(`#${sectionId} h2`);
       if (h2) h2.textContent = text;
     };
-    setH2('section-summary', `Summary of ${tagline}`);
     setH2('section-listener-effects', `What Might Listening to ${tagline} Do to the Listener?`);
     setH2('section-societal-effects', `What Might Listening to ${tagline} Do to a Society?`);
     setH2('section-history', `Calibration Log for ${tagline}`);
     setH2('section-vibe', `Audience Vibe on ${tagline}`);
     setH2('section-runs', `Calibration Runs for ${tagline}`);
-    setH2('section-flags', `Flag Activity on ${tagline}`);
-    setH2('section-about', `How Is ${tagline} Calibrated?`);
-    setH2('section-artist-claim', `Are You the Artist of ${tagline}?`);
+    setH2('section-flags', 'Flag Activity on This Song');
+    setH2('section-about', 'How Was This Song Calibrated?');
+    setH2('section-artist-claim', 'Are You the Artist of This Song?');
 
     // Hero
     document.getElementById('song-title').textContent = song.title;

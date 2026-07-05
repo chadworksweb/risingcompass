@@ -25,7 +25,7 @@ visible work).
 import asyncio
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -324,6 +324,36 @@ def _chart_slug_or_404(key: str) -> str:
     if not entry:
         raise HTTPException(status_code=404, detail="Unknown chart key")
     return entry["slug"]
+
+
+@public_router.get("/{key}/daily-chart")
+def get_chart_daily_chart(key: str, days: int = 365, db: Session = Depends(get_db)):
+    """Trailing N days of this chart's published daily aggregate degrees. Mirror of
+    the daily reading's /api/compass/daily-chart so a chart page's trajectory reuses
+    the same renderer. The 20 rows per date carry an identical aggregate, so DISTINCT
+    collapses them to one point per day. Only published rows count."""
+    chart_slug = _chart_slug_or_404(key)
+    cutoff = date.today() - timedelta(days=days)
+    rows = (
+        db.query(
+            ChartSnapshot.date,
+            ChartSnapshot.compass_degree,
+            ChartSnapshot.charge_level,
+        )
+        .filter(
+            ChartSnapshot.chart_source == chart_slug,
+            ChartSnapshot.published.is_(True),
+            ChartSnapshot.compass_degree.isnot(None),
+            ChartSnapshot.date >= cutoff,
+        )
+        .distinct()
+        .order_by(ChartSnapshot.date.asc())
+        .all()
+    )
+    return [
+        {"date": r[0].isoformat(), "compass_degree": r[1], "charge_level": r[2]}
+        for r in rows
+    ]
 
 
 @public_router.get("/{key}/years")
