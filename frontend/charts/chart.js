@@ -68,10 +68,17 @@
     }
   }
 
-  // Trajectory: mount the shared Daily Charge capsule with this chart's series.
+  // Trajectory: mount the shared whole-panel capsule with this chart's daily
+  // series. Historical ships DARK on chart pages (loadHistorical omitted), so the
+  // capsule builds the Historical tab disabled/"coming soon".
   function mountTrajectory(loadSeries) {
-    var c = document.getElementById('chart-daily-container');
-    if (c && window.DailyChargePanel) DailyChargePanel.mount(c, { loadSeries: loadSeries });
+    var panel = document.getElementById('trajectory-panel');
+    if (panel && window.DailyChargePanel) {
+      DailyChargePanel.mount(panel, {
+        loadDaily: loadSeries,
+        eraTaglines: { daily: 'trailing days, day by day' },
+      });
+    }
   }
 
   async function load() {

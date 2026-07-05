@@ -187,21 +187,9 @@
         <div id="contam-container"></div>
         <div id="compass-container"></div>
       </div>
-      <div class="card" id="trajectory-panel">
-        <div class="era-tabs">
-          <button class="era-tab active" data-era="daily" type="button">
-            <span class="era-tab-title">Daily Charge</span>
-            <span class="era-tab-tagline">trailing days, day by day</span>
-          </button>
-          <button class="era-tab" data-era="historical" type="button" disabled aria-disabled="true" title="Coming soon for this chart">
-            <span class="era-tab-title">Historical Charge Index</span>
-            <span class="era-tab-tagline">coming soon</span>
-          </button>
-        </div>
-        <div class="era-content active" id="era-daily">
-          <div id="chart-daily-container"></div>
-        </div>
-      </div>
+      <!-- The whole trajectory panel (era tabs + both charts) is built by the
+           DailyChargePanel capsule; chart pages ship the Historical tab dark. -->
+      <div class="card" id="trajectory-panel"></div>
     </div>
     <div id="chart-root"></div>
   </main>
@@ -211,8 +199,8 @@
   <script src="/js/chart-shell.js?v=20260619b"></script>
   <script src="/js/compass.js"></script>
   <script src="/js/contamination.js"></script>
-  <script src="/js/daily-charge-panel.js?v=20260705"></script>
-  <script src="/charts/chart.js?v=20260705b"></script>
+  <script src="/js/daily-charge-panel.js?v=20260705b"></script>
+  <script src="/charts/chart.js?v=20260705c"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
