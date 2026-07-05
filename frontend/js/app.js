@@ -352,45 +352,16 @@ const App = (() => {
   let rolodexDatesCache = {};  // { year: ["2026-01-15", ...] }
   let rolodexDegreeCache = {};  // { year: { "2026-01-15": 42.5, ... } } -- per-day compass_degree for calendar coloring
 
-  // --- Trajectory Chart (year-by-year with zoom + Time Machine) ---
+  // Historical year drift data (per-year compass_degree), shared by the compass
+  // calendar picker + the year-songs overlay. Fetched once in init() and also
+  // handed to the DailyChargePanel capsule, which renders the Historical tab.
+  // (The Time-Machine compass save/restore that used to live here moved into the
+  // capsule with the rest of the trajectory subsystem.)
   let allYearData = [];
-  // --- Compass State Save/Restore ---
-  let savedDegree = null;
-  let savedCharge = null;
-  let savedDateText = null;
-  // Tracks the date string the homepage's "today" view rendered with —
-  // used so any source that drives the compass (calendar, daily chart,
-  // historical chart) can decide whether to dim the "Today's Charge"
-  // header or swap it to a past/year/historical label.
+  // Tracks the date string the homepage's "today" view rendered with -- used so
+  // any source that drives the compass (calendar, year-songs) can decide whether
+  // to dim the "Today's Charge" header or swap it to a past/year label.
   let currentTodayDate = null;
-
-  function saveCompassState() {
-    if (savedDegree !== null) return; // already saved
-    const scoreText = document.getElementById('compass-score')?.textContent;
-    const chargeText = document.getElementById('compass-charge-text')?.textContent;
-    const dateEl = document.getElementById('compass-date-svg');
-    if (scoreText && chargeText) {
-      for (const [color, label] of Object.entries(CHARGE_LABELS)) {
-        if (label.toUpperCase() === chargeText) { savedCharge = color; break; }
-      }
-      savedDegree = 90 - (parseInt(scoreText) * 90 / 100);
-    }
-    if (dateEl) savedDateText = dateEl.textContent;
-  }
-
-  function restoreCompassState() {
-    if (savedDegree !== null) {
-      Compass.setDegree(savedDegree, savedCharge);
-      Charge.setLevel(savedCharge, 0, 0, savedDegree);
-    }
-    if (savedDateText) {
-      const dateEl = document.getElementById('compass-date-svg');
-      if (dateEl) dateEl.textContent = savedDateText;
-    }
-    savedDegree = null;
-    savedCharge = null;
-    savedDateText = null;
-  }
 
   function setCompassDate(text) {
     const dateEl = document.getElementById('compass-date-svg');
