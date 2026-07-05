@@ -187,9 +187,19 @@
         <div id="compass-container"></div>
       </div>
       <div class="card" id="trajectory-panel">
-        <div class="card-header">Daily Charge</div>
-        <p class="card-desc">This chart's aggregate, trailing days, day by day.</p>
-        <div id="chart-traj-container"></div>
+        <div class="era-tabs">
+          <button class="era-tab active" data-era="daily" type="button">
+            <span class="era-tab-title">Daily Charge</span>
+            <span class="era-tab-tagline">trailing days, day by day</span>
+          </button>
+          <button class="era-tab" data-era="historical" type="button" disabled aria-disabled="true" title="Coming soon for this chart">
+            <span class="era-tab-title">Historical Charge Index</span>
+            <span class="era-tab-tagline">coming soon</span>
+          </button>
+        </div>
+        <div class="era-content active" id="era-daily">
+          <div id="chart-daily-container"></div>
+        </div>
       </div>
     </div>
     <div id="chart-root"></div>
@@ -200,7 +210,8 @@
   <script src="/js/chart-shell.js?v=20260619b"></script>
   <script src="/js/compass.js"></script>
   <script src="/js/contamination.js"></script>
-  <script src="/charts/chart.js?v=20260705"></script>
+  <script src="/js/daily-charge-panel.js?v=20260705"></script>
+  <script src="/charts/chart.js?v=20260705b"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">

@@ -58,12 +58,8 @@
    42%/1fr pairing; it needs its own bottom gap here because it is a direct child
    of .chart-page, not of the homepage .main-dashboard grid. */
 .chart-page .dash-row1 { margin-bottom: var(--rc-gap-panel); }
-/* The homepage daily chart's .trajectory-svg is height:100%, so the area needs
-   an explicit height here (on the homepage the zoom framework supplies it). */
-.chart-page #chart-traj-container .traj-chart-area { height: 240px; }
 @media (max-width: 768px) {
   .chart-page .dash-row1 { grid-template-columns: 1fr; gap: 1rem; }
-  .chart-page #chart-traj-container .traj-chart-area { height: 180px; }
 }
 
 /* Charge readout band -- the chart's aggregate today, colored by tier. */
