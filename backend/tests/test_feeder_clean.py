@@ -63,7 +63,8 @@ class _FakeDB:
             ck, lk, k = p.get("ck"), p.get("lk"), p.get("k")
             matched = [
                 r for r in self.rows
-                if (r.get("canonical_key_clean") in (ck, lk) or r["canonical_key"] == ck)
+                if (r.get("canonical_key_clean") in (ck, lk)
+                    or r["canonical_key"] in (ck, lk))
                 and r["canonical_key"] != k
             ]
             matched.sort(key=lambda r: r["id"])
@@ -163,6 +164,57 @@ def test_soundtrack_suffix_resolves_to_base_song():
     db = _FakeDB([_stored_row(3244, *stored)])
     res = resolve_song_identity(db, *draft)
     assert res.song_id == 3244 and res.via == "clean", (res.song_id, res.via)
+
+
+def test_ost_track_number_and_soundtrack_bracket_cleaned():
+    # A recurring OST upload: leading track-number prefix + a "(... Soundtrack)"
+    # provenance bracket must both strip so the title matches the plain row.
+    ct, _ = clean_title_artist(
+        "34. Flower Man (DELTARUNE Chapter 5 Soundtrack)",
+        "Toby Fox & @Cametek.CamelliaOfficial - Toby Fox")
+    assert ct == "Flower Man", ct
+
+
+def test_ost_reentry_resolves_to_multiprimary_stored_row():
+    # End to end: the crufty OST re-entry (track-number + soundtrack bracket in
+    # the title, garbled channel handle for the 2nd artist) must resolve to the
+    # already-calibrated two-primary stored row via the lead-key vs exact-key
+    # bridge -- otherwise it re-lists as awaiting-lyrics every single day.
+    stored = ("Flower Man", "Toby Fox & Camellia")
+    draft = ("34. Flower Man (DELTARUNE Chapter 5 Soundtrack)",
+             "Toby Fox & @Cametek.CamelliaOfficial - Toby Fox")
+    db = _FakeDB([_stored_row(3710, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id == 3710 and res.via == "clean", (res.song_id, res.via)
+
+
+def test_track_number_only_strips_dot_form():
+    # A real title that merely starts with digits (no "N. " dot-space shape) is
+    # untouched -- only the dot-anchored track-number prefix is a prefix.
+    ct, _ = clean_title_artist("99 Luftballons", "Nena")
+    assert ct == "99 Luftballons", ct
+    ct2, _ = clean_title_artist("24K Magic", "Bruno Mars")
+    assert ct2 == "24K Magic", ct2
+
+
+def test_soundtrack_bracket_only_strips_at_end():
+    # The soundtrack drop is end-anchored inside the bracket: a bracket whose
+    # inner ends in "soundtrack" drops, a real title word does not.
+    ct, _ = clean_title_artist("Main Theme (Original Motion Picture Soundtrack)", "Composer")
+    assert ct == "Main Theme", ct
+    # A version-meaningful bracket that does not end in "soundtrack" is preserved.
+    ct2, _ = clean_title_artist("Main Theme (Live Version)", "Composer")
+    assert ct2 == "Main Theme (Live Version)", ct2
+
+
+def test_distinct_lead_not_merged_by_exact_lead_key():
+    # The new `canonical_key = :lk` clause must not merge a different lead: a
+    # stored solo row and a same-title draft with a DIFFERENT lead stay distinct.
+    stored = ("Radio", "Some Artist")
+    draft = ("Radio", "Totally Different Lead")
+    db = _FakeDB([_stored_row(50, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id is None and res.via == "new", (res.song_id, res.via)
 
 
 def test_soundtrack_suffix_parenthetical_form():

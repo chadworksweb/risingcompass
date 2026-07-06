@@ -198,6 +198,16 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
     # DOES equal clean_title + lead, so the re-entry's lead key matches it. This
     # is consistent with the exact key's lead-based identity (it never widens
     # merging past what canonical_key already does on the lead artist).
+    #
+    # `canonical_key = :lk` is the mirror of that for a CLEAN multi-primary
+    # stored row. A recurring OST re-entry (e.g. a DELTARUNE track: track-number
+    # prefix + "(... Soundtrack)" title cruft + a garbled channel handle for the
+    # second artist) cleans to the right title + lead, but its garbled second
+    # artist keeps its set clean key (:ck) from matching a two-primary stored row
+    # ("Toby Fox & Camellia"). That stored row's EXACT canonical_key is already
+    # lead-only (clean_title + lead), which equals :lk -- so matching the exact
+    # key against the lead clean key resolves it without widening past the
+    # lead-based identity canonical_key already encodes.
     clean_key = compute_canonical_key_clean(title, artist)
     lead_clean_key = compute_canonical_key_clean_lead(title, artist)
     if clean_key:
@@ -205,7 +215,7 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
             text(
                 "SELECT id FROM songs "
                 "WHERE (canonical_key_clean = :ck OR canonical_key_clean = :lk "
-                "       OR canonical_key = :ck) "
+                "       OR canonical_key = :ck OR canonical_key = :lk) "
                 "AND canonical_key <> :k "
                 "ORDER BY id ASC LIMIT 1"
             ),
