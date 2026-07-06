@@ -122,6 +122,10 @@ _OFFICIAL_ARTIST_RE = re.compile(r"\s*-\s*official\s*$", re.I)
 _BRACKET_RE = re.compile(r"[\(\[]([^\(\)\[\]]*)[\)\]]")
 _LANG_PAREN_RE = re.compile(r"[\(\[][^\(\)\[\]]*[\)\]]")
 _WS_RE = re.compile(r"\s+")
+# Leading track-number prefix ("34. Title") on OST / album-rip uploads.
+# Requires 1-3 digits + a dot + whitespace, so a real title is never eaten
+# (no bare-number prefix; the blank-fallback in clean_title_artist backstops).
+_TRACK_NUM_RE = re.compile(r"^\s*\d{1,3}\.\s+")
 
 
 def _primary(artist):
@@ -155,6 +159,12 @@ def _is_cruft_bracket(inner):
         if phrase in s:
             return True
     if _CREDIT_PAREN_RE.match(s):
+        return True
+    # Soundtrack/OST-album provenance tag: "(DELTARUNE Chapter 5 Soundtrack)",
+    # "(Original Motion Picture Soundtrack)". Same song as the plain title row;
+    # anchored to end-of-bracket so a real "(Live Soundtrack Session)" mid-phrase
+    # is not the target and "Soundtrack to My Life" (unbracketed) is never seen.
+    if s.endswith("soundtrack"):
         return True
     return False
 
@@ -254,6 +264,11 @@ def clean_title_artist(title, artist):
 
     t = raw_title
     artist_hint = None
+
+    # 0. Leading track-number prefix ("34. Title") from OST / album-rip uploads,
+    #    stripped before the artist-prefix and bracket passes so the rest cleans
+    #    normally. The final blank-fallback protects a degenerate all-number title.
+    t = _TRACK_NUM_RE.sub("", t)
 
     # 1. K-pop / quoted-title upload format: ARTIST 'TITLE' cruft. Gated on an
     #    upload signal (or a label-channel artist) so a normal apostrophe title
