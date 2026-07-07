@@ -583,6 +583,13 @@ class LyricsCalibrateIn(BaseModel):
     # it through anyway. Skips the warning short-circuit and flags the run for
     # human audit (writes a clutter_audits row). Public callers only.
     confirm_commercial: bool = False
+    # Local-only "Claude Code is the model" seam. A service caller running
+    # against a LOCAL backend (settings.local_model_supply_enabled True AND
+    # environment != "prod") may supply a complete calibration object here;
+    # the pipeline injects it at the scoring boundary instead of calling
+    # LEC/Anthropic and runs everything else unchanged. Ignored (rejected 403)
+    # for public callers and anywhere the local seam is not enabled.
+    supplied_calibration: Optional[dict] = None
 
 
 class ConsensusOut(BaseModel):

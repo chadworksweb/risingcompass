@@ -326,6 +326,51 @@ def test_clean_feeder_display_same_key_as_raw():
     assert compute_canonical_key(ct, ca) == compute_canonical_key_clean(*raw)
 
 
+def test_trailing_channel_credit_in_title_stripped():
+    # The REAL 2026-07-07 miss: the feeder put the 2nd-artist channel credit in
+    # the TITLE ("... - Toby Fox & @Cametek.CamelliaOfficial") with a bare "Toby
+    # Fox" artist. The trailing "- <...@handle>" credit must strip so the title
+    # cleans to the bare song.
+    ct, _ = clean_title_artist(
+        "34. Flower Man (DELTARUNE Chapter 5 Soundtrack) - Toby Fox & @Cametek.CamelliaOfficial",
+        "Toby Fox")
+    assert ct == "Flower Man", ct
+
+
+def test_ost_channel_credit_in_title_resolves_via_lead_key():
+    # End to end for the real split: the crufty re-entry resolves to the stored
+    # two-primary row via the lead-primary clean key (Toby Fox), instead of
+    # re-listing as awaiting-lyrics every day.
+    stored = ("Flower Man", "Toby Fox & Camellia")
+    draft = ("34. Flower Man (DELTARUNE Chapter 5 Soundtrack) - Toby Fox & @Cametek.CamelliaOfficial",
+             "Toby Fox")
+    db = _FakeDB([_stored_row(3710, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id == 3710, (res.song_id, res.via)
+
+
+def test_bare_trailing_channel_handle_stripped():
+    ct, _ = clean_title_artist("Some Song @SomeChannel", "Artist")
+    assert ct == "Some Song", ct
+
+
+def test_trailing_dash_without_handle_preserved():
+    # A real ' - subtitle' with no @handle must survive (the strip is gated on @).
+    ct, _ = clean_title_artist("Symphony No. 5 - Movement II", "Beethoven")
+    assert ct == "Symphony No. 5 - Movement II", ct
+
+
+def test_short_film_bracket_cleaned_and_resolves():
+    # The 2026-07-07 Piece Of Your Love miss: the stored row's clean key was
+    # polluted with "shortfilm" because a "(Short Film)" bracket was not stripped.
+    # It is now cruft, so a "(Short Film)" upload cleans to the bare title and a
+    # freshly-stored row carries a clean key that matches the plain song.
+    ct, _ = clean_title_artist("Piece Of Your Love (Short Film)", "Rod Wave")
+    assert ct == "Piece Of Your Love", ct
+    assert _same_clean(("Piece Of Your Love", "Rod Wave"),
+                       ("Piece Of Your Love (Short Film)", "Rod Wave"))
+
+
 def _run():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

@@ -200,21 +200,24 @@ dry; Claude Code does the model's job and SUPPLIES the result, then writes it
 through the live server (`calibrate_song.py` POSTs to the prod `/lyrics`
 endpoint, which stores a supplied calibration with no model call).
 
-**Canonical rubric = LEC LIVE, NOT a local file (always pull it).** LEC owns the
-rubric, and the canonical copy is whatever LEC prod is serving NOW. **Pull it live
-from `GET /api/rubric`; do NOT calibrate against a local `lec-golden-*` snapshot.**
-The goldens are immutable pre-Decoupling reference snapshots and DRIFT behind the
-live deploy (verified 2026-06-22: live `716339b3385f` matched none of the three
-on-disk goldens `51a300921a63` / `9f0b59cbb111` / `ebcbf1a1a58d`). The endpoint is
-service-key gated, so query it from inside the RC backend container, which already
-holds `LEC_BASE_URL` (`http://lec:8012`) + `LEC_API_KEY`:
-`docker compose exec -T backend python3 -c "import os,urllib.request,json; req=urllib.request.Request(os.environ['LEC_BASE_URL']+'/api/rubric', headers={'X-Api-Key':os.environ['LEC_API_KEY']}); print(json.load(urllib.request.urlopen(req))['version'])"`.
-The response `rubric_text` is the full live system prompt (tiers, all 58 tenets,
-the live rule set, the routes, Start-at-Zero) — calibrate against that. This repo
-carries ZERO rubric/calibration code (the `agents/tenets/` mirror + the whole
-in-process apparatus were REMOVED 2026-06-21). Reading LEC files or `/api/rubric`
-is not an Anthropic call. (Local goldens are an OK offline fallback if prod is
-unreachable; note the version mismatch and treat them as approximate.)
+**Canonical rubric = the saved local copy `plans and docs/LEC-RUBRIC-LIVE.md`
+(NOT a per-session live pull).** LEC owns the rubric, but the live `GET /api/rubric`
+text is snapshotted to that file (version-stamped in its header comment; currently
+`716339b3385f`, pulled 2026-07-07). **Read that file every session and calibrate
+against it. Do NOT re-pull live each time** — the old "always pull, from-memory is
+VOID" gate is retired (changed 2026-07-07 at Chad's direction). **Re-pull + re-save
+ONLY when Chad says the rubric changed**, then update `rubric_version` in the file
+header. To re-pull, query the service-key-gated endpoint from inside the RC backend
+container, which already holds `LEC_BASE_URL` (`http://lec:8012`) + `LEC_API_KEY`:
+`docker compose exec -T backend python3 -c "import os,urllib.request,json; req=urllib.request.Request(os.environ['LEC_BASE_URL']+'/api/rubric', headers={'X-Api-Key':os.environ['LEC_API_KEY']}); print(json.load(urllib.request.urlopen(req))['version'])"`
+then overwrite `LEC-RUBRIC-LIVE.md` with the new `rubric_text` + bumped version.
+The saved text is the full live system prompt (tiers, all 58 tenets, the live rule
+set, the routes, Start-at-Zero) — calibrate against that. This repo carries ZERO
+rubric/calibration code (the `agents/tenets/` mirror + the whole in-process
+apparatus were REMOVED 2026-06-21). Reading the saved file, LEC files, or
+`/api/rubric` is not an Anthropic call. (The immutable `lec-golden-*` snapshots
+DRIFT behind the live deploy and are NOT the canonical copy — the saved
+`LEC-RUBRIC-LIVE.md` is.)
 
 **No server-side prose generation from terminal.** The terminal `/lyrics` path
 (`calibrate_song.py` -> `_store_calibration` -> `record_and_reconcile`) calls

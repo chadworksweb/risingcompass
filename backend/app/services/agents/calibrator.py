@@ -145,6 +145,7 @@ def _load_json(raw):
 async def _ensure_generation(
     title: str, artist: str, lyrics: str, calib: dict,
     progress_cb: Callable[[str], None] | None = None,
+    allow_generation: bool = True,
 ) -> None:
     """Complete a calibration's generated fields IN PLACE: effects prose,
     ether tagging (deadpan_line + topics + topic_audit), then societal prose.
@@ -160,6 +161,11 @@ async def _ensure_generation(
     tier-generic copy. The sync step functions run in threads so the event
     loop isn't blocked through the multi-second model calls; no DB session is
     held here (the caller owns persistence).
+
+    allow_generation=False turns every generate step OFF: present fields are
+    still reused, but a MISSING field is left as-is (never generated). This is
+    how the local "Claude Code is the model" seam guarantees zero Anthropic
+    even if the supplied calibration forgot a prose/ether field.
     """
     color = calib.get("rubric_color")
     if not color:
@@ -168,7 +174,7 @@ async def _ensure_generation(
     # 1. Effects prose -- what the words may do to a listener.
     if progress_cb:
         progress_cb("listener")
-    if not calib.get("listener_effects_prose"):
+    if allow_generation and not calib.get("listener_effects_prose"):
         try:
             from app.services.listener_effects_prose import generate_listener_effects_prose
             calib["listener_effects_prose"] = await asyncio.to_thread(
@@ -186,7 +192,7 @@ async def _ensure_generation(
     # 2. Ether tagging -- names what the song IS: deadpan_line + topic tags.
     if progress_cb:
         progress_cb("ether")
-    if not calib.get("deadpan_line"):
+    if allow_generation and not calib.get("deadpan_line"):
         try:
             from app.services.agents.ether_tagger import tag_song
             ether = await asyncio.to_thread(
@@ -207,7 +213,7 @@ async def _ensure_generation(
     #    Grounded on the ether tags + listener prose produced above.
     if progress_cb:
         progress_cb("societal")
-    if not calib.get("societal_effects_prose"):
+    if allow_generation and not calib.get("societal_effects_prose"):
         try:
             from app.services.societal_effects_prose import generate_societal_effects_prose
             soc = await asyncio.to_thread(
@@ -236,12 +242,14 @@ async def _ensure_generation(
 async def ensure_full_calibration(
     title: str, artist: str, lyrics: str | None, calibration: dict,
     progress_cb: Callable[[str], None] | None = None,
+    allow_generation: bool = True,
 ) -> dict:
     """Gap-fill the generated fields on an existing calibration dict (e.g. a
     cache hit) through the one shared generation step. Returns the same dict,
     mutated. No-op without lyrics (ether + prose need them)."""
     if lyrics:
-        await _ensure_generation(title, artist, lyrics, calibration, progress_cb)
+        await _ensure_generation(title, artist, lyrics, calibration, progress_cb,
+                                 allow_generation=allow_generation)
     return calibration
 
 
@@ -276,6 +284,8 @@ async def calibrate_song_async(
     target_year: int | None = None,
     skip_cache: bool = False,
     progress_cb: Callable[[str], None] | None = None,
+    supplied: dict | None = None,
+    allow_generation: bool = True,
 ) -> dict:
     """The calibration path. Calibrate a song against the rubric, then complete
     the generated fields (effects prose, ether tagging, societal prose) in one
@@ -285,7 +295,25 @@ async def calibrate_song_async(
     Generation runs whenever lyrics are present and is idempotent -- a cache
     hit or terminal-supplied field is reused, never regenerated. Preferred
     entry point from async request handlers so asyncio.to_thread isn't needed.
+
+    supplied: the local "Claude Code is the model" seam. When a supplied
+    calibration dict is passed, it REPLACES the scoring step -- LEC/Anthropic is
+    NOT called; the supplied read is scrubbed + enriched (generation gated by
+    allow_generation) and returned. The router gates this to a local backend
+    with the flag on, so it can never fire in prod. No cache lookup on this path
+    (the supplied read is authoritative for this run).
     """
+    if supplied is not None:
+        import copy
+        calib = copy.deepcopy(supplied)
+        if lyrics:
+            _scrub_calibration_quotes(calib, lyrics, title, artist)
+            await _ensure_generation(title, artist, lyrics, calib, progress_cb,
+                                     allow_generation=allow_generation)
+        logger.info("Scored '%s' by %s via SUPPLIED calibration (local model seam)",
+                    title, artist)
+        return calib
+
     # Check for existing calibration first. A cache hit still goes through
     # generation gap-fill so older rows missing ether/prose get completed.
     if db and not skip_cache:

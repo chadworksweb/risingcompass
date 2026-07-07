@@ -120,6 +120,10 @@ def _calibrate_daily_limit(key: str) -> str:
     from the LC admin section; see _lc_daily_limits.
     """
     anon, user = _lc_daily_limits()
+    # Service / first-party callers (RC_SERVICE_KEY) are trusted -- they already
+    # skip bot protection -- so they are not gated by the anon per-IP cap.
+    if key == "service":
+        return "1000000/day"
     if isinstance(key, str) and key.startswith("user:"):
         # Admin-comped users get an effectively unlimited daily cap -- the
         # comp lifts the per-user backstop, not just the credit gate.
@@ -149,6 +153,12 @@ def _limiter_key(request: Request) -> str:
     uid = getattr(request.state, "user_id", None)
     if uid:
         return f"user:{uid}"
+    # Service/first-party callers (RC_SERVICE_KEY: chadlewine, internal scripts,
+    # the local model seam) get their own bucket, lifted to an effectively
+    # unlimited daily cap in _calibrate_daily_limit -- they are trusted and not
+    # the anon-abuse vector the per-IP cap targets.
+    if getattr(request.state, "client_behavior", None) == "service":
+        return "service"
     return get_remote_address(request)
 
 
@@ -619,6 +629,18 @@ async def _calibrate_lyrics_impl(
 
     source = _resolve_source(tier, body.source)
 
+    # Local "Claude Code is the model" seam. A supplied_calibration is honored
+    # ONLY on a local backend with the flag on, and NEVER for public callers.
+    # Fail-closed: the environment guard means it can't activate in prod even if
+    # the flag were somehow set there.
+    use_supplied = False
+    if body.supplied_calibration is not None:
+        if is_public or settings.environment == "prod" or not settings.local_model_supply_enabled:
+            raise HTTPException(403, "supplied_calibration is not permitted here")
+        if not isinstance(body.supplied_calibration, dict) or not body.supplied_calibration.get("rubric_color"):
+            raise HTTPException(422, "supplied_calibration must be an object with at least rubric_color")
+        use_supplied = True
+
     if not body.title or not body.title.strip():
         if is_public:
             _log_error_event("submission_failed_validation", request,
@@ -807,7 +829,16 @@ async def _calibrate_lyrics_impl(
         # rows missing ether/prose get filled; a miss runs the full path. Either
         # way `calibration` comes back as one complete object -- rubric + prose
         # + ether tags. No DB session held through these model calls.
-        if cached_calibration:
+        if use_supplied:
+            # Local seam: inject the supplied read at the scoring boundary,
+            # skip the LEC/Anthropic call, and hard-gate generation OFF so no
+            # prose/ether Anthropic call fires on a partial supply.
+            calibration = await calibrate_song_async(
+                title, artist, body.lyrics, db=None, skip_cache=True,
+                progress_cb=progress_cb,
+                supplied=body.supplied_calibration, allow_generation=False,
+            )
+        elif cached_calibration:
             calibration = await ensure_full_calibration(
                 title, artist, body.lyrics, cached_calibration,
                 progress_cb=progress_cb,
@@ -846,8 +877,12 @@ async def _calibrate_lyrics_impl(
             # artists onto the unified id. No legacy submitted_songs row.
             from app.services.song_sync import store_calibrated_song
             from app.services.artist_linker import parse_artist_string
+            # A Claude-Code-supplied calibration (local seam) is authoritative
+            # (source 'terminal'), so it can correct an existing chart/terminal
+            # row; a normal crowd charger submission stays 'submitted'.
+            store_source = "terminal" if use_supplied else "submitted"
             new_song_id, _created = store_calibrated_song(
-                write_db, source="submitted",
+                write_db, source=store_source,
                 title=title, artist=artist, calibration=calibration,
                 ip_address=get_remote_address(request),
                 ingestion_detail={"source": source},

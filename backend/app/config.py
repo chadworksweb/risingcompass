@@ -187,6 +187,16 @@ class Settings(BaseSettings):
     #   (/api/agent/faultline/*), distinct from admin session + other cron keys
     #   so a leak stays scoped to error triage.
     environment: str = "local"  # local | prod
+    # Local-only "Claude Code is the model" seam for the Lyrical Charger.
+    # When True AND environment != "prod", the /calibrate-lyrics service path
+    # accepts a `supplied_calibration` object and runs the FULL charger pipeline
+    # (identity/persistence/generation stages) with the supplied read injected
+    # at the scoring boundary INSTEAD of calling LEC/Anthropic -- and generation
+    # is hard-gated OFF so no prose/ether Anthropic call can fire on a partial
+    # supply. Fail-closed: default False, and the prod guard (environment) means
+    # it can never activate on the server even if the flag were set. Set it only
+    # in local backend/.env; NEVER add it to docker-compose.yml.
+    local_model_supply_enabled: bool = False
     rc_error_agent_key: str = ""
     faultline_capture_level: str = "ERROR"  # min log level captured (ERROR | WARNING)
     faultline_occurrence_retention: int = 50  # per-signature occurrence cap (pruned later)

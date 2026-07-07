@@ -26,11 +26,16 @@ from app.constants import CHART_SOURCE_TO_CHART_SLUG
 
 logger = logging.getLogger(__name__)
 
-_AUTH_SOURCES = {"compass", "library"}
+_AUTH_SOURCES = {"compass", "library", "terminal"}
 _AUTH_METHODS = {"chart_reading", "catalog_backfill", "terminal"}
 _METHOD = {
     "compass": "chart_reading", "library": "catalog_backfill",
     "submitted": "lyrical_charger", "stream": "stream",
+    # A Claude-Code-supplied calibration (local model seam) carries the same
+    # model authority as the terminal draft path, so it persists AUTHORITATIVE
+    # (method 'terminal') -- it can create AND correct an existing chart/terminal
+    # row, unlike a crowd lyrical_charger write.
+    "terminal": "terminal",
 }
 # Calibration columns copied onto the unified songs row (absent ones -> NULL).
 _CALIB = [

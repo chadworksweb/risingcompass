@@ -48,6 +48,7 @@ _BRACKET_CRUFT_EXACT = {
     "visualizer", "visualiser", "audio", "lyrics", "lyric",
     "video oficial", "videoclip oficial", "clip officiel",
     "mv", "m/v", "official", "explicit", "clean version", "hd", "4k",
+    "short film", "short movie",
 }
 
 # A bracketed group is also dropped when its inner text CONTAINS one of these
@@ -166,6 +167,11 @@ def _is_cruft_bracket(inner):
     # is not the target and "Soundtrack to My Life" (unbracketed) is never seen.
     if s.endswith("soundtrack"):
         return True
+    # Short-film / short-movie provenance tag: "(Official Short Film)",
+    # "(A Short Film)" -- the same song as the plain title row. End-anchored so a
+    # real "(Short Film Mix)" mid-phrase is not the target.
+    if s.endswith("short film") or s.endswith("short movie"):
+        return True
     return False
 
 
@@ -214,6 +220,28 @@ def _strip_leading_artist(title, *artist_candidates):
         if cand and normalize_for_search(cand) == pn and rest.strip():
             return rest.strip()
     return title
+
+
+_CHANNEL_HANDLE_RE = re.compile(r"@\w[\w.]*")
+
+
+def _strip_trailing_channel_credit(title):
+    """Drop a trailing uploader-channel credit tail carrying an '@handle'. Feeder
+    titles append the second artist as an @-channel: 'Title - Artist & @Channel'
+    or a bare 'Title @Channel'. Gated on the '@' so a real ' - subtitle' with no
+    handle is never touched (a genuine title almost never contains '@'). The
+    blank-fallback in clean_title_artist backstops a degenerate result."""
+    out = title
+    # ' - <segment containing @handle>' (repeat for stacked credits).
+    while " - " in out:
+        head, tail = out.rsplit(" - ", 1)
+        if "@" in tail and head.strip():
+            out = head.rstrip(" -&|")
+        else:
+            break
+    # bare trailing '@handle' or '& @handle' with no dash.
+    out = re.sub(r"\s*(?:&\s*)?" + _CHANNEL_HANDLE_RE.pattern + r"\s*$", "", out).strip()
+    return out or title
 
 
 def _strip_pipe_tail(title):
@@ -292,6 +320,11 @@ def clean_title_artist(title, artist):
 
     # 3. Channel/credit pipe tail.
     t = _strip_pipe_tail(t)
+
+    # 3b. Trailing uploader-channel credit ('... - Artist & @Channel'). Runs
+    #     before the bracket pass so a '(Soundtrack) - Artist & @Channel' tail is
+    #     removed and the bracket pass then cleans the remaining provenance.
+    t = _strip_trailing_channel_credit(t)
 
     # 4. Bracketed cruft (MV/lyric-video/credit parentheticals).
     t = _strip_brackets(t)

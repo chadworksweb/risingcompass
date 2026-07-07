@@ -38,23 +38,22 @@ except (AttributeError, ValueError):
     pass
 
 from app.database import SessionLocal
-from app.models import AgentDraft, CompassSong
+from app.models import AgentDraft, Song
 from app.services.charge_calc import degree_to_charge
 from app.services.compass_calc import compute_degree
 from app.services.contamination import count_contaminated
+from app.services.song_store import find_song_by_title_artist
 
 
-def _cache_lookup(db, title: str, artist: str) -> CompassSong | None:
-    return (
-        db.query(CompassSong)
-        .filter(func.lower(CompassSong.title) == title.lower())
-        .filter(func.lower(CompassSong.artist) == artist.lower())
-        .order_by(CompassSong.id.desc())
-        .first()
-    )
+def _cache_lookup(db, title: str, artist: str) -> Song | None:
+    # Unified renovation: resolve against the one atomic `songs` table via the
+    # canonical-key identity ladder (CompassSong + the 4-table model were dropped
+    # in Phase 5). find_song_by_title_artist handles the case-insensitive +
+    # feeder-clean resolution.
+    return find_song_by_title_artist(db, title, artist)
 
 
-def _is_complete(cs: CompassSong) -> bool:
+def _is_complete(cs: Song) -> bool:
     return bool(cs.rubric_color) and cs.charge_value is not None and bool(cs.charge_summary)
 
 
@@ -105,7 +104,7 @@ def main() -> int:
                 or bool(ds.dogma_referenced or False) != cs_dogma_ref
                 or (ds.dogma_note or None) != (cs_dogma_note or None)
                 or (ds.charge_summary or None) != (cs.charge_summary or None)
-                or ds.compass_song_id != cs.id
+                or ds.song_id != cs.id
             )
             if not differs:
                 continue
@@ -114,7 +113,7 @@ def main() -> int:
                 f"{ds.rubric_color or 'none'} {ds.charge_value if ds.charge_value is not None else 'none'}"
                 f"{' contam' if ds.contaminated else ''}"
             )
-            ds.compass_song_id = cs.id
+            ds.song_id = cs.id
             ds.rubric_color = cs.rubric_color
             ds.charge_value = cs.charge_value
             ds.contaminated = cs_contam
