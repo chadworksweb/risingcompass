@@ -74,14 +74,6 @@
       ArtistsAPI.getSongFlagCounts(slug)
         .then(counts => renderFlagCounts(song, counts))
         .catch(err => console.warn('Flag counts unavailable:', err));
-      // Calibration Log (recalibrations + resets + pre-publish corrections) is independent too.
-      ArtistsAPI.getSongHistory(slug)
-        .then(data => renderRecalibrationHistory(
-          data.recalibrations || [],
-          data.resets || [],
-          data.pre_publish_corrections || [],
-        ))
-        .catch(err => console.warn('Calibration Log unavailable:', err));
       // Calibration runs (corpus + consensus) are also independent.
       ArtistsAPI.getSongCalibrationRuns(slug)
         .then(data => renderCalibrationRuns(data.runs || [], data.consensus))
@@ -120,151 +112,6 @@
       const isMiss = /\b404\b/.test((err && err.message) || '');
       showZeroState(isMiss ? 'notfound' : 'error');
     }
-  }
-
-  function formatRecalDate(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d)) return '';
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  }
-
-  function renderRecalibrationHistory(recalibrations, resets, corrections) {
-    const stamp = document.getElementById('recal-stamp');
-    const stampBtn = document.getElementById('recal-stamp-btn');
-    const section = document.getElementById('section-history');
-    const list = document.getElementById('recal-list');
-    if (!stamp || !stampBtn || !section || !list) return;
-
-    resets = resets || [];
-    corrections = corrections || [];
-    const combined = [
-      ...recalibrations.map(r => ({ ...r, _kind: 'recal', _at: r.applied_at })),
-      ...resets.map(r => ({ ...r, _kind: 'reset', _at: r.reset_at })),
-      ...corrections.map(r => ({ ...r, _kind: 'correction', _at: r.occurred_at })),
-    ].sort((a, b) => (b._at || '').localeCompare(a._at || ''));
-
-    if (!combined.length) return;
-
-    const latest = combined[0];
-    const dateStr = formatRecalDate(latest._at);
-    const count = combined.length;
-    const hasReset = resets.length > 0;
-    const onlyCorrections = corrections.length > 0 && recalibrations.length === 0 && !hasReset;
-    let label;
-    if (onlyCorrections) label = 'Corrected';
-    else if (hasReset && recalibrations.length === 0) label = 'Reset';
-    else label = 'Recalibrated';
-    const stampText = count === 1
-      ? `${label} ${dateStr}`
-      : `${hasReset ? 'Revised' : 'Recalibrated'} ${count} times — most recently ${dateStr}`;
-
-    stampBtn.textContent = stampText + ' \u2014 read the story';
-    stamp.hidden = false;
-
-    list.innerHTML = combined.map(r => {
-      if (r._kind === 'correction') {
-        const beforeColor = r.before && r.before.tier_hex ? r.before.tier_hex : '#888';
-        const afterColor = r.after && r.after.tier_hex ? r.after.tier_hex : '#888';
-        const beforeChg = r.before && r.before.charge != null ? (r.before.charge > 0 ? '+' : '') + r.before.charge : 'N/A';
-        const afterChg = r.after && r.after.charge != null ? (r.after.charge > 0 ? '+' : '') + r.after.charge : 'N/A';
-        const beforeLabel = r.before && r.before.tier_label ? r.before.tier_label : '—';
-        const afterLabel = r.after && r.after.tier_label ? r.after.tier_label : '—';
-        const beforeContam = r.before && r.before.contaminated
-          ? '<span class="recal-entry-contam">Contaminated</span>' : '';
-        const afterContam = r.after && r.after.contaminated
-          ? '<span class="recal-entry-contam">Contaminated</span>' : '';
-        const tagsHtml = r.tags
-          ? `<div class="recal-entry-tags">${r.tags.split(',').map(t => `<span class="recal-entry-tag">${escapeHtml(t.trim())}</span>`).join('')}</div>`
-          : '';
-        return `
-          <li class="recal-entry recal-entry--correction">
-            <div class="recal-entry-head">
-              <span class="recal-entry-date">${escapeHtml(formatRecalDate(r.occurred_at))}</span>
-              <span class="recal-entry-type">Pre-publish Correction</span>
-            </div>
-            <div class="recal-entry-shift">
-              <span style="color:${beforeColor}">${beforeChg} ${escapeHtml(beforeLabel)}</span>
-              ${beforeContam}
-              <span class="arrow">&rarr;</span>
-              <span style="color:${afterColor}">${afterChg} ${escapeHtml(afterLabel)}</span>
-              ${afterContam}
-            </div>
-            <p class="recal-entry-summary">${escapeHtml(r.human_rationale || '')}</p>
-            ${tagsHtml}
-          </li>
-        `;
-      }
-      if (r._kind === 'reset') {
-        const beforeColor = r.before && r.before.tier_hex ? r.before.tier_hex : '#888';
-        const beforeChg = r.before && r.before.charge != null ? (r.before.charge > 0 ? '+' : '') + r.before.charge : 'N/A';
-        const beforeLabel = r.before && r.before.tier_label ? r.before.tier_label : '—';
-        return `
-          <li class="recal-entry recal-entry--reset">
-            <div class="recal-entry-head">
-              <span class="recal-entry-date">${escapeHtml(formatRecalDate(r.reset_at))}</span>
-              <span class="recal-entry-type">Reset</span>
-            </div>
-            <div class="recal-entry-shift">
-              <span style="color:${beforeColor}">${beforeChg} ${escapeHtml(beforeLabel)}</span>
-              <span class="arrow">&rarr;</span>
-              <span style="color:#888">Uncalibrated</span>
-            </div>
-            <p class="recal-entry-summary">${escapeHtml(r.reason || '')}</p>
-          </li>
-        `;
-      }
-      const beforeColor = r.before && r.before.tier_hex ? r.before.tier_hex : '#888';
-      const afterColor = r.after && r.after.tier_hex ? r.after.tier_hex : '#888';
-      const beforeChg = r.before && r.before.charge != null ? (r.before.charge > 0 ? '+' : '') + r.before.charge : 'N/A';
-      const afterChg = r.after && r.after.charge != null ? (r.after.charge > 0 ? '+' : '') + r.after.charge : 'N/A';
-      const beforeLabel = r.before && r.before.tier_label ? r.before.tier_label : '—';
-      const afterLabel = r.after && r.after.tier_label ? r.after.tier_label : '—';
-      const pipelineLabel = ({
-        'manual': 'Manual',
-        'rubric_update': 'Rubric Update',
-        'satirical_flag': 'Satirical Flag',
-        'vibe_gap': 'Vibe Gap',
-        'consensus_drift': 'Consensus Drift',
-      })[r.pipeline] || r.pipeline || 'Recalibration';
-      const lensSuffix = r.lens === 'satire' ? ' · Satire Lens' : '';
-      const typeLabel = pipelineLabel + lensSuffix;
-
-      let snapshot = '';
-      if (r.flag_count_snapshot) {
-        const fc = r.flag_count_snapshot;
-        snapshot = `<div class="recal-entry-snapshot">At time of recalibration: ${fc.misread || 0} misread reports, ${fc.satirical || 0} satirical flags.</div>`;
-      }
-
-      let rubricChange = '';
-      if (r.rubric_change_note) {
-        rubricChange = `<div class="recal-entry-rubric-change"><strong>Rubric change:</strong> ${escapeHtml(r.rubric_change_note)}</div>`;
-      }
-
-      return `
-        <li class="recal-entry">
-          <div class="recal-entry-head">
-            <span class="recal-entry-date">${escapeHtml(formatRecalDate(r.applied_at))}</span>
-            <span class="recal-entry-type">${escapeHtml(typeLabel)}</span>
-          </div>
-          <div class="recal-entry-shift">
-            <span style="color:${beforeColor}">${beforeChg} ${escapeHtml(beforeLabel)}</span>
-            <span class="arrow">&rarr;</span>
-            <span style="color:${afterColor}">${afterChg} ${escapeHtml(afterLabel)}</span>
-          </div>
-          <p class="recal-entry-summary">${escapeHtml(r.public_summary || '')}</p>
-          ${rubricChange}
-          ${snapshot}
-        </li>
-      `;
-    }).join('');
-
-    stampBtn.addEventListener('click', () => {
-      section.hidden = !section.hidden;
-      if (!section.hidden) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
   }
 
   // --- Audience Vibe ---
@@ -558,6 +405,13 @@
       }
       svg.appendChild(group);
     }
+  }
+
+  function formatRecalDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
   function renderCalibrationRuns(runs, consensus) {
@@ -968,7 +822,6 @@
     };
     setH2('section-listener-effects', `What Might Listening to ${tagline} Do to the Listener?`);
     setH2('section-societal-effects', `What Might Listening to ${tagline} Do to a Society?`);
-    setH2('section-history', `Calibration Log for ${tagline}`);
     setH2('section-vibe', `Audience Vibe on ${tagline}`);
     setH2('section-runs', `Calibration Runs for ${tagline}`);
     setH2('section-flags', 'Flag Activity on This Song');

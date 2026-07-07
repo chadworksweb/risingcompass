@@ -485,31 +485,6 @@
   font-family: var(--rc-font-mono);
 }
 
-/* --- Recalibration stamp + history --- */
-.recal-stamp {
-  margin: 0.4rem 0 0;
-  font-size: 0.78rem;
-  color: var(--rc-text-dim);
-}
-
-.recal-stamp-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: var(--rc-text-dim);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: var(--rc-border);
-  cursor: pointer;
-  letter-spacing: 0.02em;
-}
-
-.recal-stamp-btn:hover {
-  color: var(--rc-text-bright);
-  text-decoration-color: var(--rc-accent);
-}
-
 /* Get Charge Card — downloads the shareable 1080x1080 card for this song. */
 .charge-card-btn {
   display: inline-flex;
@@ -638,52 +613,6 @@
   .charge-card-toast-spinner { animation: none; }
 }
 
-.recal-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.recal-entry--reset {
-  border-left: 3px solid var(--rc-text-dim);
-}
-
-.recal-entry--correction {
-  border-left: 3px solid var(--rc-orange);
-}
-
-.recal-entry-contam {
-  font-family: var(--rc-font-mono);
-  font-size: 0.6rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--rc-red);
-  border: 1px solid var(--rc-red);
-  padding: 0.08rem 0.35rem;
-  border-radius: 2px;
-  margin-left: 0.35rem;
-}
-
-.recal-entry-tags {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-}
-
-.recal-entry-tag {
-  font-family: var(--rc-font-mono);
-  font-size: 0.62rem;
-  color: var(--rc-text-dim);
-  background: var(--rc-bg-panel);
-  padding: 0.1rem 0.45rem;
-  border-radius: 2px;
-  letter-spacing: 0.04em;
-}
-
 /* Calibration runs */
 .runs-consensus {
   margin: 0.6rem 0 1rem;
@@ -801,81 +730,6 @@
   border-radius: 3px;
   margin-left: auto;
   font-family: var(--rc-font-mono);
-}
-
-.recal-entry {
-  padding: 1rem 1.2rem;
-  background: var(--rc-bg-card);
-  border: 1px solid var(--rc-border);
-  border-radius: var(--rc-radius-sm);
-}
-
-.recal-entry-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
-}
-
-.recal-entry-date {
-  font-family: var(--rc-font-mono);
-  font-size: 0.78rem;
-  color: var(--rc-text-bright);
-  letter-spacing: 0.04em;
-}
-
-.recal-entry-type {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--rc-accent);
-  border: 1px solid var(--rc-border);
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-}
-
-.recal-entry-shift {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--rc-font-mono);
-  font-size: 0.82rem;
-  margin-bottom: 0.6rem;
-}
-
-.recal-entry-shift .arrow {
-  color: var(--rc-text-dim);
-}
-
-.recal-entry-summary {
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--rc-text);
-  margin: 0;
-}
-
-.recal-entry-snapshot {
-  margin-top: 0.6rem;
-  font-size: 0.74rem;
-  color: var(--rc-text-dim);
-  font-family: var(--rc-font-mono);
-}
-
-.recal-entry-rubric-change {
-  margin-top: 0.6rem;
-  padding: 0.55rem 0.7rem;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: var(--rc-text);
-  background: rgba(125, 125, 180, 0.08);
-  border-left: 2px solid var(--rc-text-dim);
-  border-radius: 2px;
-}
-
-.recal-entry-rubric-change strong {
-  color: var(--rc-text-dim);
-  font-weight: 600;
 }
 
 /* --- Audience Vibe --- */
