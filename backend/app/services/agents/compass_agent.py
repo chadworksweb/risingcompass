@@ -57,12 +57,19 @@ def _write_draft_and_songs(
         db.add(draft)
         db.flush()  # populate draft.id
 
+        from app.services.feeder_clean import clean_feeder_display
         for s in calibrated_songs:
+            # Display-clean the feeder title/artist so the draft (and the chart
+            # snapshot / reading rebuilt from it at approval) shows a clean title
+            # instead of raw upload cruft ("34. Title (Soundtrack) - Artist @Chan").
+            # No-op on a non-upload string (is_feeder_upload gate); identity is
+            # unaffected (the row is already linked via song_id / the clean key).
+            disp_title, disp_artist = clean_feeder_display(s["title"], s["artist"])
             db.add(AgentDraftSong(
                 draft_id=draft.id,
                 song_id=s.get("song_id"),
-                title=s["title"],
-                artist=s["artist"],
+                title=disp_title,
+                artist=disp_artist,
                 position=s["position"],
                 rubric_color=s["rubric_color"],
                 charge_value=s.get("charge_value"),

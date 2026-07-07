@@ -127,6 +127,8 @@ _WS_RE = re.compile(r"\s+")
 # Requires 1-3 digits + a dot + whitespace, so a real title is never eaten
 # (no bare-number prefix; the blank-fallback in clean_title_artist backstops).
 _TRACK_NUM_RE = re.compile(r"^\s*\d{1,3}\.\s+")
+# Dangling leading/trailing separator residue left after a prefix/bracket strip.
+_DANGLING_SEP_RE = re.compile(r"^[\s\-–—|:]+|[\s\-–—|:]+$")
 
 
 def _primary(artist):
@@ -335,6 +337,12 @@ def clean_title_artist(title, artist):
     # 6. Soundtrack-provenance suffix ('- From "Movie"' / '(From "Movie")').
     t = _strip_soundtrack_suffix(t)
 
+    # 7. Trim a dangling leading/trailing separator left behind by a strip (e.g.
+    #    'Artist - Title - (Official Video)' -> after the prefix + bracket passes
+    #    a bare '... -' tail remains). normalize drops it from the KEY, but the
+    #    DISPLAY title would carry it, so trim the residue.
+    t = _DANGLING_SEP_RE.sub("", t)
+
     t = _collapse_ws(t)
 
     # Fallbacks: never blank a field (a degenerate key would mis-merge).
@@ -366,6 +374,17 @@ def is_feeder_upload(title, artist):
         return True
     if _primary_is_label_channel(a):
         return True
+    # Album/OST upload cruft the upload-signal regex misses -- these never appear
+    # in a legit chart title, so flagging them for DISPLAY cleaning is safe (a
+    # '(feat. X)' credit paren is deliberately NOT among them, so feature titles
+    # stay verbatim): a leading track-number prefix, an '@channel' handle credit,
+    # or a soundtrack / short-film provenance bracket.
+    if _TRACK_NUM_RE.search(t) or _CHANNEL_HANDLE_RE.search(t):
+        return True
+    for m in _BRACKET_RE.finditer(t):
+        inner = m.group(1).strip().lower().rstrip(".").strip()
+        if inner.endswith(("soundtrack", "short film", "short movie")):
+            return True
     if " - " in t:
         prefix = t.split(" - ", 1)[0]
         pn = normalize_for_search(prefix)

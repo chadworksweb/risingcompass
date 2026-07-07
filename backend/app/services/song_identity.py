@@ -14,6 +14,7 @@ US = unit separator (0x1f), an char that never appears in normalized text.
 
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 from sqlalchemy import text
@@ -24,6 +25,27 @@ from app.services.artist_linker import parse_artist_string
 logger = logging.getLogger(__name__)
 
 CANON_SEP = "\x1f"
+
+
+def _fold_diacritics(s):
+    """Fold accented Latin letters to their base ASCII form (e -> e, e-umlaut ->
+    e, n-tilde -> n) via NFKD decomposition + combining-mark strip.
+
+    Applied ONLY on the CLEAN key path (never the exact canonical_key, which is
+    the strict UNIQUE identity). normalize_for_search strips non-[a-z0-9], which
+    DROPS an accented letter entirely ("Future" with an umlauted final e -> the
+    umlaut is dropped, leaving "futur", missing the "e"), so a stylized-diacritic
+    artist ("Future" spelled with an umlaut) never clean-keyed to its plain twin.
+    Folding first turns the accented letter into its base letter so the two
+    collapse. Pure; no DB."""
+    if not s:
+        return s
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+
+
+def _norm_clean(s):
+    """normalize_for_search after diacritic folding -- the clean-key normalizer."""
+    return normalize_for_search(_fold_diacritics(s or ""))
 
 # Soundtrack-cast identity bridge (rung 2b in resolve_song_identity). A track
 # whose title embeds a source marker -- '... (From "Show")' -- is globally
@@ -96,11 +118,11 @@ def clean_artist_set_key(artist):
     primaries = []
     for e in entries:
         if (e.get("role") or "primary") == "primary":
-            n = normalize_for_search(e.get("name") or "")
+            n = _norm_clean(e.get("name") or "")
             if n:
                 primaries.append(n)
     if not primaries:
-        return normalize_for_search(extract_primary_artist(artist))
+        return _norm_clean(extract_primary_artist(artist))
     return "".join(sorted(set(primaries)))
 
 
@@ -120,7 +142,7 @@ def compute_canonical_key_clean(title, artist):
     """
     from app.services.feeder_clean import clean_title_artist
     ct, ca = clean_title_artist(title or "", artist or "")
-    nt = normalize_for_search(ct)
+    nt = _norm_clean(ct)
     na = clean_artist_set_key(ca)
     return f"{nt}{CANON_SEP}{na}"
 
@@ -143,8 +165,8 @@ def compute_canonical_key_clean_lead(title, artist):
     Pure; no DB. Imported lazily (same feeder_clean cycle guard as the set key)."""
     from app.services.feeder_clean import clean_title_artist
     ct, ca = clean_title_artist(title or "", artist or "")
-    nt = normalize_for_search(ct)
-    na = normalize_for_search(extract_primary_artist(ca))
+    nt = _norm_clean(ct)
+    na = _norm_clean(extract_primary_artist(ca))
     return f"{nt}{CANON_SEP}{na}"
 
 
@@ -281,7 +303,7 @@ def _trgm_resolve(db, title, artist, key, clean_key, autolink=False):
     returns None on any DB error so non-PG / no-extension callers are unaffected."""
     from app.services.feeder_clean import clean_title_artist
     ct, ca = clean_title_artist(title, artist)
-    nt = normalize_for_search(ct)
+    nt = _norm_clean(ct)
     # Match the stored canonical_key_clean artist part (order-independent set key)
     # so trgm compares like-for-like.
     na = clean_artist_set_key(ca)

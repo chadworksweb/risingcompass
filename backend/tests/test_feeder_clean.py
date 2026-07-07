@@ -371,6 +371,59 @@ def test_short_film_bracket_cleaned_and_resolves():
                        ("Piece Of Your Love (Short Film)", "Rod Wave"))
 
 
+def test_diacritic_fold_stylized_artist_resolves():
+    # 2026-07-07: a stylized-diacritic artist ("Future" with an umlauted final e)
+    # must clean-key to its plain twin so a chart re-entry resolves to the stored
+    # "Future" row instead of re-listing as awaiting-lyrics.
+    stored = ("Radio", "Future")
+    draft = ("Radio (Official Music Video)", "Futurë")  # Future with e-umlaut
+    assert _same_clean(stored, draft), (
+        compute_canonical_key_clean(*stored), compute_canonical_key_clean(*draft))
+    db = _FakeDB([_stored_row(3632, *stored)])
+    res = resolve_song_identity(db, *draft)
+    assert res.song_id == 3632, (res.song_id, res.via)
+
+
+def test_diacritic_fold_title_and_accents():
+    # Title accents fold too; and an acute-e artist folds to the plain form.
+    assert _same_clean(("Cafe Bar", "X"), ("Café Bar", "X"))
+    assert _same_clean(("Song", "Beyonce"), ("Song", "Beyoncé"))
+
+
+def test_diacritic_fold_not_applied_to_exact_key():
+    # The fold is CLEAN-key only. The strict exact canonical_key must stay
+    # diacritic-distinct (never silently re-key the UNIQUE identity).
+    assert compute_canonical_key("Radio", "Futurë") != compute_canonical_key("Radio", "Future")
+
+
+def test_dangling_separator_trimmed_after_bracket_strip():
+    # Audit bug A: 'Artist - Title - (Official Video)' left a dangling ' -' after
+    # the prefix + bracket passes. The display title must not carry the residue.
+    ct, _ = clean_title_artist(
+        "Rio Da Yung Og - Another 4 Minutes Of Hell - (Official Video)", "Rio Da Yung OG")
+    assert ct == "Another 4 Minutes Of Hell", repr(ct)
+
+
+def test_is_feeder_upload_covers_ost_and_channel_cruft():
+    # Audit bug B: the display-cleaner gate must flag track-number / soundtrack /
+    # @channel cruft so clean_feeder_display actually rewrites the ugly title.
+    assert is_feeder_upload(
+        "34. Flower Man (DELTARUNE Chapter 5 Soundtrack) - Toby Fox & @Cametek.CamelliaOfficial",
+        "Toby Fox")
+    assert is_feeder_upload("Some Track (Original Motion Picture Soundtrack)", "Composer")
+    assert is_feeder_upload("Title @SomeChannel", "Artist")
+    # Regression: a legit '(feat. X)' chart title is still NOT treated as upload.
+    assert not is_feeder_upload("GIRLS (feat. Kehlani) - Remix", "The Kid LAROI, Kehlani")
+
+
+def test_clean_feeder_display_cleans_ost_channel_title():
+    # End to end: the OST upload title now cleans to the bare song for DISPLAY.
+    ct, ca = clean_feeder_display(
+        "34. Flower Man (DELTARUNE Chapter 5 Soundtrack) - Toby Fox & @Cametek.CamelliaOfficial",
+        "Toby Fox")
+    assert ct == "Flower Man", (ct, ca)
+
+
 def _run():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0
