@@ -64,6 +64,12 @@ class RegenRequest(BaseModel):
     # Anthropic. Omit both to keep the server-generation behavior.
     listener_effects_prose: Optional[str] = None
     societal_effects_prose: Optional[str] = None
+    # Optional supplied ether (deadpan naming + topic slugs). Same seam: when set,
+    # generation stays OFF and these are written straight onto the song row. There
+    # is no other live-song ether supply path, so a recalibration's corrected
+    # deadpan/topics ride here. topics are validated against the ether taxonomy.
+    deadpan_line: Optional[str] = None
+    topics: Optional[list[str]] = None
 
 
 class RegenResult(BaseModel):
@@ -78,6 +84,9 @@ class RegenResult(BaseModel):
     prior_societal_effects_prose: Optional[str]
     listener_effects_prose_changed: bool
     societal_prose_changed: bool
+    deadpan_line: Optional[str] = None
+    topics: Optional[list] = None
+    ether_changed: bool = False
 
 
 @router.post("/regenerate", response_model=RegenResult)
@@ -147,8 +156,14 @@ async def regenerate_prose(
     # seed the fields and turn generation OFF, so ensure_full_calibration keeps
     # only what was supplied and never calls Anthropic. With nothing supplied it
     # falls back to server generation (the original behavior).
-    supplied = bool(body.listener_effects_prose or body.societal_effects_prose)
-    if supplied:
+    ether_supplied = body.deadpan_line is not None or body.topics is not None
+    if body.topics is not None:
+        from app.services.ether_taxonomy import VALID_SLUGS
+        bad = [t for t in body.topics if t not in VALID_SLUGS]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"invalid ether topic slug(s): {bad}")
+    supplied = bool(body.listener_effects_prose or body.societal_effects_prose or ether_supplied)
+    if supplied and (body.listener_effects_prose or body.societal_effects_prose):
         from app.services.lyric_quote_guard import strip_verbatim_quotes
         if body.listener_effects_prose:
             txt, _ = strip_verbatim_quotes(body.listener_effects_prose.strip(), lyrics)
@@ -172,7 +187,7 @@ async def regenerate_prose(
     new_listener_effects_prose = calibration.get("listener_effects_prose")
     new_societal_effects_prose = calibration.get("societal_effects_prose")
 
-    if not new_listener_effects_prose and not new_societal_effects_prose:
+    if not new_listener_effects_prose and not new_societal_effects_prose and not ether_supplied:
         raise HTTPException(
             status_code=502,
             detail="Both generation steps failed -- no prose produced. Check logs.",
@@ -199,14 +214,31 @@ async def regenerate_prose(
             song.societal_prose_generated_at = calibration.get("societal_prose_generated_at")
             song.societal_prose_model = calibration.get("societal_prose_model")
 
+        # Supplied ether (corrected deadpan naming + topic slugs) rides the same
+        # write. topics stored as the JSON-encoded string the column expects.
+        if body.deadpan_line is not None:
+            song.deadpan_line = body.deadpan_line
+        if body.topics is not None:
+            import json as _json
+            song.topics = _json.dumps(body.topics)
+
         db_write.commit()
 
         logger.info(
-            "prose_regen: %s/%s %s/%s -- effects=%s societal=%s",
+            "prose_regen: %s/%s %s/%s -- effects=%s societal=%s ether=%s",
             source, song_id, title, artist,
             "ok" if new_listener_effects_prose else "skipped",
             "ok" if new_societal_effects_prose else "skipped",
+            "ok" if ether_supplied else "skipped",
         )
+
+        topics_out = None
+        if song.topics:
+            import json as _json2
+            try:
+                topics_out = _json2.loads(song.topics)
+            except (ValueError, TypeError):
+                topics_out = None
 
         return RegenResult(
             source=source,
@@ -220,6 +252,9 @@ async def regenerate_prose(
             prior_societal_effects_prose=old_societal_effects_prose,
             listener_effects_prose_changed=new_listener_effects_prose is not None,
             societal_prose_changed=new_societal_effects_prose is not None,
+            deadpan_line=song.deadpan_line,
+            topics=topics_out,
+            ether_changed=ether_supplied,
         )
     except HTTPException:
         db_write.rollback()

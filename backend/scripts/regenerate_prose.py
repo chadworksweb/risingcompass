@@ -40,9 +40,10 @@ DD_TXT = Path.home() / "Dropbox" / "Debug" / "dd.txt"
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Regenerate prose for one song")
-    p.add_argument("--source", default="compass",
-                   choices=["compass", "library", "submitted", "stream"],
-                   help="Which table (default: compass)")
+    p.add_argument("--source", default="songs",
+                   choices=["songs", "compass", "library", "submitted", "stream"],
+                   help="Which id space (default: songs = the unified song id; "
+                        "the legacy names map via song_id_map)")
     p.add_argument("--song-id", type=int, required=True, dest="song_id",
                    help="Primary key of the song row")
     p.add_argument("--lyrics-file", default=None, dest="lyrics_file",
@@ -54,6 +55,10 @@ def main() -> int:
                         "the model; turns server generation OFF)")
     p.add_argument("--societal-file", default=None, dest="societal_file",
                    help="Path to supplied societal_effects_prose")
+    p.add_argument("--deadpan", default=None,
+                   help="Supplied deadpan_line (corrected ether naming)")
+    p.add_argument("--topics", default=None,
+                   help="Supplied topic slugs, comma-separated (validated against the ether taxonomy)")
     args = p.parse_args()
 
     key = os.environ.get("RC_LYRICS_SUPPLY_KEY")
@@ -81,6 +86,10 @@ def main() -> int:
         payload_d["listener_effects_prose"] = Path(args.listener_file).read_text(encoding="utf-8").strip()
     if args.societal_file:
         payload_d["societal_effects_prose"] = Path(args.societal_file).read_text(encoding="utf-8").strip()
+    if args.deadpan is not None:
+        payload_d["deadpan_line"] = args.deadpan
+    if args.topics is not None:
+        payload_d["topics"] = [t.strip() for t in args.topics.split(",") if t.strip()]
     payload = json.dumps(payload_d).encode("utf-8")
 
     url = f"{args.url.rstrip('/')}/api/admin/prose/regenerate"
