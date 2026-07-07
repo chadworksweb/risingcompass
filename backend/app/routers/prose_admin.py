@@ -58,6 +58,12 @@ class RegenRequest(BaseModel):
     source: str
     song_id: int
     lyrics: str
+    # Optional supplied prose (Claude Code is the model). When either is set,
+    # generation is turned OFF and the supplied text is written as-is (after the
+    # verbatim-lyric scrub). This is the terminal / dry-account path: zero
+    # Anthropic. Omit both to keep the server-generation behavior.
+    listener_effects_prose: Optional[str] = None
+    societal_effects_prose: Optional[str] = None
 
 
 class RegenResult(BaseModel):
@@ -136,9 +142,32 @@ async def regenerate_prose(
     finally:
         db_read.close()
 
-    # --- Phase 2: run generation (long Opus call, no DB session held) --------
+    # --- Phase 2: fill the prose ---------------------------------------------
+    # Supplied prose (Claude Code is the model) takes the zero-Anthropic path:
+    # seed the fields and turn generation OFF, so ensure_full_calibration keeps
+    # only what was supplied and never calls Anthropic. With nothing supplied it
+    # falls back to server generation (the original behavior).
+    supplied = bool(body.listener_effects_prose or body.societal_effects_prose)
+    if supplied:
+        from app.services.lyric_quote_guard import strip_verbatim_quotes
+        if body.listener_effects_prose:
+            txt, _ = strip_verbatim_quotes(body.listener_effects_prose.strip(), lyrics)
+            calibration["listener_effects_prose"] = txt
+        if body.societal_effects_prose:
+            txt, _ = strip_verbatim_quotes(body.societal_effects_prose.strip(), lyrics)
+            calibration["societal_effects_prose"] = txt
+
     from app.services.agents.calibrator import ensure_full_calibration
-    await ensure_full_calibration(title, artist, lyrics, calibration)
+    await ensure_full_calibration(title, artist, lyrics, calibration,
+                                  allow_generation=not supplied)
+
+    # Supplied societal prose carries no server-generation seal, so stamp a
+    # terminal seal (mirrors the storage-chokepoint write-time floor) before the
+    # 16:00 UTC provenance sweep anchors it.
+    if supplied and calibration.get("societal_effects_prose") and not calibration.get("societal_prose_generated_at"):
+        from datetime import datetime
+        calibration["societal_prose_generated_at"] = datetime.utcnow()
+        calibration["societal_prose_model"] = "terminal_supplied"
 
     new_listener_effects_prose = calibration.get("listener_effects_prose")
     new_societal_effects_prose = calibration.get("societal_effects_prose")

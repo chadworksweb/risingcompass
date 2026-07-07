@@ -49,6 +49,11 @@ def main() -> int:
                    help=f"Path to lyrics file (default: {DD_TXT})")
     p.add_argument("--url", default="http://localhost:8000",
                    help="Backend base URL (default: http://localhost:8000)")
+    p.add_argument("--listener-file", default=None, dest="listener_file",
+                   help="Path to supplied listener_effects_prose (Claude Code is "
+                        "the model; turns server generation OFF)")
+    p.add_argument("--societal-file", default=None, dest="societal_file",
+                   help="Path to supplied societal_effects_prose")
     args = p.parse_args()
 
     key = os.environ.get("RC_LYRICS_SUPPLY_KEY")
@@ -67,11 +72,16 @@ def main() -> int:
         print(f"Lyrics file is empty: {lyrics_path}", file=sys.stderr)
         return 2
 
-    payload = json.dumps({
+    payload_d = {
         "source": args.source,
         "song_id": args.song_id,
         "lyrics": lyrics,
-    }).encode("utf-8")
+    }
+    if args.listener_file:
+        payload_d["listener_effects_prose"] = Path(args.listener_file).read_text(encoding="utf-8").strip()
+    if args.societal_file:
+        payload_d["societal_effects_prose"] = Path(args.societal_file).read_text(encoding="utf-8").strip()
+    payload = json.dumps(payload_d).encode("utf-8")
 
     url = f"{args.url.rstrip('/')}/api/admin/prose/regenerate"
     req = urllib.request.Request(
