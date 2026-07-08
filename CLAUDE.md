@@ -203,7 +203,7 @@ endpoint, which stores a supplied calibration with no model call).
 **Canonical rubric = the saved local copy `plans and docs/LEC-RUBRIC-LIVE.md`
 (NOT a per-session live pull).** LEC owns the rubric, but the live `GET /api/rubric`
 text is snapshotted to that file (version-stamped in its header comment; currently
-`716339b3385f`, pulled 2026-07-07). **Read that file every session and calibrate
+`069e4968a63c`, pulled 2026-07-07). **Read that file every session and calibrate
 against it. Do NOT re-pull live each time** — the old "always pull, from-memory is
 VOID" gate is retired (changed 2026-07-07 at Chad's direction). **Re-pull + re-save
 ONLY when Chad says the rubric changed**, then update `rubric_version` in the file
