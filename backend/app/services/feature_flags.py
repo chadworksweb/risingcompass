@@ -46,6 +46,25 @@ def is_identity_trgm_autolink_enabled(db: Session) -> bool:
     return (_get_flag(db, IDENTITY_TRGM_AUTOLINK_KEY) or "false").lower() == "true"
 
 
+# Deterministic shared-primary-artist rung (song_identity resolve ladder). Fail
+# OPEN: absent flag = ON. It resolves a feeder re-entry whose clean title matches
+# an existing row EXACTLY and shares at least one primary-artist token, catching
+# the class where the Library row was stored under a lone (often non-lead) artist
+# while the feeder surfaces the full/reordered credit (the "met me sooner" /
+# "Neighborhood Starz" daily re-list). Conservative (exact clean title + >=1
+# shared primary) and fully fail-soft, but flippable off if it ever over-merges.
+IDENTITY_SHARED_ARTIST_KEY = "identity_shared_artist.enabled"
+
+
+def is_identity_shared_artist_enabled(db: Session) -> bool:
+    # Absent flag -> enabled (fail open). Only an explicit "false" disables it.
+    return (_get_flag(db, IDENTITY_SHARED_ARTIST_KEY) or "true").lower() == "true"
+
+
+def set_identity_shared_artist_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, IDENTITY_SHARED_ARTIST_KEY, enabled)
+
+
 # --- Audience Resonance slicer (ships DARK) --------------------------------
 # Gates the live testimony classifier (services/resonance_slicer.py). Fail-CLOSED:
 # absent flag = OFF, so submissions store a neutral verdict and NO model call is

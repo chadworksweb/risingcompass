@@ -126,6 +126,31 @@ def clean_artist_set_key(artist):
     return "".join(sorted(set(primaries)))
 
 
+def primary_artist_token_set(artist):
+    """The SET of normalized (clean) primary-artist tokens in a credit string.
+
+    Mirrors clean_artist_set_key but returns the individual tokens instead of the
+    joined key, so a shared-artist intersection can be computed. Featured artists
+    are excluded (same as the clean key); a single-artist credit returns a
+    one-element set. Pure; no DB."""
+    try:
+        from app.services.artist_linker import parse_artist_string
+        entries = parse_artist_string(artist or "")
+    except Exception:
+        entries = []
+    toks = set()
+    for e in entries:
+        if (e.get("role") or "primary") == "primary":
+            n = _norm_clean(e.get("name") or "")
+            if n:
+                toks.add(n)
+    if not toks:
+        n = _norm_clean(extract_primary_artist(artist))
+        if n:
+            toks.add(n)
+    return toks
+
+
 def compute_canonical_key_clean(title, artist):
     """The Phase-1 CLEAN identity: the canonical key computed AFTER the closed
     feeder-cruft cleaning pass (app.services.feeder_clean). Collapses MV/lyric-
@@ -267,6 +292,62 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
             ).first()
             if row:
                 return Resolution(song_id=row[0], via="clean")
+
+    # Rung 2c: shared-primary-artist bridge. Catches the class where the Library
+    # row was stored under a LONE (often non-lead) primary artist, while the
+    # feeder surfaces the same song with the FULL, reordered credit -- so neither
+    # the lead key nor the co-primary SET key matches (the stored artist is a
+    # single token, the incoming credit a different/larger set). Deterministic and
+    # conservative: it requires the EXACT clean title AND at least one shared
+    # normalized PRIMARY-artist token, then links the oldest such row. Featured
+    # artists are excluded (same as the clean key). Fail OPEN behind
+    # identity_shared_artist.enabled; fully fail-soft (any error falls through).
+    #
+    # The stored clean key's artist part is a token-CONCATENATION (no separator),
+    # so tokens can't be recovered from it in SQL -- instead we fetch rows whose
+    # clean TITLE part equals ours and intersect primary-artist token sets in
+    # Python off each candidate's raw `artist` string.
+    if clean_key:
+        try:
+            # Read the fail-OPEN kill switch via db.execute (this resolver is
+            # called with either a Session or a raw Connection; _get_flag's
+            # db.query() is Session-only, so read the flag the portable way).
+            from app.services.feature_flags import IDENTITY_SHARED_ARTIST_KEY
+            try:
+                fr = db.execute(
+                    text("SELECT value FROM system_flags WHERE key = :k LIMIT 1"),
+                    {"k": IDENTITY_SHARED_ARTIST_KEY},
+                ).first()
+                shared_enabled = (
+                    (fr[0] if fr and fr[0] is not None else "true").strip().lower()
+                    == "true"
+                )
+            except Exception:
+                shared_enabled = True  # fail open
+            if shared_enabled:
+                from app.services.feeder_clean import clean_title_artist
+                title_part = clean_key.split(CANON_SEP, 1)[0]
+                _, incoming_ca = clean_title_artist(title or "", artist or "")
+                incoming_toks = primary_artist_token_set(incoming_ca)
+                if title_part and incoming_toks:
+                    # LIKE prefix (not split_part) keeps this dialect-portable
+                    # (SQLite tests + PG prod), same as rung 2b. title_part is
+                    # normalize_for_search output (alphanumeric only), so it
+                    # carries no LIKE metacharacters to escape.
+                    cands = db.execute(
+                        text(
+                            "SELECT id, artist FROM songs "
+                            "WHERE canonical_key_clean LIKE :prefix "
+                            "AND canonical_key <> :k "
+                            "ORDER BY id ASC"
+                        ),
+                        {"prefix": f"{title_part}{CANON_SEP}%", "k": key},
+                    ).fetchall()
+                    for sid, cand_artist in cands:
+                        if primary_artist_token_set(cand_artist) & incoming_toks:
+                            return Resolution(song_id=sid, via="shared_artist")
+        except Exception:
+            logger.debug("shared-artist rung skipped (fail-soft)", exc_info=True)
 
     # Rung 3: pg_trgm fuzzy fallback. Ships DARK behind identity_trgm.enabled
     # (fail-closed). Fully fail-soft: any error (flag table, missing extension,
