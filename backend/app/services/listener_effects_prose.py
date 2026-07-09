@@ -143,7 +143,22 @@ def generate_listener_effects_prose(
     # downside."
     allow_deficit = rubric_color in ("orange", "red")
 
-    from app.services.prose_tell_guard import hard_findings, summarize
+    from app.services.prose_tell_guard import hard_findings
+    from app.services.prose_judge import judge as _judge
+
+    def _issues(p: str) -> list:
+        """Regex hard findings + semantic-judge findings; all treated hard. The
+        judge is fail-soft (a broken judge adds nothing; the regex floor stands)."""
+        reg = hard_findings(p, lane="listener", allow_deficit=allow_deficit)
+        try:
+            sem = _judge(p, lane="listener", positive=not allow_deficit)
+        except Exception:
+            logger.exception("prose_judge failed (non-fatal) for %s / %s", title, artist)
+            sem = []
+        return list(reg) + list(sem)
+
+    def _isum(issues) -> str:
+        return ", ".join(getattr(f, "code", "?") for f in issues) or "clean"
 
     def _clean(raw: str) -> Optional[str]:
         """Normalize + lyric-guard + sanity + word-cap one raw model output.
@@ -192,32 +207,32 @@ def generate_listener_effects_prose(
     prose = _attempt(LISTENER_EFFECTS_VOICE)
     if prose is None:
         return None
-    hard = hard_findings(prose, lane="listener", allow_deficit=allow_deficit)
+    issues = _issues(prose)
 
-    # Fail-closed regen: if the first attempt trips hard tells, regenerate ONCE
-    # with the specific findings as a correction and keep whichever is cleaner.
-    # If the best result STILL trips hard tells, ship nothing (return None) so the
-    # page falls back to the tier-generic copy. Never publish a tell-ridden reading
-    # unread -- this is the no-human-eye discipline (Lyrical Charger scale).
-    if hard:
-        logger.info("listener_effects_prose attempt 1 tripped tell-guard for %s / %s [%s]; regenerating",
-                    title, artist, summarize(hard))
+    # Fail-closed regen: regex floor + semantic judge together. If the first
+    # attempt trips anything, regenerate ONCE with the findings as a correction and
+    # keep whichever is cleaner. If issues STILL survive, ship nothing (return None)
+    # so the page falls back to the tier-generic copy. Never publish a tell-ridden
+    # reading unread -- the no-human-eye discipline (Lyrical Charger scale).
+    if issues:
+        logger.info("listener_effects_prose attempt 1 tripped the guard for %s / %s [%s]; regenerating",
+                    title, artist, _isum(issues))
         correction = (
             "\n\n## Your previous attempt tripped the voice guard\n"
             "Rewrite the two paragraphs clean, fixing every issue below and keeping "
             "everything that was already working:\n"
-            + "\n".join(f'- {f.name}: found "{f.snippet}"' for f in hard)
+            + "\n".join(f'- {f.name}: found "{f.snippet}"' for f in issues)
         )
         prose2 = _attempt(LISTENER_EFFECTS_VOICE + correction)
         if prose2 is not None:
-            hard2 = hard_findings(prose2, lane="listener", allow_deficit=allow_deficit)
-            if len(hard2) < len(hard):
-                prose, hard = prose2, hard2
+            issues2 = _issues(prose2)
+            if len(issues2) < len(issues):
+                prose, issues = prose2, issues2
 
-    if hard:
+    if issues:
         logger.warning(
-            "listener_effects_prose FAIL-CLOSED (NULL) for %s / %s: %d hard hit(s) survive regen [%s]",
-            title, artist, len(hard), summarize(hard),
+            "listener_effects_prose FAIL-CLOSED (NULL) for %s / %s: %d issue(s) survive regen [%s]",
+            title, artist, len(issues), _isum(issues),
         )
         return None
 

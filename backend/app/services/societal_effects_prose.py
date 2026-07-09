@@ -193,7 +193,22 @@ def generate_societal_effects_prose(
     # effect, no manufactured downside."
     allow_deficit = rubric_color in ("orange", "red")
 
-    from app.services.prose_tell_guard import hard_findings, summarize
+    from app.services.prose_tell_guard import hard_findings
+    from app.services.prose_judge import judge as _judge
+
+    def _issues(p: str) -> list:
+        """Regex hard findings + semantic-judge findings; all treated hard. The
+        judge is fail-soft (a broken judge adds nothing; the regex floor stands)."""
+        reg = hard_findings(p, lane="societal", allow_deficit=allow_deficit)
+        try:
+            sem = _judge(p, lane="societal", positive=not allow_deficit)
+        except Exception:
+            logger.exception("prose_judge failed (non-fatal) for %s / %s", title, artist)
+            sem = []
+        return list(reg) + list(sem)
+
+    def _isum(issues) -> str:
+        return ", ".join(getattr(f, "code", "?") for f in issues) or "clean"
 
     def _clean(raw: str) -> Optional[str]:
         """Normalize + lyric-guard + sanity + word-cap one raw output. None on fail."""
@@ -246,31 +261,32 @@ def generate_societal_effects_prose(
     if result is None:
         return None
     prose, model, generated_at = result
-    hard = hard_findings(prose, lane="societal", allow_deficit=allow_deficit)
+    issues = _issues(prose)
 
-    # Fail-closed regen (see listener_effects_prose for the rationale). Regenerate
-    # once with the findings, keep whichever is cleaner; if hard tells survive,
-    # return None so the page hides the section rather than ship slop unread.
-    if hard:
-        logger.info("societal_effects_prose attempt 1 tripped tell-guard for %s / %s [%s]; regenerating",
-                    title, artist, summarize(hard))
+    # Fail-closed regen (see listener_effects_prose for the rationale): regex floor
+    # + semantic judge. Regenerate once with the findings, keep whichever is
+    # cleaner; if issues survive, return None so the page hides the section rather
+    # than ship slop unread.
+    if issues:
+        logger.info("societal_effects_prose attempt 1 tripped the guard for %s / %s [%s]; regenerating",
+                    title, artist, _isum(issues))
         correction = (
             "\n\n## Your previous attempt tripped the voice guard\n"
             "Rewrite the two paragraphs clean, fixing every issue below and keeping "
             "everything that was already working:\n"
-            + "\n".join(f'- {f.name}: found "{f.snippet}"' for f in hard)
+            + "\n".join(f'- {f.name}: found "{f.snippet}"' for f in issues)
         )
         result2 = _attempt(SOCIETAL_VOICE + correction)
         if result2 is not None:
             prose2, model2, generated_at2 = result2
-            hard2 = hard_findings(prose2, lane="societal", allow_deficit=allow_deficit)
-            if len(hard2) < len(hard):
-                prose, model, generated_at, hard = prose2, model2, generated_at2, hard2
+            issues2 = _issues(prose2)
+            if len(issues2) < len(issues):
+                prose, model, generated_at, issues = prose2, model2, generated_at2, issues2
 
-    if hard:
+    if issues:
         logger.warning(
-            "societal_effects_prose FAIL-CLOSED (NULL) for %s / %s: %d hard hit(s) survive regen [%s]",
-            title, artist, len(hard), summarize(hard),
+            "societal_effects_prose FAIL-CLOSED (NULL) for %s / %s: %d issue(s) survive regen [%s]",
+            title, artist, len(issues), _isum(issues),
         )
         return None
 
