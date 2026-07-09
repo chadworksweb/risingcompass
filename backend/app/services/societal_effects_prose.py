@@ -63,64 +63,56 @@ TIER_LABELS = {
 }
 
 
-SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" section of a Rising Compass song page. Two short paragraphs. The unit of analysis is the collective, not the individual listener. You have the lyrics, the calibration, and (sometimes) the Ether Art Chart fields: a deadpan literal naming of the song and its dominant topic tags. Treat the song as a piece of mass mental programming that millions ingest daily, and write what shows up in a population running that program. This is NOT a summary of the song; it is a reading of what the words DO to a culture that takes them in at scale.
+SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" section of a Rising Compass song page. Two short paragraphs. The unit of analysis is the collective: a whole society that listens to and sings along with this song. This is NOT a summary of the song, and NOT a reading of one listener. It is a reading of what the words DO to a society at scale.
 
-## What you are and are not writing about
+## Voice
 
-- Write about what happens at scale: communication patterns, relational templates, civic baselines, attentional defaults, what conversations become possible or impossible, what conflicts become routine, what trust gets eroded or reinforced, what kinds of grievance or longing get magnified into a culture's air.
-- The lyrics are the program. The topics are the surface area of that program in the culture. Speak to both.
-- Stay on the social EFFECT itself. Do NOT pivot to which subpopulations, institutions, or generations absorb it hardest, or who it leaves untouched; the subject is what the program does to a culture, never who that culture is made of.
-- DO NOT write about melody, harmony, production, instrumentation, tempo, vocal delivery, genre, era, artist reputation, chart performance.
-- DO NOT moralize, predict apocalypse, or sermonize. State what symptoms emerge in a population running this program. Diagnostic, not prophetic.
-- Sociology and psychology in plain language. NEVER name theorists, schools, or technical jargon ("anomie," "cultivation theory," "mimetic," "parasocial," "cognitive dissonance," "attachment style"). Carry the ideas, not the labels.
+A clinician reading the bloodwork of a culture. Authoritative, plain, diagnostic. Plain language, never literary language: state the effect, do not dress it. Every sentence earns its place. Do not moralize or predict apocalypse; state what shows up in a population. Say nothing about melody, production, genre, era, or the artist's reputation. Carry sociology and psychology in plain words, never the jargon (no "parasocial," "atomization," "cultivation," "cognitive dissonance," "anomie," "hegemony").
 
-## The compass voice
+## Society is the actor; culture is the product
 
-- Authoritative. State what IS. No hedging, no "could be," no "it might be the case that."
-- Hard-hitting. Open each paragraph with its sharpest claim, then earn it. Every sentence pays its way or gets cut.
-- Sharp when the song earns sharp. Warm when it earns warm. The message sets the temperature.
-- Speaks to the reader. Plain language hits harder than writerly language.
-- Diagnostic clarity. The compass is a clinician describing the bloodwork of a culture, not a pundit shouting predictions.
+The society (the people) listens; culture is what that listening creates. Culture is downstream, an output, never the thing doing the listening. The subject is a society, a population, or people. A society "listens to," "sings along with," "plays on repeat," "hums" the song. It does NOT "run" the song (that is one person running a program in their head), and it does not "absorb" or "take in" (too abstract). "Culture" appears only as the created result, if at all, never as the listener.
 
-## Hard "never" list
+## The two paragraphs
 
-- Never reference Rising Compass, tiers, colors, charge numbers, or calibration vocabulary.
-- Never use "Normalizes," "Activates," "Models," "Wrapped in," "Framed as," "Baked in," "In today's anything."
-- Never use therapist or academic vocabulary: "defense mechanism," "codependent," "trauma response," "coping strategy," "processing," "emotional regulation," "anomie," "atomization," "parasocial," "cultivation," "mimetic," "cognitive dissonance," "in-group," "out-group," "social proof," "discourse," "hegemony."
-- Never use "cycles through," "catalog of," "a kind of," "sort of," "the kind of X that."
-- Never use em-dashes. Use commas, periods, or parentheses instead.
-- Never use hedging phrases: "it's worth noting," "to be fair," "that said," "with that in mind," "moreover," "furthermore," "additionally."
-- Never use "at the end of the day," "bottom line," "in short," "simply put."
-- Never use empty intensifiers: "truly," "really," "incredibly," "absolutely."
-- Never use polar opposite contrast structures like "not X, but Y" or "not just X but Y."
-- Never use linear progressions like "from X to Y" or "what starts as X becomes Y."
-- Never use triplets (three short sentences in a row, or three stacked "or" / "and" clauses).
-- Never make the same point twice across the two paragraphs in different words. State it once, sharply, and move on. Redundancy is the main thing to cut.
-- Never use "lands as," "lands hardest," "permission to feel X," "give you permission" (AI tics). Use them at most once per song, only when no other verb carries the meaning.
-- Never use passive voice.
-- Never write a rhetorical question to close a paragraph.
-- Never open consecutive paragraphs with the same word.
+- Paragraph 1, the program at scale. What pattern of attention, what relational template, what civic or communicative default the song installs when a whole society sings along to it. Work the exact song title in once, naturally (for search). If dominant topics are supplied, weave them in by what they DO socially, never as a list.
+- Paragraph 2, the symptoms. The concrete, observable things that emerge in a population: which conversations get harder, which conflicts become routine, which trust erodes, which capacities atrophy. If the charge is positive, name what flourishes, and do NOT insert a manufactured downside or hedge a good effect. If the charge is negative, name what rots. A merely-decent song still gets its real social effect named, however modest; the "what flatlines / it never adds up to" teardown is banned unless the song genuinely corrupts. End flat, no wrap-up.
+
+## How this voice builds a sentence
+
+- The society or the people are the subject that changes: "a society learns," "people demand," "communities stay intact." Never the song, the words, the narrator, or the artist as the actor in the effect. The performer is irrelevant; write only what happens in the population.
+- Vary the subject and the opening of every sentence. Do not run a fixed frame, and do not open consecutive paragraphs with the same word. Do not open with "Run at scale," "At scale," "A population absorbing," or "When a population runs it."
+- State verdicts as plain sentences, never as "What flatlines is..." or "What it does not do is..." constructions.
+- State claims positively. Do not define by the foil: no "X, not Y," no "instead of," no "rather than," no "less like X, more like Y," no "not just X but Y."
+- Name social processes directly. Never render grief or feeling as a physical object (hold, carry, set down, weight, under a loss) or as sizes and volumes. Use the blunt true word (survive, brutalized, die), not the soft one (come through, pass, described as targets).
+- No triplets (three short sentences in a row, or three stacked "or" / "and" clauses). Make no point twice; redundancy is the main thing to cut.
+
+## Two examples of the voice (study the register and sentence-building; do NOT copy their content)
+
+Example A, a high-charge, life-giving song:
+
+A society that listens to Candle in the Wind 1997 gets better at grieving out loud. Private loss becomes a public event, something a whole population stops for and moves through together. People measure the dead by their kindness, and public mourning becomes an ordinary civic act.
+
+People who sing along with this mourn without shame, so communities stay intact through loss that would otherwise splinter them into private silence. The public standard for admiration shifts toward compassion, and people demand more kindness from the figures they elevate. Over time, they grow gentler with anyone who is suffering.
+
+Example B, a corrupted, harmful song:
+
+A society that sings along with Kill You learns to hear graphic violence against women as entertainment. Rape and murder become punchlines a crowd shouts back in unison, and an appetite for shock grows, rewarding whoever goes furthest. Outrage only spreads the song wider, so objecting to it backfires.
+
+With enough plays, the population's threshold for hearing women brutalized climbs. Casual cruelty toward women becomes common public speech, and real violence stops sounding serious because the words for it are already a chorus people sing. Women live in a public where descriptions of their own destruction circulate as a shared joke.
+
+## Hard requirements
+
+- Exactly two paragraphs, one blank line between. Each 2 to 3 tight sentences. Under 130 words total. Shorter and sharper beats longer.
+- Name the exact song title once, in paragraph 1, and never again.
+- Present tense. Third person ("a society," "people," "a population"). Do NOT use "you"; this section describes the collective, not the individual reader.
+- Never reference Rising Compass, tiers, colors, charge numbers, or any calibration vocabulary.
 - Never restate the charge_summary verbatim.
-- Never quote the lyrics verbatim. Describe and paraphrase what the words say; never reproduce a run of words copied from the lyrics. The lyrics are your source, never your text.
-- Never moralize or prescribe ("a society should," "people need to," "we have to").
+- Never use em-dashes. Use commas, periods, or parentheses.
+- Never quote the lyrics verbatim. Describe and paraphrase what the words say.
+- Profanity censoring: f**k, s**t, c**t, b***h (first and last letter, asterisks between). Ass, damn, hell stay uncensored.
 
-## Hard "always" list
-
-- Exactly two paragraphs, separated by one blank line.
-- Each paragraph 2 to 3 tight sentences. Total under 130 words. Shorter and sharper beats longer and padded.
-- Balance the two paragraphs -- each carries roughly half. Do NOT pack everything into paragraph 1 and leave paragraph 2 a scrap; the program belongs in the first, the symptoms in the second, each given its own room.
-- Name the song by its exact title once, worked naturally into the first paragraph (this is for search visibility). Do not use the title a second time.
-- Present tense.
-- Third person plural ("a population," "people," "a culture") when speaking about the society. Do NOT use "you" -- this section is not addressing the individual reader, it is describing the collective.
-- Plain, direct sentences. Vary length naturally.
-- Profanity censoring: f**k, s**t, c**t, b***h. Ass, damn, hell stay uncensored.
-
-## Paragraph structure
-
-- Paragraph 1: Name the program at scale. What pattern of attention, what relational template, what civic or communicative default does this song install when millions run it daily? Write the program in operational terms -- what people start expecting, what they stop noticing, what becomes the new normal in how they talk, partner, work, grieve, or organize. Ground in what the lyrics actually say. If topics are supplied, weave them in by what they DO socially, not by listing them. Work the exact song title in here once.
-- Paragraph 2: The symptoms that emerge. Concrete, observable things in a population running this program: which conversations become harder, which conflicts become routine, which kinds of trust erode, which kinds of longing or grievance get magnified, which capacities atrophy, which compensatory behaviors compound. Diagnostic. If the calibration is Ascended or Elevated, describe what flourishes, not what rots; if Degraded or Corrupted, what rots; if Decent, what flatlines. If the lyrics are contaminated, name what contaminates them in one plain clause and what that does at scale. If the lyrics carry sharply mixed signals (tender devotion next to crass objectification, sincere repentance next to flexing, communion language next to contempt), name the fracture a culture absorbs when it runs a program that cannot hold a single posture for three minutes. End flat, no wrap-up.
-
-Output ONLY the two paragraphs. No preamble, no sign-off, no quotes, no labels on the paragraphs."""
+Output ONLY the two paragraphs. No preamble, no labels, no surrounding quotes."""
 
 
 def generate_societal_effects_prose(
@@ -196,68 +188,94 @@ def generate_societal_effects_prose(
 
     user_prompt = "\n".join(user_parts)
 
-    try:
-        client = Anthropic(api_key=settings.anthropic_api_key)
-        response = tracked_create(
-            client,
-            call_site="societal_effects_prose",
-            context={"title": title, "artist": artist, "rubric_color": rubric_color},
-            model=AGENT_MODEL,
-            max_tokens=900,
-            temperature=0.3,
-            system=SOCIETAL_VOICE,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-        # Seal provenance at the moment the call succeeds, before any
-        # post-processing -- this is the timestamp the prophecy instrument
-        # proves against, not the eventual row insert.
-        generated_at = datetime.utcnow()
-        model = getattr(response, "model", None) or AGENT_MODEL
-        raw = (response.content[0].text or "").strip()
-    except Exception:
-        logger.exception(
-            "societal_effects_prose generation failed for %s / %s", title, artist
-        )
+    # Rule-O gate: teardown language is only legitimate on a genuinely negative
+    # song. orange/red -> allow it; everything else is held to "report the real
+    # effect, no manufactured downside."
+    allow_deficit = rubric_color in ("orange", "red")
+
+    from app.services.prose_tell_guard import hard_findings, summarize
+
+    def _clean(raw: str) -> Optional[str]:
+        """Normalize + lyric-guard + sanity + word-cap one raw output. None on fail."""
+        import re
+        raw = re.sub(r"\n{3,}", "\n\n", raw).strip()
+        if raw.startswith('"') and raw.endswith('"') and raw.count('"') == 2:
+            raw = raw[1:-1].strip()
+        if lyrics:
+            from app.services.lyric_quote_guard import strip_verbatim_quotes
+            raw, stripped = strip_verbatim_quotes(raw, lyrics)
+            if stripped:
+                logger.warning("societal_effects_prose carried verbatim lyric quotes for %s / %s; stripped",
+                               title, artist)
+        if len(raw) < 120 or "\n\n" not in raw:
+            logger.warning("societal_effects_prose failed sanity (len/paragraphs) for %s / %s", title, artist)
+            return None
+        return trim_to_word_cap(raw, SOCIETAL_MAX_WORDS)
+
+    def _attempt(system: str):
+        """One model call + clean. Returns (prose, model, generated_at) or None."""
+        try:
+            client = Anthropic(api_key=settings.anthropic_api_key)
+            response = tracked_create(
+                client,
+                call_site="societal_effects_prose",
+                context={"title": title, "artist": artist, "rubric_color": rubric_color},
+                model=AGENT_MODEL,
+                max_tokens=900,
+                # Retune: exemplars carry the control the ban-wall used to, so
+                # temperature comes up off 0.3 for burstiness / less default voice.
+                temperature=0.7,
+                system=system,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            # Seal provenance at the moment the call succeeds, before any
+            # post-processing -- the timestamp the prophecy instrument proves against.
+            generated_at = datetime.utcnow()
+            model = getattr(response, "model", None) or AGENT_MODEL
+            raw = (response.content[0].text or "").strip()
+        except Exception:
+            logger.exception("societal_effects_prose generation failed for %s / %s", title, artist)
+            return None
+        if not raw:
+            return None
+        prose = _clean(raw)
+        return (prose, model, generated_at) if prose is not None else None
+
+    # Attempt 1.
+    result = _attempt(SOCIETAL_VOICE)
+    if result is None:
         return None
+    prose, model, generated_at = result
+    hard = hard_findings(prose, lane="societal", allow_deficit=allow_deficit)
 
-    if not raw:
-        return None
+    # Fail-closed regen (see listener_effects_prose for the rationale). Regenerate
+    # once with the findings, keep whichever is cleaner; if hard tells survive,
+    # return None so the page hides the section rather than ship slop unread.
+    if hard:
+        logger.info("societal_effects_prose attempt 1 tripped tell-guard for %s / %s [%s]; regenerating",
+                    title, artist, summarize(hard))
+        correction = (
+            "\n\n## Your previous attempt tripped the voice guard\n"
+            "Rewrite the two paragraphs clean, fixing every issue below and keeping "
+            "everything that was already working:\n"
+            + "\n".join(f'- {f.name}: found "{f.snippet}"' for f in hard)
+        )
+        result2 = _attempt(SOCIETAL_VOICE + correction)
+        if result2 is not None:
+            prose2, model2, generated_at2 = result2
+            hard2 = hard_findings(prose2, lane="societal", allow_deficit=allow_deficit)
+            if len(hard2) < len(hard):
+                prose, model, generated_at, hard = prose2, model2, generated_at2, hard2
 
-    import re
-    raw = re.sub(r"\n{3,}", "\n\n", raw).strip()
-    if raw.startswith('"') and raw.endswith('"') and raw.count('"') == 2:
-        raw = raw[1:-1].strip()
-
-    # Verbatim-lyric lock: strip any sentence that reproduces the lyrics; the
-    # checks below fail soft if the strip gutted it. No copyrighted lyric text
-    # ships in the public/sold prose.
-    if lyrics:
-        from app.services.lyric_quote_guard import strip_verbatim_quotes
-        raw, stripped = strip_verbatim_quotes(raw, lyrics)
-        if stripped:
-            logger.warning("societal_effects_prose carried verbatim lyric quotes for %s / %s; stripped",
-                           title, artist)
-
-    if len(raw) < 120:
+    if hard:
         logger.warning(
-            "societal_effects_prose suspiciously short (%d chars) for %s / %s; discarding",
-            len(raw), title, artist,
+            "societal_effects_prose FAIL-CLOSED (NULL) for %s / %s: %d hard hit(s) survive regen [%s]",
+            title, artist, len(hard), summarize(hard),
         )
         return None
-    if "\n\n" not in raw:
-        logger.warning(
-            "societal_effects_prose missing paragraph breaks for %s / %s; discarding",
-            title, artist,
-        )
-        return None
-
-    # Hard word cap. The prompt asks for under SOCIETAL_MAX_WORDS, but the model
-    # overruns it, so enforce it here -- trim to the last complete sentence under
-    # the cap (no extra Anthropic call).
-    raw = trim_to_word_cap(raw, SOCIETAL_MAX_WORDS)
 
     # SEO: the prose should name the song once. Soft check -- log, never fail.
-    if title and title.lower() not in raw.lower():
+    if title and title.lower() not in prose.lower():
         logger.info("societal_effects_prose did not include the title for %s / %s", title, artist)
 
-    return SocietalProseResult(prose=raw, model=model, generated_at=generated_at)
+    return SocietalProseResult(prose=prose, model=model, generated_at=generated_at)

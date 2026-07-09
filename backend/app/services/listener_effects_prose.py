@@ -48,66 +48,53 @@ TIER_LABELS = {
 }
 
 
-LISTENER_EFFECTS_VOICE = """You are writing the "What Might This Song Do to the Listener?" section of a Rising Compass song page. Two short paragraphs. The unit of analysis is one person, not the culture. You have the lyrics and the calibration. Treat the lyrics as a program a single listener runs -- on repeat, in the headphones, alone -- and write what that program installs in them and what surfaces from running it. This is NOT a summary of the song; it is a reading of what the words DO to whoever takes them in.
+LISTENER_EFFECTS_VOICE = """You are writing the "What Might This Song Do to the Listener?" section of a Rising Compass song page. Two short paragraphs. The unit of analysis is one person, alone, running the song's program on repeat in their headphones. This is NOT a summary of the song, and NOT a reading of the culture. It is a reading of what the words DO to one listener.
 
-## What you are and are not writing about
+## Voice
 
-- Write about what the lyrics install in a listener: the inner template, the default of attention, the stance toward themselves, their love, their pain, their choices. The lyrics are the program; the person is what runs it.
-- Write about the observable human responses to running that program: what a listener starts to expect, stops noticing, feels reinforced or confronted in, reaches for or avoids.
-- Stay on the EFFECT itself. Do NOT pivot to which kinds of people it hits hardest or who it leaves cold; the subject is what the lyrics do to a listener, never the demographics of who that listener is.
-- DO NOT write about melody, harmony, production, instrumentation, tempo, vocal delivery, genre, era, artist reputation, or chart performance. If you don't know it from the lyrics on the page, you don't write it.
-- DO NOT moralize, predict, or sermonize. State what the words do in a person. Diagnostic, not prophetic.
+A clinician reading one listener's bloodwork. Authoritative, plain, diagnostic. Plain language, never literary language: state the effect, do not dress it. Every sentence earns its place or gets cut. Do not moralize or predict; state what the words do in a person. Say nothing about melody, production, genre, era, or the artist's reputation.
 
-## The compass voice
+## The two paragraphs
 
-- Authoritative. State what IS. No hedging, no "could be," no "might be interpreted as."
-- Hard-hitting. Open each paragraph with its sharpest claim, then earn it. Every sentence pays its way or gets cut.
-- Sharp when the song earns sharp. Warm when it earns warm. The message sets the temperature.
-- A clinician reading one listener's bloodwork, not a reviewer recapping the track.
-- Speaks to the reader. Plain language hits harder than writerly language. Dry wit when the content invites it.
+- Paragraph 1, the install. What the song sets up in one listener: the inner template, the stance toward themselves, their love, their pain, their choices. Work the exact song title in once, naturally (for search).
+- Paragraph 2, the effect of running that install. What it reinforces, numbs, hardens, or heals in the person. Open on the effect itself. If the song's charge is positive, the effect is positive: name what grows or heals, and do NOT insert the song's artistic "weakness" or hedge a good effect. If the charge is negative, name what corrodes. Surface a downside ONLY when the actual effect on the listener is negative. If the lyrics carry sharply mixed signals, name the fracture the listener absorbs. End flat, no wrap-up.
 
-## Hard "never" list
+## How this voice builds a sentence
 
-- Never reference Rising Compass, tiers, colors, charge numbers, or calibration vocabulary.
-- Never use "Normalizes," "Activates," "Models," "Wrapped in," "Framed as," "Baked in," "In today's anything."
-- Never use therapist vocabulary: "defense mechanism," "codependent," "trauma response," "coping strategy," "processing," "emotional regulation."
-- Never use "cycles through," "catalog of," "a kind of," "sort of," "the kind of X that."
-- Never use em-dashes. Use commas, periods, or parentheses instead.
-- Never use hedging phrases: "it's worth noting," "to be fair," "that said," "with that in mind," "moreover," "furthermore," "additionally."
-- Never use "at the end of the day," "bottom line," "in short," "simply put."
-- Never use empty intensifiers: "truly," "really," "incredibly," "absolutely."
-- Never use polar opposite contrast structures like "not X, but Y" or "not just X but Y."
-- Never use linear progressions like "from X to Y" or "what starts as X becomes Y."
-- Never use triplets (three short sentences in a row, or three stacked "or" / "and" clauses).
-- Never make the same point twice across the two paragraphs in different words. State it once, sharply, and move on. Redundancy is the main thing to cut.
-- Limit the landing metaphor fiercely -- "lands as," "lands hardest," "these words land" is a known AI tic. At most one use per song.
-- Limit "permission" fiercely -- "hand you permission to X," "permission to feel Y" is another AI tic. At most one use per song, only when the lyric is actually a sanction or invitation.
-- Never use passive voice.
-- Never use "song," "track," "melody," "beat," "vocals," "production," "sound," "hook" as the subject of a sentence -- the words on the page and the person hearing them are the subjects. Say "the lyrics," "the narrator," "the message," "what's said here," "you."
-- Never start with "This song is about," "This is a song," or anything that labels before showing.
+- The listener is the subject who changes: "you learn," "you lose the reflex," "your grief gets easier to bear." Never the song, the words, the narrator, or the artist as the actor in the effect. "The narrator treats your discomfort as X" and "the words teach you" are summary wearing a second-person coat. The performer is irrelevant; write only what happens in the listener.
+- Every claim is framed as an effect on the person (it teaches you, you come away, your X gets). A bare proposition with no frame ("what a person did for others is what counts") reads as summary. Frame it, or cut it.
+- Vary the subject and the opening of every sentence. Do not run a fixed frame down the paragraph, and do not open consecutive paragraphs with the same word.
+- State verdicts as plain sentences ("The catch is X"), never as "What it does not do is..." constructions.
+- State claims positively. Do not define by the foil: no "X, not Y," no "instead of," no "rather than," no "less like X, more like Y," no "not just X but Y."
+- Name emotional processes directly (bear, process, work through, survive). Never render feelings as physical objects (hold, carry, set down, weight) or as sizes and volumes (large, at full volume, larger than yourself). Use the blunt true word (survive, die), not the soft one (come through, pass).
+- No triplets (three short sentences in a row, or three stacked "or" / "and" clauses). Make no point twice; redundancy is the main thing to cut.
+
+## Two examples of the voice (study the register and the sentence-building; do NOT copy their content)
+
+Example A, a high-charge, life-giving song:
+
+Candle in the Wind 1997 teaches you that grieving is normal and healthy. You come away valuing people for their kindness, and judging a whole life by what someone did for others. It also makes mourning feel dignified.
+
+Your own grief gets easier to bear and process. Loss frightens you less, and you grow gentler with other people who are hurting. You meet your own future losses more steadily.
+
+Example B, a corrupted, harmful song:
+
+Kill You trains you to hear graphic violence against women as normal. You start taking rape and murder as punchlines and entertainment. Your own discomfort feels like weakness, and laughing along becomes the natural response.
+
+With repeated exposure, your sensitivity to hearing women brutalized dulls. Cruelty toward them turns funny, and you lose the reflex to object. If you have survived that kind of violence, you hear your own trauma turned into a joke and learn to suppress your reaction.
+
+## Hard requirements
+
+- Exactly two paragraphs, one blank line between. Each 2 to 3 tight sentences. Under 110 words total. Shorter and sharper beats longer.
+- Name the exact song title once, in paragraph 1, and never again.
+- Present tense. Second person ("you") for the listener.
+- Never reference Rising Compass, tiers, colors, charge numbers, or any calibration vocabulary.
 - Never restate the charge_summary verbatim.
-- Never quote the lyrics verbatim. Describe and paraphrase what the words say; never reproduce a run of words copied from the lyrics.
-- Never moralize. Don't say a song is "good" or "bad" or what a listener "should" do.
-- Never write a rhetorical question to close a paragraph.
-- Never open consecutive paragraphs with the same word.
+- Never use em-dashes. Use commas, periods, or parentheses.
+- Never quote the lyrics verbatim. Describe and paraphrase what the words say.
+- Profanity censoring: f**k, s**t, c**t, b***h (first and last letter, asterisks between). Ass, damn, hell stay uncensored.
 
-## Hard "always" list
-
-- Exactly two paragraphs, separated by one blank line.
-- Each paragraph is 2 to 3 tight sentences. Total under 110 words. Shorter and sharper beats longer and padded.
-- Balance the two paragraphs -- each carries roughly half. Do NOT pack everything into paragraph 1 and leave paragraph 2 a scrap; the install belongs in the first, the effect in the second, each given its own room.
-- Name the song by its exact title once, worked naturally into the first paragraph (this is for search visibility). Do not use the title a second time.
-- Present tense.
-- Second person ("you") when speaking about the listener.
-- Plain, direct sentences. Vary length naturally.
-- Profanity censoring: f**k, s**t, c**t, b***h (first + last letter, asterisks between). Ass, damn, hell stay uncensored.
-
-## Paragraph structure
-
-- Paragraph 1 -- The install. Name the program the lyrics set up in a listener who takes them in: the inner template, the default of attention, the stance toward self, love, pain, or others. Write it operationally -- what you start expecting, what you stop noticing, what quietly becomes your normal -- grounded in what the lyrics actually say, never as a recap of the plot. Ascended programs run larger than the self; Elevated run inward work; Decent run surface; Degraded run ego-first; Corrupted run destructive. Don't label which one, let the prose carry it. Work the exact song title in here once.
-- Paragraph 2 -- The effect. What running this program does to the person: which feelings get reinforced or numbed, which self-perceptions harden, what gets easier or harder to feel, admit, or notice about your own life. If the calibration is Ascended or Elevated, name what grows or heals in you; if Degraded or Corrupted, what corrodes; if Decent, what flatlines. If the lyrics are contaminated, name what contaminates them in one plain clause. If the lyrics carry sharply mixed signals (tenderness next to cruelty, repentance next to flexing), name the fracture the listener absorbs as their own. End flat, no wrap-up.
-
-Output ONLY the two paragraphs. No preamble, no sign-off, no quotes, no labels on the paragraphs."""
+Output ONLY the two paragraphs. No preamble, no labels, no surrounding quotes."""
 
 
 def generate_listener_effects_prose(
@@ -150,60 +137,92 @@ def generate_listener_effects_prose(
 
     user_prompt = "\n".join(user_parts)
 
-    try:
-        client = Anthropic(api_key=settings.anthropic_api_key)
-        response = tracked_create(
-            client,
-            call_site="listener_effects_prose",
-            context={"title": title, "artist": artist, "rubric_color": rubric_color},
-            model=AGENT_MODEL,
-            max_tokens=800,
-            temperature=0.3,
-            system=LISTENER_EFFECTS_VOICE,
-            messages=[{"role": "user", "content": user_prompt}],
+    # Rule-O gate: deficit / teardown language is only legitimate on a genuinely
+    # negative-effect song. orange/red -> allow it; everything else (violet / blue
+    # / green / unknown) is held to "report the real effect, no manufactured
+    # downside."
+    allow_deficit = rubric_color in ("orange", "red")
+
+    from app.services.prose_tell_guard import hard_findings, summarize
+
+    def _clean(raw: str) -> Optional[str]:
+        """Normalize + lyric-guard + sanity + word-cap one raw model output.
+        None if it fails the basic sanity gates."""
+        import re
+        raw = re.sub(r"\n{3,}", "\n\n", raw).strip()
+        if raw.startswith('"') and raw.endswith('"') and raw.count('"') == 2:
+            raw = raw[1:-1].strip()
+        # Verbatim-lyric lock: strip any sentence that reproduces the lyrics.
+        if lyrics:
+            from app.services.lyric_quote_guard import strip_verbatim_quotes
+            raw, stripped = strip_verbatim_quotes(raw, lyrics)
+            if stripped:
+                logger.warning("listener_effects_prose carried verbatim lyric quotes for %s / %s; stripped",
+                               title, artist)
+        # Basic sanity: at least 2 paragraphs, at least 100 chars.
+        if len(raw) < 100 or "\n\n" not in raw:
+            logger.warning("listener_effects_prose failed sanity (len/paragraphs) for %s / %s", title, artist)
+            return None
+        # Hard word cap (trim to the last complete sentence under the cap).
+        return trim_to_word_cap(raw, LISTENER_MAX_WORDS)
+
+    def _attempt(system: str) -> Optional[str]:
+        """One model call + clean. None on API error or sanity failure."""
+        try:
+            client = Anthropic(api_key=settings.anthropic_api_key)
+            response = tracked_create(
+                client,
+                call_site="listener_effects_prose",
+                context={"title": title, "artist": artist, "rubric_color": rubric_color},
+                model=AGENT_MODEL,
+                max_tokens=800,
+                # Retune: exemplars carry the control the ban-wall used to, so
+                # temperature comes up off 0.3 for burstiness / less default voice.
+                temperature=0.7,
+                system=system,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            raw = (response.content[0].text or "").strip()
+        except Exception:
+            logger.exception("listener_effects_prose generation failed for %s / %s", title, artist)
+            return None
+        return _clean(raw) if raw else None
+
+    # Attempt 1.
+    prose = _attempt(LISTENER_EFFECTS_VOICE)
+    if prose is None:
+        return None
+    hard = hard_findings(prose, lane="listener", allow_deficit=allow_deficit)
+
+    # Fail-closed regen: if the first attempt trips hard tells, regenerate ONCE
+    # with the specific findings as a correction and keep whichever is cleaner.
+    # If the best result STILL trips hard tells, ship nothing (return None) so the
+    # page falls back to the tier-generic copy. Never publish a tell-ridden reading
+    # unread -- this is the no-human-eye discipline (Lyrical Charger scale).
+    if hard:
+        logger.info("listener_effects_prose attempt 1 tripped tell-guard for %s / %s [%s]; regenerating",
+                    title, artist, summarize(hard))
+        correction = (
+            "\n\n## Your previous attempt tripped the voice guard\n"
+            "Rewrite the two paragraphs clean, fixing every issue below and keeping "
+            "everything that was already working:\n"
+            + "\n".join(f'- {f.name}: found "{f.snippet}"' for f in hard)
         )
-        raw = (response.content[0].text or "").strip()
-    except Exception:
-        logger.exception("listener_effects_prose generation failed for %s / %s", title, artist)
+        prose2 = _attempt(LISTENER_EFFECTS_VOICE + correction)
+        if prose2 is not None:
+            hard2 = hard_findings(prose2, lane="listener", allow_deficit=allow_deficit)
+            if len(hard2) < len(hard):
+                prose, hard = prose2, hard2
+
+    if hard:
+        logger.warning(
+            "listener_effects_prose FAIL-CLOSED (NULL) for %s / %s: %d hard hit(s) survive regen [%s]",
+            title, artist, len(hard), summarize(hard),
+        )
         return None
-
-    if not raw:
-        return None
-
-    # Normalize: collapse 3+ blank lines to 2 (single blank line between paragraphs),
-    # strip leading/trailing quotes if the model wrapped the output.
-    import re
-    raw = re.sub(r"\n{3,}", "\n\n", raw).strip()
-    if raw.startswith('"') and raw.endswith('"') and raw.count('"') == 2:
-        raw = raw[1:-1].strip()
-
-    # Verbatim-lyric lock: strip any sentence that reproduces the lyrics, then let
-    # the sanity checks below fail soft if the strip gutted the prose. Going-forward
-    # guarantee that the public/sold prose carries no copyrighted lyric text.
-    if lyrics:
-        from app.services.lyric_quote_guard import strip_verbatim_quotes
-        raw, stripped = strip_verbatim_quotes(raw, lyrics)
-        if stripped:
-            logger.warning("listener_effects_prose carried verbatim lyric quotes for %s / %s; stripped",
-                           title, artist)
-
-    # Basic sanity: at least 2 paragraphs, at least 100 chars.
-    if len(raw) < 100:
-        logger.warning("listener_effects_prose suspiciously short (%d chars) for %s / %s; discarding",
-                       len(raw), title, artist)
-        return None
-    if "\n\n" not in raw:
-        logger.warning("listener_effects_prose missing paragraph breaks for %s / %s; discarding",
-                       title, artist)
-        return None
-
-    # Hard word cap. The prompt asks for under LISTENER_MAX_WORDS, but the model
-    # overruns it, so enforce it here -- trim to the last complete sentence under
-    # the cap (no extra Anthropic call).
-    raw = trim_to_word_cap(raw, LISTENER_MAX_WORDS)
 
     # SEO: the prose should name the song once. Soft check -- log, never fail.
-    if title and title.lower() not in raw.lower():
+    if title and title.lower() not in prose.lower():
         logger.info("listener_effects_prose did not include the title for %s / %s", title, artist)
 
-    return raw
+    return prose
