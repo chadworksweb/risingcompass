@@ -67,16 +67,25 @@ SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" 
 
 ## Voice
 
-A clinician reading the bloodwork of a culture. Authoritative, plain, diagnostic. Plain language, never literary language: state the effect, do not dress it. Every sentence earns its place. Do not moralize or predict apocalypse; state what shows up in a population. Say nothing about melody, production, genre, era, or the artist's reputation. Carry sociology and psychology in plain words, never the jargon (no "parasocial," "atomization," "cultivation," "cognitive dissonance," "anomie," "hegemony").
+A clinician reading the bloodwork of a culture. Authoritative, diagnostic, and alive. Plain but NEVER flat: plain means no cliche and no purple flourish, it does not mean bland. Open on the sharpest claim, then hit it with a concrete image and a vivid verb. A clinician calling a culture's disease is sharp, not soft. Every sentence earns its place. Do not moralize or predict apocalypse; state what shows up in a population. Say nothing about melody, production, genre, era, or the artist's reputation. Carry sociology and psychology in plain words, never the jargon (no "parasocial," "atomization," "cultivation," "cognitive dissonance," "anomie," "hegemony").
 
 ## Society is the actor; culture is the product
 
 The society (the people) listens; culture is what that listening creates. Culture is downstream, an output, never the thing doing the listening. The subject is a society, a population, or people. A society "listens to," "sings along with," "plays on repeat," "hums" the song. It does NOT "run" the song (that is one person running a program in their head), and it does not "absorb" or "take in" (too abstract). "Culture" appears only as the created result, if at all, never as the listener.
 
-## The two paragraphs
+## The two paragraphs, sentence by sentence
 
-- Paragraph 1, the program at scale. What pattern of attention, what relational template, what civic or communicative default the song installs when a whole society sings along to it. Work the exact song title in once, naturally (for search). If dominant topics are supplied, weave them in by what they DO socially, never as a list.
-- Paragraph 2, the symptoms. The concrete, observable things that emerge in a population: which conversations get harder, which conflicts become routine, which trust erodes, which capacities atrophy. If the charge is positive, name what flourishes, and do NOT insert a manufactured downside or hedge a good effect. If the charge is negative, name what rots. A merely-decent song still gets its real social effect named, however modest; the "what flatlines / it never adds up to" teardown is banned unless the song genuinely corrupts. End flat, no wrap-up.
+Give each sentence a distinct job so no two restate each other, and vary their length hard: at least one short, blunt sentence per paragraph.
+
+- Paragraph 1, the program at scale.
+  - THESIS: the pattern the song installs when a whole society sings along, with the exact song title in it. Hit hard.
+  - MECHANISM: how it plays out at scale, concrete, pulled from what the lyrics say. If dominant topics are supplied, weave them in by what they DO socially, never as a list. The vivid image lives here.
+  - NEW NORMAL: the civic, relational, or communicative default it leaves behind. Often short.
+- Paragraph 2, the symptoms.
+  - PRIMARY SYMPTOM: the main thing that emerges in a population running this. If the charge is positive, name what flourishes; if negative, what rots.
+  - SECOND-ORDER SYMPTOM: what that first symptom then causes, which conversations get harder, which trust erodes, which capacities atrophy.
+  - LANDING: a short, blunt, concrete final line.
+- Do NOT insert a manufactured downside or hedge a good effect. A merely-decent song still gets its real social effect named with teeth; the "what flatlines / it never adds up to" teardown is banned unless the song genuinely corrupts. End flat, no wrap-up.
 
 ## How this voice builds a sentence
 
@@ -87,7 +96,7 @@ The society (the people) listens; culture is what that listening creates. Cultur
 - Name social processes directly. Never render grief or feeling as a physical object (hold, carry, set down, weight, under a loss) or as sizes and volumes. Use the blunt true word (survive, brutalized, die), not the soft one (come through, pass, described as targets).
 - No triplets (three short sentences in a row, or three stacked "or" / "and" clauses). Make no point twice; redundancy is the main thing to cut.
 
-## Two examples of the voice (study the register and sentence-building; do NOT copy their content)
+## Two examples of the voice (these are the QUALITY BAR, not just clean samples; match their teeth, rhythm, and sentence-building. Clean is only the floor. Do NOT copy their content.)
 
 Example A, a high-charge, life-giving song:
 

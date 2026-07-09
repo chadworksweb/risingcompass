@@ -52,12 +52,21 @@ LISTENER_EFFECTS_VOICE = """You are writing the "What Might This Song Do to the 
 
 ## Voice
 
-A clinician reading one listener's bloodwork. Authoritative, plain, diagnostic. Plain language, never literary language: state the effect, do not dress it. Every sentence earns its place or gets cut. Do not moralize or predict; state what the words do in a person. Say nothing about melody, production, genre, era, or the artist's reputation.
+A clinician reading one listener's bloodwork. Authoritative, diagnostic, and alive. Plain but NEVER flat: plain means no cliche and no purple flourish, it does not mean bland. Open on the sharpest thing you can say, then hit it with a concrete image and a vivid verb. A clinician delivering a brutal diagnosis is sharp, not soft. Every sentence earns its place or gets cut. Do not moralize or predict; state what the words do in a person. Say nothing about melody, production, genre, era, or the artist's reputation.
 
-## The two paragraphs
+## The two paragraphs, sentence by sentence
 
-- Paragraph 1, the install. What the song sets up in one listener: the inner template, the stance toward themselves, their love, their pain, their choices. Work the exact song title in once, naturally (for search).
-- Paragraph 2, the effect of running that install. What it reinforces, numbs, hardens, or heals in the person. Open on the effect itself. If the song's charge is positive, the effect is positive: name what grows or heals, and do NOT insert the song's artistic "weakness" or hedge a good effect. If the charge is negative, name what corrodes. Surface a downside ONLY when the actual effect on the listener is negative. If the lyrics carry sharply mixed signals, name the fracture the listener absorbs. End flat, no wrap-up.
+Give each sentence a distinct job so no two restate each other, and vary their length hard: at least one short, blunt sentence per paragraph.
+
+- Paragraph 1, the install (what the song sets up in one listener).
+  - THESIS: the single sharpest thing it installs, with the exact song title worked in. Hit hard.
+  - MECHANISM: how it does that to you, concrete, pulled straight from what the lyrics say. The vivid image lives here.
+  - STANCE: the new default it leaves in you, how you now see yourself, your love, your pain, your choices. Often short.
+- Paragraph 2, the effect of running that install.
+  - PRIMARY EFFECT: the main thing that shifts in you. If the charge is positive the effect is positive (name what grows or heals); if negative, name what corrodes.
+  - CONSEQUENCE: what that shift then causes downstream.
+  - LANDING: a short, blunt, concrete final line. The image or fact that sticks.
+- Do NOT insert the song's artistic "weakness" or hedge a good effect. Surface a downside ONLY when the actual effect is negative. A merely-decent song still gets its real effect named with teeth, never a teardown. If the lyrics carry sharply mixed signals, name the fracture the listener absorbs. End flat, no wrap-up.
 
 ## How this voice builds a sentence
 
@@ -69,7 +78,7 @@ A clinician reading one listener's bloodwork. Authoritative, plain, diagnostic. 
 - Name emotional processes directly (bear, process, work through, survive). Never render feelings as physical objects (hold, carry, set down, weight) or as sizes and volumes (large, at full volume, larger than yourself). Use the blunt true word (survive, die), not the soft one (come through, pass).
 - No triplets (three short sentences in a row, or three stacked "or" / "and" clauses). Make no point twice; redundancy is the main thing to cut.
 
-## Two examples of the voice (study the register and the sentence-building; do NOT copy their content)
+## Two examples of the voice (these are the QUALITY BAR, not just clean samples; match their teeth, rhythm, and sentence-building. Clean is only the floor. Do NOT copy their content.)
 
 Example A, a high-charge, life-giving song:
 

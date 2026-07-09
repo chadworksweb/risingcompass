@@ -89,6 +89,13 @@ TELLS: list[TellPattern] = [
        r",\s+(?:something|a\s+kind\s+of|the\s+sort\s+of)\s+\w+[^.!?\n]*\b(?:worth|that\s+matters)\b"),
     _p("P", "slang / labeling verdict (marks you as / makes you soft)", "review",
        r"\bmarks?\s+you\s+as\b|\bbrands?\s+you\b|\bmakes?\s+you\s+soft\b"),
+    _p("R", "economic / transactional metaphor for non-economic things", "review",
+       r"\bcheaper\b|"
+       r"\b(?:lower|lowers|lowered|raise|raises|raised)\s+the\s+cost\b|"
+       r"\bthe\s+cost\s+of\s+\w+ing\b|"
+       r"\bat\s+a\s+premium\b|"
+       r"\bcurrency\s+of\b|"
+       r"\bpays?\s+dividends\b"),
 ]
 
 # --- Lane-bleed checks ----------------------------------------------------------
