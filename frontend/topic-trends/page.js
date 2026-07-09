@@ -130,6 +130,23 @@
     return d;
   }
 
+  // Position the rotated (vertical) year/period label that rides the hover
+  // crosshair. It sits in the half OPPOSITE the cursor -- cursor in the top half
+  // -> label at the floor reading upward; cursor in the bottom half -> label at
+  // the ceiling reading downward -- so it never sits under the pointer. Flips to
+  // the left of the line near the right edge so it never clips the right padding.
+  function placeHoverYear(el, label, lineX, padT, chartH, cursorSvgY, W, padR) {
+    el.textContent = label;
+    const x = lineX > W - padR - 22 ? lineX - 5 : lineX + 5;
+    const cursorInTopHalf = cursorSvgY < padT + chartH / 2;
+    const y = cursorInTopHalf ? padT + chartH - 6 : padT + 6;
+    const rot = cursorInTopHalf ? -90 : 90;   // read up from the floor / down from the ceiling
+    el.setAttribute('x', x.toFixed(1));
+    el.setAttribute('y', y.toFixed(1));
+    el.setAttribute('text-anchor', 'start');
+    el.setAttribute('transform', `rotate(${rot} ${x.toFixed(1)} ${y.toFixed(1)})`);
+  }
+
   function xLabelYears(cols) {
     const lo = cols[0].year, hi = cols[cols.length - 1].year;
     const span = hi - lo;
@@ -285,6 +302,8 @@
     });
     svg += '</g>';
     svg += `<line id="tt-tm-marker" class="tt-tm-marker" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
+    svg += `<line id="tt-hover-line" class="tt-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
+    svg += `<text id="tt-hover-year" class="tt-hover-year" style="display:none"></text>`;
 
     // ---- Left label gutter: each band named at its level, with a leader line
     // when bands are too thin / crowded to sit at their own center. (Replaces
@@ -327,8 +346,9 @@
       bands.forEach((b) => b.classList.toggle('is-dim', key != null && b.getAttribute('data-key') !== key));
       labelEls.forEach((l) => l.classList.toggle('is-dim', key != null && l.getAttribute('data-key') !== key));
     }
-    function showTip(key, clientX, clientY) {
-      if (!tooltip) return;
+    const hline = chartEl.querySelector('#tt-hover-line');
+    const yearEl = chartEl.querySelector('#tt-hover-year');
+    function colAt(clientX) {
       let ci = maxIdx;
       const svgEl = chartEl.querySelector('.tt-river-svg');
       if (svgEl) {
@@ -337,6 +357,26 @@
         let best = Infinity;
         xs.forEach((x, i) => { const dx = Math.abs(x - svgX); if (dx < best) { best = dx; ci = i; } });
       }
+      return ci;
+    }
+    function moveCrosshair(ci, clientY) {
+      const x = xs[ci];
+      if (hline) { hline.setAttribute('x1', x.toFixed(1)); hline.setAttribute('x2', x.toFixed(1)); hline.style.display = ''; }
+      if (yearEl) {
+        let svgY = padT + chartH;
+        const svgEl = chartEl.querySelector('.tt-river-svg');
+        if (svgEl) { const r = svgEl.getBoundingClientRect(); svgY = ((clientY - r.top) / r.height) * H; }
+        placeHoverYear(yearEl, cols[ci].label, x, padT, chartH, svgY, W, padR);
+        yearEl.style.display = '';
+      }
+    }
+    function hideCrosshair() {
+      if (hline) hline.style.display = 'none';
+      if (yearEl) yearEl.style.display = 'none';
+    }
+    function showTip(key, clientX, clientY) {
+      if (!tooltip) return;
+      const ci = colAt(clientX);
       const row = valuesByCol[ci], total = colTotals[ci] || 1;
       const cnt = row[key] || 0, pct = (cnt / total) * 100, when = cols[ci].label;
       let extra = '';
@@ -356,11 +396,12 @@
       tooltip.style.transform = px > wr.width * 0.7 ? 'translate(-100%, -120%)' : 'translate(12px, -120%)';
     }
     chartEl.onmousemove = (e) => {
+      moveCrosshair(colAt(e.clientX), e.clientY);
       const k = e.target && e.target.getAttribute && e.target.getAttribute('data-key');
       if (k) { highlight(k); showTip(k, e.clientX, e.clientY); }
       else { highlight(null); if (tooltip) tooltip.hidden = true; }
     };
-    chartEl.onmouseleave = () => { highlight(null); if (tooltip) tooltip.hidden = true; };
+    chartEl.onmouseleave = () => { highlight(null); hideCrosshair(); if (tooltip) tooltip.hidden = true; };
   }
 
   // =========================================================================
@@ -415,6 +456,7 @@
     svg += '</g>';
     svg += `<line id="tt-tm-marker" class="tt-tm-marker" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
     svg += `<line id="tt-index-hline" class="tt-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
+    svg += `<text id="tt-hover-year" class="tt-hover-year" style="display:none"></text>`;
     svg += `<rect x="${padL}" y="${padT}" width="${chartW}" height="${chartH}" fill="transparent" class="tt-hover-area"/></svg>`;
     chartEl.innerHTML = svg;
     TMGEO = { xs: pts.map((p) => p.x), maxIdx, padT, chartH, padL, W };
@@ -430,13 +472,16 @@
 
     const svgEl = chartEl.querySelector('.tt-index-svg');
     const hline = chartEl.querySelector('#tt-index-hline');
-    function showAt(clientX) {
+    const yearEl = chartEl.querySelector('#tt-hover-year');
+    function showAt(clientX, clientY) {
       const rect = svgEl.getBoundingClientRect();
       const svgX = ((clientX - rect.left) / rect.width) * W;
+      const svgY = ((clientY - rect.top) / rect.height) * H;
       let near = 0, best = Infinity;
       pts.forEach((p, i) => { const dx = Math.abs(p.x - svgX); if (dx < best) { best = dx; near = i; } });
       const p = pts[near];
       hline.setAttribute('x1', p.x.toFixed(1)); hline.setAttribute('x2', p.x.toFixed(1)); hline.style.display = '';
+      if (yearEl) { placeHoverYear(yearEl, p.label, p.x, padT, chartH, svgY, W, padR); yearEl.style.display = ''; }
       if (tooltip) {
         const wr = wrap.getBoundingClientRect();
         const px = clientX - wr.left;
@@ -446,12 +491,14 @@
           + `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`;
         tooltip.hidden = false;
         tooltip.style.left = px + 'px';
-        tooltip.style.top = '12px';
+        // Sit on the cursor's half so it stays opposite the flipped year label.
+        if (svgY < padT + chartH / 2) { tooltip.style.top = '12px'; tooltip.style.bottom = 'auto'; }
+        else { tooltip.style.top = 'auto'; tooltip.style.bottom = '12px'; }
         tooltip.style.transform = px > wr.width * 0.7 ? 'translateX(-100%)' : px < wr.width * 0.3 ? 'translateX(0)' : 'translateX(-50%)';
       }
     }
-    chartEl.onmousemove = (e) => showAt(e.clientX);
-    chartEl.onmouseleave = () => { hline.style.display = 'none'; if (tooltip) tooltip.hidden = true; };
+    chartEl.onmousemove = (e) => showAt(e.clientX, e.clientY);
+    chartEl.onmouseleave = () => { hline.style.display = 'none'; if (yearEl) yearEl.style.display = 'none'; if (tooltip) tooltip.hidden = true; };
   }
 
   // ---- Sparse / empty fallbacks -------------------------------------------

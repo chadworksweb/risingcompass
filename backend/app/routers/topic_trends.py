@@ -204,9 +204,15 @@ def get_topic_trends(db: Session = Depends(get_db)):
         per_year[yr][r.topic] = per_year[yr].get(r.topic, 0) + 1
         songs_by_year.setdefault(yr, set()).add(int(r.song_id))
 
-    # Build per-year points, oldest -> newest.
+    # Build per-year points, oldest -> newest. The in-progress current year is
+    # excluded: its data is partial (only the days elapsed so far), so its topic
+    # mix and diversity measures aren't comparable to a full year and would drag
+    # the trend line on incomplete data. Topic Trends is a completed-year series.
+    current_year = date.today().year
     years_out: list[YearPoint] = []
     for yr in sorted(per_year.keys()):
+        if yr >= current_year:
+            continue
         counts = per_year[yr]
         total = sum(counts.values())
         if total <= 0:

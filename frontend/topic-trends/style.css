@@ -415,6 +415,14 @@
   opacity: 0.45;
   pointer-events: none;
 }
+.tt-hover-year {
+  fill: var(--rc-text-bright, #eeeef4);
+  font-family: var(--rc-font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
 
 /* ─── The Topic River (streamgraph) ────────────────────────────────── */
 
