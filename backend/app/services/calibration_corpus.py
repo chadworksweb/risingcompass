@@ -629,6 +629,37 @@ def record_and_reconcile(
             except Exception:
                 logger.exception("societal_effects_prose hook failed for %s/%s", source, song.id)
 
+        # Psyche Facts synthesis hook. Fires when the row has tier + summary + the
+        # listener prose (the synthesis substrate) AND the bundle is missing or the
+        # tier/summary shifted. SYNTHESIS from the already-generated fields
+        # (lyric-free), so it never touches raw lyrics. allow_prose_generation gates
+        # it to the public path exactly like the two prose hooks; the terminal path
+        # supplies the bundle via calibrate_song.py --psyche-facts-file and passes
+        # allow_prose_generation=False, so this never fires there. Fails soft.
+        pf_missing = not getattr(song, "psyche_facts", None)
+        if (allow_prose_generation and cur_color and cur_summary
+                and getattr(song, "listener_effects_prose", None)
+                and (pf_missing or tier_or_summary_changed)):
+            try:
+                from app.services.psyche_facts import generate_psyche_facts
+                bundle = generate_psyche_facts(
+                    title=getattr(song, "title", None) or title or "",
+                    artist=getattr(song, "artist", None) or artist or "",
+                    rubric_color=cur_color,
+                    charge_value=getattr(song, "charge_value", None),
+                    charge_summary=cur_summary,
+                    contaminated=bool(getattr(song, "contaminated", False)),
+                    contamination_note=getattr(song, "contamination_note", None),
+                    deadpan_line=getattr(song, "deadpan_line", None),
+                    topics=getattr(song, "topics", None),
+                    listener_effects_prose=getattr(song, "listener_effects_prose", None),
+                    societal_effects_prose=getattr(song, "societal_effects_prose", None),
+                )
+                if bundle:
+                    song.psyche_facts = json.dumps(bundle)
+            except Exception:
+                logger.exception("psyche_facts hook failed for %s/%s", source, song.id)
+
         # Push the finalized calibration to chadlewine so it serves badges from
         # local state instead of calling RC live. Fire-and-forget + fail-soft +
         # ships dark (no-op unless CHADLEWINE_WEBHOOK_URL/SECRET are set); the
