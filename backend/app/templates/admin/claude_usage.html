@@ -489,6 +489,22 @@ function cuRenderStrip(data) {
   `;
 }
 
+// Friendly label + retired/unclassified badge, driven by the API's pipeline
+// registry (status/label/note), so the meter reads as the CURRENT pipeline
+// rather than a flat historical slug list.
+function cuSiteBadge(r) {
+  const label = escHtml(r.label || r.call_site);
+  const slug = (r.label && r.label !== r.call_site)
+    ? ` <span style="opacity:.5;font-size:.85em;font-weight:400;">${escHtml(r.call_site)}</span>` : '';
+  let badge = '';
+  if (r.status === 'retired') {
+    badge = ` <span title="${escHtml(r.note || 'Retired stage; historical rows only.')}" style="font-size:.7em;padding:1px 6px;border-radius:4px;background:#c07a1a22;color:#c07a1a;border:1px solid #c07a1a55;">retired</span>`;
+  } else if (r.status === 'unknown') {
+    badge = ` <span title="Not in the pipeline registry" style="font-size:.7em;padding:1px 6px;border-radius:4px;background:#8882;color:#999;">unclassified</span>`;
+  }
+  return `<strong>${label}</strong>${slug}${badge}`;
+}
+
 function cuRenderBySite(rows) {
   const tbody = document.getElementById('cuBySiteBody');
   if (!rows.length) {
@@ -504,7 +520,7 @@ function cuRenderBySite(rows) {
         <div class="cu-cost-amount">${cuFmtUsd(r.cost_usd)}</div>
         <div class="cu-cost-bar"><div class="fill" style="width:${pct}%;background:${color};"></div></div>
       </td>
-      <td class="t"><strong>${escHtml(r.call_site)}</strong></td>
+      <td class="t">${cuSiteBadge(r)}</td>
       <td>${cuFmtNum(r.calls)}</td>
       <td>${cuFmtTokens(r.input_tokens)} / ${cuFmtTokens(r.output_tokens)}</td>
       <td>${cuFmtUsd(r.avg_cost_usd)}</td>

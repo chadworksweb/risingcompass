@@ -82,6 +82,44 @@ def _attach_song_links(calls, db):
             calls[i]["artist_slug"] = artist_by_id.get(sid)
 
 
+# --- Call-site registry -----------------------------------------------------
+# Classifies known call_sites against the CURRENT pipeline so the usage meter
+# reflects what actually runs today, not just what has ever run. ACTIVE = a live
+# generator wraps tracked_create with this call_site (audited 2026-07-10: the
+# `call_site=` set across app/services); RETIRED = no live code emits it anymore,
+# so it only appears in historical rows. Keep in sync when a stage is added,
+# renamed, or removed (grep `call_site=` to re-audit).
+_ACTIVE_CALL_SITES = {
+    "listener_effects_prose": "Listener effects prose",
+    "societal_effects_prose": "Societal effects prose",
+    "psyche_facts":           "Psyche Facts prescription",
+    "ether_tagger":           "Ether tagger (topics)",
+    "identity_guard":         "Identity + commercial guard",
+    "prose_judge":            "Prose semantic judge",
+    "album_synthesis":        "Album synthesis",
+    "resonance_slicer":       "Audience resonance slicer",
+    "leit_sweep":             "LEIT clutter sweep",
+}
+_RETIRED_CALL_SITES = {
+    "calibrator":          "In-process calibrator (retired; scoring moved to LEC over HTTP)",
+    "editorial_summary":   "Editorial (retired; now terminal-supplied, no server gen path)",
+    "effects_prose":       "Listener effects prose (old name; renamed listener_effects_prose)",
+    "satire_recalibrator": "Satire recalibrator (legacy; no live generator)",
+}
+
+
+def _site_meta(call_site: str) -> dict:
+    """Return {status, label, note} for a call_site against the registry above.
+    Unknown call_sites (neither active nor retired) are flagged so a newly-added
+    stage that was not registered here shows up as 'unclassified' rather than
+    silently reading as current."""
+    if call_site in _ACTIVE_CALL_SITES:
+        return {"status": "active", "label": _ACTIVE_CALL_SITES[call_site], "note": None}
+    if call_site in _RETIRED_CALL_SITES:
+        return {"status": "retired", "label": call_site, "note": _RETIRED_CALL_SITES[call_site]}
+    return {"status": "unknown", "label": call_site, "note": None}
+
+
 @router.get("/summary", dependencies=[Depends(verify_admin_key)])
 def usage_summary(days: int = Query(30, ge=1, le=365),
                   tz: str = Query(None, max_length=64),
@@ -183,6 +221,7 @@ def usage_summary(days: int = Query(30, ge=1, le=365),
         "by_call_site": [
             {
                 "call_site": r.call_site,
+                **_site_meta(r.call_site),
                 "calls": int(r.calls),
                 "cost_usd": round(float(r.cost_usd or 0.0), 6),
                 "input_tokens": int(r.input_tokens or 0),
@@ -191,6 +230,19 @@ def usage_summary(days: int = Query(30, ge=1, le=365),
             }
             for r in by_site_rows
         ],
+        # Current-pipeline lens over this window: how much of the spend is live
+        # pipeline vs. retired stages, and which live stages logged nothing (e.g.
+        # a just-shipped stage before any traffic, or a dark/low-volume lane).
+        "pipeline": {
+            "active_cost_usd": round(
+                sum(float(r.cost_usd or 0.0) for r in by_site_rows
+                    if r.call_site in _ACTIVE_CALL_SITES), 6),
+            "retired_cost_usd": round(
+                sum(float(r.cost_usd or 0.0) for r in by_site_rows
+                    if r.call_site in _RETIRED_CALL_SITES), 6),
+            "active_idle": sorted(
+                set(_ACTIVE_CALL_SITES) - {r.call_site for r in by_site_rows}),
+        },
         "by_model": [
             {
                 "model": r.model,
