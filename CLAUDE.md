@@ -1479,3 +1479,45 @@ waitlist work while dark. Full spec: `RISING-COMPASS-SENTINEL-AUDITOR-SCOPE.md`.
   real Clerk apply->approve->file->triage->accept, contribution counts, reopen-zeroes-points,
   re-dark). Prod confirmed live-but-dark (config `{enabled:false}`, `/me` 401, `/leaderboard`
   404, `/waitlist` POST-only).
+
+## Psyche Facts family (per-song metadata, storage build 2026-07-10)
+
+The "Drug Facts" prescription label per song. `songs.psyche_facts` (migration 138)
+is a JSON-encoded **Text** column (RC's convention for per-song JSON bundles, same
+as `topics`/`topic_audit`/`activations`; the badge `_parse_json` decodes it) holding
+the sibling keys: `purpose`, `indicated_for[]`, `do_not_use_if`, `directions`,
+`onset`, `duration`, `warning`. The `psyche_effects` tag axis (a felt-effect
+vocabulary, sibling to `topics`) joins this family LATER, once its vocabulary is
+re-derived against a corpus sample (the chadlewine 20-term set is catalog-specific).
+
+- **Origin.** The panel lives on chadlewine (`SongLabel.tsx`, `songs.label_meta`
+  jsonb). The expansion moves generation INTO RC so every ingested song carries the
+  full label and RC becomes the single source; chadlewine renders it from the badge.
+- **STORED, not generated.** The storage + write path exist; GENERATION does not.
+  - **Terminal: operator-supplied only.** `calibrate_song.py --psyche-facts-file
+    <json>` (allowlist-cleaned to the 7 keys; Claude Code authors the bundle, ZERO
+    Anthropic). Omit the flag -> `psyche_facts` stays NULL. There is NO
+    auto-generation on the terminal path.
+  - **Public Lyrical Charger: NOT wired.** No server-side generator yet, so public
+    runs leave `psyche_facts` NULL. Planned: a synthesis module composing the bundle
+    from the already-generated per-song fields (charge/summary/topics/deadpan/
+    listener+societal prose), NOT a fresh lyric read (cheap, lyric-free so it clears
+    the verbatim-lyric guards), plus adding `psyche_facts` to
+    `analyzer._song_persist_fields`.
+- **Write path.** `TerminalCalibrationIn.psyche_facts` (schemas.py) ->
+  `_compose_terminal_calibration` (passes it through) -> `_store_calibration` ->
+  `store_calibrated_song` -> `song_sync.calibration_to_columns` (json.dumps'd; in
+  `_CALIB`; str-passthrough so it never double-wraps; None-safe so a re-read with
+  `only_set_present` never nulls it) -> `songs.psyche_facts`. Badge
+  `_find_calibration` returns it decoded.
+- **Effects sections.** The label's two effects sections render the PLAIN
+  `listener_effects_prose` / `societal_effects_prose` in full, labeled "Listener
+  Effects" / "Societal Effects". The distilled `effects[]`/`at_scale[]` bullets are
+  RETIRED (the CLI allowlist drops them).
+- **chadlewine retroactive (NOT done).** Relabel SongLabel's two sections, retire the
+  `effects[]`/`at_scale[]` replacement path, read `psyche_facts` from the badge
+  instead of authoring via `psyche-label.ts`; wire `psyche_facts` into
+  `chadlewine_webhook.push_song_classification`.
+- **First song through the path:** I Just Got Mad by Malcolm Todd (`songs.id 3913`,
+  green/+8), written into the NMF draft with the full 7-key bundle. Session record:
+  `plans and docs/session notes/2026-07-10b - Psyche Facts Family + Storage Build.md`.
