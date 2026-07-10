@@ -1648,6 +1648,12 @@ class Song(Base):
     topics = Column(Text)
     topic_audit = Column(Text)
     activations = Column(Text)
+    # Psyche Facts family (migration 138): the "Drug Facts" prescription bundle,
+    # JSON-encoded Text (same convention as topics/topic_audit). Sibling keys:
+    # purpose, indicated_for[], do_not_use_if, directions, onset, duration,
+    # warning. The psyche_effects tag axis joins this family once its vocab is
+    # re-derived. Terminal-supplied via calibrate_song.py --psyche-facts-file.
+    psyche_facts = Column(Text)
     calibration_failed = Column(Boolean, default=False)
     message_analysis = Column(Text)
     expression_analysis = Column(Text)

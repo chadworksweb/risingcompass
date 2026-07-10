@@ -127,6 +127,7 @@ def main() -> int:
     p.add_argument("--topic-audit-tag", default=None, help="Audit escape hatch: proposed new slug.")
     p.add_argument("--topic-audit-rationale", default=None, help="Audit escape hatch: one-sentence rationale for the proposed slug.")
     p.add_argument("--lyrics-file", default=None, help="Read lyrics from a file instead of stdin.")
+    p.add_argument("--psyche-facts-file", default=None, help="Path to a JSON file with the Psyche Facts prescription bundle: purpose, indicated_for[], do_not_use_if, directions, onset, duration, warning. Unknown keys are dropped.")
     p.add_argument("--reasoning", default=None, help="The structured calibration argument to store on the run. Scrubbed of verbatim lyrics server-side.")
     p.add_argument("--reasoning-file", default=None, help="Read the calibration argument from a UTF-8 file instead of --reasoning.")
     args = p.parse_args()
@@ -208,6 +209,33 @@ def main() -> int:
         calibration["listener_effects_prose"] = Path(args.listener_effects_prose_file).read_text(encoding="utf-8").strip()
     if args.societal_prose_file:
         calibration["societal_effects_prose"] = Path(args.societal_prose_file).read_text(encoding="utf-8").strip()
+
+    # --- Psyche Facts family (prescription bundle) -----------------------------
+    # Claude-Code-authored, supplied here so the server stores it with no model
+    # call. Allowlist-cleaned to the known sibling keys (mirrors chadlewine's
+    # cleanMeta); the distilled effects[]/at_scale[] are intentionally NOT keys
+    # -- the label renders the full listener/societal prose instead.
+    if args.psyche_facts_file:
+        raw_pf = json.loads(Path(args.psyche_facts_file).read_text(encoding="utf-8"))
+        if not isinstance(raw_pf, dict):
+            print("--psyche-facts-file must contain a single JSON object", file=sys.stderr)
+            return 2
+        PF_STRING_KEYS = ("purpose", "do_not_use_if", "directions", "onset", "duration", "warning")
+        PF_ARRAY_KEYS = ("indicated_for",)
+        pf: dict = {}
+        for k, v in raw_pf.items():
+            if k in PF_STRING_KEYS and isinstance(v, str):
+                t = v.strip()
+                if t:
+                    pf[k] = t
+            elif k in PF_ARRAY_KEYS and isinstance(v, list):
+                arr = [x.strip() for x in v if isinstance(x, str) and x.strip()]
+                if arr:
+                    pf[k] = arr
+            else:
+                print(f"! psyche-facts: dropped unknown/invalid key {k!r}", file=sys.stderr)
+        if pf:
+            calibration["psyche_facts"] = pf
 
     # --- Ether Art Chart fields (deadpan_line + topics | topic_audit) ---
     audit_parts = [args.topic_audit_reason, args.topic_audit_tag, args.topic_audit_rationale]

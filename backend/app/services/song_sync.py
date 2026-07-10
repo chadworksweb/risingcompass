@@ -47,7 +47,7 @@ _CALIB = [
     "prior_societal_effects_prose", "prior_societal_prose_generated_at",
     "prior_societal_prose_model", "deadpan_line", "topics", "topic_audit",
     "activations", "calibration_failed", "message_analysis",
-    "expression_analysis", "intention_analysis",
+    "expression_analysis", "intention_analysis", "psyche_facts",
 ]
 
 
@@ -285,6 +285,7 @@ def calibration_to_columns(calibration: dict) -> dict:
     topics / topic_audit to match the Text columns)."""
     topics = calibration.get("topics")
     topic_audit = calibration.get("topic_audit")
+    psyche_facts = calibration.get("psyche_facts")
     out = {k: calibration.get(k) for k in _PASSTHROUGH}
     out["contaminated"] = bool(calibration.get("contaminated", False))
     out["dogma_referenced"] = bool(calibration.get("dogma_referenced", False))
@@ -295,6 +296,13 @@ def calibration_to_columns(calibration: dict) -> dict:
     out["calibration_failed"] = bool(calibration.get("calibration_failed", False))
     out["topics"] = json.dumps(topics) if topics else None
     out["topic_audit"] = json.dumps(topic_audit) if topic_audit else None
+    # Psyche Facts bundle: JSON-encoded to the Text column, same as topics. A
+    # dict comes from the terminal supply path; a str (already-encoded) passes
+    # through untouched so re-encoding never double-wraps.
+    if isinstance(psyche_facts, str):
+        out["psyche_facts"] = psyche_facts or None
+    else:
+        out["psyche_facts"] = json.dumps(psyche_facts) if psyche_facts else None
     return out
 
 

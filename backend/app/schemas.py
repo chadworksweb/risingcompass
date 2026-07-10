@@ -406,6 +406,11 @@ class TerminalCalibrationIn(BaseModel):
     deadpan_line: Optional[str] = None
     topics: Optional[List[str]] = None
     topic_audit: Optional[dict] = None
+    # Psyche Facts family: the "Drug Facts" prescription bundle, Claude-Code-
+    # supplied so the server stores it with no model call. Sibling keys: purpose,
+    # indicated_for[], do_not_use_if, directions, onset, duration, warning. Mapped
+    # onto songs.psyche_facts (json.dumps'd) in song_sync.calibration_to_columns.
+    psyche_facts: Optional[dict] = None
 
     @model_validator(mode="after")
     def _components_or_direct(self):

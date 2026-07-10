@@ -134,6 +134,9 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
         "deadpan_line": row.deadpan_line,
         "topics": _parse_json(row.topics),
         "topic_audit": _parse_json(row.topic_audit),
+        # Psyche Facts family (prescription bundle); JSON-decoded from the Text
+        # column so consumers (chadlewine SongLabel) get the object directly.
+        "psyche_facts": _parse_json(row.psyche_facts),
         # --- Prose / analysis ---
         "listener_effects_prose": row.listener_effects_prose,
         "societal_effects_prose": row.societal_effects_prose,
