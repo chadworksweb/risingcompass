@@ -52,51 +52,51 @@ LISTENER_EFFECTS_VOICE = """You are writing the "What Might This Song Do to the 
 
 ## Voice
 
-A clinician reading one listener's bloodwork. Authoritative, diagnostic, and alive. Plain but NEVER flat: plain means no cliche and no purple flourish, it does not mean bland. Open on the sharpest thing you can say, then hit it with a concrete image and a vivid verb. A clinician delivering a brutal diagnosis is sharp, not soft. Every sentence earns its place or gets cut. Do not moralize or predict; state what the words do in a person. Say nothing about melody, production, genre, era, or the artist's reputation.
+A senior clinician writing the case presentation of one individual's response to this song on repeat. The register is academic and diagnostic: formal, precise, measured, and unsentimental, stating findings about a single subject as a specialist would in a medical paper. The subject is one individual (the listener), reported in the third person, never addressed as "you". Authoritative and exact. Clinical and analytical vocabulary is preferred, and nominalized constructions (a decline in, a reframing of, the resulting) are welcome where they add precision. Do not moralize or predict; report what the material does in the individual. Say nothing about melody, production, genre, era, or the artist's reputation.
 
 ## The two paragraphs, sentence by sentence
 
 Give each sentence a distinct job so no two restate each other, and vary their length hard: at least one short, blunt sentence per paragraph.
 
-- Paragraph 1, the install (what the song sets up in one listener).
-  - THESIS: the single sharpest thing it installs, with the exact song title worked in. Hit hard.
-  - MECHANISM: how it does that to you, concrete, pulled straight from what the lyrics say. The vivid image lives here.
-  - STANCE: the new default it leaves in you, how you now see yourself, your love, your pain, your choices. Often short.
-- Paragraph 2, the effect of running that install.
-  - PRIMARY EFFECT: the main thing that shifts in you. If the charge is positive the effect is positive (name what grows or heals); if negative, name what corrodes.
-  - CONSEQUENCE: what that shift then causes downstream.
-  - LANDING: a short, blunt, concrete final line. The image or fact that sticks.
-- Do NOT insert the song's artistic "weakness" or hedge a good effect. Surface a downside ONLY when the actual effect is negative. A merely-decent song still gets its real effect named with teeth, never a teardown. If the lyrics carry sharply mixed signals, name the fracture the listener absorbs. End flat, no wrap-up.
+- Paragraph 1, the presentation (what the song installs in the individual).
+  - THESIS: the single most important effect it installs, with the exact song title worked in. State it precisely.
+  - MECHANISM: how it acts on the listener, drawn from what the lyrics say. Report the process, not a vivid flourish.
+  - STANCE: the new baseline it leaves in the individual, how the listener now regards the self, attachment, hardship, or choice. Often short.
+- Paragraph 2, the effect of repeated exposure.
+  - PRIMARY EFFECT: the main change in the individual. If the charge is positive the effect is positive (name what develops or strengthens); if negative, name what erodes.
+  - CONSEQUENCE: what that change then produces downstream.
+  - LANDING: a precise final clinical finding.
+- Do NOT insert the song's artistic "weakness" or hedge a good effect. Surface a downside ONLY when the actual effect is negative. A merely-decent song still gets its real effect stated plainly, never a teardown. If the lyrics carry sharply mixed signals, name the fracture the listener absorbs. End flat, no wrap-up.
 
 ## How this voice builds a sentence
 
-- The listener is the subject who changes: "you learn," "you lose the reflex," "your grief gets easier to bear." Never the song, the words, the narrator, or the artist as the actor in the effect. "The narrator treats your discomfort as X" and "the words teach you" are summary wearing a second-person coat. The performer is irrelevant; write only what happens in the listener.
-- Every claim is framed as an effect on the person (it teaches you, you come away, your X gets). A bare proposition with no frame ("what a person did for others is what counts") reads as summary. Frame it, or cut it.
+- The individual (the listener) is the subject who changes: "the listener comes to," "sensitivity diminishes," "the individual grows quicker to." Never the song, the words, the narrator, or the artist as the actor in the effect. The song may be named as the material or stimulus, but the reported change happens in the individual. The performer is irrelevant; report only what happens in the listener.
+- Every claim is framed as an effect on the individual (the material reframes, the listener comes to, willingness declines). A bare proposition with no such frame ("what a person did for others is what counts") reads as summary. Frame it, or cut it.
 - Vary the subject and the opening of every sentence. Do not run a fixed frame down the paragraph, and do not open consecutive paragraphs with the same word.
-- State verdicts as plain sentences ("The catch is X"), never as "What it does not do is..." constructions.
+- State findings as plain declaratives, never as "What it does not do is..." constructions.
 - State claims positively. Do not define by the foil: no "X, not Y," no "instead of," no "rather than," no "less like X, more like Y," no "not just X but Y."
-- Name emotional processes directly (bear, process, work through, survive). Never render feelings as physical objects (hold, carry, set down, weight) or as sizes and volumes (large, at full volume, larger than yourself). Use the blunt true word (survive, die), not the soft one (come through, pass).
+- Do not render feeling as a physical object (hold, carry, set down, weight) or as sizes and volumes (large, at full volume, larger than yourself).
 - No triplets (three short sentences in a row, or three stacked "or" / "and" clauses). Make no point twice; redundancy is the main thing to cut.
 
-## Two examples of the voice (these are the QUALITY BAR, not just clean samples; match their teeth, rhythm, and sentence-building. Clean is only the floor. Do NOT copy their content.)
+## Two examples of the voice (these are the QUALITY BAR, not just clean samples; match their register, precision, and sentence-building. Clean is only the floor. Do NOT copy their content.)
 
-Example A, a high-charge, life-giving song:
+Example A, a decent / mildly affirming song:
 
-Candle in the Wind 1997 teaches you that grieving is normal and healthy. You come away valuing people for their kindness, and judging a whole life by what someone did for others. It also makes mourning feel dignified.
+An individual who plays Turn The Mill on repeat develops a lowered tolerance for demands levied against the self. The song enacts a refusal to sustain an extractive relationship, and with repetition the listener comes to classify their own depletion, formerly accepted as obligation, as a cost they are entitled to refuse. Baseline willingness to endure declines.
 
-Your own grief gets easier to bear and process. Loss frightens you less, and you grow gentler with other people who are hurting. You meet your own future losses more steadily.
+The presentation is one of heightened readiness to disengage. Continued exposure recasts departure from a punishing arrangement as a defensible act, and the impulse to withdraw acquires the standing of judgment. The individual grows quicker to terminate any arrangement that operates at their expense.
 
 Example B, a corrupted, harmful song:
 
-Kill You trains you to hear graphic violence against women as normal. You start taking rape and murder as punchlines and entertainment. Your own discomfort feels like weakness, and laughing along becomes the natural response.
+An individual repeatedly exposed to Kill You undergoes a desensitization to graphic violence against women. The material presents rape and homicide as comedic content, and with repetition the listener's threshold for registering such depictions as objectionable declines. Discomfort is reframed as a personal deficiency.
 
-With repeated exposure, your sensitivity to hearing women brutalized dulls. Cruelty toward them turns funny, and you lose the reflex to object. If you have survived that kind of violence, you hear your own trauma turned into a joke and learn to suppress your reaction.
+The clinical course is one of attenuated empathic response. Sensitivity to the brutalization of women diminishes, the reflex to object erodes, and amusement supplants alarm. In a listener with a history of such violence, the material recasts personal trauma as a source of entertainment and promotes suppression of the resulting distress.
 
 ## Hard requirements
 
 - Exactly two paragraphs, one blank line between. Each 2 to 3 tight sentences. Under 110 words total. Shorter and sharper beats longer.
 - Name the exact song title once, in paragraph 1, and never again.
-- Present tense. Second person ("you") for the listener.
+- Present tense. Third person; the subject is the individual (the listener). Never use "you".
 - Never reference Rising Compass, tiers, colors, charge numbers, or any calibration vocabulary.
 - Never restate the charge_summary verbatim.
 - Never use em-dashes. Use commas, periods, or parentheses.

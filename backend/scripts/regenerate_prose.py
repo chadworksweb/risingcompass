@@ -28,6 +28,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))  # make `app` importable for the tell-guard
 load_dotenv(ROOT / ".env")
 
 try:
@@ -59,6 +61,11 @@ def main() -> int:
                    help="Supplied deadpan_line (corrected ether naming)")
     p.add_argument("--topics", default=None,
                    help="Supplied topic slugs, comma-separated (validated against the ether taxonomy)")
+    p.add_argument("--negative", action="store_true",
+                   help="Song is genuinely degraded/corrupted (orange/red): allow real "
+                        "corrosion language (turns the tell-guard Rule-O teardown check OFF).")
+    p.add_argument("--force", action="store_true",
+                   help="Write even if the tell-guard finds HARD AI-tells (bypass the gate).")
     args = p.parse_args()
 
     key = os.environ.get("RC_LYRICS_SUPPLY_KEY")
@@ -90,6 +97,36 @@ def main() -> int:
         payload_d["deadpan_line"] = args.deadpan
     if args.topics is not None:
         payload_d["topics"] = [t.strip() for t in args.topics.split(",") if t.strip()]
+
+    # AI-tell guard (deterministic, zero model calls). Terminal-supplied prose
+    # bypasses the server's tell-guard + semantic judge, so lint it HERE before it
+    # writes. HARD findings block the write unless --force. The semantic tells the
+    # regex cannot see (circular / redundant / summary / flourish / downside) stay
+    # the operator's job -- Claude Code is the judge on this path.
+    from app.services.prose_tell_guard import hard_findings, scan, summarize
+    tell_blocking = []
+    for lane, field in (("listener", "listener_effects_prose"),
+                        ("societal", "societal_effects_prose")):
+        text = payload_d.get(field)
+        if not text:
+            continue
+        hard = hard_findings(text, lane=lane, allow_deficit=args.negative)
+        review = [f for f in scan(text, lane, allow_deficit=args.negative)
+                  if f.severity == "review"]
+        if review:
+            print(f"[{lane}] review tells (non-blocking): {summarize(review)}", file=sys.stderr)
+        if hard:
+            tell_blocking.append(lane)
+            print(f"[{lane}] HARD tells: {summarize(hard)}", file=sys.stderr)
+            for f in hard:
+                print(f"    {f.code}  {f.name}\n        -> {f.snippet!r}", file=sys.stderr)
+    if tell_blocking and not args.force:
+        print("Refusing to write tell-ridden prose (see HARD tells above). Fix them, "
+              "or pass --force to override.", file=sys.stderr)
+        return 2
+    if tell_blocking and args.force:
+        print("--force set: writing despite HARD tells.", file=sys.stderr)
+
     payload = json.dumps(payload_d).encode("utf-8")
 
     url = f"{args.url.rstrip('/')}/api/admin/prose/regenerate"

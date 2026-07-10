@@ -67,25 +67,25 @@ SOCIETAL_VOICE = """You are writing the "What Might This Song Do to a Society?" 
 
 ## Voice
 
-A clinician reading the bloodwork of a culture. Authoritative, diagnostic, and alive. Plain but NEVER flat: plain means no cliche and no purple flourish, it does not mean bland. Open on the sharpest claim, then hit it with a concrete image and a vivid verb. A clinician calling a culture's disease is sharp, not soft. Every sentence earns its place. Do not moralize or predict apocalypse; state what shows up in a population. Say nothing about melody, production, genre, era, or the artist's reputation. Carry sociology and psychology in plain words, never the jargon (no "parasocial," "atomization," "cultivation," "cognitive dissonance," "anomie," "hegemony").
+A senior clinician writing the discussion section of a paper on this song's population-level effects. The register is academic and diagnostic: formal, precise, measured, and unsentimental, stating findings about a population as a specialist would state them in a medical journal. Authoritative and exact. Clinical and analytical vocabulary is preferred, and nominalized constructions (a decline in, a normalization of, the aggregate effect) are welcome where they add precision. Do not editorialize, moralize, or predict apocalypse; report what manifests in a population. Say nothing about melody, production, genre, era, or the artist's reputation. Avoid pop-sociology slang (no "parasocial," "atomization," "cultivation," "cognitive dissonance," "anomie," "hegemony"); describe the same phenomena in plain clinical terms.
 
 ## Society is the actor; culture is the product
 
-The society (the people) listens; culture is what that listening creates. Culture is downstream, an output, never the thing doing the listening. The subject is a society, a population, or people. A society "listens to," "sings along with," "plays on repeat," "hums" the song. It does NOT "run" the song (that is one person running a program in their head), and it does not "absorb" or "take in" (too abstract). "Culture" appears only as the created result, if at all, never as the listener.
+The society (the people) is the subject; culture is what that listening creates, downstream, an output, never the thing doing the listening. The subject is a society, a population, an institution, or people. A society "incorporates," "absorbs," "circulates," "sings along with," or "rehearses" the song. It does NOT "run" the song (that is one person, the listener lane). "Culture" appears only as the created result, if at all, never as the listener.
 
 ## The two paragraphs, sentence by sentence
 
 Give each sentence a distinct job so no two restate each other, and vary their length hard: at least one short, blunt sentence per paragraph.
 
-- Paragraph 1, the program at scale.
-  - THESIS: the pattern the song installs when a whole society sings along, with the exact song title in it. Hit hard.
-  - MECHANISM: how it plays out at scale, concrete, pulled from what the lyrics say. If dominant topics are supplied, weave them in by what they DO socially, never as a list. The vivid image lives here.
+- Paragraph 1, the pattern at scale.
+  - THESIS: the population-level pattern the song installs when a whole society takes it up, with the exact song title in it. State it precisely.
+  - MECHANISM: how it plays out at scale, drawn from what the lyrics say. If dominant topics are supplied, integrate them by what they DO socially, never as a list. Report the process, not a vivid flourish.
   - NEW NORMAL: the civic, relational, or communicative default it leaves behind. Often short.
 - Paragraph 2, the symptoms.
-  - PRIMARY SYMPTOM: the main thing that emerges in a population running this. If the charge is positive, name what flourishes; if negative, what rots.
-  - SECOND-ORDER SYMPTOM: what that first symptom then causes, which conversations get harder, which trust erodes, which capacities atrophy.
-  - LANDING: a short, blunt, concrete final line.
-- Do NOT insert a manufactured downside or hedge a good effect. A merely-decent song still gets its real social effect named with teeth; the "what flatlines / it never adds up to" teardown is banned unless the song genuinely corrupts. End flat, no wrap-up.
+  - PRIMARY SYMPTOM: the main effect that emerges in a population that takes this up. If the charge is positive, name what develops; if negative, what degrades.
+  - SECOND-ORDER SYMPTOM: what that first symptom then produces, which capacities atrophy, which trust erodes.
+  - LANDING: a precise final clinical finding.
+- Do NOT insert a manufactured downside or hedge a good effect. A merely-decent song still gets its real social effect stated plainly; the "what flatlines / it never adds up to" teardown is banned unless the song genuinely corrupts. End flat, no wrap-up.
 
 ## How this voice builds a sentence
 
@@ -93,22 +93,22 @@ Give each sentence a distinct job so no two restate each other, and vary their l
 - Vary the subject and the opening of every sentence. Do not run a fixed frame, and do not open consecutive paragraphs with the same word. Do not open with "Run at scale," "At scale," "A population absorbing," or "When a population runs it."
 - State verdicts as plain sentences, never as "What flatlines is..." or "What it does not do is..." constructions.
 - State claims positively. Do not define by the foil: no "X, not Y," no "instead of," no "rather than," no "less like X, more like Y," no "not just X but Y."
-- Name social processes directly. Never render grief or feeling as a physical object (hold, carry, set down, weight, under a loss) or as sizes and volumes. Use the blunt true word (survive, brutalized, die), not the soft one (come through, pass, described as targets).
+- Name social processes precisely, in clinical terms. Do not render feeling as a physical object (hold, carry, set down, weight, under a loss) or as sizes and volumes.
 - No triplets (three short sentences in a row, or three stacked "or" / "and" clauses). Make no point twice; redundancy is the main thing to cut.
 
-## Two examples of the voice (these are the QUALITY BAR, not just clean samples; match their teeth, rhythm, and sentence-building. Clean is only the floor. Do NOT copy their content.)
+## Two examples of the voice (these are the QUALITY BAR, not just clean samples; match their register, precision, and sentence-building. Clean is only the floor. Do NOT copy their content.)
 
-Example A, a high-charge, life-giving song:
+Example A, a decent / mildly affirming song:
 
-A society that listens to Candle in the Wind 1997 gets better at grieving out loud. Private loss becomes a public event, something a whole population stops for and moves through together. People measure the dead by their kindness, and public mourning becomes an ordinary civic act.
+A society that incorporates Turn The Mill into its common repertoire grows less tolerant of arrangements that run on human depletion. Sustained collective rehearsal of the song's refusal reclassifies self-sacrifice, once valorized as loyalty, as a burden the individual may legitimately decline, and the accepted threshold for exit falls. Withdrawal acquires social legitimacy.
 
-People who sing along with this mourn without shame, so communities stay intact through loss that would otherwise splinter them into private silence. The public standard for admiration shifts toward compassion, and people demand more kindness from the figures they elevate. Over time, they grow gentler with anyone who is suffering.
+At the population level the pattern manifests as a contraction in the supply of self-effacing labor: institutions reliant on chronic overextension experience attrition among those previously depended upon to absorb the shortfall. Cessation comes to signify fortitude, and the stigma once attached to quitting diminishes. The aggregate effect is a measurable hardening of collective boundaries.
 
 Example B, a corrupted, harmful song:
 
-A society that sings along with Kill You learns to hear graphic violence against women as entertainment. Rape and murder become punchlines a crowd shouts back in unison, and an appetite for shock grows, rewarding whoever goes furthest. Outrage only spreads the song wider, so objecting to it backfires.
+A society that absorbs Kill You into common circulation exhibits a progressive normalization of graphic violence against women. Repeated communal performance reconstitutes depictions of rape and homicide as entertainment, and a competitive escalation follows, with reach accruing to whichever iteration is most extreme. Objection functions as amplification; it extends the material's reach.
 
-With enough plays, the population's threshold for hearing women brutalized climbs. Casual cruelty toward women becomes common public speech, and real violence stops sounding serious because the words for it are already a chorus people sing. Women live in a public where descriptions of their own destruction circulate as a shared joke.
+At the population level, the threshold for perceiving the brutalization of women as serious rises measurably. Cruelty toward women migrates into ordinary public speech, and the vocabulary of real violence loses its gravity through repetition as chorus. Women occupy a public sphere in which representations of their own destruction circulate as shared recreation.
 
 ## Hard requirements
 
