@@ -466,6 +466,11 @@
     </div>
 
     <div class="admin-nav-group">
+      <div class="admin-nav-group-label">Shop</div>
+      <a class="admin-nav-item {% if active == 'shop-orders' %}active{% endif %}" href="/api/admin/dashboard/shop-orders">Orders</a>
+    </div>
+
+    <div class="admin-nav-group">
       <div class="admin-nav-group-label">Lyrical Charger</div>
       <a class="admin-nav-item {% if active == 'submissions' %}active{% endif %}" href="/api/admin/dashboard/submissions">Submissions</a>
       <a class="admin-nav-item {% if active == 'lc-activity' %}active{% endif %}" href="/api/admin/dashboard/lc-activity">Activity</a>

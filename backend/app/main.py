@@ -95,6 +95,24 @@ def _init_database():
     from app.services.api_clients import bootstrap_system_clients
     bootstrap_system_clients()
 
+    # Shop: seed the product cache from Printify the first time it's empty, so a
+    # fresh deploy populates the storefront without a manual sync. Idempotent
+    # after that (re-sync is an admin/CLI action). Fail-soft -- a Printify hiccup
+    # or missing config must never block startup.
+    try:
+        from app.models import ShopProduct
+        from app.services import printify_service, shop_sync
+        if printify_service.is_configured():
+            db = SessionLocal()
+            try:
+                if db.query(ShopProduct).count() == 0:
+                    result = shop_sync.sync_printify_products(db)
+                    logger.info("shop: initial product sync %s", result)
+            finally:
+                db.close()
+    except Exception:
+        logger.exception("shop initial sync failed at startup (non-fatal)")
+
     # Seed the prompt-cache advisor alert on-by-default (one-time infra nudge, not
     # a high-volume heartbeat). Stays toggleable in the Alerts UI; never overrides
     # a later admin choice. See app/services/cache_advisor.py.
@@ -108,6 +126,8 @@ def _init_database():
     ensure_pref_default("album_mb_match", enabled=True)
     # General inquiry / contact form: alert the admin on each submission.
     ensure_pref_default("general_inquiry", enabled=True)
+    # Shop: alert the admin by email on each new order. On by default.
+    ensure_pref_default("shop_order", enabled=True)
     # Faultline: a brand-new fault, a fault marked critical, or a resolved fault
     # that recurred. All on by default -- a new prod fault, a critical, or a
     # regression should never sit unseen (prod-gated in faultline._persist).
@@ -391,6 +411,12 @@ from app.routers import ether_taxonomy_admin
 app.include_router(ether_taxonomy_admin.router)  # Site Admin -> Taxonomy (cookie auth)
 from app.routers import donate
 app.include_router(donate.router)
+# Shop -- Printify merch storefront (/shop/). Public read + cart-checkout use
+# the api-key deps declared per-route; the Stripe + Printify webhooks are
+# unauthed and signature-verified per request. See routers/shop.py.
+from app.routers import shop as shop_router
+app.include_router(shop_router.router)
+app.include_router(shop_router.admin_router)
 # Billing -- subscription/pack Checkout, wallet, estimate, billing webhook.
 # Unauthed at the router level; individual routes use Depends(require_clerk_user)
 # where needed. The webhook is signature-verified per-request.

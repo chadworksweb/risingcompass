@@ -122,6 +122,26 @@ class Settings(BaseSettings):
     # /account/?billing=success on site_url.
     stripe_billing_return_url: str = ""
 
+    # Shop (Printify merch storefront at /shop/). Mirrors the chadlewine.com
+    # ecom setup: products are synced from a Printify "custom integration" shop
+    # into shop_products, sold via Stripe embedded Checkout with a live
+    # destination-aware Printify shipping quote, and pushed back to Printify as
+    # an order on payment. Runs on the SAME dedicated Rising Compass Stripe
+    # account as billing/donations; the shop cart webhook has its own signing
+    # secret (stripe_shop_webhook_secret) distinct from donation/billing/identity
+    # so a leak on one stream can't forge events on another.
+    printify_api_token: str = ""       # Bearer token for the Printify API
+    printify_shop_id: str = ""         # the RC Printify shop id (custom integration)
+    printify_webhook_secret: str = ""  # HMAC secret for the Printify order-status webhook (x-pfy-signature)
+    # Stripe publishable key -- exposed to the shop frontend via /api/shop/config
+    # so it can mount Stripe embedded Checkout. Public by design (pk_...).
+    stripe_publishable_key: str = ""
+    # Distinct signing secret for the shop's Stripe cart webhook.
+    stripe_shop_webhook_secret: str = ""
+    # Free US shipping at/above this subtotal (cents). Matches chadlewine's
+    # SHIPPING_FREE_US_THRESHOLD_CENTS; default $50.
+    shop_free_us_threshold_cents: int = 5000
+
     # PostHog server-side analytics (revenue + async album events). Same
     # project as the frontend snippet; the project API key (phc_...) is what
     # the Python SDK uses to ingest. Unset -> server-side capture is a no-op

@@ -1,0 +1,145 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'shop-orders' %}
+{% block title %}Shop Orders — Admin{% endblock %}
+
+{% block content %}
+<div id="shopStatusBar" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;padding:0.7rem 0.9rem;margin-bottom:1rem;border:1px solid var(--border);border-radius:4px;background:var(--panel);">
+  <span id="shopStatusLabel" style="font-weight:bold;">Shop status: —</span>
+  <span id="shopSubCount" style="color:#666;font-size:0.82rem;"></span>
+  <button id="shopToggleBtn" onclick="toggleShop()" style="margin-left:auto;padding:0.35rem 0.9rem;font-size:0.8rem;">—</button>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="ordTotal">—</div><div class="label">Orders</div></div>
+  <div class="stat-card"><div class="val" id="ordProd">—</div><div class="label">In production</div></div>
+  <div class="stat-card"><div class="val" id="ordShipped">—</div><div class="label">Shipped/delivered</div></div>
+  <div class="stat-card"><div class="val" id="ordRevenue">—</div><div class="label">Gross (paid)</div></div>
+</div>
+
+<h2 class="section-title">Orders</h2>
+<div class="filter-bar" id="ordFilters">
+  <button class="filter-btn active" onclick="ordFilter('')">All</button>
+  <button class="filter-btn" onclick="ordFilter('paid')">Paid</button>
+  <button class="filter-btn" onclick="ordFilter('in_production')">In production</button>
+  <button class="filter-btn" onclick="ordFilter('shipped')">Shipped</button>
+  <button class="filter-btn" onclick="ordFilter('delivered')">Delivered</button>
+  <button class="filter-btn" onclick="ordFilter('cancelled')">Cancelled</button>
+</div>
+<div id="ordList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let ordAll = [];
+let ordStatus = '';
+
+let shopEnabled = null;
+
+function onAdminReady() { loadStatus(); loadOrders(); }
+
+async function loadStatus() {
+  try {
+    const resp = await fetch('/api/admin/shop/status', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const s = await resp.json();
+    shopEnabled = !!s.enabled;
+    const label = document.getElementById('shopStatusLabel');
+    label.innerHTML = 'Shop status: ' + (shopEnabled
+      ? '<span style="color:var(--accent);">LIVE</span>'
+      : '<span style="color:#c9a227;">DARK (coming soon)</span>');
+    document.getElementById('shopSubCount').textContent =
+      (s.subscriber_count || 0) + ' on the notify-me list';
+    const btn = document.getElementById('shopToggleBtn');
+    btn.textContent = shopEnabled ? 'Take shop dark' : 'Launch shop live';
+  } catch (e) { console.error(e); }
+}
+
+async function toggleShop() {
+  if (shopEnabled === null) return;
+  const goLive = !shopEnabled;
+  if (!confirm(goLive ? 'Open the shop to the public?' : 'Take the shop dark (show coming-soon)?')) return;
+  try {
+    const resp = await fetch('/api/admin/shop/toggle', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ enabled: goLive }),
+    });
+    if (resp.ok) loadStatus();
+  } catch (e) { console.error(e); }
+}
+
+function ordFilter(val) {
+  ordStatus = val;
+  document.getElementById('ordFilters').querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderOrders();
+}
+
+async function loadOrders() {
+  try {
+    const resp = await fetch('/api/admin/shop/orders', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    ordAll = data.orders || [];
+    // Stats
+    document.getElementById('ordTotal').textContent = ordAll.length;
+    document.getElementById('ordProd').textContent = ordAll.filter(o => o.status === 'in_production' || o.status === 'paid').length;
+    document.getElementById('ordShipped').textContent = ordAll.filter(o => o.status === 'shipped' || o.status === 'delivered').length;
+    const gross = ordAll.filter(o => o.status !== 'cancelled').reduce((s, o) => s + (o.total_cents || 0), 0);
+    document.getElementById('ordRevenue').textContent = '$' + (gross / 100).toFixed(2);
+    renderOrders();
+  } catch (e) { console.error(e); }
+}
+
+function money(c) { return '$' + ((c || 0) / 100).toFixed(2); }
+
+function statusColor(s) {
+  return s === 'delivered' ? 'var(--accent)'
+    : s === 'shipped' ? '#5aa9ff'
+    : s === 'in_production' ? '#c9a227'
+    : s === 'cancelled' ? '#c66'
+    : '#8a8';
+}
+
+function renderOrders() {
+  const rows = ordStatus ? ordAll.filter(o => o.status === ordStatus) : ordAll;
+  const el = document.getElementById('ordList');
+  if (!rows.length) { el.innerHTML = '<p style="color:#666;">No orders match.</p>'; return; }
+  el.innerHTML = rows.map(renderOrder).join('');
+}
+
+function renderOrder(o) {
+  const when = o.created_at ? `<time data-utc="${escHtml(o.created_at)}"></time>` : '—';
+  const items = (o.items || []).map(i =>
+    `${escHtml(i.title || '')}${i.variant_label ? ' · ' + escHtml(i.variant_label) : ''} <span style="color:#888;">x${i.quantity || 1}</span>`
+  ).join('<br>');
+  const s = o.ship || {};
+  const addr = [s.line1, s.line2, [s.city, s.state, s.zip].filter(Boolean).join(' '), s.country]
+    .filter(Boolean).map(escHtml).join(', ');
+  const contact = o.buyer_email ? `<a href="mailto:${escHtml(o.buyer_email)}" style="color:var(--accent);">${escHtml(o.buyer_email)}</a>` : '(no email)';
+  let pf;
+  if (o.printify_error) pf = `<span style="color:#c66;">Printify push failed: ${escHtml(o.printify_error)}</span>`;
+  else if (o.printify_order_id) pf = `Printify: <code>${escHtml(o.printify_order_id)}</code>`;
+  else pf = '<span style="color:#c9a227;">not pushed to Printify</span>';
+  const tracking = o.tracking_url
+    ? ` &nbsp;|&nbsp; <a href="${escHtml(o.tracking_url)}" target="_blank" rel="noopener" style="color:var(--accent);">${escHtml(o.carrier || 'Track')} ${escHtml(o.tracking_number || '')}</a>`
+    : (o.tracking_number ? ` &nbsp;|&nbsp; ${escHtml(o.carrier || '')} ${escHtml(o.tracking_number)}` : '');
+
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <span style="color:${statusColor(o.status)};font-weight:bold;text-transform:uppercase;font-size:0.72rem;">${escHtml(o.status)}</span>
+        <strong style="margin-left:0.5rem;font-family:var(--mono,monospace);">${escHtml(o.order_number)}</strong>
+        <span style="margin-left:0.5rem;color:var(--accent);">${money(o.total_cents)}</span>
+        <span style="color:#777;font-size:0.78rem;"> (items ${money(o.subtotal_cents)} + ship ${money(o.shipping_cents)})</span>
+      </div>
+      <div style="color:#666;font-size:0.78rem;">${when}</div>
+    </div>
+    <div style="color:#555;font-size:0.78rem;margin-top:0.25rem;">${escHtml(o.buyer_name || '(no name)')} &middot; ${contact}</div>
+    <div style="color:#333;font-size:0.82rem;margin-top:0.4rem;">${items}</div>
+    <div style="color:#666;font-size:0.78rem;margin-top:0.35rem;">${addr || '(no address)'}</div>
+    <div style="color:#666;font-size:0.78rem;margin-top:0.35rem;">${pf}${tracking}</div>
+  </div>`;
+}
+</script>
+{% endblock %}

@@ -96,6 +96,29 @@ def set_audience_resonance_enabled(db: Session, enabled: bool) -> None:
     _set_flag(db, AR_ENABLED_KEY, enabled)
 
 
+# --- Shop (dark launch, fail-CLOSED like audience_resonance / album_charger) --
+# Absent flag = DARK: /shop/ shows a "coming soon + notify me" screen, the
+# catalog + purchase endpoints 503, and the notify-me capture stays open. Flip
+# `shop.enabled` true (admin toggle, no redeploy) to open the storefront.
+SHOP_ENABLED_KEY = "shop.enabled"
+SHOP_COMING_SOON_KEY = "shop.coming_soon_message"
+DEFAULT_SHOP_COMING_SOON = (
+    "The shop is opening soon. Drop your email and we'll let you know the moment it drops."
+)
+
+
+def is_shop_enabled(db: Session) -> bool:
+    return (_get_flag(db, SHOP_ENABLED_KEY) or "false").lower() == "true"
+
+
+def set_shop_enabled(db: Session, enabled: bool) -> None:
+    _set_flag(db, SHOP_ENABLED_KEY, enabled)
+
+
+def shop_coming_soon_message(db: Session) -> str:
+    return _get_flag(db, SHOP_COMING_SOON_KEY) or DEFAULT_SHOP_COMING_SOON
+
+
 def _set_flag(db: Session, key: str, enabled: bool) -> None:
     row = db.query(SystemFlag).filter(SystemFlag.key == key).first()
     val = "true" if enabled else "false"

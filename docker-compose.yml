@@ -124,6 +124,17 @@ services:
       - STRIPE_PRICE_PACK_100=${STRIPE_PRICE_PACK_100}
       - STRIPE_PRICE_PACK_300=${STRIPE_PRICE_PACK_300}
       - STRIPE_BILLING_RETURN_URL=${STRIPE_BILLING_RETURN_URL:-https://risingcompass.net/account/?billing=success}
+      # Shop (Printify merch storefront at /shop/). Same dedicated RC Stripe
+      # account; distinct cart webhook secret. PRINTIFY_* drive the product sync
+      # + order push + shipping quote; STRIPE_PUBLISHABLE_KEY is exposed to the
+      # shop frontend for embedded checkout. Any unset value fails soft (the shop
+      # config endpoint / checkout returns a clear error instead of crashing).
+      - PRINTIFY_API_TOKEN=${PRINTIFY_API_TOKEN}
+      - PRINTIFY_SHOP_ID=${PRINTIFY_SHOP_ID}
+      - PRINTIFY_WEBHOOK_SECRET=${PRINTIFY_WEBHOOK_SECRET}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_SHOP_WEBHOOK_SECRET=${STRIPE_SHOP_WEBHOOK_SECRET}
+      - SHOP_FREE_US_THRESHOLD_CENTS=${SHOP_FREE_US_THRESHOLD_CENTS:-5000}
       # PostHog server-side analytics (revenue + async album events). Same
       # project as the frontend snippet; unset -> server capture is a no-op.
       - POSTHOG_API_KEY=${POSTHOG_API_KEY}

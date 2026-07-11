@@ -72,30 +72,31 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>iTunes -- The Rising Compass</title>
-  <meta name="description" content="iTunes -- today's top-selling songs on the iTunes Download Chart USA, each individually charged by The Rising Compass.">
-  <link rel="canonical" href="https://risingcompass.net/charts/itunes/">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/charts/itunes/">
-  <meta property="og:title" content="iTunes -- The Rising Compass">
-  <meta property="og:description" content="Today's top-selling songs, individually charged.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-  <meta name="twitter:card" content="summary_large_image">
+  <title>Shop — The Rising Compass</title>
+  <meta name="description" content="Wear the readout. Tees and a cap from The Rising Compass.">
+  <link rel="canonical" href="https://risingcompass.net/shop/">
+
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://risingcompass.net/shop/">
+  <meta property="og:title" content="Shop — The Rising Compass">
+  <meta property="og:description" content="Wear the readout. Tees and a cap from The Rising Compass.">
+  <meta property="og:site_name" content="The Rising Compass">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/main.css?v=20260705">
-  <link rel="stylesheet" href="/css/responsive.css">
-  <link rel="stylesheet" href="/charts/chart.css">
-  <link rel="stylesheet" href="/css/compass.css">
-</head>
-<body>
-  <a class="skip-nav" href="#chart-main">Skip to content</a>
 
-  <!-- INCLUDE:header -->
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/shop/shop.css">
+</head>
+<body class="rc-elevated">
+
+<!-- INCLUDE:header -->
 <header class="rc-header">
   <div class="rc-header-inner">
   <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
@@ -168,41 +169,18 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="chart-main" class="chart-page">
-    <div class="chart-page-intro">
-      <h1 class="chart-page-title">iTunes</h1>
-      <p class="chart-page-source">iTunes Downloads -- USA</p>
-      <nav class="chart-page-links" aria-label="Related views">
-        <a href="/calendar/?chart=itunes">View on the Calendar</a>
-        <a href="/charts/spotify/">Spotify (US)</a>
-        <a href="/charts/shazam/">Shazam</a>
-        <a href="/charts/youtube/">YouTube</a>
-        <a href="/charts/new-music-friday/">New Music Friday</a>
-        <a href="/ether-art-chart/">Ether Art Chart</a>
-      </nav>
-    </div>
-    <div class="dash-row1">
-      <div class="card" id="compass-panel" style="position:relative;">
-        <div class="card-header">Today's Charge</div>
-        <div id="contam-container"></div>
-        <div id="compass-container"></div>
-      </div>
-      <!-- The whole trajectory panel (era tabs + both charts) is built by the
-           DailyChargePanel capsule; chart pages ship the Historical tab dark. -->
-      <div class="card" id="trajectory-panel"></div>
-    </div>
-    <div id="chart-root"></div>
-  </main>
+<div class="shop-page">
+  <header class="shop-header">
+    <h1 class="shop-title">Shop</h1>
+  </header>
+  <div class="shop-grid" id="shop-grid">
+    <div class="shop-loading">Loading the shop...</div>
+  </div>
+</div>
 
-  <script>window.RC_CHART = { source: 'itunes', title: 'iTunes', sub: 'iTunes Downloads — USA' };</script>
-  <script src="/js/api.js?v=20260705"></script>
-  <script src="/js/chart-shell.js?v=20260619b"></script>
-  <script src="/js/compass.js"></script>
-  <script src="/js/contamination.js"></script>
-  <script src="/js/daily-charge-panel.js?v=20260711a"></script>
-  <script src="/charts/chart.js?v=20260705c"></script>
+<script src="/shop/shop.js?v=20260711" defer></script>
 
-  <!-- INCLUDE:footer -->
+<!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">
     <div class="footer-brand">
@@ -319,5 +297,6 @@
 <script defer src="/js/consent.js?v=20260702"></script>
 <script defer src="/js/founders-essay-toast.js?v=20260711"></script>
 <!-- /INCLUDE:footer -->
+
 </body>
 </html>

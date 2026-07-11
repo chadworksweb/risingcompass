@@ -1246,6 +1246,107 @@ class Donation(Base):
     completed_at = Column(DateTime, nullable=True)
 
 
+class ShopProduct(Base):
+    """A Printify product synced into RC's storefront (/shop/).
+
+    Mirrors chadlewine's `merch` row for a `printify_curated` product, trimmed
+    to what the RC shop needs. Products are pulled from the Printify custom-
+    integration shop by services/shop_sync.py -- Printify is the source of
+    truth for title/description/images/variants/price; RC keeps a stable slug +
+    display order + status here so the grid + detail pages read from Postgres,
+    not a live Printify call per request.
+
+    `variants` is a JSON-encoded Text list of the ENABLED variants only:
+      [{"id": <printify_variant_id>, "title", "size", "color", "price_cents"}]
+    (RC convention: per-row JSON bundles are Text, json.dumps'd -- same as
+    songs.topics / psyche_facts.) `image_urls` is a JSON-encoded Text list of
+    gallery image src strings (default image first).
+    """
+
+    __tablename__ = "shop_products"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    printify_product_id = Column(Text, nullable=False, unique=True)
+    slug = Column(Text, nullable=False, unique=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)          # hero / default image
+    image_urls = Column(Text, nullable=True)         # JSON list of gallery srcs
+    price = Column(Float, nullable=True)             # lowest enabled-variant price, dollars
+    variants = Column(Text, nullable=True)           # JSON list (enabled variants)
+    status = Column(Text, nullable=False, default="active")  # active | inactive
+    display_order = Column(Integer, nullable=False, default=0)
+    last_synced_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ShopOrder(Base):
+    """A completed shop purchase. Written by the Stripe cart webhook on
+    checkout.session.completed, then pushed to Printify as an order (auto sent
+    to production) and updated by the Printify order-status webhook.
+
+    `line_items` is a JSON-encoded Text list:
+      [{"printify_product_id", "variant_id", "quantity", "title",
+        "variant_label", "price_cents"}]
+    Money is stored in cents (Stripe's native unit). `user_id` is set when a
+    signed-in Clerk user checked out; anonymous orders leave it NULL and are
+    keyed by buyer_email.
+    """
+
+    __tablename__ = "shop_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_number = Column(Text, nullable=False, unique=True)
+    stripe_session_id = Column(Text, nullable=False, unique=True)
+    stripe_payment_intent_id = Column(Text, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    buyer_email = Column(Text, nullable=True)
+    buyer_name = Column(Text, nullable=True)
+    phone = Column(Text, nullable=True)
+
+    subtotal_cents = Column(Integer, nullable=False, default=0)
+    shipping_cents = Column(Integer, nullable=False, default=0)
+    total_cents = Column(Integer, nullable=False, default=0)
+    currency = Column(Text, nullable=False, default="usd")
+
+    ship_line1 = Column(Text, nullable=True)
+    ship_line2 = Column(Text, nullable=True)
+    ship_city = Column(Text, nullable=True)
+    ship_state = Column(Text, nullable=True)
+    ship_zip = Column(Text, nullable=True)
+    ship_country = Column(Text, nullable=True)
+
+    line_items = Column(Text, nullable=True)  # JSON list (see docstring)
+
+    # Fulfillment lifecycle: paid -> in_production -> shipped -> delivered,
+    # plus cancelled / error. printify_order_id links back to Printify.
+    status = Column(Text, nullable=False, default="paid")
+    printify_order_id = Column(Text, nullable=True)
+    printify_error = Column(Text, nullable=True)
+    carrier = Column(Text, nullable=True)
+    tracking_number = Column(Text, nullable=True)
+    tracking_url = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    pushed_to_printify_at = Column(DateTime, nullable=True)
+    shipped_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+
+
+class ShopSubscriber(Base):
+    """Coming-soon / "notify me" list for the shop while it launches dark.
+    Mirrors LyricalChargerSubscriber (simple single-step capture, no double
+    opt-in): store an email, notify when the shop opens."""
+
+    __tablename__ = "shop_subscribers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(Text, nullable=False, unique=True)
+    notified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Comment(Base):
     """Lobby comment. Polymorphic target by (target_type, target_source, target_id):
       target_type    -- 'song' | 'artist' | 'release'

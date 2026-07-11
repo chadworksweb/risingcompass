@@ -316,6 +316,52 @@ def emit_general_inquiry(*, inquiry_id: int, name: Optional[str], email: Optiona
     )
 
 
+def emit_shop_order(*, order_number: str, buyer_name: Optional[str],
+                    buyer_email: Optional[str], total_cents: int,
+                    ship_city: Optional[str], ship_country: Optional[str],
+                    items: list, status: str,
+                    printify_order_id: Optional[str],
+                    printify_error: Optional[str]) -> None:
+    """Activity alert -- a new shop order was paid + recorded. Links to the
+    admin Orders page. Flags a Printify push failure so it can be retried."""
+    site = settings.site_url.rstrip("/")
+    who = escape(buyer_name) if buyer_name else "(no name)"
+    contact = f" &lt;{escape(buyer_email)}&gt;" if buyer_email else ""
+    dest = ", ".join(x for x in [escape(ship_city or ""), escape(ship_country or "")] if x)
+    total = f"${total_cents / 100:.2f}"
+    rows = "".join(
+        f"<tr><td style=\"padding:2px 12px 2px 0;color:#333;\">{escape(str(i.get('title') or ''))}"
+        f"{(' &middot; ' + escape(str(i.get('variant_label')))) if i.get('variant_label') else ''}</td>"
+        f"<td style=\"color:#555;\">x{i.get('quantity', 1)}</td></tr>"
+        for i in items
+    )
+    if printify_error:
+        pf = f'<span style="color:#cc3333;">Printify push FAILED: {escape(printify_error)}</span>'
+    elif printify_order_id:
+        pf = f'Printify order <code>{escape(printify_order_id)}</code> (sent to production)'
+    else:
+        pf = '<span style="color:#cc7a00;">not yet pushed to Printify</span>'
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 8px;font-size:14px;color:#333;">
+        New order <strong>{escape(order_number)}</strong> &middot; <strong>{total}</strong> &middot; {escape(status)}
+      </p>
+      <p style="margin:0 0 10px;font-size:13px;color:#555;">{who}{contact}{(' &middot; ' + dest) if dest else ''}</p>
+      <table style="border-collapse:collapse;font-size:14px;margin:0 0 12px;">{rows}</table>
+      <p style="margin:0 0 12px;font-size:13px;color:#555;">{pf}</p>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard/shop-orders" style="color:#008f72;">Shop orders</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="activity",
+        alert_key="shop_order",
+        subject=f"New order {order_number} ({total})",
+        html_body=html,
+    )
+
+
 def emit_provenance_health(*, breaches: list[str], health: dict) -> None:
     """Activity alert -- the provenance health check found one or more breaches
     (backlog, stalled sweep, unpushed commits, or OTS proofs stuck off-chain).
