@@ -3437,3 +3437,154 @@ td.yo-charge {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* === Founder's essay toast ===
+   Bottom-center pill promoting the founder's essay (chadlewine-hosted). Pill
+   visual from chadworks' fixed toggle, reveal/snooze mechanism from
+   chadlewine's floating tag. Markup lives in the footer partial; behavior in
+   js/founders-essay-toast.js. */
+.rc-essay-toast {
+  --et-bottom: clamp(1rem, 3vw, 1.75rem);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 120;
+  display: inline-flex;
+  opacity: 0;
+  pointer-events: none;
+  /* Resting position: bottom-center, nudged 20px low so the entrance rises. */
+  transform: translate(calc(50vw - 50%), calc(100vh - 100% - var(--et-bottom) + 20px));
+  transition: transform 700ms var(--rc-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+              opacity 550ms ease-out;
+  max-width: calc(100vw - 1.5rem);
+}
+.rc-essay-toast--visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(calc(50vw - 50%), calc(100vh - 100% - var(--et-bottom)));
+}
+/* Snoozed: warp to the right edge, vertical center, collapse to a paddle.
+   Higher specificity so it wins over --visible regardless of class order. */
+.rc-essay-toast.rc-essay-toast--snoozed {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(calc(100vw - 100% - 10px), calc(50vh - 50%));
+  max-width: none;
+}
+
+.rc-essay-toast__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(0.35rem, 1.2vw, 0.55rem);
+  padding: clamp(0.5rem, 1.6vw, 0.7rem) clamp(0.75rem, 3vw, 1.15rem);
+  background: var(--rc-bg-card);
+  color: var(--rc-text-bright);
+  border: 1px solid rgba(0, 212, 170, 0.45);
+  font-family: var(--rc-font);
+  font-size: clamp(0.72rem, 2.4vw, 0.84rem);
+  letter-spacing: 0.01em;
+  border-radius: 999px;
+  box-shadow:
+    0 0 16px rgba(0, 212, 170, 0.35),
+    0 0 34px rgba(0, 212, 170, 0.18),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+  transition: border-color 300ms ease, box-shadow 300ms ease,
+              padding 500ms ease, border-radius 500ms ease;
+}
+.rc-essay-toast__inner:hover {
+  border-color: rgba(0, 212, 170, 0.85);
+  box-shadow:
+    0 0 22px rgba(0, 212, 170, 0.55),
+    0 0 46px rgba(0, 212, 170, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.rc-essay-toast__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  color: inherit;
+  text-decoration: none;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.rc-essay-toast__text { line-height: 1.25; }
+.rc-essay-toast__text b {
+  color: var(--rc-accent);
+  font-weight: 600;
+}
+.rc-essay-toast__badge {
+  flex: 0 0 auto;
+  padding: 0.15em 0.5em;
+  border-radius: 999px;
+  background: var(--rc-accent);
+  color: var(--rc-bg-dark);
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.rc-essay-toast__close,
+.rc-essay-toast__expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.rc-essay-toast__close {
+  width: 1.5em;
+  height: 1.5em;
+  margin-left: 0.1em;
+  font-size: 1.1em;
+  line-height: 1;
+  border-radius: 999px;
+  opacity: 0.6;
+  transition: opacity 200ms ease, background 200ms ease;
+}
+.rc-essay-toast__close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Paddle mode: hide the pill contents, show only the expand tab. */
+.rc-essay-toast__expand { display: none; }
+.rc-essay-toast--snoozed .rc-essay-toast__link,
+.rc-essay-toast--snoozed .rc-essay-toast__close { display: none; }
+.rc-essay-toast--snoozed .rc-essay-toast__expand {
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+  font-size: 1.1em;
+}
+.rc-essay-toast--snoozed .rc-essay-toast__inner {
+  padding: 0;
+  width: 16px;
+  height: 52px;
+  border-radius: 5px;
+}
+
+/* Gentle bob while visible in pill mode -- signals liveness without shouting. */
+.rc-essay-toast--visible:not(.rc-essay-toast--snoozed) .rc-essay-toast__inner {
+  animation: rc-essay-toast-bob 3.6s ease-in-out 800ms infinite;
+}
+@keyframes rc-essay-toast-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@media (max-width: 480px) {
+  .rc-essay-toast__inner { white-space: normal; }
+  .rc-essay-toast__text { font-size: 0.78rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-essay-toast--visible:not(.rc-essay-toast--snoozed) .rc-essay-toast__inner {
+    animation: none;
+  }
+}
