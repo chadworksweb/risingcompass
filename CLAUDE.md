@@ -226,7 +226,18 @@ does not carry it (`prose_missing`, `calibration_corpus.py`), and
 `societal_effects_prose` whenever topics are supplied without the societal prose.
 So Claude Code WRITES both prose pieces and supplies them:
 `--listener-effects-prose-file` is REQUIRED (the script now enforces it);
-`--societal-prose-file` is required whenever any ether field is supplied. The
+`--societal-prose-file` is required whenever any ether field is supplied. **Both
+proses follow the voice defined in the code constants themselves -- read
+`LISTENER_EFFECTS_VOICE` / `SOCIETAL_VOICE` (in `listener_effects_prose.py` /
+`societal_effects_prose.py`) FRESH each session. They are the source of truth and
+get retuned, so this file does NOT restate the voice, length, or person -- take
+those from the constants, never from a doc.** The server generators gate prose
+through a deterministic tell-guard (A-R) + a
+semantic judge fail-closed, but the terminal SUPPLY path is NOT auto-gated -- so
+scan every supplied prose yourself before shipping: `cat file | .venv/Scripts/
+python.exe -m app.services.prose_tell_guard [--societal] [--negative]`, clear every
+`hard` finding, and self-apply the semantic judge (Claude Code IS the judge on
+terminal). Ship NULL over slop.** The
 ether tagger does NOT run on the terminal path, so omitting `--topic` is safe
 (topics stay NULL, no API call). Editorial is supplied separately via
 `set_editorial.py`; the server has no editorial-generation path at all (the
@@ -439,8 +450,9 @@ admin section **Artist Verified** (`templates/admin/artist_verified.html`).
   returns the artist's calibrated songs charge-DESC (reuses the public
   `artist_top_songs` release_songs+song_artists UNION SQL + `SongSlug`); the
   admin form shows each song's charge so Chad picks what to send.
-- **Status:** BUILT local, py-compile clean, NOT deployed. Migration 105
-  applies on deploy; never run against the shared prod DB locally. Send is
+- **Status:** DEPLOYED to prod (migration 105 applied; `artist_outreach`
+  verified present 2026-07-11). Never run migrations against the shared prod DB
+  locally. Send is
   manual (Chad) -- the funnel is human-operated, so no automated-outbound
   compliance concern (Lookout discipline by construction). Plan:
   `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 8.
@@ -1120,8 +1132,8 @@ hot path, `db=` = caller's txn for the sweep).
   (`alerts.emit_leit_sweep_digest`, key `leit_sweep_digest`, default-on). Cron
   endpoint `POST /api/admin/agent/cron/leit-sweep` (`routers/leit_sweep.py`, auth
   `X-Reading-Cron-Key` -- reuses the daily-reading cron lane, no new secret). Host
-  script `deploy/leit-sweep.sh` (suggested `30 16 * * *`, after the reading/itunes
-  lane). Not yet added to the server crontab.
+  script `deploy/leit-sweep.sh`, LIVE in the server crontab at `0 17 * * *`
+  (after the reading/itunes lane; verified 2026-07-11).
 - **Admin queue.** Site Admin -> Lyrical Charger -> **Audit Queue**
   (`routers/clutter_admin.py`, `templates/admin/clutter.html`, section `clutter`).
   List/stats/resolve (`keep` | `remove` | `dismiss`) + a "Run sweep now" trigger
@@ -1202,10 +1214,10 @@ spec + status: `plans and docs/RISING-COMPASS-SONG-IDENTITY-RESOLUTION.md`.
   auto-merges). Fully fail-soft (non-PG / no-extension / flag-off -> exact+clean
   behavior unchanged). Uses `similarity() >=` not the `%` operator (psycopg
   escaping).
-- **Status:** BUILT local, py-compile clean, `tests/test_song_merge.py` +
-  `tests/test_feeder_clean.py` green, merge verified end-to-end on a real
-  session. Migration 123 applies on deploy. Phase 3 (pgvector semantic rung,
-  shared with the semantic-search roadmap) still pending.
+- **Status:** DEPLOYED to prod (migration 123 applied; `song_merge_candidates`
+  + `song_merge_events` verified present 2026-07-11). `tests/test_song_merge.py`
+  + `tests/test_feeder_clean.py` green, merge verified end-to-end. Phase 3
+  (pgvector semantic rung, shared with the semantic-search roadmap) still pending.
 
 ## Agent mini-warehouse (2026-06-09)
 
@@ -1417,8 +1429,8 @@ be closed to new accounts, so the client was rewritten to Buffer's GraphQL API.
   `GET /api/admin/social/song-search?q=` (calibrated only, charge-DESC, cap 12),
   `POST /api/admin/social/publish-song {song_id, platforms?, force?}`. Two UIs:
   a "Broadcast to Buffer" card on `templates/admin/song_detail.html` and a "Publish
-  a single song" search panel atop `templates/admin/social.html`. **BUILT local,
-  py-compile clean, NOT deployed/smoke-tested.** Full reference:
+  a single song" search panel atop `templates/admin/social.html`. **DEPLOYED to prod
+  (`publish-song` route verified in the running `social_admin.py` 2026-07-11).** Full reference:
   `RISING-COMPASS-SOCIAL-BROADCASTER.md` "Single-song publish".
 
 ## Sentinel Auditor Team (DEPLOYED DARK 2026-06-22)
