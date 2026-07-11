@@ -178,10 +178,10 @@ async def shop_config():
 
 @router.get("/api/shop/products", dependencies=[Depends(verify_api_key)])
 async def shop_products():
+    # Catalog is browsable even before launch (preview mode). Only the purchase
+    # path (cart-checkout) is gated by shop.enabled.
     db = SessionLocal()
     try:
-        if not feature_flags.is_shop_enabled(db):
-            raise HTTPException(503, "The shop is not open yet.")
         rows = (
             db.query(ShopProduct)
             .filter(ShopProduct.status == "active")
@@ -197,8 +197,6 @@ async def shop_products():
 async def shop_product_detail(slug: str):
     db = SessionLocal()
     try:
-        if not feature_flags.is_shop_enabled(db):
-            raise HTTPException(503, "The shop is not open yet.")
         p = (
             db.query(ShopProduct)
             .filter(ShopProduct.slug == slug)

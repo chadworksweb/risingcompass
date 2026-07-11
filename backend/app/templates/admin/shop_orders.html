@@ -45,19 +45,19 @@ async function loadStatus() {
     shopEnabled = !!s.enabled;
     const label = document.getElementById('shopStatusLabel');
     label.innerHTML = 'Shop status: ' + (shopEnabled
-      ? '<span style="color:var(--accent);">LIVE</span>'
-      : '<span style="color:#c9a227;">DARK (coming soon)</span>');
+      ? '<span style="color:var(--accent);">LIVE (selling)</span>'
+      : '<span style="color:#c9a227;">PREVIEW (browse only, checkout off)</span>');
     document.getElementById('shopSubCount').textContent =
       (s.subscriber_count || 0) + ' on the notify-me list';
     const btn = document.getElementById('shopToggleBtn');
-    btn.textContent = shopEnabled ? 'Take shop dark' : 'Launch shop live';
+    btn.textContent = shopEnabled ? 'Switch to preview' : 'Launch shop live';
   } catch (e) { console.error(e); }
 }
 
 async function toggleShop() {
   if (shopEnabled === null) return;
   const goLive = !shopEnabled;
-  if (!confirm(goLive ? 'Open the shop to the public?' : 'Take the shop dark (show coming-soon)?')) return;
+  if (!confirm(goLive ? 'Open the shop for selling?' : 'Switch to preview (browse only, checkout off)?')) return;
   try {
     const resp = await fetch('/api/admin/shop/toggle', {
       method: 'POST',

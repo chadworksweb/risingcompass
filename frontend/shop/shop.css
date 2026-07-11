@@ -47,18 +47,18 @@
   padding: 3rem 1rem;
 }
 
-/* Coming soon (dark launch) */
+/* Coming-soon note + subscribe (preview mode) -- sits under the greyed buy
+   button on the product page. */
 .shop-soon {
-  max-width: 30rem; margin: 3rem auto; text-align: center;
+  margin: 1rem 0 0; padding: 1rem 1.1rem;
   background: var(--rc-bg-card); border: 1px solid var(--rc-border);
-  border-radius: var(--rc-radius-md); padding: 2.5rem 1.75rem;
+  border-radius: var(--rc-radius-sm);
 }
-.shop-soon__title {
-  font-family: var(--rc-font-mono); text-transform: uppercase; letter-spacing: 0.08em;
-  font-size: 1.1rem; color: var(--rc-accent); margin-bottom: 0.75rem;
+.shop-soon__msg {
+  font-family: var(--rc-font-mono); font-size: 0.85rem; color: var(--rc-text-bright);
+  line-height: 1.5; margin-bottom: 0.85rem;
 }
-.shop-soon__msg { font-size: 0.95rem; color: var(--rc-text); line-height: 1.6; margin-bottom: 1.5rem; }
-.shop-soon__form { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+.shop-soon__form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .shop-soon__input {
   flex: 1 1 15rem; min-width: 0; padding: 0.65rem 0.85rem;
   background: var(--rc-bg-panel); border: 1px solid var(--rc-border);

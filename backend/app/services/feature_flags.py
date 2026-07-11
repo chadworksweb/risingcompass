@@ -102,9 +102,7 @@ def set_audience_resonance_enabled(db: Session, enabled: bool) -> None:
 # `shop.enabled` true (admin toggle, no redeploy) to open the storefront.
 SHOP_ENABLED_KEY = "shop.enabled"
 SHOP_COMING_SOON_KEY = "shop.coming_soon_message"
-DEFAULT_SHOP_COMING_SOON = (
-    "The shop is opening soon. Drop your email and we'll let you know the moment it drops."
-)
+DEFAULT_SHOP_COMING_SOON = "Product coming soon. Subscribe to be notified."
 
 
 def is_shop_enabled(db: Session) -> bool:

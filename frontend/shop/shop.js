@@ -76,32 +76,33 @@
     return data;
   }
 
-  // --- Coming soon (dark launch) -----------------------------------------
-  function renderComingSoon(root, message) {
-    root.className = 'shop-soon';
-    root.innerHTML =
-      '<h2 class="shop-soon__title">Coming soon</h2>' +
+  // --- Coming-soon note + subscribe (preview mode) -----------------------
+  // Built under the greyed-out buy button while the shop is browsable but not
+  // yet selling. Returns a DOM node.
+  function buildSubscribeNote(message) {
+    const wrap = el('div', 'shop-soon');
+    wrap.innerHTML =
       '<p class="shop-soon__msg"></p>' +
-      '<form class="shop-soon__form" id="shop-soon-form" novalidate>' +
-        '<input type="email" id="shop-soon-email" class="shop-soon__input" placeholder="you@example.com" autocomplete="email" required>' +
-        '<input type="text" id="shop-soon-hp" class="shop-soon__hp" tabindex="-1" autocomplete="off" aria-hidden="true">' +
-        '<button type="submit" class="shop-soon__btn" id="shop-soon-btn">Notify me</button>' +
+      '<form class="shop-soon__form" novalidate>' +
+        '<input type="email" class="shop-soon__input js-email" placeholder="you@example.com" autocomplete="email" required>' +
+        '<input type="text" class="shop-soon__hp js-hp" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+        '<button type="submit" class="shop-soon__btn js-btn">Notify me</button>' +
       '</form>' +
-      '<p class="shop-soon__status" id="shop-soon-status"></p>';
-    root.querySelector('.shop-soon__msg').textContent = message;
-    const form = root.querySelector('#shop-soon-form');
-    const status = root.querySelector('#shop-soon-status');
-    const btn = root.querySelector('#shop-soon-btn');
+      '<p class="shop-soon__status js-status"></p>';
+    wrap.querySelector('.shop-soon__msg').textContent = message;
+    const form = wrap.querySelector('form');
+    const status = wrap.querySelector('.js-status');
+    const btn = wrap.querySelector('.js-btn');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = root.querySelector('#shop-soon-email').value.trim();
+      const email = wrap.querySelector('.js-email').value.trim();
       if (!email) return;
       btn.disabled = true; btn.textContent = 'Sending...';
-      status.className = 'shop-soon__status';
+      status.className = 'shop-soon__status js-status';
       status.textContent = '';
       try {
         const res = await apiPost('/api/shop/subscribe', {
-          email, hp_website: root.querySelector('#shop-soon-hp').value,
+          email, hp_website: wrap.querySelector('.js-hp').value,
         });
         status.classList.add('shop-soon__status--ok');
         status.textContent = res.message || "Thanks. We'll be in touch.";
@@ -112,6 +113,7 @@
         btn.disabled = false; btn.textContent = 'Notify me';
       }
     });
+    return wrap;
   }
 
   // --- Cart state ---------------------------------------------------------
@@ -298,7 +300,7 @@
     });
   }
 
-  async function renderDetail(root) {
+  async function renderDetail(root, available, comingMsg) {
     const slug = new URLSearchParams(window.location.search).get('p');
     if (!slug) { root.innerHTML = '<p class="shop-empty">Product not found.</p>'; return; }
     let p;
@@ -455,6 +457,7 @@
       const v = currentVariant();
       const lowest = variants.length ? Math.min(...variants.map((x) => x.price_cents || 0)) : 0;
       priceEl.textContent = v ? fmt(v.price_cents) : (lowest ? 'from ' + fmt(lowest) : '');
+      if (!available) { buyEl.textContent = 'Coming soon'; buyEl.disabled = true; return; }
       const needsChoice = (colors.length > 0 && !selColor) || (sizes.length > 0 && !selSize);
       if (needsChoice) { buyEl.textContent = 'Select an option'; buyEl.disabled = true; }
       else if (!v) { buyEl.textContent = 'Unavailable'; buyEl.disabled = true; }
@@ -462,6 +465,7 @@
     }
 
     buyEl.addEventListener('click', () => {
+      if (!available) return;
       const v = currentVariant();
       if (!v) return;
       addToCart({
@@ -477,24 +481,29 @@
     renderOpts();
     refresh();
     if (selColor && colorImage[selColor]) cover.src = colorImage[selColor];
+
+    // Preview mode: coming-soon note + subscribe under the greyed buy button.
+    if (!available) {
+      const note = buildSubscribeNote(comingMsg || 'Coming soon. Subscribe to be notified.');
+      buyEl.insertAdjacentElement('afterend', note);
+    }
   }
 
   // --- Boot ---------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', async () => {
     const grid = document.getElementById('shop-grid');
     const detail = document.getElementById('product-root');
-    // Dark-launch gate: check availability before showing anything shoppable.
+    // The catalog is always browsable. `available` (shop.enabled) only decides
+    // whether buying is on: when off, the buy button is greyed with a
+    // coming-soon + subscribe note, and no cart is shown.
     let cfg = null;
     try { cfg = await apiGet('/api/shop/config'); } catch (_) {}
-    if (cfg && cfg.available === false) {
-      const msg = cfg.coming_soon_message || 'The shop is opening soon.';
-      const host = grid || detail;
-      if (host) renderComingSoon(host, msg);
-      return;  // no cart, no catalog while dark
-    }
-    buildCartUI();
+    const available = cfg ? cfg.available === true : true;
+    const comingMsg = (cfg && cfg.coming_soon_message)
+      || 'Product coming soon. Subscribe to be notified.';
+    if (available) buildCartUI();
     if (grid) renderGrid(grid);
-    if (detail) renderDetail(detail);
+    if (detail) renderDetail(detail, available, comingMsg);
   });
 
   // Expose for the checkout page (reads cart, clears it after payment).
