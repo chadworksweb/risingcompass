@@ -26,6 +26,13 @@
   <button class="filter-btn" onclick="ordFilter('cancelled')">Cancelled</button>
 </div>
 <div id="ordList"></div>
+
+<h2 class="section-title">Notify-me list</h2>
+<div style="margin-bottom:0.6rem;">
+  <button onclick="sendLaunchEmail()" style="padding:0.35rem 0.9rem;font-size:0.8rem;">Email list: "shop is live"</button>
+  <span style="color:#666;font-size:0.78rem;margin-left:0.5rem;">Emails everyone not yet notified, then marks them notified.</span>
+</div>
+<div id="shopSubList"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -35,7 +42,41 @@ let ordStatus = '';
 
 let shopEnabled = null;
 
-function onAdminReady() { loadStatus(); loadOrders(); }
+function onAdminReady() { loadStatus(); loadOrders(); loadSubscribers(); }
+
+async function loadSubscribers() {
+  try {
+    const resp = await fetch('/api/admin/shop/subscribers', { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const subs = (await resp.json()).subscribers || [];
+    const el = document.getElementById('shopSubList');
+    if (!subs.length) { el.innerHTML = '<p style="color:#666;">No signups yet.</p>'; return; }
+    el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.83rem;">' +
+      '<tr style="text-align:left;color:#666;"><th style="padding:4px 8px 4px 0;">Email</th><th>Joined</th><th>Notified</th></tr>' +
+      subs.map(s => `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:4px 8px 4px 0;"><a href="mailto:${escHtml(s.email)}" style="color:var(--accent);">${escHtml(s.email)}</a></td>
+        <td style="color:#777;">${s.created_at ? '<time data-utc="'+escHtml(s.created_at)+'"></time>' : '—'}</td>
+        <td style="color:#777;">${s.notified_at ? '<time data-utc="'+escHtml(s.notified_at)+'"></time>' : '<span style="color:#c9a227;">not yet</span>'}</td>
+      </tr>`).join('') + '</table>';
+  } catch (e) { console.error(e); }
+}
+
+async function sendLaunchEmail() {
+  try {
+    const post = (body) => fetch('/api/admin/shop/notify-live', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify(body),
+    }).then(r => r.json());
+    const dry = await post({ dry_run: true });
+    const n = dry.eligible || 0;
+    if (n === 0) { alert('No un-notified subscribers to email.'); return; }
+    if (!confirm('Send the "shop is live" email to ' + n + ' subscriber(s)?')) return;
+    const res = await post({});
+    alert('Sent ' + (res.sent || 0) + ', errors ' + (res.errors || 0) + '.');
+    loadSubscribers();
+  } catch (e) { alert('Failed: ' + e); }
+}
 
 async function loadStatus() {
   try {

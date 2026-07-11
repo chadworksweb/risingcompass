@@ -833,6 +833,23 @@ def admin_shop_toggle(body: ShopToggleIn, request: Request,
         db.close()
 
 
+class ShopNotifyIn(BaseModel):
+    force: bool = False
+    dry_run: bool = False
+
+
+@admin_router.post("/api/admin/shop/notify-live")
+def admin_notify_live(body: ShopNotifyIn, request: Request,
+                      admin=Depends(require_admin_session)):
+    """Email the notify-me list that the shop is live (stamps notified_at).
+    dry_run just returns the eligible count."""
+    db = SessionLocal()
+    try:
+        return shop_email.notify_shop_live(db, force=body.force, dry_run=body.dry_run)
+    finally:
+        db.close()
+
+
 @admin_router.get("/api/admin/shop/subscribers")
 def admin_list_subscribers(request: Request, admin=Depends(require_admin_session)):
     """Notify-me list captured while the shop is dark."""

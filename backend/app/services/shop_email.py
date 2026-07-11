@@ -11,10 +11,14 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime
 from html import escape
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
 from app.config import settings
+from app.models import ShopSubscriber
 from app.services.alerts import _send_resend
 
 logger = logging.getLogger(__name__)
@@ -111,3 +115,55 @@ def send_shipping_notice(*, to_email: Optional[str], order_number: str,
     </div>
     """
     _send_async(to_email, f"Your Rising Compass order {order_number} has shipped", html)
+
+
+# --- Launch blast (notify-me list) -----------------------------------------
+
+def _shop_live_html() -> str:
+    return f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin:0 auto; color:#222; text-align:center;">
+      <p style="font-size:18px;margin:0 0 8px;"><strong>The shop is open.</strong></p>
+      <p style="font-size:14px;color:#555;margin:0 0 24px;line-height:1.6;">You asked to hear when it dropped. It's live now.</p>
+      <p style="margin:0 0 24px;"><a href="https://risingcompass.net/shop/"
+        style="display:inline-block;background:{_BRAND};color:#fff;text-decoration:none;
+        padding:12px 22px;border-radius:4px;font-size:15px;font-weight:600;">Shop now</a></p>
+      <p style="font-size:12px;color:#999;margin:24px 0 0;border-top:1px solid #eee;padding-top:12px;">The Rising Compass &middot; risingcompass.net</p>
+    </div>
+    """
+
+
+def send_shop_live(to_email: str) -> bool:
+    """Send one 'shop is live' email synchronously; returns success."""
+    if not to_email or not settings.resend_api_key:
+        return False
+    try:
+        return _send_resend(to_email, "The Rising Compass shop is open", _shop_live_html())
+    except Exception:
+        logger.exception("shop live email failed for %s", to_email[:2])
+        return False
+
+
+def notify_shop_live(db: Session, *, force: bool = False, dry_run: bool = False) -> dict:
+    """Email the notify-me list that the shop is live. By default only emails
+    subscribers not yet notified (notified_at IS NULL); `force` re-sends to all.
+    Stamps notified_at on each successful send. `dry_run` just counts."""
+    q = db.query(ShopSubscriber)
+    if not force:
+        q = q.filter(ShopSubscriber.notified_at.is_(None))
+    subs = q.order_by(ShopSubscriber.created_at.asc()).all()
+    if dry_run:
+        return {"eligible": len(subs), "sent": 0, "errors": 0, "dry_run": True}
+    if not settings.resend_api_key:
+        return {"eligible": len(subs), "sent": 0, "errors": len(subs),
+                "detail": "Resend not configured"}
+    sent = 0
+    errors = 0
+    now = datetime.utcnow()
+    for s in subs:
+        if send_shop_live(s.email):
+            s.notified_at = now
+            sent += 1
+        else:
+            errors += 1
+    db.commit()
+    return {"eligible": len(subs), "sent": sent, "errors": errors}
