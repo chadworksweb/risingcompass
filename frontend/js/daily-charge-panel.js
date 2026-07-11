@@ -836,11 +836,14 @@
   function renderDailyChart(data, container) {
     if (!data.length) return;
     data = interpolateSkippedDegrees(data);
-    // Fit to the FULL daily series (dailyChartData), not the zoom window, so the
-    // axis stays put while panning/zooming/time-machine.
-    const dom = resolveDomain(dailyChartData.length ? dailyChartData : data);
+    // Fit to the CURRENTLY-ZOOMED window (`data` is the filtered slice), not the
+    // full 365-day set, so the axis top/bottom tighten to max+PAD / min-PAD of the
+    // selected segment -- matching the historical chart's dynamic Y axis. The
+    // overview mini-map (renderDailyOverview) still fits dailyChartData so the
+    // locator line stays put while you drag.
+    const dom = resolveDomain(data.length ? data : dailyChartData);
     // Same per-edge axis cue as the historical chart: pulse a bound label only
-    // when its value changed (here the domain flips on the fit/full toggle).
+    // when its value changed (here the domain re-fits on pan/zoom/scale toggle).
     const hiChanged = lastDailyHi !== null && lastDailyHi !== dom.hi;
     const loChanged = lastDailyLo !== null && lastDailyLo !== dom.lo;
     lastDailyHi = dom.hi; lastDailyLo = dom.lo;
