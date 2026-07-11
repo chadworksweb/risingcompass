@@ -82,7 +82,7 @@ services:
       - BACKUP_DATABASE_URL=${BACKUP_DATABASE_URL}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","https://risingcompass.net","https://api.risingcompass.net"]}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - AGENT_MODEL=${AGENT_MODEL:-claude-opus-4-6}
+      - AGENT_MODEL=${AGENT_MODEL:-claude-opus-4-8}
       # Editorials supplied from terminal (Claude Code), not an Anthropic call.
       # When true, _generate_editorial no-ops; set the editorial via
       # POST /drafts/{ref}/editorial (scripts/set_editorial.py).
