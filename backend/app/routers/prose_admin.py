@@ -196,7 +196,14 @@ async def regenerate_prose(
         bad = [t for t in body.topics if t not in VALID_SLUGS]
         if bad:
             raise HTTPException(status_code=422, detail=f"invalid ether topic slug(s): {bad}")
-    supplied = bool(body.listener_effects_prose or body.societal_effects_prose or ether_supplied)
+    # A bundle-only supply (psyche_facts / effects_pl / ether, no prose) must also
+    # turn generation OFF: it writes just the supplied bundle and leaves existing
+    # prose untouched, never firing an Anthropic prose regen (the zero-terminal-
+    # Anthropic gate). Only a bare call with nothing supplied falls to generation.
+    supplied = bool(
+        body.listener_effects_prose or body.societal_effects_prose
+        or ether_supplied or body.psyche_facts or body.effects_pl is not None
+    )
     if supplied and (body.listener_effects_prose or body.societal_effects_prose):
         from app.services.lyric_quote_guard import strip_verbatim_quotes
         if body.listener_effects_prose:
