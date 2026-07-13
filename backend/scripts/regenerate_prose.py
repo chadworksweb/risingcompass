@@ -64,6 +64,10 @@ def main() -> int:
     p.add_argument("--negative", action="store_true",
                    help="Song is genuinely degraded/corrupted (orange/red): allow real "
                         "corrosion language (turns the tell-guard Rule-O teardown check OFF).")
+    p.add_argument("--psyche-facts-file", default=None, dest="psyche_facts_file",
+                   help="Path to a JSON file with the Psyche Facts prescription bundle: "
+                        "purpose, indicated_for[], do_not_use_if, directions, onset, "
+                        "duration, warning. Unknown keys are dropped server-side.")
     p.add_argument("--force", action="store_true",
                    help="Write even if the tell-guard finds HARD AI-tells (bypass the gate).")
     args = p.parse_args()
@@ -97,6 +101,12 @@ def main() -> int:
         payload_d["deadpan_line"] = args.deadpan
     if args.topics is not None:
         payload_d["topics"] = [t.strip() for t in args.topics.split(",") if t.strip()]
+    if args.psyche_facts_file:
+        pf = json.loads(Path(args.psyche_facts_file).read_text(encoding="utf-8"))
+        if not isinstance(pf, dict):
+            print("--psyche-facts-file must contain a single JSON object", file=sys.stderr)
+            return 2
+        payload_d["psyche_facts"] = pf
 
     # AI-tell guard (deterministic, zero model calls). Terminal-supplied prose
     # bypasses the server's tell-guard + semantic judge, so lint it HERE before it
@@ -173,6 +183,12 @@ def main() -> int:
         print(result["prior_listener_effects_prose"][:120] + "...")
     else:
         print("[prior_listener_effects_prose] was NULL -- nothing to archive")
+    print()
+    if result.get("psyche_facts_changed"):
+        print("[psyche_facts] written")
+        print(json.dumps(result.get("psyche_facts"), indent=2, ensure_ascii=False))
+    else:
+        print("[psyche_facts] not supplied")
     return 0
 
 

@@ -30,6 +30,27 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/prose", tags=["prose-admin"])
 
+# The stored Psyche Facts bundle's allowed keys (mirrors calibrate_song.py's
+# allowlist and services/psyche_facts.py). Unknown keys are dropped.
+_PF_STRING_KEYS = ("purpose", "do_not_use_if", "directions", "onset", "duration", "warning")
+_PF_ARRAY_KEYS = ("indicated_for",)
+
+
+def _clean_psyche_facts(raw: dict) -> dict:
+    """Allowlist + trim a supplied Psyche Facts bundle. Returns the cleaned dict
+    (may be empty if nothing usable survives)."""
+    pf: dict = {}
+    for k, v in raw.items():
+        if k in _PF_STRING_KEYS and isinstance(v, str):
+            t = v.strip()
+            if t:
+                pf[k] = t
+        elif k in _PF_ARRAY_KEYS and isinstance(v, list):
+            arr = [x.strip() for x in v if isinstance(x, str) and x.strip()]
+            if arr:
+                pf[k] = arr
+    return pf
+
 # Legacy sources resolve to the unified Song via song_id_map; 'songs' is the
 # unified id directly. New callers pass source='songs'; the legacy strings keep
 # old admin/frontend callers working through the map fallback.
@@ -70,6 +91,11 @@ class RegenRequest(BaseModel):
     # deadpan/topics ride here. topics are validated against the ether taxonomy.
     deadpan_line: Optional[str] = None
     topics: Optional[list[str]] = None
+    # Optional supplied Psyche Facts prescription bundle (Claude Code is the model).
+    # There is no other live-song psyche_facts supply path -- calibrate_song.py only
+    # reaches songs inside an agent draft -- so a standalone song's bundle rides
+    # here. Allowlist-cleaned to the known sibling keys (mirrors calibrate_song.py).
+    psyche_facts: Optional[dict] = None
 
 
 class RegenResult(BaseModel):
@@ -87,6 +113,8 @@ class RegenResult(BaseModel):
     deadpan_line: Optional[str] = None
     topics: Optional[list] = None
     ether_changed: bool = False
+    psyche_facts: Optional[dict] = None
+    psyche_facts_changed: bool = False
 
 
 @router.post("/regenerate", response_model=RegenResult)
@@ -187,10 +215,16 @@ async def regenerate_prose(
     new_listener_effects_prose = calibration.get("listener_effects_prose")
     new_societal_effects_prose = calibration.get("societal_effects_prose")
 
-    if not new_listener_effects_prose and not new_societal_effects_prose and not ether_supplied:
+    # Psyche Facts bundle (Claude-Code-supplied) rides straight to the row, no
+    # model call. Cleaned to the allowlist; an empty result writes nothing.
+    new_psyche_facts = _clean_psyche_facts(body.psyche_facts) if body.psyche_facts else None
+    pf_supplied = bool(new_psyche_facts)
+
+    if (not new_listener_effects_prose and not new_societal_effects_prose
+            and not ether_supplied and not pf_supplied):
         raise HTTPException(
             status_code=502,
-            detail="Both generation steps failed -- no prose produced. Check logs.",
+            detail="Nothing to write -- no prose, ether, or psyche_facts produced. Check logs.",
         )
 
     # --- Phase 3: write (archive old, apply new) in one transaction ----------
@@ -222,14 +256,21 @@ async def regenerate_prose(
             import json as _json
             song.topics = _json.dumps(body.topics)
 
+        # Psyche Facts bundle stored as the JSON-encoded string the column expects
+        # (same convention as topics; the badge _parse_json decodes it on read).
+        if new_psyche_facts:
+            import json as _jsonpf
+            song.psyche_facts = _jsonpf.dumps(new_psyche_facts)
+
         db_write.commit()
 
         logger.info(
-            "prose_regen: %s/%s %s/%s -- effects=%s societal=%s ether=%s",
+            "prose_regen: %s/%s %s/%s -- effects=%s societal=%s ether=%s psyche_facts=%s",
             source, song_id, title, artist,
             "ok" if new_listener_effects_prose else "skipped",
             "ok" if new_societal_effects_prose else "skipped",
             "ok" if ether_supplied else "skipped",
+            "ok" if pf_supplied else "skipped",
         )
 
         topics_out = None
@@ -255,6 +296,8 @@ async def regenerate_prose(
             deadpan_line=song.deadpan_line,
             topics=topics_out,
             ether_changed=ether_supplied,
+            psyche_facts=new_psyche_facts,
+            psyche_facts_changed=pf_supplied,
         )
     except HTTPException:
         db_write.rollback()
