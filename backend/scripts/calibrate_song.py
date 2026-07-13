@@ -128,6 +128,7 @@ def main() -> int:
     p.add_argument("--topic-audit-rationale", default=None, help="Audit escape hatch: one-sentence rationale for the proposed slug.")
     p.add_argument("--lyrics-file", default=None, help="Read lyrics from a file instead of stdin.")
     p.add_argument("--psyche-facts-file", default=None, help="Path to a JSON file with the Psyche Facts prescription bundle: purpose, indicated_for[], do_not_use_if, directions, onset, duration, warning. Unknown keys are dropped.")
+    p.add_argument("--effect-pl", action="append", dest="effects_pl", default=None, help="Per-listen effect slug from the closed vocabulary (app/services/effects_pl_vocab.py). Repeatable. Validated against VALID_EFFECTS_PL.")
     p.add_argument("--reasoning", default=None, help="The structured calibration argument to store on the run. Scrubbed of verbatim lyrics server-side.")
     p.add_argument("--reasoning-file", default=None, help="Read the calibration argument from a UTF-8 file instead of --reasoning.")
     args = p.parse_args()
@@ -236,6 +237,17 @@ def main() -> int:
                 print(f"! psyche-facts: dropped unknown/invalid key {k!r}", file=sys.stderr)
         if pf:
             calibration["psyche_facts"] = pf
+
+    # --- Per-listen effects (effects_pl slugs) ---------------------------------
+    # Claude-Code-supplied slugs from the closed vocabulary; validated here so a
+    # typo fails fast rather than silently dropping server-side.
+    if args.effects_pl:
+        from app.services.effects_pl_vocab import VALID_EFFECTS_PL, clean_effects_pl
+        invalid = [s for s in args.effects_pl if s not in VALID_EFFECTS_PL]
+        if invalid:
+            print(f"invalid effects_pl slug(s): {invalid}. Valid: {sorted(VALID_EFFECTS_PL)}", file=sys.stderr)
+            return 2
+        calibration["effects_pl"] = clean_effects_pl(args.effects_pl)
 
     # --- Ether Art Chart fields (deadpan_line + topics | topic_audit) ---
     audit_parts = [args.topic_audit_reason, args.topic_audit_tag, args.topic_audit_rationale]

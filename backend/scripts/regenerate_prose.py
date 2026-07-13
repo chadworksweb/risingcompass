@@ -68,6 +68,12 @@ def main() -> int:
                    help="Path to a JSON file with the Psyche Facts prescription bundle: "
                         "purpose, indicated_for[], do_not_use_if, directions, onset, "
                         "duration, warning. Unknown keys are dropped server-side.")
+    p.add_argument("--effect-pl", action="append", dest="effects_pl", default=None,
+                   help="Per-listen effect slug from the closed vocabulary "
+                        "(services/effects_pl_vocab.py). Repeatable. To clear all, "
+                        "use --effects-pl-clear instead.")
+    p.add_argument("--effects-pl-clear", action="store_true",
+                   help="Clear all per-listen effects on the song (writes NULL).")
     p.add_argument("--force", action="store_true",
                    help="Write even if the tell-guard finds HARD AI-tells (bypass the gate).")
     args = p.parse_args()
@@ -107,6 +113,12 @@ def main() -> int:
             print("--psyche-facts-file must contain a single JSON object", file=sys.stderr)
             return 2
         payload_d["psyche_facts"] = pf
+    # Per-listen effects: supplied slugs set the list; --effects-pl-clear writes
+    # []. Validated against the closed vocabulary server-side (unknown -> 422).
+    if args.effects_pl_clear:
+        payload_d["effects_pl"] = []
+    elif args.effects_pl:
+        payload_d["effects_pl"] = args.effects_pl
 
     # AI-tell guard (deterministic, zero model calls). Terminal-supplied prose
     # bypasses the server's tell-guard + semantic judge, so lint it HERE before it
@@ -189,6 +201,11 @@ def main() -> int:
         print(json.dumps(result.get("psyche_facts"), indent=2, ensure_ascii=False))
     else:
         print("[psyche_facts] not supplied")
+    print()
+    if result.get("effects_pl_changed"):
+        print("[effects_pl] written:", result.get("effects_pl"))
+    else:
+        print("[effects_pl] not supplied")
     return 0
 
 

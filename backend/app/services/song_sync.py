@@ -47,7 +47,7 @@ _CALIB = [
     "prior_societal_effects_prose", "prior_societal_prose_generated_at",
     "prior_societal_prose_model", "deadpan_line", "topics", "topic_audit",
     "activations", "calibration_failed", "message_analysis",
-    "expression_analysis", "intention_analysis", "psyche_facts",
+    "expression_analysis", "intention_analysis", "psyche_facts", "effects_pl",
 ]
 
 
@@ -286,6 +286,7 @@ def calibration_to_columns(calibration: dict) -> dict:
     topics = calibration.get("topics")
     topic_audit = calibration.get("topic_audit")
     psyche_facts = calibration.get("psyche_facts")
+    effects_pl = calibration.get("effects_pl")
     out = {k: calibration.get(k) for k in _PASSTHROUGH}
     out["contaminated"] = bool(calibration.get("contaminated", False))
     out["dogma_referenced"] = bool(calibration.get("dogma_referenced", False))
@@ -303,6 +304,12 @@ def calibration_to_columns(calibration: dict) -> dict:
         out["psyche_facts"] = psyche_facts or None
     else:
         out["psyche_facts"] = json.dumps(psyche_facts) if psyche_facts else None
+    # Per-listen effects: JSON-encoded slug list, same convention as topics. A
+    # str (already-encoded) passes through so re-encoding never double-wraps.
+    if isinstance(effects_pl, str):
+        out["effects_pl"] = effects_pl or None
+    else:
+        out["effects_pl"] = json.dumps(effects_pl) if effects_pl else None
     return out
 
 

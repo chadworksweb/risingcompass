@@ -411,6 +411,10 @@ class TerminalCalibrationIn(BaseModel):
     # indicated_for[], do_not_use_if, directions, onset, duration, warning. Mapped
     # onto songs.psyche_facts (json.dumps'd) in song_sync.calibration_to_columns.
     psyche_facts: Optional[dict] = None
+    # Per-listen effects: slugs from the closed RC vocabulary
+    # (services/effects_pl_vocab.py), mapped onto songs.effects_pl (json.dumps'd)
+    # like topics. Validated against VALID_EFFECTS_PL at supply time.
+    effects_pl: Optional[List[str]] = None
 
     @model_validator(mode="after")
     def _components_or_direct(self):

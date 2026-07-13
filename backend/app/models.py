@@ -1755,6 +1755,11 @@ class Song(Base):
     # warning. The psyche_effects tag axis joins this family once its vocab is
     # re-derived. Terminal-supplied via calibrate_song.py --psyche-facts-file.
     psyche_facts = Column(Text)
+    # Per-listen effects (migration 140): the psyche_effects tag axis. A
+    # JSON-encoded list of slugs from the closed, RC-owned vocabulary in
+    # services/effects_pl_vocab.py, stored like topics. RC is the source; the
+    # badge resolves the display labels. Terminal-supplied + validated.
+    effects_pl = Column(Text)
     calibration_failed = Column(Boolean, default=False)
     message_analysis = Column(Text)
     expression_analysis = Column(Text)

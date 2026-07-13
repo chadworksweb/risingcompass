@@ -60,6 +60,19 @@ def _parse_json(raw):
         return None
 
 
+def _effects_pl_slugs(raw) -> list:
+    """Decode songs.effects_pl (JSON slug list) to a clean, canonically-ordered
+    slug list, dropping anything not in the current vocabulary."""
+    from app.services.effects_pl_vocab import clean_effects_pl
+    return clean_effects_pl(_parse_json(raw) or [])
+
+
+def _effects_pl_labels(raw) -> list:
+    """Resolve songs.effects_pl to display labels (canonical order)."""
+    from app.services.effects_pl_vocab import labels_for
+    return labels_for(_parse_json(raw) or [])
+
+
 def _find_calibration(title: str, artist: str, db) -> dict | None:
     """Look up a song's full per-song record in the unified `songs` table.
     Exact case-insensitive (title, artist) first, then punctuation-fuzzy on
@@ -137,6 +150,11 @@ def _find_calibration(title: str, artist: str, db) -> dict | None:
         # Psyche Facts family (prescription bundle); JSON-decoded from the Text
         # column so consumers (chadlewine SongLabel) get the object directly.
         "psyche_facts": _parse_json(row.psyche_facts),
+        # Per-listen effects tag axis: the stored slugs plus resolved display
+        # labels (canonical order) from the RC-owned vocabulary, so consumers
+        # (chadlewine / DBM proliferator) pull the labels from RC.
+        "effects_pl": _effects_pl_slugs(row.effects_pl),
+        "effects_pl_labels": _effects_pl_labels(row.effects_pl),
         # --- Prose / analysis ---
         "listener_effects_prose": row.listener_effects_prose,
         "societal_effects_prose": row.societal_effects_prose,

@@ -96,6 +96,10 @@ class RegenRequest(BaseModel):
     # reaches songs inside an agent draft -- so a standalone song's bundle rides
     # here. Allowlist-cleaned to the known sibling keys (mirrors calibrate_song.py).
     psyche_facts: Optional[dict] = None
+    # Optional supplied per-listen effects (slugs from the closed RC vocabulary).
+    # Same seam as topics: validated + written straight onto the row, no model
+    # call. This is the only live-song effects_pl supply path.
+    effects_pl: Optional[list[str]] = None
 
 
 class RegenResult(BaseModel):
@@ -115,6 +119,8 @@ class RegenResult(BaseModel):
     ether_changed: bool = False
     psyche_facts: Optional[dict] = None
     psyche_facts_changed: bool = False
+    effects_pl: Optional[list] = None
+    effects_pl_changed: bool = False
 
 
 @router.post("/regenerate", response_model=RegenResult)
@@ -220,8 +226,19 @@ async def regenerate_prose(
     new_psyche_facts = _clean_psyche_facts(body.psyche_facts) if body.psyche_facts else None
     pf_supplied = bool(new_psyche_facts)
 
+    # Per-listen effects: validate against the closed vocabulary (unknown slugs
+    # are dropped; canonically ordered). Supplying [] intentionally clears.
+    new_effects_pl = None
+    epl_supplied = body.effects_pl is not None
+    if epl_supplied:
+        from app.services.effects_pl_vocab import clean_effects_pl, VALID_EFFECTS_PL
+        bad = [s for s in body.effects_pl if s not in VALID_EFFECTS_PL]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"invalid effects_pl slug(s): {bad}")
+        new_effects_pl = clean_effects_pl(body.effects_pl)
+
     if (not new_listener_effects_prose and not new_societal_effects_prose
-            and not ether_supplied and not pf_supplied):
+            and not ether_supplied and not pf_supplied and not epl_supplied):
         raise HTTPException(
             status_code=502,
             detail="Nothing to write -- no prose, ether, or psyche_facts produced. Check logs.",
@@ -262,15 +279,21 @@ async def regenerate_prose(
             import json as _jsonpf
             song.psyche_facts = _jsonpf.dumps(new_psyche_facts)
 
+        # Per-listen effects: JSON slug list, or NULL when an empty list clears.
+        if epl_supplied:
+            import json as _jsonepl
+            song.effects_pl = _jsonepl.dumps(new_effects_pl) if new_effects_pl else None
+
         db_write.commit()
 
         logger.info(
-            "prose_regen: %s/%s %s/%s -- effects=%s societal=%s ether=%s psyche_facts=%s",
+            "prose_regen: %s/%s %s/%s -- effects=%s societal=%s ether=%s psyche_facts=%s effects_pl=%s",
             source, song_id, title, artist,
             "ok" if new_listener_effects_prose else "skipped",
             "ok" if new_societal_effects_prose else "skipped",
             "ok" if ether_supplied else "skipped",
             "ok" if pf_supplied else "skipped",
+            "ok" if epl_supplied else "skipped",
         )
 
         topics_out = None
@@ -298,6 +321,8 @@ async def regenerate_prose(
             ether_changed=ether_supplied,
             psyche_facts=new_psyche_facts,
             psyche_facts_changed=pf_supplied,
+            effects_pl=new_effects_pl,
+            effects_pl_changed=epl_supplied,
         )
     except HTTPException:
         db_write.rollback()
