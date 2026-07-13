@@ -47,6 +47,15 @@ _ORDER = {slug: i for i, slug in enumerate(EFFECTS_PL_VOCAB)}
 
 VALID_EFFECTS_PL = frozenset(EFFECTS_PL_VOCAB.keys())
 
+# Shadow (negative-valence) effects: consumers style these differently. Mirrors
+# the psyche_effects.shadow flag chadlewine used before RC became the source.
+SHADOW = frozenset({
+    "feeds-the-ego",
+    "glorifies-the-escape",
+    "sinks-into-despair",
+    "perpetuates-longing",
+})
+
 
 def label_for(slug: str) -> str:
     """Display label for a slug, or the slug itself if unknown."""
@@ -70,3 +79,13 @@ def clean_effects_pl(slugs) -> list[str]:
 def labels_for(slugs) -> list[str]:
     """Resolve a list of slugs to display labels, in canonical order."""
     return [EFFECTS_PL_VOCAB[s] for s in clean_effects_pl(slugs)]
+
+
+def effects_pl_detail(slugs) -> list[dict]:
+    """Resolve slugs to [{slug, label, shadow}] in canonical order. The badge
+    shape consumers (chadlewine, DBM) render from, so a negative effect can be
+    styled by its valence without keeping a separate vocabulary."""
+    return [
+        {"slug": s, "label": EFFECTS_PL_VOCAB[s], "shadow": s in SHADOW}
+        for s in clean_effects_pl(slugs)
+    ]

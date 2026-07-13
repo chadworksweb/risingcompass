@@ -68,9 +68,10 @@ def _effects_pl_slugs(raw) -> list:
 
 
 def _effects_pl_labels(raw) -> list:
-    """Resolve songs.effects_pl to display labels (canonical order)."""
-    from app.services.effects_pl_vocab import labels_for
-    return labels_for(_parse_json(raw) or [])
+    """Resolve songs.effects_pl to [{slug, label, shadow}] (canonical order) so
+    consumers render + style the effect tags without their own vocabulary."""
+    from app.services.effects_pl_vocab import effects_pl_detail
+    return effects_pl_detail(_parse_json(raw) or [])
 
 
 def _find_calibration(title: str, artist: str, db) -> dict | None:

@@ -48,6 +48,31 @@ def _parse_topics(raw) -> list[str] | None:
         return None
 
 
+def _parse_json(raw):
+    """Decode a JSON-encoded Text column (psyche_facts / effects_pl); None on
+    empty or malformed input, so a bad row never breaks the push."""
+    if not raw:
+        return None
+    if not isinstance(raw, str):
+        return raw
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+
+
+def _effects_pl_slugs(raw) -> list:
+    """Decode + clean the stored effects_pl slug list against the vocabulary."""
+    from app.services.effects_pl_vocab import clean_effects_pl
+    return clean_effects_pl(_parse_json(raw) or [])
+
+
+def _effects_pl_detail(raw) -> list:
+    """Decode effects_pl to [{slug, label, shadow}] (badge display shape)."""
+    from app.services.effects_pl_vocab import effects_pl_detail
+    return effects_pl_detail(_parse_json(raw) or [])
+
+
 def build_badge_payload(song) -> dict:
     """Build the full badge record (chadlewine's RisingCompassBadgeData shape)
     from a canonical `songs` row. Self-contained: reads only loaded attributes,
@@ -68,6 +93,13 @@ def build_badge_payload(song) -> dict:
         "topics": _parse_topics(getattr(song, "topics", None)),
         "listener_effects_prose": getattr(song, "listener_effects_prose", None),
         "societal_effects_prose": getattr(song, "societal_effects_prose", None),
+        # Psyche Facts family: the prescription bundle + the per-listen effects
+        # axis, so chadlewine / DBM read them from the badge instead of keeping
+        # their own drifting copies. effects_pl_labels carries the display detail
+        # ({slug,label,shadow}); effects_pl the raw slugs.
+        "psyche_facts": _parse_json(getattr(song, "psyche_facts", None)),
+        "effects_pl": _effects_pl_slugs(getattr(song, "effects_pl", None)),
+        "effects_pl_labels": _effects_pl_detail(getattr(song, "effects_pl", None)),
         "confidence": getattr(song, "confidence", None),
         "song_source": "songs",
     }
