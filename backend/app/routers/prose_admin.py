@@ -303,6 +303,16 @@ async def regenerate_prose(
             "ok" if epl_supplied else "skipped",
         )
 
+        # Propagate to chadlewine so its badge cache reflects the new prose /
+        # psyche_facts / effects_pl immediately (this path bypasses
+        # record_and_reconcile, which is the usual push site). Fire-and-forget,
+        # fail-soft, ships dark unless the webhook env is set.
+        try:
+            from app.services.chadlewine_webhook import push_song_classification
+            push_song_classification(song)
+        except Exception:
+            logger.warning("chadlewine push after prose_regen failed (non-fatal)", exc_info=True)
+
         topics_out = None
         if song.topics:
             import json as _json2
