@@ -127,8 +127,7 @@ def main() -> int:
     p.add_argument("--topic-audit-tag", default=None, help="Audit escape hatch: proposed new slug.")
     p.add_argument("--topic-audit-rationale", default=None, help="Audit escape hatch: one-sentence rationale for the proposed slug.")
     p.add_argument("--lyrics-file", default=None, help="Read lyrics from a file instead of stdin.")
-    p.add_argument("--psyche-facts-file", default=None, help="Path to a JSON file with the Psyche Facts prescription bundle: purpose, indicated_for[], do_not_use_if, directions, onset, duration, warning. Unknown keys are dropped.")
-    p.add_argument("--effect-pl", action="append", dest="effects_pl", default=None, help="Per-listen effect slug from the closed vocabulary (app/services/effects_pl_vocab.py). Repeatable. Validated against VALID_EFFECTS_PL.")
+    p.add_argument("--psyche-facts-file", default=None, help="REQUIRED. Path to a JSON file with the WHOLE Psyche Facts panel: purpose, indicated_for[], do_not_use_if, directions, onset, duration, warning, AND effects_pl[] (per-listen effect slugs from the closed vocabulary in app/services/effects_pl_vocab.py). One panel, one file. Unknown keys are dropped.")
     p.add_argument("--reasoning", default=None, help="The structured calibration argument to store on the run. Scrubbed of verbatim lyrics server-side.")
     p.add_argument("--reasoning-file", default=None, help="Read the calibration argument from a UTF-8 file instead of --reasoning.")
     args = p.parse_args()
@@ -147,6 +146,23 @@ def main() -> int:
             "--listener-effects-prose-file is REQUIRED (terminal = zero Anthropic). "
             "Omitting it makes the server generate the prose via Anthropic. Write "
             "the listener-effects prose yourself and supply it.",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Psyche Facts is not an add-on to the lens, it is another step OF it. On the
+    # public path it is generated automatically and nobody asks for it; the
+    # terminal path turns that generator off (allow_prose_generation=False) and
+    # therefore owes the panel. Nothing else enforces this -- the server has no
+    # backstop and a missing panel lands NULL on a write that looks perfectly
+    # clean, which is how 1994-1998 #11-20 shipped 54 rows with zero psyche facts.
+    if not args.psyche_facts_file:
+        print(
+            "--psyche-facts-file is REQUIRED (terminal = zero Anthropic, and the "
+            "panel is part of the lens, not an extra). Compose it from the fields "
+            "you already wrote (tier, charge, summary, topics, deadpan, both "
+            "proses) per PSYCHE_FACTS_VOICE in app/services/psyche_facts.py, and "
+            "include effects_pl[] in the SAME file.",
             file=sys.stderr,
         )
         return 2
@@ -211,43 +227,68 @@ def main() -> int:
     if args.societal_prose_file:
         calibration["societal_effects_prose"] = Path(args.societal_prose_file).read_text(encoding="utf-8").strip()
 
-    # --- Psyche Facts family (prescription bundle) -----------------------------
-    # Claude-Code-authored, supplied here so the server stores it with no model
-    # call. Allowlist-cleaned to the known sibling keys (mirrors chadlewine's
-    # cleanMeta); the distilled effects[]/at_scale[] are intentionally NOT keys
-    # -- the label renders the full listener/societal prose instead.
-    if args.psyche_facts_file:
-        raw_pf = json.loads(Path(args.psyche_facts_file).read_text(encoding="utf-8"))
-        if not isinstance(raw_pf, dict):
-            print("--psyche-facts-file must contain a single JSON object", file=sys.stderr)
-            return 2
-        PF_STRING_KEYS = ("purpose", "do_not_use_if", "directions", "onset", "duration", "warning")
-        PF_ARRAY_KEYS = ("indicated_for",)
-        pf: dict = {}
-        for k, v in raw_pf.items():
-            if k in PF_STRING_KEYS and isinstance(v, str):
-                t = v.strip()
-                if t:
-                    pf[k] = t
-            elif k in PF_ARRAY_KEYS and isinstance(v, list):
-                arr = [x.strip() for x in v if isinstance(x, str) and x.strip()]
-                if arr:
-                    pf[k] = arr
-            else:
-                print(f"! psyche-facts: dropped unknown/invalid key {k!r}", file=sys.stderr)
-        if pf:
-            calibration["psyche_facts"] = pf
+    # --- Psyche Facts panel (prescription bundle + per-listen effects) ---------
+    # ONE panel, ONE file. The prescription bundle and the per-listen effects tags
+    # are the same thing (effects_pl is the tag axis this family reserves, see
+    # migration 140) and the server generator composes them in a single call, so
+    # the terminal path supplies them the same way. They land on two different
+    # columns, which is precisely why they arrive together here: split inputs are
+    # what let effects_pl go missing for a whole corpus.
+    #
+    # Claude-Code-authored, supplied so the server stores it with no model call.
+    # Allowlist-cleaned to the known sibling keys (mirrors chadlewine's cleanMeta);
+    # the distilled effects[]/at_scale[] are intentionally NOT keys -- the label
+    # renders the full listener/societal prose instead.
+    raw_pf = json.loads(Path(args.psyche_facts_file).read_text(encoding="utf-8"))
+    if not isinstance(raw_pf, dict):
+        print("--psyche-facts-file must contain a single JSON object", file=sys.stderr)
+        return 2
+    PF_STRING_KEYS = ("purpose", "do_not_use_if", "directions", "onset", "duration", "warning")
+    PF_ARRAY_KEYS = ("indicated_for",)
+    pf: dict = {}
+    raw_effects_pl = None
+    for k, v in raw_pf.items():
+        if k == "effects_pl":
+            raw_effects_pl = v
+        elif k in PF_STRING_KEYS and isinstance(v, str):
+            t = v.strip()
+            if t:
+                pf[k] = t
+        elif k in PF_ARRAY_KEYS and isinstance(v, list):
+            arr = [x.strip() for x in v if isinstance(x, str) and x.strip()]
+            if arr:
+                pf[k] = arr
+        else:
+            print(f"! psyche-facts: dropped unknown/invalid key {k!r}", file=sys.stderr)
+    if not pf.get("purpose"):
+        print(
+            "--psyche-facts-file needs at least `purpose`; a panel without it is "
+            "not a usable label (mirrors the server's _clean_bundle).",
+            file=sys.stderr,
+        )
+        return 2
+    calibration["psyche_facts"] = pf
 
-    # --- Per-listen effects (effects_pl slugs) ---------------------------------
-    # Claude-Code-supplied slugs from the closed vocabulary; validated here so a
-    # typo fails fast rather than silently dropping server-side.
-    if args.effects_pl:
-        from app.services.effects_pl_vocab import VALID_EFFECTS_PL, clean_effects_pl
-        invalid = [s for s in args.effects_pl if s not in VALID_EFFECTS_PL]
-        if invalid:
-            print(f"invalid effects_pl slug(s): {invalid}. Valid: {sorted(VALID_EFFECTS_PL)}", file=sys.stderr)
-            return 2
-        calibration["effects_pl"] = clean_effects_pl(args.effects_pl)
+    # The tag axis rides in the same object. Validated here so a typo fails FAST
+    # and loud, rather than being silently dropped server-side and leaving the
+    # column NULL on a write that looks clean.
+    if raw_effects_pl is None:
+        print(
+            "--psyche-facts-file must include effects_pl[] (the per-listen effects "
+            "are part of the panel, not a separate feature). Pass [] only if no "
+            "slug in the closed vocabulary honestly fits.",
+            file=sys.stderr,
+        )
+        return 2
+    if not isinstance(raw_effects_pl, list):
+        print("psyche-facts effects_pl must be a JSON array of slugs", file=sys.stderr)
+        return 2
+    from app.services.effects_pl_vocab import VALID_EFFECTS_PL, clean_effects_pl
+    invalid = [s for s in raw_effects_pl if s not in VALID_EFFECTS_PL]
+    if invalid:
+        print(f"invalid effects_pl slug(s): {invalid}. Valid: {sorted(VALID_EFFECTS_PL)}", file=sys.stderr)
+        return 2
+    calibration["effects_pl"] = clean_effects_pl(raw_effects_pl)
 
     # --- Ether Art Chart fields (deadpan_line + topics | topic_audit) ---
     audit_parts = [args.topic_audit_reason, args.topic_audit_tag, args.topic_audit_rationale]

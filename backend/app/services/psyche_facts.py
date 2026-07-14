@@ -27,8 +27,11 @@ from typing import Optional
 
 from anthropic import Anthropic
 
+from dataclasses import dataclass, field
+
 from app.config import settings
 from app.services.claude_meter import tracked_create
+from app.services.effects_pl_vocab import EFFECTS_PL_VOCAB, clean_effects_pl
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,19 @@ TIER_LABELS = {
 PF_STRING_KEYS = ("purpose", "do_not_use_if", "directions", "onset", "duration", "warning")
 PF_ARRAY_KEYS = ("indicated_for",)
 
+# effects_pl (the per-listen effects tag axis) is PART OF THIS FAMILY, not a
+# neighbouring feature: migration 140 adds it as "the psyche_effects tag axis the
+# Psyche Facts family reserved". It is generated HERE, in the same call that
+# composes the bundle, from the same substrate, so the family cannot come apart
+# again. It is NOT a bundle key -- it lands on its own `songs.effects_pl` column
+# -- so it rides back on the result object beside the bundle and both are written
+# together by the caller. Before 2026-07-14 the bundle had a generator and the tag
+# axis did not, which left effects_pl NULL on the public path forever and made it
+# look optional on the terminal path.
+_VOCAB_BLOCK = "\n".join(
+    f"- {slug}: {label}" for slug, label in EFFECTS_PL_VOCAB.items()
+)
+
 
 PSYCHE_FACTS_VOICE = """You are writing the "Psyche Facts" panel for a Rising Compass song page: a prescription label, in the exact register of an over-the-counter drug facts panel, for what one song does to the person who takes it. You are given the song's already-written clinical readings (its effect on a listener and on a society) plus its charge data. Compose the prescription from those, never from the raw song.
 
@@ -64,6 +80,10 @@ A clinical pharmacist writing the label. Plain, exact, unsentimental, second per
 - "onset": a short clinical phrase for how fast it takes hold ("Fast. Takes hold inside the first chorus.").
 - "duration": a short clinical phrase for how long the effect lasts.
 - "warning": 1 sentence. The caution a careful user should carry.
+- "effects_pl": an array of 1 to 4 SLUGS naming what one listen actually does to the person. Pick ONLY from the closed vocabulary below, copying each slug EXACTLY. This is the same panel's active-effects line, so choose what the supplied readings actually support, never what the song aspires to. Most songs earn 1 to 3; four is a lot. A negative or contaminated song takes the shadow effects (feeds-the-ego, glorifies-the-escape, sinks-into-despair, perpetuates-longing) when the readings support them. If nothing in the vocabulary honestly fits, return an empty array rather than forcing one.
+
+THE CLOSED effects_pl VOCABULARY (slug: meaning). Use the slug, never the label:
+{vocab}
 
 ## Hard requirements
 
@@ -74,6 +94,7 @@ A clinical pharmacist writing the label. Plain, exact, unsentimental, second per
 - Never reference Rising Compass, tiers, colors, charge numbers, or any calibration vocabulary.
 - Never quote the song's lyrics.
 - indicated_for is exactly four items.
+- effects_pl slugs must match the vocabulary exactly. An unknown slug is dropped silently, so a typo costs the tag.
 
 ## One example of the register (QUALITY BAR, do NOT copy its content)
 
@@ -84,10 +105,30 @@ A clinical pharmacist writing the label. Plain, exact, unsentimental, second per
   "directions": "Play once when the nerves hit, before you reach out. Avoid looping it as a stand-in for saying the thing out loud.",
   "onset": "Fast. Takes hold inside the first chorus.",
   "duration": "Runs the length of the track. The state it names outlasts the play only if the attachment does.",
-  "warning": "Comfort with the nervous loop can turn into permission to stay in it."
+  "warning": "Comfort with the nervous loop can turn into permission to stay in it.",
+  "effects_pl": ["commiserates", "perpetuates-longing"]
 }
 
 Output the JSON object now."""
+
+# The closed vocabulary is injected rather than hand-copied into the prompt, so the
+# prompt can never drift from effects_pl_vocab.py (the RC-owned single source).
+# .replace, not .format: the prompt's example contains literal JSON braces.
+PSYCHE_FACTS_VOICE = PSYCHE_FACTS_VOICE.replace("{vocab}", _VOCAB_BLOCK)
+
+
+@dataclass
+class PsycheFactsResult:
+    """One Psyche Facts synthesis: the prescription bundle plus the per-listen
+    effects tags, which are ONE panel and are always produced together.
+
+    They land on two different columns (`songs.psyche_facts`, `songs.effects_pl`),
+    which is exactly why they ride home on one object: the caller writes both or
+    neither, and the family cannot silently half-populate.
+    """
+
+    bundle: dict
+    effects_pl: list[str] = field(default_factory=list)
 
 
 def _no_dash(s: str) -> str:
@@ -154,9 +195,16 @@ def generate_psyche_facts(
     topics: str | list | None = None,
     listener_effects_prose: str | None = None,
     societal_effects_prose: str | None = None,
-) -> Optional[dict]:
-    """Synthesize the Psyche Facts prescription bundle. Returns the dict of allowed
-    keys, or None on any failure (missing inputs, API error, unparseable output).
+) -> Optional[PsycheFactsResult]:
+    """Synthesize the Psyche Facts panel: the prescription bundle AND the
+    per-listen effects tags, in one call, from one substrate. Returns a
+    PsycheFactsResult, or None on any failure (missing inputs, API error,
+    unparseable output).
+
+    The tag axis is generated here rather than anywhere else because it IS part of
+    this family (migration 140), and splitting the two is what left `effects_pl`
+    NULL across the corpus. Callers write `result.bundle` and `result.effects_pl`
+    together.
 
     Grounded in the listener/societal prose + charge; requires at least the
     listener prose and a charge_summary (the synthesis substrate). Fails soft.
@@ -223,4 +271,13 @@ def generate_psyche_facts(
     bundle = _clean_bundle(parsed) if parsed is not None else None
     if bundle is None:
         logger.warning("psyche_facts output unparseable/empty for %s / %s", title, artist)
-    return bundle
+        return None
+    # The tag axis rides in the same JSON object and is allowlisted through the
+    # vocabulary's own cleaner (drops unknown slugs, de-dups, canonical order), so
+    # a hallucinated slug costs that tag and nothing else. An empty list is a legal
+    # outcome (the prompt permits it when nothing honestly fits) and never voids
+    # the bundle.
+    effects_pl = clean_effects_pl((parsed or {}).get("effects_pl"))
+    if not effects_pl:
+        logger.info("psyche_facts returned no usable effects_pl for %s / %s", title, artist)
+    return PsycheFactsResult(bundle=bundle, effects_pl=effects_pl)

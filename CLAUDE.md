@@ -219,19 +219,59 @@ apparatus were REMOVED 2026-06-21). Reading the saved file, LEC files, or
 DRIFT behind the live deploy and are NOT the canonical copy — the saved
 `LEC-RUBRIC-LIVE.md` is.)
 
-**No server-side prose generation from terminal.** The terminal `/lyrics` path
-(`calibrate_song.py` -> `_store_calibration` -> `record_and_reconcile`) calls
-Anthropic to generate `listener_effects_prose` whenever the calibration object
-does not carry it (`prose_missing`, `calibration_corpus.py`), and
-`societal_effects_prose` whenever topics are supplied without the societal prose.
-So Claude Code WRITES both prose pieces and supplies them:
-`--listener-effects-prose-file` is REQUIRED (the script now enforces it);
-`--societal-prose-file` is required whenever any ether field is supplied. **Both
-proses follow the voice defined in the code constants themselves -- read
-`LISTENER_EFFECTS_VOICE` / `SOCIETAL_VOICE` (in `listener_effects_prose.py` /
-`societal_effects_prose.py`) FRESH each session. They are the source of truth and
-get retuned, so this file does NOT restate the voice, length, or person -- take
-those from the constants, never from a doc.** The server generators gate prose
+**THE PIPELINE IS THE PIPELINE. A calibration is not done until all FOUR
+generated fields are on the row.** On the public path every one of these is
+produced automatically and nobody asks for them. The terminal path sets
+`allow_prose_generation=False` because Claude Code IS the model and supplies them
+instead. That flag is ONE switch: flipping it makes you owe the whole set.
+**Supplying some of them is not a partial success, it is a broken write.** There
+is no "optional" member and no "backfill it later" -- later is how 1994-1998
+#11-20 landed 54 rows deep with zero psyche facts.
+
+THE TERMINAL SUPPLY SET (every calibration, no exceptions):
+1. `--listener-effects-prose-file` -- the script hard-errors without it.
+2. `--societal-prose-file` -- required whenever any ether field is supplied
+   (writing `topics` arms the societal hook).
+3. `--psyche-facts-file` -- the prescription bundle. JSON object, keys `purpose`,
+   `indicated_for[]`, `do_not_use_if`, `directions`, `onset`, `duration`,
+   `warning` (`PF_STRING_KEYS` / `PF_ARRAY_KEYS`); unknown keys are dropped
+   silently.
+4. `--effect-pl` (repeatable) -- the per-listen effects. **This is PART OF PSYCHE
+   FACTS**, not a separate feature: `songs.effects_pl` is the psyche_effects tag
+   axis the Psyche Facts family reserves (see `migrations/140_add_effects_pl.py`
+   and `effects_pl_vocab.py`, both of which say so in their first sentence).
+   Slugs from the closed RC-owned vocabulary in `effects_pl_vocab.py`, validated
+   against `VALID_EFFECTS_PL`. Read the vocab fresh; never hardcode the list.
+
+**DO NOT use "has a generator hook" as the test for whether a field is part of
+the pipeline. It is not the test and it will mislead you.** `deadpan_line`,
+`topics`, and `effects_pl` have NO hook precisely BECAUSE they are terminal-
+supplied by design. Absence of a hook means the obligation is entirely yours, the
+opposite of optional. The test is whether the field is part of the lens.
+Everything above is.
+
+Nothing enforces items 3 and 4. `--psyche-facts-file` and `--effect-pl` are both
+`default=None`, and there is no server backstop for either: they land NULL and the
+write looks perfectly clean. Only you catch this.
+
+Psyche facts is SYNTHESIS, not a fresh lyric read: compose the bundle and pick the
+per-listen effects from the fields you already wrote (tier, charge,
+`charge_summary`, `topics`, `deadpan_line`, both proses), never from the lyrics.
+Lyric-free by construction, so it carries no filter or lyric-guard risk and costs
+nothing but the writing.
+
+**If you write directly to `_store_calibration` (the backfill lane) instead of
+through `calibrate_song.py`, you bypass every script check and the whole
+obligation is yours alone.** Verify every write on all four columns:
+`listener_effects_prose`, `societal_effects_prose`, `psyche_facts`, `effects_pl`
+all non-NULL. A row is not verified until they are.
+
+**All three follow the voice defined in the code constants themselves -- read
+`LISTENER_EFFECTS_VOICE` / `SOCIETAL_VOICE` / `PSYCHE_FACTS_VOICE` (in
+`listener_effects_prose.py` / `societal_effects_prose.py` / `psyche_facts.py`)
+FRESH each session. They are the source of truth and get retuned, so this file
+does NOT restate the voice, length, or person -- take those from the constants,
+never from a doc.** The server generators gate prose
 through a deterministic tell-guard (A-R) + a
 semantic judge fail-closed, but the terminal SUPPLY path is NOT auto-gated -- so
 scan every supplied prose yourself before shipping: `cat file | .venv/Scripts/

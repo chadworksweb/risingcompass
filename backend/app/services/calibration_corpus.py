@@ -630,19 +630,29 @@ def record_and_reconcile(
                 logger.exception("societal_effects_prose hook failed for %s/%s", source, song.id)
 
         # Psyche Facts synthesis hook. Fires when the row has tier + summary + the
-        # listener prose (the synthesis substrate) AND the bundle is missing or the
+        # listener prose (the synthesis substrate) AND the panel is incomplete or the
         # tier/summary shifted. SYNTHESIS from the already-generated fields
         # (lyric-free), so it never touches raw lyrics. allow_prose_generation gates
         # it to the public path exactly like the two prose hooks; the terminal path
-        # supplies the bundle via calibrate_song.py --psyche-facts-file and passes
+        # supplies the whole panel via calibrate_song.py --psyche-facts-file (which
+        # carries effects_pl[] in the same object) and passes
         # allow_prose_generation=False, so this never fires there. Fails soft.
-        pf_missing = not getattr(song, "psyche_facts", None)
+        #
+        # THE PANEL IS ONE THING: the prescription bundle (`psyche_facts`) and the
+        # per-listen effects tags (`effects_pl`, the tag axis this family reserves,
+        # migration 140) are generated in ONE call and written TOGETHER below.
+        # Before 2026-07-14 only the bundle had a generator, so effects_pl was NULL
+        # corpus-wide on the public path and read as optional on the terminal path.
+        # Hence `pf_missing` covers BOTH columns: a row holding one without the
+        # other is incomplete and re-fires.
+        pf_missing = not (getattr(song, "psyche_facts", None)
+                          and getattr(song, "effects_pl", None))
         if (allow_prose_generation and cur_color and cur_summary
                 and getattr(song, "listener_effects_prose", None)
                 and (pf_missing or tier_or_summary_changed)):
             try:
                 from app.services.psyche_facts import generate_psyche_facts
-                bundle = generate_psyche_facts(
+                pf_result = generate_psyche_facts(
                     title=getattr(song, "title", None) or title or "",
                     artist=getattr(song, "artist", None) or artist or "",
                     rubric_color=cur_color,
@@ -655,8 +665,13 @@ def record_and_reconcile(
                     listener_effects_prose=getattr(song, "listener_effects_prose", None),
                     societal_effects_prose=getattr(song, "societal_effects_prose", None),
                 )
-                if bundle:
-                    song.psyche_facts = json.dumps(bundle)
+                if pf_result:
+                    song.psyche_facts = json.dumps(pf_result.bundle)
+                    # Written in the same breath as the bundle. An empty list is a
+                    # legal synthesis outcome, so only overwrite when the call
+                    # actually produced tags -- never null out an existing set.
+                    if pf_result.effects_pl:
+                        song.effects_pl = json.dumps(pf_result.effects_pl)
             except Exception:
                 logger.exception("psyche_facts hook failed for %s/%s", source, song.id)
 
