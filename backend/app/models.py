@@ -1833,6 +1833,42 @@ class SongIngestion(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SongIdentityAlias(Base):
+    """Human-confirmed identity bridge -- rung 1b of resolve_song_identity.
+
+    One row = "this incoming feeder string IS that Library song", asserted by a
+    human. It exists for the strings the deterministic rungs cannot reach and
+    SHOULD NOT be widened to reach: a feeder that carries a version marker the
+    cleaner deliberately preserves ("MORNING DEW" vs the stored "MORNING DEW
+    (DONK)"), or one crediting a channel where the Library row carries the real
+    performer ("DisneyMusic" vs the stored "Descendants Cast"). Widening a rung to
+    catch those would false-merge genuine remixes and same-title works; a
+    human-confirmed row cannot.
+
+    Written automatically by scripts/server_only/relink_draft_song.py, so the
+    relink that fixes today's draft is the LAST relink for that string.
+
+    alias_key is compute_canonical_key_clean() of the string the feeder sent (the
+    clean normalizer, so diacritics fold). UNIQUE: one incoming identity resolves
+    to exactly one song. Merges repoint aliases onto the survivor (song_merge).
+    """
+    __tablename__ = "song_identity_aliases"
+    __table_args__ = (
+        UniqueConstraint("alias_key", name="uq_song_identity_aliases_key"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alias_key = Column(Text, nullable=False)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    # The raw incoming strings, kept for humans auditing the table (the key is
+    # normalized past recognition).
+    alias_title = Column(Text)
+    alias_artist = Column(Text)
+    source = Column(Text, nullable=False, default="relink")  # relink | admin
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class SongIdMap(Base):
     """Migration-only old (source, id) -> new songs.id mapping. Permanent through
     Phase 5 as the reverse-mapping rollback net."""

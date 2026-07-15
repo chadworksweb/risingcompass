@@ -158,6 +158,14 @@ def merge_songs(conn, source_id: int, target_id: int, *, actor: str | None = Non
     ), {"src": source_id, "tgt": target_id})
     _repoint("release_songs")
 
+    # song_identity_aliases UNIQUE(alias_key) -- global, so source and target can
+    # never share a key and a plain repoint cannot collide. MUST repoint (not
+    # cascade-delete): each row is a human-confirmed "this feeder string IS that
+    # song", and dropping it would resurrect the daily awaiting-lyrics relink the
+    # alias exists to kill. The FK is ON DELETE CASCADE, so this has to happen
+    # before the source row is deleted below.
+    _repoint("song_identity_aliases")
+
     # --- 3. plain repoints (no per-song UNIQUE) ----------------------------- #
     for table in (
         "reading_songs", "agent_draft_songs", "lc_events", "misread_submissions",

@@ -10,6 +10,14 @@ crufty title. The correct move is to reproduce what a cache hit does: point the
 draft-song row at the canonical `songs` row and copy its stored calibration onto
 the draft row. No new Library row, no calibration_run, no lyrics, no fabrication.
 
+This ALSO records the identity assertion in `song_identity_aliases` (rung 1b of
+resolve_song_identity), so the relink is self-extinguishing: tomorrow the feeder
+sends the same unreachable string and the alias resolves it to a free cache hit.
+Before that table existed the mapping was discarded on exit and the same relink
+recurred every single day (MORNING DEW / Beyonce and Dancing with the Enemy /
+DisneyMusic each ran for days). The alias is skipped when the raw string's exact
+canonical_key already resolves (rung 1 wins first, so the row would be dead).
+
 Runs INSIDE the prod backend container (server_only), a trusted DB source:
 
     ssh deploy@<droplet> "docker exec -i rc-backend python - <draft_song_id> <canonical_song_id> ['Clean Title'] ['Clean Artist']" \
@@ -27,6 +35,8 @@ song-merge admin (POST /api/admin/songs/{dup}/merge-into {target_id}) or
 services.song_merge.merge_songs, then relink to the survivor.
 """
 import sys
+
+from sqlalchemy import text
 
 from app.database import SessionLocal
 from app.models import AgentDraftSong, Song
@@ -52,6 +62,12 @@ try:
     if s.rubric_color is None:
         print(f"canonical song {canon_id} is not calibrated -- refusing to relink "
               f"to a stub", file=sys.stderr); raise SystemExit(1)
+
+    # Capture the RAW feeder strings BEFORE the clean-display overwrite below --
+    # the alias must key on what the feeder actually sent (that is the string that
+    # will arrive again tomorrow), never on the cleaned display we are about to
+    # write over it.
+    raw_title, raw_artist = ds.title, ds.artist
 
     # cache-hit stamp: link + copy the canonical's denormalized calibration onto
     # the draft-song row (deadpan/topics/prose live on the Song and render from
@@ -81,9 +97,43 @@ try:
     except Exception as e:
         print(f"(origin-chart record soft-fail: {e})")
 
+    # Persist the identity assertion (rung 1b). THIS is what makes the relink the
+    # LAST relink for this string: without it the feeder re-sends the same
+    # unreachable title/artist tomorrow and the song re-lists as awaiting-lyrics
+    # forever (MORNING DEW and Dancing with the Enemy each recurred for days).
+    # Idempotent on alias_key (UNIQUE); a re-point to a different song wins, since
+    # the newer human assertion is the better one. Fail-soft: an alias write must
+    # never cost us the relink itself.
+    alias_note = ""
+    try:
+        from app.services.song_identity import compute_canonical_key, compute_canonical_key_clean
+        alias_key = compute_canonical_key_clean(raw_title, raw_artist)
+        # An alias whose key is already a live canonical_key would never be read
+        # (rung 1 wins first), so writing one is noise. Skip it.
+        if not alias_key:
+            alias_note = "  (alias skipped: empty key)"
+        elif db.execute(
+            text("SELECT 1 FROM songs WHERE canonical_key = :k LIMIT 1"),
+            {"k": compute_canonical_key(raw_title, raw_artist)},
+        ).first():
+            alias_note = "  (alias skipped: exact key already resolves)"
+        else:
+            db.execute(text(
+                "INSERT INTO song_identity_aliases "
+                "  (alias_key, song_id, alias_title, alias_artist, source) "
+                "VALUES (:k, :sid, :t, :a, 'relink') "
+                "ON CONFLICT (alias_key) DO UPDATE SET "
+                "  song_id = EXCLUDED.song_id, "
+                "  alias_title = EXCLUDED.alias_title, "
+                "  alias_artist = EXCLUDED.alias_artist"
+            ), {"k": alias_key, "sid": s.id, "t": raw_title, "a": raw_artist})
+            alias_note = f"  alias={raw_title!r} / {raw_artist!r} -> song {s.id}"
+    except Exception as e:
+        alias_note = f"  (alias write soft-fail: {e})"
+
     db.commit()
     print(f"RELINKED draft_song={ds.id} -> song {s.id} "
           f"{s.title!r} / {s.artist!r}  {ds.rubric_color}/{ds.charge_value}  "
-          f"display_title={ds.title!r}")
+          f"display_title={ds.title!r}{alias_note}")
 finally:
     db.close()

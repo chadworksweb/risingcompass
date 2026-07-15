@@ -199,9 +199,10 @@ def compute_canonical_key_clean_lead(title, artist):
 class Resolution:
     """Outcome of the layered identity-resolution ladder. `song_id` is the
     resolved unified songs.id (None = no match, mint a new row). `via` records
-    which rung hit: 'exact' (canonical_key), 'clean' (canonical_key_clean), or
-    'new'. `candidates` holds gray-band ids for the Phase-2 audit queue (always
-    empty in Phase 1; the deterministic rungs auto-link or fall through)."""
+    which rung hit: 'exact' (canonical_key), 'alias' (a human-confirmed
+    song_identity_aliases row), 'clean' (canonical_key_clean), 'shared_artist',
+    'trgm', or 'new'. `candidates` holds gray-band ids for the Phase-2 audit queue
+    (empty unless the trgm rung queued one)."""
     song_id: int | None
     via: str
     candidates: list[int] = field(default_factory=list)
@@ -225,6 +226,41 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
     ).first()
     if row:
         return Resolution(song_id=row[0], via="exact")
+
+    clean_key = compute_canonical_key_clean(title, artist)
+    lead_clean_key = compute_canonical_key_clean_lead(title, artist)
+
+    # Rung 1b: human-confirmed alias. A relink is a human asserting "this feeder
+    # string IS that song"; song_identity_aliases persists that assertion so the
+    # same relink is never needed twice. It sits ABOVE every heuristic rung on
+    # purpose -- a human's confirmed mapping outranks any inference we could make
+    # -- and below the exact key only because the exact key is free and cannot
+    # disagree with an alias (an alias whose key equals a live canonical_key would
+    # never be reached, which is the correct precedence anyway).
+    #
+    # This rung exists for the strings the deterministic rungs cannot reach and
+    # SHOULD NOT be widened to reach: a preserved version marker (stored "MORNING
+    # DEW (DONK)" vs an incoming plain "MORNING DEW" -- feeder_clean never strips
+    # version markers, so remixes stay distinct works) or a channel credit where
+    # the row carries the real performer (incoming "DisneyMusic" vs a stored
+    # "Descendants Cast"). Widening a rung to catch those false-merges real
+    # distinct works; a human-confirmed row cannot.
+    #
+    # Fail-soft (mirrors rung 2c): a missing table on a stale container must
+    # degrade to the old ladder, never brick resolution.
+    if clean_key:
+        try:
+            row = db.execute(
+                text(
+                    "SELECT song_id FROM song_identity_aliases "
+                    "WHERE alias_key = :ck LIMIT 1"
+                ),
+                {"ck": clean_key},
+            ).first()
+            if row:
+                return Resolution(song_id=row[0], via="alias")
+        except Exception:
+            logger.debug("alias rung skipped (fail-soft)", exc_info=True)
 
     # Rung 2: cleaned canonical_key. Match an existing row whose stored
     # canonical_key_clean equals our clean key, OR whose RAW canonical_key equals
@@ -255,8 +291,7 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
     # lead-only (clean_title + lead), which equals :lk -- so matching the exact
     # key against the lead clean key resolves it without widening past the
     # lead-based identity canonical_key already encodes.
-    clean_key = compute_canonical_key_clean(title, artist)
-    lead_clean_key = compute_canonical_key_clean_lead(title, artist)
+    # (clean_key / lead_clean_key are computed above, for the alias rung.)
     if clean_key:
         row = db.execute(
             text(
