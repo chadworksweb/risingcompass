@@ -3477,9 +3477,23 @@ td.yo-charge {
   align-items: center;
   gap: clamp(0.35rem, 1.2vw, 0.55rem);
   padding: clamp(0.5rem, 1.6vw, 0.7rem) clamp(0.75rem, 3vw, 1.15rem);
-  background: var(--rc-bg-card);
   color: var(--rc-text-bright);
-  border: 1px solid rgba(0, 212, 170, 0.45);
+  /* Spectrum ring: the tier ramp (Ascended -> Corrupted) as the border.
+     A gradient cannot be a border-color, so the ramp is painted as a
+     BORDER-BOX background with the card fill clipped over it at PADDING-BOX;
+     the border itself is transparent, letting the ramp show through.
+     CAUTION: never set border-color on any state here (hover, focus, snoozed).
+     An opaque border-color paints over the ramp and the spectrum vanishes --
+     that is why hover moves the glow rather than the border. */
+  background:
+    linear-gradient(var(--rc-bg-card), var(--rc-bg-card)) padding-box,
+    linear-gradient(90deg,
+      var(--rc-violet) 0%,
+      var(--rc-blue) 25%,
+      var(--rc-green) 50%,
+      var(--rc-orange) 75%,
+      var(--rc-red) 100%) border-box;
+  border: 1px solid transparent;
   font-family: var(--rc-font);
   font-size: clamp(0.72rem, 2.4vw, 0.84rem);
   letter-spacing: 0.01em;
@@ -3488,11 +3502,9 @@ td.yo-charge {
     0 0 16px rgba(0, 212, 170, 0.35),
     0 0 34px rgba(0, 212, 170, 0.18),
     0 8px 24px rgba(0, 0, 0, 0.45);
-  transition: border-color 300ms ease, box-shadow 300ms ease,
-              padding 500ms ease, border-radius 500ms ease;
+  transition: box-shadow 300ms ease, padding 500ms ease, border-radius 500ms ease;
 }
 .rc-essay-toast__inner:hover {
-  border-color: rgba(0, 212, 170, 0.85);
   box-shadow:
     0 0 22px rgba(0, 212, 170, 0.55),
     0 0 46px rgba(0, 212, 170, 0.3),
