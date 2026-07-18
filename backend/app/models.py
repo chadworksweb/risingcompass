@@ -174,6 +174,12 @@ class AgentDraftSong(Base):
     # cache hit (a persistent songs row carries the flag), so the feeder stops
     # re-listing it daily. Cleared if real lyrics later surface and supersede it.
     lyrics_unavailable = Column(Boolean, default=False)
+    # Permanent null disposition: a track with NO LYRICS TO READ. A placeholder --
+    # no charge, no color, renders grey, excluded from every aggregate. Like
+    # lyrics_unavailable it is a permanent cache hit, so the feeder stops
+    # re-listing it. Distinct claim: instrumental asserts there is nothing to
+    # read, lyrics_unavailable asserts the lyrics exist but cannot be obtained.
+    instrumental = Column(Boolean, default=False)
     # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
     activations = Column(Text)
     calibration_failed = Column(Boolean, default=False)

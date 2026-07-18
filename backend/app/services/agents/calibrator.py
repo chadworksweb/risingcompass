@@ -67,13 +67,14 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
             "dogma_note": None,
             "confidence": 1.0,
         }
-    # Instrumentals carry no charge by design: charge_value and charge_summary
-    # stay NULL, the song shows a grey dot, and it is excluded from every
-    # aggregate. It is still fully RESOLVED -- there are no lyrics to read -- so
-    # a live feeder (Shazam / YouTube) that re-fetches the same instrumental
-    # every day must treat it as a cache hit, not re-list it as awaiting-lyrics
-    # forever. Only a tier (rubric_color) is required for an instrumental cache
-    # hit; non-instrumentals still need a complete charge_value + charge_summary.
+    # Instrumentals are PLACEHOLDERS: rubric_color, charge_value, and
+    # charge_summary all stay NULL, the song shows a grey dot, and it is excluded
+    # from every aggregate. It is still fully RESOLVED -- there are no lyrics to
+    # read -- so a live feeder (Shazam / YouTube) that re-fetches the same
+    # instrumental every day must treat it as a cache hit, not re-list it as
+    # awaiting-lyrics forever. The instrumental flag ALONE resolves it; requiring
+    # a tier is what forced the old green stand-in. Non-instrumentals still need a
+    # complete rubric_color + charge_value + charge_summary.
     if not existing.instrumental and (
         not existing.rubric_color
         or existing.charge_value is None
@@ -86,12 +87,6 @@ def lookup_calibrated(title: str, artist: str, db: Session) -> dict | None:
                            ("charge_value", existing.charge_value),
                            ("charge_summary", existing.charge_summary),
                        ] if not v and v != 0))
-        return None
-    if existing.instrumental and not existing.rubric_color:
-        # An instrumental still needs a tier to render its row; without one it is
-        # not yet a usable cache hit.
-        logger.warning("Instrumental '%s' by %s (id=%s) has no rubric_color",
-                       title, artist, existing.id)
         return None
     if (existing.canonical_calibration_method or "") not in _AUTHORITATIVE_METHODS:
         # Calibrated, but only by a crowd method -- not a cache hit; the caller

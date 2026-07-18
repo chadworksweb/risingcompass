@@ -280,6 +280,7 @@ class DraftSongOut(BaseModel):
     lyrics_available: bool = False
     preorder: bool = False
     lyrics_unavailable: bool = False
+    instrumental: bool = False
     dogma_referenced: bool = False
     dogma_note: Optional[str] = None
 
@@ -450,6 +451,13 @@ class LyricsUnavailableIn(BaseModel):
     lyrics are genuinely unobtainable. Default True so an empty POST body sets
     the hold; {"lyrics_unavailable": false} clears it."""
     lyrics_unavailable: bool = True
+
+
+class InstrumentalIn(BaseModel):
+    """Mark (or clear) a draft song as instrumental: a track with no lyrics to
+    read. Default True so an empty POST body sets the disposition;
+    {"instrumental": false} clears it."""
+    instrumental: bool = True
 
 
 class DraftTriggerSongIn(BaseModel):

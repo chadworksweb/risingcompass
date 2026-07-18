@@ -18,7 +18,7 @@ from app.models import AgentDraft, AgentDraftSong, ChartSnapshot, DailyReading, 
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
-    SupplyLyricsIn, PreorderIn, LyricsUnavailableIn,
+    SupplyLyricsIn, PreorderIn, LyricsUnavailableIn, InstrumentalIn,
     PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
     EditorialSupplyIn,
 )
@@ -464,6 +464,7 @@ def list_drafts(
         summ.needs_lyrics = sum(
             1 for s in songs
             if s.rubric_color is None and not s.preorder and not s.lyrics_unavailable
+            and not getattr(s, "instrumental", False)
         )
         summ.preorder_count = sum(1 for s in songs if s.preorder)
         summ.display_name = draft_display_name(d.draft_type)
@@ -590,12 +591,15 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft cannot be approved in its current state")
 
-    # Block approval if any songs still need lyrics/calibration. Pre-order songs
-    # (charting before release, no lyrics yet) are exempt: they carry no reading
-    # by design and must not hold the rest of the chart hostage.
+    # Block approval if any songs still need lyrics/calibration. The three null
+    # dispositions are exempt: pre-order (charting before release), lyrics-
+    # unavailable (released, lyrics unobtainable), and instrumental (no lyrics to
+    # read at all). Each carries no reading by design and must not hold the rest
+    # of the chart hostage.
     uncalibrated = [s for s in draft.songs
                     if s.rubric_color is None and not getattr(s, "preorder", False)
-                    and not getattr(s, "lyrics_unavailable", False)]
+                    and not getattr(s, "lyrics_unavailable", False)
+                    and not getattr(s, "instrumental", False)]
     if uncalibrated:
         missing = [f"{s.title} by {s.artist}" for s in uncalibrated]
         raise HTTPException(
@@ -622,7 +626,8 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
         from app.services.agents.compass_agent import _generate_editorial
         scored = [s for s in draft.songs
                   if not getattr(s, "preorder", False)
-                  and not getattr(s, "lyrics_unavailable", False)]
+                  and not getattr(s, "lyrics_unavailable", False)
+                  and not getattr(s, "instrumental", False)]
         editorial_input = [
             {
                 "title": s.title, "artist": s.artist, "position": s.position,
@@ -1071,6 +1076,7 @@ def _recompute_draft_aggregate(draft) -> None:
     scored = [s for s in draft.songs
               if not getattr(s, "preorder", False)
               and not getattr(s, "lyrics_unavailable", False)
+              and not getattr(s, "instrumental", False)
               and s.rubric_color is not None]
     if not scored:
         return
@@ -1198,6 +1204,76 @@ def mark_lyrics_unavailable(draft_ref: str, song_id: int, data: LyricsUnavailabl
     return out
 
 
+@router.post("/drafts/{draft_ref}/songs/{song_id}/instrumental", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
+def mark_instrumental(draft_ref: str, song_id: int, data: InstrumentalIn | None = None, db: Session = Depends(get_db)):
+    """Null a draft song as INSTRUMENTAL (or clear the flag).
+
+    A track with NO LYRICS TO READ. It is a PLACEHOLDER: no tier, no charge, it
+    renders grey, and it stays out of every aggregate. Like lyrics_unavailable
+    this is a PERMANENT cache hit -- it persists `instrumental=True` on the
+    unified songs row, so the next feeder run resolves the song and does NOT
+    re-list it as awaiting-lyrics. Distinct claim from its sibling: instrumental
+    asserts there is nothing to read, lyrics_unavailable asserts the lyrics exist
+    but cannot be obtained. A later real calibration clears the flag.
+
+    Body is optional; `{"instrumental": false}` clears it (and flips the
+    songs-row flag back off). Recomputes the draft aggregate after the change.
+    """
+    on = True if data is None else bool(data.instrumental)
+    draft = _resolve_draft(draft_ref, db)
+    if draft.status != "pending":
+        raise HTTPException(status_code=400, detail="Draft is not pending")
+    ds = next((s for s in draft.songs if s.id == song_id), None)
+    if ds is None:
+        raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
+    if on and ds.rubric_color is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Song is already calibrated; clear the calibration before marking instrumental",
+        )
+
+    ds.instrumental = on
+    if on:
+        # A placeholder carries no reading at all: no tier, no charge, no summary.
+        ds.rubric_color = None
+        ds.charge_value = None
+        ds.charge_summary = None
+        ds.lyrics_available = False
+        ds.preorder = False
+        ds.lyrics_unavailable = False
+        # Persist the disposition on the unified songs row so the feeder cache-
+        # hits it and stops re-listing. only_set_present => set just this flag
+        # without nulling anything else on an existing row.
+        from app.services.song_sync import upsert_unified_song
+        sid = upsert_unified_song(
+            db, source="compass", legacy_id=None,
+            row={
+                "title": ds.title, "artist": ds.artist,
+                "instrumental": True, "chart_source": ds.chart_source,
+            },
+            ingestion_detail={"chart_source": ds.chart_source, "disposition": "instrumental"},
+            only_set_present=True,
+        )
+        if sid:
+            ds.song_id = sid
+    else:
+        # Clearing: flip the songs-row flag back off so the song can re-list /
+        # be calibrated normally again.
+        if ds.song_id:
+            db.execute(
+                text("UPDATE songs SET instrumental = FALSE WHERE id = :i"),
+                {"i": ds.song_id},
+            )
+    _recompute_draft_aggregate(draft)
+    db.commit()
+    db.refresh(draft)
+
+    out = _resolve_draft(draft_ref, db)
+    _ = list(out.songs)
+    db.expunge_all()
+    return out
+
+
 @router.post("/drafts/{draft_ref}/songs/{song_id}/correct", response_model=CorrectionApplyOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
 def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionIn, db: Session = Depends(get_db)):
     """Admin override of an agent-calibrated draft song, before draft approval.
@@ -1306,7 +1382,14 @@ def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionI
     db.add(correction)
 
     # Recalculate draft metrics if all songs calibrated (matches update_draft behavior).
-    all_calibrated = all(s.rubric_color is not None for s in draft.songs)
+    # Null dispositions never carry a color, so they cannot gate the recompute.
+    all_calibrated = all(
+        s.rubric_color is not None
+        or getattr(s, "preorder", False)
+        or getattr(s, "lyrics_unavailable", False)
+        or getattr(s, "instrumental", False)
+        for s in draft.songs
+    )
     if all_calibrated:
         song_dicts = [
             {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
