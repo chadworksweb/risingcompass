@@ -11,6 +11,7 @@ In-memory post-filter for the normalized query is fine at current scale (~1k
 rows). If the corpus grows past ~50k this wants a precomputed normalized column.
 """
 
+import json
 import re
 from datetime import datetime, date
 from typing import Any
@@ -48,6 +49,18 @@ _METHOD_FOR_SOURCE = {
 }
 
 
+def _decode_topics(raw: str | None) -> list[str] | None:
+    """songs.topics is a JSON-encoded slug list (public metadata, already shown on
+    the song page). Decode it for the list response so consumers can facet on it."""
+    if not raw:
+        return None
+    try:
+        val = json.loads(raw)
+        return val if isinstance(val, list) else None
+    except (ValueError, TypeError):
+        return None
+
+
 def _serialize_song(song: Song, year, include_pii: bool, include_prose: bool) -> dict:
     out: dict[str, Any] = {
         "song_source": "songs",  # unified: one Library table
@@ -59,6 +72,7 @@ def _serialize_song(song: Song, year, include_pii: bool, include_prose: bool) ->
         "contaminated": bool(song.contaminated),
         "contamination_note": song.contamination_note,
         "charge_summary": song.charge_summary,
+        "topics": _decode_topics(song.topics),  # public slug list, for faceting
         "year": year,  # most-recent chart appearance year (None if non-charting)
         "album_id": song.album_id,
         "track_number": song.track_number,
