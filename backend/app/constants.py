@@ -109,3 +109,47 @@ def is_chart_draft_type(draft_type) -> bool:
     if not draft_type:
         return False
     return draft_type not in ("daily", "manual")
+
+
+# --- Draft-song null dispositions ------------------------------------------ #
+# The three per-song dispositions that carry NO reading by design: pre-order
+# (charting before release), lyrics-unavailable (released, lyrics unobtainable),
+# and instrumental (nothing to read at all). Each exempts the song from the
+# approval gate and from every aggregate.
+#
+# This lives in constants.py, a module with ZERO imports, on purpose: the
+# terminal CLI scripts need the same answer as the server, and they should not
+# have to drag httpx + the identity/search chain in to get one boolean.
+#
+# SINGLE SOURCE. The predicate used to be re-typed at every call site, and the
+# copies drifted: the approval gate checked all three flags while the approval
+# EMAIL and the terminal scripts checked only two, so a song correctly marked
+# instrumental kept being reported as awaiting-lyrics on every feeder run. Call
+# these instead of restating the rule.
+NULL_DISPOSITIONS = ("preorder", "lyrics_unavailable", "instrumental")
+
+
+def _disposition_flag(song, name):
+    """Read one disposition flag off an ORM row OR a JSON response dict, so the
+    server and the CLI scripts share one predicate over their two shapes."""
+    if isinstance(song, dict):
+        return bool(song.get(name))
+    return bool(getattr(song, name, False))
+
+
+def has_null_disposition(song):
+    """True when the song carries any disposition exempting it from the approval
+    gate and the aggregates. Accepts an ORM row or a response dict."""
+    return any(_disposition_flag(song, f) for f in NULL_DISPOSITIONS)
+
+
+def song_needs_lyrics(song):
+    """True when the song still BLOCKS approval: no reading on it and no
+    exempting disposition. THE definition of awaiting-lyrics -- the approval
+    gate, the approval email, and every terminal script must agree, so they all
+    call this. Accepts an ORM row or a response dict."""
+    if isinstance(song, dict):
+        rubric = song.get("rubric_color")
+    else:
+        rubric = getattr(song, "rubric_color", None)
+    return rubric is None and not has_null_disposition(song)

@@ -16,6 +16,7 @@ artist) for calibrate_song.py, and the cache-hit songs already calibrated.
 import json
 import sys
 
+from app.constants import song_needs_lyrics
 from app.database import SessionLocal
 from app.models import AgentDraft
 
@@ -41,9 +42,7 @@ try:
             "total": len(songs),
             "needs_lyrics": [
                 {"id": s.id, "pos": s.position, "title": s.title, "artist": s.artist}
-                for s in songs
-                if s.rubric_color is None and not getattr(s, "preorder", False)
-                and not getattr(s, "lyrics_unavailable", False)
+                for s in songs if song_needs_lyrics(s)
             ],
             # Pre-order: charting before release, nulled (no reading), exempt from
             # the approval gate. Re-lists until real lyrics drop.
@@ -56,6 +55,10 @@ try:
             "lyrics_unavailable": [
                 {"id": s.id, "pos": s.position, "title": s.title, "artist": s.artist}
                 for s in songs if getattr(s, "lyrics_unavailable", False)
+            ],
+            "instrumental": [
+                {"id": s.id, "pos": s.position, "title": s.title, "artist": s.artist}
+                for s in songs if getattr(s, "instrumental", False)
             ],
             "calibrated": [
                 {"pos": s.position, "title": s.title, "artist": s.artist,

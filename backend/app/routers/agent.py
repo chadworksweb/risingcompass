@@ -37,7 +37,7 @@ from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
 from app.services.contamination import count_contaminated, enforce_contamination_rule
-from app.constants import COLOR_LABELS, COLOR_HEX, DRAFT_TYPE_DISPLAY_NAMES, draft_display_name, is_chart_draft_type
+from app.constants import COLOR_LABELS, COLOR_HEX, DRAFT_TYPE_DISPLAY_NAMES, draft_display_name, is_chart_draft_type, has_null_disposition, song_needs_lyrics
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
 
@@ -461,11 +461,7 @@ def list_drafts(
         summ = DraftSummary.model_validate(d)
         songs = d.songs or []
         summ.song_count = len(songs)
-        summ.needs_lyrics = sum(
-            1 for s in songs
-            if s.rubric_color is None and not s.preorder and not s.lyrics_unavailable
-            and not getattr(s, "instrumental", False)
-        )
+        summ.needs_lyrics = sum(1 for s in songs if song_needs_lyrics(s))
         summ.preorder_count = sum(1 for s in songs if s.preorder)
         summ.display_name = draft_display_name(d.draft_type)
         summ.is_chart = is_chart_draft_type(d.draft_type)
@@ -596,10 +592,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     # unavailable (released, lyrics unobtainable), and instrumental (no lyrics to
     # read at all). Each carries no reading by design and must not hold the rest
     # of the chart hostage.
-    uncalibrated = [s for s in draft.songs
-                    if s.rubric_color is None and not getattr(s, "preorder", False)
-                    and not getattr(s, "lyrics_unavailable", False)
-                    and not getattr(s, "instrumental", False)]
+    uncalibrated = [s for s in draft.songs if song_needs_lyrics(s)]
     if uncalibrated:
         missing = [f"{s.title} by {s.artist}" for s in uncalibrated]
         raise HTTPException(
@@ -624,10 +617,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     # approval.
     try:
         from app.services.agents.compass_agent import _generate_editorial
-        scored = [s for s in draft.songs
-                  if not getattr(s, "preorder", False)
-                  and not getattr(s, "lyrics_unavailable", False)
-                  and not getattr(s, "instrumental", False)]
+        scored = [s for s in draft.songs if not has_null_disposition(s)]
         editorial_input = [
             {
                 "title": s.title, "artist": s.artist, "position": s.position,

@@ -7,7 +7,7 @@ from typing import Optional
 import httpx
 
 from app.config import Settings
-from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG, draft_display_name, is_chart_draft_type
+from app.constants import COLOR_LABELS, COLOR_HEX, COLOR_BG, draft_display_name, is_chart_draft_type, song_needs_lyrics
 from app.services.charge_calc import degree_to_score_display
 
 logger = logging.getLogger(__name__)
@@ -45,9 +45,7 @@ def send_draft_email(draft, songs: list, config: Settings, db=None) -> bool:
                 incomplete_titles.add(s.title.lower())
 
     charge_label = COLOR_LABELS.get(draft.charge_level, draft.charge_level)
-    needs_lyrics = [s for s in songs if s.rubric_color is None
-                    and not getattr(s, "preorder", False)
-                    and not getattr(s, "lyrics_unavailable", False)]
+    needs_lyrics = [s for s in songs if song_needs_lyrics(s)]
     display = draft_display_name(getattr(draft, "draft_type", None))
     is_chart = is_chart_draft_type(getattr(draft, "draft_type", None))
     # Chart drafts don't have a meaningful aggregate charge until every song is
@@ -116,9 +114,7 @@ def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optiona
     charge_bg = COLOR_BG.get(draft.charge_level, "#f5f5f5")
 
     # Build needs-lyrics callout
-    needs_lyrics_songs = [s for s in songs if s.rubric_color is None
-                          and not getattr(s, "preorder", False)
-                          and not getattr(s, "lyrics_unavailable", False)]
+    needs_lyrics_songs = [s for s in songs if song_needs_lyrics(s)]
     needs_lyrics_section = ""
     if needs_lyrics_songs:
         nl_items = "".join(
@@ -141,8 +137,8 @@ def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optiona
     for s in songs:
         is_preorder = getattr(s, "preorder", False)
         is_lyrics_unavail = getattr(s, "lyrics_unavailable", False)
-        is_needs_lyrics = s.rubric_color is None and not is_preorder and not is_lyrics_unavail
-        if is_needs_lyrics:
+        is_instrumental = getattr(s, "instrumental", False)
+        if song_needs_lyrics(s):
             color, bg = "#cc7700", "#fff5e0"
             label = "NEEDS LYRICS"
         elif is_preorder:
@@ -151,6 +147,11 @@ def _build_html(draft, songs: list, config: Settings, incomplete_titles: Optiona
         elif is_lyrics_unavail:
             color, bg = "#7a7a8a", "#f0f0f3"
             label = "LYRICS UNAVAILABLE"
+        elif is_instrumental:
+            # Third null disposition. It had no branch here, so a marked
+            # instrumental fell through to the needs-lyrics badge above.
+            color, bg = "#7a7a8a", "#f0f0f3"
+            label = "INSTRUMENTAL"
         else:
             color = COLOR_HEX.get(s.rubric_color, "#999")
             bg = COLOR_BG.get(s.rubric_color, "#f5f5f5")

@@ -81,6 +81,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))  # make `app` importable for taxonomy validation
 load_dotenv(ROOT / ".env")
 
+from app.constants import song_needs_lyrics  # noqa: E402
+
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except (AttributeError, ValueError):
@@ -371,11 +373,7 @@ def main() -> int:
         else:
             print(f"    ether: {calibration['deadpan_line']!r}  topics={calibration['topics']}")
 
-    remaining = sum(
-        1 for s in resp.get("songs", [])
-        if s.get("rubric_color") is None
-        and not s.get("preorder") and not s.get("lyrics_unavailable")
-    )
+    remaining = sum(1 for s in resp.get("songs", []) if song_needs_lyrics(s))
     print(f"Remaining needs-lyrics in draft: {remaining}")
     return 0
 

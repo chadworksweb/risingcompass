@@ -17,6 +17,15 @@ from app.services.contamination import count_contaminated, enforce_contamination
 
 logger = logging.getLogger(__name__)
 
+# The null dispositions carried from the calibration dict onto the draft row.
+# Sourced from constants so the WRITE and every READ (approval gate, approval
+# email, terminal scripts) agree on the same set. Hand-copying these field by
+# field is exactly how `instrumental` went missing: lookup_calibrated returned
+# it, _write_draft_and_songs ignored it, the column fell to its default False,
+# and every charting instrumental re-listed as awaiting-lyrics on every feeder
+# run no matter how many times it had been marked.
+from app.constants import NULL_DISPOSITIONS as _DISPOSITION_FIELDS
+
 
 def _write_draft_and_songs(
     *,
@@ -81,15 +90,13 @@ def _write_draft_and_songs(
                 chart_source=s["chart_source"],
                 confidence=s["confidence"],
                 lyrics_available=bool(s["lyrics_available"]),
-                # Codified disposition: an auto-detected pre-order (unreleased,
-                # no lyrics yet) is written exempt from the approval gate +
-                # excluded from aggregates, re-listing until real lyrics drop.
-                preorder=bool(s.get("preorder", False)),
-                # Permanent null disposition: a released song whose lyrics are
-                # unobtainable. A cache hit (carried on the songs row), so it is
-                # exempt from the gate and excluded from aggregates, and it does
-                # NOT re-list on the next feeder run.
-                lyrics_unavailable=bool(s.get("lyrics_unavailable", False)),
+                # Null dispositions (preorder / lyrics_unavailable /
+                # instrumental): each exempts the song from the approval gate
+                # and excludes it from the aggregates. They differ only in
+                # lifecycle -- preorder re-lists until real lyrics drop, while
+                # the other two are cache hits carried on the songs row and do
+                # NOT re-list. See _DISPOSITION_FIELDS.
+                **{f: bool(s.get(f, False)) for f in _DISPOSITION_FIELDS},
             ))
 
         db.commit()
