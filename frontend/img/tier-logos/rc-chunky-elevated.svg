@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="14" viewBox="2 6 28 14">
+  <!-- Chunky half-circle gauge: 5 thick color arcs. Transparent bg, no glow. -->
+  <!-- CX=16, CY=20, R=11, stroke-width=6 -->
+  <!-- Ascended (violet): 180 to 157.5 deg -->
+  <path d="M 5,20 A 11,11 0 0,1 5.84,15.79" fill="none" stroke="#9933ff" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Elevated (blue): 157.5 to 112.5 deg -->
+  <path d="M 5.84,15.79 A 11,11 0 0,1 11.79,9.84" fill="none" stroke="#3388ff" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Decent (green): 112.5 to 67.5 deg -->
+  <path d="M 11.79,9.84 A 11,11 0 0,1 20.21,9.84" fill="none" stroke="#33cc55" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Degraded (orange): 67.5 to 22.5 deg -->
+  <path d="M 20.21,9.84 A 11,11 0 0,1 26.16,15.79" fill="none" stroke="#ffbb33" stroke-width="6" stroke-linecap="butt"/>
+  <!-- Corrupted (red): 22.5 to 0 deg -->
+  <path d="M 26.16,15.79 A 11,11 0 0,1 27,20" fill="none" stroke="#ff3333" stroke-width="6" stroke-linecap="butt"/>
+
+  <!-- Needle: dead center of Elevated (135 deg), rooted at the hub -->
+  <polygon points="8.22,12.22 16.83,16.15 15.17,18.65" fill="#eeeef4"/>
+  <!-- Hub: full dot resting on the baseline (bottom edge on the line) -->
+  <circle cx="16" cy="17.4" r="2.6" fill="#00d4aa"/>
+</svg>
