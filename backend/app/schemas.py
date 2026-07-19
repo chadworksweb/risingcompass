@@ -453,6 +453,19 @@ class LyricsUnavailableIn(BaseModel):
     lyrics_unavailable: bool = True
 
 
+class RecreditIn(BaseModel):
+    """Correct a draft song's title and/or artist BEFORE calibration.
+
+    Both fields optional; supply only what changes. The pair is what mints the
+    songs row and its canonical key, so correcting a channel-name credit here
+    costs a string, while correcting it after calibration costs a merge.
+    `reason` is recorded on the audit row and is worth writing.
+    """
+    title: str | None = None
+    artist: str | None = None
+    reason: str | None = None
+
+
 class InstrumentalIn(BaseModel):
     """Mark (or clear) a draft song as instrumental: a track with no lyrics to
     read. Default True so an empty POST body sets the disposition;

@@ -414,6 +414,46 @@ class SongArtist(Base):
     artist = relationship("Artist")
 
 
+class DraftSongEdit(Base):
+    """Audit log for hand-corrections to a draft song's title or artist credit.
+
+    Written in the same transaction as the edit, so the log can never disagree
+    with reality (same discipline as ArtistAdminEvent below).
+
+    Why this exists at the DRAFT layer: the feeders credit whatever the platform
+    hands them, which can be an upload channel rather than a performer, and the
+    title + artist pair is what mints the `songs` row and its canonical key. A
+    bad credit corrected AFTER calibration is a merge; corrected BEFORE, it is
+    just a string. So the correction happens on the draft, and this records it.
+
+    Deliberately separate from ArtistAdminEvent: that table is shaped around an
+    Artist entity and requires a name + slug before, while the string being
+    corrected here was typically never an artist at all.
+    """
+    __tablename__ = "draft_song_edits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    actor = Column(String(64))
+
+    # Draft coordinates. Kept as loose values, not FKs: chart drafts are DELETED
+    # at approval, and the audit has to outlive them.
+    draft_song_id = Column(Integer)
+    draft_label = Column(Text)
+    position = Column(Integer)
+    song_id = Column(Integer)
+
+    # Only the changed side is populated; an untouched field stays NULL on both
+    # halves, so "what actually changed" reads straight off the row.
+    title_before = Column(Text)
+    title_after = Column(Text)
+    artist_before = Column(Text)
+    artist_after = Column(Text)
+
+    reason = Column(Text)
+    environment = Column(String(16), nullable=False, default="prod")
+
+
 class ArtistAdminEvent(Base):
     """Audit log for admin artist operations (merge, rename).
 

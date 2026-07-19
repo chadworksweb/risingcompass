@@ -14,11 +14,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
 from sqlalchemy.orm import joinedload, selectinload
-from app.models import AgentDraft, AgentDraftSong, ChartSnapshot, DailyReading, ReadingSong, PrePublishCorrection, Song
+from app.models import AgentDraft, AgentDraftSong, ChartSnapshot, DailyReading, ReadingSong, PrePublishCorrection, Song, DraftSongEdit
 from app.schemas import (
     DraftOut, DraftTriggerIn, DraftUpdate,
     PaginatedDrafts, DraftSummary, CompassSongFeedIn, CompassSongOut,
-    SupplyLyricsIn, PreorderIn, LyricsUnavailableIn, InstrumentalIn,
+    SupplyLyricsIn, PreorderIn, LyricsUnavailableIn, InstrumentalIn, RecreditIn,
     PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
     EditorialSupplyIn,
 )
@@ -1192,6 +1192,75 @@ def mark_lyrics_unavailable(draft_ref: str, song_id: int, data: LyricsUnavailabl
     _ = list(out.songs)
     db.expunge_all()
     return out
+
+
+@router.post("/drafts/{draft_ref}/songs/{song_id}/recredit", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
+def recredit_draft_song(draft_ref: str, song_id: int, data: RecreditIn, db: Session = Depends(get_db)):
+    """Correct a draft song's title and/or artist, with an audit row.
+
+    The feeders credit whatever the platform published, which is sometimes an
+    upload channel rather than a performer, and sometimes a title still carrying
+    upload cruft. That pair is what mints the `songs` row and its canonical key,
+    so the correction belongs HERE, before calibration: fixing it now costs a
+    string, fixing it afterwards costs a song merge.
+
+    REFUSES a song that already has a reading or a linked songs row. Once either
+    exists the correction is no longer a draft-layer edit, and silently rewriting
+    the credit would leave the draft disagreeing with the Library row it points
+    at. Use the artist merge / song merge admin paths for those.
+
+    Writes a `draft_song_edits` row in the SAME transaction as the change, so the
+    audit can never disagree with what happened.
+    """
+    new_title = (data.title or "").strip() or None
+    new_artist = (data.artist or "").strip() or None
+    if not new_title and not new_artist:
+        raise HTTPException(status_code=400, detail="Supply a title, an artist, or both")
+
+    draft = _resolve_draft(draft_ref, db)
+    if draft.status != "pending":
+        raise HTTPException(status_code=400, detail="Draft is not pending")
+    ds = next((s for s in draft.songs if s.id == song_id), None)
+    if ds is None:
+        raise HTTPException(status_code=404, detail=f"Song ID {song_id} not found in draft {draft_ref}")
+    if ds.rubric_color is not None or ds.song_id is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Song is already calibrated or linked to a Library row; recredit is a "
+                "pre-calibration correction. Use the artist merge or song merge admin path."
+            ),
+        )
+
+    title_before, artist_before = ds.title, ds.artist
+    changed_title = bool(new_title and new_title != title_before)
+    changed_artist = bool(new_artist and new_artist != artist_before)
+    if not changed_title and not changed_artist:
+        raise HTTPException(status_code=400, detail="Supplied values match the current credit")
+
+    if changed_title:
+        ds.title = new_title
+    if changed_artist:
+        ds.artist = new_artist
+
+    db.add(DraftSongEdit(
+        actor="terminal",
+        draft_song_id=ds.id,
+        draft_label=draft.label,
+        position=ds.position,
+        song_id=None,
+        # Only the changed side is recorded, so the row reads as what moved.
+        title_before=title_before if changed_title else None,
+        title_after=ds.title if changed_title else None,
+        artist_before=artist_before if changed_artist else None,
+        artist_after=ds.artist if changed_artist else None,
+        reason=(data.reason or "").strip() or None,
+        environment=settings.environment,
+    ))
+
+    db.commit()
+    db.refresh(draft)
+    return draft
 
 
 @router.post("/drafts/{draft_ref}/songs/{song_id}/instrumental", response_model=DraftOut, dependencies=[Depends(verify_admin_or_lyrics_key)])
