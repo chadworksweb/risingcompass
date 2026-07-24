@@ -37,7 +37,7 @@ from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
 from app.services.contamination import count_contaminated, enforce_contamination_rule
-from app.constants import COLOR_LABELS, COLOR_HEX, DRAFT_TYPE_DISPLAY_NAMES, draft_display_name, is_chart_draft_type, has_null_disposition, song_needs_lyrics
+from app.constants import COLOR_LABELS, COLOR_HEX, DRAFT_TYPE_DISPLAY_NAMES, draft_display_name, is_chart_draft_type, has_null_disposition, song_needs_lyrics, chart_weighting
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
 
@@ -1001,7 +1001,8 @@ async def supply_lyrics(draft_ref: str, song_id: int, data: SupplyLyricsIn, db: 
                 {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
                 for s in scored
             ]
-            draft.compass_degree = compute_degree(song_dicts)
+            draft.compass_degree = compute_degree(
+                song_dicts, weighting=chart_weighting(draft.draft_type))
             draft.charge_level = degree_to_charge(draft.compass_degree)
             draft.contamination_count = count_contaminated(
                 [{"contaminated": s.contaminated} for s in scored]
@@ -1074,7 +1075,8 @@ def _recompute_draft_aggregate(draft) -> None:
         {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
         for s in scored
     ]
-    draft.compass_degree = compute_degree(song_dicts)
+    draft.compass_degree = compute_degree(
+        song_dicts, weighting=chart_weighting(draft.draft_type))
     draft.charge_level = degree_to_charge(draft.compass_degree)
     draft.contamination_count = count_contaminated(
         [{"contaminated": s.contaminated} for s in scored]
@@ -1454,7 +1456,8 @@ def correct_draft_song(draft_ref: str, song_id: int, data: PrePublishCorrectionI
             {"rubric_color": s.rubric_color, "charge_value": s.charge_value, "position": s.position}
             for s in draft.songs
         ]
-        draft.compass_degree = compute_degree(song_dicts)
+        draft.compass_degree = compute_degree(
+            song_dicts, weighting=chart_weighting(draft.draft_type))
         draft.charge_level = degree_to_charge(draft.compass_degree)
         draft.contamination_count = count_contaminated(
             [{"contaminated": s.contaminated} for s in draft.songs]

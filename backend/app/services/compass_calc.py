@@ -58,9 +58,13 @@ def position_weight(position: int, total: int | None = None) -> float:
     return 1.0 / (r ** ZIPF_S)
 
 
-def compute_degree(songs: list[dict], color_degrees: dict | None = None) -> float:
+def compute_degree(
+    songs: list[dict],
+    color_degrees: dict | None = None,
+    weighting: str = "ranked",
+) -> float:
     """
-    Compute weighted average compass degree from a list of songs.
+    Compute the average compass degree from a list of songs.
 
     Uses charge_value when available (precise per-song scoring).
     Falls back to fixed degrees per color for legacy data.
@@ -71,6 +75,13 @@ def compute_degree(songs: list[dict], color_degrees: dict | None = None) -> floa
     Args:
         color_degrees: Override color-to-degree mapping for the fallback.
                        Use constants.HISTORICAL_DEGREES when mixing old 3-tier data.
+        weighting: "ranked" (default) applies the Zipf rank weight
+                   (position_weight), the honest model for a consumption-ranked
+                   chart where rank encodes popularity. "flat" gives every song
+                   equal weight -- a plain arithmetic mean -- for a curated,
+                   equal-push list (e.g. New Music Friday) where position is
+                   editorial ordering, not a popularity gradient. Any unknown
+                   value is treated as "ranked".
 
     Returns degree 0-180.
     """
@@ -80,10 +91,11 @@ def compute_degree(songs: list[dict], color_degrees: dict | None = None) -> floa
     fallback = color_degrees or COLOR_DEGREES
     total_weight = 0.0
     weighted_sum = 0.0
+    flat = weighting == "flat"
 
     for song in songs:
         pos = song.get("chart_position") or song.get("position", 5)
-        w = position_weight(pos)
+        w = 1.0 if flat else position_weight(pos)
 
         # Use charge_value if available, otherwise fall back to fixed color degree
         cv = song.get("charge_value")

@@ -39,6 +39,24 @@ AGGREGATING_CHART_SLUGS = {
     "billboard_yearend_hot100", "spotify_top50_usa",
 }
 
+# Chart slugs whose aggregate degree is a PLAIN MEAN, not the Zipf rank-weighted
+# mean (compass_calc.compute_degree). A consumption-ranked chart (Spotify Top 50,
+# Shazam, iTunes, YouTube Trending) uses rank-weighting because position encodes
+# popularity, so the top of the chart should carry more of the reading. A curated
+# equal-push list does NOT: New Music Friday is a flat editorial playlist where
+# every track is brand-new and pushed on the same list, so position is ordering,
+# not a popularity gradient -- rank-weighting would invent a hierarchy that isn't
+# there. Those slugs get an honest arithmetic mean instead.
+FLAT_MEAN_CHART_SLUGS = {
+    "spotify_nmf_usa",
+}
+
+
+def chart_weighting(chart_slug: str | None) -> str:
+    """Return the compute_degree weighting mode for a chart slug:
+    "flat" for a curated equal-push list (FLAT_MEAN_CHART_SLUGS), else "ranked"."""
+    return "flat" if chart_slug in FLAT_MEAN_CHART_SLUGS else "ranked"
+
 # Degree mapping for legacy (pre-5-tier) songs. Old 3-tier system had
 # no violet tier, so most songs were green or orange. Blue is mapped to 65
 # (upper Elevated, nearly Decent) to reflect that coarseness honestly.

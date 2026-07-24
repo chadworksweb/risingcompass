@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # it, _write_draft_and_songs ignored it, the column fell to its default False,
 # and every charting instrumental re-listed as awaiting-lyrics on every feeder
 # run no matter how many times it had been marked.
-from app.constants import NULL_DISPOSITIONS as _DISPOSITION_FIELDS
+from app.constants import NULL_DISPOSITIONS as _DISPOSITION_FIELDS, chart_weighting
 
 
 def _write_draft_and_songs(
@@ -505,7 +505,7 @@ def run_compass_agent(
         for s in calibrated_songs
         if s.get("rubric_color") is not None
     ]
-    degree = compute_degree(song_dicts)
+    degree = compute_degree(song_dicts, weighting=chart_weighting(draft_type))
     charge = degree_to_charge(degree)
     contam = count_contaminated(calibrated_songs)
 

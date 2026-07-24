@@ -108,6 +108,10 @@ CHART_REGISTRY: dict[str, dict] = {
     # deliberately NOT given a calendar_label -- the Calendar only paints daily
     # charts onto the day-grid, and a weekly chart would leave most days blank.
     # It surfaces as its own /charts/new-music-friday/ page + the snapshot panel.
+    # Its aggregate uses a FLAT (plain-mean) degree, not the Zipf rank-weight:
+    # every track is brand-new and pushed on the same editorial playlist, so
+    # position is ordering, not popularity. Source of truth for that is
+    # constants.FLAT_MEAN_CHART_SLUGS / chart_weighting(), applied in compute_degree.
     "new-music-friday": {
         "slug": "spotify_nmf_usa",
         "label": "New Music Friday - USA",
