@@ -213,6 +213,28 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                 + f" Offending deadpan: {_dp!r}"
             )
 
+        # And the supplied effects prose. Same hole, same posture: the voice
+        # constants were enforced only where the SERVER generates prose, so
+        # operator-supplied blocks drifted on length, paragraph count, and the
+        # stock tells. Lane + tier are passed explicitly (the collective-noun tell
+        # is a listener-lane bleed; deficit language is honest on orange/red).
+        # See prose_guard.py.
+        from app.services.agents.prose_guard import (
+            CORRECTIVE_NUDGE as PROSE_CORRECTIVE_NUDGE,
+            PROSE_RULES_NUDGE,
+            prose_violations,
+        )
+        _color = result.get("rubric_color") or ""
+        for _lane, _key in (("listener", "listener_effects_prose"),
+                            ("societal", "societal_effects_prose")):
+            _viol_prose = prose_violations(result.get(_key), _lane, _color)
+            if _viol_prose:
+                raise ValueError(
+                    f"{_key} tripped the prose guard (terminal hard-fail, no write "
+                    "performed): it " + "; it ".join(_viol_prose) + ". "
+                    + PROSE_RULES_NUDGE + " " + PROSE_CORRECTIVE_NUDGE
+                )
+
     # Verbatim-lyric lock at the single storage chokepoint. EVERY grading path
     # converges here -- terminal (Claude-Code-supplied) and browser/admin (server
     # AI) both reach _store_calibration -- so this guarantees no copyrighted lyric
