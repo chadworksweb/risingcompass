@@ -38,7 +38,7 @@ DEADPAN_LENGTH_CEILING = 60
 # Placards name; they do not open like a narrated sentence.
 _SENTENCE_OPENER_RE = re.compile(
     r"(?i)^\s*(a|an|the|two|three|four|she|he|they|it|someone|everyone|"
-    r"nobody|this|these|his|her|their)\b"
+    r"nobody|this|these|his|her|their)(?=\s)"
 )
 
 # Any terminal sentence punctuation, or an internal sentence break.
