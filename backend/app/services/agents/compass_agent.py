@@ -192,6 +192,27 @@ def _store_calibration(title: str, artist: str, chart_position: int,
                 + f" Offending summary: {_cs!r}"
             )
 
+        # Same posture for deadpan_line: the placard spec (a flat naming FRAGMENT,
+        # ~len(title)+len(artist) chars, no period, no leading article) lived only in
+        # ether_tagger's prompt, and the terminal lane writes the column straight
+        # through -- so operator drift into full sentences landed silently across
+        # 2026-06/07. HARD-FAIL here; rewrite to placard form and re-run.
+        # See deadpan_guard.py.
+        from app.services.agents.deadpan_guard import (
+            CORRECTIVE_NUDGE as DEADPAN_CORRECTIVE_NUDGE,
+            DEADPAN_RULES_NUDGE,
+            deadpan_violations,
+        )
+        _dp = result.get("deadpan_line")
+        _dp_viol = deadpan_violations(_dp, title=title, artist=artist)
+        if _dp_viol:
+            raise ValueError(
+                "deadpan_line tripped the placard guard (terminal hard-fail, no "
+                "write performed): it " + "; it ".join(_dp_viol) + ". "
+                + DEADPAN_RULES_NUDGE + " " + DEADPAN_CORRECTIVE_NUDGE
+                + f" Offending deadpan: {_dp!r}"
+            )
+
     # Verbatim-lyric lock at the single storage chokepoint. EVERY grading path
     # converges here -- terminal (Claude-Code-supplied) and browser/admin (server
     # AI) both reach _store_calibration -- so this guarantees no copyrighted lyric

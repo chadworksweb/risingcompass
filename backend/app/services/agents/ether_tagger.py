@@ -326,8 +326,15 @@ def _sanitize(
     if not deadpan:
         return None
 
-    if len(deadpan) > MAX_DEADPAN_LENGTH:
-        deadpan = _truncate_to_word_boundary(deadpan, MAX_DEADPAN_LENGTH)
+    # Spec cap: ~len(title)+len(artist), clamped by deadpan_guard (floor 45 so a
+    # short title+artist cannot chop a legitimate placard, ceiling 60 so a long
+    # featured-artist credit cannot license a sentence). The flat 80 that replaced
+    # the old dynamic cap in 3499e8d was generous enough to let the tagger lane
+    # creep toward sentence length; MAX_DEADPAN_LENGTH stays as the hard backstop.
+    from app.services.agents.deadpan_guard import deadpan_length_cap
+    cap = min(deadpan_length_cap(title, artist), MAX_DEADPAN_LENGTH)
+    if len(deadpan) > cap:
+        deadpan = _truncate_to_word_boundary(deadpan, cap)
 
     raw_topics = parsed.get("topics") or []
     if not isinstance(raw_topics, list):
