@@ -6,6 +6,10 @@ two paragraphs, under 110 words (listener) or 130 (societal), third person with
 no second-person address, no em-dashes, and none of the surface tells inventoried
 in `prose_tell_guard`.
 
+The song title is masked out before the second-person scan (the voice requires
+naming it once, and titles like "Whatever You Like" carry a pronoun); callers
+pass `title=` for that. A second-person token anywhere else still hard-fails.
+
 Enforcement existed only where the SERVER generates prose (the two generator
 modules call `prose_tell_guard.hard_findings` on their own output) and in
 `scripts/regenerate_prose.py`. The terminal lane -- Claude-Code-supplied backfill
@@ -50,7 +54,8 @@ def _paragraphs(text: str) -> list:
     return [p for p in (b.strip() for b in text.split("\n\n")) if p]
 
 
-def prose_violations(prose, lane: str, rubric_color: str = "") -> list:
+def prose_violations(prose, lane: str, rubric_color: str = "",
+                     title: str = "") -> list:
     """Return a list of spec violations for one prose block. Empty == clean.
 
     `lane` is "listener" or "societal"; `rubric_color` selects deficit tolerance.
@@ -76,7 +81,14 @@ def prose_violations(prose, lane: str, rubric_color: str = "") -> list:
     if count > cap:
         problems.append(f"is {count} words, over the {cap}-word cap")
 
+    # The voice REQUIRES naming the exact song title once, and plenty of titles
+    # carry a second-person pronoun ("Whatever You Like", "With You"). Mask the
+    # title before the second-person scan so the required mention cannot trip
+    # the check; a "you" anywhere outside the title still fails. Same family as
+    # the quote-guard title gotcha logged on the 2005 #13 write.
     lowered = text.lower()
+    if title:
+        lowered = lowered.replace(title.strip().lower(), " ")
     hits = [w for w in _SECOND_PERSON if _token_present(lowered, w)]
     if hits:
         problems.append(

@@ -227,7 +227,8 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         _color = result.get("rubric_color") or ""
         for _lane, _key in (("listener", "listener_effects_prose"),
                             ("societal", "societal_effects_prose")):
-            _viol_prose = prose_violations(result.get(_key), _lane, _color)
+            _viol_prose = prose_violations(result.get(_key), _lane, _color,
+                                           title=title)
             if _viol_prose:
                 raise ValueError(
                     f"{_key} tripped the prose guard (terminal hard-fail, no write "
