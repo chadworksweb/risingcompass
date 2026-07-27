@@ -66,6 +66,17 @@ ETHER_TAXONOMY = {
              "the moment of being chosen against"),
         ],
     },
+    "infidelity": {
+        "scope": ("Cheating as the act: stepping out, the affair, the double "
+                  "life, the partner kept unaware. The conduct itself, from "
+                  "either side of it (betrayal is the wound it leaves behind)."),
+        "examples": [
+            ("Wham!", "Careless Whisper",
+             "the narrator's own cheating and the guilt after"),
+            ("Shaggy", "It Wasn't Me",
+             "caught in the act and coached to deny it"),
+        ],
+    },
     "grief": {
         "scope": "Loss, death, mourning — interpersonal or self-mortality.",
         "examples": [
@@ -235,8 +246,8 @@ ETHER_TAXONOMY = {
 
 VALID_SLUGS = frozenset(ETHER_TAXONOMY.keys())
 
-assert len(VALID_SLUGS) == 30, (
-    "Taxonomy is 30 topics. Adding/removing one is a deliberate edit here "
+assert len(VALID_SLUGS) == 31, (
+    "Taxonomy is 31 topics. Adding/removing one is a deliberate edit here "
     "(scope + examples feed the live tagger); update this count to match."
 )
 
@@ -282,7 +293,7 @@ ETHER_THEMES = {
     "meaning-mortality": "Meaning & Mortality",
 }
 
-# The spine: topic slug -> its single primary theme. Must cover all 30 exactly.
+# The spine: topic slug -> its single primary theme. Must cover all 31 exactly.
 # Note: Romance and Friendship & Bonds are distinct themes -- romance is one
 # specific shape of love, not love itself; platonic bonds stand on their own.
 ETHER_TOPIC_PRIMARY = {
@@ -291,6 +302,7 @@ ETHER_TOPIC_PRIMARY = {
     "longing":          "romance",
     "sex":              "romance",
     "betrayal":         "romance",
+    "infidelity":       "romance",
     "obsession":        "romance",
     "friendship":       "friendship-bonds",
     "loneliness":       "friendship-bonds",
