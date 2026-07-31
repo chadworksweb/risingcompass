@@ -44,8 +44,10 @@ ROOT = Path(__file__).resolve().parent.parent  # the frontend/ directory
 BACKEND = "http://127.0.0.1:8000"
 
 # Path prefixes proxied to the backend. Mirrors the nginx root-block
-# `location /api/` and `location ~ ^/rc-admin-` rules on prod.
-PROXY_PREFIXES = ("/api/", "/rc-admin-")
+# `location /api/`, `location ~ ^/rc-admin-`, and `location /feeds/` rules on
+# prod. The chart RSS feeds are backend-rendered, so they need the same
+# forwarding the API does.
+PROXY_PREFIXES = ("/api/", "/rc-admin-", "/feeds/")
 
 # Request/response headers that must not be copied verbatim through a proxy.
 _HOP_BY_HOP_REQ = {"host", "content-length", "connection", "accept-encoding", "keep-alive"}

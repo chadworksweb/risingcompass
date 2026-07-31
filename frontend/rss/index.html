@@ -72,19 +72,13 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Get in Touch — The Rising Compass</title>
-  <meta name="description" content="Send The Rising Compass a question, a request, or feedback.">
-  <link rel="canonical" href="https://risingcompass.net/inquiry.html">
+  <title>RSS Feeds &mdash; The Rising Compass</title>
+  <meta name="description" content="Subscribe to the daily chart readings by RSS. One feed per chart, each day's charge and editorial and every song's tier.">
+  <link rel="canonical" href="https://risingcompass.net/rss/">
 
-  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="img/favicon-48.png" sizes="48x48" type="image/png">
-  <link rel="apple-touch-icon" href="img/favicon-192.png">
-
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/inquiry.html">
-  <meta property="og:title" content="Get in Touch — The Rising Compass">
-  <meta property="og:description" content="Send a question, a request, or feedback.">
-  <meta property="og:site_name" content="The Rising Compass">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/img/favicon-192.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,61 +87,90 @@
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/responsive.css">
   <style>
-    .inq-page { max-width: 640px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-    .inq-title { font-size: 1.4rem; font-weight: 600; color: var(--rc-text-bright); margin-bottom: 0.5rem; }
-    .inq-intro { font-size: 0.88rem; color: var(--rc-text); line-height: 1.6; margin-bottom: 1rem; }
-    .inq-intro strong { color: var(--rc-text-bright); }
-    .inq-notice {
-      font-size: 0.82rem; color: var(--rc-text); line-height: 1.55;
-      padding: 0.8rem 1rem; margin-bottom: 1.5rem;
-      background: rgba(255, 187, 51, 0.06);
-      border: 1px solid rgba(255, 187, 51, 0.3);
-      border-radius: var(--rc-radius-sm);
+    .feeds-page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
     }
-    .inq-notice strong { color: var(--rc-text-bright); display: block; margin-bottom: 0.3rem; }
-    .inq-notice ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
-    .inq-notice li { margin-bottom: 0.25rem; }
-    .inq-notice a { color: var(--rc-accent); text-decoration: none; }
-    .inq-notice a:hover { text-decoration: underline; }
-    .inq-form { display: flex; flex-direction: column; gap: 1rem; }
-    .inq-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    @media (max-width: 520px) { .inq-row { grid-template-columns: 1fr; } }
-    .inq-field { display: flex; flex-direction: column; gap: 0.3rem; }
-    .inq-field label {
-      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em;
-      text-transform: uppercase; color: var(--rc-text-dim);
+    .feeds-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+      margin-bottom: 0.5rem;
     }
-    .inq-field input, .inq-field textarea, .inq-field select {
-      width: 100%; padding: 0.6rem 0.8rem; background: var(--rc-bg-card);
-      border: 1px solid var(--rc-border); border-radius: var(--rc-radius-sm);
-      color: var(--rc-text-bright); font-family: var(--rc-font); font-size: 0.9rem; outline: none;
+    .feeds-sub {
+      font-size: 0.9rem;
+      color: var(--rc-text-dim);
+      font-style: italic;
+      margin-bottom: 1.6rem;
     }
-    .inq-field input:focus, .inq-field textarea:focus, .inq-field select:focus { border-color: var(--rc-accent); }
-    .inq-field textarea { min-height: 130px; resize: vertical; line-height: 1.5; }
-    .inq-field input::placeholder, .inq-field textarea::placeholder { color: var(--rc-text-dim); opacity: 0.5; }
-    .inq-consent {
-      font-size: 0.72rem; color: var(--rc-text-dim); line-height: 1.5;
-      padding: 0.6rem 0.8rem; background: var(--rc-bg-card);
-      border-radius: var(--rc-radius-sm); border: 1px solid var(--rc-border);
+    .feeds-page p {
+      font-size: 0.88rem;
+      color: var(--rc-text);
+      line-height: 1.7;
+      margin-bottom: 1rem;
     }
-    .inq-submit {
-      padding: 0.7rem 1.5rem; font-size: 0.9rem; font-weight: 600;
-      background: var(--rc-accent); color: var(--rc-bg-dark); border: none;
-      border-radius: var(--rc-radius-sm); cursor: pointer; letter-spacing: 0.04em;
+    .feeds-page h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+      margin-top: 2.2rem;
+      margin-bottom: 0.6rem;
     }
-    .inq-submit:hover { opacity: 0.85; }
-    .inq-submit:disabled { opacity: 0.4; cursor: not-allowed; }
-    .inq-success { text-align: center; padding: 2rem 1rem; }
-    .inq-success-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-    .inq-success h2 { font-size: 1.2rem; color: var(--rc-accent); margin-bottom: 0.5rem; }
-    .inq-success p { font-size: 0.88rem; color: var(--rc-text); line-height: 1.5; }
-    .inq-error { font-size: 0.82rem; color: var(--rc-red); margin-top: 0.5rem; }
-    .inq-hp { position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .feeds-page a { color: var(--rc-accent); text-decoration: none; }
+    .feeds-page a:hover { opacity: 0.7; }
+    .feeds-page strong { color: var(--rc-text-bright); }
+
+    .feeds-beta {
+      border-left: 2px solid var(--rc-accent);
+      padding: 0.6rem 0 0.6rem 0.9rem;
+      margin-bottom: 0;
+    }
+
+    .feed-list {
+      list-style: none;
+      padding: 0;
+      margin: 1.6rem 0 0;
+      border-top: 1px solid var(--rc-border);
+    }
+    .feed-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.4rem 1rem;
+      padding: 0.95rem 0;
+      border-bottom: 1px solid var(--rc-border);
+    }
+    .feed-name {
+      flex: 1 1 11rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--rc-text-bright);
+    }
+    .feed-source {
+      display: block;
+      font-size: 0.74rem;
+      font-weight: 400;
+      color: var(--rc-text-dim);
+      margin-top: 0.15rem;
+    }
+    .feed-url {
+      flex: 2 1 20rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      word-break: break-all;
+    }
+    .feeds-note {
+      font-size: 0.78rem;
+      color: var(--rc-text-dim);
+      line-height: 1.7;
+      margin-top: 2.4rem;
+    }
   </style>
 </head>
-<body class="rc-elevated">
+<body>
 
-<!-- INCLUDE:header -->
+  <!-- INCLUDE:header -->
 <header class="rc-header">
   <div class="rc-header-inner">
   <a href="/" class="rc-back-link" aria-label="Back to The Rising Compass">
@@ -220,182 +243,57 @@
 </header>
 <!-- /INCLUDE:header -->
 
-<div class="inq-page">
-  <h1 class="inq-title">Get in Touch</h1>
-  <p class="inq-intro" id="inq-intro">
-    Have a question, a request, or feedback? Send it here. We read every message and reply when one is needed.
-  </p>
+  <div class="feeds-page">
+    <h1 class="feeds-title">RSS Feeds</h1>
+    <p class="feeds-sub">The daily readings, delivered to whatever you already read.</p>
 
-  <div class="inq-notice">
-    <strong>This form will not answer questions about calibration.</strong>
-    Messages about a song's score, why a song was read the way it was, or how the
-    compass algorithm works will not be replied to here. There are proper channels for those:
-    <ul>
-      <li>Think a specific song was read wrong? Open that song's page and use its <a href="/misread-submission.html">misread report</a> link, so the report is tied to the song.</li>
-      <li>Want to challenge a tenet, rule, modifier, or the methodology itself? <a href="https://lecg.libraengine.com/motion-desk/">File a motion</a> at the Libra Engine Compass.</li>
+    <p>Each chart has its own feed. A new entry arrives once that day's reading is published, carrying the charge for the day, the editorial written with it, and the full ranked list with every song's tier and score. Paste a URL below into your reader.</p>
+
+    <p class="feeds-beta"><strong>These feeds are in beta.</strong> If something arrives broken, reads wrong in your reader, or is missing entirely, tell us through the <a href="/inquiry.html?topic=bug&amp;source=rss">general inquiry form</a>.</p>
+
+    <ul class="feed-list">
+      <li class="feed-row">
+        <span class="feed-name">Spotify (US)
+          <span class="feed-source">Spotify Top 50, daily</span>
+        </span>
+        <span class="feed-url"><a href="/feeds/spotify.xml">https://risingcompass.net/feeds/spotify.xml</a></span>
+      </li>
+      <li class="feed-row">
+        <span class="feed-name">iTunes
+          <span class="feed-source">iTunes Downloads, daily</span>
+        </span>
+        <span class="feed-url"><a href="/feeds/itunes.xml">https://risingcompass.net/feeds/itunes.xml</a></span>
+      </li>
+      <li class="feed-row">
+        <span class="feed-name">Shazam
+          <span class="feed-source">Shazam Top 200, daily</span>
+        </span>
+        <span class="feed-url"><a href="/feeds/shazam.xml">https://risingcompass.net/feeds/shazam.xml</a></span>
+      </li>
+      <li class="feed-row">
+        <span class="feed-name">YouTube
+          <span class="feed-source">YouTube Trending, daily</span>
+        </span>
+        <span class="feed-url"><a href="/feeds/youtube.xml">https://risingcompass.net/feeds/youtube.xml</a></span>
+      </li>
+      <li class="feed-row">
+        <span class="feed-name">New Music Friday
+          <span class="feed-source">New releases, every Friday</span>
+        </span>
+        <span class="feed-url"><a href="/feeds/new-music-friday.xml">https://risingcompass.net/feeds/new-music-friday.xml</a></span>
+      </li>
     </ul>
+
+    <h2>What lands in your reader</h2>
+    <p>One entry per chart day, titled with the date and that day's charge. Open it and you get the editorial for the reading, the degree, and every charting song with its tier, its score, and a link straight to its page here. Songs waiting on lyrics sit out until they are read.</p>
+
+    <h2>Using them elsewhere</h2>
+    <p>These are plain RSS 2.0, so anything that speaks the format can take them: a reader, an automation tool, a newsletter service, a bot. The readings are already public on the chart pages, and the feeds carry the same thing in a form other software can pick up.</p>
+
+    <p class="feeds-note">Feeds update within about fifteen minutes of a reading being published. Entries stay put once they appear, so a reader will not resurface a day you have already seen. The last thirty chart days are available in each feed; everything before that lives in the <a href="/calendar/">calendar</a>.</p>
   </div>
 
-  <form class="inq-form" id="inq-form">
-    <div class="inq-row">
-      <div class="inq-field">
-        <label for="inq-name">Your Name</label>
-        <input type="text" id="inq-name" placeholder="Jane Doe" maxlength="200">
-      </div>
-      <div class="inq-field">
-        <label for="inq-email">Email</label>
-        <input type="email" id="inq-email" placeholder="jane@example.com" maxlength="254">
-      </div>
-    </div>
-    <div class="inq-field">
-      <label for="inq-topic">Topic</label>
-      <select id="inq-topic">
-        <option value="general">General</option>
-        <option value="album_charger">Album Charger</option>
-        <option value="bug">Bug / problem</option>
-        <option value="partnership">Partnership</option>
-        <option value="data">Data correction</option>
-        <option value="lyrics_rejected">Lyrics rejected (appeal)</option>
-        <option value="other">Other</option>
-      </select>
-    </div>
-    <div class="inq-field">
-      <label for="inq-subject">Subject</label>
-      <input type="text" id="inq-subject" placeholder="A short summary" maxlength="300">
-    </div>
-    <div class="inq-field">
-      <label for="inq-message">Message</label>
-      <textarea id="inq-message" required placeholder="Tell us what you need." maxlength="5000"></textarea>
-    </div>
-
-    <div class="inq-hp" aria-hidden="true">
-      <label for="hp-website">Website (leave blank)</label>
-      <input type="text" id="hp-website" name="website" autocomplete="off" tabindex="-1" value="">
-    </div>
-
-    <div class="inq-consent">
-      By submitting, you consent to your IP address being recorded for moderation. Your contact info is only used to reply about this message.
-    </div>
-    <!-- Turnstile mount; only renders when a site key is configured server-side -->
-    <div id="inq-turnstile" class="inq-turnstile" style="margin-top:0.2rem;"></div>
-    <button type="submit" class="inq-submit" id="inq-submit-btn">Send</button>
-    <div class="inq-error" id="inq-error" style="display:none;"></div>
-  </form>
-
-  <div class="inq-success" id="inq-success" style="display:none;">
-    <div class="inq-success-icon">&#x2713;</div>
-    <h2>Sent</h2>
-    <p>Thanks. We've got your message and will be in touch if a reply is needed.</p>
-  </div>
-</div>
-
-<script>
-(function() {
-  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  const API_BASE = '';
-  const API_KEY = isLocal
-    ? '09bcf6d7b84be7f50292fd35465fe745404ad0fb0780b35c7a5747b5c202a662'
-    : '6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1f56ef38994da94c7061e4b';
-  const API_HEADERS = API_KEY ? { 'X-Api-Key': API_KEY } : {};
-
-  const params = new URLSearchParams(window.location.search);
-  const VALID_TOPICS = ['general', 'album_charger', 'bug', 'partnership', 'data', 'lyrics_rejected', 'other'];
-
-  // Prefill from query params (deep links, e.g. the Album Charger's
-  // "need more than 15 tracks?" link).
-  const qTopic = (params.get('topic') || '').toLowerCase();
-  if (VALID_TOPICS.includes(qTopic)) document.getElementById('inq-topic').value = qTopic;
-  const qSubject = params.get('subject');
-  if (qSubject) document.getElementById('inq-subject').value = qSubject.slice(0, 300);
-  const qIntro = params.get('intro');
-  if (qIntro) document.getElementById('inq-intro').textContent = qIntro.slice(0, 300);
-  const source = (params.get('source') || '').slice(0, 40) || null;
-
-  const form = document.getElementById('inq-form');
-  const submitBtn = document.getElementById('inq-submit-btn');
-  const errorEl = document.getElementById('inq-error');
-
-  // Cloudflare Turnstile. The inquiry endpoint shares the Lyrical Charger's bot
-  // protection: when TURNSTILE_SECRET is set server-side, a valid token is
-  // required. Mount the widget when /config returns a site key.
-  let turnstileWidgetId = null;
-  function getTurnstileToken() {
-    if (!window.turnstile || turnstileWidgetId === null) return '';
-    try { return window.turnstile.getResponse(turnstileWidgetId) || ''; } catch (_) { return ''; }
-  }
-  function resetTurnstile() {
-    if (window.turnstile && turnstileWidgetId !== null) {
-      try { window.turnstile.reset(turnstileWidgetId); } catch (_) {}
-    }
-  }
-  (async function initBotProtection() {
-    try {
-      const resp = await fetch(`${API_BASE}/api/analyzer/config`, { headers: API_HEADERS });
-      if (!resp.ok) return;
-      const cfg = await resp.json();
-      if (!cfg.turnstile_site_key) return;
-      window.onInqTurnstileLoad = function () {
-        const mount = document.getElementById('inq-turnstile');
-        if (!mount || !window.turnstile) return;
-        turnstileWidgetId = window.turnstile.render(mount, {
-          sitekey: cfg.turnstile_site_key, theme: 'dark', size: 'flexible',
-        });
-      };
-      const s = document.createElement('script');
-      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onInqTurnstileLoad';
-      s.async = true; s.defer = true;
-      document.head.appendChild(s);
-    } catch (_) { /* bot protection is best-effort */ }
-  })();
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errorEl.style.display = 'none';
-    const message = document.getElementById('inq-message').value.trim();
-    if (!message) {
-      errorEl.textContent = 'Please enter a message.';
-      errorEl.style.display = '';
-      return;
-    }
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Sending...';
-
-    const body = {
-      name: document.getElementById('inq-name').value.trim() || null,
-      email: document.getElementById('inq-email').value.trim() || null,
-      topic: document.getElementById('inq-topic').value || 'general',
-      subject: document.getElementById('inq-subject').value.trim() || null,
-      message: message,
-      source: source,
-      page_url: (document.referrer || '').slice(0, 500) || null,
-      hp_website: document.getElementById('hp-website').value,
-      turnstile_token: getTurnstileToken(),
-    };
-
-    try {
-      const resp = await fetch(`${API_BASE}/api/inquiry`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
-        body: JSON.stringify(body),
-      });
-      resetTurnstile();  // tokens are single-use
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ detail: 'Submission failed' }));
-        throw new Error(typeof err.detail === 'string' ? err.detail : 'Submission failed');
-      }
-      form.style.display = 'none';
-      document.getElementById('inq-success').style.display = '';
-    } catch (err) {
-      errorEl.textContent = err.message;
-      errorEl.style.display = '';
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Send';
-    }
-  });
-})();
-</script>
-
-<!-- INCLUDE:footer -->
+  <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">
     <div class="footer-brand">

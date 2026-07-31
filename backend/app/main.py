@@ -297,6 +297,10 @@ app.include_router(page_ssr.router)
 # crawlers can read it; nginx proxies `= /sitemap.xml` and `/sitemap/` here.
 from app.routers import sitemap as sitemap_router
 app.include_router(sitemap_router.router)
+# Per-chart RSS feeds. Public (no X-Api-Key) for the same reason as the sitemap:
+# a feed reader cannot send a header. Serves only published/approved readings.
+from app.routers import feeds as feeds_router
+app.include_router(feeds_router.router)
 app.include_router(vibe.user_router)  # Clerk-authed, no X-Api-Key; before the gated router
 app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(ether_art_chart.router, dependencies=_public_read_dep)
