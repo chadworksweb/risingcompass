@@ -1420,6 +1420,21 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   background: var(--rc-border);
   transition: background var(--rc-ease-fast), box-shadow var(--rc-ease-fast);
 }
+
+/* Data-source tag beside the zoom window label (Historical tab only). The
+   Historical Charge Index reads the Billboard Hot 100 record, so it names its
+   source and stays put when a surface swaps its daily chart. The window label
+   drops its auto margin here so the tag sits snug against the year range
+   (the presets' own margin-left:auto still pushes them right). */
+#trajectory-container .traj-zoom-window { margin-right: 0; }
+.traj-source-tag {
+  margin-right: auto;
+  font-family: var(--rc-font-mono);
+  font-size: 0.62rem;
+  color: var(--rc-text-dim);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
 .traj-chart-area.traj-dragging ~ .timemachine-controls,
 .traj-chart-area.traj-dragging .traj-zoom-window::before,
 #trajectory-container .traj-overview.is-active ~ .traj-zoom-window::before {

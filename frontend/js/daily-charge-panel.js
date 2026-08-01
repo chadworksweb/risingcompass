@@ -2245,6 +2245,7 @@
       container.innerHTML = `
         <div class="traj-zoom-bar">
           <span class="traj-zoom-window" aria-live="polite">${firstYear} – ${lastYear}</span>
+          <span class="traj-source-tag" title="The Historical Charge Index reads the Billboard Hot 100 record; it does not follow a chart toggle">Billboard Hot 100</span>
           <div class="traj-zoom-presets">
             <button class="traj-zoom-btn active" data-zoom="all">All</button>
             <button class="traj-zoom-btn" data-zoom="30">30Y</button>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Sandbox: Homepage Chart Toggle</title>
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/main.css?v=20260801b">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/charts/chart.css">
+  <link rel="stylesheet" href="/css/compass.css">
+
+  <style>
+    /* Sandbox-only styles: the banner, the dropdown, and the no-shift swap
+       state. Everything else rides the production CSS untouched. */
+    .sandbox-banner {
+      margin: 0 0 1.2rem;
+      padding: 0.5rem 0.9rem;
+      border: 1px dashed rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--rc-text-dim, rgba(255, 255, 255, 0.55));
+    }
+
+    .hp-toggle-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .hp-chart-switch { position: relative; flex-shrink: 0; }
+    .hp-chart-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--rc-text, #eeeef4);
+      border: 1px solid var(--rc-border-ui, rgba(255, 255, 255, 0.14));
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+    }
+    .hp-chart-btn:hover { border-color: rgba(255, 255, 255, 0.3); }
+    .hp-chart-caret { transition: transform 0.15s ease; }
+    .hp-chart-btn[aria-expanded="true"] .hp-chart-caret { transform: rotate(180deg); }
+    .hp-chart-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      z-index: 60;
+      min-width: 200px;
+      margin: 0;
+      padding: 0.3rem;
+      list-style: none;
+      background: #101020;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    }
+    .hp-chart-opt {
+      padding: 0.45rem 0.6rem;
+      border-radius: 5px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--rc-text, #eeeef4);
+      cursor: pointer;
+    }
+    .hp-chart-opt:hover { background: rgba(255, 255, 255, 0.07); }
+    .hp-chart-opt[aria-selected="true"] { color: #00d4aa; }
+    .hp-chart-opt-sub {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 0.6rem;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      color: var(--rc-text-dim, rgba(255, 255, 255, 0.55));
+    }
+
+    /* While a swap is in flight the container keeps its held height (set
+       inline by the JS) and centers the loader inside it, so nothing on the
+       page moves (the calendar detail panel's is-switching mechanic). */
+    .is-switching {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Mobile: responsive.css trims the dial card to 0.4rem side padding to
+       push the dial wide, but that jams the arc against the card edges.
+       Restore the standard mobile card padding. */
+    @media (max-width: 768px) {
+      #compass-panel {
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+      /* Grid children default to min-width:auto, so a wide song row (long
+         title + lyrics-unavailable pill) blows the column out past the card
+         edge. The homepage guards its cards via .main-dashboard > *; this
+         scaffold's grids need the same guard. */
+      .dash-row1 > .card,
+      .chart-shell-grid > .card {
+        min-width: 0;
+        overflow-x: hidden;
+      }
+    }
+
+    /* Contamination badge relocation (sandbox prototype): out of the card's
+       top-right corner, into normal flow directly under the Today's Charge
+       header, left aligned. #contam-container already sits between the header
+       and the dial in the markup, so the badge just stops being absolute. */
+    #contam-container .contam-badge {
+      position: relative;
+      top: auto;
+      right: auto;
+      display: inline-flex;
+      margin: 0.15rem 0 0.4rem;
+    }
+    /* Tooltip anchors to the badge; drop it rightward so it stays inside the
+       card from the left-aligned position. */
+    #contam-container .contam-tooltip {
+      left: 0;
+      right: auto;
+    }
+  </style>
+</head>
+<body>
+  <main id="sandbox-main" class="chart-page">
+    <div class="sandbox-banner">Sandbox: homepage chart toggle prototype. Not linked, not shipped.</div>
+
+    <div class="dash-row1">
+      <!-- ROW 1 LEFT: the dial, with the chart dropdown in the header -->
+      <div class="card" id="compass-panel" style="position:relative;">
+        <div class="card-header hp-toggle-head">
+          <span>Today's Charge</span>
+          <div class="hp-chart-switch" id="hp-chart-switch" hidden>
+            <button type="button" class="hp-chart-btn" id="hp-chart-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose the chart shown on this dashboard">
+              <span id="hp-chart-btn-label">Spotify (US)</span>
+              <svg class="hp-chart-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <ul class="hp-chart-menu" id="hp-chart-menu" role="listbox" hidden></ul>
+          </div>
+        </div>
+        <div id="contam-container"></div>
+        <div id="compass-container"></div>
+      </div>
+
+      <!-- ROW 1 RIGHT: the trajectory panel, built by the DailyChargePanel capsule -->
+      <div class="card" id="trajectory-panel"></div>
+    </div>
+
+    <div class="chart-shell-grid">
+      <!-- ROW 2 LEFT: the reading -->
+      <div class="card" id="reading-panel">
+        <div class="card-header" id="reading-header">&nbsp;</div>
+        <p class="card-desc" id="reading-desc">&nbsp;</p>
+        <div id="reading-content">
+          <div class="trajectory-loading" role="status" aria-label="Loading the reading">
+            <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="hp-grad-init-reading" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#9933ff"/>
+                  <stop offset="25%" stop-color="#3388ff"/>
+                  <stop offset="50%" stop-color="#33cc55"/>
+                  <stop offset="75%" stop-color="#ffbb33"/>
+                  <stop offset="100%" stop-color="#ff3333"/>
+                </linearGradient>
+              </defs>
+              <circle class="rc-loader-track" cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+              <circle class="rc-loader-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#hp-grad-init-reading)" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
+              <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round" transform-origin="32 32"/>
+              <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
+            </svg>
+            <div class="rc-loader-label">Loading the reading</div>
+            <div class="rc-loader-sub">tuning the compass&hellip;</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 2 RIGHT: the Ether Art Chart lens -->
+      <div class="card" id="ether-art-chart-panel">
+        <div class="card-header">
+          <a href="/ether-art-chart/" class="ether-card-link">The Ether Art Chart</a>
+        </div>
+        <p class="card-desc">The same songs named for what the lyrics really say, plus the topics pulled through the ether.</p>
+        <div id="ether-art-chart-content">
+          <div class="trajectory-loading" role="status" aria-label="Loading the ether lens">
+            <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="hp-grad-init-ether" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#9933ff"/>
+                  <stop offset="25%" stop-color="#3388ff"/>
+                  <stop offset="50%" stop-color="#33cc55"/>
+                  <stop offset="75%" stop-color="#ffbb33"/>
+                  <stop offset="100%" stop-color="#ff3333"/>
+                </linearGradient>
+              </defs>
+              <circle class="rc-loader-track" cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+              <circle class="rc-loader-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#hp-grad-init-ether)" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
+              <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round" transform-origin="32 32"/>
+              <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
+            </svg>
+            <div class="rc-loader-label">Loading the ether lens</div>
+            <div class="rc-loader-sub">deadpan + topics&hellip;</div>
+          </div>
+        </div>
+        <a href="/ether-art-chart/" class="ether-open-btn">
+          Open The Ether Art Chart
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/api.js?v=20260705"></script>
+  <script src="/js/chart-shell.js?v=20260619b"></script>
+  <script src="/js/compass.js?v=20260622"></script>
+  <script src="/js/contamination.js"></script>
+  <script src="/js/charge.js"></script>
+  <script src="/js/daily-charge-panel.js?v=20260801"></script>
+  <script src="/sandbox/homepage-toggle/toggle-sandbox.js?v=4"></script>
+</body>
+</html>
