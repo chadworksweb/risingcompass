@@ -60,6 +60,12 @@ const App = (() => {
     }
   }
 
+  // Report a real load milestone to the homepage splash (index.html inline
+  // script). No-op on pages without the splash or after it has revealed.
+  function splashStep(name) {
+    try { if (window.rcSplashStep) window.rcSplashStep(name); } catch (e) {}
+  }
+
   function anomalyLabel(a) {
     if (a.anomaly_type === 'album_release') {
       const named = [a.artist, a.album].filter(Boolean).join(' - ');
@@ -104,6 +110,7 @@ const App = (() => {
       });
     }
     const deepLinkChart = await initHomeChartToggle();
+    splashStep('charts');
     await loadCurrent();
     loadGhostTrail();
     // ?chart= deep link (written by the toggle itself): honor it after the
@@ -152,13 +159,21 @@ const App = (() => {
 
       // Render right panel
       renderReading(data);
+      splashStep('reading');
 
       // Render weekly album reading if present
       renderAlbumReading(data);
 
-      // Render the Ether Art Chart card (independent fetch — its own endpoint)
+      // Render the Ether Art Chart card (independent fetch — its own endpoint).
+      // The splash's ether milestone fires when the render actually settles,
+      // success or not.
       if (typeof EtherArtChart !== 'undefined') {
-        EtherArtChart.render();
+        EtherArtChart.render().then(
+          () => splashStep('ether'),
+          () => splashStep('ether')
+        );
+      } else {
+        splashStep('ether');
       }
 
       // iTunes Download Chart panel — live daily snapshot. The RSS feed supplies
@@ -171,6 +186,10 @@ const App = (() => {
       console.error('Failed to load compass data:', err);
       document.getElementById('reading-content').innerHTML =
         '<div class="error-msg">Could not load compass data. Is the API running?</div>';
+      // Step the splash anyway so a failed fetch opens onto the error message
+      // instead of stranding the splash until its safety net.
+      splashStep('reading');
+      splashStep('ether');
     }
   }
 

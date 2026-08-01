@@ -129,11 +129,11 @@
   <link rel="stylesheet" href="/methodology/methodology.css">
 
   <!-- Splash gate: while body.rc-splash is on, the header AND everything below
-       it are hidden and a single big loader fills the area. The gate holds for a
-       minimum of 4000ms AND until DOMContentLoaded, then the header + dashboard
-       reveal all at once. Stage labels advance on a timer so the user sees what
-       is conceptually happening (initializing -> rubric -> today's charge ->
-       trajectory -> stitching). Mirrors the Lyrical Charger progress pattern. -->
+       it are hidden and a single big loader fills the area. REAL progress (no
+       timer, no minimum hold): app.js reports each dashboard milestone as it
+       actually completes (chart list, today's charge, trajectory series, ether
+       lens) via window.rcSplashStep(), and the page reveals the moment the
+       last one lands. A 12s safety net still drops the splash no matter what. -->
   <style>
     #rc-splash { display: none; }
     body.rc-splash .rc-header,
@@ -223,42 +223,43 @@
     }
   </style>
   <script>
-    // Splash gate. Holds for max(4000ms, DOMContentLoaded). During the gate,
-    // stage labels advance on a timer so the user sees what's happening:
-    // initializing the compass, loading the rubric, reading today's charge,
-    // pulling the trajectory, stitching the dashboard.
+    // Real-progress splash. app.js calls window.rcSplashStep(name) as each
+    // dashboard milestone actually completes; the bar and labels reflect the
+    // real load, and the page reveals the moment the last milestone lands.
+    // No timers, no minimum hold. Safety net: 12s cap so a JS error can't
+    // strand the user on the splash.
     (function() {
-      var GATE_MS = 4000;
       var FADE_MS = 450;
-      var gateStart = Date.now();
+      var TOTAL = 4;
+      var completed = 0;
+      var seen = {};
+      var revealing = false;
 
-      var STAGES = [
-        { at: 0,    pct: 6,   label: 'Initializing the compass',  detail: 'priming the needle…' },
-        { at: 750,  pct: 24,  label: 'Loading the rubric',        detail: '58 tenets across 5 tiers' },
-        { at: 1600, pct: 48,  label: 'Reading today’s charge', detail: 'today’s top 20 through the compass' },
-        { at: 2500, pct: 72,  label: 'Pulling the trajectory',    detail: 'trailing 365 days, day by day' },
-        { at: 3400, pct: 92,  label: 'Stitching the dashboard',   detail: 'composing the view…' }
-      ];
+      // Completion labels per milestone. Arrival order varies (the loads run
+      // in parallel): the bar is driven by the count, the label by whichever
+      // milestone just landed.
+      var STEPS = {
+        charts:     { label: 'Charts registered',        detail: 'every daily chart on the dial' },
+        reading:    { label: 'Today’s charge read', detail: 'the top 20 through the compass' },
+        trajectory: { label: 'Trajectory pulled',        detail: 'trailing 365 days, day by day' },
+        ether:      { label: 'Ether lens focused',       detail: 'deadpan lines and topics attached' }
+      };
 
-      function setStage(s) {
+      function setStage(label, detail, pct) {
         var labelEl = document.getElementById('rc-splash-stage');
         var detailEl = document.getElementById('rc-splash-detail');
         var fillEl = document.getElementById('rc-splash-bar-fill');
         var pctEl = document.getElementById('rc-splash-pct');
-        if (labelEl) labelEl.textContent = s.label;
-        if (detailEl) detailEl.textContent = s.detail;
-        if (fillEl) fillEl.style.width = s.pct + '%';
-        if (pctEl) pctEl.textContent = s.pct + '%';
+        if (labelEl) labelEl.textContent = label;
+        if (detailEl) detailEl.textContent = detail;
+        if (fillEl) fillEl.style.width = pct + '%';
+        if (pctEl) pctEl.textContent = pct + '%';
       }
 
-      // Schedule stages relative to gateStart so the user sees progress
-      // regardless of when DOMContentLoaded fires.
-      STAGES.forEach(function(s) {
-        setTimeout(function() { setStage(s); }, s.at);
-      });
-
       function hideSplash() {
-        setStage({ pct: 100, label: 'Ready', detail: 'opening the dashboard' });
+        if (revealing) return;
+        revealing = true;
+        setStage('Ready', 'opening the dashboard', 100);
         var splash = document.getElementById('rc-splash');
         if (splash) splash.classList.add('is-fading');
         // small breath so the user sees the "Ready" beat before reveal
@@ -268,25 +269,26 @@
         }, FADE_MS + 50);
       }
 
-      function attemptHide() {
-        var elapsed = Date.now() - gateStart;
-        var wait = Math.max(0, GATE_MS - elapsed);
-        setTimeout(hideSplash, wait);
-      }
+      window.rcSplashStep = function(name) {
+        if (revealing || seen[name]) return;
+        seen[name] = true;
+        completed++;
+        if (completed >= TOTAL) { hideSplash(); return; }
+        var s = STEPS[name] || { label: 'Loading', detail: '' };
+        setStage(s.label, s.detail, Math.round((completed / TOTAL) * 100));
+      };
 
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', attemptHide);
-      } else {
-        attemptHide();
-      }
+      // The trajectory milestone is emitted by the shared DailyChargePanel
+      // capsule when its first daily-series render settles.
+      window.addEventListener('rc:daily-chart-loaded', function() {
+        window.rcSplashStep('trajectory');
+      });
 
-      // Safety net: drop the splash after 12s no matter what so a JS error
-      // can't strand the user on the splash screen.
-      setTimeout(function() {
-        if (document.body && document.body.classList.contains('rc-splash')) {
-          hideSplash();
-        }
-      }, 12000);
+      setStage('Initializing the compass', 'priming the needle…', 4);
+
+      // Safety net: drop the splash after 12s no matter what so a stalled
+      // fetch or JS error can't strand the user on the splash screen.
+      setTimeout(hideSplash, 12000);
     })();
   </script>
 </head>
@@ -827,8 +829,8 @@
   <script src="js/contamination.js"></script>
   <script src="js/chart-shell.js?v=20260619b"></script>
   <script src="js/ether-art-chart.js"></script>
-  <script src="js/daily-charge-panel.js?v=20260801"></script>
-  <script src="js/app.js?v=20260801"></script>
+  <script src="js/daily-charge-panel.js?v=20260801b"></script>
+  <script src="js/app.js?v=20260801b"></script>
   <script src="js/subscribe.js" defer></script>
   <script src="js/trajectory-expand.js" defer></script>
   <script src="calibration-log/calibration-log.js"></script>

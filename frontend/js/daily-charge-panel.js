@@ -440,6 +440,11 @@
       initDailyOverviewControls(container);
     } catch (err) {
       container.innerHTML = '<p style="color:var(--rc-text-dim);font-size:0.8rem;">Could not load daily chart</p>';
+    } finally {
+      // The homepage splash listens for the first daily-series completion
+      // (real-progress milestone); other surfaces have no listener. Fires on
+      // reloads too; the splash dedupes.
+      try { window.dispatchEvent(new CustomEvent('rc:daily-chart-loaded')); } catch (e) {}
     }
   }
 
