@@ -285,7 +285,7 @@ ETHER_THEMES = {
     "romance":           "Romance",
     "friendship-bonds":  "Friendship & Bonds",
     "self-psyche":       "Self & Psyche",
-    "status-survival":   "Status & Survival",
+    "status":            "Status",
     "faith":             "Faith",
     "conflict-power":    "Conflict & Power",
     "hedonism-escape":   "Hedonism & Escape",
@@ -306,10 +306,13 @@ ETHER_TOPIC_PRIMARY = {
     "obsession":        "romance",
     "friendship":       "friendship-bonds",
     "loneliness":       "friendship-bonds",
-    "flex":             "status-survival",
-    "fame":             "status-survival",
-    "ambition":         "status-survival",
-    "survival":         "status-survival",
+    "flex":             "status",
+    "fame":             "status",
+    "ambition":         "status",
+    # survival re-shelved 2026-08-01: hardship-as-endurance sits with
+    # resilience/mental-health, not beside the flex that displays having.
+    # Its material-circumstance pull survives as a secondary facet.
+    "survival":         "self-psyche",
     "self-affirmation": "self-psyche",
     "self-deprecation": "self-psyche",
     "resilience":       "self-psyche",
@@ -334,7 +337,7 @@ ETHER_TOPIC_PRIMARY = {
 # where a real cross-cut exists. Never used in any sum.
 ETHER_TOPIC_SECONDARY = {
     "ambition":      ["self-psyche"],
-    "survival":      ["self-psyche"],
+    "survival":      ["status"],
     "loneliness":    ["romance"],
     "friendship":    ["roots-belonging"],
     "grief":         ["romance"],
