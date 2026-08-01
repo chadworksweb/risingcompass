@@ -122,9 +122,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="/css/main.css?v=20260801">
+  <link rel="stylesheet" href="/css/main.css?v=20260801b">
   <link rel="stylesheet" href="/css/compass.css">
-  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/responsive.css?v=20260801">
   <link rel="stylesheet" href="/calibration-log/calibration-log.css">
   <link rel="stylesheet" href="/methodology/methodology.css">
 
@@ -404,9 +404,22 @@
          re-creates the dashboard's 42%/1fr columns; Row 2 stays direct children
          of .main-dashboard so its columns are unaffected. -->
     <div class="dash-row1">
-    <!-- ROW 1 LEFT: Compass -->
+    <!-- ROW 1 LEFT: Compass. The header carries the chart toggle: one
+         dropdown swaps which daily chart feeds rows 1+2 (dial, trajectory
+         Daily tab, reading, ether lens). Built by initHomeChartToggle() in
+         app.js from /api/compass/chart/calendar-charts; hidden until the
+         list loads with 2+ charts, so the page degrades to plain Spotify. -->
     <div class="card" id="compass-panel" style="position:relative;">
-      <div class="card-header">Today's Charge</div>
+      <div class="card-header hp-toggle-head">
+        <span class="hp-head-label">Today's Charge</span>
+        <div class="hp-chart-switch" id="hp-chart-switch" hidden>
+          <button type="button" class="hp-chart-btn" id="hp-chart-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose the chart shown on this dashboard">
+            <span id="hp-chart-btn-label">Spotify (US)</span>
+            <svg class="hp-chart-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="hp-chart-menu" id="hp-chart-menu" role="listbox" hidden></ul>
+        </div>
+      </div>
       <div id="contam-container"></div>
       <div id="compass-container">
         <div class="trajectory-loading" role="status" aria-label="Loading today's charge">
@@ -815,7 +828,7 @@
   <script src="js/chart-shell.js?v=20260619b"></script>
   <script src="js/ether-art-chart.js"></script>
   <script src="js/daily-charge-panel.js?v=20260801"></script>
-  <script src="js/app.js?v=20260705e"></script>
+  <script src="js/app.js?v=20260801"></script>
   <script src="js/subscribe.js" defer></script>
   <script src="js/trajectory-expand.js" defer></script>
   <script src="calibration-log/calibration-log.js"></script>

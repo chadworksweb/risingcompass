@@ -21,3 +21,6 @@ Thumbs.db
 # log is a local fallback and must never be committed).
 logs/
 backend/logs/
+
+# Local-only prototype pages (never deployed)
+frontend/sandbox/

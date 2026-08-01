@@ -59,11 +59,21 @@
     max-width: none;
   }
 
-  /* Trim the compass card's horizontal padding on mobile so the dial gets the
-     full card width (the dial, not the padding, is what matters here). */
+  /* Standard card padding on the compass card (the old 0.4rem trim pushed
+     the dial wide but jammed the arc against the card edges). */
   #compass-panel {
-    padding-left: 0.4rem;
-    padding-right: 0.4rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Grid children default to min-width:auto, so a wide song row (long title
+     plus a lyrics-unavailable pill) blows the column out past the card edge.
+     .main-dashboard > * already guards the homepage's direct children; these
+     cover the row-1 wrapper's cards and the chart pages' paired grid. */
+  .dash-row1 > .card,
+  .chart-shell-grid > .card {
+    min-width: 0;
+    overflow-x: hidden;
   }
 
   .card {

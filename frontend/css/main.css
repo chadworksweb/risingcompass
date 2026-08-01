@@ -1221,13 +1221,15 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 }
 
 /* === Contamination Counter (badge in compass card) === */
+/* In normal flow directly under the Today's Charge header, left aligned
+   (moved out of the card's top-right corner with the chart-toggle build,
+   2026-08-01). position:relative anchors the tooltip to the badge. */
 .contam-badge {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  margin: 0.15rem 0 0.4rem;
   padding: 0.2rem 0.45rem;
   border-radius: 10px;
   background: var(--rc-contam-bg);
@@ -1270,7 +1272,7 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   display: none;
   position: absolute;
   top: 100%;
-  right: 0;
+  left: 0;
   margin-top: 0.4rem;
   width: 200px;
   padding: 0.5rem 0.6rem;
@@ -1286,6 +1288,78 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
 .contam-badge:hover .contam-tooltip,
 .contam-badge.active .contam-tooltip {
   display: block;
+}
+
+/* === Homepage chart toggle (Today's Charge header dropdown) === */
+.hp-toggle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.hp-chart-switch { position: relative; flex-shrink: 0; }
+.hp-chart-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--rc-text);
+  border: 1px solid var(--rc-border-ui, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.hp-chart-btn:hover { border-color: rgba(255, 255, 255, 0.3); }
+.hp-chart-caret { transition: transform 0.15s ease; }
+.hp-chart-btn[aria-expanded="true"] .hp-chart-caret { transform: rotate(180deg); }
+.hp-chart-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 200px;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: #101020;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.hp-chart-opt {
+  padding: 0.45rem 0.6rem;
+  border-radius: 5px;
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--rc-text);
+  cursor: pointer;
+}
+.hp-chart-opt:hover { background: rgba(255, 255, 255, 0.07); }
+.hp-chart-opt[aria-selected="true"] { color: var(--rc-accent); }
+.hp-chart-opt-sub {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--rc-text-dim);
+}
+
+/* While a chart swap is in flight the container keeps its held height (set
+   inline by app.js) and centers the loader inside it, so the dashboard never
+   moves during a load (the calendar detail panel's is-switching mechanic). */
+#reading-content.is-switching,
+#ether-art-chart-content.is-switching {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* === Era Panel Tabs === */

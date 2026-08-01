@@ -86,19 +86,61 @@ const App = (() => {
     const trajPanel = document.getElementById('trajectory-panel');
     if (trajPanel && window.DailyChargePanel) {
       const histData = API.getDriftYears().then(yd => { allYearData = yd; return yd; });
-      DailyChargePanel.mount(trajPanel, {
-        loadDaily: () => API.getDailyChart(),
-        loadAnomalies: loadChartAnomalies,
+      trajPanelHandle = DailyChargePanel.mount(trajPanel, {
+        // The Daily tab follows the homepage chart toggle: the closure reads
+        // the live selection and switchHomeChart() calls reloadDaily().
+        loadDaily: () => homeChart === 'spotify' ? API.getDailyChart() : API.getChartDailyChart(homeChart),
+        // Anomaly markers are daily-reading facts; other charts load none
+        // (returning {} clears the previous chart's markers on reload).
+        loadAnomalies: () => homeChart === 'spotify' ? loadChartAnomalies() : Promise.resolve({}),
         loadHistorical: () => histData,
-        onDateSelect: viewArchiveReading,
+        // Daily-chart point clicks open the archived SPOTIFY reading; on any
+        // other chart the click has no matching archive view, so ignore it.
+        onDateSelect: (...args) => { if (homeChart === 'spotify') viewArchiveReading(...args); },
         onYearSelect: loadYearSongs,
         syncCalendar: syncCalendar,
         setCompassMode: setCompassMode,
         eraTaglines: { daily: 'trailing 365 days, day by day', historical: "where we've been and where we are" },
       });
     }
+    const deepLinkChart = await initHomeChartToggle();
     await loadCurrent();
     loadGhostTrail();
+    // ?chart= deep link (written by the toggle itself): honor it after the
+    // first paint so the default load path stays untouched.
+    if (deepLinkChart && deepLinkChart !== 'spotify') switchHomeChart(deepLinkChart);
+  }
+
+  // Dial + compass-header state for the daily reading. Split out of
+  // loadCurrent so the chart toggle's switch-back-to-Spotify path renders the
+  // identical dial without re-running the row-2.5 panels.
+  function applyDailyDial(data) {
+    // Set compass
+    const degree = data.has_reading ? data.compass_degree : data.historical_degree;
+    const charge = data.has_reading ? data.charge_level : data.historical_charge;
+    // Small delay for needle animation effect
+    setTimeout(() => {
+      Compass.setDegree(degree, charge);
+    }, 300);
+
+    // Set charge bar
+    const redCount = data.songs.filter(s => s.rubric_color === 'red').length;
+    Charge.setLevel(charge, redCount, data.songs.length, degree);
+
+    // Set contamination
+    Contamination.setCount(data.contamination_count, data.songs.length || 10);
+
+    // Set compass date (SVG element inside compass, fallback to HTML div)
+    const dateSvg = document.getElementById('compass-date-svg');
+    const dateHtml = document.getElementById('compass-date');
+    const dateText = data.has_reading ? formatDate(data.date) : 'Historical Reading';
+    if (dateSvg) dateSvg.textContent = dateText;
+    if (dateHtml) dateHtml.textContent = dateText;
+
+    // Capture today's ISO date so later sources can tell whether they're
+    // re-rendering today's reading vs. an archived one.
+    currentTodayDate = data.has_reading ? data.date : null;
+    setCompassMode(data.has_reading ? 'today' : 'historical');
   }
 
   // --- Load Current Reading ---
@@ -106,32 +148,7 @@ const App = (() => {
     try {
       const data = await API.getCompassCurrent();
 
-      // Set compass
-      const degree = data.has_reading ? data.compass_degree : data.historical_degree;
-      const charge = data.has_reading ? data.charge_level : data.historical_charge;
-      // Small delay for needle animation effect
-      setTimeout(() => {
-        Compass.setDegree(degree, charge);
-      }, 300);
-
-      // Set charge bar
-      const redCount = data.songs.filter(s => s.rubric_color === 'red').length;
-      Charge.setLevel(charge, redCount, data.songs.length, degree);
-
-      // Set contamination
-      Contamination.setCount(data.contamination_count, data.songs.length || 10);
-
-      // Set compass date (SVG element inside compass, fallback to HTML div)
-      const dateSvg = document.getElementById('compass-date-svg');
-      const dateHtml = document.getElementById('compass-date');
-      const dateText = data.has_reading ? formatDate(data.date) : 'Historical Reading';
-      if (dateSvg) dateSvg.textContent = dateText;
-      if (dateHtml) dateHtml.textContent = dateText;
-
-      // Capture today's ISO date so later sources can tell whether they're
-      // re-rendering today's reading vs. an archived one.
-      currentTodayDate = data.has_reading ? data.date : null;
-      setCompassMode(data.has_reading ? 'today' : 'historical');
+      applyDailyDial(data);
 
       // Render right panel
       renderReading(data);
@@ -337,16 +354,258 @@ const App = (() => {
   }
 
   // --- Ghost Trail (past 30 days on compass) ---
+  // Cached so the chart toggle can clear it on a chart view (the trail is
+  // daily-reading history) and restore it on switch-back without a refetch.
+  let ghostTrailItems = [];
   async function loadGhostTrail() {
     try {
       const data = await API.getHistory(1, 30);
       if (data.items && data.items.length) {
-        Compass.setGhostTrail(data.items);
+        ghostTrailItems = data.items;
+        if (homeChart === 'spotify') Compass.setGhostTrail(ghostTrailItems);
       }
     } catch (err) {
       // Silent fail — ghost trail is decorative
     }
   }
+
+  // === Homepage chart toggle (rows 1+2) ====================================
+  // One dropdown in the Today's Charge header swaps which daily chart feeds
+  // the whole top dashboard: dial + trajectory Daily tab + reading card +
+  // Ether Art Chart lens. Chart list comes from the Calendar's runtime
+  // endpoint, so a new Tier-2 daily chart appears here on its own once its
+  // first snapshot is approved. The Historical Charge Index never follows
+  // the toggle (it is the Billboard-sourced macro index).
+  let HOME_CHARTS = {};       // key -> {key, label, sub, source}
+  let HOME_CHART_ORDER = [];
+  let homeChart = 'spotify';
+  let homeChartSwitching = false;
+  let trajPanelHandle = null;
+
+  // The rc-loader spinner these panels already use. gradId must be unique
+  // per instance (SVG gradient ids are document-global).
+  function homeLoaderHtml(label, sub, gradId) {
+    return `<div class="trajectory-loading" role="status" aria-label="${escapeHtml(label)}">
+      <svg class="rc-loader" viewBox="0 0 64 64" aria-hidden="true">
+        <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#9933ff"/><stop offset="25%" stop-color="#3388ff"/>
+          <stop offset="50%" stop-color="#33cc55"/><stop offset="75%" stop-color="#ffbb33"/>
+          <stop offset="100%" stop-color="#ff3333"/></linearGradient></defs>
+        <circle class="rc-loader-track" cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+        <circle class="rc-loader-arc" cx="32" cy="32" r="26" fill="none" stroke="url(#${gradId})" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 200"/>
+        <line class="rc-loader-needle" x1="32" y1="32" x2="32" y2="12" stroke="#eeeef4" stroke-width="2" stroke-linecap="round" transform-origin="32 32"/>
+        <circle cx="32" cy="32" r="3" fill="#00d4aa"/>
+      </svg>
+      <div class="rc-loader-label">${escapeHtml(label)}</div>
+      ${sub ? `<div class="rc-loader-sub">${escapeHtml(sub)}</div>` : ''}
+    </div>`;
+  }
+
+  // No-shift swap: freeze the container at its current height in BOTH
+  // directions (min-height alone lets a tall loader grow the box) and center
+  // the loader in it; real content must never render under .is-switching
+  // (its flex centering lays block children out side by side), so fills go:
+  // unswitch, fill, release. #daily-chart-container is capsule-owned and
+  // only ever gets the height hold.
+  function holdHeight(el) {
+    if (!el || !el.offsetHeight) return;
+    el.style.height = el.offsetHeight + 'px';
+    el.style.overflow = 'hidden';
+  }
+  function releaseHeight(el) {
+    if (!el) return;
+    el.style.height = '';
+    el.style.overflow = '';
+  }
+  function beginSwap(el, html) {
+    if (!el) return;
+    holdHeight(el);
+    el.classList.add('is-switching');
+    if (html != null) el.innerHTML = html;
+  }
+  function unswitch(el) { if (el) el.classList.remove('is-switching'); }
+
+  // Builds the dropdown from calendar-charts. Returns the ?chart= deep-link
+  // key when valid (init honors it after first paint), else null. If the
+  // list fetch fails or has <2 charts the toggle stays hidden and the
+  // homepage behaves exactly as before.
+  async function initHomeChartToggle() {
+    const wrap = document.getElementById('hp-chart-switch');
+    const menu = document.getElementById('hp-chart-menu');
+    const btn = document.getElementById('hp-chart-btn');
+    if (!wrap || !menu || !btn) return null;
+    let list = null;
+    try { list = await API.getCalendarCharts(); } catch (e) { /* stays hidden */ }
+    if (!list || list.length < 2) return null;
+    HOME_CHARTS = {}; HOME_CHART_ORDER = [];
+    list.forEach(c => { HOME_CHARTS[c.key] = c; HOME_CHART_ORDER.push(c.key); });
+    if (!HOME_CHARTS[homeChart]) homeChart = HOME_CHART_ORDER[0];
+
+    menu.innerHTML = HOME_CHART_ORDER.map(key => {
+      const c = HOME_CHARTS[key];
+      return `<li class="hp-chart-opt" role="option" data-chart="${escapeHtml(key)}">${escapeHtml(c.label)}<span class="hp-chart-opt-sub">${escapeHtml(c.sub)}</span></li>`;
+    }).join('');
+    wrap.hidden = false;
+    updateHomeChartUI();
+
+    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const opening = menu.hidden;
+      menu.hidden = !opening;
+      btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    });
+    menu.addEventListener('click', (e) => {
+      const opt = e.target.closest('.hp-chart-opt');
+      if (!opt) return;
+      close();
+      switchHomeChart(opt.dataset.chart);
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.hp-chart-switch')) close();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+    try {
+      const q = new URLSearchParams(window.location.search).get('chart');
+      if (q && HOME_CHARTS[q]) return q;
+    } catch (e) {}
+    return null;
+  }
+
+  function updateHomeChartUI() {
+    const lbl = document.getElementById('hp-chart-btn-label');
+    if (lbl && HOME_CHARTS[homeChart]) lbl.textContent = HOME_CHARTS[homeChart].label;
+    document.querySelectorAll('.hp-chart-opt').forEach(o => {
+      o.setAttribute('aria-selected', o.dataset.chart === homeChart ? 'true' : 'false');
+    });
+  }
+
+  async function switchHomeChart(key) {
+    if (homeChartSwitching || key === homeChart || !HOME_CHARTS[key]) return;
+    homeChartSwitching = true;
+    homeChart = key;
+    updateHomeChartUI();
+    // Reflect the chart in the URL so refresh keeps it (calendar parity).
+    try {
+      const u = new URL(window.location.href);
+      if (key === 'spotify') u.searchParams.delete('chart');
+      else u.searchParams.set('chart', key);
+      window.history.replaceState({}, '', u);
+    } catch (e) {}
+
+    // Clear any time-traveled compass state (mirrors resetCompassToToday
+    // minus its refetch; the switch does its own).
+    const tmReset = document.getElementById('timemachine-reset');
+    if (tmReset && tmReset.style.display !== 'none') tmReset.click();
+    removeCompassCta();
+    const calPicker = document.getElementById('cal-picker');
+    if (calPicker) calPicker.remove();
+
+    const c = HOME_CHARTS[key];
+    const rc = document.getElementById('reading-content');
+    const ec = document.getElementById('ether-art-chart-content');
+    const dc = document.getElementById('daily-chart-container');
+
+    beginSwap(rc, homeLoaderHtml('Loading ' + c.label, c.sub, 'hp-grad-reading'));
+    beginSwap(ec, homeLoaderHtml('Loading the ether lens', 'deadpan + topics', 'hp-grad-ether'));
+    setCompassDate('Loading\u2026');
+
+    let trajDone = Promise.resolve();
+    if (trajPanelHandle) {
+      holdHeight(dc);
+      trajDone = trajPanelHandle.reloadDaily();
+    }
+
+    if (key === 'spotify') {
+      let data = null;
+      try { data = await API.getCompassCurrent(); } catch (e) {}
+      unswitch(rc); unswitch(ec);
+      if (data) {
+        applyDailyDial(data);
+        renderReading(data);
+        if (typeof EtherArtChart !== 'undefined') {
+          try { await EtherArtChart.render(); } catch (e) {}
+        }
+        Compass.setGhostTrail(ghostTrailItems);
+      } else {
+        renderHomeChartEmpty(true);
+      }
+    } else {
+      let snap = null, failed = false;
+      try { snap = await API.getChartSnapshot(key); } catch (e) { failed = true; }
+      unswitch(rc); unswitch(ec);
+      if (snap && (snap.songs || []).length) {
+        renderHomeChartReading(snap);
+      } else {
+        renderHomeChartEmpty(failed);
+      }
+    }
+
+    // crossfade swaps content ~160ms in; keep the height lock until the new
+    // content is actually in the box so the release settles at most once.
+    await new Promise(r => setTimeout(r, 220));
+    releaseHeight(rc); releaseHeight(ec);
+    try { await trajDone; } catch (e) {}
+    releaseHeight(dc);
+    homeChartSwitching = false;
+  }
+
+  // A Tier-2 chart snapshot through the canon shell: left card + ether lens
+  // + the dial from the snapshot's stamped aggregate.
+  function renderHomeChartReading(snap) {
+    const c = HOME_CHARTS[homeChart] || {};
+    const songs = (snap.songs || []).slice().sort((a, b) => a.position - b.position);
+
+    const header = document.querySelector('#reading-panel .card-header');
+    const desc = document.querySelector('#reading-panel .card-desc');
+    if (header) header.textContent = c.label || 'Chart';
+    if (desc) desc.textContent = (c.sub || '') + (snap.date ? '. Updated ' + formatDate(snap.date) + '.' : '');
+
+    const reading = {
+      date: snap.date,
+      degree: snap.compass_degree,
+      charge: snap.charge_level,
+      contaminationCount: snap.contamination_count,
+      editorial: snap.editorial,
+      songs: songs,
+    };
+    const rc = document.getElementById('reading-content');
+    crossfade(rc, ChartShell.buildLeft(reading), () => ChartShell.wireTooltips(rc));
+    const ec = document.getElementById('ether-art-chart-content');
+    if (ec) crossfade(ec, ChartShell.etherListHtml(songs));
+
+    setCompassMode('today');
+    Contamination.setCount(reading.contaminationCount || 0, songs.length || 20);
+    if (reading.degree != null) {
+      setTimeout(() => { Compass.setDegree(reading.degree, reading.charge); }, 300);
+      const redCount = songs.filter(s => s.rubric_color === 'red').length;
+      Charge.setLevel(reading.charge, redCount, songs.length, reading.degree);
+      setCompassDate(reading.date ? formatDate(reading.date) : '');
+    } else {
+      setCompassDate('No aggregate yet');
+    }
+    // The ghost trail is daily-reading history; it comes back on switch-back.
+    Compass.setGhostTrail([]);
+    announce(`${c.label || 'Chart'} loaded${reading.date ? ' for ' + formatDate(reading.date) : ''}. ${songs.length} songs.`);
+  }
+
+  function renderHomeChartEmpty(failed) {
+    const c = HOME_CHARTS[homeChart] || {};
+    const header = document.querySelector('#reading-panel .card-header');
+    const desc = document.querySelector('#reading-panel .card-desc');
+    if (header && c.label) header.textContent = c.label;
+    if (desc && c.sub) desc.textContent = c.sub;
+    const msg = failed
+      ? 'Could not load this chart right now. Try again in a moment.'
+      : "This chart hasn't published a reading yet. Check back once today's run is approved.";
+    const rc = document.getElementById('reading-content');
+    if (rc) crossfade(rc, `<div class="no-reading"><p>${escapeHtml(msg)}</p></div>`);
+    const ec = document.getElementById('ether-art-chart-content');
+    if (ec) crossfade(ec, '<div class="ether-empty">No ether rows to show.</div>');
+    setCompassDate('No reading');
+  }
+  // === /Homepage chart toggle ==============================================
 
   // --- Calendar Picker ---
   let rolodexDatesCache = {};  // { year: ["2026-01-15", ...] }
@@ -412,7 +671,10 @@ const App = (() => {
       text = 'No Data';
       faded = true;
     }
-    header.textContent = text;
+    // The header carries the chart dropdown beside the label, so write only
+    // the label span (falling back for pages without the toggle markup).
+    const headerLabel = header.querySelector('.hp-head-label');
+    (headerLabel || header).textContent = text;
     header.classList.toggle('compass-header-faded', faded);
     if (panel) panel.classList.toggle('is-no-data', mode === 'nodata');
   }
