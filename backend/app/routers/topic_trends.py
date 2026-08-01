@@ -25,6 +25,7 @@ Mounted from main.py with `_public_read_dep`, like the other public RC reads.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 from datetime import date
@@ -74,6 +75,16 @@ class YearPoint(BaseModel):
     shannon: float              # entropy in bits
     effective_topics: float     # 2**shannon
     distribution: list[TopicCount]
+    # Parallel measures (recalibration Step 2, additive -- the chart still
+    # renders from the all-pairs fields above). "Dominant" = the song's
+    # FIRST-LISTED topic only, one vote per song, which removes the
+    # tags-per-song drift confound; "themes" rolls topics to their single
+    # primary theme (the strict tree), the altitude immune to the romance
+    # shelf holding 7 of 31 slugs.
+    effective_topics_dominant: float
+    effective_themes: float
+    effective_themes_dominant: float
+    distribution_dominant: list[TopicCount]
 
 
 class Coverage(BaseModel):
@@ -116,6 +127,42 @@ def _label_for(slug: str) -> str:
     return slug.replace("-", " ")
 
 
+def _parse_topics(raw) -> list[str]:
+    """songs.topics is a JSON-encoded Text column, dominant topic first."""
+    if not raw:
+        return []
+    try:
+        val = json.loads(raw) if isinstance(raw, str) else raw
+    except (ValueError, TypeError):
+        return []
+    return [t for t in val if isinstance(t, str)] if isinstance(val, list) else []
+
+
+def _effective(counts: dict[str, int]) -> float:
+    return round(2.0 ** _shannon_bits(list(counts.values())), 3)
+
+
+def _roll_to_themes(counts: dict[str, int], primary_map: dict[str, str]) -> dict[str, int]:
+    """Roll per-topic counts to primary-theme counts. A topic missing from the
+    hierarchy (shouldn't happen; writes validate against the taxonomy) is
+    skipped rather than invented into a theme."""
+    out: dict[str, int] = {}
+    for topic, n in counts.items():
+        theme = primary_map.get(topic)
+        if theme:
+            out[theme] = out.get(theme, 0) + n
+    return out
+
+
+def _distribution(counts: dict[str, int]) -> list[TopicCount]:
+    total = sum(counts.values())
+    dist = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [
+        TopicCount(topic=t, count=c, percent=round(c / total, 4) if total else 0.0)
+        for t, c in dist
+    ]
+
+
 # --- Endpoint ---
 
 @router.get("", response_model=TopicTrendsOut)
@@ -145,52 +192,58 @@ def get_topic_trends(db: Session = Depends(get_db)):
     ).fetchall()
     modern_years = sorted(int(r.yr) for r in modern_year_rows if r.yr is not None)
 
-    # year -> {topic: count}
+    # year -> {topic: count}, all (song, topic) pairs
     per_year: dict[int, dict[str, int]] = {}
+    # year -> {topic: count}, dominant (first-listed) topic only, 1/song
+    per_year_dom: dict[int, dict[str, int]] = {}
     # year -> set of distinct tagged song ids
     songs_by_year: dict[int, set[int]] = {}
 
-    # Modern path: one row per (year, song); explode topics.
+    def _ingest(yr: int, song_id: int, raw_topics) -> None:
+        # A song can reach the same year via several rows (DISTINCT on the
+        # SQL side keys on (yr, id, topics)); guard on the song-id set so a
+        # song votes once per year on both measures.
+        if song_id in songs_by_year.setdefault(yr, set()):
+            return
+        topics = _parse_topics(raw_topics)
+        if not topics:
+            return
+        songs_by_year[yr].add(song_id)
+        pairs = per_year.setdefault(yr, {})
+        for t in topics:
+            pairs[t] = pairs.get(t, 0) + 1
+        dom = per_year_dom.setdefault(yr, {})
+        dom[topics[0]] = dom.get(topics[0], 0) + 1
+
+    # Modern path: one row per (year, song); topics parsed here (the array
+    # order is meaningful -- dominant topic first -- so no SQL explode).
     modern_rows = db.execute(
         text(
             """
-            WITH year_songs AS (
-              SELECT DISTINCT
-                CAST(to_char(dr.date, 'YYYY') AS INTEGER) AS yr,
-                s.id, s.topics
-              FROM songs s
-              JOIN reading_songs rs ON rs.song_id = s.id
-              JOIN daily_readings dr ON dr.id = rs.reading_id
-              WHERE s.topics IS NOT NULL
-            )
-            SELECT ys.yr, ys.id AS song_id, je.value AS topic
-            FROM year_songs ys,
-                 json_array_elements_text(ys.topics::json) AS je(value)
+            SELECT DISTINCT
+              CAST(to_char(dr.date, 'YYYY') AS INTEGER) AS yr,
+              s.id AS song_id, s.topics
+            FROM songs s
+            JOIN reading_songs rs ON rs.song_id = s.id
+            JOIN daily_readings dr ON dr.id = rs.reading_id
+            WHERE s.topics IS NOT NULL
             """
         )
     ).fetchall()
     for r in modern_rows:
-        yr = int(r.yr)
-        per_year.setdefault(yr, {})
-        per_year[yr][r.topic] = per_year[yr].get(r.topic, 0) + 1
-        songs_by_year.setdefault(yr, set()).add(int(r.song_id))
+        _ingest(int(r.yr), int(r.song_id), r.topics)
 
     # Historical path: exclude modern years so the same year isn't double-served.
     hist_rows = db.execute(
         text(
             """
-            WITH year_songs AS (
-              SELECT DISTINCT ca.year AS yr, s.id, s.topics
-              FROM songs s
-              JOIN chart_appearances ca ON ca.song_id = s.id
-              JOIN charts c ON c.id = ca.chart_id
-              WHERE c.slug = ANY(:agg_slugs)
-                AND s.topics IS NOT NULL
-                AND ca.year IS NOT NULL
-            )
-            SELECT ys.yr, ys.id AS song_id, je.value AS topic
-            FROM year_songs ys,
-                 json_array_elements_text(ys.topics::json) AS je(value)
+            SELECT DISTINCT ca.year AS yr, s.id AS song_id, s.topics
+            FROM songs s
+            JOIN chart_appearances ca ON ca.song_id = s.id
+            JOIN charts c ON c.id = ca.chart_id
+            WHERE c.slug = ANY(:agg_slugs)
+              AND s.topics IS NOT NULL
+              AND ca.year IS NOT NULL
             """
         ),
         {"agg_slugs": _AGG_SLUGS},
@@ -200,9 +253,14 @@ def get_topic_trends(db: Session = Depends(get_db)):
         yr = int(r.yr)
         if yr in modern_set:
             continue
-        per_year.setdefault(yr, {})
-        per_year[yr][r.topic] = per_year[yr].get(r.topic, 0) + 1
-        songs_by_year.setdefault(yr, set()).add(int(r.song_id))
+        _ingest(yr, int(r.song_id), r.topics)
+
+    # Hierarchy from the DB resolver (Phase 1: presentation-authoritative),
+    # falling back to the code constants when the tables are empty/unreachable.
+    # Fetched before the points loop because the theme rollups need the
+    # topic -> primary-theme map.
+    hierarchy = topic_hierarchy(db)
+    primary_map = {slug: meta["primary"] for slug, meta in hierarchy["topics"].items()}
 
     # Build per-year points, oldest -> newest. The in-progress current year is
     # excluded: its data is partial (only the days elapsed so far), so its topic
@@ -217,21 +275,20 @@ def get_topic_trends(db: Session = Depends(get_db)):
         total = sum(counts.values())
         if total <= 0:
             continue
-        dist = sorted(
-            counts.items(), key=lambda kv: (-kv[1], kv[0])
-        )
-        shannon = _shannon_bits([c for _, c in dist])
+        dom = per_year_dom.get(yr, {})
+        shannon = _shannon_bits(list(counts.values()))
         years_out.append(YearPoint(
             year=yr,
             songs_with_topics=len(songs_by_year.get(yr, set())),
             total_pairs=total,
-            distinct_topics=len(dist),
+            distinct_topics=len(counts),
             shannon=round(shannon, 4),
             effective_topics=round(2.0 ** shannon, 3),
-            distribution=[
-                TopicCount(topic=t, count=c, percent=round(c / total, 4))
-                for t, c in dist
-            ],
+            distribution=_distribution(counts),
+            effective_topics_dominant=_effective(dom),
+            effective_themes=_effective(_roll_to_themes(counts, primary_map)),
+            effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
+            distribution_dominant=_distribution(dom),
         ))
 
     # Coverage: the full corpus span (any data, tagged or not) vs the tagged
@@ -266,10 +323,7 @@ def get_topic_trends(db: Session = Depends(get_db)):
         is_early_signal=span < EARLY_SIGNAL_SPAN_YEARS,
     )
 
-    # Hierarchy from the DB resolver (Phase 1: presentation-authoritative),
-    # falling back to the code constants when the tables are empty/unreachable.
-    # Response shape is unchanged, so the frontend needs no change.
-    hierarchy = topic_hierarchy(db)
+    # Taxonomy block from the same hierarchy fetched above.
     taxonomy = [
         TaxonomyEntry(
             slug=slug,
@@ -305,6 +359,11 @@ class PeriodPoint(BaseModel):
     shannon: float
     effective_topics: float
     distribution: list[TopicCount]
+    # Parallel measures (recalibration Step 2) -- see YearPoint.
+    effective_topics_dominant: float
+    effective_themes: float
+    effective_themes_dominant: float
+    distribution_dominant: list[TopicCount]
 
 
 class TopicTrendsTrailingOut(BaseModel):
@@ -342,50 +401,58 @@ def get_topic_trends_trailing(db: Session = Depends(get_db)):
     rows = db.execute(
         text(
             """
-            WITH month_songs AS (
-              SELECT DISTINCT
-                to_char(dr.date, 'YYYY-MM') AS ym,
-                s.id, s.topics
-              FROM songs s
-              JOIN reading_songs rs ON rs.song_id = s.id
-              JOIN daily_readings dr ON dr.id = rs.reading_id
-              WHERE s.topics IS NOT NULL
-                AND dr.date >= CAST(:start AS date)
-            )
-            SELECT ms.ym, ms.id AS song_id, je.value AS topic
-            FROM month_songs ms,
-                 json_array_elements_text(ms.topics::json) AS je(value)
+            SELECT DISTINCT
+              to_char(dr.date, 'YYYY-MM') AS ym,
+              s.id AS song_id, s.topics
+            FROM songs s
+            JOIN reading_songs rs ON rs.song_id = s.id
+            JOIN daily_readings dr ON dr.id = rs.reading_id
+            WHERE s.topics IS NOT NULL
+              AND dr.date >= CAST(:start AS date)
             """
         ),
         {"start": start_date},
     ).fetchall()
 
     per_month: dict[str, dict[str, int]] = {}
+    per_month_dom: dict[str, dict[str, int]] = {}
     songs_by_month: dict[str, set[int]] = {}
     for r in rows:
-        per_month.setdefault(r.ym, {})
-        per_month[r.ym][r.topic] = per_month[r.ym].get(r.topic, 0) + 1
-        songs_by_month.setdefault(r.ym, set()).add(int(r.song_id))
+        if int(r.song_id) in songs_by_month.setdefault(r.ym, set()):
+            continue
+        topics = _parse_topics(r.topics)
+        if not topics:
+            continue
+        songs_by_month[r.ym].add(int(r.song_id))
+        pairs = per_month.setdefault(r.ym, {})
+        for t in topics:
+            pairs[t] = pairs.get(t, 0) + 1
+        dom = per_month_dom.setdefault(r.ym, {})
+        dom[topics[0]] = dom.get(topics[0], 0) + 1
+
+    hierarchy = topic_hierarchy(db)
+    primary_map = {slug: meta["primary"] for slug, meta in hierarchy["topics"].items()}
 
     periods: list[PeriodPoint] = []
     for key in months:
         counts = per_month.get(key, {})
+        dom = per_month_dom.get(key, {})
         total = sum(counts.values())
-        dist = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
-        shannon = _shannon_bits([c for _, c in dist])
+        shannon = _shannon_bits(list(counts.values()))
         _, mm = key.split("-")
         periods.append(PeriodPoint(
             key=key,
             label=f"{_MONTH_ABBR[int(mm)]} {key[:4]}",
             songs_with_topics=len(songs_by_month.get(key, set())),
             total_pairs=total,
-            distinct_topics=len(dist),
+            distinct_topics=len(counts),
             shannon=round(shannon, 4),
             effective_topics=round(2.0 ** shannon, 3),
-            distribution=[
-                TopicCount(topic=t, count=c, percent=round(c / total, 4) if total else 0.0)
-                for t, c in dist
-            ],
+            distribution=_distribution(counts),
+            effective_topics_dominant=_effective(dom),
+            effective_themes=_effective(_roll_to_themes(counts, primary_map)),
+            effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
+            distribution_dominant=_distribution(dom),
         ))
 
     return TopicTrendsTrailingOut(bucket="month", window_start=months[0], periods=periods)
