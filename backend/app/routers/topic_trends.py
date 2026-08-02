@@ -67,6 +67,15 @@ class TopicCount(BaseModel):
     percent: float
 
 
+class FracTopicCount(BaseModel):
+    """Fractional-weight entry (recalibration Step 6): each song contributes
+    1.0 total, split evenly across its tags (1/k per tag), so a 3-tag song
+    stops out-voting a 1-tag song and a year's weights sum to its song count."""
+    topic: str
+    weight: float
+    percent: float
+
+
 class YearPoint(BaseModel):
     year: int
     songs_with_topics: int      # distinct tagged songs in the year
@@ -96,6 +105,8 @@ class YearPoint(BaseModel):
     effective_topics_dominant_basis: float
     effective_themes_dominant_basis: float
     distribution_dominant_basis: list[TopicCount]
+    # Fractional weighting for the river (recalibration Step 6, additive).
+    distribution_fractional: list[FracTopicCount]
 
 
 class Coverage(BaseModel):
@@ -186,6 +197,16 @@ def _distribution(counts: dict[str, int]) -> list[TopicCount]:
     ]
 
 
+def _distribution_frac(weights: dict[str, float]) -> list[FracTopicCount]:
+    total = sum(weights.values())
+    dist = sorted(weights.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [
+        FracTopicCount(topic=t, weight=round(w, 4),
+                       percent=round(w / total, 4) if total else 0.0)
+        for t, w in dist
+    ]
+
+
 # --- Endpoint ---
 
 @router.get("", response_model=TopicTrendsOut)
@@ -219,13 +240,15 @@ def get_topic_trends(db: Session = Depends(get_db)):
     per_year: dict[int, dict[str, int]] = {}
     # year -> {topic: count}, dominant (first-listed) topic only, 1/song
     per_year_dom: dict[int, dict[str, int]] = {}
+    # year -> {topic: weight}, each song worth 1.0 split 1/k across its tags
+    per_year_frac: dict[int, dict[str, float]] = {}
     # year -> set of distinct tagged song ids
     songs_by_year: dict[int, set[int]] = {}
 
     def _ingest(yr: int, song_id: int, raw_topics) -> None:
         # A song can reach the same year via several rows (DISTINCT on the
         # SQL side keys on (yr, id, topics)); guard on the song-id set so a
-        # song votes once per year on both measures.
+        # song votes once per year on every measure.
         if song_id in songs_by_year.setdefault(yr, set()):
             return
         topics = _parse_topics(raw_topics)
@@ -233,8 +256,11 @@ def get_topic_trends(db: Session = Depends(get_db)):
             return
         songs_by_year[yr].add(song_id)
         pairs = per_year.setdefault(yr, {})
+        frac = per_year_frac.setdefault(yr, {})
+        share = 1.0 / len(topics)
         for t in topics:
             pairs[t] = pairs.get(t, 0) + 1
+            frac[t] = frac.get(t, 0.0) + share
         dom = per_year_dom.setdefault(yr, {})
         dom[topics[0]] = dom.get(topics[0], 0) + 1
 
@@ -392,6 +418,7 @@ def get_topic_trends(db: Session = Depends(get_db)):
             effective_themes=_effective(_roll_to_themes(counts, primary_map)),
             effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
             distribution_dominant=_distribution(dom),
+            distribution_fractional=_distribution_frac(per_year_frac.get(yr, {})),
             n_available=n_avail,
             below_basis=n_avail < BASIS_N,
             effective_topics_basis=_effective(b_pairs),
@@ -474,6 +501,8 @@ class PeriodPoint(BaseModel):
     effective_themes: float
     effective_themes_dominant: float
     distribution_dominant: list[TopicCount]
+    # Fractional weighting for the river (recalibration Step 6) -- see YearPoint.
+    distribution_fractional: list[FracTopicCount]
 
 
 class TopicTrendsTrailingOut(BaseModel):
@@ -526,6 +555,7 @@ def get_topic_trends_trailing(db: Session = Depends(get_db)):
 
     per_month: dict[str, dict[str, int]] = {}
     per_month_dom: dict[str, dict[str, int]] = {}
+    per_month_frac: dict[str, dict[str, float]] = {}
     songs_by_month: dict[str, set[int]] = {}
     for r in rows:
         if int(r.song_id) in songs_by_month.setdefault(r.ym, set()):
@@ -535,8 +565,11 @@ def get_topic_trends_trailing(db: Session = Depends(get_db)):
             continue
         songs_by_month[r.ym].add(int(r.song_id))
         pairs = per_month.setdefault(r.ym, {})
+        frac = per_month_frac.setdefault(r.ym, {})
+        share = 1.0 / len(topics)
         for t in topics:
             pairs[t] = pairs.get(t, 0) + 1
+            frac[t] = frac.get(t, 0.0) + share
         dom = per_month_dom.setdefault(r.ym, {})
         dom[topics[0]] = dom.get(topics[0], 0) + 1
 
@@ -563,6 +596,7 @@ def get_topic_trends_trailing(db: Session = Depends(get_db)):
             effective_themes=_effective(_roll_to_themes(counts, primary_map)),
             effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
             distribution_dominant=_distribution(dom),
+            distribution_fractional=_distribution_frac(per_month_frac.get(key, {})),
         ))
 
     return TopicTrendsTrailingOut(bucket="month", window_start=months[0], periods=periods)
