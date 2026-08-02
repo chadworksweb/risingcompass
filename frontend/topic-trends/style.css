@@ -107,16 +107,20 @@
 .tt-card .era-tabs { border-bottom: none; margin: 0; padding: 0; flex: 0 1 auto; }
 .tt-card .era-tab { flex: 0 0 auto; }
 
-/* Three control rows stacked on the right of the tab bar (they outgrew the
-   single inline row when the Line control arrived). */
+/* Control panel: three groups inline, each with its label stacked on top of
+   its toggles (the inline-label form outgrew the row when Line arrived). */
 .tt-controls {
   display: flex;
-  flex-direction: column;
   align-items: flex-end;
-  gap: 0.45rem;
+  gap: 1.1rem;
   padding: 0.4rem 0 0.5rem;
 }
-.tt-control { display: inline-flex; align-items: center; gap: 0.5rem; }
+.tt-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
 .tt-control-lbl {
   font-size: 0.66rem;
   font-weight: 700;
@@ -586,7 +590,7 @@
      running off the right edge (was flex-wrap:nowrap -> page overflow). */
   .tt-head { gap: 0.75rem 1rem; }
   .tt-card .era-tabs { flex: 1 0 100%; }
-  .tt-controls { flex-direction: row; align-items: flex-end; flex-wrap: wrap; gap: 0.55rem 1.1rem; width: 100%; padding-bottom: 0.4rem; }
-  .tt-control { gap: 0.4rem; }
+  .tt-controls { flex-wrap: wrap; gap: 0.7rem 1rem; width: 100%; padding-bottom: 0.4rem; }
+  .tt-control { gap: 0.3rem; }
   .tt-fbtn { padding: 0.32rem 0.6rem; font-size: 0.78rem; }
 }
