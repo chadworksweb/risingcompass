@@ -113,7 +113,7 @@
   display: flex;
   align-items: flex-end;
   gap: 1.1rem;
-  padding: 0.4rem 0 0.5rem 1.2rem;
+  padding: 0.4rem 0 calc(0.5rem + 5px) 1.2rem;
   /* Hairline ridge between the tabs and the control panel: a dark edge with
      a light edge beside it. */
   border-left: 1px solid rgba(0, 0, 0, 0.55);
@@ -443,11 +443,16 @@
   opacity: 0.4;
   pointer-events: none;
 }
-/* Line selector floating inside the Point chart, top right. */
+/* Line selector floating inside the Point chart: rests directly ON the top
+   (100%/max) gridline, right-aligned to the gridline's end. Offsets are the
+   SVG paddings as percentages of the 960x420 viewBox (padT 24, padR 22),
+   so it tracks the responsive scale; translateY(-100%) sets the pill's
+   bottom edge on the line. */
 .tt-line-float {
   position: absolute;
-  top: 8px;
-  right: 14px;
+  top: 5.714%;
+  right: 2.292%;
+  transform: translateY(-100%);
   display: flex;
   gap: 0.35rem;
   z-index: 4;
