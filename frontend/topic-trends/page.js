@@ -39,6 +39,7 @@
   let BANDCOLOR = {};       // key -> hsl, assigned per render from the stack order
   let TAX_N = 30;           // taxonomy size (for the topic-mode index scale)
   let BASIS_N = 20;         // fixed per-year basis; overwritten from the payload
+  let ROMANCE_SHELF = [];   // topic slugs whose primary theme is romance (from payload)
 
   const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -73,6 +74,7 @@
   }
   function labelForKey(key) {
     if (key === 'other') return 'other';
+    if (STATE.chart === 'romance') return labelize(key);   // shelf topics, always
     return STATE.mode === 'themes' ? (THEME_LABEL[key] || key) : labelize(key);
   }
 
@@ -172,6 +174,25 @@
     return { items, total: items.reduce((s, i) => s + i.count, 0) };
   }
 
+  // Recalibration Step 10: the Romance stream. Bands are the romance-shelf
+  // topics only, one vote per romance-led song (its dominant topic), so the
+  // river shows WHICH FACE of romance carries the music. Basis-disciplined
+  // on historical years (top-BASIS_N distribution when present).
+  function rollupColRomance(col) {
+    const src = (STATE.period === 'historical' && col.distribution_dominant_basis)
+      ? col.distribution_dominant_basis
+      : (col.distribution_dominant || []);
+    const shelf = new Set(ROMANCE_SHELF);
+    const items = src.filter((d) => shelf.has(d.topic) && d.count > 0)
+      .map((d) => ({ key: d.topic, count: d.count }));
+    return { items, total: items.reduce((s, i) => s + i.count, 0) };
+  }
+  // Stream-source dispatch: the Romance chart reads dominant shelf votes;
+  // the regular Stream reads fractional weights.
+  function rollupForStream(col) {
+    return STATE.chart === 'romance' ? rollupColRomance(col) : rollupColFrac(col);
+  }
+
   // Roll one column's topic distribution into the current group's buckets.
   function rollupCol(col) {
     if (STATE.mode === 'topics') {
@@ -263,12 +284,13 @@
     years.forEach((y) => {
       const start = Math.floor(y.year / size) * size;
       let g = groups.get(start);
-      if (!g) { g = { start, lo: y.year, hi: y.year, dist: {}, frac: {}, songs: 0, pairs: 0 }; groups.set(start, g); }
+      if (!g) { g = { start, lo: y.year, hi: y.year, dist: {}, frac: {}, dom: {}, songs: 0, pairs: 0 }; groups.set(start, g); }
       g.lo = Math.min(g.lo, y.year); g.hi = Math.max(g.hi, y.year);
       g.songs += y.songs_with_topics || 0;
       g.pairs += y.total_pairs || 0;
       (y.distribution || []).forEach((d) => { g.dist[d.topic] = (g.dist[d.topic] || 0) + d.count; });
       (y.distribution_fractional || []).forEach((d) => { g.frac[d.topic] = (g.frac[d.topic] || 0) + d.weight; });
+      ((y.distribution_dominant_basis || y.distribution_dominant) || []).forEach((d) => { g.dom[d.topic] = (g.dom[d.topic] || 0) + d.count; });
     });
     return Array.from(groups.values()).sort((a, b) => a.start - b.start).map((g) => ({
       year: g.start,
@@ -276,6 +298,7 @@
       axisLabel: String(g.start),
       distribution: Object.keys(g.dist).map((t) => ({ topic: t, count: g.dist[t] })),
       distribution_fractional: Object.keys(g.frac).map((t) => ({ topic: t, weight: g.frac[t] })),
+      distribution_dominant: Object.keys(g.dom).map((t) => ({ topic: t, count: g.dom[t] })),
       total_pairs: g.pairs,
       songs_with_topics: g.songs,
     }));
@@ -306,7 +329,7 @@
     }
     let years = ALLYEARS.filter((y) => y.year >= zoomLo && y.year <= zoomHi);
     if (!years.length) years = ALLYEARS.slice();
-    if (STATE.chart === 'stream') {
+    if (STATE.chart !== 'point') {   // stream + romance both bin
       const bin = years.length > 30 ? 5 : years.length > 15 ? 2 : 1;
       return { cols: binYears(years, bin), unit: 'year' };
     }
@@ -330,6 +353,12 @@
   }
 
   function bandKeysForMode(cols) {
+    if (STATE.chart === 'romance') {
+      const totals = {};
+      cols.forEach((c) => rollupColRomance(c).items.forEach((it) => { totals[it.key] = (totals[it.key] || 0) + it.count; }));
+      const ranked = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+      return { keys: ranked, hasOther: false };   // at most the 7 shelf topics
+    }
     if (STATE.mode === 'themes') return { keys: THEME_ORDER.slice(), hasOther: false };
     const totals = {};
     cols.forEach((c) => rollupColFrac(c).items.forEach((it) => { totals[it.key] = (totals[it.key] || 0) + it.count; }));
@@ -372,7 +401,7 @@
 
     const valuesByCol = cols.map((c) => {
       const row = {}; bandKeys.forEach((k) => (row[k] = 0));
-      rollupColFrac(c).items.forEach((it) => {
+      rollupForStream(c).items.forEach((it) => {
         if (keepSet.has(it.key)) row[it.key] += it.count;
         else if (hasOther) row['other'] += it.count;
       });
@@ -508,7 +537,9 @@
       tooltip.innerHTML =
         `<div class="tt-tt-head"><span class="tt-legend-swatch" style="background:${colorForKey(key)}"></span>${escapeHtml(labelForKey(key))}</div>`
         + extra
-        + `<div class="tt-tt-sub">${pct.toFixed(1)}% of ${escapeHtml(when)} · ${fmtW(cnt)} of ${fmtW(total)} song${total === 1 ? '' : 's'}' weight</div>`;
+        + (STATE.chart === 'romance'
+          ? `<div class="tt-tt-sub">${pct.toFixed(1)}% of ${escapeHtml(when)} · ${fmtW(cnt)} of ${fmtW(total)} romance-led song${total === 1 ? '' : 's'}</div>`
+          : `<div class="tt-tt-sub">${pct.toFixed(1)}% of ${escapeHtml(when)} · ${fmtW(cnt)} of ${fmtW(total)} song${total === 1 ? '' : 's'}' weight</div>`);
       tooltip.hidden = false;
       const wr = wrap.getBoundingClientRect();
       const px = clientX - wr.left, py = clientY - wr.top;
@@ -664,7 +695,7 @@
       return;
     }
     const col = cols[cols.length - 1];
-    const { items, total } = rollupCol(col);
+    const { items, total } = STATE.chart === 'romance' ? rollupColRomance(col) : rollupCol(col);
     const rows = items.slice().sort((a, b) => b.count - a.count);
     const denom = total || 1;
     const maxShare = (rows[0] ? rows[0].count : 1) / denom;
@@ -742,7 +773,7 @@
     const host = document.getElementById('tt-overview');
     if (!host || !ALLYEARS.length) return;
     const W = 320, H = 28, padT = 4, chartH = H - 8;
-    const isShare = shareView();
+    const isShare = shareView() || STATE.chart === 'romance';   // romance stream: share locator
     const useDom = dominantBasis();
     const yMax = isShare ? 100 : (useDom ? dominantCeiling() : maxEffective()), maxI = ALLYEARS.length - 1;
     const pts = ALLYEARS.map((y, i) => {
@@ -781,8 +812,8 @@
       rerafPending = false;
       const { cols, unit } = buildCols();
       if (cols.length < 2) renderField(cols);
-      else if (STATE.chart === 'stream') renderStream(cols, unit);
-      else renderPoint(cols, unit);
+      else if (STATE.chart === 'point') renderPoint(cols, unit);
+      else renderStream(cols, unit);
       updateBrace(); updateZoomWindowLabel(); resetClip();
     });
   }
@@ -969,7 +1000,12 @@
       const basisSentence = dominantBasis() && isHist
         ? ` Every year is measured on its top ${BASIS_N} songs; dashed years fall short of that basis.`
         : '';
-      sub.textContent = STATE.chart === 'stream'
+      const romanceBasisSentence = isHist
+        ? ` Every year is measured on its top ${BASIS_N} songs.`
+        : '';
+      sub.textContent = STATE.chart === 'romance'
+        ? `Which face of romance leads the romance-led songs: share of each ${unit === 'month' ? 'month' : 'period'} by dominant romance-shelf topic, across ${periodPhrase}.${romanceBasisSentence}`
+        : STATE.chart === 'stream'
         ? `Share of each ${unit === 'month' ? 'month' : 'period'}'s ${STATE.mode === 'themes' ? 'themes' : 'topics'}, across ${periodPhrase}. Each song carries one unit of weight, split across its topics.`
         : shareView()
           ? `Percent of each ${unit === 'month' ? 'month' : 'year'}'s songs whose dominant topic sits on the romance shelf (romance, breakup, longing, sex, betrayal, infidelity, obsession), across ${periodPhrase}.${basisSentence} The higher the line, the more the music is about romance and its aftermath.`
@@ -984,12 +1020,14 @@
       lineCtl.hidden = false;
       lineCtl.classList.toggle('is-inert', STATE.chart !== 'point');
     }
+    // Group has no effect on the Romance stream (fixed shelf bands) or the
+    // Romance-share line (theme-level by definition).
     const groupCtl = document.getElementById('tt-group-control');
-    if (groupCtl) groupCtl.classList.toggle('is-inert', shareView());
+    if (groupCtl) groupCtl.classList.toggle('is-inert', shareView() || STATE.chart === 'romance');
 
     if (cols.length < 2) { renderField(cols); TMGEO = null; }
-    else if (STATE.chart === 'stream') renderStream(cols, unit);
-    else renderPoint(cols, unit);
+    else if (STATE.chart === 'point') renderPoint(cols, unit);
+    else renderStream(cols, unit);
 
     if (isHist) {
       renderOverview(); updateBrace(); attachHistoricalChrome();
@@ -1057,6 +1095,7 @@
     const themes = YEARLY.themes || [];
     TAX_N = taxonomy.length || 30;
     BASIS_N = YEARLY.basis_n || 20;
+    ROMANCE_SHELF = taxonomy.filter((t) => t.primary === 'romance').map((t) => t.slug);
     TOPIC_MAP = {};
     taxonomy.forEach((t) => { TOPIC_MAP[t.slug] = { primary: t.primary, also: t.also || [] }; });
     THEME_LABEL = {}; THEME_ORDER = [];
