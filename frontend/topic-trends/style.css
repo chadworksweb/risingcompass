@@ -438,10 +438,27 @@
 .tt-index-dot--below {
   opacity: 0.45;
 }
-/* Group filter is inert while the Love-share line is shown (Step 7). */
+/* Group filter is inert while the Romance-share line is shown (Step 7). */
 .tt-control.is-inert {
   opacity: 0.4;
   pointer-events: none;
+}
+/* Line selector floating inside the Point chart, top right. */
+.tt-line-float {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  display: flex;
+  gap: 0.35rem;
+  z-index: 4;
+}
+.tt-line-float .tt-fbtn {
+  padding: 0.26rem 0.58rem;
+  font-size: 0.74rem;
+  background: var(--rc-bg-panel, #12121e);
+}
+.tt-line-float .tt-fbtn.active {
+  background: rgba(0, 212, 170, 0.12);
 }
 .tt-hover-line {
   stroke: var(--rc-text-bright, #eeeef4);

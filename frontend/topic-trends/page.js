@@ -637,6 +637,20 @@
     chartEl.innerHTML = svg;
     TMGEO = { xs: pts.map((p) => p.x), maxIdx, padT, chartH, padL, W };
 
+    // Line selector floats in the chart's top-right (Point mode only; the
+    // host is rebuilt per render so no stale copies survive).
+    wrap.insertAdjacentHTML('beforeend',
+      `<div class="tt-line-float" role="tablist" aria-label="Line">`
+      + `<button class="tt-fbtn${STATE.line === 'index' ? ' active' : ''}" data-line="index" type="button" role="tab" aria-selected="${STATE.line === 'index'}">Index</button>`
+      + `<button class="tt-fbtn${STATE.line === 'romance' ? ' active' : ''}" data-line="romance" type="button" role="tab" aria-selected="${STATE.line === 'romance'}">Romance</button>`
+      + `</div>`);
+    wrap.querySelectorAll('.tt-line-float [data-line]').forEach((b) => {
+      b.onclick = () => {
+        const val = b.getAttribute('data-line');
+        if (STATE.line !== val) { STATE.line = val; render(); }
+      };
+    });
+
     const lineNodes = chartEl.querySelectorAll('.tt-index-line');
     const lineNode = lineNodes.length === 1 ? lineNodes[0] : null;   // skip draw-in when segmented
     if (lineNode && lineNode.getTotalLength) {
@@ -1012,16 +1026,9 @@
           : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''}${basisSentence} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
     }
 
-    // Line selector only applies to Point mode -- dimmed (not hidden) while
-    // Stream is active. The Group filter has no effect on the Romance-share
-    // line (it is theme-level by definition), so it dims there.
-    const lineCtl = document.getElementById('tt-line-control');
-    if (lineCtl) {
-      lineCtl.hidden = false;
-      lineCtl.classList.toggle('is-inert', STATE.chart !== 'point');
-    }
     // Group has no effect on the Romance stream (fixed shelf bands) or the
-    // Romance-share line (theme-level by definition).
+    // Romance-share line (theme-level by definition). The Line selector
+    // lives INSIDE the Point chart (top-right float, built in renderPoint).
     const groupCtl = document.getElementById('tt-group-control');
     if (groupCtl) groupCtl.classList.toggle('is-inert', shareView() || STATE.chart === 'romance');
 
@@ -1072,7 +1079,6 @@
     bind('chart', 'chart');
     bind('mode', 'mode');
     bind('period', 'period');
-    bind('line', 'line');
   }
 
   // ---- Boot ----------------------------------------------------------------
