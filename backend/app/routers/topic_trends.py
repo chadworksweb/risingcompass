@@ -85,6 +85,17 @@ class YearPoint(BaseModel):
     effective_themes: float
     effective_themes_dominant: float
     distribution_dominant: list[TopicCount]
+    # Fixed-basis measures (recalibration Step 5, additive): computed over the
+    # year's top-BASIS_N songs by prominence, so no year out-votes another on
+    # sample size. n_available = TAGGED songs inside the top-BASIS_N window
+    # (instrumentals and no-fit songs occupy their slot but cannot vote);
+    # below_basis = the permanent honesty flag.
+    n_available: int
+    below_basis: bool
+    effective_topics_basis: float
+    effective_topics_dominant_basis: float
+    effective_themes_dominant_basis: float
+    distribution_dominant_basis: list[TopicCount]
 
 
 class Coverage(BaseModel):
@@ -100,6 +111,7 @@ class TopicTrendsOut(BaseModel):
     themes: list[ThemeEntry]
     years: list[YearPoint]
     coverage: Coverage
+    basis_n: int
 
 
 # --- Helpers ---
@@ -107,6 +119,17 @@ class TopicTrendsOut(BaseModel):
 # Below this many years of tagged data, the page shows the "early signal"
 # caveat -- a decades-long narrowing can't be claimed from a short window.
 EARLY_SIGNAL_SPAN_YEARS = 10
+
+# Recalibration Step 5: every year's basis-measures are computed over the SAME
+# number of songs, ranked by prominence (year-end chart position for
+# historical years; days-on-reading for modern years). A single global
+# constant on purpose: it gates UPWARD with the Hot-100 backfill (bump it only
+# when (nearly) every year supports the new depth -- top 10 + 11-20 done =>
+# 20 now, 21-30 across all years licenses 30, on the road to the full 100).
+# NEVER mix bases within one rendered series; a bump recomputes the whole
+# line uniformly. Years that fall short carry below_basis=True so the chart
+# renders them dashed/dimmed instead of lying by omission.
+BASIS_N = 20
 
 
 def _shannon_bits(counts: list[int]) -> float:
@@ -255,6 +278,83 @@ def get_topic_trends(db: Session = Depends(get_db)):
             continue
         _ingest(yr, int(r.song_id), r.topics)
 
+    # --- Fixed-basis (top-BASIS_N by prominence) parallel aggregation -------
+    # Same two paths, but each year's window is its BASIS_N most prominent
+    # songs, tagged or not: an untagged song (instrumental, no-fit) occupies
+    # its slot and simply cannot vote, which is what n_available reports.
+    basis_pairs: dict[int, dict[str, int]] = {}
+    basis_dom: dict[int, dict[str, int]] = {}
+    basis_tagged: dict[int, set[int]] = {}
+    basis_seen: dict[int, set[int]] = {}
+
+    def _ingest_basis(yr: int, song_id: int, raw_topics) -> None:
+        if song_id in basis_seen.setdefault(yr, set()):
+            return
+        basis_seen[yr].add(song_id)
+        topics = _parse_topics(raw_topics)
+        if not topics:
+            return
+        basis_tagged.setdefault(yr, set()).add(song_id)
+        pairs = basis_pairs.setdefault(yr, {})
+        for t in topics:
+            pairs[t] = pairs.get(t, 0) + 1
+        dom = basis_dom.setdefault(yr, {})
+        dom[topics[0]] = dom.get(topics[0], 0) + 1
+
+    # Modern years: prominence = days on the daily reading within the year.
+    modern_basis_rows = db.execute(
+        text(
+            """
+            WITH days AS (
+              SELECT CAST(to_char(dr.date, 'YYYY') AS INTEGER) AS yr,
+                     s.id AS song_id, s.topics,
+                     COUNT(DISTINCT dr.date) AS days_on
+              FROM songs s
+              JOIN reading_songs rs ON rs.song_id = s.id
+              JOIN daily_readings dr ON dr.id = rs.reading_id
+              GROUP BY 1, s.id, s.topics
+            ), ranked AS (
+              SELECT yr, song_id, topics,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY yr
+                       ORDER BY days_on DESC, song_id ASC
+                     ) AS rk
+              FROM days
+            )
+            SELECT yr, song_id, topics FROM ranked WHERE rk <= :basis_n
+            """
+        ),
+        {"basis_n": BASIS_N},
+    ).fetchall()
+    for r in modern_basis_rows:
+        _ingest_basis(int(r.yr), int(r.song_id), r.topics)
+
+    # Historical years: prominence = best year-end chart position.
+    hist_basis_rows = db.execute(
+        text(
+            """
+            WITH ranked AS (
+              SELECT ca.year AS yr, s.id AS song_id, s.topics,
+                     MIN(ca.position) AS best_pos
+              FROM songs s
+              JOIN chart_appearances ca ON ca.song_id = s.id
+              JOIN charts c ON c.id = ca.chart_id
+              WHERE c.slug = ANY(:agg_slugs)
+                AND ca.year IS NOT NULL
+                AND ca.position IS NOT NULL
+              GROUP BY ca.year, s.id, s.topics
+            )
+            SELECT yr, song_id, topics FROM ranked WHERE best_pos <= :basis_n
+            """
+        ),
+        {"agg_slugs": _AGG_SLUGS, "basis_n": BASIS_N},
+    ).fetchall()
+    for r in hist_basis_rows:
+        yr = int(r.yr)
+        if yr in modern_set:
+            continue
+        _ingest_basis(yr, int(r.song_id), r.topics)
+
     # Hierarchy from the DB resolver (Phase 1: presentation-authoritative),
     # falling back to the code constants when the tables are empty/unreachable.
     # Fetched before the points loop because the theme rollups need the
@@ -276,6 +376,9 @@ def get_topic_trends(db: Session = Depends(get_db)):
         if total <= 0:
             continue
         dom = per_year_dom.get(yr, {})
+        b_pairs = basis_pairs.get(yr, {})
+        b_dom = basis_dom.get(yr, {})
+        n_avail = len(basis_tagged.get(yr, set()))
         shannon = _shannon_bits(list(counts.values()))
         years_out.append(YearPoint(
             year=yr,
@@ -289,6 +392,12 @@ def get_topic_trends(db: Session = Depends(get_db)):
             effective_themes=_effective(_roll_to_themes(counts, primary_map)),
             effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
             distribution_dominant=_distribution(dom),
+            n_available=n_avail,
+            below_basis=n_avail < BASIS_N,
+            effective_topics_basis=_effective(b_pairs),
+            effective_topics_dominant_basis=_effective(b_dom),
+            effective_themes_dominant_basis=_effective(_roll_to_themes(b_dom, primary_map)),
+            distribution_dominant_basis=_distribution(b_dom),
         ))
 
     # Coverage: the full corpus span (any data, tagged or not) vs the tagged
@@ -337,6 +446,7 @@ def get_topic_trends(db: Session = Depends(get_db)):
 
     return TopicTrendsOut(
         taxonomy=taxonomy, themes=themes, years=years_out, coverage=coverage,
+        basis_n=BASIS_N,
     )
 
 

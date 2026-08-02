@@ -408,6 +408,15 @@
   stroke: var(--rc-accent, #00d4aa);
   stroke-width: 2;
 }
+/* Below-basis honesty (recalibration Step 5): years measured on fewer than
+   the fixed top-N basis render dashed + dimmed, never silently equal. */
+.tt-index-line--below {
+  stroke-dasharray: 5 5;
+  opacity: 0.55;
+}
+.tt-index-dot--below {
+  opacity: 0.45;
+}
 .tt-hover-line {
   stroke: var(--rc-text-bright, #eeeef4);
   stroke-width: 1;

@@ -37,6 +37,7 @@
   let THEME_ORDER = [];     // theme slugs in canonical order
   let BANDCOLOR = {};       // key -> hsl, assigned per render from the stack order
   let TAX_N = 30;           // taxonomy size (for the topic-mode index scale)
+  let BASIS_N = 20;         // fixed per-year basis; overwritten from the payload
 
   const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -91,6 +92,16 @@
   // immune to the romance shelf holding 7 of 31 slugs. Stream is untouched.
   function dominantBasis() { return STATE.chart === 'point'; }
   function dominantOf(col) {
+    // Step 5: historical years read the FIXED-BASIS measures (top BASIS_N
+    // songs by prominence), so no year out-votes another on sample size.
+    // Trailing months carry no basis fields and fall through to the
+    // whole-set dominant measures.
+    if (STATE.period === 'historical') {
+      const vb = STATE.mode === 'themes'
+        ? col.effective_themes_dominant_basis
+        : col.effective_topics_dominant_basis;
+      if (Number.isFinite(vb)) return vb;
+    }
     const v = STATE.mode === 'themes'
       ? col.effective_themes_dominant
       : col.effective_topics_dominant;
@@ -109,7 +120,10 @@
   // Distinct-unit count on the dominant basis (for the tooltip): themes mode
   // rolls the dominant-topic distribution to primary themes client-side.
   function dominantDistinct(col) {
-    const dist = (col.distribution_dominant || []).filter((d) => d.count > 0);
+    const raw = (STATE.period === 'historical' && col.distribution_dominant_basis)
+      ? col.distribution_dominant_basis
+      : (col.distribution_dominant || []);
+    const dist = raw.filter((d) => d.count > 0);
     if (STATE.mode !== 'themes') return dist.length;
     const seen = new Set();
     dist.forEach((d) => {
@@ -147,6 +161,23 @@
     for (let i = 1; i < points.length; i++) d += ` L ${points[i].x.toFixed(2)} ${points[i].y.toFixed(2)}`;
     return d;
   }
+  // Per-segment Catmull-Rom beziers (same control points as smoothPath), so
+  // below-basis segments can carry their own dashed styling without changing
+  // the curve's shape.
+  function smoothSegments(points) {
+    const segs = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i - 1] || points[i];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] || p2;
+      const cp1x = p1.x + (p2.x - p0.x) / 6, cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6, cp2y = p2.y - (p3.y - p1.y) / 6;
+      segs.push(`M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`);
+    }
+    return segs;
+  }
+
   // Catmull-Rom -> cubic bezier (used by the Point/Index line only).
   function smoothPath(points) {
     if (!points.length) return '';
@@ -247,6 +278,11 @@
       effective_topics_dominant: y.effective_topics_dominant,
       effective_themes_dominant: y.effective_themes_dominant,
       distribution_dominant: y.distribution_dominant,
+      effective_topics_dominant_basis: y.effective_topics_dominant_basis,
+      effective_themes_dominant_basis: y.effective_themes_dominant_basis,
+      distribution_dominant_basis: y.distribution_dominant_basis,
+      n_available: y.n_available,
+      below_basis: y.below_basis,
     }));
     return { cols, unit: 'year' };
   }
@@ -470,11 +506,15 @@
         eff = effectiveCount(items.map((it) => it.count));
         distinct = items.filter((it) => it.count > 0).length;
       }
+      const basisMode = useDom && STATE.period === 'historical'
+        && Number.isFinite(c.effective_topics_dominant_basis);
       return {
         x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
         y: padT + (1 - Math.min(eff, yMax) / yMax) * chartH,
         label: c.label, axisLabel: c.axisLabel, year: c.year,
-        eff, distinct, songs: c.songs_with_topics,
+        eff, distinct,
+        songs: basisMode ? c.n_available : c.songs_with_topics,
+        basisMode, below: basisMode && !!c.below_basis,
       };
     });
 
@@ -499,8 +539,17 @@
 
     svg += '<g clip-path="url(#tt-clip)">';
     if (areaPath) svg += `<path class="tt-index-area" d="${areaPath}" fill="url(#tt-index-area)"/>`;
-    svg += `<path class="tt-index-line" d="${linePath}" fill="none"/>`;
-    pts.forEach((p, i) => { svg += `<circle class="tt-index-dot" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"/>`; });
+    const anyBelow = pts.some((p) => p.below);
+    if (anyBelow && pts.length > 1) {
+      // Below-basis honesty: segments touching a short year render dashed.
+      smoothSegments(pts).forEach((d, i) => {
+        const dashed = pts[i].below || pts[i + 1].below;
+        svg += `<path class="tt-index-line${dashed ? ' tt-index-line--below' : ''}" d="${d}" fill="none"/>`;
+      });
+    } else {
+      svg += `<path class="tt-index-line" d="${linePath}" fill="none"/>`;
+    }
+    pts.forEach((p, i) => { svg += `<circle class="tt-index-dot${p.below ? ' tt-index-dot--below' : ''}" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"/>`; });
     svg += '</g>';
     svg += `<line id="tt-tm-marker" class="tt-tm-marker" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
     svg += `<line id="tt-index-hline" class="tt-hover-line" x1="0" y1="${padT}" x2="0" y2="${padT + chartH}" style="display:none"/>`;
@@ -509,7 +558,8 @@
     chartEl.innerHTML = svg;
     TMGEO = { xs: pts.map((p) => p.x), maxIdx, padT, chartH, padL, W };
 
-    const lineNode = chartEl.querySelector('.tt-index-line');
+    const lineNodes = chartEl.querySelectorAll('.tt-index-line');
+    const lineNode = lineNodes.length === 1 ? lineNodes[0] : null;   // skip draw-in when segmented
     if (lineNode && lineNode.getTotalLength) {
       const len = lineNode.getTotalLength();
       lineNode.style.strokeDasharray = len;
@@ -537,7 +587,7 @@
           `<div class="tt-tt-head">${escapeHtml(p.label)}</div>`
           + `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}${useDom ? ' (dominant)' : ''}</span></div>`
           + (useDom
-            ? `<div class="tt-tt-sub">${p.distinct}${STATE.mode === 'themes' ? ` of ${yMax}` : ''} ${unitNoun(p.distinct)} carried as dominant · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`
+            ? `<div class="tt-tt-sub">${p.distinct}${STATE.mode === 'themes' ? ` of ${yMax}` : ''} ${unitNoun(p.distinct)} carried as dominant · ${p.songs} song${p.songs === 1 ? '' : 's'}${p.basisMode ? (p.below ? ` · below basis (${p.songs} of ${BASIS_N} tagged)` : ` · top-${BASIS_N} basis`) : ''}</div>`
             : `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`);
         tooltip.hidden = false;
         tooltip.style.left = px + 'px';
@@ -860,7 +910,7 @@
     if (sub) {
       sub.textContent = STATE.chart === 'stream'
         ? `Share of each ${unit === 'month' ? 'month' : 'period'}'s ${STATE.mode === 'themes' ? 'themes' : 'topics'}, across ${periodPhrase}.`
-        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
+        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''}${dominantBasis() && isHist ? ` Every year is measured on its top ${BASIS_N} songs; dashed years fall short of that basis.` : ''} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
     }
 
     if (cols.length < 2) { renderField(cols); TMGEO = null; }
@@ -926,6 +976,7 @@
     const taxonomy = YEARLY.taxonomy || [];
     const themes = YEARLY.themes || [];
     TAX_N = taxonomy.length || 30;
+    BASIS_N = YEARLY.basis_n || 20;
     TOPIC_MAP = {};
     taxonomy.forEach((t) => { TOPIC_MAP[t.slug] = { primary: t.primary, also: t.also || [] }; });
     THEME_LABEL = {}; THEME_ORDER = [];
