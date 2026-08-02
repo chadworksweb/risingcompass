@@ -84,22 +84,39 @@
   }
   function maxEffective() { return STATE.mode === 'themes' ? THEME_ORDER.length : TAX_N; }
 
-  // Recalibration Step 3: in Point mode the topics-grouping Index reads the
-  // server's dominant-topic measure (first-listed topic, one vote per song),
-  // which removes the tags-per-song drift confound. Themes grouping stays on
-  // all-pairs until Step 4. Stream mode is untouched.
-  function dominantBasis() { return STATE.chart === 'point' && STATE.mode === 'topics'; }
+  // Recalibration Steps 3+4: in Point mode the Index reads the server's
+  // dominant-basis measures (first-listed topic, one vote per song), which
+  // removes the tags-per-song drift confound. Themes grouping (the default)
+  // reads the dominant topic rolled to its primary theme -- the altitude
+  // immune to the romance shelf holding 7 of 31 slugs. Stream is untouched.
+  function dominantBasis() { return STATE.chart === 'point'; }
   function dominantOf(col) {
-    const v = col.effective_topics_dominant;
+    const v = STATE.mode === 'themes'
+      ? col.effective_themes_dominant
+      : col.effective_topics_dominant;
     return Number.isFinite(v) ? v : null;
   }
-  // Axis ceiling for the dominant basis: a stable nice ceiling over the FULL
-  // active series (not the zoom window), so zooming never rescales the line.
+  // Axis ceiling for the dominant basis. Themes: the full 9-theme scale
+  // (stable, conceptually "out of 9"). Topics: a stable nice ceiling over the
+  // FULL active series (not the zoom window), so zooming never rescales.
   function dominantCeiling() {
+    if (STATE.mode === 'themes') return THEME_ORDER.length || 9;
     const src = STATE.period === 'historical' ? ALLYEARS : (TRAIL.periods || []);
     let m = 1;
     src.forEach((c) => { const v = dominantOf(c); if (v != null && v > m) m = v; });
     return Math.max(5, Math.ceil(m / 5) * 5);
+  }
+  // Distinct-unit count on the dominant basis (for the tooltip): themes mode
+  // rolls the dominant-topic distribution to primary themes client-side.
+  function dominantDistinct(col) {
+    const dist = (col.distribution_dominant || []).filter((d) => d.count > 0);
+    if (STATE.mode !== 'themes') return dist.length;
+    const seen = new Set();
+    dist.forEach((d) => {
+      const th = TOPIC_MAP[d.topic] && TOPIC_MAP[d.topic].primary;
+      if (th) seen.add(th);
+    });
+    return seen.size;
   }
   function unitNoun(n) {
     const base = STATE.mode === 'themes' ? 'theme' : 'topic';
@@ -447,7 +464,7 @@
       let eff, distinct;
       if (useDom && dominantOf(c) != null) {
         eff = dominantOf(c);
-        distinct = (c.distribution_dominant || []).filter((d) => d.count > 0).length;
+        distinct = dominantDistinct(c);
       } else {
         const { items } = rollupCol(c);
         eff = effectiveCount(items.map((it) => it.count));
@@ -472,7 +489,7 @@
       </linearGradient>
       <clipPath id="tt-clip"><rect id="tt-clip-rect" x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>`;
 
-    const gridStep = yMax <= 8 ? 1 : 5;
+    const gridStep = yMax <= 12 ? 1 : 5;
     for (let v = 0; v <= yMax; v += gridStep) {
       const y = padT + (1 - v / yMax) * chartH;
       svg += `<line class="tt-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"/>`;
@@ -520,7 +537,7 @@
           `<div class="tt-tt-head">${escapeHtml(p.label)}</div>`
           + `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}${useDom ? ' (dominant)' : ''}</span></div>`
           + (useDom
-            ? `<div class="tt-tt-sub">${p.distinct} ${unitNoun(p.distinct)} carried as dominant · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`
+            ? `<div class="tt-tt-sub">${p.distinct}${STATE.mode === 'themes' ? ` of ${yMax}` : ''} ${unitNoun(p.distinct)} carried as dominant · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`
             : `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`);
         tooltip.hidden = false;
         tooltip.style.left = px + 'px';
@@ -843,7 +860,7 @@
     if (sub) {
       sub.textContent = STATE.chart === 'stream'
         ? `Share of each ${unit === 'month' ? 'month' : 'period'}'s ${STATE.mode === 'themes' ? 'themes' : 'topics'}, across ${periodPhrase}.`
-        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? ' Each song votes once, by its dominant topic.' : ''} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
+        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
     }
 
     if (cols.length < 2) { renderField(cols); TMGEO = null; }
