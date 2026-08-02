@@ -583,7 +583,7 @@
       svg += `<text class="tt-y-label" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}${isShare ? '%' : ''}</text>`;
     }
     svg += xAxisSvg(cols, pts.map((p) => p.x), unit, W, H, padT, chartH, padL,
-      isShare ? 'Romance share' : `Effective ${unitNoun(2)}`);
+      isShare ? 'Romance' : `Effective ${unitNoun(2)}`);
 
     svg += '<g clip-path="url(#tt-clip)">';
     if (areaPath) svg += `<path class="tt-index-area" d="${areaPath}" fill="url(#tt-index-area)"/>`;
