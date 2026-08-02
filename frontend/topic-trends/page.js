@@ -83,6 +83,24 @@
     return Math.pow(2, h);
   }
   function maxEffective() { return STATE.mode === 'themes' ? THEME_ORDER.length : TAX_N; }
+
+  // Recalibration Step 3: in Point mode the topics-grouping Index reads the
+  // server's dominant-topic measure (first-listed topic, one vote per song),
+  // which removes the tags-per-song drift confound. Themes grouping stays on
+  // all-pairs until Step 4. Stream mode is untouched.
+  function dominantBasis() { return STATE.chart === 'point' && STATE.mode === 'topics'; }
+  function dominantOf(col) {
+    const v = col.effective_topics_dominant;
+    return Number.isFinite(v) ? v : null;
+  }
+  // Axis ceiling for the dominant basis: a stable nice ceiling over the FULL
+  // active series (not the zoom window), so zooming never rescales the line.
+  function dominantCeiling() {
+    const src = STATE.period === 'historical' ? ALLYEARS : (TRAIL.periods || []);
+    let m = 1;
+    src.forEach((c) => { const v = dominantOf(c); if (v != null && v > m) m = v; });
+    return Math.max(5, Math.ceil(m / 5) * 5);
+  }
   function unitNoun(n) {
     const base = STATE.mode === 'themes' ? 'theme' : 'topic';
     return n === 1 ? base : base + 's';
@@ -192,6 +210,9 @@
           distribution: p.distribution,
           total_pairs: p.total_pairs,
           songs_with_topics: p.songs_with_topics,
+          effective_topics_dominant: p.effective_topics_dominant,
+          effective_themes_dominant: p.effective_themes_dominant,
+          distribution_dominant: p.distribution_dominant,
         }));
       return { cols, unit: 'month' };
     }
@@ -206,6 +227,9 @@
       year: y.year, label: String(y.year), axisLabel: String(y.year),
       distribution: y.distribution, total_pairs: y.total_pairs,
       songs_with_topics: y.songs_with_topics,
+      effective_topics_dominant: y.effective_topics_dominant,
+      effective_themes_dominant: y.effective_themes_dominant,
+      distribution_dominant: y.distribution_dominant,
     }));
     return { cols, unit: 'year' };
   }
@@ -416,15 +440,22 @@
 
     const W = 960, H = 420, padL = 46, padR = 22, padT = 24, padB = 40;
     const chartW = W - padL - padR, chartH = H - padT - padB, maxIdx = cols.length - 1;
-    const yMax = maxEffective();
+    const useDom = dominantBasis();
+    const yMax = useDom ? dominantCeiling() : maxEffective();
 
     const pts = cols.map((c, i) => {
-      const { items } = rollupCol(c);
-      const eff = effectiveCount(items.map((it) => it.count));
-      const distinct = items.filter((it) => it.count > 0).length;
+      let eff, distinct;
+      if (useDom && dominantOf(c) != null) {
+        eff = dominantOf(c);
+        distinct = (c.distribution_dominant || []).filter((d) => d.count > 0).length;
+      } else {
+        const { items } = rollupCol(c);
+        eff = effectiveCount(items.map((it) => it.count));
+        distinct = items.filter((it) => it.count > 0).length;
+      }
       return {
         x: padL + (maxIdx > 0 ? (i / maxIdx) * chartW : chartW / 2),
-        y: padT + (1 - eff / yMax) * chartH,
+        y: padT + (1 - Math.min(eff, yMax) / yMax) * chartH,
         label: c.label, axisLabel: c.axisLabel, year: c.year,
         eff, distinct, songs: c.songs_with_topics,
       };
@@ -487,8 +518,10 @@
         const px = clientX - wr.left;
         tooltip.innerHTML =
           `<div class="tt-tt-head">${escapeHtml(p.label)}</div>`
-          + `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}</span></div>`
-          + `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`;
+          + `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}${useDom ? ' (dominant)' : ''}</span></div>`
+          + (useDom
+            ? `<div class="tt-tt-sub">${p.distinct} ${unitNoun(p.distinct)} carried as dominant · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`
+            : `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`);
         tooltip.hidden = false;
         tooltip.style.left = px + 'px';
         // Sit on the cursor's half so it stays opposite the flipped year label.
@@ -589,11 +622,17 @@
     const host = document.getElementById('tt-overview');
     if (!host || !ALLYEARS.length) return;
     const W = 320, H = 28, padT = 4, chartH = H - 8;
-    const yMax = maxEffective(), maxI = ALLYEARS.length - 1;
-    const pts = ALLYEARS.map((y, i) => ({
-      x: maxI > 0 ? (i / maxI) * W : W / 2,
-      y: padT + (1 - effectiveCount(rollupCol(y).items.map((it) => it.count)) / yMax) * chartH,
-    }));
+    const useDom = dominantBasis();
+    const yMax = useDom ? dominantCeiling() : maxEffective(), maxI = ALLYEARS.length - 1;
+    const pts = ALLYEARS.map((y, i) => {
+      const eff = useDom && dominantOf(y) != null
+        ? dominantOf(y)
+        : effectiveCount(rollupCol(y).items.map((it) => it.count));
+      return {
+        x: maxI > 0 ? (i / maxI) * W : W / 2,
+        y: padT + (1 - Math.min(eff, yMax) / yMax) * chartH,
+      };
+    });
     const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     host.innerHTML =
       `<svg class="traj-overview-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="traj-overview-line" d="${d}" fill="none" stroke-width="1"/></svg>`
@@ -804,7 +843,7 @@
     if (sub) {
       sub.textContent = STATE.chart === 'stream'
         ? `Share of each ${unit === 'month' ? 'month' : 'period'}'s ${STATE.mode === 'themes' ? 'themes' : 'topics'}, across ${periodPhrase}.`
-        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}. When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
+        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? ' Each song votes once, by its dominant topic.' : ''} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
     }
 
     if (cols.length < 2) { renderField(cols); TMGEO = null; }
