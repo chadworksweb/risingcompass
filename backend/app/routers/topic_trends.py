@@ -527,7 +527,11 @@ class PeriodPoint(BaseModel):
 class TopicTrendsTrailingOut(BaseModel):
     bucket: str                 # "month"
     window_start: str           # earliest bucket key, "YYYY-MM"
-    periods: list[PeriodPoint]  # always 12, oldest -> newest (empty months included)
+    periods: list[PeriodPoint]  # oldest -> newest (empty months included)
+    # Recalibration Step 8: which window this is. "ytd" = the in-progress
+    # calendar year, always partial, never merged into the historical series.
+    view: str = "trailing"      # "trailing" | "ytd"
+    partial: bool = False
 
 
 _MONTH_ABBR = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -547,12 +551,22 @@ def _last_n_month_keys(n: int) -> list[str]:
     return list(reversed(keys))
 
 
+def _ytd_month_keys() -> list[str]:
+    """January through the current month of the in-progress year."""
+    today = date.today()
+    return [f"{today.year:04d}-{m:02d}" for m in range(1, today.month + 1)]
+
+
 @router.get("/trailing", response_model=TopicTrendsTrailingOut)
-def get_topic_trends_trailing(db: Session = Depends(get_db)):
-    """Topic distribution + diversity bucketed by calendar month over the last
-    12 months (the "Trailing 365 days" tab). Modern path only; empty months are
-    returned so the x-axis is a continuous 12-bucket span."""
-    months = _last_n_month_keys(12)
+def get_topic_trends_trailing(period: str = "trailing", db: Session = Depends(get_db)):
+    """Topic distribution + diversity bucketed by calendar month. Two windows:
+    the default last-12-months ("Trailing 365 days" tab) and, with
+    ?period=ytd, the in-progress calendar year (recalibration Step 8) --
+    an ISOLATED partial-year view that is never merged into the historical
+    series. Modern path only; empty months are returned so the x-axis is a
+    continuous span."""
+    is_ytd = period == "ytd"
+    months = _ytd_month_keys() if is_ytd else _last_n_month_keys(12)
     start_y, start_m = months[0].split("-")
     start_date = f"{start_y}-{start_m}-01"
 
@@ -619,4 +633,7 @@ def get_topic_trends_trailing(db: Session = Depends(get_db)):
             romance_share_dominant=_romance_share(dom, primary_map),
         ))
 
-    return TopicTrendsTrailingOut(bucket="month", window_start=months[0], periods=periods)
+    return TopicTrendsTrailingOut(
+        bucket="month", window_start=months[0], periods=periods,
+        view="ytd" if is_ytd else "trailing", partial=is_ytd,
+    )

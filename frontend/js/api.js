@@ -119,6 +119,7 @@ const API = (() => {
     getEtherYear: (year) => get(`/api/ether-art-chart/year/${year}`),
     getTopicTrends: () => get('/api/topic-trends'),
     getTopicTrendsTrailing: () => get('/api/topic-trends/trailing'),
+    getTopicTrendsYtd: () => get('/api/topic-trends/trailing?period=ytd'),
     getChartSnapshot: (key) => get(`/api/compass/chart/${encodeURIComponent(key)}/current`),
     // All-time boards (top 100, refreshed monthly / annual-manual). Paired
     // left-regular + right-ether pages under /charts/.

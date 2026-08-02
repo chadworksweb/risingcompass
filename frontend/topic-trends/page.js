@@ -23,6 +23,7 @@
 
   let YEARLY = null;        // /api/topic-trends payload
   let TRAIL = null;         // /api/topic-trends/trailing payload
+  let YTD = null;           // /api/topic-trends/trailing?period=ytd payload
 
   // Historical zoom window (year values) + Time Machine, mirroring the homepage
   // trajectory toolkit: a draggable brace over a mini-overview sets the window;
@@ -112,7 +113,9 @@
   // FULL active series (not the zoom window), so zooming never rescales.
   function dominantCeiling() {
     if (STATE.mode === 'themes') return THEME_ORDER.length || 9;
-    const src = STATE.period === 'historical' ? ALLYEARS : (TRAIL.periods || []);
+    const src = STATE.period === 'historical'
+      ? ALLYEARS
+      : (((STATE.period === 'ytd' ? YTD : TRAIL) || {}).periods || []);
     let m = 1;
     src.forEach((c) => { const v = dominantOf(c); if (v != null && v > m) m = v; });
     return Math.max(5, Math.ceil(m / 5) * 5);
@@ -282,8 +285,9 @@
   // Returns { cols, unit } where unit is 'year' | 'month'. Empty columns are
   // dropped so a sparse trailing window shows only its populated buckets.
   function buildCols() {
-    if (STATE.period === 'trailing') {
-      const cols = (TRAIL.periods || [])
+    if (STATE.period !== 'historical') {
+      const src = (STATE.period === 'ytd' ? YTD : TRAIL) || { periods: [] };
+      const cols = (src.periods || [])
         .filter((p) => p.total_pairs > 0)
         .map((p) => ({
           year: parseInt(p.key.slice(0, 4), 10),
@@ -956,9 +960,11 @@
     const sub = document.getElementById('tt-chart-sub');
     const { cols, unit } = buildCols();
 
-    const periodPhrase = !isHist
-      ? 'the last 12 months'
-      : (zoomLo === fullLo() && zoomHi === fullHi() ? 'every tagged year' : `${zoomLo}–${zoomHi}`);
+    const periodPhrase = STATE.period === 'ytd'
+      ? `${new Date().getFullYear()} so far (partial year, never merged into the historical series)`
+      : !isHist
+        ? 'the last 12 months'
+        : (zoomLo === fullLo() && zoomHi === fullHi() ? 'every tagged year' : `${zoomLo}–${zoomHi}`);
     if (sub) {
       const basisSentence = dominantBasis() && isHist
         ? ` Every year is measured on its top ${BASIS_N} songs; dashed years fall short of that basis.`
@@ -1034,7 +1040,11 @@
   // ---- Boot ----------------------------------------------------------------
   async function boot() {
     try {
-      [YEARLY, TRAIL] = await Promise.all([API.getTopicTrends(), API.getTopicTrendsTrailing()]);
+      [YEARLY, TRAIL, YTD] = await Promise.all([
+        API.getTopicTrends(),
+        API.getTopicTrendsTrailing(),
+        (API.getTopicTrendsYtd ? API.getTopicTrendsYtd() : Promise.resolve(null)).catch(() => null),
+      ]);
     } catch (err) {
       console.error('Failed to load /topic-trends:', err);
       const s = document.getElementById('tt-status'); if (s) s.textContent = 'Could not load topic trends.';
@@ -1042,6 +1052,7 @@
     }
     YEARLY.years = YEARLY.years || [];
     TRAIL = TRAIL || { periods: [] };
+    YTD = YTD || { periods: [] };
     const taxonomy = YEARLY.taxonomy || [];
     const themes = YEARLY.themes || [];
     TAX_N = taxonomy.length || 30;
