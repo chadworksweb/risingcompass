@@ -155,12 +155,12 @@
 
   // Fractional roll-up for the river (recalibration Step 6): each song is 1.0
   // of mass, split 1/k across its tags, so band shares sum honestly per song.
-  // Falls back to the all-pairs distribution when the field is absent.
+  // (The legacy all-pairs fallback was retired in the final cleanup.)
   function rollupColFrac(col) {
     const frac = col.distribution_fractional;
     const src = (Array.isArray(frac) && frac.length)
       ? frac.map((d) => ({ topic: d.topic, count: d.weight }))
-      : (col.distribution || []);
+      : [];
     if (STATE.mode === 'topics') {
       const items = src.map((d) => ({ key: d.topic, count: d.count }));
       return { items, total: items.reduce((s, i) => s + i.count, 0) };
@@ -191,23 +191,6 @@
   // the regular Stream reads fractional weights.
   function rollupForStream(col) {
     return STATE.chart === 'romance' ? rollupColRomance(col) : rollupColFrac(col);
-  }
-
-  // Roll one column's topic distribution into the current group's buckets.
-  function rollupCol(col) {
-    if (STATE.mode === 'topics') {
-      return {
-        items: col.distribution.map((d) => ({ key: d.topic, count: d.count })),
-        total: col.total_pairs,
-      };
-    }
-    const acc = {};
-    col.distribution.forEach((d) => {
-      const theme = (TOPIC_MAP[d.topic] && TOPIC_MAP[d.topic].primary) || 'other';
-      acc[theme] = (acc[theme] || 0) + d.count;
-    });
-    const items = Object.keys(acc).map((k) => ({ key: k, count: acc[k] }));
-    return { items, total: items.reduce((s, i) => s + i.count, 0) };
   }
 
   // ---- Path builders -------------------------------------------------------
@@ -284,11 +267,9 @@
     years.forEach((y) => {
       const start = Math.floor(y.year / size) * size;
       let g = groups.get(start);
-      if (!g) { g = { start, lo: y.year, hi: y.year, dist: {}, frac: {}, dom: {}, songs: 0, pairs: 0 }; groups.set(start, g); }
+      if (!g) { g = { start, lo: y.year, hi: y.year, frac: {}, dom: {}, songs: 0 }; groups.set(start, g); }
       g.lo = Math.min(g.lo, y.year); g.hi = Math.max(g.hi, y.year);
       g.songs += y.songs_with_topics || 0;
-      g.pairs += y.total_pairs || 0;
-      (y.distribution || []).forEach((d) => { g.dist[d.topic] = (g.dist[d.topic] || 0) + d.count; });
       (y.distribution_fractional || []).forEach((d) => { g.frac[d.topic] = (g.frac[d.topic] || 0) + d.weight; });
       ((y.distribution_dominant_basis || y.distribution_dominant) || []).forEach((d) => { g.dom[d.topic] = (g.dom[d.topic] || 0) + d.count; });
     });
@@ -296,10 +277,8 @@
       year: g.start,
       label: g.lo === g.hi ? `${g.lo}` : `${g.lo}–${String(g.hi).slice(-2)}`,
       axisLabel: String(g.start),
-      distribution: Object.keys(g.dist).map((t) => ({ topic: t, count: g.dist[t] })),
       distribution_fractional: Object.keys(g.frac).map((t) => ({ topic: t, weight: g.frac[t] })),
       distribution_dominant: Object.keys(g.dom).map((t) => ({ topic: t, count: g.dom[t] })),
-      total_pairs: g.pairs,
       songs_with_topics: g.songs,
     }));
   }
@@ -311,13 +290,11 @@
     if (STATE.period !== 'historical') {
       const src = (STATE.period === 'ytd' ? YTD : TRAIL) || { periods: [] };
       const cols = (src.periods || [])
-        .filter((p) => p.total_pairs > 0)
+        .filter((p) => p.songs_with_topics > 0)
         .map((p) => ({
           year: parseInt(p.key.slice(0, 4), 10),
           label: p.label,
           axisLabel: `${MONTHS[parseInt(p.key.slice(5, 7), 10)]} '${p.key.slice(2, 4)}`,
-          distribution: p.distribution,
-          total_pairs: p.total_pairs,
           songs_with_topics: p.songs_with_topics,
           effective_topics_dominant: p.effective_topics_dominant,
           effective_themes_dominant: p.effective_themes_dominant,
@@ -336,7 +313,6 @@
     // Point historical: per-year, no binning (the index is a per-period measure).
     const cols = years.map((y) => ({
       year: y.year, label: String(y.year), axisLabel: String(y.year),
-      distribution: y.distribution, total_pairs: y.total_pairs,
       songs_with_topics: y.songs_with_topics,
       effective_topics_dominant: y.effective_topics_dominant,
       effective_themes_dominant: y.effective_themes_dominant,
@@ -580,7 +556,7 @@
         eff = dominantOf(c);
         distinct = dominantDistinct(c);
       } else {
-        const { items } = rollupCol(c);
+        const { items } = rollupColFrac(c);
         eff = effectiveCount(items.map((it) => it.count));
         distinct = items.filter((it) => it.count > 0).length;
       }
@@ -709,7 +685,7 @@
       return;
     }
     const col = cols[cols.length - 1];
-    const { items, total } = STATE.chart === 'romance' ? rollupColRomance(col) : rollupCol(col);
+    const { items, total } = STATE.chart === 'romance' ? rollupColRomance(col) : rollupColFrac(col);
     const rows = items.slice().sort((a, b) => b.count - a.count);
     const denom = total || 1;
     const maxShare = (rows[0] ? rows[0].count : 1) / denom;
@@ -795,7 +771,7 @@
         ? (shareOf(y) || 0) * 100
         : (useDom && dominantOf(y) != null
           ? dominantOf(y)
-          : effectiveCount(rollupCol(y).items.map((it) => it.count)));
+          : effectiveCount(rollupColFrac(y).items.map((it) => it.count)));
       return {
         x: maxI > 0 ? (i / maxI) * W : W / 2,
         y: padT + (1 - Math.min(eff, yMax) / yMax) * chartH,
@@ -1107,7 +1083,7 @@
     THEME_LABEL = {}; THEME_ORDER = [];
     themes.forEach((t) => { THEME_LABEL[t.slug] = t.label; THEME_ORDER.push(t.slug); });
 
-    ALLYEARS = YEARLY.years.filter((y) => y.total_pairs > 0);
+    ALLYEARS = YEARLY.years.filter((y) => y.songs_with_topics > 0);
     if (ALLYEARS.length) { zoomLo = ALLYEARS[0].year; zoomHi = ALLYEARS[ALLYEARS.length - 1].year; }
 
     renderCaveat(YEARLY.coverage);

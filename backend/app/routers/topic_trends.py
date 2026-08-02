@@ -1,13 +1,23 @@
 """Public Topic Trends API -- the data behind "The Narrowing".
 
 One read-only endpoint that returns a per-year topic time series across every
-year that has tagged topics, plus two derived diversity measures per year:
+year that has tagged topics, plus the recalibrated diversity measures per year
+(all "effective number" reads are 2**shannon-entropy over a distribution):
 
-  - shannon          -- Shannon entropy (bits) over that year's topic mix
-  - effective_topics -- 2**shannon, the "effective number of topics" (a
-                        count-like read: ~16 effective topics in a wide year,
-                        ~5 in a narrow one). A falling effective_topics line
-                        IS the narrowing, quantified.
+  - effective_topics_dominant / effective_themes_dominant -- one vote per song
+    (its FIRST-LISTED topic), optionally rolled to the primary theme. Removes
+    the tags-per-song drift confound. A falling dominant line IS the
+    narrowing, quantified.
+  - *_basis variants -- computed over each year's top-BASIS_N songs by
+    prominence, so no year out-votes another on sample size.
+  - distribution_fractional -- each song contributes 1.0 split 1/k across its
+    tags (the river's weighting).
+  - romance_share_dominant -- fraction of songs led by a romance-shelf topic.
+
+The legacy all-pairs fields (shannon / effective_topics / distribution /
+total_pairs / distinct_topics / effective_themes) were RETIRED in the
+recalibration's final cleanup (2026-08-02) -- every surface reads the
+measures above.
 
 Built SEPARATELY from ether_art_chart.py (which powers the esoteric Ether Art
 Chart). This shares the taxonomy + the same distribution SQL shape, but is its
@@ -79,29 +89,20 @@ class FracTopicCount(BaseModel):
 class YearPoint(BaseModel):
     year: int
     songs_with_topics: int      # distinct tagged songs in the year
-    total_pairs: int            # sum of (song, topic) pairs = sum of counts
-    distinct_topics: int        # how many of the 31 topics appear at all
-    shannon: float              # entropy in bits
-    effective_topics: float     # 2**shannon
-    distribution: list[TopicCount]
-    # Parallel measures (recalibration Step 2, additive -- the chart still
-    # renders from the all-pairs fields above). "Dominant" = the song's
-    # FIRST-LISTED topic only, one vote per song, which removes the
-    # tags-per-song drift confound; "themes" rolls topics to their single
-    # primary theme (the strict tree), the altitude immune to the romance
-    # shelf holding 7 of 31 slugs.
+    # "Dominant" = the song's FIRST-LISTED topic only, one vote per song,
+    # which removes the tags-per-song drift confound; "themes" rolls topics
+    # to their single primary theme (the strict tree), the altitude immune
+    # to the romance shelf holding 7 of 31 slugs.
     effective_topics_dominant: float
-    effective_themes: float
     effective_themes_dominant: float
     distribution_dominant: list[TopicCount]
-    # Fixed-basis measures (recalibration Step 5, additive): computed over the
-    # year's top-BASIS_N songs by prominence, so no year out-votes another on
+    # Fixed-basis measures (recalibration Step 5): computed over the year's
+    # top-BASIS_N songs by prominence, so no year out-votes another on
     # sample size. n_available = TAGGED songs inside the top-BASIS_N window
     # (instrumentals and no-fit songs occupy their slot but cannot vote);
     # below_basis = the permanent honesty flag.
     n_available: int
     below_basis: bool
-    effective_topics_basis: float
     effective_topics_dominant_basis: float
     effective_themes_dominant_basis: float
     distribution_dominant_basis: list[TopicCount]
@@ -323,7 +324,6 @@ def get_topic_trends(db: Session = Depends(get_db)):
     # Same two paths, but each year's window is its BASIS_N most prominent
     # songs, tagged or not: an untagged song (instrumental, no-fit) occupies
     # its slot and simply cannot vote, which is what n_available reports.
-    basis_pairs: dict[int, dict[str, int]] = {}
     basis_dom: dict[int, dict[str, int]] = {}
     basis_tagged: dict[int, set[int]] = {}
     basis_seen: dict[int, set[int]] = {}
@@ -336,9 +336,6 @@ def get_topic_trends(db: Session = Depends(get_db)):
         if not topics:
             return
         basis_tagged.setdefault(yr, set()).add(song_id)
-        pairs = basis_pairs.setdefault(yr, {})
-        for t in topics:
-            pairs[t] = pairs.get(t, 0) + 1
         dom = basis_dom.setdefault(yr, {})
         dom[topics[0]] = dom.get(topics[0], 0) + 1
 
@@ -417,26 +414,17 @@ def get_topic_trends(db: Session = Depends(get_db)):
         if total <= 0:
             continue
         dom = per_year_dom.get(yr, {})
-        b_pairs = basis_pairs.get(yr, {})
         b_dom = basis_dom.get(yr, {})
         n_avail = len(basis_tagged.get(yr, set()))
-        shannon = _shannon_bits(list(counts.values()))
         years_out.append(YearPoint(
             year=yr,
             songs_with_topics=len(songs_by_year.get(yr, set())),
-            total_pairs=total,
-            distinct_topics=len(counts),
-            shannon=round(shannon, 4),
-            effective_topics=round(2.0 ** shannon, 3),
-            distribution=_distribution(counts),
             effective_topics_dominant=_effective(dom),
-            effective_themes=_effective(_roll_to_themes(counts, primary_map)),
             effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
             distribution_dominant=_distribution(dom),
             distribution_fractional=_distribution_frac(per_year_frac.get(yr, {})),
             n_available=n_avail,
             below_basis=n_avail < BASIS_N,
-            effective_topics_basis=_effective(b_pairs),
             effective_topics_dominant_basis=_effective(b_dom),
             effective_themes_dominant_basis=_effective(_roll_to_themes(b_dom, primary_map)),
             distribution_dominant_basis=_distribution(b_dom),
@@ -508,14 +496,9 @@ class PeriodPoint(BaseModel):
     key: str                    # "YYYY-MM"
     label: str                  # "Jul 2025"
     songs_with_topics: int
-    total_pairs: int
-    distinct_topics: int
-    shannon: float
-    effective_topics: float
-    distribution: list[TopicCount]
-    # Parallel measures (recalibration Step 2) -- see YearPoint.
+    # Dominant measures -- see YearPoint. Trailing months carry no basis
+    # fields (the window is a whole-set recent-mix view).
     effective_topics_dominant: float
-    effective_themes: float
     effective_themes_dominant: float
     distribution_dominant: list[TopicCount]
     # Fractional weighting for the river (recalibration Step 6) -- see YearPoint.
@@ -586,7 +569,6 @@ def get_topic_trends_trailing(period: str = "trailing", db: Session = Depends(ge
         {"start": start_date},
     ).fetchall()
 
-    per_month: dict[str, dict[str, int]] = {}
     per_month_dom: dict[str, dict[str, int]] = {}
     per_month_frac: dict[str, dict[str, float]] = {}
     songs_by_month: dict[str, set[int]] = {}
@@ -597,11 +579,9 @@ def get_topic_trends_trailing(period: str = "trailing", db: Session = Depends(ge
         if not topics:
             continue
         songs_by_month[r.ym].add(int(r.song_id))
-        pairs = per_month.setdefault(r.ym, {})
         frac = per_month_frac.setdefault(r.ym, {})
         share = 1.0 / len(topics)
         for t in topics:
-            pairs[t] = pairs.get(t, 0) + 1
             frac[t] = frac.get(t, 0.0) + share
         dom = per_month_dom.setdefault(r.ym, {})
         dom[topics[0]] = dom.get(topics[0], 0) + 1
@@ -611,22 +591,13 @@ def get_topic_trends_trailing(period: str = "trailing", db: Session = Depends(ge
 
     periods: list[PeriodPoint] = []
     for key in months:
-        counts = per_month.get(key, {})
         dom = per_month_dom.get(key, {})
-        total = sum(counts.values())
-        shannon = _shannon_bits(list(counts.values()))
         _, mm = key.split("-")
         periods.append(PeriodPoint(
             key=key,
             label=f"{_MONTH_ABBR[int(mm)]} {key[:4]}",
             songs_with_topics=len(songs_by_month.get(key, set())),
-            total_pairs=total,
-            distinct_topics=len(counts),
-            shannon=round(shannon, 4),
-            effective_topics=round(2.0 ** shannon, 3),
-            distribution=_distribution(counts),
             effective_topics_dominant=_effective(dom),
-            effective_themes=_effective(_roll_to_themes(counts, primary_map)),
             effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
             distribution_dominant=_distribution(dom),
             distribution_fractional=_distribution_frac(per_month_frac.get(key, {})),
