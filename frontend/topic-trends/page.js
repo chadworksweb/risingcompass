@@ -117,7 +117,7 @@
     src.forEach((c) => { const v = dominantOf(c); if (v != null && v > m) m = v; });
     return Math.max(5, Math.ceil(m / 5) * 5);
   }
-  // Recalibration Step 7: the Love-share line -- percent of songs whose
+  // Recalibration Step 7: the Romance-share line -- percent of songs whose
   // DOMINANT topic files on the romance shelf. Basis-disciplined like the
   // Index (historical years read the top-BASIS_N share).
   function shareView() { return STATE.chart === 'point' && STATE.line === 'romance'; }
@@ -579,7 +579,7 @@
       svg += `<text class="tt-y-label" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}${isShare ? '%' : ''}</text>`;
     }
     svg += xAxisSvg(cols, pts.map((p) => p.x), unit, W, H, padT, chartH, padL,
-      isShare ? 'Love-led share' : `Effective ${unitNoun(2)}`);
+      isShare ? 'Romance share' : `Effective ${unitNoun(2)}`);
 
     svg += '<g clip-path="url(#tt-clip)">';
     if (areaPath) svg += `<path class="tt-index-area" d="${areaPath}" fill="url(#tt-index-area)"/>`;
@@ -966,12 +966,12 @@
       sub.textContent = STATE.chart === 'stream'
         ? `Share of each ${unit === 'month' ? 'month' : 'period'}'s ${STATE.mode === 'themes' ? 'themes' : 'topics'}, across ${periodPhrase}. Each song carries one unit of weight, split across its topics.`
         : shareView()
-          ? `Percent of each ${unit === 'month' ? 'month' : 'year'}'s songs whose dominant topic sits on the romance shelf (romance, breakup, longing, sex, betrayal, infidelity, obsession), across ${periodPhrase}.${basisSentence} The higher the line, the more the music is about love and its aftermath.`
+          ? `Percent of each ${unit === 'month' ? 'month' : 'year'}'s songs whose dominant topic sits on the romance shelf (romance, breakup, longing, sex, betrayal, infidelity, obsession), across ${periodPhrase}.${basisSentence} The higher the line, the more the music is about romance and its aftermath.`
           : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''}${basisSentence} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
     }
 
     // Line selector only applies to Point mode -- dimmed (not hidden) while
-    // Stream is active. The Group filter has no effect on the Love-share
+    // Stream is active. The Group filter has no effect on the Romance-share
     // line (it is theme-level by definition), so it dims there.
     const lineCtl = document.getElementById('tt-line-control');
     if (lineCtl) {
