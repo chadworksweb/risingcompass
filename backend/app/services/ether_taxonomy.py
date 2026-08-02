@@ -1,4 +1,4 @@
-"""The Ether Art Chart — closed 25-topic taxonomy (single source of truth).
+"""The Ether Art Chart — closed 31-topic taxonomy (single source of truth; see assert below).
 
 Imported by the ether tagger prompt and the admin Ether Audits surface. Adding
 a tag is a one-line dict insertion + redeploy — intentional friction, since

@@ -1,7 +1,7 @@
 """Ether tagger — names what a compass_song IS through the Ether Art Chart lens.
 
 Single-shot Opus call run after the main calibrator. Emits a flat literal
-deadpan_line plus 0-3 ranked topic slugs from the closed 25-topic taxonomy
+deadpan_line plus 0-3 ranked topic slugs from the closed 31-topic taxonomy (see ether_taxonomy assert)
 (`services/ether_taxonomy.ETHER_TAXONOMY`). When no honest taxonomy match
 exists, returns an audit payload instead of forcing a bad fit.
 
@@ -107,6 +107,10 @@ Order topics by lyrical centrality:
   4. Cap at 3. Songs almost never carry more than 3 honest topics. If
      you find yourself wanting 4, you're tagging coincidental mentions,
      not actual themes — drop the weakest.
+  5. LEAN. Most songs carry ONE dominant topic. Add a second or third
+     only when it is genuinely load-bearing to the song's arc — a topic
+     that merely appears is not a topic the song is ABOUT. When unsure,
+     fewer tags.
 """
 
 _AUDIT_BLOCK = """═══════════════════════════════════════════════════════════════════════
@@ -114,7 +118,7 @@ AUDIT ESCAPE HATCH — mandatory when nothing fits
 ═══════════════════════════════════════════════════════════════════════
 
 If you cannot honestly tag the song with even one topic from the
-25-topic list, return:
+31-topic list, return:
 
   topics: []
   topic_audit: {

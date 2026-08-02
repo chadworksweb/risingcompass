@@ -80,7 +80,7 @@ class YearPoint(BaseModel):
     year: int
     songs_with_topics: int      # distinct tagged songs in the year
     total_pairs: int            # sum of (song, topic) pairs = sum of counts
-    distinct_topics: int        # how many of the 30 topics appear at all
+    distinct_topics: int        # how many of the 31 topics appear at all
     shannon: float              # entropy in bits
     effective_topics: float     # 2**shannon
     distribution: list[TopicCount]
