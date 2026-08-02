@@ -417,6 +417,11 @@
 .tt-index-dot--below {
   opacity: 0.45;
 }
+/* Group filter is inert while the Love-share line is shown (Step 7). */
+.tt-control.is-inert {
+  opacity: 0.4;
+  pointer-events: none;
+}
 .tt-hover-line {
   stroke: var(--rc-text-bright, #eeeef4);
   stroke-width: 1;

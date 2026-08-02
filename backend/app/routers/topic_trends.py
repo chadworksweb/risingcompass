@@ -107,6 +107,12 @@ class YearPoint(BaseModel):
     distribution_dominant_basis: list[TopicCount]
     # Fractional weighting for the river (recalibration Step 6, additive).
     distribution_fractional: list[FracTopicCount]
+    # Intra-romance share (recalibration Step 7): fraction of songs whose
+    # DOMINANT topic files on the romance shelf (primary theme == romance).
+    # The share the romance shelf's 7 slugs would otherwise hide at topic
+    # level. _basis = computed over the fixed top-BASIS_N window.
+    romance_share_dominant: float
+    romance_share_dominant_basis: float
 
 
 class Coverage(BaseModel):
@@ -195,6 +201,15 @@ def _distribution(counts: dict[str, int]) -> list[TopicCount]:
         TopicCount(topic=t, count=c, percent=round(c / total, 4) if total else 0.0)
         for t, c in dist
     ]
+
+
+def _romance_share(dom_counts: dict[str, int], primary_map: dict[str, str]) -> float:
+    """Fraction of dominant-topic votes that file on the romance shelf."""
+    total = sum(dom_counts.values())
+    if total <= 0:
+        return 0.0
+    rom = sum(c for t, c in dom_counts.items() if primary_map.get(t) == "romance")
+    return round(rom / total, 4)
 
 
 def _distribution_frac(weights: dict[str, float]) -> list[FracTopicCount]:
@@ -425,6 +440,8 @@ def get_topic_trends(db: Session = Depends(get_db)):
             effective_topics_dominant_basis=_effective(b_dom),
             effective_themes_dominant_basis=_effective(_roll_to_themes(b_dom, primary_map)),
             distribution_dominant_basis=_distribution(b_dom),
+            romance_share_dominant=_romance_share(dom, primary_map),
+            romance_share_dominant_basis=_romance_share(b_dom, primary_map),
         ))
 
     # Coverage: the full corpus span (any data, tagged or not) vs the tagged
@@ -503,6 +520,8 @@ class PeriodPoint(BaseModel):
     distribution_dominant: list[TopicCount]
     # Fractional weighting for the river (recalibration Step 6) -- see YearPoint.
     distribution_fractional: list[FracTopicCount]
+    # Intra-romance share (recalibration Step 7) -- see YearPoint.
+    romance_share_dominant: float
 
 
 class TopicTrendsTrailingOut(BaseModel):
@@ -597,6 +616,7 @@ def get_topic_trends_trailing(db: Session = Depends(get_db)):
             effective_themes_dominant=_effective(_roll_to_themes(dom, primary_map)),
             distribution_dominant=_distribution(dom),
             distribution_fractional=_distribution_frac(per_month_frac.get(key, {})),
+            romance_share_dominant=_romance_share(dom, primary_map),
         ))
 
     return TopicTrendsTrailingOut(bucket="month", window_start=months[0], periods=periods)

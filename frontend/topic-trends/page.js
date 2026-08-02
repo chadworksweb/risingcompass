@@ -19,7 +19,7 @@
   const RIVER_TOP_N = 12;   // distinct topic bands in stream mode; rest -> "other"
 
   // ---- State ---------------------------------------------------------------
-  const STATE = { chart: 'stream', period: 'trailing', mode: 'themes' };
+  const STATE = { chart: 'stream', period: 'trailing', mode: 'themes', line: 'index' };
 
   let YEARLY = null;        // /api/topic-trends payload
   let TRAIL = null;         // /api/topic-trends/trailing payload
@@ -117,6 +117,17 @@
     src.forEach((c) => { const v = dominantOf(c); if (v != null && v > m) m = v; });
     return Math.max(5, Math.ceil(m / 5) * 5);
   }
+  // Recalibration Step 7: the Love-share line -- percent of songs whose
+  // DOMINANT topic files on the romance shelf. Basis-disciplined like the
+  // Index (historical years read the top-BASIS_N share).
+  function shareView() { return STATE.chart === 'point' && STATE.line === 'romance'; }
+  function shareOf(col) {
+    if (STATE.period === 'historical' && Number.isFinite(col.romance_share_dominant_basis)) {
+      return col.romance_share_dominant_basis;
+    }
+    return Number.isFinite(col.romance_share_dominant) ? col.romance_share_dominant : null;
+  }
+
   // Distinct-unit count on the dominant basis (for the tooltip): themes mode
   // rolls the dominant-topic distribution to primary themes client-side.
   function dominantDistinct(col) {
@@ -285,6 +296,7 @@
           effective_themes_dominant: p.effective_themes_dominant,
           distribution_dominant: p.distribution_dominant,
           distribution_fractional: p.distribution_fractional,
+          romance_share_dominant: p.romance_share_dominant,
         }));
       return { cols, unit: 'month' };
     }
@@ -307,6 +319,8 @@
       distribution_dominant_basis: y.distribution_dominant_basis,
       n_available: y.n_available,
       below_basis: y.below_basis,
+      romance_share_dominant: y.romance_share_dominant,
+      romance_share_dominant_basis: y.romance_share_dominant_basis,
     }));
     return { cols, unit: 'year' };
   }
@@ -518,12 +532,16 @@
 
     const W = 960, H = 420, padL = 46, padR = 22, padT = 24, padB = 40;
     const chartW = W - padL - padR, chartH = H - padT - padB, maxIdx = cols.length - 1;
+    const isShare = shareView();
     const useDom = dominantBasis();
-    const yMax = useDom ? dominantCeiling() : maxEffective();
+    const yMax = isShare ? 100 : (useDom ? dominantCeiling() : maxEffective());
 
     const pts = cols.map((c, i) => {
       let eff, distinct;
-      if (useDom && dominantOf(c) != null) {
+      if (isShare) {
+        eff = (shareOf(c) || 0) * 100;
+        distinct = dominantDistinct(c);
+      } else if (useDom && dominantOf(c) != null) {
         eff = dominantOf(c);
         distinct = dominantDistinct(c);
       } else {
@@ -554,13 +572,14 @@
       </linearGradient>
       <clipPath id="tt-clip"><rect id="tt-clip-rect" x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>`;
 
-    const gridStep = yMax <= 12 ? 1 : 5;
+    const gridStep = isShare ? 25 : (yMax <= 12 ? 1 : 5);
     for (let v = 0; v <= yMax; v += gridStep) {
       const y = padT + (1 - v / yMax) * chartH;
       svg += `<line class="tt-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"/>`;
-      svg += `<text class="tt-y-label" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
+      svg += `<text class="tt-y-label" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}${isShare ? '%' : ''}</text>`;
     }
-    svg += xAxisSvg(cols, pts.map((p) => p.x), unit, W, H, padT, chartH, padL, `Effective ${unitNoun(2)}`);
+    svg += xAxisSvg(cols, pts.map((p) => p.x), unit, W, H, padT, chartH, padL,
+      isShare ? 'Love-led share' : `Effective ${unitNoun(2)}`);
 
     svg += '<g clip-path="url(#tt-clip)">';
     if (areaPath) svg += `<path class="tt-index-area" d="${areaPath}" fill="url(#tt-index-area)"/>`;
@@ -610,10 +629,15 @@
         const px = clientX - wr.left;
         tooltip.innerHTML =
           `<div class="tt-tt-head">${escapeHtml(p.label)}</div>`
-          + `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}${useDom ? ' (dominant)' : ''}</span></div>`
-          + (useDom
+          + (isShare
+            ? `<div class="tt-tt-big">${p.eff.toFixed(0)}% <span>led by a romance-shelf topic</span></div>`
+            : `<div class="tt-tt-big">${p.eff.toFixed(1)} <span>effective ${unitNoun(2)}${useDom ? ' (dominant)' : ''}</span></div>`)
+          + (isShare
+            ? `<div class="tt-tt-sub">${p.songs} song${p.songs === 1 ? '' : 's'}${p.basisMode ? (p.below ? ` · below basis (${p.songs} of ${BASIS_N} tagged)` : ` · top-${BASIS_N} basis`) : ''}</div>`
+            : '')
+          + (isShare ? '' : (useDom
             ? `<div class="tt-tt-sub">${p.distinct}${STATE.mode === 'themes' ? ` of ${yMax}` : ''} ${unitNoun(p.distinct)} carried as dominant · ${p.songs} song${p.songs === 1 ? '' : 's'}${p.basisMode ? (p.below ? ` · below basis (${p.songs} of ${BASIS_N} tagged)` : ` · top-${BASIS_N} basis`) : ''}</div>`
-            : `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`);
+            : `<div class="tt-tt-sub">${p.distinct} of ${yMax} ${unitNoun(yMax)} present · ${p.songs} song${p.songs === 1 ? '' : 's'}</div>`));
         tooltip.hidden = false;
         tooltip.style.left = px + 'px';
         // Sit on the cursor's half so it stays opposite the flipped year label.
@@ -714,12 +738,15 @@
     const host = document.getElementById('tt-overview');
     if (!host || !ALLYEARS.length) return;
     const W = 320, H = 28, padT = 4, chartH = H - 8;
+    const isShare = shareView();
     const useDom = dominantBasis();
-    const yMax = useDom ? dominantCeiling() : maxEffective(), maxI = ALLYEARS.length - 1;
+    const yMax = isShare ? 100 : (useDom ? dominantCeiling() : maxEffective()), maxI = ALLYEARS.length - 1;
     const pts = ALLYEARS.map((y, i) => {
-      const eff = useDom && dominantOf(y) != null
-        ? dominantOf(y)
-        : effectiveCount(rollupCol(y).items.map((it) => it.count));
+      const eff = isShare
+        ? (shareOf(y) || 0) * 100
+        : (useDom && dominantOf(y) != null
+          ? dominantOf(y)
+          : effectiveCount(rollupCol(y).items.map((it) => it.count)));
       return {
         x: maxI > 0 ? (i / maxI) * W : W / 2,
         y: padT + (1 - Math.min(eff, yMax) / yMax) * chartH,
@@ -933,10 +960,22 @@
       ? 'the last 12 months'
       : (zoomLo === fullLo() && zoomHi === fullHi() ? 'every tagged year' : `${zoomLo}–${zoomHi}`);
     if (sub) {
+      const basisSentence = dominantBasis() && isHist
+        ? ` Every year is measured on its top ${BASIS_N} songs; dashed years fall short of that basis.`
+        : '';
       sub.textContent = STATE.chart === 'stream'
         ? `Share of each ${unit === 'month' ? 'month' : 'period'}'s ${STATE.mode === 'themes' ? 'themes' : 'topics'}, across ${periodPhrase}. Each song carries one unit of weight, split across its topics.`
-        : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''}${dominantBasis() && isHist ? ` Every year is measured on its top ${BASIS_N} songs; dashed years fall short of that basis.` : ''} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
+        : shareView()
+          ? `Percent of each ${unit === 'month' ? 'month' : 'year'}'s songs whose dominant topic sits on the romance shelf (romance, breakup, longing, sex, betrayal, infidelity, obsession), across ${periodPhrase}.${basisSentence} The higher the line, the more the music is about love and its aftermath.`
+          : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''}${basisSentence} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
     }
+
+    // Line selector only applies to Point mode; the Group filter has no
+    // effect on the Love-share line (it is theme-level by definition).
+    const lineCtl = document.getElementById('tt-line-control');
+    if (lineCtl) lineCtl.hidden = STATE.chart !== 'point';
+    const groupCtl = document.getElementById('tt-group-control');
+    if (groupCtl) groupCtl.classList.toggle('is-inert', shareView());
 
     if (cols.length < 2) { renderField(cols); TMGEO = null; }
     else if (STATE.chart === 'stream') renderStream(cols, unit);
@@ -985,6 +1024,7 @@
     bind('chart', 'chart');
     bind('mode', 'mode');
     bind('period', 'period');
+    bind('line', 'line');
   }
 
   // ---- Boot ----------------------------------------------------------------

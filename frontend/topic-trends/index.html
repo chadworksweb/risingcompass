@@ -97,7 +97,7 @@
 
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/responsive.css">
-  <link rel="stylesheet" href="style.css?v=20260801">
+  <link rel="stylesheet" href="style.css?v=20260801b">
 </head>
 <body>
   <a class="skip-nav" href="#main">Skip to content</a>
@@ -181,9 +181,9 @@
       <h1 class="tt-title">Topic Trends</h1>
       <p class="tt-framing">
         Every song the Compass reads is named for what it is actually about, drawn
-        from a fixed set of 30 human topics. Track those topics year over year and
-        a shape appears: the range of what popular music is willing to be about
-        gets wider, or it gets narrower. This is that measurement.
+        from a limited (but amendable) set of human topics. Track those topics year
+        over year and a shape appears: the range of what popular music is willing
+        to be about gets wider, or it gets narrower. This is that measurement.
       </p>
     </section>
 
@@ -210,11 +210,18 @@
               <button class="tt-fbtn" data-chart="point" type="button">Point</button>
             </div>
           </div>
-          <div class="tt-control">
+          <div class="tt-control" id="tt-group-control">
             <span class="tt-control-lbl">Group</span>
             <div class="tt-fgroup">
               <button class="tt-fbtn active" data-mode="themes" type="button">Themes</button>
               <button class="tt-fbtn" data-mode="topics" type="button">Topics</button>
+            </div>
+          </div>
+          <div class="tt-control" id="tt-line-control" hidden>
+            <span class="tt-control-lbl">Line</span>
+            <div class="tt-fgroup">
+              <button class="tt-fbtn active" data-line="index" type="button">Index</button>
+              <button class="tt-fbtn" data-line="romance" type="button">Love share</button>
             </div>
           </div>
         </div>
@@ -375,6 +382,6 @@
 <!-- /INCLUDE:footer -->
 
   <script src="/js/api.js?v=20260616"></script>
-  <script src="page.js?v=20260801d"></script>
+  <script src="page.js?v=20260801e"></script>
 </body>
 </html>
