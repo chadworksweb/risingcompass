@@ -970,10 +970,14 @@
           : `Effective number of ${unitNoun(2)} per ${unit === 'month' ? 'month' : 'year'}, across ${periodPhrase}.${dominantBasis() ? (STATE.mode === 'themes' ? ' Each song votes once, by its dominant topic, rolled to its primary theme.' : ' Each song votes once, by its dominant topic.') : ''}${basisSentence} When the line falls, fewer ${unitNoun(2)} carry more of the music.`;
     }
 
-    // Line selector only applies to Point mode; the Group filter has no
-    // effect on the Love-share line (it is theme-level by definition).
+    // Line selector only applies to Point mode -- dimmed (not hidden) while
+    // Stream is active. The Group filter has no effect on the Love-share
+    // line (it is theme-level by definition), so it dims there.
     const lineCtl = document.getElementById('tt-line-control');
-    if (lineCtl) lineCtl.hidden = STATE.chart !== 'point';
+    if (lineCtl) {
+      lineCtl.hidden = false;
+      lineCtl.classList.toggle('is-inert', STATE.chart !== 'point');
+    }
     const groupCtl = document.getElementById('tt-group-control');
     if (groupCtl) groupCtl.classList.toggle('is-inert', shareView());
 
