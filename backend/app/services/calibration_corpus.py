@@ -419,6 +419,34 @@ def compute_consensus(db: Session, source: str, song_id: int) -> dict | None:
 PUBLIC_RUN_CAP = 10
 
 
+def supersede_live_runs(db: Session, song_id: int, reason: str) -> int:
+    """Mark every LIVE run on a song superseded. Returns how many were flipped.
+
+    The recalibration contract, factored out of routers/recalibrations.py so the
+    write lane can use it too: a fresh verdict RETIRES the prior ones rather than
+    joining them. Three things depend on that. `live_run_count` (the public
+    re-run cap) keeps counting one current verdict instead of accumulating every
+    operator pass; `compute_consensus` stays out of it, since it only fires at
+    run_count >= 2 and must never average a fresh read against stale runs; and
+    the superseded rows stay in the table, so the song page still renders the
+    full history with each retired run flagged.
+
+    Caller commits."""
+    from datetime import datetime as _dt
+    now = _dt.utcnow()
+    prior = (
+        db.query(CalibrationRun)
+        .filter(CalibrationRun.song_id == song_id)
+        .filter(CalibrationRun.superseded.is_(False))
+        .all()
+    )
+    for r in prior:
+        r.superseded = True
+        r.superseded_reason = reason
+        r.superseded_at = now
+    return len(prior)
+
+
 def live_run_count(db: Session, song_id: int) -> int:
     """Non-superseded calibration runs for a song -- the live corpus that the
     public run cap counts against. Superseded runs (post rubric_update /

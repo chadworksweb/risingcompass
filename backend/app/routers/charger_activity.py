@@ -27,7 +27,7 @@ summary, contamination) -- never the paywalled prose. Backs
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import aliased
 
 from app.database import SessionLocal
@@ -146,10 +146,41 @@ def _recent(db, limit: int, offset: int):
 
 # --- Most Calibrated -----------------------------------------------------
 
+# Triggers that represent the HOUSE calibrating, not the audience: seeds,
+# catalogue/historical backfills, validation batches, rubric-update sweeps, and
+# every operator lane (terminal supply, manual feed, admin recalibration).
+OPERATOR_TRIGGERS = (
+    "seed",
+    "seed_pre_rubric_update",
+    "manual",
+    "compass_manual",
+    "rubric_update",
+    "satirical_flag",
+    "historical_backfill",
+    "hot100_11to20_backfill",
+    "backfill_hot100_11to20",
+    "backfill_chadlewine_catalog",
+    "v2_validation_batch",
+    "v2_validation_batch_binary",
+    "terminal_library_add",
+    "terminal_correction",
+    "terminal_repair",
+    "terminal_recalibration",
+)
+
+
 def _most_run(db, window: str, limit: int, offset: int):
     # Count calibration_runs (the true run ledger), not lc_events. Every logged
     # run -- including superseded ones -- represents a real calibration pass, so
     # all rows count toward "most calibrated".
+    #
+    # Operator-triggered runs are EXCLUDED. This feed answers "what is the
+    # audience running most", so a seed, a catalogue backfill, a validation
+    # batch, or an operator re-calibration from terminal does not belong in it --
+    # those are the house's own passes. The exclusion also keeps the public
+    # ranking still when a year gets re-read: from 2026-08-07 a rerun logs a run
+    # (it is a real pass and its argument belongs on the ledger), and without
+    # this filter every such rerun would nudge a public leaderboard.
     base = (
         db.query(
             CalibrationRun.song_id,
@@ -160,6 +191,10 @@ def _most_run(db, window: str, limit: int, offset: int):
         .filter(
             CalibrationRun.song_id.isnot(None),
             Song.rubric_color.isnot(None),
+            or_(
+                CalibrationRun.triggered_by.is_(None),
+                CalibrationRun.triggered_by.notin_(OPERATOR_TRIGGERS),
+            ),
         )
     )
     if window == "30d":

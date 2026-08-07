@@ -285,49 +285,77 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         return None
     db.commit()
 
-    # First-ever appearance of this song -> log a calibration run so the corpus
-    # grows on chart debuts. Re-reads of an already-known song do NOT re-log.
-    if created:
+    # Log a calibration run for EVERY calibration that reaches here, first
+    # appearance or not. Every path into this function has already produced a
+    # fresh verdict: the daily chart lane short-circuits cache hits upstream (a
+    # returning song exits at the lookup_calibrated branch in run_compass_agent
+    # and never arrives), and the terminal / draft lanes carry an operator-
+    # supplied calibration, which by definition is a new read.
+    #
+    # This used to be gated on `created`, reasoning that "re-reads of an already
+    # known song do NOT re-log". That guard was aimed at phantom runs from chart
+    # re-listings, which the cache-hit short-circuit already prevents, and its
+    # real effect was to silently drop the run -- and with it the stored
+    # reasoning -- for every RE-CALIBRATION. A rerun is a genuine pass and its
+    # argument belongs on the ledger (21 arguments were lost this way in the
+    # 2024/2025 year-end reruns before it was caught, 2026-08-07).
+    #
+    # On an update the prior LIVE runs are superseded first, mirroring the admin
+    # recalibration path: the public re-run cap keeps counting one current
+    # verdict, consensus never averages a fresh read against stale runs, and the
+    # retired rows stay visible as history. is_new_row=True is passed either way
+    # so the seed step never manufactures a synthetic prior run to sit beside it.
+    if not created:
         try:
-            from app.services.calibration_corpus import record_and_reconcile
-            record_and_reconcile(
-                db,
-                title=title, artist=artist,
-                calibration={
-                    "rubric_color": result["rubric_color"],
-                    "charge_value": result.get("charge_value"),
-                    "charge_summary": result["charge_summary"],
-                    "contaminated": result["contaminated"],
-                    "contamination_note": result["contamination_note"],
-                    "dogma_referenced": bool(result.get("dogma_referenced", False)),
-                    "dogma_note": result.get("dogma_note"),
-                    "confidence": result.get("confidence"),
-                    "reasoning": result.get("reasoning"),
-                    # Calibrator v3 components + incoherence signals ride into
-                    # the run ledger (log_run maps them to columns); absent on
-                    # legacy/terminal-direct results and harmlessly NULL.
-                    **{k: result[k] for k in (
-                        "visceral_charge", "route", "harm", "transcendence",
-                        "governing_axis", "center", "vernier", "precedent_refs",
-                        "gut_divergence", "guard_trips", "parse_retries",
-                        "escalation_flags", "escalated", "translated",
-                        "calibration_failed",
-                    ) if result.get(k) is not None},
-                },
-                triggered_by=triggered_by,
-                direct_song_source="songs",
-                direct_song_id=song_id,
-                is_new_row=True,
-                lyrics=lyrics,
-                allow_prose_generation=allow_prose_generation,
-            )
+            from app.services.calibration_corpus import supersede_live_runs
+            supersede_live_runs(db, song_id, reason=triggered_by)
             db.commit()
         except Exception:
-            logger.exception("Daily corpus log failed for song %d", song_id)
+            logger.exception("supersede prior runs failed for song %d", song_id)
             try:
                 db.rollback()
             except Exception:
                 pass
+    try:
+        from app.services.calibration_corpus import record_and_reconcile
+        record_and_reconcile(
+            db,
+            title=title, artist=artist,
+            calibration={
+                "rubric_color": result["rubric_color"],
+                "charge_value": result.get("charge_value"),
+                "charge_summary": result["charge_summary"],
+                "contaminated": result["contaminated"],
+                "contamination_note": result["contamination_note"],
+                "dogma_referenced": bool(result.get("dogma_referenced", False)),
+                "dogma_note": result.get("dogma_note"),
+                "confidence": result.get("confidence"),
+                "reasoning": result.get("reasoning"),
+                # Calibrator v3 components + incoherence signals ride into
+                # the run ledger (log_run maps them to columns); absent on
+                # legacy/terminal-direct results and harmlessly NULL.
+                **{k: result[k] for k in (
+                    "visceral_charge", "route", "harm", "transcendence",
+                    "governing_axis", "center", "vernier", "precedent_refs",
+                    "gut_divergence", "guard_trips", "parse_retries",
+                    "escalation_flags", "escalated", "translated",
+                    "calibration_failed",
+                ) if result.get(k) is not None},
+            },
+            triggered_by=triggered_by,
+            direct_song_source="songs",
+            direct_song_id=song_id,
+            is_new_row=True,
+            lyrics=lyrics,
+            allow_prose_generation=allow_prose_generation,
+        )
+        db.commit()
+    except Exception:
+        logger.exception("Daily corpus log failed for song %d", song_id)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     return song_id
 
