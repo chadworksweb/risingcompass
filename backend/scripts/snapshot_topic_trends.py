@@ -44,7 +44,7 @@ API_KEY = settings.rc_service_key or "6f1fdd977f03bb39a1ee267fa1d9b6b534996745b1
 
 DEFAULT_OUT_DIR = (
     Path.home()
-    / "Dropbox/Libra Engine/Rising Compass/plans and docs/topic-trends-snapshots"
+    / "Dropbox/Rising Compass/plans and docs/topic-trends-snapshots"
 )
 
 # Point fields that are structure, not measures. Any OTHER scalar field on a

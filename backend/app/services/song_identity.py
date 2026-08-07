@@ -7,8 +7,11 @@ so a song resolves to the same entity no matter how it enters.
 
 Key = normalize_for_search(title) + US + normalize_for_search(primary_artist),
 where primary_artist is the first credit from parse_artist_string (so
-"Post Malone featuring Morgan Wallen", "Post Malone ft. Morgan Wallen", and
-"Post Malone & Morgan Wallen" all collapse to the primary "Post Malone").
+"Post Malone featuring Morgan Wallen", "Post Malone ft. Morgan Wallen",
+"Post Malone & Morgan Wallen", and "Post Malone and Morgan Wallen" all collapse
+to the primary "Post Malone"). The spelled-out "and" form is normalized to "&"
+before parsing (see _collapse_and_connector) -- without that step the two
+spellings key differently and the same act mints two rows.
 US = unit separator (0x1f), an char that never appears in normalized text.
 """
 
@@ -74,12 +77,32 @@ def _is_ensemble_credit(artist) -> bool:
     return bool(artist and _ENSEMBLE_CREDIT_RE.search(artist))
 
 
+# A spelled-out "and" between credits is the same separator as "&", but
+# parse_artist_string only splits on the symbol -- so "Kool & the Gang" keyed on
+# the primary ("kool") while "Kool and the Gang" kept the whole string
+# ("koolandthegang") and minted a SECOND songs row for the same act. Wikipedia
+# year-end charts spell it out; the feeders use the symbol; the corpus grew four
+# duplicate pairs plus a spread of stray appearances before it was caught
+# (2026-08-07). Collapse the word form to the symbol before parsing so both
+# spellings resolve to one identity. Word-boundary-safe (never matches inside
+# "Sandy"), and a single act carrying the word ("Kool and the Gang") keys on its
+# first token exactly as the "&" spelling already did.
+_AND_CONNECTOR_RE = re.compile(r"\s+and\s+", re.I)
+
+
+def _collapse_and_connector(artist):
+    """Normalize a spelled-out 'and' credit separator to '&' for IDENTITY use."""
+    if not artist:
+        return artist
+    return _AND_CONNECTOR_RE.sub(" & ", artist)
+
+
 def extract_primary_artist(artist):
     """Return the primary (first-credited) artist name from a credit string."""
     if not artist:
         return ""
     try:
-        entries = parse_artist_string(artist)
+        entries = parse_artist_string(_collapse_and_connector(artist))
         if entries:
             return entries[0].get("name") or ""
     except Exception:
@@ -112,7 +135,7 @@ def clean_artist_set_key(artist):
     Pure; no DB. parse_artist_string is imported lazily (it imports models)."""
     try:
         from app.services.artist_linker import parse_artist_string
-        entries = parse_artist_string(artist or "")
+        entries = parse_artist_string(_collapse_and_connector(artist or ""))
     except Exception:
         entries = []
     primaries = []

@@ -85,7 +85,7 @@ Then deploy (see below). Iterate locally; deploy on request.
 ## Backfill & Calibration
 
 **Terminal = Claude Code IS the model: ZERO Anthropic calls.** Claude Code supplies the calibration and it is written to the shared Postgres DB; the server makes no model call. The full procedures live in the SOPs -- do NOT hand-roll calibration here:
-- Historical Year-End backfill: `Dropbox/Libra Engine/Rising Compass/plans and docs/agent/risingcompass-backfill-process.md`
+- Historical Year-End backfill: `Dropbox/Rising Compass/plans and docs/agent/risingcompass-backfill-process.md`
 - Daily reading (Daily Listens): `.../RISING-COMPASS-DAILY-LISTENS-SOP.md`
 - Other chart readings (YouTube, iTunes, etc.): their `RISING-COMPASS-*-SOP.md`
 

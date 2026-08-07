@@ -569,7 +569,7 @@ each track and aggregating.
 ## Release pages + cover art (2026-06-06)
 
 Per-release detail pages + Cover Art Archive artwork. Full spec:
-`Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-ARTIST-RELEASES.md`
+`Dropbox/Rising Compass/plans and docs/RISING-COMPASS-ARTIST-RELEASES.md`
 (Release Pages + Cover Art).
 
 - **URL: `/artists/{artist}/{release}`**, release resolved by `slugify(title)`
@@ -946,7 +946,7 @@ DEPLOYED to production 2026-05-29 (`origin/master`). M0-M6 live; gate LOCKED.
 ## Prose provenance (societal-prose anchoring, LIVE 2026-05-31)
 
 Tamper-evident provenance for `societal_effects_prose`. Three layers; full spec
-in `Dropbox/Libra Engine/Rising Compass/plans and docs/RISING-COMPASS-PROSE-PROVENANCE.md`.
+in `Dropbox/Rising Compass/plans and docs/RISING-COMPASS-PROSE-PROVENANCE.md`.
 
 - **Seal (always on).** Every `societal_effects_prose` write also stamps
   `societal_prose_generated_at` + `societal_prose_model`, in lockstep, on the
