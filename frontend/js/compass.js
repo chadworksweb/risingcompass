@@ -62,7 +62,13 @@ const Compass = (() => {
     return `M ${s.x} ${s.y} A ${radius} ${radius} 0 ${largeArc} 1 ${e.x} ${e.y}`;
   }
 
-  function render(containerId) {
+  // opts.interactive: pass false to render a DISPLAY-ONLY gauge -- no band
+  // hover, no focus targets, no tooltip. Added for the methodology page, where
+  // the needle is driven by scroll and a band lighting up under the cursor
+  // would fight the reading it is illustrating. Every existing caller omits
+  // opts and keeps the interactive gauge unchanged.
+  function render(containerId, opts) {
+    const interactive = !opts || opts.interactive !== false;
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -84,7 +90,12 @@ const Compass = (() => {
     // targetable (id + data-tier) and keyboard-focusable for the tooltip.
     COLORS.forEach((color, i) => {
       const path = arcPath(BOUNDS[i], BOUNDS[i + 1], R);
-      svg += `<path class="compass-arc ${color}" id="compass-arc-${i}" data-tier="${i}" data-color="${color}" tabindex="0" role="button" aria-label="${TIER_LABELS[i]}, charge ${TIER_RANGE[i]}" d="${path}" />`;
+      // A display-only gauge drops the button semantics with the hover: an
+      // unfocusable band is correct when there is nothing to activate.
+      const hooks = interactive
+        ? ` tabindex="0" role="button" aria-label="${TIER_LABELS[i]}, charge ${TIER_RANGE[i]}"`
+        : '';
+      svg += `<path class="compass-arc ${color}" id="compass-arc-${i}" data-tier="${i}" data-color="${color}"${hooks} d="${path}" />`;
     });
 
     // (Tick marks removed by design — the band's outer rim is the reference edge.)
@@ -116,7 +127,7 @@ const Compass = (() => {
     svg += `</svg>`;
     container.innerHTML = svg;
 
-    _wireHover(container);
+    if (interactive) _wireHover(container);
   }
 
   // ---- Band hover / focus tooltip ------------------------------------------
@@ -145,6 +156,30 @@ const Compass = (() => {
   }
 
   let _hotTier = -1;
+
+  // THE band glow, in one place. Hover uses it and so does setHotTier, so a
+  // band lit by the needle looks exactly like a band lit by the cursor.
+  function _glowBand(i, on) {
+    const arc = document.getElementById('compass-arc-' + i);
+    const lbl = document.getElementById('compass-tier-label-' + i);
+    if (arc) {
+      arc.classList.toggle('hot', on);
+      arc.style.filter = on
+        ? `brightness(1.5) drop-shadow(0 0 8px ${COLOR_HEX[COLORS[i]]})`
+        : '';
+    }
+    if (lbl) lbl.classList.toggle('hot', on);
+  }
+
+  // Light a band without a cursor. Pass -1 to clear. Used by the methodology
+  // page to mark whichever tier the scroll-driven needle is sitting in.
+  function setHotTier(i) {
+    if (i === _hotTier) return;
+    if (_hotTier >= 0) _glowBand(_hotTier, false);
+    _hotTier = i;
+    if (i >= 0) _glowBand(i, true);
+  }
+
   function _wireHover(container) {
     const host = container.closest('.card') || container.parentElement;
     const tip = _ensureTooltip(host);
@@ -153,10 +188,7 @@ const Compass = (() => {
     if (!svgEl) return;
 
     function hide(i) {
-      const arc = document.getElementById('compass-arc-' + i);
-      const lbl = document.getElementById('compass-tier-label-' + i);
-      if (arc) { arc.classList.remove('hot'); arc.style.filter = ''; }
-      if (lbl) lbl.classList.remove('hot');
+      _glowBand(i, false);
       tip.classList.remove('show');
       if (_hotTier === i) _hotTier = -1;
     }
@@ -166,10 +198,7 @@ const Compass = (() => {
       if (_hotTier >= 0) hide(_hotTier); // only one band hot at a time
       _hotTier = i;
       const hex = COLOR_HEX[COLORS[i]];
-      const arc = document.getElementById('compass-arc-' + i);
-      const lbl = document.getElementById('compass-tier-label-' + i);
-      if (arc) { arc.classList.add('hot'); arc.style.filter = `brightness(1.5) drop-shadow(0 0 8px ${hex})`; }
-      if (lbl) lbl.classList.add('hot');
+      _glowBand(i, true);
       tip.querySelector('.compass-tip-dot').style.cssText = `background:${hex};color:${hex};`;
       tip.querySelector('.compass-tip-name').textContent = TIER_LABELS[i];
       tip.querySelector('.compass-tip-range').textContent = TIER_RANGE[i];
@@ -328,5 +357,5 @@ const Compass = (() => {
     group.innerHTML = html;
   }
 
-  return { render, setDegree, setGhostTrail };
+  return { render, setDegree, setGhostTrail, setHotTier };
 })();

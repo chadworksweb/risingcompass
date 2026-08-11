@@ -331,11 +331,283 @@
 /* The .m-origin card styles were dropped 2026-08-11 when the origin block
    became section 1 and picked up the numbered-section frame instead. */
 
+/* ─── Subsection Frame ────────────────────────────────────────
+   One rung below .m-section, and it has to READ as one rung below. The
+   section marker is a filled accent disc; the subsection marker is the same
+   disc at the same diameter, inverted, carrying a letter suffix (2a, 2b). The
+   inversion alone carries the rank, so the two markers still line up down the
+   page. Its heading is an h3 under the section's h2.
+
+   No lighter band here. That treatment belongs to the top-level section
+   headers only, so the subsection sits on the page ground and the inverted
+   marker carries its rank on its own. */
+.m-subsection {
+  margin-block: 1.5rem 2.5rem;
+}
+
+/* NOTE ON SPECIFICITY: compass-flow.css loads AFTER this file, so a bare
+   .m-sub-head cannot beat .cflow-head. Every rule that has to win over the
+   flow's own styling is written as a two-class selector. */
+/* Two columns, two rows. The marker and the heading share row 1, so centering
+   happens against the HEADING's line box, not against the heading plus whatever
+   stands under it. Everything that isn't the marker is pinned to column 2, so
+   trailing prose starts on the heading's left edge instead of tucking back
+   under the marker.
+
+   Unscoped on purpose: this is the pattern for every subsection header, the
+   full-bleed flow visual and the ones sitting inside a section body alike. The
+   :not() lifts specificity to two classes, which is what lets it beat
+   .cflow-title and .cflow-sub from the later-loading compass-flow.css. */
+.m-sub-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1rem;
+  row-gap: 0.4rem;
+  align-items: center;
+  text-align: left;
+  margin-bottom: 1.1rem;
+}
+
+.m-sub-head > :not(.m-sub-num) {
+  grid-column: 2;
+  margin: 0;
+}
+
+/* THE subsection heading, page-wide. Every subsection heading carries this one
+   class, the flow visual's included -- it dropped .cflow-title so there is a
+   single rule to change rather than one style per subsection.
+
+   Scoped through .m-sub-head to reach two classes (0,2,0). A bare .m-sub-title
+   is (0,1,0) and loses to .methodology-content h3 (0,1,1), which would flatten
+   any subsection heading inside a section body down to block-h3 size while the
+   full-bleed flow visual, outside .methodology-content, kept the real one. */
+.m-sub-head .m-sub-title {
+  font-size: clamp(1.2rem, 2.4vw, 1.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--rc-text-bright);
+  letter-spacing: -0.01em;
+}
+
+/* Left, all of it. The flow's head centered itself back when it was a
+   standalone breakout, and its title and standfirst both inherited that.
+   Subsections carry no eyebrow: the marker and the h3 are the whole header. */
+.m-subsection .cflow-head,
+.m-subsection .cflow-sub {
+  text-align: left;
+}
+
+.m-subsection .cflow-sub {
+  margin-inline: 0;
+  max-width: var(--m-measure);
+}
+
+/* The marker is the SECTION disc, inverted and one step down: same circle,
+   same accent, same mono, but the fill and the ink trade places. The section
+   number is solid accent with dark type; the subsection is dark with an accent
+   ring and accent type. Same device, clearly subordinate. Markup carries both
+   classes, so this rule only holds the delta.
+
+   Written as a two-class selector on purpose: .m-section-num is defined LOWER
+   in this file, so at equal specificity it would win every property the two
+   rules share (fill, ink, diameter, type size) and the subsection dot would
+   silently render as a plain section dot. */
+.m-section-num.m-sub-num {
+  background: var(--rc-bg-dark);
+  color: var(--rc-accent);
+  border: 2px solid var(--rc-accent);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+/* Block headings inside a section body. main.css sets these to 1rem, which was
+   barely above body copy and left the whole page feeling flat. Raised here
+   rather than in main.css, though only the two methodology pages use
+   .methodology-content, so the blast radius is the same either way. */
+.methodology-content h2 {
+  font-size: 1.25rem;
+  letter-spacing: -0.005em;
+}
+
+.methodology-content h3 {
+  font-size: 1.02rem;
+}
+
+/* Below the subsection h3: h4 groups the blocks inside a subsection, h5 is the
+   aside within a group. Both sit under .m-sub-title's clamp so the rungs stay
+   in order. */
+.methodology-content h4 {
+  color: var(--rc-text-bright);
+  font-size: 1.24rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.6rem 0 0.5rem;
+}
+
+.methodology-content h5 {
+  color: var(--rc-text-bright);
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 1.3rem 0 0.45rem;
+}
+
+/* The FAQ's question headings are their own thing (accent, italic, set in
+   main.css) and must not pick up the h4 rule above. */
+.methodology-content .rubric-q h4 {
+  color: var(--rc-accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+/* ─── Tier spectrum stack ───────────────────────
+   One card per tier, one card per row, colour bar as its heading and the
+   description beneath. Full width of the reading measure, top to bottom in
+   scale order, so the stack reads down the spectrum the way the tiers are
+   described: collective consciousness at the top, ego black-hole at the
+   bottom. Every reading is on the page at once, nothing behind a click. */
+/* The stack and the gauge beside it. Breaks the reading measure to the
+   section's full width so the compass has a column of its own. NOT 100vw: this
+   box starts at the content's left edge, not the viewport's, so a
+   viewport-width value would hang off the right and add a scrollbar. */
+.tier-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: stretch;
+}
+
+.m-section-body .tier-scope {
+  width: calc(100% + 29.25rem);
+  max-width: calc(100vw - 3rem);
+}
+
+/* Sticky and centred: the aside is as tall as the stack, and the gauge holds
+   the middle of the viewport while the cards travel past it. The translate is
+   what centres it -- sticky resolves against the box's own top edge, so `top`
+   alone would hang it half a gauge too low. */
+.tier-scope__aside {
+  position: relative;
+}
+
+/* Top-aligned sticky, pinned at the very top of the viewport. The gauge starts
+   level with the top of the Ascended card, holds at y 0 through the stack, then
+   gets pulled up at the end as its bottom edge meets the bottom of the Corrupted
+   card. The aside is exactly as tall as the grid row, which is what makes that
+   release land on the last card.
+
+   Its own height, no viewport sizing: a box as tall as the column would have
+   nowhere to travel and would stop sticking altogether. The site header is
+   position: relative, so nothing is parked over y 0 to hide behind. */
+.tier-compass {
+  position: sticky;
+  /* Pins CENTRED on the viewport, not at its top edge. Subtracting half the
+     gauge's height from 50vh is what centres it, and it does so without a
+     transform, so nothing is displaced from where it was laid out.
+
+     --gauge-h is written by the page script from the gauge's measured height,
+     because the gauge now sizes to the column and its height therefore depends
+     on the viewport. The fallback is the height at a 560px column. */
+  top: calc(50vh - var(--gauge-h, 467px) / 2);
+  align-self: start;
+  display: block;
+}
+
+/* Fills the column. The gauge's own stylesheet caps it at 460px for the
+   dashboard; here the column IS the frame, so the cap is lifted and the
+   viewBox carries the aspect ratio. */
+.tier-compass .compass-svg {
+  width: 85%;
+  max-width: none;
+  margin-inline: auto;
+  display: block;
+}
+
+/* Dial only. The gauge's readouts belong to the live daily reading, and there
+   is no reading here -- the needle is illustrating the scale, not reporting a
+   number. */
+.tier-compass .compass-score-bg,
+.tier-compass .compass-score-text,
+.tier-compass .compass-label-bg,
+.tier-compass .compass-label-text,
+.tier-compass .compass-date-text { display: none; }
+
+/* No transition on the needle. The gauge's own 1.5s settle is built for a value
+   landing once, and any CSS transition would fight the per-frame easing the
+   page script applies. The smoothing lives in the script. */
+.tier-compass .compass-needle { transition: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tier-compass { transition: none; }
+}
+
+/* Stacked, the gauge would sit below five cards it can no longer point at. */
+@media (max-width: 1100px) {
+  .m-section-body .tier-scope,
+  .tier-scope {
+    width: 100%;
+    max-width: var(--m-measure);
+    grid-template-columns: 1fr;
+  }
+  .tier-scope__aside { display: none; }
+}
+
+.tier-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.4rem;
+  /* No bottom margin. The aside stretches to the row, so any margin here pushes
+     the sticky container past the last card and the gauge bottom-aligns to
+     empty space instead of to Corrupted's bottom edge. */
+  margin: 1.25rem 0 0;
+}
+
+.tier-col {
+  display: flex;
+  flex-direction: column;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  /* The bar runs to the card's own edges, so the corners have to clip it. */
+  overflow: hidden;
+}
+
+/* The bar, carrying the colour it had as a legend segment, squared off because
+   the card supplies the rounding now. */
+.methodology-content .tier-col__head {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--rc-white);
+}
+
+/* The tier name sits in a cutout punched through the colour bar: the page's own
+   darkest surface token, not #000, so it tracks the theme. inline-block keeps
+   the plate tight to the word instead of spanning the whole bar. */
+.tier-col__name {
+  display: inline-block;
+  padding: 0.1em 0.45em;
+  background: var(--rc-bg-dark);
+  border-radius: var(--rc-radius-sm);
+}
+
+.methodology-content .tier-col__desc {
+  margin: 0;
+  padding: 0.8rem 0.9rem 0.9rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+}
+
 /* ─── Numbered Section Frame ──────────────────────────────── */
 
+/* No border-top. The header band below now opens each section, and a rule
+   sitting a couple of rem above the band read as a stray second line. */
 .m-section {
   padding: 2.5rem 0 1rem;
-  border-top: 1px solid var(--rc-border);
   scroll-margin-top: 1rem;
 }
 
@@ -344,11 +616,24 @@
   padding-top: 1rem;
 }
 
+/* TOP-LEVEL SECTION HEADERS ONLY (Origin, The Calibrator, and so on). The band
+   is full bleed while its contents stay on the page grid: the negative inline
+   margin pushes the box out to 100vw, and an equal inline padding walks the
+   disc and the title back to where the body copy starts. Both halves resolve
+   their 50% against .m-section, so they always cancel.
+
+   Same trick .cflow-breakout uses, and it inherits the same caveat: 100vw
+   counts the scrollbar, so the band runs a scrollbar's width wider than the
+   viewport. The page already accepts that for the flow visual. */
 .m-section-header {
   display: flex;
   align-items: center;
   gap: 1rem;
   margin: 0 0 1.75rem;
+  margin-inline: calc(50% - 50vw);
+  padding: 1.4rem calc(50vw - 50%);
+  background: var(--rc-bg-panel);
+  border-block: 1px solid var(--rc-border);
 }
 
 .m-section-num {
@@ -375,8 +660,11 @@
   margin: 0 0 0.2rem;
 }
 
+/* The heading ladder, top to bottom: page h1 (up to 2.4rem), section h2 here,
+   subsection h3 (up to 1.6rem), then the block h2s below. The section title used
+   to sit at 1.5rem, which put it UNDER the subsection heading at wide widths. */
 .m-section-title {
-  font-size: 1.5rem;
+  font-size: clamp(1.6rem, 3vw, 2rem);
   line-height: 1.25;
   font-weight: 600;
   color: var(--rc-text-bright);

@@ -97,6 +97,7 @@
 
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="methodology.css">
+  <link rel="stylesheet" href="/css/compass.css">
   <link rel="stylesheet" href="/css/compass-flow.css">
 </head>
 <body>
@@ -257,8 +258,6 @@
     </section>
 
 
-
-
     <!-- ═══ 2. THE CALIBRATOR ═══ -->
     <section class="m-section" id="calibrator">
       <div class="m-section-header">
@@ -273,16 +272,16 @@
            Section 2's first subsection since 2026-08-11; it was a standalone
            breakout between Origin and here. The 100vw bleed still resolves the
            same, its parent is the same width the page wrapper gave it before. -->
-      <section class="cflow-breakout" aria-label="How the calibrator reads a song">
+      <section class="m-subsection cflow-breakout" aria-label="How The Rising Compass analyzes a song">
         <div class="cflow">
           <button class="cflow-replay" type="button" aria-label="Replay the intro animation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg>
             Replay
           </button>
-          <div class="cflow-head">
-            <p class="cflow-eyebrow">The journey of a song</p>
-            <h2 class="cflow-title">How the calibrator reads a song</h2>
-            <p class="cflow-sub">Lyrics go in, a verdict comes out. The <b>agent</b> runs the song through the <b>calibrator</b>, station by station. The calibrator, not the agent, sets the final number.</p>
+          <div class="cflow-head m-sub-head">
+            <span class="m-section-num m-sub-num">2a</span>
+            <h3 class="m-sub-title">How The Rising Compass analyzes a song</h3>
+            <p class="cflow-sub">Below is the process by which the Calibrator&mdash;the part of The Rising Compass that actually does the analyzing&mdash;generates all of the data points that go into the "charge" of a song. The <b>AI agent</b> (currently Claude Opus) runs the song through the <b>calibrator</b>, step by step. The calibrator, not the agent, sets the final number.</p>
           </div>
 
           <div class="cflow-grid">
@@ -442,43 +441,59 @@
 
       <div class="m-section-body methodology-content">
 
-        <div class="method-block">
-          <h2 class="method-block-first">The lens, not the platform</h2>
-          <p>Two things get called the compass, and they do different work. The Rising Compass is the platform: the daily reading, the charts, the song and artist pages, the Lyrical Charger, the archive. The calibrator is the lens. It attaches to the tenets held by the Libra Engine Compass, reads one song against them, and returns that song's tier, its charge, its data points, and the prose written about it. Everything the platform displays, the calibrator produced.</p>
-          <p>This section is the lens. What it reads, what it will not read, and how a charge gets built from the words on the page.</p>
-          <p>The calibrator is a mirror, not an attack. It doesn't judge, it reflects. A mirror doesn't have an opinion about what it shows you. You can look at it or look away.</p>
-        </div>
-
         <div class="method-block method-block-ruled">
-          <div class="method-block-label">The Calibration System</div>
-          <h2>The Five Tiers</h2>
+          <div class="m-sub-head">
+            <span class="m-section-num m-sub-num">2b</span>
+            <h3 class="m-sub-title">The Calibration System</h3>
+          </div>
+
+          <h4>Charge Tiers</h4>
           <p>Every song is calibrated into one of five tiers. The tiers form a perspective spectrum — from collective consciousness at the top to ego black-hole at the bottom.</p>
 
-          <div class="charge-legend">
-            <div class="charge-legend-bar">
-              <button class="charge-legend-seg" data-tier="ascended" style="background:var(--rc-violet)">Ascended</button>
-              <button class="charge-legend-seg" data-tier="elevated" style="background:var(--rc-blue)">Elevated</button>
-              <button class="charge-legend-seg" data-tier="decent" style="background:var(--rc-green)">Decent</button>
-              <button class="charge-legend-seg" data-tier="degraded" style="background:var(--rc-orange)">Degraded</button>
-              <button class="charge-legend-seg" data-tier="corrupted" style="background:var(--rc-red)">Corrupted</button>
+          <!-- The spectrum, one column per tier: the colour bar is the column's
+               heading and its description sits directly under it. Replaces the
+               click-to-open popup, so all five readings are on the page at once.
+               Breaks the reading measure to the section's full width, since five
+               columns of prose need the room. -->
+          <!-- The stack, with the live compass gauge parked beside it. The
+               needle is tied to the cards: whichever tier is passing the middle
+               of the viewport is where the needle points, so it falls through
+               the spectrum as you read down. -->
+          <div class="tier-scope">
+            <div class="tier-grid">
+            <div class="tier-col" data-tier="ascended">
+              <p class="tier-col__head" style="background:var(--rc-violet)"><span class="tier-col__name">Ascended</span></p>
+              <p class="tier-col__desc">Collective perspective. The lyrics speak from, to, or about something larger than any one person. Community, humanity, the divine. Universal love, prophetic witness, collective healing. The song's purpose is selfless.</p>
             </div>
-          </div>
-          <div class="tier-popup" id="tier-popup">
-            <div class="tier-popup-inner">
-              <button class="tier-popup-close" aria-label="Close">&times;</button>
-              <div class="tier-popup-dot-wrap"><span class="tier-popup-dot" id="tier-popup-dot"></span></div>
-              <h4 id="tier-popup-title"></h4>
-              <p id="tier-popup-desc"></p>
+            <div class="tier-col" data-tier="elevated">
+              <p class="tier-col__head" style="background:var(--rc-blue)"><span class="tier-col__name">Elevated</span></p>
+              <p class="tier-col__desc">Self without ego. Honest internal work on the page. The narrator questions their own behavior, takes accountability, processes through something with visible movement. Growth demonstrated, not just wished for. Vulnerability without performance.</p>
+            </div>
+            <div class="tier-col" data-tier="decent">
+              <p class="tier-col__head" style="background:var(--rc-green)"><span class="tier-col__name">Decent</span></p>
+              <p class="tier-col__desc">Catch-all. The lyrics don't push in either direction. Pleasant, fun, romantic, sad, nostalgic — but no internal work being done and no ego being served. The song is what it is. This is the baseline for popular music, and it's not a failure.</p>
+            </div>
+            <div class="tier-col" data-tier="degraded">
+              <p class="tier-col__head" style="background:var(--rc-orange)"><span class="tier-col__name">Degraded</span></p>
+              <p class="tier-col__desc">Ego self. The lyrics serve the narrator's ego, promote avoidance, or steer away from growth. Surface-level status markers as aspiration. Manipulation framed as love. Wallowing without movement. Blame without accountability.</p>
+            </div>
+            <div class="tier-col" data-tier="corrupted">
+              <p class="tier-col__head" style="background:var(--rc-red)"><span class="tier-col__name">Corrupted</span></p>
+              <p class="tier-col__desc">Ego black-hole. The lyrics actively destroy, dehumanize, or consume. Explicit objectification, substance celebration as identity, violence as entertainment, possession as desire. The song's core stance is destruction — of self, of others, of meaning itself.</p>
+            </div>
+            </div>
+
+            <div class="tier-scope__aside">
+              <div class="tier-compass" id="tier-compass"></div>
             </div>
           </div>
 
-          <p>Each tier is defined by 10–13 specific tenets — 58 total across the five tiers, symmetric from top to bottom. A song's tier is determined by which tenets its lyrics satisfy, not by topic, genre, or how it sounds. The full set lives at <a href="https://lec.libraengine.com/tenets/">the tenets page</a>.</p>
 
-          <h3>Charge Value</h3>
+          <h4>Charge Score</h4>
           <p>Every song receives a <strong>charge value</strong> on one scale from +100 to &minus;100. The value places the song both within its tier and across the full spectrum. Ascended songs carry high positive charges, Corrupted songs deep negative ones, and Decent sits near zero, the baseline.</p>
           <p>The five tiers do not divide that scale evenly. Elevated, Decent, and Degraded each span 50 points, while Ascended (+75 to +100) and Corrupted (&minus;75 to &minus;100) span only 25. The poles are narrow on purpose. Reaching them takes a more extreme reading, so Ascended and Corrupted stay rare and have to be earned, while the neutral middle, centered on zero, is where most music naturally lands.</p>
 
-          <h3>Why "Decent" and Not "Good"</h3>
+          <h5>Why "Decent" and Not "Good"</h5>
           <p>The middle tier is called <strong>Decent</strong> — not "balanced," not "good," not "healthy." Deliberately. A song that's just entertainment, just filling time, just pleasant background noise — that's fine. It's decent. But The Rising Compass exists to show that music <em>can</em> do more. Decent isn't the goal. It's the floor for not doing harm.</p>
         </div>
 
@@ -725,8 +740,6 @@
     </section>
 
 
-
-
     <!-- ═══ 7. THE NEW LABEL ═══ -->
     <section class="m-section" id="label">
       <div class="m-section-header">
@@ -832,8 +845,6 @@
     </section>
 
   </main>
-
-  <script src="/js/tier-popup.js"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
@@ -953,5 +964,117 @@
 <script defer src="/js/consent.js?v=20260702"></script>
 <script defer src="/js/founders-essay-toast.js?v=20260811"></script>
 <!-- /INCLUDE:footer -->
+<script src="/js/compass.js"></script>
+<script>
+/* Ties the compass to the tier stack.
+
+   NEEDLE: each card owns the centre degree of its band (the same 22.5 / 67.5 /
+   112.5 / 157.5 cutoffs as backend/app/services/charge_calc.py), and the target
+   interpolates between the two cards straddling the middle of the viewport. The
+   needle then EASES toward that target a frame at a time rather than being
+   pinned to it, so fast scrolling reads as weight rather than a twitch. No CSS
+   transition on the needle here: the easing is the motion.
+
+   BAND: whichever tier the needle is sitting in glows, using the gauge's own
+   hover treatment via setHotTier. Hover itself is off on this instance
+   (interactive: false), so the only thing that lights a band is the needle.
+
+   Reads scroll position; never drives it. */
+(function () {
+  var host = document.getElementById('tier-compass');
+  if (!host || typeof Compass === 'undefined') return;
+  Compass.render('tier-compass', { interactive: false });
+
+  // Crop the empty band off the bottom. The gauge's viewBox (0 -10 360 300)
+  // reserves room under the dial for the score, charge label and date, which
+  // this instance hides -- leaving ~100 units of dead space that made the box
+  // far taller than the art. Bottom-aligning against the last card lined that
+  // EMPTY space up with the card, not the dial. The dial's lowest ink is the
+  // needle hub at y=178, so 195 clears it with room to spare.
+  (function cropToDial() {
+    var svg = host.querySelector('.compass-svg');
+    if (svg) svg.setAttribute('viewBox', '0 -10 360 205');
+  })();
+
+  var cards = [].slice.call(document.querySelectorAll('.tier-grid .tier-col'));
+  if (!cards.length) return;
+
+  // Band centres, Ascended -> Corrupted. The poles are half the width of the
+  // middle three, which is why these are not evenly spaced.
+  var DEG = [11.25, 45, 90, 135, 168.75];
+  var EASE = 0.14;      // fraction of the remaining distance per frame
+  var SETTLED = 0.05;   // degrees; below this, snap and stop the loop
+  var target = 90, current = null, raf = null, band = -1;
+
+  function bandFor(deg) {
+    if (deg <= 22.5) return 0;
+    if (deg <= 67.5) return 1;
+    if (deg <= 112.5) return 2;
+    if (deg <= 157.5) return 3;
+    return 4;
+  }
+
+  var COLORS = ['violet', 'blue', 'green', 'orange', 'red'];
+
+  function measure() {
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    var mid = vh / 2;
+    var ys = cards.map(function (c) {
+      var r = c.getBoundingClientRect();
+      return r.top + r.height / 2;
+    });
+
+    if (mid <= ys[0]) return DEG[0];
+    if (mid >= ys[ys.length - 1]) return DEG[DEG.length - 1];
+    for (var i = 0; i < ys.length - 1; i++) {
+      if (mid >= ys[i] && mid <= ys[i + 1]) {
+        var t = (mid - ys[i]) / (ys[i + 1] - ys[i]);
+        return DEG[i] + (DEG[i + 1] - DEG[i]) * t;
+      }
+    }
+    return target;
+  }
+
+  function apply(deg) {
+    Compass.setDegree(deg, COLORS[bandFor(deg)]);
+    var b = bandFor(deg);
+    if (b !== band) { band = b; Compass.setHotTier(b); }
+  }
+
+  function tick() {
+    raf = null;
+    var d = target - current;
+    if (Math.abs(d) < SETTLED) {
+      current = target;
+    } else {
+      current += d * EASE;
+      raf = requestAnimationFrame(tick);
+    }
+    apply(current);
+  }
+
+  // The sticky offset centres the gauge by subtracting half its height, and the
+  // gauge now sizes to its column, so that height moves with the viewport.
+  // Publish it as a custom property and keep it current.
+  function publishHeight() {
+    var svg = host.querySelector('.compass-svg');
+    if (!svg) return;
+    var h = svg.getBoundingClientRect().height;
+    if (h) host.style.setProperty('--gauge-h', Math.round(h) + 'px');
+  }
+
+  function schedule() {
+    publishHeight();
+    target = measure();
+    if (current === null) { current = target; apply(current); return; }
+    if (raf === null && current !== target) raf = requestAnimationFrame(tick);
+  }
+
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  schedule();
+
+})();
+</script>
 </body>
 </html>
