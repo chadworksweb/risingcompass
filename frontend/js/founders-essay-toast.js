@@ -27,9 +27,29 @@
   var SNOOZE_KEY = 'rc-essay-toast-snoozed';
   var IDLE_MS = 5000;
 
+  // A page that already carries the essay in its own content does not also get
+  // the floating nudge -- the methodology hero's manifesto pill, for one. Keyed
+  // on an in-content link to the essay rather than on a list of paths, so any
+  // page that adds one opts out on its own. The toast's own link is excluded,
+  // since init() points it at this same URL.
+  function pageAlreadyLinksEssay(toast) {
+    var links = document.querySelectorAll('a[href="' + ESSAY_URL + '"]');
+    for (var i = 0; i < links.length; i++) {
+      if (!toast.contains(links[i])) return true;
+    }
+    return false;
+  }
+
   function init() {
     var toast = document.getElementById('rc-essay-toast');
     if (!toast) return;
+
+    // Removed, not just hidden, so the snoozed-paddle state cannot surface here
+    // either.
+    if (pageAlreadyLinksEssay(toast)) {
+      toast.parentNode.removeChild(toast);
+      return;
+    }
 
     var link = toast.querySelector('.rc-essay-toast__link');
     var closeBtn = toast.querySelector('.rc-essay-toast__close');

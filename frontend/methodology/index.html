@@ -179,39 +179,77 @@
 
     <!-- ═══ HERO / PREAMBLE ═══ -->
     <section class="m-hero">
-      <p class="m-eyebrow">Methodology</p>
-      <h1 class="m-title">A living instrument, not a verdict.</h1>
-      <p class="m-kicker">The Rising Compass is a being, not a snapshot. It is shaped by the people who use it, and it evolves with them.</p>
+      <div class="m-intro">
+        <div class="m-intro__lead">
+          <h1 class="m-title">The Rising Compass Methodology</h1>
+          <p class="m-kicker">The Rising Compass analyzes and tracks the messages found in popular music.</p>
 
-      <div class="m-preamble">
-        <p>The compass reads what popular music says. Not what it sounds like, not whether it's catchy. What it says, lyric by lyric, to the people loading it into their bodies on repeat. It does not restrict access. It does not ask anyone to stop making anything. It reflects, with precision, what the lyrics dominating culture are doing to the listener.</p>
-        <p>The intention is to encourage people to <em>move the compass by creating art that resonates with the world they want to see</em>. Not to ask anyone to stop doing anything. Programming gets installed by repetition. The compass makes the programming visible <em>before</em> the loop starts.</p>
-        <p>What follows is the full methodology: the instrument, the gears behind it, the forces that mold those gears, and the data the instrument surfaces.</p>
+          <div class="m-preamble">
+            <p>The Rising Compass reads what popular music is saying. Not how it sounds, not if it's catchy, not if it's good or bad. It reads and analyzes the messages contained in the lyrics of songs. It is a clinical tool that emits data. It does not pass judgement or have an opinion. It reflects, with precision, what the lyrics dominating culture are actually saying.</p>
+            <p>The Rising Compass exists because the founder wanted a way to prove that the lyrical content of popular music was heading in a negative direction. Doing that required a visualization that was easy to understand and based on a controlled data set. It also required a way to gather that data, which meant automation of the thinking and classification of the lyrics themselves.</p>
+            <p>What follows is the full methodology: the instrument, the gears behind it, the forces that mold those gears, and the data the instrument surfaces.</p>
+          </div>
+        </div>
+
+        <!-- The right column. Both the TOC and the manifesto CTA live inside
+             it: as bare children of .m-intro they were grid items, so the CTA
+             wrapped onto row 2 under the prose instead of stacking under the
+             panel. -->
+        <div class="m-intro__aside">
+
+          <!-- Table of contents: in-page nav to every section below, in page
+               order. Same structure as the chadworks cost-calculator hero TOC
+               (.cw-calc-toc): panel shell, mono uppercase title, zero-padded
+               counter per row, retoned to the RC tokens. Replaces the old
+               .m-jump strip. -->
+          <nav class="m-toc" aria-label="Table of contents">
+            <p class="m-toc__title">Table of Contents</p>
+            <ol class="m-toc__list">
+              <li><a href="#origin">Origin</a></li>
+              <li><a href="#instrument">The Instrument</a></li>
+              <li><a href="#gears">The Gears</a></li>
+              <li><a href="#forces">The Forces</a></li>
+              <li><a href="#data">The Data</a></li>
+              <li><a href="#label">The New Label</a></li>
+            </ol>
+          </nav>
+
+          <!-- Founder's manifesto CTA. Static, in-flow twin of the sitewide
+               founder's-essay toast (.rc-essay-toast__inner): same spectrum
+               ring, same teal glow, same badge. Not the toast itself, which is
+               fixed, dismissable and JS-driven. -->
+          <a class="m-manifesto"
+             href="https://chadlewine.com/observations/making-the-vibe-visible"
+             target="_blank" rel="noopener">
+            <span class="m-manifesto__badge">Essay</span>
+            <span class="m-manifesto__text">Read the founder's manifesto:<br><b>Making the Vibe Visible</b></span>
+          </a>
+
+        </div>
       </div>
 
-      <nav class="m-jump" aria-label="Jump to section">
-        <a href="#instrument" class="m-jump-link"><span class="m-jump-num">1</span><span class="m-jump-label">The Instrument</span></a>
-        <a href="#gears" class="m-jump-link"><span class="m-jump-num">2</span><span class="m-jump-label">The Gears</span></a>
-        <a href="#forces" class="m-jump-link"><span class="m-jump-num">3</span><span class="m-jump-label">The Forces</span></a>
-        <a href="#data" class="m-jump-link"><span class="m-jump-num">4</span><span class="m-jump-label">The Data</span></a>
-        <a href="#label" class="m-jump-link"><span class="m-jump-num">5</span><span class="m-jump-label">The New Label</span></a>
-      </nav>
+    </section>
 
-      <div class="m-living-callout">
-        <p><strong>Mistakes are part of the process.</strong> Every flagged misread, every recalibration, every amendment is a made-tangible breakdown in our collective reasoning. The breakdown gets surfaced and debated, with a public record of how it was resolved. Where we agree becomes ratified. Where we disagree becomes discourse. More peaceful, more conscious communities come from finding both.</p>
+
+    <!-- ═══ 1. ORIGIN ═══
+         Was an in-hero card (.m-origin, built 2026-04-28b) carrying its own
+         label style, which left it out of the TOC and out of the numbered
+         frame. Promoted to a real section 2026-08-11; the card's prose is
+         unchanged. -->
+    <section class="m-section" id="origin">
+      <div class="m-section-header">
+        <span class="m-section-num">1</span>
+        <div>
+          <p class="m-section-eyebrow">Where It Came From</p>
+          <h2 class="m-section-title">Origin of The Rising Compass</h2>
+        </div>
       </div>
 
-      <div class="m-living-callout">
-        <p><strong>The instrument gets rebuilt in the open.</strong> In June 2026 the calibrator's procedure was rebuilt from the ground up, with the tenets kept word for word. <a href="/methodology/calibrator-before-after/">Read the before-and-after record</a>: how a song was read before versus how it is read now, and what the change means for every calibration that came before it.</p>
-      </div>
-
-      <div class="m-origin">
-        <p class="m-origin-label">Origin</p>
+      <div class="m-section-body methodology-content">
         <p>Sound is physical. A song leaving a speaker is pressure moving through air and into the body, where it moves the small hairs of the inner ear and reaches the parts of the brain that handle emotion before any thought catches up. Music doesn't describe a feeling. It installs one. And it does that at a scale most people never stop to picture: every car radio and pair of earbuds, every storefront and stadium speaker, pushing the same handful of songs into millions of nervous systems at once.</p>
-        <p>That is a real field, not a metaphor for one. The sum of what we are all hearing right now is a kind of collective weather of the mind, and it has a direction.</p>
-        <p>People have reached for that idea before. The Schumann resonance, the planet's own background frequency, gets borrowed all the time to name the sense that some shared signal is rising and falling with us. The intuition was right even if the address was wrong. The Earth's frequency answers to lightning, not to us. But there is a field that answers to us, and we have been generating it ourselves the whole time, one song at a time.</p>
-        <p>Chad Lewine described seeing this twenty years before there was any way to measure it. The cars were always blasting it into the shared air. There was just no needle. The Rising Compass is the needle.</p>
-        <p>The Compass operationalizes a specific prior observation. On November 12, 2024, Chad Lewine published <a href="https://chadlewine.com/observations/popular-music-has-lost-its-moral-compass" target="_blank">Popular Music Has Lost Its Moral Compass</a> &mdash; a song-by-song reading of every Billboard Year-End Hot 100 top 10 from 1960 to today, calibrated against an explicit three-tier rubric (positive / neutral / negative). 700+ songs, 65 years. The finding was direct: positively charged lyrical content has measurably declined, decade by decade. Independent researchers &mdash; among them StatSignificant and The Honest Broker &mdash; have documented the same drift through different methodologies.</p>
+        <p>That is a real field, not a metaphor for one. The sum of what we are all hearing right now is a kind of collective weather of the mind, and weather affects our lives.</p>
+        <p>Our founder, Chad Lewine, described seeing this twenty years before there was any way to measure it. The cars were always blasting it into the shared air. There was just no needle. The Rising Compass is the needle.</p>
+        <p>The Compass operationalizes a specific prior observation. On November 12, 2024, Chad published <a href="https://chadlewine.com/observations/popular-music-has-lost-its-moral-compass" target="_blank">Popular Music Has Lost Its Moral Compass</a> &mdash; a song by song manual reading of every Billboard Year-End Hot 100 top 10 from 1960 to today, calibrated against an explicit three-tier rubric (positive / neutral / negative). 700+ songs, 65 years. The finding was direct: positively charged lyrical content has measurably declined, decade by decade. <a href="https://www.statsignificant.com/p/how-have-song-lyrics-changed-since" target="_blank" rel="noopener">StatSignificant</a> has documented the same drift through a different methodology, and critics including <a href="https://www.honest-broker.com/p/why-is-music-getting-sadder" target="_blank" rel="noopener">The Honest Broker</a> have reached the same conclusion from the industry data.</p>
         <p>The Rising Compass is that observation turned into infrastructure. The three-tier rubric expanded into the current 58-tenet, five-tier system. The retrospective archive is being recalibrated through the new rubric and folded into the Rising Compass library. What was a published essay now runs as a live instrument &mdash; song-by-song, day-by-day, at the resolution culture is actually produced.</p>
       </div>
     </section>
@@ -386,10 +424,10 @@
     </script>
 
 
-    <!-- ═══ 1. THE INSTRUMENT ═══ -->
+    <!-- ═══ 2. THE INSTRUMENT ═══ -->
     <section class="m-section" id="instrument">
       <div class="m-section-header">
-        <span class="m-section-num">1</span>
+        <span class="m-section-num">2</span>
         <div>
           <p class="m-section-eyebrow">The Compass Itself</p>
           <h2 class="m-section-title">The Instrument</h2>
@@ -521,10 +559,10 @@
     </section>
 
 
-    <!-- ═══ 2. THE GEARS ═══ -->
+    <!-- ═══ 3. THE GEARS ═══ -->
     <section class="m-section" id="gears">
       <div class="m-section-header">
-        <span class="m-section-num">2</span>
+        <span class="m-section-num">3</span>
         <div>
           <p class="m-section-eyebrow">The AI and the Tenets</p>
           <h2 class="m-section-title">The Gears Behind the Instrument</h2>
@@ -568,10 +606,10 @@
     </section>
 
 
-    <!-- ═══ 3. THE FORCES ═══ -->
+    <!-- ═══ 4. THE FORCES ═══ -->
     <section class="m-section" id="forces">
       <div class="m-section-header">
-        <span class="m-section-num">3</span>
+        <span class="m-section-num">4</span>
         <div>
           <p class="m-section-eyebrow">Misreads, Amendments, Deliberations</p>
           <h2 class="m-section-title">The Forces That Mold the Gears</h2>
@@ -642,14 +680,26 @@
           <p>The bet underneath: more peaceful, more conscious communities come from finding both where we already agree and where we don't. Out loud, with a record.</p>
         </div>
 
+        <!-- Both callouts were in the hero, where they argued the old H1 ("A
+             living instrument, not a verdict"). That headline is gone; the
+             misreads, amendments and rebuild record they describe all live in
+             this section, so they moved here 2026-08-11. Prose unchanged. -->
+        <div class="m-living-callout">
+          <p><strong>Mistakes are part of the process.</strong> Every flagged misread, every recalibration, every amendment is a made-tangible breakdown in our collective reasoning. The breakdown gets surfaced and debated, with a public record of how it was resolved. Where we agree becomes ratified. Where we disagree becomes discourse. More peaceful, more conscious communities come from finding both.</p>
+        </div>
+
+        <div class="m-living-callout">
+          <p><strong>The instrument gets rebuilt in the open.</strong> In June 2026 the calibrator's procedure was rebuilt from the ground up, with the tenets kept word for word. <a href="/methodology/calibrator-before-after/">Read the before-and-after record</a>: how a song was read before versus how it is read now, and what the change means for every calibration that came before it.</p>
+        </div>
+
       </div>
     </section>
 
 
-    <!-- ═══ 4. THE DATA ═══ -->
+    <!-- ═══ 5. THE DATA ═══ -->
     <section class="m-section" id="data">
       <div class="m-section-header">
-        <span class="m-section-num">4</span>
+        <span class="m-section-num">5</span>
         <div>
           <p class="m-section-eyebrow">What the Instrument Surfaces</p>
           <h2 class="m-section-title">The Data the Instrument Surfaces</h2>
@@ -698,10 +748,10 @@
     </section>
 
 
-    <!-- ═══ 5. THE NEW LABEL ═══ -->
+    <!-- ═══ 6. THE NEW LABEL ═══ -->
     <section class="m-section" id="label">
       <div class="m-section-header">
-        <span class="m-section-num">5</span>
+        <span class="m-section-num">6</span>
         <div>
           <p class="m-section-eyebrow">Replacing "Explicit"</p>
           <h2 class="m-section-title">The New Label</h2>
@@ -869,7 +919,7 @@
   </div>
 </footer>
 <script defer src="/js/consent.js?v=20260702"></script>
-<script defer src="/js/founders-essay-toast.js?v=20260711"></script>
+<script defer src="/js/founders-essay-toast.js?v=20260811"></script>
 <!-- /INCLUDE:footer -->
 </body>
 </html>
