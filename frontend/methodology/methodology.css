@@ -514,24 +514,15 @@
   display: block;
 }
 
-/* Fills the column. The gauge's own stylesheet caps it at 460px for the
-   dashboard; here the column IS the frame, so the cap is lifted and the
-   viewBox carries the aspect ratio. */
+/* Sized to the column. compass.css caps .compass-svg at 460px for the
+   dashboard; here the column is the frame, so the cap is lifted and the dial's
+   own viewBox carries the aspect ratio. */
 .tier-compass .compass-svg {
   width: 85%;
   max-width: none;
   margin-inline: auto;
   display: block;
 }
-
-/* Dial only. The gauge's readouts belong to the live daily reading, and there
-   is no reading here -- the needle is illustrating the scale, not reporting a
-   number. */
-.tier-compass .compass-score-bg,
-.tier-compass .compass-score-text,
-.tier-compass .compass-label-bg,
-.tier-compass .compass-label-text,
-.tier-compass .compass-date-text { display: none; }
 
 /* No transition on the needle. The gauge's own 1.5s settle is built for a value
    landing once, and any CSS transition would fight the per-frame easing the

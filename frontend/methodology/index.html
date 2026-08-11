@@ -964,9 +964,12 @@
 <script defer src="/js/consent.js?v=20260702"></script>
 <script defer src="/js/founders-essay-toast.js?v=20260811"></script>
 <!-- /INCLUDE:footer -->
-<script src="/js/compass.js"></script>
+<script src="/js/compass-dial.js"></script>
 <script>
-/* Ties the compass to the tier stack.
+/* Ties the compass dial to the tier stack.
+
+   The dial is js/compass-dial.js, a display-only FORK of the live gauge. The
+   shared js/compass.js is untouched by this page.
 
    NEEDLE: each card owns the centre degree of its band (the same 22.5 / 67.5 /
    112.5 / 157.5 cutoffs as backend/app/services/charge_calc.py), and the target
@@ -975,26 +978,16 @@
    pinned to it, so fast scrolling reads as weight rather than a twitch. No CSS
    transition on the needle here: the easing is the motion.
 
-   BAND: whichever tier the needle is sitting in glows, using the gauge's own
-   hover treatment via setHotTier. Hover itself is off on this instance
-   (interactive: false), so the only thing that lights a band is the needle.
+   BAND: whichever tier the needle is sitting in glows, via the dial's
+   setHotTier, using the same treatment the live gauge uses on hover. This dial
+   has no hover of its own, so the needle is the only thing that lights a band.
 
    Reads scroll position; never drives it. */
 (function () {
   var host = document.getElementById('tier-compass');
-  if (!host || typeof Compass === 'undefined') return;
-  Compass.render('tier-compass', { interactive: false });
+  if (!host || typeof CompassDial === 'undefined') return;
+  CompassDial.render('tier-compass');
 
-  // Crop the empty band off the bottom. The gauge's viewBox (0 -10 360 300)
-  // reserves room under the dial for the score, charge label and date, which
-  // this instance hides -- leaving ~100 units of dead space that made the box
-  // far taller than the art. Bottom-aligning against the last card lined that
-  // EMPTY space up with the card, not the dial. The dial's lowest ink is the
-  // needle hub at y=178, so 195 clears it with room to spare.
-  (function cropToDial() {
-    var svg = host.querySelector('.compass-svg');
-    if (svg) svg.setAttribute('viewBox', '0 -10 360 205');
-  })();
 
   var cards = [].slice.call(document.querySelectorAll('.tier-grid .tier-col'));
   if (!cards.length) return;
@@ -1005,16 +998,6 @@
   var EASE = 0.14;      // fraction of the remaining distance per frame
   var SETTLED = 0.05;   // degrees; below this, snap and stop the loop
   var target = 90, current = null, raf = null, band = -1;
-
-  function bandFor(deg) {
-    if (deg <= 22.5) return 0;
-    if (deg <= 67.5) return 1;
-    if (deg <= 112.5) return 2;
-    if (deg <= 157.5) return 3;
-    return 4;
-  }
-
-  var COLORS = ['violet', 'blue', 'green', 'orange', 'red'];
 
   function measure() {
     var vh = window.innerHeight || document.documentElement.clientHeight;
@@ -1036,9 +1019,9 @@
   }
 
   function apply(deg) {
-    Compass.setDegree(deg, COLORS[bandFor(deg)]);
-    var b = bandFor(deg);
-    if (b !== band) { band = b; Compass.setHotTier(b); }
+    CompassDial.setDegree(deg);
+    var b = CompassDial.bandFor(deg);
+    if (b !== band) { band = b; CompassDial.setHotTier(b); }
   }
 
   function tick() {
