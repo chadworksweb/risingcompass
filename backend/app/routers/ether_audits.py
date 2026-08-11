@@ -1,7 +1,7 @@
 """Admin Ether Audits — triage queue for songs the taxonomy couldn't fit.
 
 A song lands in the queue two ways: the ether tagger writes a `topic_audit`
-when it can't honestly fit a song into the closed 31-topic taxonomy, OR an
+when it can't honestly fit a song into the closed 32-topic taxonomy, OR an
 admin opens an audit on an already-tagged song whose tags are wrong. Either
 way the row carries `topics: []` + a `topic_audit` payload.
 

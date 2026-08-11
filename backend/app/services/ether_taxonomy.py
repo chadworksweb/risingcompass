@@ -1,4 +1,4 @@
-"""The Ether Art Chart — closed 31-topic taxonomy (single source of truth; see assert below).
+"""The Ether Art Chart — closed 32-topic taxonomy (single source of truth; see assert below).
 
 Imported by the ether tagger prompt and the admin Ether Audits surface. Adding
 a tag is a one-line dict insertion + redeploy — intentional friction, since
@@ -39,10 +39,22 @@ ETHER_TAXONOMY = {
         ],
     },
     "flex": {
-        "scope": "Wealth, status, clout — display of acquired position.",
+        "scope": "Wealth, status, clout — display of acquired position. The "
+                 "goods are the claim; when the SELF is the claim, use ego-trip.",
         "examples": [
             ("Drake", "Started From The Bottom",
              "origin-story status display"),
+        ],
+    },
+    "ego-trip": {
+        "scope": "Self-elevation as the point: superiority, dominance, "
+                 "untouchability, rivals ranked beneath the narrator. Worth "
+                 "asserted by outranking someone, with or without possessions.",
+        "examples": [
+            ("Bobby Brown", "My Prerogative",
+             "the right to be above criticism as the whole claim"),
+            ("Gwen Stefani", "Hollaback Girl",
+             "supremacy over a rival, called out to be proven"),
         ],
     },
     "self-deprecation": {
@@ -134,10 +146,14 @@ ETHER_TAXONOMY = {
         ],
     },
     "self-affirmation": {
-        "scope": "Identity, empowerment — claiming one's own worth.",
+        "scope": "Inherent worth claimed: dignity, enoughness, self-regard that "
+                 "rests on BEING rather than on having (flex) or on outranking "
+                 "anyone (ego-trip). No rival, no scoreboard, no receipts.",
         "examples": [
             ("Lizzo", "Good as Hell",
-             "explicit self-worth assertion"),
+             "worth asserted as a given, with nobody ranked below her"),
+            ("Whitney Houston", "Greatest Love of All",
+             "dignity located inside the self, offered without a target"),
         ],
     },
     "rebellion": {
@@ -246,8 +262,8 @@ ETHER_TAXONOMY = {
 
 VALID_SLUGS = frozenset(ETHER_TAXONOMY.keys())
 
-assert len(VALID_SLUGS) == 31, (
-    "Taxonomy is 31 topics. Adding/removing one is a deliberate edit here "
+assert len(VALID_SLUGS) == 32, (
+    "Taxonomy is 32 topics. Adding/removing one is a deliberate edit here "
     "(scope + examples feed the live tagger); update this count to match."
 )
 
@@ -307,6 +323,9 @@ ETHER_TOPIC_PRIMARY = {
     "friendship":       "friendship-bonds",
     "loneliness":       "friendship-bonds",
     "flex":             "status",
+    # ego-trip is standing, not psyche: the claim is where the narrator ranks
+    # against others. Its self-regard pull survives as a secondary facet.
+    "ego-trip":         "status",
     "fame":             "status",
     "ambition":         "status",
     # survival re-shelved 2026-08-01: hardship-as-endurance sits with
@@ -337,6 +356,7 @@ ETHER_TOPIC_PRIMARY = {
 # where a real cross-cut exists. Never used in any sum.
 ETHER_TOPIC_SECONDARY = {
     "ambition":      ["self-psyche"],
+    "ego-trip":      ["self-psyche"],
     "survival":      ["status"],
     "loneliness":    ["romance"],
     "friendship":    ["roots-belonging"],

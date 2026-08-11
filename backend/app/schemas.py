@@ -400,7 +400,7 @@ class TerminalCalibrationIn(BaseModel):
     reasoning: Optional[str] = None
     # Ether Art Chart fields, also Claude-Code-supplied so the server skips the
     # ether_tagger Anthropic call. deadpan_line is a flat literal naming of the
-    # song; topics are 0-3 slugs from the closed 31-topic taxonomy (see ether_taxonomy assert)
+    # song; topics are 0-3 slugs from the closed 32-topic taxonomy (see ether_taxonomy assert)
     # (services/ether_taxonomy.ETHER_TAXONOMY), dominant-first; topic_audit is
     # the escape-hatch payload when no taxonomy slug honestly fits (topics must
     # then be empty). Exactly one of (topics non-empty, topic_audit non-null).

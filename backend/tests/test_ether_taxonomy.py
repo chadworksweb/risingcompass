@@ -50,7 +50,7 @@ def test_resolver_fallback_empty_db():
     bust_taxonomy_cache()
     h = topic_hierarchy(db)  # empty tables -> code fallback
     assert len(h["themes"]) == len(ETHER_THEMES), h["themes"]
-    assert len(h["topics"]) == len(ETHER_TAXONOMY) == 30
+    assert len(h["topics"]) == len(ETHER_TAXONOMY)
     # Every topic's primary is a real theme slug.
     theme_slugs = {t["slug"] for t in h["themes"]}
     for slug, meta in h["topics"].items():
@@ -75,7 +75,7 @@ def test_resolver_reads_db_and_busts():
     seed_taxonomy_if_empty(db)
     bust_taxonomy_cache()
     h = topic_hierarchy(db)
-    assert len(h["topics"]) == 30
+    assert len(h["topics"]) == len(ETHER_TAXONOMY)
     # Edit a label directly, bust, re-read -> reflects the edit.
     row = db.query(EtherTopic).filter(EtherTopic.slug == "romance").first()
     row.label = "ROMANCE EDITED"

@@ -1,7 +1,7 @@
 """Ether tagger — names what a compass_song IS through the Ether Art Chart lens.
 
 Single-shot Opus call run after the main calibrator. Emits a flat literal
-deadpan_line plus 0-3 ranked topic slugs from the closed 31-topic taxonomy (see ether_taxonomy assert)
+deadpan_line plus 0-3 ranked topic slugs from the closed 32-topic taxonomy (see ether_taxonomy assert)
 (`services/ether_taxonomy.ETHER_TAXONOMY`). When no honest taxonomy match
 exists, returns an audit payload instead of forcing a bad fit.
 
@@ -118,7 +118,7 @@ AUDIT ESCAPE HATCH — mandatory when nothing fits
 ═══════════════════════════════════════════════════════════════════════
 
 If you cannot honestly tag the song with even one topic from the
-31-topic list, return:
+32-topic list, return:
 
   topics: []
   topic_audit: {
