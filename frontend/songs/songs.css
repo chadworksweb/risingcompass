@@ -74,8 +74,18 @@
 /* Zero the question's own bottom margin so `center` centres the visible box
    rather than the box plus a trailing gap; the head's margin does the spacing. */
 .song-summary-head .song-question { margin: 0; }
-/* No cover art: drop the reserved column so the question uses full width. */
-.song-summary-head:has(> .song-art-wrap[hidden]) { grid-template-columns: 1fr; }
+/* No cover art: the head goes fully transparent to layout rather than just
+   collapsing to one column, so the card renders EXACTLY as it did before cover
+   art existed -- no grid, no head margin, and the question carrying its own
+   original bottom margin. Dropping only the column would have left the wider
+   1.25rem gap and a zeroed question margin behind on every art-less song. */
+.song-summary-head:has(> .song-art-wrap[hidden]) {
+  display: block;
+  margin-bottom: 0;
+}
+.song-summary-head:has(> .song-art-wrap[hidden]) .song-question {
+  margin: 0 0 0.85rem;
+}
 .song-art-wrap { width: 100%; }
 .song-art {
   width: 100%;
