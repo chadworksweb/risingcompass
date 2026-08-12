@@ -1,0 +1,353 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'catalog' %}
+{% block title %}Artists &amp; Releases — Admin{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="cxArtists">—</div><div class="label">Artists</div></div>
+  <div class="stat-card"><div class="val" id="cxReleases">—</div><div class="label">Releases</div></div>
+  <div class="stat-card"><div class="val" id="cxMb">—</div><div class="label">MusicBrainz-derived</div></div>
+  <div class="stat-card"><div class="val" id="cxReading">—</div><div class="label">With album reading</div></div>
+</div>
+
+<h2 class="section-title">Artists &amp; Releases</h2>
+<p style="color:#888;font-size:0.82rem;margin:-0.3rem 0 0.8rem;">
+  Release identity and membership: title, type, dates, which songs are on a
+  release and in what order. The album READING (charge, tier, prose, deadpan,
+  topics) belongs to the album calibrator, not to this page. Aggregates shown for
+  a release without a reading are the legacy placeholder mean.
+</p>
+
+<div class="filter-bar">
+  <input id="cxSearch" type="text" placeholder="Search artists…"
+         style="flex:1;min-width:220px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:3px;font-size:0.85rem;">
+  <button class="filter-btn active" onclick="cxFilter(null)">All</button>
+  <button class="filter-btn" onclick="cxFilter(true)">With releases</button>
+  <button class="filter-btn" onclick="cxFilter(false)">No releases</button>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(240px,1fr) 2fr;gap:1rem;align-items:start;">
+
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;max-height:70vh;overflow:auto;">
+    <div id="cxArtistList" style="font-size:0.85rem;"></div>
+  </div>
+
+  <div id="cxDetail" style="min-height:200px;">
+    <div style="color:#777;font-size:0.85rem;padding:1rem;">Pick an artist.</div>
+  </div>
+</div>
+
+<script>
+let cxHasReleases = null;
+let cxCurrentSlug = null;
+let cxCurrentRelease = null;
+
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+function tierDot(color) {
+  const map = { violet: '#9b5de5', blue: '#3388ff', green: '#3aa76d',
+                orange: '#e08b3a', red: '#d1495b' };
+  const c = map[color] || '#555';
+  return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
+       + 'background:' + c + ';margin-right:0.4rem;vertical-align:middle;"></span>';
+}
+function chargeStr(v) { return (v === null || v === undefined) ? '—' : (v > 0 ? '+' + v : String(v)); }
+
+async function api(url, opts) {
+  const r = await fetch(url, Object.assign({ credentials: 'same-origin' }, opts || {}));
+  if (!r.ok) {
+    let msg = r.status + '';
+    try { const j = await r.json(); if (j.detail) msg = j.detail; } catch (e) {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+async function loadStats() {
+  try {
+    const [rs, as_] = await Promise.all([
+      api('/api/admin/releases/stats'),
+      api('/api/admin/artists?limit=1'),
+    ]);
+    document.getElementById('cxReleases').textContent = rs.total;
+    document.getElementById('cxMb').textContent = rs.musicbrainz_derived;
+    document.getElementById('cxReading').textContent = rs.with_reading;
+    document.getElementById('cxArtists').textContent = as_.total;
+  } catch (e) { console.error(e); }
+}
+
+async function loadArtists() {
+  const q = document.getElementById('cxSearch').value.trim();
+  let url = '/api/admin/artists?limit=300';
+  if (q) url += '&q=' + encodeURIComponent(q);
+  if (cxHasReleases !== null) url += '&has_releases=' + cxHasReleases;
+  const el = document.getElementById('cxArtistList');
+  el.innerHTML = '<div style="padding:0.8rem;color:#777;">Loading…</div>';
+  try {
+    const d = await api(url);
+    if (!d.artists.length) {
+      el.innerHTML = '<div style="padding:0.8rem;color:#777;">No artists.</div>';
+      return;
+    }
+    el.innerHTML = d.artists.map(a =>
+      '<div class="cx-artist" data-slug="' + esc(a.slug) + '" onclick="openArtist(\'' + esc(a.slug) + '\')" '
+      + 'style="padding:0.45rem 0.7rem;border-bottom:1px solid var(--border);cursor:pointer;">'
+      + '<div style="font-weight:500;">' + esc(a.name) + '</div>'
+      + '<div style="color:#777;font-size:0.76rem;">' + a.song_count + ' songs · '
+      + a.release_count + ' releases' + (a.musicbrainz_id ? ' · MB' : '') + '</div>'
+      + '</div>').join('');
+  } catch (e) {
+    el.innerHTML = '<div style="padding:0.8rem;color:#d1495b;">' + esc(e.message) + '</div>';
+  }
+}
+
+function cxFilter(v) {
+  cxHasReleases = v;
+  document.querySelectorAll('.filter-bar .filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadArtists();
+}
+
+async function openArtist(slug) {
+  cxCurrentSlug = slug;
+  cxCurrentRelease = null;
+  const el = document.getElementById('cxDetail');
+  el.innerHTML = '<div style="padding:1rem;color:#777;">Loading…</div>';
+  try {
+    const a = await api('/api/admin/artists/' + encodeURIComponent(slug));
+    const unassigned = a.songs.length;
+    let h = '<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.8rem 1rem;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:0.6rem;">'
+      + '<h3 style="margin:0;font-size:1.05rem;">' + esc(a.name) + '</h3>'
+      + '<span style="color:#777;font-size:0.78rem;">' + esc(a.slug)
+      + (a.musicbrainz_id ? ' · MB ' + esc(a.musicbrainz_id.slice(0, 8)) : ' · no MusicBrainz id') + '</span>'
+      + '</div>'
+      + '<div class="filter-bar" style="margin:0.7rem 0 0;">'
+      + '<button class="filter-btn" onclick="artistAction(\'resolve-metadata\')">Resolve metadata</button>'
+      + '<button class="filter-btn" onclick="artistAction(\'rebuild-releases\')">Rebuild releases</button>'
+      + '<button class="filter-btn" onclick="artistAction(\'refresh-release-aggregates\')">Refresh aggregates</button>'
+      + '<button class="filter-btn" onclick="newRelease()">+ New release</button>'
+      + '</div>'
+      + '<div id="cxActionMsg" style="font-size:0.8rem;color:#777;margin-top:0.4rem;"></div>'
+      + '</div>';
+
+    h += '<h3 class="section-title" style="font-size:0.85rem;margin-top:1rem;">Releases ('
+      + a.releases.length + ')</h3>';
+    if (!a.releases.length) {
+      h += '<div style="color:#777;font-size:0.83rem;padding:0.4rem 0;">No releases. '
+        + 'Resolve metadata pulls them from MusicBrainz; an artist who is not in '
+        + 'MusicBrainz needs one built here.</div>';
+    } else {
+      h += '<table class="data-table"><thead><tr>'
+        + '<th>Title</th><th>Type</th><th>Year</th><th>Tracks</th><th>Aggregate</th>'
+        + '<th>Reading</th><th>Source</th></tr></thead><tbody>'
+        + a.releases.map(r =>
+            '<tr style="cursor:pointer;" onclick="openRelease(' + r.id + ')">'
+            + '<td>' + esc(r.title) + '</td>'
+            + '<td style="color:#888;">' + esc(r.release_type) + '</td>'
+            + '<td style="color:#888;">' + (r.release_year || '—') + '</td>'
+            + '<td style="color:#888;">' + r.calibrated_count + ' / ' + r.track_count + '</td>'
+            + '<td>' + tierDot(r.rubric_color) + chargeStr(r.charge_value) + '</td>'
+            + '<td style="color:' + (r.has_reading ? '#3aa76d' : '#888') + ';">'
+            + (r.has_reading ? 'yes' : 'none') + '</td>'
+            + '<td style="color:#888;font-size:0.78rem;">'
+            + esc(r.source || (r.musicbrainz_id ? 'musicbrainz' : 'manual')) + '</td>'
+            + '</tr>').join('')
+        + '</tbody></table>';
+    }
+
+    h += '<h3 class="section-title" style="font-size:0.85rem;margin-top:1rem;">Credited songs ('
+      + unassigned + ')</h3>'
+      + '<table class="data-table"><thead><tr><th>Title</th><th>Charge</th><th>Flags</th></tr></thead><tbody>'
+      + a.songs.map(s =>
+          '<tr><td>' + esc(s.title) + '</td>'
+          + '<td>' + tierDot(s.rubric_color) + chargeStr(s.charge_value) + '</td>'
+          + '<td style="color:#888;font-size:0.78rem;">' + (s.contaminated ? 'contaminated' : '') + '</td>'
+          + '</tr>').join('')
+      + '</tbody></table>';
+
+    h += '<div id="cxReleasePanel" style="margin-top:1rem;"></div>';
+    el.innerHTML = h;
+  } catch (e) {
+    el.innerHTML = '<div style="padding:1rem;color:#d1495b;">' + esc(e.message) + '</div>';
+  }
+}
+
+async function artistAction(action) {
+  const msg = document.getElementById('cxActionMsg');
+  if (action === 'rebuild-releases' &&
+      !confirm('Rebuild purges this artist\'s MusicBrainz-derived releases and re-resolves them. Album-Charger releases are left alone. Continue?')) return;
+  msg.textContent = 'Running ' + action + '…';
+  try {
+    const d = await api('/api/admin/artists/' + encodeURIComponent(cxCurrentSlug) + '/' + action,
+                        { method: 'POST' });
+    msg.textContent = JSON.stringify(d);
+    openArtist(cxCurrentSlug);
+  } catch (e) { msg.textContent = 'Failed: ' + e.message; }
+}
+
+async function openRelease(id) {
+  cxCurrentRelease = id;
+  const panel = document.getElementById('cxReleasePanel');
+  panel.innerHTML = '<div style="padding:0.8rem;color:#777;">Loading…</div>';
+  try {
+    const [r, cand] = await Promise.all([
+      api('/api/admin/releases/' + id),
+      api('/api/admin/releases/' + id + '/candidate-songs'),
+    ]);
+    let h = '<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.8rem 1rem;">'
+      + '<h3 style="margin:0 0 0.6rem;font-size:0.95rem;">' + esc(r.title) + '</h3>'
+      + '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">'
+      + '<input id="rTitle" value="' + esc(r.title) + '" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:3px;font-size:0.83rem;min-width:180px;">'
+      + '<select id="rType" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem;border-radius:3px;font-size:0.83rem;">'
+      + ['album', 'ep', 'single'].map(t => '<option value="' + t + '"' + (r.release_type === t ? ' selected' : '') + '>' + t + '</option>').join('')
+      + '</select>'
+      + '<input id="rDate" type="date" value="' + esc(r.release_date || '') + '" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem;border-radius:3px;font-size:0.83rem;">'
+      + '<button class="filter-btn" onclick="saveRelease(' + id + ')">Save</button>'
+      + (r.musicbrainz_id ? '' : '<button class="filter-btn" onclick="deleteRelease(' + id + ')">Delete</button>')
+      + '</div>'
+      + '<div style="color:#888;font-size:0.78rem;">Aggregate ' + tierDot(r.rubric_color) + chargeStr(r.charge_value)
+      + ' · ' + r.calibrated_count + ' of ' + r.track_count + ' calibrated · '
+      + r.contamination_count + ' contaminated · reading: ' + (r.has_reading ? 'present' : 'none') + '</div>'
+      + '<div id="rMsg" style="font-size:0.8rem;color:#777;margin-top:0.4rem;"></div>';
+
+    h += '<h4 style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.03em;color:var(--text-dim);margin:1rem 0 0.4rem;">Running order</h4>'
+      + '<p style="color:#888;font-size:0.78rem;margin:0 0 0.5rem;">The running order is the text the album calibrator reads. Changing it invalidates any album reading written against the old sequence.</p>'
+      + '<div id="rTracks">' + trackRows(r.tracks) + '</div>'
+      + '<div style="margin-top:0.6rem;">'
+      + '<select id="rAddSong" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem;border-radius:3px;font-size:0.83rem;max-width:320px;">'
+      + '<option value="">Add a credited song…</option>'
+      + cand.songs.filter(s => !s.already_on_release).map(s =>
+          '<option value="' + s.song_id + '">' + esc(s.title) + ' (' + chargeStr(s.charge_value) + ')</option>').join('')
+      + '</select> '
+      + '<button class="filter-btn" onclick="addTrack()">Add</button> '
+      + '<button class="filter-btn" onclick="saveTracks(' + id + ')">Save running order</button>'
+      + '</div></div>';
+    panel.innerHTML = h;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    panel.innerHTML = '<div style="padding:0.8rem;color:#d1495b;">' + esc(e.message) + '</div>';
+  }
+}
+
+function trackRows(tracks) {
+  if (!tracks.length) return '<div style="color:#777;font-size:0.83rem;">No tracks linked.</div>';
+  return '<table class="data-table"><tbody>' + tracks.map((t, i) =>
+    '<tr data-song="' + t.song_id + '">'
+    + '<td style="width:2.5rem;color:#888;">' + (i + 1) + '</td>'
+    + '<td>' + esc(t.title || ('song ' + t.song_id)) + '</td>'
+    + '<td style="width:5rem;">' + tierDot(t.rubric_color) + chargeStr(t.charge_value) + '</td>'
+    + '<td style="width:6rem;color:#888;font-size:0.76rem;">' + (t.contaminated ? 'contam' : '') + '</td>'
+    + '<td style="width:7rem;text-align:right;">'
+    + '<button class="filter-btn" onclick="moveTrack(this,-1)">↑</button> '
+    + '<button class="filter-btn" onclick="moveTrack(this,1)">↓</button> '
+    + '<button class="filter-btn" onclick="removeTrack(this)">×</button>'
+    + '</td></tr>').join('') + '</tbody></table>';
+}
+
+function renumber() {
+  document.querySelectorAll('#rTracks tbody tr').forEach((tr, i) => {
+    tr.cells[0].textContent = i + 1;
+  });
+}
+function moveTrack(btn, dir) {
+  const tr = btn.closest('tr'), tb = tr.parentNode;
+  const rows = Array.from(tb.children), i = rows.indexOf(tr), j = i + dir;
+  if (j < 0 || j >= rows.length) return;
+  if (dir < 0) tb.insertBefore(tr, rows[j]); else tb.insertBefore(rows[j], tr);
+  renumber();
+}
+function removeTrack(btn) { btn.closest('tr').remove(); renumber(); }
+function addTrack() {
+  const sel = document.getElementById('rAddSong');
+  if (!sel.value) return;
+  const label = sel.options[sel.selectedIndex].text;
+  let tb = document.querySelector('#rTracks tbody');
+  if (!tb) {
+    document.getElementById('rTracks').innerHTML = '<table class="data-table"><tbody></tbody></table>';
+    tb = document.querySelector('#rTracks tbody');
+  }
+  const tr = document.createElement('tr');
+  tr.dataset.song = sel.value;
+  tr.innerHTML = '<td style="width:2.5rem;color:#888;"></td><td>' + esc(label) + '</td>'
+    + '<td style="width:5rem;">—</td><td style="width:6rem;"></td>'
+    + '<td style="width:7rem;text-align:right;">'
+    + '<button class="filter-btn" onclick="moveTrack(this,-1)">↑</button> '
+    + '<button class="filter-btn" onclick="moveTrack(this,1)">↓</button> '
+    + '<button class="filter-btn" onclick="removeTrack(this)">×</button></td>';
+  tb.appendChild(tr);
+  sel.remove(sel.selectedIndex);
+  renumber();
+}
+
+async function saveTracks(id) {
+  const ids = Array.from(document.querySelectorAll('#rTracks tbody tr'))
+    .map(tr => parseInt(tr.dataset.song, 10));
+  const msg = document.getElementById('rMsg');
+  msg.textContent = 'Saving…';
+  try {
+    const d = await api('/api/admin/releases/' + id + '/tracks',
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song_ids: ids }) });
+    msg.textContent = d.reading_invalidated ? d.note : ('Saved. ' + d.track_count + ' tracks.');
+    msg.style.color = d.reading_invalidated ? '#e08b3a' : '#777';
+    openArtist(cxCurrentSlug);
+  } catch (e) { msg.textContent = 'Failed: ' + e.message; msg.style.color = '#d1495b'; }
+}
+
+async function saveRelease(id) {
+  const msg = document.getElementById('rMsg');
+  msg.textContent = 'Saving…';
+  try {
+    await api('/api/admin/releases/' + id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: document.getElementById('rTitle').value,
+        release_type: document.getElementById('rType').value,
+        release_date: document.getElementById('rDate').value || '',
+      })
+    });
+    msg.textContent = 'Saved.'; msg.style.color = '#3aa76d';
+    openArtist(cxCurrentSlug);
+  } catch (e) { msg.textContent = 'Failed: ' + e.message; msg.style.color = '#d1495b'; }
+}
+
+async function deleteRelease(id) {
+  if (!confirm('Delete this release and its track links? The songs themselves are untouched.')) return;
+  try {
+    await api('/api/admin/releases/' + id, { method: 'DELETE' });
+    document.getElementById('cxReleasePanel').innerHTML = '';
+    openArtist(cxCurrentSlug);
+  } catch (e) { alert(e.message); }
+}
+
+async function newRelease() {
+  const title = prompt('Release title?');
+  if (!title) return;
+  const type = prompt('Type: album, ep, or single?', 'album');
+  if (!type) return;
+  const d = prompt('Release date (yyyy-mm-dd), or blank:', '');
+  try {
+    const r = await api('/api/admin/releases', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        artist_slug: cxCurrentSlug, title: title,
+        release_type: type.trim(), release_date: d || null, song_ids: []
+      })
+    });
+    await openArtist(cxCurrentSlug);
+    openRelease(r.id);
+  } catch (e) { alert(e.message); }
+}
+
+let cxT;
+document.getElementById('cxSearch').addEventListener('input', () => {
+  clearTimeout(cxT); cxT = setTimeout(loadArtists, 250);
+});
+loadStats();
+loadArtists();
+</script>
+{% endblock %}

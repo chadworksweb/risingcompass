@@ -409,6 +409,8 @@ from app.routers import clutter_admin
 app.include_router(clutter_admin.router)
 from app.routers import song_merge_admin
 app.include_router(song_merge_admin.router)  # Site Admin -> Song Merge (cookie auth)
+from app.routers import releases_admin
+app.include_router(releases_admin.router)  # Site Admin -> Catalog (cookie auth)
 from app.routers import agents_admin
 app.include_router(agents_admin.router)
 from app.routers import ether_taxonomy_admin

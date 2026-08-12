@@ -13,7 +13,7 @@ from app.auth import require_admin_session
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.models import (
-    Artist, ArtistAdminEvent, Release, ReleaseSong, Song,
+    Artist, ArtistAdminEvent, Release, ReleaseSong, Song, SongArtist,
 )
 from app.services.artist_utils import (
     generate_artist_slug, normalize_artist_name, compute_release_charge,
@@ -823,5 +823,104 @@ def list_artist_admin_events(
             "notes": r.notes,
         } for r in rows]
         return {"items": items, "total": total, "offset": offset, "limit": limit}
+    finally:
+        db.close()
+
+
+# --------------------------------------------------------------------------
+# Read surface (added 2026-08-12)
+#
+# Until now this router was write-only: every endpoint above is a POST, plus
+# GET /events. There was no way to LIST artists or look one up, so the admin
+# had no page and every artist operation meant curl with a session cookie.
+# These are pure additions; nothing above changed.
+# --------------------------------------------------------------------------
+
+@router.get("")
+def list_artists(
+    q: Optional[str] = Query(None, description="name substring"),
+    has_releases: Optional[bool] = Query(None),
+    limit: int = Query(100, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """Artists with their release and song counts, newest-catalog first."""
+    db = SessionLocal()
+    try:
+        rel_counts = (
+            db.query(Release.artist_id, func.count(Release.id).label("n"))
+            .group_by(Release.artist_id).subquery()
+        )
+        song_counts = (
+            db.query(SongArtist.artist_id, func.count(SongArtist.song_id).label("n"))
+            .group_by(SongArtist.artist_id).subquery()
+        )
+        query = (
+            db.query(
+                Artist,
+                func.coalesce(rel_counts.c.n, 0).label("release_count"),
+                func.coalesce(song_counts.c.n, 0).label("song_count"),
+            )
+            .outerjoin(rel_counts, rel_counts.c.artist_id == Artist.id)
+            .outerjoin(song_counts, song_counts.c.artist_id == Artist.id)
+        )
+        if q:
+            query = query.filter(func.lower(Artist.name).like(f"%{q.strip().lower()}%"))
+        if has_releases is True:
+            query = query.filter(func.coalesce(rel_counts.c.n, 0) > 0)
+        elif has_releases is False:
+            query = query.filter(func.coalesce(rel_counts.c.n, 0) == 0)
+
+        total = query.count()
+        rows = (query.order_by(func.coalesce(song_counts.c.n, 0).desc(), Artist.name)
+                .offset(offset).limit(limit).all())
+        return {
+            "total": total,
+            "artists": [{
+                "id": a.id, "name": a.name, "slug": a.slug,
+                "musicbrainz_id": a.musicbrainz_id, "spotify_id": a.spotify_id,
+                "release_count": rc, "song_count": sc,
+            } for a, rc, sc in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/{slug}")
+def get_artist(slug: str):
+    """One artist with every release and every credited song."""
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+
+        releases = (
+            db.query(Release).filter(Release.artist_id == artist.id)
+            .order_by(Release.release_year.desc().nullslast(), Release.title).all()
+        )
+        songs = (
+            db.query(Song).join(SongArtist, SongArtist.song_id == Song.id)
+            .filter(SongArtist.artist_id == artist.id)
+            .order_by(Song.title).all()
+        )
+        return {
+            "id": artist.id, "name": artist.name, "slug": artist.slug,
+            "musicbrainz_id": artist.musicbrainz_id, "spotify_id": artist.spotify_id,
+            "releases": [{
+                "id": r.id, "title": r.title, "release_type": r.release_type,
+                "release_year": r.release_year,
+                "release_date": r.release_date.isoformat() if r.release_date else None,
+                "rubric_color": r.rubric_color, "charge_value": r.charge_value,
+                "track_count": r.track_count, "calibrated_count": r.calibrated_count,
+                "contamination_count": r.contamination_count,
+                "source": r.source, "musicbrainz_id": r.musicbrainz_id,
+                "has_reading": bool(r.charge_summary),
+            } for r in releases],
+            "songs": [{
+                "id": s.id, "title": s.title, "artist": s.artist,
+                "rubric_color": s.rubric_color, "charge_value": s.charge_value,
+                "contaminated": bool(s.contaminated),
+            } for s in songs],
+        }
     finally:
         db.close()

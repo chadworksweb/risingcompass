@@ -453,6 +453,7 @@
       <a class="admin-nav-item {% if active == 'taxonomy' %}active{% endif %}" href="/api/admin/dashboard/taxonomy">Taxonomy</a>
       <a class="admin-nav-item {% if active == 'backfill' %}active{% endif %}" href="/api/admin/backfill">Backfill</a>
       <a class="admin-nav-item {% if active == 'alltime' %}active{% endif %}" href="/api/admin/dashboard/alltime">All-Time Charts</a>
+      <a class="admin-nav-item {% if active == 'catalog' %}active{% endif %}" href="/api/admin/dashboard/catalog">Artists &amp; Releases</a>
     </div>
 
     <div class="admin-nav-group">
@@ -774,6 +775,7 @@ const colorLabels = {'violet':'Ascended','blue':'Elevated','green':'Decent','ora
     { g: 'page', label: 'LC Activity', url: '/api/admin/dashboard/lc-activity', kw: 'lyrical charger albums events' },
     { g: 'page', label: 'LC Status', url: '/api/admin/dashboard/lc-status', kw: 'lyrical charger kill switch disabled' },
     { g: 'page', label: 'Song Merge', url: '/api/admin/dashboard/song-merge', kw: 'duplicate dedup identity resolution merge candidate clean key collision library hygiene' },
+    { g: 'page', label: 'Artists & Releases', url: '/api/admin/dashboard/catalog', kw: 'catalog artist release album ep single tracklist running order discography rename merge musicbrainz' },
     { g: 'page', label: 'Scrape Shield', url: '/api/admin/dashboard/shield', kw: 'anti scrape bot rate limit token genius block enforcement' },
     { g: 'page', label: 'Alerts', url: '/api/admin/dashboard/alerts', kw: 'email notifications prefs provenance' },
     { g: 'page', label: 'Inquiries', url: '/api/admin/dashboard/inquiries', kw: 'contact form general' },
