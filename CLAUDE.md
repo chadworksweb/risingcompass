@@ -596,6 +596,36 @@ Per-release detail pages + Cover Art Archive artwork. Full spec:
   @artist_detail; }` already falls multi-segment paths through to the backend, where
   `ssr_release` handles them (verified live on deploy 2026-06-06).
 
+### Song-level cover art (2026-08-12, migration 146, NOT yet deployed)
+
+Extends the above from releases to song pages. **CAA is the ONLY art source.**
+Apple's iTunes Search API was evaluated and REJECTED: its Promo Content grant
+requires artwork to sit "proximate to a 'Download on iTunes' badge" on a page that
+*promotes* the content. RC ships no store badge and routinely publishes an
+unflattering verdict, so it fails the terms on both counts. Do not re-propose it.
+
+- **`songs.release_group_mbid` + `songs.release_group_checked_at`** (migration 146).
+  `checked_at` set + mbid NULL is a recorded MISS, so the backfill never re-searches
+  it. Populated ONLY by `scripts/backfill_song_cover_art.py`.
+- **Read path:** `routers/songs.py::_enrich_with_release_context` ->
+  `coverart.cover_url_for_mbids(db, [release_mbid, song_mbid])`. Prefers the song's
+  Release MBID, falls back to its own. **Cache-only + fail-soft** -- one indexed
+  query, never a network call. Adds `cover_url` to the song dict.
+- **Resolve path is OFFLINE ONLY.** `musicbrainz.search_recording_release_group`
+  costs up to 2 searches + 8 lookups at 1 req/sec. NEVER call it from a request.
+- **The resolver's guards are all scar tissue** -- see
+  `RISING-COMPASS-ARTIST-RELEASES.md` "Song-Level Cover Art" for which live failure
+  each one fixed. The load-bearing one is the **artist-credit check** in
+  `_pick_release_group`: title/type heuristics lose to oddly-named comps ("Top
+  Medleys" is an Official Album with no compilation tag), but those are credited to
+  Various Artists. Failure direction is deliberate: **no art beats wrong art.**
+- **SOP, manual + chunked, no cron:** `.venv\Scripts\python.exe
+  scripts\backfill_song_cover_art.py --limit 200` (newest songs first, idempotent);
+  occasionally `--recheck-misses` since MusicBrainz gains entries over time.
+- **Frontend:** `.song-summary-head` in `songs/song.html` mirrors the release page's
+  `.rel-summary-head`; `songs.js::showCoverArt` hides the wrap on a 404 so a pulled
+  hotlink degrades to the tier glow. `og:image` deliberately NOT wired.
+
 ## Charger Activity (public feeds page, LIVE 2026-06-06)
 
 Public page at `/lyrical-charger/activity/` showing what's moving through the

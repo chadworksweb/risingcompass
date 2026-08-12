@@ -1823,6 +1823,19 @@ class Song(Base):
     # gutter-vs-mainstream origin signal (degraded music tends to surface via
     # the social-discovery charts: Shazam, YouTube Trending).
     origin_chart = Column(Text)
+    # --- cover art (migration 146) ---
+    # The MusicBrainz release-GROUP MBID this song's art comes from, resolved by
+    # the offline backfill (scripts/backfill_song_cover_art.py), never on the
+    # request path -- MusicBrainz is 1 req/sec and would stall the page. Art
+    # itself is NOT stored: mb_cover_art says whether CAA has any, and the URL is
+    # derived from this MBID (services/coverart.coverart_urls). Songs already
+    # linked to a Release read that release's MBID instead and never need this.
+    release_group_mbid = Column(Text)
+    # When the MBID resolve last RAN, independent of whether it found anything.
+    # Set + release_group_mbid NULL means "searched MusicBrainz, no confident
+    # match" -- a recorded miss, so the backfill skips the song instead of
+    # re-searching it every pass. NULL means never searched.
+    release_group_checked_at = Column(DateTime)
     # server_default so the raw-SQL insert in song_sync.upsert_unified_song (the
     # unified write chokepoint) stamps a time -- a client-side `default=` only
     # fires on ORM inserts, which this table never uses. See migration 116.

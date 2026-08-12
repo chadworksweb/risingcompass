@@ -18,6 +18,7 @@ from app.services.calibration_corpus import compute_consensus
 from app.services.song_search import search_unified
 from app.constants import COLOR_LABELS, COLOR_HEX, chart_source_label
 from app.services.artist_utils import generate_song_slug
+from app.services import coverart
 
 logger = logging.getLogger(__name__)
 
@@ -509,6 +510,7 @@ def _resolve_song(unified_id: int, db) -> dict | None:
 
 def _enrich_with_release_context(song: dict, unified_id: int, db):
     """Add release + artist context to a song dict if available."""
+    release_mbid = None
     link = (
         db.query(ReleaseSong)
         .filter(ReleaseSong.song_id == unified_id)
@@ -520,9 +522,18 @@ def _enrich_with_release_context(song: dict, unified_id: int, db):
             song["release_title"] = release.title
             song["release_type"] = release.release_type
             song["release_date"] = release.release_date.isoformat() if release.release_date else None
+            release_mbid = release.musicbrainz_id
             artist = db.query(Artist).get(release.artist_id)
             if artist:
                 song["artist_slug"] = artist.slug
+
+    # Cover art (Cover Art Archive, hotlinked -- see services/coverart). Prefer
+    # the song's release, which is the cover a listener actually associates with
+    # it; fall back to the release-group the backfill resolved for songs that
+    # have no Release row (every chart-born and Charger-born single). Cache-only,
+    # so this adds one indexed lookup and never a network call.
+    song_mbid = db.query(Song.release_group_mbid).filter(Song.id == unified_id).scalar()
+    song["cover_url"] = coverart.cover_url_for_mbids(db, [release_mbid, song_mbid])
 
     # Fallback: songs with no release link (daily/submitted) still have an
     # artist name — resolve it to the artist-page slug the same way the search

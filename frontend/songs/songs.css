@@ -58,6 +58,45 @@
   margin: 0;
 }
 
+/* Cover art (CAA) beside the question, summary prose full width below --
+   the same head grid the release page uses (.rel-summary-head). */
+.song-summary-head {
+  display: grid;
+  /* Floor on the art column so the cover can't be squeezed to a stamp on a
+     narrow-but-still-two-column card; the question gives up the space instead. */
+  grid-template-columns: minmax(110px, 1fr) 3fr;
+  gap: 1rem;
+  /* Question sits on the art's vertical centre line, not its top edge. */
+  align-items: center;
+  /* Breathing room between the question and the summary prose below. */
+  margin-bottom: 1.25rem;
+}
+/* Zero the question's own bottom margin so `center` centres the visible box
+   rather than the box plus a trailing gap; the head's margin does the spacing. */
+.song-summary-head .song-question { margin: 0; }
+/* No cover art: drop the reserved column so the question uses full width. */
+.song-summary-head:has(> .song-art-wrap[hidden]) { grid-template-columns: 1fr; }
+.song-art-wrap { width: 100%; }
+.song-art {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--rc-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  display: block;
+}
+
+/* Tablet portrait and down. The hero row stays two columns until 768px, so the
+   summary card is already narrow here and a quarter of it renders the cover at
+   75-100px. Stack rather than shrink: capped art above, question at full card
+   width. Below 768 the hero row itself collapses and this keeps the same shape,
+   so one rule covers the whole band. */
+@media (max-width: 1024px) {
+  .song-summary-head { grid-template-columns: 1fr; }
+  .song-summary-head .song-art-wrap { max-width: 150px; }
+}
+
 /* Collapse a row whose every child is hidden so it adds no extra gap. */
 .song-row:not(:has(> *:not([hidden]))) { display: none; }
 
@@ -523,6 +562,65 @@
 /* caret points up while closed (it opens upward), flips down when open. */
 .cc-caret { flex-shrink: 0; opacity: 0.8; transform: rotate(180deg); transition: transform 0.15s ease; }
 .charge-card-btn[aria-expanded="true"] .cc-caret { transform: rotate(0deg); }
+
+/* --- Hero identity row: title/artist block + Share menu at the far right ---
+   The button is taken OUT of flow and pinned right, so the title keeps the
+   card's true centre line instead of centring in the space left beside it.
+   Matching gutters on both sides of the text keep that centre honest AND stop a
+   long title from running under the button; the right gutter is the button's
+   parking space, the left one is its mirror. */
+.song-hero-idrow { position: relative; }
+.song-hero-idtext {
+  --cc-gutter: 7rem;
+  padding: 0 var(--cc-gutter);
+}
+.song-hero-idrow .cc-menu {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-top: 0;
+}
+
+/* Narrow cards: a 7rem gutter each side would leave the title ~90px to wrap in.
+   Drop the button to its glyph and shrink the gutter with it; the accessible
+   name lives on the button's aria-label. This block MUST stay after the base
+   rule above -- both are single-class, so source order decides the winner. */
+@media (max-width: 1024px) {
+  .song-hero-idtext { --cc-gutter: 3.25rem; }
+  .song-hero-idrow .charge-card-btn--sm .cc-btn-label { display: none; }
+  .song-hero-idrow .charge-card-btn--sm { padding: 0.34rem 0.45rem; }
+}
+
+/* Compact variant: the button is now a quiet affordance beside the title, not
+   the hero's call to action. */
+.charge-card-btn--sm {
+  gap: 0.35rem;
+  padding: 0.34rem 0.6rem;
+  font-size: 0.72rem;
+}
+
+/* Pinned top-right, so the menu drops DOWN and right-aligns instead of opening
+   upward off the top of the card (the old placement sat low in the hero). */
+.song-hero-idrow .cc-ratio {
+  top: calc(100% + 0.45rem);
+  bottom: auto;
+  left: auto;
+  right: 0;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6), 0 0 26px rgba(0, 212, 170, 0.22);
+}
+/* Caret logic inverts with the direction: down while closed, up when open. */
+.song-hero-idrow .cc-caret { transform: rotate(0deg); }
+.song-hero-idrow .charge-card-btn[aria-expanded="true"] .cc-caret { transform: rotate(180deg); }
+
+/* "Get link" is a different kind of action from the two card shapes, so it sits
+   under a divider and confirms in place rather than opening a toast. */
+.cc-opt-link { border-top: 1px solid var(--rc-border); }
+.cc-ratio-opt.is-copied,
+.cc-ratio-opt.is-copied:hover {
+  background: rgba(0, 212, 170, 0.28);
+  color: var(--rc-text-bright);
+}
 
 .cc-ratio {
   position: absolute;

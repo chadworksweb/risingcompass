@@ -53,6 +53,39 @@ def coverart_urls(musicbrainz_id: str) -> dict:
     }
 
 
+def cover_url_for_mbids(db, mbids, size: int = COVER_SIZE) -> str | None:
+    """Return the CAA URL for the FIRST of `mbids` the cache says has art.
+
+    Cache-only and synchronous -- it never touches the network, so it is safe on
+    the request path (this is what the song + release pages call). An MBID that
+    is uncached, or cached as has_art=False, is skipped; all misses return None
+    and the caller falls back to the tier glow.
+
+    `mbids` is in preference order, which is how a song expresses "use my
+    release's cover if I have a release, otherwise the one the backfill resolved
+    for me".
+    """
+    ordered = [m for m in dict.fromkeys(mbids) if m]  # dedup, keep order, drop falsy
+    if not ordered:
+        return None
+    try:
+        with_art = {
+            row[0] for row in db.query(MbCoverArt.musicbrainz_id)
+            .filter(MbCoverArt.musicbrainz_id.in_(ordered), MbCoverArt.has_art.is_(True))
+            .all()
+        }
+    except Exception:
+        # Cover art is decoration -- a cache read must never fail a page.
+        logger.info("cover-art cache read failed", exc_info=True)
+        return None
+
+    for mbid in ordered:
+        if mbid in with_art:
+            base = f"{BASE_URL}/release-group/{mbid}"
+            return f"{base}/front-{size}"
+    return None
+
+
 async def _rate_limit():
     global _last_request_time
     now = time.monotonic()

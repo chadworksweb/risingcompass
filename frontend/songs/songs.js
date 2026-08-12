@@ -516,6 +516,20 @@
     return /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(url);
   }
 
+  // Cover art is decoration, never load-bearing: no URL, or a hotlink that
+  // 404s, leaves the wrap hidden and the question takes the full column back
+  // (the :has() rule in songs.css). Alt text names the song rather than
+  // describing the artwork, which is what a screen reader actually needs here.
+  function showCoverArt(url, tagline) {
+    const wrap = document.getElementById('song-art-wrap');
+    const img = document.getElementById('song-art');
+    if (!url || !wrap || !img) return;
+    img.onerror = () => { wrap.hidden = true; };
+    img.alt = tagline ? `Cover art for ${tagline}` : 'Cover art';
+    img.src = url;
+    wrap.hidden = false;
+  }
+
   function renderArtistClaimCta(song) {
     const link = document.getElementById('artist-claim-link');
     const section = document.getElementById('section-artist-claim');
@@ -674,11 +688,15 @@
     const btn = document.getElementById('charge-card-btn');
     const menu = document.getElementById('charge-card-menu');
     if (!btn) return;
-    if (isUncalibrated || !window.RCChargeCard) {
-      if (menu) menu.hidden = true;
-      return;
-    }
+    // The card options need a charge to render; "Get link" doesn't. So an
+    // uncalibrated song keeps a working Share button with the card shapes
+    // stripped out, rather than losing the whole control.
+    const canMakeCard = !isUncalibrated && !!window.RCChargeCard;
     if (menu) menu.hidden = false;
+    if (!canMakeCard) {
+      document.querySelectorAll('#charge-card-ratio .cc-ratio-opt[data-ratio]')
+        .forEach((o) => { o.hidden = true; });
+    }
 
     // Map the song-detail shape onto the card's expected data shape. The card
     // keys off `tier` (rubric_color) and `charge` (charge_value).
@@ -742,9 +760,47 @@
       document.removeEventListener('keydown', onKeydown, true);
     }
 
+    // Copy the song's canonical URL. Prefer the slug form over location.href so
+    // a shared link never carries query params or the /songs/song.html fallback.
+    async function copyLink(opt) {
+      const url = song.slug
+        ? `${window.location.origin}/songs/${song.slug}`
+        : window.location.href;
+      const label = opt.dataset.label || opt.textContent;
+      opt.dataset.label = label;
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        ok = true;
+      } catch (_) {
+        // clipboard API needs a secure context and can be permission-blocked;
+        // the textarea + execCommand path still works in those cases.
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = url;
+          ta.setAttribute('readonly', '');
+          ta.style.cssText = 'position:fixed;top:-1000px;opacity:0;';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (__) { ok = false; }
+      }
+      opt.textContent = ok ? 'Copied!' : 'Press Ctrl+C';
+      opt.classList.toggle('is-copied', ok);
+      announce(ok ? 'Link copied to clipboard' : 'Could not copy the link');
+      // Hold the confirmation briefly so it's readable, then reset and close.
+      setTimeout(() => {
+        opt.textContent = label;
+        opt.classList.remove('is-copied');
+        closeMenu();
+      }, 1200);
+    }
+
     if (ratioWrap) {
       ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((opt) => {
         opt.onclick = () => {
+          if (opt.dataset.action === 'link') { copyLink(opt); return; }
           cardRatio = opt.dataset.ratio === 'portrait' ? 'portrait' : 'square';
           ratioWrap.querySelectorAll('.cc-ratio-opt').forEach((o) => o.classList.toggle('is-active', o === opt));
           closeMenu();
@@ -803,6 +859,11 @@
     // GEO H1 — the natural-language question, above the summary.
     const questionEl = document.getElementById('song-question');
     if (questionEl) questionEl.textContent = `What is ${tagline} about?`;
+
+    // Cover art (CAA front-500), beside the question. Hotlinks can 404 if a
+    // group's art is pulled, so degrade to no art rather than a broken image —
+    // same treatment as the release page.
+    showCoverArt(song.cover_url, tagline);
 
     // Canonical + og:url — use the slug-based URL so social shares and
     // crawlers don't dedupe to /songs/song.html.

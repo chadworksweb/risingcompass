@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://musicbrainz.org/ws/2"
 USER_AGENT = "RisingCompass/1.0 (https://risingcompass.net)"
 
+# Cover-art resolution settings (see search_recording_release_group).
+# MB read timeouts are frequent and transient, and a timeout that reads as "no
+# match" gets RECORDED as one, so be generous rather than fast.
+MB_TIMEOUT = 30.0
+# Per song, how many candidate recordings may cost a second lookup call. Famous
+# songs carry a long tail of per-compilation recording entries ahead of the
+# studio one, so this has to be wide enough to reach past them.
+MAX_RECORDING_LOOKUPS = 8
+# ...but stop as soon as this many usable release-groups are in hand; they have
+# already cleared the bootleg/compilation filters, so more only refines the date.
+ENOUGH_CANDIDATES = 3
+
 # Release-group secondary types we never want in an artist's Releases.
 # MB uses lowercase "demo", "mixtape/street", "audio drama", "audiobook",
 # "interview", "spokenword", "field recording" — all noise for a calibration
@@ -43,6 +55,18 @@ SKIP_TITLE_SUBSTRINGS = (
 
 # Outtake pattern: "(take 1)", "(take 17)", "take 3)" at end of title, etc.
 OUTTAKE_RE = re.compile(r"\(take\s+\d+\)|take\s+\d+\)\s*$", re.IGNORECASE)
+
+# Alternate-RECORDING markers, matched against a recording's `disambiguation`
+# (MB's per-recording note: "live, 1969-01-30", "demo", "instrumental"). These
+# are different performances of the same song, and they hang off different --
+# usually art-less -- releases, so cover-art resolution skips past them to the
+# studio recording. Song-level only; the release-group filters above are the
+# album-level equivalent.
+ALT_RECORDING_RE = re.compile(
+    r"\b(live|demo|instrumental|karaoke|acoustic|remix|rehearsal|"
+    r"radio edit|edit|mix|session|rework|a cappella|acapella)\b",
+    re.IGNORECASE,
+)
 
 # Derivative-edition markers. A Rising Compass release is the FIRST official
 # issue of a tracklisting; a remaster / deluxe / anniversary / reissue re-issues
@@ -153,6 +177,253 @@ async def search_release_group(artist: str, title: str, limit: int = 8) -> list[
     except Exception:
         logger.exception("MusicBrainz release-group search failed: '%s' / '%s'", artist, title)
         return []
+
+
+async def search_recording_release_group(
+    artist: str, title: str, limit: int = 25,
+) -> Optional[dict]:
+    """Resolve a SONG (not an album) to the release-group its art should come from.
+
+    Songs born on a chart or in the Lyrical Charger have no Release row, so they
+    never inherit release-level cover art. This searches MB's RECORDING index --
+    the song-level entity -- and returns the release-group of its best release,
+    which is exactly the key mb_cover_art / Cover Art Archive use.
+
+    Returns {mbid, release_group_title, primary_type, score, recording_title,
+    artist_credit} for a CONFIDENT match, or None. Confidence is deliberately
+    strict: a wrong MBID silently attaches the wrong album cover to a song page,
+    which is worse than showing no art at all.
+
+    SEARCH THEN LOOK UP, deliberately. The recording SEARCH endpoint returns an
+    abbreviated release-group per hit -- no secondary-types, no
+    first-release-date, no artist-credit -- which cannot tell an album from a
+    various-artists medley. So the search only identifies candidate recordings,
+    and each promising one is LOOKED UP (inc=releases+release-groups+
+    artist-credits) to rank on real data.
+
+    Every call is throttled to MB's 1 req/sec, and a song costs up to 2 searches
+    plus MAX_RECORDING_LOOKUPS lookups, so budget a few seconds each and keep
+    this OFFLINE (the backfill script) -- never the request path.
+
+    KNOWN LIMIT: heavily-bootlegged catalogue artists can bury the studio
+    recording past the lookup budget and come back as a miss (The Beatles is the
+    reliable example). That is the intended failure direction -- no art beats
+    wrong art -- and the backfill's --recheck-misses retries them later.
+    """
+    # The two query forms have complementary blind spots, so try the narrow one
+    # and fall back. status:official skips the wall of live bootlegs that buries
+    # a famous song's studio recording ("Smells Like Teen Spirit" returns seven
+    # bootleg gigs before anything official), but MB's relevance reshuffles under
+    # it and some album tracks that the plain query reaches ("Dreams" -> Rumours)
+    # drop out. The second search only costs a call when the first found nothing.
+    base = f'recording:"{title}" AND artist:"{artist}"'
+    for query in (f"{base} AND status:official", base):
+        hit = await _resolve_from_query(query, title, artist, limit)
+        if hit:
+            return hit
+    return None
+
+
+async def _resolve_from_query(
+    query: str, title: str, artist: str, limit: int,
+) -> Optional[dict]:
+    """Scan one recording-search query's hits for a usable release-group."""
+    data = await _mb_get("/recording", {"query": query, "fmt": "json", "limit": limit})
+    if data is None:
+        logger.info("MusicBrainz recording search failed: '%s' / '%s'", artist, title)
+        return None
+
+    want_title = _normalize_match(title)
+    want_artist = _normalize_match(artist)
+    lookups = 0
+    found: list[dict] = []
+
+    for rec in data.get("recordings", []):
+        # MusicBrainz files a SEPARATE recording entry for each compilation a
+        # song appears on, and they all score 100, so the canonical studio
+        # recording is rarely the first hit -- the top hits for "Come Together"
+        # are bootlegs and medleys. That means scanning several, then choosing
+        # across them, rather than taking the first that yields anything. Each
+        # candidate costs a throttled lookup, so the scan is bounded both ways.
+        if lookups >= MAX_RECORDING_LOOKUPS or len(found) >= ENOUGH_CANDIDATES:
+            break
+        score = int(rec.get("score", 0) or 0)
+        # MB scores are 0-100. Below 90 the title/artist match is loose enough
+        # that we'd be guessing at which song this even is.
+        if score < 90:
+            continue
+        if _normalize_match(rec.get("title")) != want_title:
+            continue
+        # A recording's disambiguation is where MB files "live, 1969", "demo",
+        # "instrumental". Those are different performances of the song and carry
+        # different (often art-less) releases, so skip to the studio recording.
+        if ALT_RECORDING_RE.search(rec.get("disambiguation") or ""):
+            continue
+
+        credit_parts = []
+        for c in (rec.get("artist-credit") or []):
+            if isinstance(c, dict):
+                credit_parts.append((c.get("name") or "") + (c.get("joinphrase") or ""))
+        credit = "".join(credit_parts).strip()
+        # The credited string may carry features the stored artist doesn't
+        # ("X feat. Y"), so require containment rather than equality.
+        if want_artist and want_artist not in _normalize_match(credit):
+            continue
+
+        # FREE pre-filter, before spending a lookup. Search hits carry an
+        # abbreviated release with its status, and the long tail of junk ahead of
+        # a famous song's studio recording is mostly Bootleg. Dropping those here
+        # is what lets the bounded lookup budget actually reach the real one.
+        hit_releases = rec.get("releases") or []
+        if hit_releases and not any(
+            (r.get("status") or "").lower() == "official" for r in hit_releases
+        ):
+            continue
+
+        lookups += 1
+        releases = await _recording_releases(rec["id"])
+        best = _pick_release_group(releases, want_artist)
+        if best:
+            best["score"] = score
+            best["recording_title"] = rec.get("title", "")
+            best["artist_credit"] = credit
+            found.append(best)
+
+    if not found:
+        return None
+    # Earliest wins, for the same reason it does within a single recording: the
+    # first official issue is the cover the song is known by. Undated groups sort
+    # last so any dated candidate beats them.
+    found.sort(key=lambda r: (r.get("first_release_date") or "9999",
+                              {"album": 0, "single": 1, "ep": 2}.get(r["primary_type"], 3)))
+    return found[0]
+
+
+async def _recording_releases(recording_mbid: str) -> list[dict]:
+    """Every release of a recording, with FULL release-group data attached.
+
+    The search endpoint's abbreviated release-groups omit exactly the two fields
+    the ranking needs (secondary-types and first-release-date), so this second
+    lookup is what makes the pick trustworthy. Returns [] on any failure -- a
+    missing cover is always preferable to a wrong one.
+    """
+    data = await _mb_get(
+        f"/recording/{recording_mbid}",
+        {"inc": "releases+release-groups+artist-credits", "fmt": "json"},
+    )
+    if data is None:
+        logger.info("MusicBrainz recording lookup failed for %s", recording_mbid)
+        return []
+    return data.get("releases") or []
+
+
+async def _mb_get(path: str, params: dict) -> Optional[dict]:
+    """Throttled GET against MusicBrainz with one retry, returning parsed JSON.
+
+    MusicBrainz read timeouts are common and transient -- a plain 15s single-shot
+    turned catalogue staples like "Come Together" into false no-matches, and a
+    recorded miss is sticky (the backfill won't re-search it). One retry after a
+    short pause converts almost all of them. Returns None when both attempts
+    fail; every caller treats that as "no data", never as "no such song".
+    """
+    last_exc = None
+    for attempt in range(2):
+        await _rate_limit()
+        try:
+            async with httpx.AsyncClient(timeout=MB_TIMEOUT) as client:
+                resp = await client.get(
+                    f"{BASE_URL}{path}", params=params,
+                    headers={"User-Agent": USER_AGENT},
+                )
+                resp.raise_for_status()
+                return resp.json()
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 0:
+                await asyncio.sleep(2.0)
+    logger.info("MusicBrainz GET %s failed twice: %s", path, last_exc)
+    return None
+
+
+def _normalize_match(s: Optional[str]) -> str:
+    """Lowercase + strip punctuation/spacing for title/artist comparison.
+
+    Deliberately blunt: MB's punctuation for apostrophes and dashes differs from
+    the feeders', and a curly-vs-straight apostrophe should not lose a match.
+    """
+    return re.sub(r"[^a-z0-9]+", "", (s or "").lower())
+
+
+def _pick_release_group(releases: list[dict], want_artist: str = "") -> Optional[dict]:
+    """Choose which of a recording's releases supplies the cover art.
+
+    Ranked EARLIEST-FIRST, because the first place a song appeared is the cover a
+    listener associates with it, and it is the one choice that behaves correctly
+    at both ends of the catalogue: a 2026 chart single has only its own single
+    art, while a 1969 album track resolves to the album rather than to whatever
+    compilation reissued it decades later. Primary type only breaks ties.
+
+    Reuses the module's existing compilation / derivative-edition / bootleg
+    filters, which now actually fire because the caller supplies full
+    release-group data (the search endpoint omits secondary-types entirely).
+    Unofficial releases are dropped outright -- bootlegs are where the wrong-cover
+    failures come from.
+    """
+    ranked = []
+    for rel in releases:
+        rg = rel.get("release-group") or {}
+        mbid = rg.get("id")
+        if not mbid:
+            continue
+        # "Official" is MB's own marker; Bootleg/Promotion/Pseudo-Release are not
+        # what a song's cover should come from.
+        if (rel.get("status") or "").lower() != "official":
+            continue
+
+        # The release must actually be CREDITED to this artist. Title and type
+        # filters are heuristics that lose a whack-a-mole against oddly-named
+        # compilations ("Top Medleys" is an Official Album with no compilation
+        # tag), but those are credited to Various Artists, so the credit check
+        # settles it structurally. This is the guard that keeps a wrong cover off
+        # a song page; everything below it is only about picking the BEST of
+        # several legitimate covers.
+        if want_artist:
+            credit = "".join(
+                (c.get("name") or "") for c in (rel.get("artist-credit") or [])
+                if isinstance(c, dict)
+            )
+            if want_artist not in _normalize_match(credit):
+                continue
+
+        title = rg.get("title") or rel.get("title") or ""
+        low = title.lower()
+        if any(s in low for s in SKIP_TITLE_SUBSTRINGS) or OUTTAKE_RE.search(title):
+            continue
+        if DERIVATIVE_EDITION_RE.search(title) or HITS_COMPILATION_RE.search(title):
+            continue
+        secondary = {(s or "").lower() for s in (rg.get("secondary-types") or [])}
+        if secondary & SKIP_SECONDARY_TYPES:
+            continue
+
+        primary = (rg.get("primary-type") or "").lower()
+        rank = {"album": 0, "single": 1, "ep": 2}.get(primary, 3)
+        # Undated groups sort last so anything dated wins; MB dates are ISO-ish
+        # ("1969", "1969-09", "1969-09-26") and compare correctly as strings
+        # since a shorter prefix sorts before its own longer forms.
+        rel_date = rg.get("first-release-date") or rel.get("date") or ""
+        ranked.append(((rel_date or "9999"), rank, mbid, title, primary))
+
+    if not ranked:
+        return None
+    ranked.sort(key=lambda r: (r[0], r[1]))
+    rel_date, _, mbid, title, primary = ranked[0]
+    return {
+        "mbid": mbid,
+        "release_group_title": title,
+        "primary_type": primary,
+        # Kept so the caller can rank ACROSS recordings, not just within one.
+        "first_release_date": "" if rel_date == "9999" else rel_date,
+    }
 
 
 async def get_artist_releases(

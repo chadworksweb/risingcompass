@@ -503,26 +503,43 @@
         <div class="song-hero">
           <div id="song-compass-container" class="song-compass-container" hidden></div>
           <div id="song-tier-badge" class="song-tier-badge"></div>
-          <h2 id="song-title" class="song-page-title">Loading...</h2>
-          <p id="song-artist" class="song-page-artist"></p>
-          <p id="song-origin-chart" class="song-page-origin" hidden></p>
-          <div class="cc-menu" id="charge-card-menu" hidden>
-            <button type="button" id="charge-card-btn" class="charge-card-btn" aria-expanded="false" aria-controls="charge-card-ratio" aria-haspopup="menu">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span>Get shareable Charge Card</span>
-              <svg class="cc-caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <div class="cc-ratio" id="charge-card-ratio" role="menu" aria-label="Pick a card shape to download" hidden>
-              <button type="button" class="cc-ratio-opt" data-ratio="square" role="menuitem">Square 1:1</button>
-              <button type="button" class="cc-ratio-opt" data-ratio="portrait" role="menuitem">Instagram 3:4</button>
+          <!-- Identity row: the title/artist block, with the Share menu pinned
+               to its far right. -->
+          <div class="song-hero-idrow">
+            <div class="song-hero-idtext">
+              <h2 id="song-title" class="song-page-title">Loading...</h2>
+              <p id="song-artist" class="song-page-artist"></p>
+              <p id="song-origin-chart" class="song-page-origin" hidden></p>
+            </div>
+            <div class="cc-menu" id="charge-card-menu" hidden>
+              <button type="button" id="charge-card-btn" class="charge-card-btn charge-card-btn--sm" aria-label="Share" aria-expanded="false" aria-controls="charge-card-ratio" aria-haspopup="menu">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                <span class="cc-btn-label">Share</span>
+                <svg class="cc-caret" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="cc-ratio" id="charge-card-ratio" role="menu" aria-label="Share this song" hidden>
+                <button type="button" class="cc-ratio-opt" data-ratio="square" role="menuitem">Square 1:1</button>
+                <button type="button" class="cc-ratio-opt" data-ratio="portrait" role="menuitem">Instagram 3:4</button>
+                <button type="button" class="cc-ratio-opt cc-opt-link" data-action="link" role="menuitem">Get link</button>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Song-specific summary (charge_summary) — the headline read. -->
+      <!-- Song-specific summary (charge_summary) — the headline read.
+           Cover art (Cover Art Archive, hotlinked) sits in the head's left
+           quarter beside the question, exactly as the release page does it;
+           the summary prose runs full width below. Mirrors .rel-summary-head. -->
       <section class="song-section song-section--summary" id="section-summary">
-        <h1 id="song-question" class="song-question">What is this song about?</h1>
+        <div class="song-summary-head">
+          <div id="song-art-wrap" class="song-art-wrap" hidden>
+            <img id="song-art" class="song-art" alt="" loading="lazy">
+          </div>
+          <div>
+            <h1 id="song-question" class="song-question">What is this song about?</h1>
+          </div>
+        </div>
         <p id="summary-text" class="summary-text-big is-loading">Loading summary…</p>
       </section>
     </div>

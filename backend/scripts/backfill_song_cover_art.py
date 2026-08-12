@@ -1,0 +1,160 @@
+"""Backfill SONG-level cover art (release_group_mbid -> mb_cover_art -> CAA).
+
+Releases have had Cover Art Archive art since migration 091, but that only ever
+reached songs with a ReleaseSong link. Chart-born and Lyrical-Charger-born songs
+-- the majority of the Library -- have no Release row, so their song pages showed
+no art. This resolves each such song to its own release-GROUP MBID via
+MusicBrainz's recording index, then fills the same mb_cover_art cache the release
+path already uses.
+
+Cover Art Archive is the ONLY art source. Apple's iTunes Search API was evaluated
+and rejected: its Promo Content grant requires a "Download on iTunes" badge
+proximate to every image, on a page that promotes the content. A critical reading
+is not a promotion, and RC ships no store badge.
+
+SPEED: two throttled lookups per song (MusicBrainz 1/sec, then CAA 1/sec), so
+budget ~2s per song. This is why the resolve is offline and never on the request
+path. Run it in chunks with --limit; there is no deadline and no cron.
+
+IDEMPOTENT: a song is checked at most once. `release_group_checked_at` is stamped
+whether or not a match was found, so a recorded miss ("MusicBrainz has no
+confident match") is never re-searched. Re-running only picks up songs added
+since the last pass. Use --recheck-misses to deliberately retry recorded misses
+(worth doing occasionally -- MusicBrainz gains entries for new songs over time).
+
+Usage:
+    cd backend
+    .venv\\Scripts\\python.exe scripts\\backfill_song_cover_art.py [--limit N]
+    .venv\\Scripts\\python.exe scripts\\backfill_song_cover_art.py --limit 50 --recheck-misses
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT / ".env")
+sys.path.insert(0, str(ROOT))
+
+from app.database import SessionLocal
+from app.models import MbCoverArt, Release, ReleaseSong, Song
+from app.services import coverart, musicbrainz
+
+
+def _pending_songs(limit: int | None, recheck_misses: bool) -> list[tuple[int, str, str]]:
+    """Songs with no resolvable cover art yet, newest first.
+
+    Newest-first because the songs most likely to be looked at are the ones that
+    just charted, and this script is run in chunks rather than to completion.
+
+    Excludes songs whose Release already supplies art -- the song page reads that
+    release's MBID directly, so resolving a second one for them would be wasted
+    lookups and could disagree with the release page.
+    """
+    db = SessionLocal()
+    try:
+        art_mbids = {
+            row[0] for row in db.query(MbCoverArt.musicbrainz_id)
+            .filter(MbCoverArt.has_art.is_(True)).all()
+        }
+        # song_id -> release MBID, for songs that have a release link at all.
+        linked = {}
+        for song_id, mbid in (
+            db.query(ReleaseSong.song_id, Release.musicbrainz_id)
+            .join(Release, Release.id == ReleaseSong.release_id)
+            .filter(ReleaseSong.song_id.isnot(None))
+            .all()
+        ):
+            if mbid and (song_id not in linked or linked[song_id] not in art_mbids):
+                linked[song_id] = mbid
+
+        q = db.query(Song.id, Song.title, Song.artist)
+        if recheck_misses:
+            # Retry recorded misses, but never re-resolve a song that already
+            # landed an MBID.
+            q = q.filter(Song.release_group_mbid.is_(None))
+        else:
+            q = q.filter(Song.release_group_checked_at.is_(None))
+        rows = q.order_by(Song.id.desc()).all()
+
+        pending = [
+            (sid, title, artist) for (sid, title, artist) in rows
+            # A song whose release already has art needs nothing.
+            if linked.get(sid) not in art_mbids
+            and (title or "").strip() and (artist or "").strip()
+        ]
+    finally:
+        db.close()
+    if limit is not None:
+        pending = pending[:limit]
+    return pending
+
+
+def _stamp(song_id: int, mbid: str | None) -> None:
+    """Record the resolve outcome. Own short session per write, like the CAA cache."""
+    db = SessionLocal()
+    try:
+        db.query(Song).filter(Song.id == song_id).update(
+            {"release_group_mbid": mbid, "release_group_checked_at": datetime.utcnow()},
+            synchronize_session=False,
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+async def main():
+    parser = argparse.ArgumentParser(description="Backfill song-level CAA cover art.")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Cap the number of songs resolved this run.")
+    parser.add_argument("--recheck-misses", action="store_true",
+                        help="Retry songs previously recorded as no-match.")
+    args = parser.parse_args()
+
+    pending = _pending_songs(args.limit, args.recheck_misses)
+    if not pending:
+        print("Song cover art up to date -- no unresolved songs.")
+        return
+
+    print(f"Resolving {len(pending)} song(s) against MusicBrainz "
+          f"(~2s each incl. the CAA check, est. {len(pending) * 2}s)...")
+
+    matched, missed = 0, 0
+    found_mbids: list[str] = []
+    for i, (song_id, title, artist) in enumerate(pending, 1):
+        try:
+            hit = await musicbrainz.search_recording_release_group(artist, title)
+        except Exception as exc:  # never let one bad row end a long run
+            print(f"  [{i}/{len(pending)}] ERROR {title} - {artist}: {exc}")
+            continue
+
+        mbid = hit["mbid"] if hit else None
+        _stamp(song_id, mbid)
+        if mbid:
+            matched += 1
+            found_mbids.append(mbid)
+            print(f"  [{i}/{len(pending)}] {title} - {artist} -> "
+                  f"{hit['release_group_title']} ({hit['primary_type'] or 'release'})")
+        else:
+            missed += 1
+            print(f"  [{i}/{len(pending)}] {title} - {artist} -> no confident match")
+
+    print(f"\nResolved: matched={matched} no_match={missed}")
+
+    if found_mbids:
+        print(f"Checking {len(set(found_mbids))} release-group(s) against CAA (~1/sec)...")
+        result = await coverart.ensure_cover_art(found_mbids)
+        print(f"Done. checked={result['checked']} found_art={result['found']} "
+              f"none={result['checked'] - result['found']}")
+        print("  (MBIDs already cached from the release path were skipped.)")
+    else:
+        print("No new release-groups to check against CAA.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
