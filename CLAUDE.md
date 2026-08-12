@@ -596,7 +596,7 @@ Per-release detail pages + Cover Art Archive artwork. Full spec:
   @artist_detail; }` already falls multi-segment paths through to the backend, where
   `ssr_release` handles them (verified live on deploy 2026-06-06).
 
-### Song-level cover art (2026-08-12, migration 146, NOT yet deployed)
+### Song-level cover art (2026-08-12, migration 146) -- LIVE
 
 Extends the above from releases to song pages. **CAA is the ONLY art source.**
 Apple's iTunes Search API was evaluated and REJECTED: its Promo Content grant
@@ -625,6 +625,18 @@ unflattering verdict, so it fails the terms on both counts. Do not re-propose it
 - **Frontend:** `.song-summary-head` in `songs/song.html` mirrors the release page's
   `.rel-summary-head`; `songs.js::showCoverArt` hides the wrap on a 404 so a pulled
   hotlink degrades to the tier glow. `og:image` deliberately NOT wired.
+- **No-art fallback goes all the way back.** `.song-summary-head:has(> .song-art-wrap
+  [hidden])` sets `display:block` + `margin-bottom:0` and restores the question's own
+  `0.85rem` margin -- NOT just a one-column collapse, which would strand the head's
+  wider gap on every art-less song. Covers the dead-hotlink path too.
+- **`songs.css` / `songs.js` ARE EDGE-CACHED (4h) keyed by their `?v=` query.** The
+  first deploy shipped new `song.html` markup against the JULY copies of both assets
+  (`cf-cache-status: HIT`, `Last-Modified` 2026-07-07) -- art wrap present with
+  nothing to unhide it, old handlers behind the new share menu. **Bump `?v=` in
+  `song.html` on ANY edit to either file** (currently `?v=20260812`). Same rule
+  CLAUDE.md already states for `chart-shell.js`/`app.js`. The page HTML itself is
+  `cf-cache-status: DYNAMIC` (SSR'd), so only the assets go stale -- which is exactly
+  what makes the mismatch possible.
 
 ## Charger Activity (public feeds page, LIVE 2026-06-06)
 
