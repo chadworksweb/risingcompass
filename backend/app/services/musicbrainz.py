@@ -12,6 +12,8 @@ from typing import Optional
 
 import httpx
 
+from app.services.song_identity import extract_primary_artist
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://musicbrainz.org/ws/2"
@@ -65,6 +67,14 @@ OUTTAKE_RE = re.compile(r"\(take\s+\d+\)|take\s+\d+\)\s*$", re.IGNORECASE)
 ALT_RECORDING_RE = re.compile(
     r"\b(live|demo|instrumental|karaoke|acoustic|remix|rehearsal|"
     r"radio edit|edit|mix|session|rework|a cappella|acapella)\b",
+    re.IGNORECASE,
+)
+
+# A parenthesised feature credit inside a TITLE ("Shiesty (feat. Pooh Shiesty)").
+# MusicBrainz files the recording under the bare title and carries the feature in
+# the artist credit instead, so this has to come off before the title comparison.
+FEAT_IN_TITLE_RE = re.compile(
+    r"\s*[\(\[]\s*(?:feat|ft|featuring|w/|with)\b[^)\]]*[\)\]]",
     re.IGNORECASE,
 )
 
@@ -216,12 +226,26 @@ async def search_recording_release_group(
     # bootleg gigs before anything official), but MB's relevance reshuffles under
     # it and some album tracks that the plain query reaches ("Dreams" -> Rumours)
     # drop out. The second search only costs a call when the first found nothing.
-    base = f'recording:"{title}" AND artist:"{artist}"'
+    # Search on the PRIMARY artist and the bare title. A feeder credit like
+    # "Young Money ft. Lloyd" is not an artist name MusicBrainz can match, and the
+    # credit check downstream compared "youngmoneyftlloyd" against MB's
+    # "youngmoneyfeatlloyd" -- an ft./feat. spelling difference that failed EVERY
+    # featured-artist song (33 of 64 misses in the first 200-song batch, against
+    # zero matches carrying a feature). extract_primary_artist is the same helper
+    # disposition.detect_release_state uses for its Apple lookup.
+    primary = extract_primary_artist(artist) or (artist or "")
+    bare_title = _strip_feature(title)
+    base = f'recording:"{bare_title}" AND artist:"{primary}"'
     for query in (f"{base} AND status:official", base):
-        hit = await _resolve_from_query(query, title, artist, limit)
+        hit = await _resolve_from_query(query, bare_title, primary, limit)
         if hit:
             return hit
     return None
+
+
+def _strip_feature(title: str) -> str:
+    """Drop a parenthesised feature credit from a song title."""
+    return FEAT_IN_TITLE_RE.sub("", title or "").strip()
 
 
 async def _resolve_from_query(
@@ -252,7 +276,9 @@ async def _resolve_from_query(
         # that we'd be guessing at which song this even is.
         if score < 90:
             continue
-        if _normalize_match(rec.get("title")) != want_title:
+        # Strip a feature off MB's title too, so the comparison is bare-vs-bare
+        # whichever side happens to carry the credit.
+        if _normalize_match(_strip_feature(rec.get("title"))) != want_title:
             continue
         # A recording's disambiguation is where MB files "live, 1969", "demo",
         # "instrumental". Those are different performances of the song and carry
