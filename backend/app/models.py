@@ -2537,3 +2537,51 @@ class ResonanceSliceJob(Base):
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
     updated_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"), onupdate=datetime.utcnow)
+
+
+class SongProseVersion(Base):
+    """Append-only history of a song's generated prose, one row per lane per write.
+
+    The calibration side already has `calibration_runs`; this is the same posture
+    for the generated text. `songs.prior_*` remains the one-step-back read that
+    the badge and the admin page use, and this table is the depth behind it.
+
+    Lanes: listener | societal | psyche_facts (the last stored as its JSON string,
+    since it carries the same overwrite exposure and has no archive column).
+    `topics` and `effects_pl` are deliberately out of scope: they are tags, cheap
+    to re-derive, and the calibration audit already records the read they were
+    chosen under.
+
+    Song pointer is nullable and NOT a FK so the history outlives a merged or
+    deleted song. See migration 145.
+    """
+
+    __tablename__ = "song_prose_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    written_at = Column(DateTime, default=datetime.utcnow,
+                        server_default=text("(now() at time zone 'utc')"), nullable=False)
+
+    song_id = Column(Integer)
+    title = Column(Text)
+    artist = Column(Text)
+
+    lane = Column(String(20), nullable=False)  # listener | societal | psyche_facts
+    prose = Column(Text, nullable=False)
+
+    model = Column(String(80))
+    generated_at = Column(DateTime)
+
+    trigger = Column(String(40))
+
+    # The read this version was written for, so a stale-prose mismatch is a
+    # column comparison rather than a reading of the text.
+    rubric_color = Column(String(20))
+    charge_value = Column(Integer)
+
+    environment = Column(String(16), nullable=False, default="prod")
+
+    __table_args__ = (
+        Index("ix_song_prose_versions_song", "song_id", "id"),
+        Index("ix_song_prose_versions_written", "written_at"),
+    )

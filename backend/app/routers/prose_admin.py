@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.auth import verify_admin_or_lyrics_key
 from app.database import get_db, SessionLocal
 from app.models import Song
+from app.services.prose_versions import record_prose_versions
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +291,13 @@ async def regenerate_prose(
         if epl_supplied:
             import json as _jsonepl
             song.effects_pl = _jsonepl.dumps(new_effects_pl) if new_effects_pl else None
+
+        # Deep history alongside the one-slot prior_* archive above. Recorded
+        # pre-commit in the same transaction, so a rolled-back regen leaves no
+        # version behind. Deduped by value: a re-post of unchanged prose (a
+        # topics-only correction that resends the blocks) writes nothing.
+        db_write.flush()
+        record_prose_versions(db_write, unified_id, trigger="terminal_regen")
 
         db_write.commit()
 

@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     CalibrationRun, Song, ChartAppearance, Chart, SongIngestion, SongReset,
+    SongProseVersion,
 )
 from app.constants import chart_source_label
 from app.routers.admin import verify_admin_key
@@ -327,12 +328,41 @@ def song_detail(song_id: int, db: Session = Depends(get_db)):
         )
     ]
 
+    # Prose history (migration 145). The song row carries only the live text plus
+    # a one-step-back prior_*; this is the depth behind it, newest first. Each
+    # version records the read it was written FOR, so prose left arguing a tier
+    # the song no longer carries is visible without reading the text.
+    prose_versions = [
+        {
+            "id": v.id,
+            "lane": v.lane,
+            "prose": v.prose,
+            "model": v.model,
+            "trigger": v.trigger,
+            "rubric_color": v.rubric_color,
+            "tier_label": COLOR_LABELS.get(v.rubric_color or "", ""),
+            "charge_value": v.charge_value,
+            "stale": bool(
+                v.rubric_color and s.rubric_color and v.rubric_color != s.rubric_color
+            ),
+            "written_at": v.written_at.isoformat() if v.written_at else None,
+            "generated_at": v.generated_at.isoformat() if v.generated_at else None,
+        }
+        for v in (
+            db.query(SongProseVersion)
+            .filter(SongProseVersion.song_id == song_id)
+            .order_by(SongProseVersion.id.desc())
+            .all()
+        )
+    ]
+
     live_runs = sum(1 for r in runs if not r["superseded"])
     return {
         "song": song,
         "appearances": appearances,
         "ingestions": ingestions,
         "runs": runs,
+        "prose_versions": prose_versions,
         "resets": resets,
         "live_run_count": live_runs,
         "run_cap": PUBLIC_RUN_CAP,

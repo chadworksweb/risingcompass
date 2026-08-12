@@ -22,6 +22,7 @@ from app.services.song_identity import (
     compute_canonical_key, compute_canonical_key_clean, resolve_song_identity,
 )
 from app.services.artist_utils import generate_song_slug
+from app.services.prose_versions import record_prose_versions
 from app.constants import CHART_SOURCE_TO_CHART_SLUG
 
 logger = logging.getLogger(__name__)
@@ -163,6 +164,13 @@ def upsert_unified_song(db, source: str, legacy_id, row: dict, *, ingestion_deta
                         "(source_song_id, target_song_id, reason, detected_by, status, environment) "
                         "VALUES (:lo, :hi, 'trgm', 'resolve_ladder', 'open', :env)"
                     ), {"lo": lo, "hi": hi, "env": _settings.environment})
+
+    # Prose history. THE chokepoint: every authoritative calibration lands here,
+    # and the prose columns ride _CALIB, so before this call a regen through any
+    # path other than the two explicit regen routers left no archive at all.
+    # Recorded AFTER the write so the history holds what the song now carries,
+    # deduped by value so an unchanged re-send logs nothing. Fail-soft.
+    record_prose_versions(db, song_id, trigger=method)
 
     # id map (idempotent) -- transition-only; needs the legacy (source, id).
     if legacy_id:

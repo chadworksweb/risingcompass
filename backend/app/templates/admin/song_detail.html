@@ -261,6 +261,25 @@ function render(d) {
       }).join('')
     : '<p class="sd-empty">No calibration runs logged.</p>';
 
+  // Prose history (migration 145). The card above shows the LIVE text; this is
+  // every version behind it, newest first. `stale` marks a version written for a
+  // tier the song no longer carries -- the mismatch that used to be invisible
+  // until someone read the prose.
+  const LANE_LABELS = {listener: 'Listener', societal: 'Societal', psyche_facts: 'Psyche Facts'};
+  const proseVersions = (d.prose_versions || []).length
+    ? (d.prose_versions || []).map(v => `<div class="sd-run ${v.stale ? 'superseded' : ''}">
+        <div class="sd-run-head">
+          <strong>${escHtml(LANE_LABELS[v.lane] || v.lane)}</strong>
+          ${dot(v.rubric_color)}<span>${escHtml(v.tier_label || v.rubric_color || '—')}</span>
+          <span class="sd-charge ${chargeClass(v.charge_value)}">${fmtCharge(v.charge_value)}</span>
+          <span class="sd-run-when"><time data-utc="${escHtml(v.written_at || '')}"></time></span>
+          <span class="sd-run-trig">${escHtml(v.trigger || '—')}${v.model ? ' · ' + escHtml(v.model) : ''}</span>
+          ${v.stale ? '<span class="sd-run-tag sup" title="written for a tier this song no longer carries">stale read</span>' : ''}
+        </div>
+        <div class="sd-run-reason">${escHtml(v.prose)}</div>
+      </div>`).join('')
+    : '<p class="sd-empty">No prose versions recorded.</p>';
+
   const resets = d.resets.length
     ? '<ul class="sd-list">' + d.resets.map(r =>
         `<li><span class="sd-run-when"><time data-utc="${escHtml(r.reset_at || '')}"></time></span>
@@ -324,6 +343,11 @@ function render(d) {
     <div class="sd-card">
       <h2>Calibration runs (${d.runs.length})</h2>
       ${runs}
+    </div>
+
+    <div class="sd-card">
+      <h2>Prose history (${(d.prose_versions || []).length})</h2>
+      ${proseVersions}
     </div>
 
     ${resets ? `<div class="sd-card"><h2>Resets</h2>${resets}</div>` : ''}

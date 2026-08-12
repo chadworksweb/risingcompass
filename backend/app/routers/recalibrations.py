@@ -56,6 +56,7 @@ from app.models import (
 )
 from app.routers.admin import verify_admin_key
 from app.auth import verify_admin_or_lyrics_key
+from app.services.prose_versions import record_prose_versions
 from app.services.recalibration import (
     rc_recalibrate_satire, rc_recalibrate_rubric_update,
 )
@@ -517,6 +518,10 @@ def _regenerate_song_prose(unified_id: int, title: str, artist: str, lyrics: str
             song.societal_effects_prose = new_societal
             song.societal_prose_generated_at = calibration.get("societal_prose_generated_at")
             song.societal_prose_model = calibration.get("societal_prose_model")
+        # Deep history alongside the one-slot prior_* archive above; same
+        # transaction, deduped by value, fail-soft.
+        db.flush()
+        record_prose_versions(db, unified_id, trigger="admin_recal")
         db.commit()
     finally:
         db.close()
