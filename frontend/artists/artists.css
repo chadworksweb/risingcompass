@@ -820,6 +820,83 @@ body {
 /* Compact release list (right column).
  * Capped height + scroll so the releases panel never pushes the rest of
  * the artist page down when "View more" loads additional rows. */
+/* Three-up row on the release page: artist claim, how calibrated, misread.
+   The song page runs these as two rows because it also carries a full flag
+   corpus; a release has none, so the flag panel shrinks to a CTA and the three
+   fit one row. Collapses to two-up then one-up rather than squeezing. */
+.song-row.song-row--three {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.song-row.song-row--three > .song-section { min-width: 0; }
+
+/* Three equal-weight cards either sit in a row or stack. A two-up stage just
+   orphans the third across the full width, so go straight to one column. */
+@media (max-width: 900px) {
+  .song-row.song-row--three { grid-template-columns: 1fr; }
+}
+
+/* Release summary runs longer than a song's one-liner, so it sits 20% smaller
+   than .summary-text-big's 1.6rem. Scoped to the release page; the song page
+   keeps its size. */
+#release-summary { font-size: 1.18rem; }
+#release-summary p { margin: 0 0 0.75rem; }
+#release-summary p:last-child { margin-bottom: 0; }
+
+/* The bottom three-up is sub-focus, same as the song page's footer sections.
+   songs.css scopes those smaller sizes to #section-about / #section-artist-claim,
+   which the release page's IDs never matched, so this row was rendering at full
+   body size and competing with the reading above it. Mirrors songs.css 939-945. */
+#release-about h2,
+#release-artist-claim h2,
+#release-misread h2 { font-size: 0.88rem; }
+
+#release-about .direct-answer,
+#release-artist-claim .direct-answer,
+#release-misread .direct-answer,
+#release-about p,
+#release-artist-claim p,
+#release-misread p { font-size: 0.8rem; }
+
+/* Arc beside the tracklist. Flex rather than grid so a release with no written
+   arc leaves the tracklist to take the full width instead of stranding a gap.
+   The arc prose gets the larger share; the tracklist scrolls at its own cap. */
+.song-row--arc-tracks > #release-arc-section { flex: 3 1 380px; }
+.song-row--arc-tracks > #release-tracks-section { flex: 2 1 300px; }
+.song-row--arc-tracks .release-compact-list { max-height: 24rem; }
+
+/* Below the three-up's breakpoint the arc column and the tracklist are both too
+   narrow to read: prose crushes and the track rows lose their charge column to
+   the gutter. Stack them at the same width the three-up stacks. */
+@media (max-width: 900px) {
+  .song-row.song-row--arc-tracks { display: block; }
+  .song-row.song-row--arc-tracks > .song-section { margin-bottom: var(--rc-gap-panel, 1.5rem); }
+  .song-row.song-row--arc-tracks > .song-section:last-child { margin-bottom: 0; }
+}
+
+/* No cover art: drop the reserved art column so the question uses full width. */
+.rel-summary-head:has(> .rel-art-wrap[hidden]) { grid-template-columns: 1fr; }
+
+/* Track titles on the release page are anchors INSIDE .release-compact-title,
+   so the span's colour lost to the default link colour. The artist page wraps
+   the whole row in a.release-compact-link and never hit this. */
+.release-compact-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.release-compact-title a:hover { color: var(--rc-accent); text-decoration: underline; }
+
+/* The hero panel stretches to the summary's height; centre its content in that
+   space rather than stranding the gauge at the top of a tall empty box. */
+#release-hero .song-hero {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .release-compact-list {
   list-style: none;
   margin: 0;
@@ -921,6 +998,7 @@ a.release-compact-link:hover .release-compact-title { color: var(--rc-accent); }
   display: grid;
   grid-template-columns: 1fr 3fr;
   gap: 1rem;
+  align-items: center;
   align-items: start;
   margin-bottom: 1rem;
 }

@@ -170,6 +170,13 @@
     <!-- ROW: hero (compass + title) beside the summary (art + headline read) -->
     <div class="song-row song-row--hero">
       <section class="song-section song-section--hero" id="release-hero" aria-label="Release calibration">
+        <!-- Contamination hazard, same badge the song hero carries. Driven by
+             contamination_count until the release row gets its own flag. -->
+        <div id="release-contam-badge" class="song-contam-badge" hidden tabindex="0" aria-label="Contaminated">
+          <span class="contam-icon" aria-hidden="true">&#x2622;</span>
+          <span class="song-contam-badge-label">Contaminated</span>
+          <div class="contam-tooltip" id="release-contam-tooltip"></div>
+        </div>
         <div class="song-hero">
           <div id="release-compass-container" class="song-compass-container" hidden></div>
           <div id="release-tier-badge" class="song-tier-badge" hidden></div>
@@ -185,7 +192,6 @@
           </div>
           <div>
             <h1 id="release-question" class="song-question">What is this album about?</h1>
-            <h2>Summary</h2>
           </div>
         </div>
         <p id="release-summary" class="summary-text-big is-loading">Loading summary...</p>
@@ -193,10 +199,21 @@
     </div>
 
     <!-- Arc: how the reading moves across the tracklist -->
-    <section class="song-section song-section--full" id="release-arc-section" hidden>
+    <!-- ROW: how the release moves (left) + the running order it moves
+         through (right). The tracklist scrolls at its own cap so a long
+         record does not stretch the row. -->
+    <div class="song-row song-row--arc-tracks">
+      <section class="song-section" id="release-arc-section" hidden>
       <h2>How Does This Release Move Across Its Tracks?</h2>
       <div id="release-arc" class="prose"></div>
     </section>
+      <section class="song-section" id="release-tracks-section">
+      <h2>Tracklist</h2>
+      <ul id="release-tracks" class="release-compact-list">
+        <li class="loading" role="status">Loading...</li>
+      </ul>
+    </section>
+    </div>
 
     <!-- ROW: listener effect + societal effect (mirrors the song page two-up) -->
     <div class="song-row">
@@ -211,12 +228,39 @@
     </div>
 
     <!-- Tracklist -->
-    <section class="song-section song-section--full" id="release-tracks-section">
-      <h2>Tracklist</h2>
-      <ul id="release-tracks" class="release-compact-list release-compact-list--full">
-        <li class="loading" role="status">Loading...</li>
-      </ul>
-    </section>
+
+    <!-- ROW: artist claim + how calibrated + misread. The song page runs these
+         as two rows plus a full flag-activity panel; a release has no flag
+         corpus of its own, so the flag panel shrinks to the misread CTA and the
+         three sit on one row. Headings are set per release type in release.js. -->
+    <div class="song-row song-row--three">
+      <section class="song-section" id="release-artist-claim">
+        <h2 id="release-claim-heading">Are You the Artist Behind This Release?</h2>
+        <p class="direct-answer" id="release-claim-body">If this is your album, we would like to talk. Verification happens face to face, or by video with an anti-deepfake protocol, and never by AI shortcut. Once you are verified you can publish a note that lives on this page.</p>
+        <p class="flag-cta">
+          <a id="release-claim-link" href="/artist-claim.html" class="accent-link">Tell us about this release &rarr;</a>
+        </p>
+      </section>
+
+      <section class="song-section" id="release-about">
+        <h2 id="release-about-heading">How Was This Release Calibrated?</h2>
+        <p class="direct-answer">Every track here was read on its lyrics alone against a 58-tenet rubric. The release reading is built from those finished track readings in running order, so the sequence is part of what gets read. No genre, no sales figures, no chart position, no artist reputation.</p>
+        <p><a href="/#methodology" class="accent-link">Read the full methodology</a></p>
+      </section>
+
+      <section class="song-section" id="release-misread">
+        <h2>Did We Get This Wrong?</h2>
+        <p class="direct-answer" id="release-misread-body">Readings get re-run. If the calibration here misses what the album actually does, file a report and it goes into the queue for another pass.</p>
+        <p class="flag-cta">
+          <a id="release-misread-link" href="/misread-submission.html" class="accent-link">File a report &rarr;</a>
+        </p>
+      </section>
+    </div>
+
+    <!-- Subscriber capture. Drop-in: see /js/subscribe.js. -->
+    <div class="rc-subscribe" data-source="release_page"
+         data-heading="Follow the readings"
+         data-blurb="Get the daily reading straight to your inbox."></div>
 
     <!-- Terminal state: release / artist not found, or a load failure. -->
     <div id="release-notfound" class="song-notfound" hidden>
@@ -349,5 +393,6 @@
   <script src="/artists/artists-api.js"></script>
   <script src="/js/compass.js?v=20260622"></script>
   <script src="/artists/release.js"></script>
+  <script src="/js/subscribe.js" defer></script>
 </body>
 </html>

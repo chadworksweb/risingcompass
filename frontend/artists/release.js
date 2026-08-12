@@ -24,10 +24,9 @@
     return t === 'album' ? 'Album' : t === 'ep' ? 'EP' : 'Single';
   }
 
-  function questionFor(t) {
-    if (t === 'album') return 'What is this album about?';
-    if (t === 'ep') return 'What is this EP about?';
-    return 'What is this release about?';
+  function questionFor(t, tagline) {
+    const noun = t === 'album' ? 'album' : t === 'ep' ? 'EP' : 'release';
+    return tagline ? `What is the ${noun} ${tagline} about?` : `What is this ${noun} about?`;
   }
 
   // CAA hotlinks can 404 if a group's art is pulled; degrade to the tier glow
@@ -111,7 +110,7 @@
 
     const dateStr = rel.release_date || (rel.release_year ? String(rel.release_year) : '');
     const parts = [
-      `<a href="/artists/${encodeURIComponent(rel.artist.slug)}">${escapeHtml(rel.artist.name)}</a>`,
+      `<a href="/artists/${encodeURIComponent(rel.artist.slug)}" class="accent-link">${escapeHtml(rel.artist.name)}</a>`,
       typeLabel(rel.release_type),
     ];
     if (dateStr) parts.push(escapeHtml(dateStr));
@@ -127,7 +126,7 @@
       hero.style.setProperty('--charge-glow', color + '40');
       compassWrap.hidden = false;
       Compass.render('release-compass-container');
-      Compass.setDegree(90 - rel.charge_value * 0.9, color);
+      Compass.setDegree(90 - rel.charge_value * 0.9, rel.rubric_color || color);
     } else if (rel.charge_value != null) {
       badge.hidden = false;
       badge.innerHTML = `<span class="badge-charge" style="color:${color}">${chargeDisplay(rel.charge_value)}</span>`
@@ -137,15 +136,65 @@
       badge.innerHTML = `<span class="badge-tier badge-tier--uncalibrated">Uncalibrated</span>`;
     }
 
+    // Contamination hazard, same badge shape the song hero carries. The release
+    // row has no `contaminated` flag or note yet, so this is driven by the track
+    // count and the tooltip says exactly that rather than implying a release-level
+    // finding the row does not hold.
+    const contamN = rel.contamination_count || 0;
+    if (contamN > 0) {
+      const cb = document.getElementById('release-contam-badge');
+      const tip = document.getElementById('release-contam-tooltip');
+      if (cb && tip) {
+        const n = rel.track_count || 0;
+        tip.textContent = `${contamN} of ${n} track${n === 1 ? '' : 's'} on this release carries `
+          + 'contaminating content. Open a track to see what was flagged.';
+        cb.hidden = false;
+      }
+    }
+
     // Cover art (front-500) in the summary head, if CAA had art.
     showArt(rel.cover_url);
 
+    // SEO/GEO tagline, mirroring the song page: every H2 carries the
+    // release/artist string so the page is dense with it for search and for
+    // generative engines. Headings are also phrased per release type, so an EP
+    // page never says album.
+    const noun = rel.release_type === 'album' ? 'Album'
+      : rel.release_type === 'ep' ? 'EP' : 'Release';
+    const nounLower = noun === 'EP' ? 'EP' : noun.toLowerCase();
+    const tagline = rel.artist && rel.artist.name
+      ? `"${rel.title}" by ${rel.artist.name}`
+      : `"${rel.title}"`;
+
+    const setText = (id, txt) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    };
+    const setH2 = (sectionId, txt) => {
+      const h2 = document.querySelector(`#${sectionId} h2`);
+      if (h2) h2.textContent = txt;
+    };
+    setH2('release-arc-section', `How Does ${tagline} Move Across Its Tracks?`);
+    setH2('release-listener-effects-section', `What Might Listening to ${tagline} Do to the Listener?`);
+    setH2('release-societal-section', `What Might Listening to ${tagline} Do to a Society?`);
+    setH2('release-tracks-section', `Every Track on ${tagline}`);
+    setText('release-claim-heading', `Are You the Artist Behind This ${noun}?`);
+    setText('release-about-heading', `How Was This ${noun} Calibrated?`);
+    setText('release-claim-link', `Tell us about this ${nounLower} →`);
+    setText('release-claim-body',
+      `If this is your ${nounLower}, we would like to talk. Verification happens face to face, `
+      + 'or by video with an anti-deepfake protocol, and never by AI shortcut. Once you are '
+      + 'verified you can publish a note that lives on this page.');
+    setText('release-misread-body',
+      `Readings get re-run. If the calibration here misses what the ${nounLower} actually does, `
+      + 'file a report and it goes into the queue for another pass.');
+
     // Summary
-    document.getElementById('release-question').textContent = questionFor(rel.release_type);
+    document.getElementById('release-question').textContent = questionFor(rel.release_type, tagline);
     const summaryEl = document.getElementById('release-summary');
     summaryEl.classList.remove('is-loading');
     if (rel.charge_summary && rel.charge_summary.trim()) {
-      summaryEl.textContent = rel.charge_summary;
+      summaryEl.innerHTML = proseHtml(rel.charge_summary);
     } else {
       summaryEl.classList.add('release-summary--empty');
       summaryEl.textContent = "This release hasn't been given a written reading yet -- its charge is the mean of its calibrated tracks below.";
