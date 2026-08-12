@@ -243,7 +243,9 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     # it. Mutates `result` in place so the caller's draft-song mirror is consistent.
     if lyrics:
         from app.services.lyric_quote_guard import scrub_calibration_quotes
-        altered = scrub_calibration_quotes(result, lyrics)
+        # title= excuses the ONE required title mention; a title that is also a
+        # hook line would otherwise read as a quote and take the sentence with it.
+        altered = scrub_calibration_quotes(result, lyrics, title=title)
         if altered:
             logger.warning("Stripped verbatim lyric quotes from %s for '%s' by %s",
                            ", ".join(altered), title, artist)

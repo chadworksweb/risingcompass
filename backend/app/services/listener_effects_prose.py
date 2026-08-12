@@ -179,7 +179,7 @@ def generate_listener_effects_prose(
         # Verbatim-lyric lock: strip any sentence that reproduces the lyrics.
         if lyrics:
             from app.services.lyric_quote_guard import strip_verbatim_quotes
-            raw, stripped = strip_verbatim_quotes(raw, lyrics)
+            raw, stripped = strip_verbatim_quotes(raw, lyrics, title=title)
             if stripped:
                 logger.warning("listener_effects_prose carried verbatim lyric quotes for %s / %s; stripped",
                                title, artist)

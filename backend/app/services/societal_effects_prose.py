@@ -227,7 +227,7 @@ def generate_societal_effects_prose(
             raw = raw[1:-1].strip()
         if lyrics:
             from app.services.lyric_quote_guard import strip_verbatim_quotes
-            raw, stripped = strip_verbatim_quotes(raw, lyrics)
+            raw, stripped = strip_verbatim_quotes(raw, lyrics, title=title)
             if stripped:
                 logger.warning("societal_effects_prose carried verbatim lyric quotes for %s / %s; stripped",
                                title, artist)

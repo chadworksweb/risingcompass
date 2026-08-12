@@ -170,6 +170,21 @@ def main() -> int:
         print(f"HTTP {e.code}: {body}", file=sys.stderr)
         return 1
 
+    # The verbatim-lyric guard can remove whole sentences from SUPPLIED prose
+    # (a title that is also a hook line used to take its own sentence with it).
+    # Loud, and first, so a shortened write is never mistaken for a clean one.
+    removals = result.get("quote_removals") or {}
+    if removals:
+        total = sum(len(v) for v in removals.values())
+        print(f"!! VERBATIM-LYRIC GUARD REMOVED {total} SENTENCE(S) FROM YOUR SUPPLIED PROSE",
+              file=sys.stderr)
+        for field, sentences in removals.items():
+            for s in sentences:
+                print(f"   [{field}] {s}", file=sys.stderr)
+        print("   The stored text is SHORTER than what you sent. Rewrite those "
+              "sentences and re-run.", file=sys.stderr)
+        print("", file=sys.stderr)
+
     print(f"source:  {result['source']}")
     print(f"song_id: {result['song_id']}")
     print(f"title:   {result['title']}")

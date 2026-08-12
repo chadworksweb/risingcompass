@@ -122,6 +122,10 @@ class RegenResult(BaseModel):
     psyche_facts_changed: bool = False
     effects_pl: Optional[list] = None
     effects_pl_changed: bool = False
+    # Sentences the verbatim-lyric guard removed from SUPPLIED prose, per field.
+    # Empty on the normal path; non-empty means the text stored is SHORTER than
+    # what was sent, and the caller should look before trusting the write.
+    quote_removals: dict[str, list[str]] = {}
 
 
 @router.post("/regenerate", response_model=RegenResult)
@@ -205,14 +209,32 @@ async def regenerate_prose(
         body.listener_effects_prose or body.societal_effects_prose
         or ether_supplied or body.psyche_facts or body.effects_pl is not None
     )
+    # Sentences the verbatim-lyric guard removed from SUPPLIED prose, reported back
+    # to the caller. This used to be silent: the operator wrote two clean
+    # paragraphs, the guard quietly took one out, and the only way to notice was
+    # reading back what landed in the DB. title= excuses the one required title
+    # mention (a title that is also a hook line otherwise reads as a quote).
+    quote_removals: dict[str, list[str]] = {}
     if supplied and (body.listener_effects_prose or body.societal_effects_prose):
-        from app.services.lyric_quote_guard import strip_verbatim_quotes
+        from app.services.lyric_quote_guard import strip_verbatim_quotes_detailed
         if body.listener_effects_prose:
-            txt, _ = strip_verbatim_quotes(body.listener_effects_prose.strip(), lyrics)
+            txt, removed = strip_verbatim_quotes_detailed(
+                body.listener_effects_prose.strip(), lyrics, title=title)
             calibration["listener_effects_prose"] = txt
+            if removed:
+                quote_removals["listener_effects_prose"] = removed
         if body.societal_effects_prose:
-            txt, _ = strip_verbatim_quotes(body.societal_effects_prose.strip(), lyrics)
+            txt, removed = strip_verbatim_quotes_detailed(
+                body.societal_effects_prose.strip(), lyrics, title=title)
             calibration["societal_effects_prose"] = txt
+            if removed:
+                quote_removals["societal_effects_prose"] = removed
+    if quote_removals:
+        logger.warning(
+            "verbatim-lyric guard removed %d supplied sentence(s) for %s / %s: %s",
+            sum(len(v) for v in quote_removals.values()), title, artist,
+            {k: len(v) for k, v in quote_removals.items()},
+        )
 
     from app.services.agents.calibrator import ensure_full_calibration
     await ensure_full_calibration(title, artist, lyrics, calibration,
@@ -348,6 +370,7 @@ async def regenerate_prose(
             psyche_facts_changed=pf_supplied,
             effects_pl=new_effects_pl,
             effects_pl_changed=epl_supplied,
+            quote_removals=quote_removals,
         )
     except HTTPException:
         db_write.rollback()
