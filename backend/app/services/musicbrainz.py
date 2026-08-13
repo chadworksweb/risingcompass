@@ -135,32 +135,32 @@ async def search_artist(name: str, limit: int = 5) -> list[dict]:
     """Search MusicBrainz for artists by name.
 
     Returns list of dicts with: mbid, name, sort_name, disambiguation, score.
+
+    Retried like the catalogue fetches. This is the FIRST call of every resolve,
+    so a single-shot 503 here aborts the entire rebuild before it starts -- it
+    did exactly that twice on 2026-08-13 while the rest of the path was already
+    hardened. Empty list still means "no such artist"; the caller treats that as
+    nothing-to-resolve.
     """
-    await _rate_limit()
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                f"{BASE_URL}/artist",
-                params={"query": name, "fmt": "json", "limit": limit},
-                headers={"User-Agent": USER_AGENT},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        results = []
-        for a in data.get("artists", []):
-            results.append({
-                "mbid": a["id"],
-                "name": a["name"],
-                "sort_name": a.get("sort-name", ""),
-                "disambiguation": a.get("disambiguation", ""),
-                "score": a.get("score", 0),
-            })
-        return results
-
-    except Exception:
-        logger.exception("MusicBrainz artist search failed for '%s'", name)
+    data = await _mb_get(
+        "/artist",
+        {"query": name, "fmt": "json", "limit": limit},
+        attempts=MB_PAGE_ATTEMPTS,
+    )
+    if data is None:
+        logger.warning("MusicBrainz artist search failed for '%s' after retries", name)
         return []
+
+    return [
+        {
+            "mbid": a["id"],
+            "name": a["name"],
+            "sort_name": a.get("sort-name", ""),
+            "disambiguation": a.get("disambiguation", ""),
+            "score": a.get("score", 0),
+        }
+        for a in data.get("artists", [])
+    ]
 
 
 async def search_release_group(artist: str, title: str, limit: int = 8) -> list[dict]:
