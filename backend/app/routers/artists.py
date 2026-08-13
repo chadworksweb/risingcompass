@@ -701,13 +701,17 @@ def artist_trajectory(slug: str):
         )
 
         trajectory = []
-        all_song_charges = []
+        # Keyed by song id, NOT a flat list: a song sits on every release it
+        # appears on, so extending a list per release counts the same reading
+        # once per pressing. The catalogue charge is the mean over DISTINCT
+        # songs, matching what /summary reports and what the page shows.
+        song_charges_by_id: dict[int, int] = {}
         tier_breakdown = {"violet": 0, "blue": 0, "green": 0, "orange": 0, "red": 0}
 
         for r in releases:
             # Collect individual song charges for catalog-level stats
-            song_charges = _get_release_song_charges(r, db)
-            all_song_charges.extend(song_charges)
+            for song_id, charge in _get_release_song_charges(r, db):
+                song_charges_by_id[song_id] = charge
 
             if r.rubric_color and r.rubric_color in tier_breakdown:
                 tier_breakdown[r.rubric_color] += 1
@@ -732,6 +736,7 @@ def artist_trajectory(slug: str):
         catalog_tier = None
         catalog_tier_label = None
         catalog_tier_hex = None
+        all_song_charges = list(song_charges_by_id.values())
         if all_song_charges:
             catalog_charge = round(sum(all_song_charges) / len(all_song_charges))
             catalog_tier, catalog_tier_label, catalog_tier_hex = derive_tier(catalog_charge)
@@ -800,14 +805,21 @@ def artist_songs(
         db.close()
 
 
-def _get_release_song_charges(release: Release, db) -> list[int]:
-    """Get all individual song charge values for a release."""
-    charges = []
+def _get_release_song_charges(release: Release, db) -> list[tuple[int, int]]:
+    """(song_id, charge_value) for every calibrated song on this release.
+
+    Returns the id alongside the charge because a song legitimately appears on
+    many releases (its single AND its album AND its EP), so any CATALOGUE-level
+    aggregate has to dedupe by song before averaging. Summing the raw per-release
+    lists counts Help! three times and Let It Be twice, which is how this
+    endpoint reported 23 songs at charge 24 for an artist with 8 songs at 29.
+    """
+    pairs = []
     for link in release.songs:
         song = _resolve_song_row(link.song_id, db)
         if song and song.charge_value is not None:
-            charges.append(song.charge_value)
-    return charges
+            pairs.append((song.id, song.charge_value))
+    return pairs
 
 
 def _resolve_song_row(unified_id, db):
