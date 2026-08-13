@@ -30,6 +30,21 @@ MAX_RECORDING_LOOKUPS = 8
 # ...but stop as soon as this many usable release-groups are in hand; they have
 # already cleared the bootleg/compilation filters, so more only refines the date.
 ENOUGH_CANDIDATES = 3
+# Attempts for a catalogue-page fetch. Higher than the cover-art default: a
+# dropped page here silently shortens an artist's whole catalogue, whereas a
+# dropped cover-art lookup only costs one thumbnail.
+MB_PAGE_ATTEMPTS = 5
+
+
+class MusicBrainzUnavailable(Exception):
+    """MusicBrainz could not be reached after retries.
+
+    Deliberately NOT the same signal as an empty result. A partial catalogue
+    written as though it were complete is indistinguishable from an artist who
+    genuinely has fewer releases, so every truncation must surface as an error
+    rather than a short list. (Real incident 2026-08-13: one 503 on page 2 of
+    the Beatles' 1,017 release-groups silently reduced the catalogue to 18.)
+    """
 
 # Release-group secondary types we never want in an artist's Releases.
 # MB uses lowercase "demo", "mixtape/street", "audio drama", "audiobook",
@@ -343,17 +358,21 @@ async def _recording_releases(recording_mbid: str) -> list[dict]:
     return data.get("releases") or []
 
 
-async def _mb_get(path: str, params: dict) -> Optional[dict]:
-    """Throttled GET against MusicBrainz with one retry, returning parsed JSON.
+async def _mb_get(path: str, params: dict, attempts: int = 2) -> Optional[dict]:
+    """Throttled GET against MusicBrainz with retries, returning parsed JSON.
 
-    MusicBrainz read timeouts are common and transient -- a plain 15s single-shot
-    turned catalogue staples like "Come Together" into false no-matches, and a
-    recorded miss is sticky (the backfill won't re-search it). One retry after a
-    short pause converts almost all of them. Returns None when both attempts
-    fail; every caller treats that as "no data", never as "no such song".
+    MusicBrainz read timeouts and 503s are common and transient -- a plain 15s
+    single-shot turned catalogue staples like "Come Together" into false
+    no-matches, and a recorded miss is sticky (the backfill won't re-search it).
+    A retry after a short pause converts almost all of them. Returns None when
+    every attempt fails; callers decide whether that means "no data" (cover art)
+    or an outright error (catalogue pages -- see MusicBrainzUnavailable).
+
+    Backoff doubles from 2s so a rate-limited stretch is waited out rather than
+    hammered, since hammering is what earns the 503 in the first place.
     """
     last_exc = None
-    for attempt in range(2):
+    for attempt in range(attempts):
         await _rate_limit()
         try:
             async with httpx.AsyncClient(timeout=MB_TIMEOUT) as client:
@@ -365,9 +384,9 @@ async def _mb_get(path: str, params: dict) -> Optional[dict]:
                 return resp.json()
         except Exception as exc:
             last_exc = exc
-            if attempt == 0:
-                await asyncio.sleep(2.0)
-    logger.info("MusicBrainz GET %s failed twice: %s", path, last_exc)
+            if attempt < attempts - 1:
+                await asyncio.sleep(2.0 * (2 ** attempt))
+    logger.info("MusicBrainz GET %s failed %d times: %s", path, attempts, last_exc)
     return None
 
 
@@ -463,6 +482,10 @@ async def get_artist_releases(
 
     Returns list of dicts with: mbid, title, release_type, release_date,
     release_year, primary_type, secondary_types.
+
+    Raises MusicBrainzUnavailable if any page fails after its retries. An empty
+    list means the artist genuinely has no qualifying releases; a short list is
+    never returned for an artist who has more.
     """
     if release_types is None:
         release_types = ["album", "single", "ep"]
@@ -472,80 +495,75 @@ async def get_artist_releases(
     limit = 100
 
     while True:
-        await _rate_limit()
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(
-                    f"{BASE_URL}/release-group",
-                    params={
-                        "artist": mbid,
-                        "fmt": "json",
-                        "limit": limit,
-                        "offset": offset,
-                    },
-                    headers={"User-Agent": USER_AGENT},
-                )
-                resp.raise_for_status()
-                data = resp.json()
+        data = await _mb_get(
+            "/release-group",
+            {"artist": mbid, "fmt": "json", "limit": limit, "offset": offset},
+            attempts=MB_PAGE_ATTEMPTS,
+        )
+        # A dead page must NEVER degrade into a short catalogue. Returning what
+        # we had so far is indistinguishable from a complete result, and callers
+        # write it as authoritative -- which is how one 503 deleted 87 of the
+        # Beatles' 105 releases. Fail loudly and let the caller abort instead.
+        if data is None:
+            raise MusicBrainzUnavailable(
+                f"release-group page at offset {offset} failed for artist {mbid} "
+                f"after {MB_PAGE_ATTEMPTS} attempts"
+            )
 
-            groups = data.get("release-groups", [])
-            if not groups:
-                break
+        groups = data.get("release-groups", [])
+        if not groups:
+            break
 
-            for rg in groups:
-                primary = (rg.get("primary-type") or "").lower()
-                secondary = [s.lower() for s in (rg.get("secondary-types") or [])]
-                title = rg.get("title") or ""
+        for rg in groups:
+            primary = (rg.get("primary-type") or "").lower()
+            secondary = [s.lower() for s in (rg.get("secondary-types") or [])]
+            title = rg.get("title") or ""
 
-                # Secondary-type exclusion — covers MB-tagged noise.
-                if any(s in SKIP_SECONDARY_TYPES for s in secondary):
-                    continue
+            # Secondary-type exclusion — covers MB-tagged noise.
+            if any(s in SKIP_SECONDARY_TYPES for s in secondary):
+                continue
 
-                # Title-pattern exclusion — covers MB-untagged noise
-                # (bootlegs, outtakes, karaoke, tribute albums).
-                title_lower = title.lower()
-                if any(p in title_lower for p in SKIP_TITLE_SUBSTRINGS):
-                    continue
-                if OUTTAKE_RE.search(title_lower):
-                    continue
-                # Derivative-edition exclusion (remaster / deluxe / anniversary /
-                # reissue / acoustic / mono-stereo redux) — re-releases of an
-                # existing tracklisting, never a first appearance.
-                if DERIVATIVE_EDITION_RE.search(title):
-                    continue
-                # Greatest-hits / comp exclusion for groups MB never tagged
-                # "compilation" (e.g. "The Beatles' Hits").
-                if HITS_COMPILATION_RE.search(title):
-                    continue
+            # Title-pattern exclusion — covers MB-untagged noise
+            # (bootlegs, outtakes, karaoke, tribute albums).
+            title_lower = title.lower()
+            if any(p in title_lower for p in SKIP_TITLE_SUBSTRINGS):
+                continue
+            if OUTTAKE_RE.search(title_lower):
+                continue
+            # Derivative-edition exclusion (remaster / deluxe / anniversary /
+            # reissue / acoustic / mono-stereo redux) — re-releases of an
+            # existing tracklisting, never a first appearance.
+            if DERIVATIVE_EDITION_RE.search(title):
+                continue
+            # Greatest-hits / comp exclusion for groups MB never tagged
+            # "compilation" (e.g. "The Beatles' Hits").
+            if HITS_COMPILATION_RE.search(title):
+                continue
 
-                # Map primary type to our release_type. Unknown primaries
-                # (broadcast, other, etc.) are rejected rather than silently
-                # bucketed as "single".
-                release_type = _map_release_type(primary)
-                if release_type is None or release_type not in release_types:
-                    continue
+            # Map primary type to our release_type. Unknown primaries
+            # (broadcast, other, etc.) are rejected rather than silently
+            # bucketed as "single".
+            release_type = _map_release_type(primary)
+            if release_type is None or release_type not in release_types:
+                continue
 
-                release_date_str = rg.get("first-release-date", "")
-                release_date, release_year = _parse_mb_date(release_date_str)
+            release_date_str = rg.get("first-release-date", "")
+            release_date, release_year = _parse_mb_date(release_date_str)
 
-                all_releases.append({
-                    "mbid": rg["id"],
-                    "title": rg["title"],
-                    "release_type": release_type,
-                    "release_date": release_date,
-                    "release_year": release_year,
-                    "primary_type": primary,
-                    "secondary_types": secondary,
-                })
+            all_releases.append({
+                "mbid": rg["id"],
+                "title": rg["title"],
+                "release_type": release_type,
+                "release_date": release_date,
+                "release_year": release_year,
+                "primary_type": primary,
+                "secondary_types": secondary,
+            })
 
-            # Check if there are more pages
-            total = data.get("release-group-count", 0)
-            offset += limit
-            if offset >= total:
-                break
-
-        except Exception:
-            logger.exception("MusicBrainz release-group fetch failed for artist %s at offset %d", mbid, offset)
+        # Check if there are more pages
+        total = data.get("release-group-count", 0)
+        offset += limit
+        if offset >= total:
             break
 
     # Sort by date
@@ -569,55 +587,57 @@ async def get_release_tracks(release_group_mbid: str) -> dict:
     idempotent and re-runnable, whereas a clean empty official-releases list is
     the genuine bootleg signal.
     """
-    await _rate_limit()
-    try:
-        # First, get the OFFICIAL releases in this release group. An empty list
-        # means the group has no commercial release -> drop it.
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                f"{BASE_URL}/release",
-                params={
-                    "release-group": release_group_mbid,
-                    "fmt": "json",
-                    "limit": 1,
-                    "status": "official",
-                },
-                headers={"User-Agent": USER_AGENT},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        releases = data.get("releases", [])
-        if not releases:
-            return {"has_official": False, "tracks": []}
-
-        release_mbid = releases[0]["id"]
-
-        # Now get tracks for this release
-        await _rate_limit()
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                f"{BASE_URL}/release/{release_mbid}",
-                params={"inc": "recordings", "fmt": "json"},
-                headers={"User-Agent": USER_AGENT},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        tracks = []
-        for medium in data.get("media", []):
-            for t in medium.get("tracks", []):
-                tracks.append({
-                    "position": t.get("position", 0),
-                    "title": t.get("title", ""),
-                    "length_ms": t.get("length"),
-                })
-
-        return {"has_official": True, "tracks": tracks}
-
-    except Exception:
-        logger.exception("MusicBrainz track fetch failed for release-group %s", release_group_mbid)
+    # First, get the OFFICIAL releases in this release group. An empty list
+    # means the group has no commercial release -> drop it. A FAILED list is a
+    # different thing entirely, so retry before concluding anything: without
+    # retries a rate-limited stretch strips the tracklist off every release in
+    # the catalogue, and a release with no tracks links no songs.
+    data = await _mb_get(
+        "/release",
+        {
+            "release-group": release_group_mbid,
+            "fmt": "json",
+            "limit": 1,
+            "status": "official",
+        },
+        attempts=MB_PAGE_ATTEMPTS,
+    )
+    if data is None:
+        logger.warning(
+            "MusicBrainz official-release lookup failed for release-group %s; "
+            "failing open", release_group_mbid,
+        )
         return {"has_official": True, "tracks": []}
+
+    releases = data.get("releases", [])
+    if not releases:
+        return {"has_official": False, "tracks": []}
+
+    release_mbid = releases[0]["id"]
+
+    # Now get tracks for this release.
+    data = await _mb_get(
+        f"/release/{release_mbid}",
+        {"inc": "recordings", "fmt": "json"},
+        attempts=MB_PAGE_ATTEMPTS,
+    )
+    if data is None:
+        logger.warning(
+            "MusicBrainz tracklist fetch failed for release %s; failing open",
+            release_mbid,
+        )
+        return {"has_official": True, "tracks": []}
+
+    tracks = []
+    for medium in data.get("media", []):
+        for t in medium.get("tracks", []):
+            tracks.append({
+                "position": t.get("position", 0),
+                "title": t.get("title", ""),
+                "length_ms": t.get("length"),
+            })
+
+    return {"has_official": True, "tracks": tracks}
 
 
 def _map_release_type(primary_type: str) -> Optional[str]:

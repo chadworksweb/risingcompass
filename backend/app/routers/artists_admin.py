@@ -17,8 +17,9 @@ from app.models import (
 )
 from app.services.artist_utils import (
     generate_artist_slug, normalize_artist_name, compute_release_charge,
-    count_songs_by_artist, resolve_artist_releases,
+    count_songs_by_artist, resolve_artist_releases, _fetch_musicbrainz_data,
 )
+from app.services.musicbrainz import MusicBrainzUnavailable
 from app.services.song_identity import compute_canonical_key
 
 logger = logging.getLogger(__name__)
@@ -214,7 +215,18 @@ async def resolve_metadata(
     finally:
         db.close()
 
-    stats = await resolve_artist_releases(artist_id)
+    # Additive, so a truncated catalogue costs nothing already stored -- but it
+    # would quietly add a partial one, and a later run skips by MBID and never
+    # revisits the gap. Refuse rather than half-fill.
+    try:
+        stats = await resolve_artist_releases(artist_id)
+    except MusicBrainzUnavailable as exc:
+        logger.warning("resolve-metadata aborted for %s: %s", slug, exc)
+        raise HTTPException(
+            503,
+            "MusicBrainz is not answering reliably right now, so the catalogue "
+            "came back incomplete. Nothing was written -- retry later.",
+        )
 
     db = SessionLocal()
     try:
@@ -244,13 +256,21 @@ async def rebuild_releases(
     resolve-metadata is additive (it never deletes), so it can't retroactively
     apply a tightened filter to releases already in the DB. This action does:
 
-    1. Delete every Release for the artist that is MB-sourced
+    1. Fetch the full MusicBrainz catalogue FIRST and refuse to go further if it
+       is unavailable or empty (see below).
+    2. Delete every Release for the artist that is MB-sourced
        (musicbrainz_id IS NOT NULL) OR the "Singles & Uncategorized" catch-all,
        plus their release_songs links. Album-Charger releases
        (source='album_charger') are left untouched.
-    2. Re-run the standard resolve, which re-creates the MB releases under the
-       codified type/edition/hits/bootleg filters + tracklist dedup and re-links
-       each song to every release it appears on.
+    3. Apply the already-fetched catalogue, which re-creates the MB releases
+       under the codified type/edition/hits/bootleg filters + tracklist dedup
+       and re-links each song to every release it appears on.
+
+    **The fetch precedes the purge deliberately.** It used to follow it, so a
+    transient MusicBrainz 503 deleted the catalogue and then replaced it with
+    nothing -- exactly what happened to The Beatles on 2026-08-13 (105 releases
+    -> 0, then a truncated 18 on the retry). Nothing is deleted now until the
+    replacement data is in hand, so an outage is a no-op instead of data loss.
 
     Idempotent and re-runnable. Audited as event_type 'rebuild_releases'.
     """
@@ -265,6 +285,26 @@ async def rebuild_releases(
         artist_id, artist_name, artist_slug = artist.id, artist.name, artist.slug
     finally:
         db.close()
+
+    # Phase 1.5 -- fetch BEFORE destroying anything. MusicBrainzUnavailable means
+    # a catalogue page died after its retries, so what we hold is a truncated
+    # catalogue; writing it would silently shorten the artist. Bail with the
+    # existing data untouched.
+    try:
+        mb_data = await _fetch_musicbrainz_data(artist_name)
+    except MusicBrainzUnavailable as exc:
+        logger.warning("rebuild-releases aborted for %s: %s", slug, exc)
+        raise HTTPException(
+            503,
+            "MusicBrainz is not answering reliably right now, so the catalogue "
+            "came back incomplete. Nothing was deleted -- retry later.",
+        )
+    if not mb_data or not mb_data.get("releases"):
+        raise HTTPException(
+            503,
+            "MusicBrainz returned no releases for this artist. Nothing was "
+            "deleted -- retry later.",
+        )
 
     # Phase 2 -- purge MB-sourced releases + catch-all atomically; keep
     # album_charger. Delete links first to respect the FK.
@@ -294,9 +334,8 @@ async def rebuild_releases(
         try: conn.close()
         except Exception: pass
 
-    # Phase 3 -- re-resolve under the current rule (own sessions; MB is
-    # rate-limited, so a large catalog is minutes of calls).
-    stats = await resolve_artist_releases(artist_id)
+    # Phase 3 -- apply the catalogue fetched in Phase 1.5 (no second fetch).
+    stats = await resolve_artist_releases(artist_id, mb_data=mb_data)
 
     # Phase 4 -- audit + return.
     summary = {

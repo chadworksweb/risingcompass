@@ -146,13 +146,18 @@ def resolve_artist_slugs(names, db) -> dict[str, str]:
     return {row.name.lower(): row.slug for row in rows}
 
 
-async def resolve_artist_releases(artist_id: int) -> dict:
+async def resolve_artist_releases(artist_id: int, mb_data: dict | None = None) -> dict:
     """Resolve release metadata for an artist via MusicBrainz.
 
     Fetches MB data into memory *without* holding a DB session, then opens a
     fresh session for writes. MB is rate-limited to 1 req/sec, so a
     Beatles-sized catalog is minutes of calls; separating the phases avoids
     holding a pooled connection idle across that window.
+
+    Pass `mb_data` to skip the fetch and apply an already-fetched payload. That
+    is what lets a caller which DELETES before resolving (rebuild-releases)
+    prove MusicBrainz is answering before it destroys anything, instead of
+    discovering the outage after the purge has committed.
 
     Returns stats dict: {source, releases_created, songs_linked}.
     """
@@ -174,8 +179,9 @@ async def resolve_artist_releases(artist_id: int) -> dict:
     if not all_songs:
         return stats
 
-    # Phase 2 — no DB: fetch MB release data into memory
-    mb_data = await _fetch_musicbrainz_data(artist_name)
+    # Phase 2 — no DB: fetch MB release data into memory (unless pre-fetched)
+    if mb_data is None:
+        mb_data = await _fetch_musicbrainz_data(artist_name)
 
     # Phase 3 — fresh session: apply all writes in one burst, commit
     db = SessionLocal()
