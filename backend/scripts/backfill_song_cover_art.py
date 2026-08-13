@@ -41,6 +41,8 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
+from sqlalchemy import text
+
 from app.database import SessionLocal
 from app.models import MbCoverArt, Release, ReleaseSong, Song
 from app.services import coverart, musicbrainz
@@ -95,6 +97,26 @@ def _pending_songs(limit: int | None, recheck_misses: bool) -> list[tuple[int, s
     return pending
 
 
+def _orphan_mbids() -> list[str]:
+    """Resolved release-group MBIDs that were never checked against CAA.
+
+    The CAA pass runs after the whole resolve loop, so interrupting a run (Ctrl-C,
+    a closed laptop) strands every MBID it had resolved: the song carries an mbid
+    AND a checked_at, so _pending_songs skips it forever and its art never
+    appears. Sweeping these FIRST makes any later run self-healing.
+    """
+    db = SessionLocal()
+    try:
+        rows = db.execute(text(
+            "SELECT DISTINCT s.release_group_mbid FROM songs s "
+            "LEFT JOIN mb_cover_art m ON m.musicbrainz_id = s.release_group_mbid "
+            "WHERE s.release_group_mbid IS NOT NULL AND m.musicbrainz_id IS NULL"
+        )).fetchall()
+        return [r[0] for r in rows if r[0]]
+    finally:
+        db.close()
+
+
 def _stamp(song_id: int, mbid: str | None) -> None:
     """Record the resolve outcome. Own short session per write, like the CAA cache."""
     db = SessionLocal()
@@ -115,6 +137,14 @@ async def main():
     parser.add_argument("--recheck-misses", action="store_true",
                         help="Retry songs previously recorded as no-match.")
     args = parser.parse_args()
+
+    # Bank any stranded work from a previous interrupted run before doing more.
+    orphans = _orphan_mbids()
+    if orphans:
+        print(f"Recovering {len(orphans)} resolved MBID(s) never checked against "
+              f"CAA (~1/sec, est. {len(orphans)}s)...")
+        res = await coverart.ensure_cover_art(orphans)
+        print(f"  recovered: checked={res['checked']} found_art={res['found']}\n")
 
     pending = _pending_songs(args.limit, args.recheck_misses)
     if not pending:
