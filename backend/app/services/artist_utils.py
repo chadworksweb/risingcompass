@@ -17,15 +17,22 @@ logger = logging.getLogger(__name__)
 def normalize_release_title(title: str) -> str:
     """Fold a release title to its suppression-matching form.
 
-    Lowercase, curly apostrophe (U+2019) to ASCII, whitespace collapsed. The
-    apostrophe fold is load-bearing: MusicBrainz titles carry curly quotes, so a
+    Lowercase, smart quotes folded to ASCII, whitespace collapsed. The quote
+    folding is load-bearing: MusicBrainz titles carry typographic quotes, so a
     straight-quote comparison silently misses "Ain't She Sweet" and "The
     Beatles' Christmas Record" -- which is exactly what it did on the first pass
-    at the Beatles cleanup, leaving three rows behind.
+    at the Beatles cleanup, leaving three rows behind. Double quotes are folded
+    too, so a title like Pantomime: "Everywhere It's Christmas" cannot hinge on
+    which curly codepoint the cataloguer happened to use.
     """
     if not title:
         return ""
-    folded = title.replace("’", "'").replace("‘", "'")
+    folded = title
+    for smart, plain in (
+        ("’", "'"), ("‘", "'"),   # right/left single quote
+        ("“", '"'), ("”", '"'),   # left/right double quote
+    ):
+        folded = folded.replace(smart, plain)
     return re.sub(r"\s+", " ", folded).strip().lower()
 
 
