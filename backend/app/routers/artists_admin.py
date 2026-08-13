@@ -13,11 +13,13 @@ from app.auth import require_admin_session
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.models import (
-    Artist, ArtistAdminEvent, Release, ReleaseSong, Song, SongArtist,
+    Artist, ArtistAdminEvent, Release, ReleaseSong, ReleaseSuppression, Song,
+    SongArtist,
 )
 from app.services.artist_utils import (
     generate_artist_slug, normalize_artist_name, compute_release_charge,
     count_songs_by_artist, resolve_artist_releases, _fetch_musicbrainz_data,
+    normalize_release_title,
 )
 from app.services.musicbrainz import MusicBrainzUnavailable
 from app.services.song_identity import compute_canonical_key
@@ -237,6 +239,145 @@ async def resolve_metadata(
             "musicbrainz_id": artist.musicbrainz_id,
             **stats,
         }
+    finally:
+        db.close()
+
+
+class SuppressReleaseRequest(BaseModel):
+    title: str
+    reason: Optional[str] = None
+
+
+@router.get("/{slug}/suppressions")
+def list_suppressions(slug: str):
+    """Curated releases this artist should never carry (migration 147)."""
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+        rows = (
+            db.query(ReleaseSuppression)
+            .filter(ReleaseSuppression.artist_id == artist.id)
+            .order_by(ReleaseSuppression.title_snapshot)
+            .all()
+        )
+        return {
+            "artist": artist.name,
+            "slug": artist.slug,
+            "items": [
+                {
+                    "id": r.id,
+                    "title": r.title_snapshot,
+                    "title_norm": r.title_norm,
+                    "reason": r.reason,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@router.post("/{slug}/suppressions")
+def add_suppression(slug: str, req: SuppressReleaseRequest):
+    """Suppress a release title AND delete any row currently carrying it.
+
+    Deleting alone never sticks -- the next rebuild re-fetches the title from
+    MusicBrainz and re-creates it. Suppressing alone leaves the existing row in
+    place. Both together are what "remove this release" actually means, so this
+    endpoint does both.
+
+    Refuses while the release carries a calibrated song: that would strand a real
+    reading. Unlink or re-file the song first.
+    """
+    title_norm = normalize_release_title(req.title)
+    if not title_norm:
+        raise HTTPException(400, "title is required")
+
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+
+        matches = [
+            r for r in db.query(Release).filter(Release.artist_id == artist.id).all()
+            if normalize_release_title(r.title) == title_norm
+        ]
+        for rel in matches:
+            calibrated = (
+                db.query(ReleaseSong)
+                .join(Song, Song.id == ReleaseSong.song_id)
+                .filter(ReleaseSong.release_id == rel.id, Song.charge_value.isnot(None))
+                .count()
+            )
+            if calibrated:
+                raise HTTPException(
+                    409,
+                    f"'{rel.title}' carries {calibrated} calibrated song(s). "
+                    "Deleting it would strand a real reading -- unlink them first.",
+                )
+
+        existing = (
+            db.query(ReleaseSuppression)
+            .filter(
+                ReleaseSuppression.artist_id == artist.id,
+                ReleaseSuppression.title_norm == title_norm,
+            )
+            .first()
+        )
+        if not existing:
+            db.add(ReleaseSuppression(
+                artist_id=artist.id,
+                title_norm=title_norm,
+                title_snapshot=req.title.strip(),
+                reason=req.reason,
+            ))
+
+        deleted = 0
+        for rel in matches:
+            db.query(ReleaseSong).filter(ReleaseSong.release_id == rel.id).delete()
+            db.delete(rel)
+            deleted += 1
+        db.commit()
+
+        _invalidate_artist_caches()
+        return {
+            "artist": artist.name,
+            "slug": artist.slug,
+            "title": req.title.strip(),
+            "title_norm": title_norm,
+            "already_suppressed": bool(existing),
+            "releases_deleted": deleted,
+        }
+    finally:
+        db.close()
+
+
+@router.delete("/{slug}/suppressions/{suppression_id}")
+def remove_suppression(slug: str, suppression_id: int):
+    """Lift a suppression. The release returns on the next rebuild, not now."""
+    db = SessionLocal()
+    try:
+        artist = db.query(Artist).filter(Artist.slug == slug).first()
+        if not artist:
+            raise HTTPException(404, "Artist not found")
+        row = (
+            db.query(ReleaseSuppression)
+            .filter(
+                ReleaseSuppression.id == suppression_id,
+                ReleaseSuppression.artist_id == artist.id,
+            )
+            .first()
+        )
+        if not row:
+            raise HTTPException(404, "Suppression not found")
+        title = row.title_snapshot
+        db.delete(row)
+        db.commit()
+        return {"removed": title, "note": "Re-run rebuild-releases to bring it back."}
     finally:
         db.close()
 

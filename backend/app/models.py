@@ -498,6 +498,28 @@ class ReleaseSong(Base):
     release = relationship("Release", back_populates="songs")
 
 
+class ReleaseSuppression(Base):
+    """A curated "this is not that artist's catalogue" exclusion (migration 147).
+
+    The codified filter cannot reach a release MusicBrainz files as official, of
+    a valid type, credited to the artist -- the Beatles' Tony Sheridan sessions
+    and fan-club Christmas discs are the canonical example. Deleting those by
+    hand does not stick, because rebuild-releases re-fetches from MusicBrainz and
+    re-creates them. The resolve consults this table and skips a match.
+
+    Keyed on the NORMALISED title (see suppressed_titles), not the MBID, so the
+    exclusion survives MusicBrainz re-filing the group under a new id.
+    """
+    __tablename__ = "release_suppressions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
+    title_norm = Column(Text, nullable=False)
+    title_snapshot = Column(Text, nullable=False)
+    reason = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class MbCoverArt(Base):
     """Cover Art Archive lookup cache, keyed by the MusicBrainz release-group
     MBID -- NOT by releases.id, which churns whenever an artist's releases are

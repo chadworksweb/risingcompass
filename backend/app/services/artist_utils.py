@@ -6,10 +6,46 @@ import unicodedata
 
 from sqlalchemy import func
 
-from app.models import Artist, Release, ReleaseSong, SongArtist, Song
+from app.models import (
+    Artist, Release, ReleaseSong, ReleaseSuppression, SongArtist, Song,
+)
 from app.constants import COLOR_LABELS, COLOR_HEX
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_release_title(title: str) -> str:
+    """Fold a release title to its suppression-matching form.
+
+    Lowercase, curly apostrophe (U+2019) to ASCII, whitespace collapsed. The
+    apostrophe fold is load-bearing: MusicBrainz titles carry curly quotes, so a
+    straight-quote comparison silently misses "Ain't She Sweet" and "The
+    Beatles' Christmas Record" -- which is exactly what it did on the first pass
+    at the Beatles cleanup, leaving three rows behind.
+    """
+    if not title:
+        return ""
+    folded = title.replace("’", "'").replace("‘", "'")
+    return re.sub(r"\s+", " ", folded).strip().lower()
+
+
+def suppressed_titles(artist_id: int, db) -> set[str]:
+    """Normalised titles this artist should never have a Release row for.
+
+    Fail-soft: a suppression lookup must never be the thing that breaks a
+    resolve, so an error here yields an empty set (nothing suppressed) rather
+    than aborting the catalogue rebuild.
+    """
+    try:
+        rows = (
+            db.query(ReleaseSuppression.title_norm)
+            .filter(ReleaseSuppression.artist_id == artist_id)
+            .all()
+        )
+        return {r.title_norm for r in rows}
+    except Exception:
+        logger.warning("Release-suppression lookup failed for artist %s", artist_id, exc_info=True)
+        return set()
 
 
 def slugify(text: str) -> str:
@@ -280,8 +316,19 @@ def _apply_musicbrainz_data(artist: Artist, mb_data: dict, all_songs: list[dict]
     existing_titles: set[str] = {row.title.lower() for row in existing_rows}
     existing_mbids: set[str] = {row.musicbrainz_id for row in existing_rows if row.musicbrainz_id}
 
+    # Curated per-artist exclusions (migration 147). These are releases MB files
+    # as official and valid-type but which are not the artist's catalogue, so no
+    # filter rule reaches them. Loaded once per pass.
+    suppressed = suppressed_titles(artist.id, db)
+
     for mb_rel in mb_data.get("releases", []):
         if mb_rel["mbid"] in existing_mbids:
+            continue
+
+        # A hand delete does not survive a rebuild -- the fetch just re-creates
+        # the row. This is what makes the curation stick.
+        if normalize_release_title(mb_rel["title"]) in suppressed:
+            stats["releases_suppressed"] = stats.get("releases_suppressed", 0) + 1
             continue
 
         # Tracklist-identity dedup: collapse a later group with the identical
