@@ -150,3 +150,95 @@
 .ssr-tier { text-transform: uppercase; font-size: 0.66rem; letter-spacing: 0.05em; color: var(--rc-text-dim); }
 .ssr-deadpan { color: var(--rc-text); }
 .ssr-tag { font-size: 0.66rem; text-transform: uppercase; color: var(--rc-text-dim); border: 1px dashed var(--rc-border); padding: 0 0.35rem; border-radius: 3px; }
+
+/* === Charts hub (/charts/) ===
+   The index for every board. Reuses the standalone chart page's own frame
+   (.chart-page wrapper, .chart-page-intro / -title / -source / -links) and the
+   sitewide .card, so the hub inherits the same width, padding and panel
+   treatment as the pages it links to. Only the grid and the card's internals
+   are new. */
+.chart-hub-group {
+  margin-bottom: 2.6rem;
+}
+
+.chart-hub-heading {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  letter-spacing: -0.005em;
+  margin-bottom: 0.4rem;
+}
+
+.chart-hub-note {
+  color: var(--rc-text-dim);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  max-width: 46rem;
+  margin-bottom: 1.1rem;
+}
+
+/* auto-fill rather than a fixed column count: the two groups hold five and
+   three boards, so a fixed 4-up would strand a lone card on its own row. */
+.chart-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+/* Whole card is the link here -- unlike the methodology surface modules, there
+   is no CTA inside it to carry the destination. */
+.chart-hub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--rc-ease), background var(--rc-ease);
+}
+
+.chart-hub-card:hover {
+  border-color: var(--rc-accent);
+  background: var(--rc-accent-subtle);
+}
+
+.chart-hub-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--rc-accent);
+  line-height: 1.3;
+}
+
+.chart-hub-card__sub {
+  font-size: 0.82rem;
+  color: var(--rc-text);
+}
+
+/* Mono + uppercase, the same treatment .chart-page-source gets on a board's
+   own page, so the cadence line reads as metadata rather than copy. */
+.chart-hub-card__meta {
+  margin-top: 0.35rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+}
+
+/* Status pill riding a hub heading. Mono/uppercase like .chart-hub-card__meta,
+   but boxed so it reads as a label on the group rather than part of the title.
+   vertical-align keeps it centred against the heading's larger type. */
+.chart-hub-tag {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.55rem;
+  padding: 0.18rem 0.5rem;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--rc-font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+}

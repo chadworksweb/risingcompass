@@ -209,8 +209,6 @@
               <li><a href="#origin">Origin</a></li>
               <li><a href="#calibrator">The Calibrator</a></li>
               <li><a href="#platform">The Platform</a></li>
-              <li><a href="#scope">What It Is and Isn't Saying</a></li>
-              <li><a href="#gears">The Gears</a></li>
               <li><a href="#forces">The Forces</a></li>
               <li><a href="#label">The New Label</a></li>
               <li><a href="#questions">Common Questions</a></li>
@@ -272,7 +270,7 @@
            Section 2's first subsection since 2026-08-11; it was a standalone
            breakout between Origin and here. The 100vw bleed still resolves the
            same, its parent is the same width the page wrapper gave it before. -->
-      <section class="m-subsection cflow-breakout" aria-label="How The Rising Compass analyzes a song">
+      <section class="m-subsection cflow-breakout" id="flow" aria-label="How The Rising Compass analyzes a song">
         <div class="cflow">
           <button class="cflow-replay" type="button" aria-label="Replay the intro animation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg>
@@ -490,11 +488,29 @@
 
 
           <h4>Charge Value</h4>
-          <p>Every song receives a <strong>charge value</strong> on one scale from +100 to &minus;100. The value places the song both within its tier and across the full spectrum. Ascended songs carry high positive charges, Corrupted songs deep negative ones, and Decent sits near zero, the baseline.</p>
-          <p>The five tiers do not divide that scale evenly. Elevated, Decent, and Degraded each span 50 points, while Ascended (+75 to +100) and Corrupted (&minus;75 to &minus;100) span only 25. The poles are narrow on purpose. Reaching them takes a more extreme reading, so Ascended and Corrupted stay rare and have to be earned, while the neutral middle, centered on zero, is where most music naturally lands.</p>
 
-          <h5>Why "Decent" and Not "Good"</h5>
-          <p>The middle tier is called <strong>Decent</strong> — not "balanced," not "good," not "healthy." Deliberately. A song that's just entertainment, just filling time, just pleasant background noise — that's fine. It's decent. But The Rising Compass exists to show that music <em>can</em> do more. Decent isn't the goal. It's the floor for not doing harm.</p>
+          <div class="m-mark-scope">
+            <div class="m-mark-scope__body">
+              <p>Every song receives a <strong>charge value</strong> on one scale from +100 to &minus;100, including 0. The value places the song both within its tier and across the full spectrum. Ascended songs carry high positive charges, Corrupted songs carry deep negative ones, while Decent songs hover around dead-center zero, the baseline.</p>
+              <p>The five tiers do not divide that scale evenly. Elevated, Decent, and Degraded each span 50 points, while Ascended (+75 to +100) and Corrupted (&minus;75 to &minus;100) span only 25. The poles are narrow on purpose. Reaching them takes more extreme messaging in the lyrics, and the neutral middle, centered on zero, is where most music naturally lands.</p>
+
+              <h5>Why "Decent" and Not "Good"</h5>
+              <p>The middle tier is deliberately called <strong>Decent</strong> — not "balanced," not "good," not "healthy." A song that's just entertainment, just filling time, just pleasant background noise — that's fine. It's decent. But The Rising Compass exists to show that music <em>can</em> do more.</p>
+            </div>
+
+            <div class="m-mark-scope__aside">
+              <!-- The stylized charge value: the CSS twin of the share card's
+                   tier badge (drawBadge in cards/rc-charge-card-generator.js).
+                   +19 is a Decent reading, which is why it wears the green and
+                   sits beside the paragraph explaining the neutral middle. -->
+              <div class="m-mark" aria-hidden="true">
+                <div class="m-mark__charge" style="--m-mark-tier: var(--rc-green); --m-mark-tier-rgb: 51, 204, 85;">
+                  <span class="m-mark__charge-score">+19</span>
+                  <span class="m-mark__charge-label">Decent</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="method-block method-block-ruled">
@@ -504,14 +520,78 @@
           </div>
 
           <h4>Contamination</h4>
-          <p>Contamination applies only to the top 3 tiers — Ascended, Elevated, and Decent. It flags songs that carry content undercutting their substance: substance promotion, casual objectification, ego payloads hidden inside otherwise genuine processing.</p>
-          <p>A substance <em>reference</em> is not contamination. Substance <em>promotion</em> is. The distinction matters — acknowledging something exists vs. celebrating or normalizing it.</p>
-          <p>Contamination is more dangerous than pure degradation because the listener absorbs the payload without conscious detection. The song sounds fine. The lyrics deliver something else underneath.</p>
+
+          <!-- Same two-column break-out the tier stack uses in 2b, so the mark
+               lands in the column the gauge held and the reader's eye finds it
+               in the place it just left. Both marks in this subsection share
+               .m-mark-scope; only the aside's contents differ. -->
+          <div class="m-mark-scope">
+            <div class="m-mark-scope__body">
+              <p>Contamination flags songs that carry content undercutting their substance: substance promotion, casual objectification, ego-driven intentions hidden inside otherwise genuine processing. (Contamination applies only to the top 3 tiers — Ascended, Elevated, and Decent.)</p>
+              <p>A substance <em>reference</em> is not contamination. Substance <em>promotion</em> is. The Rising Compass intentionally distinguishes between a song acknowledging something and promoting or glorifying something.</p>
+              <p>Contamination can be dangerous because that is how subtle degraded or corrupted messages make their way, kind of like a Trojan horse. The song sounds fine for the most part, but part of the lyrics deliver something else underneath.</p>
+              <p>The contamination tag does not influence or alter a song's charge, it's only a warning for the listener.</p>
+            </div>
+
+            <div class="m-mark-scope__aside">
+              <!-- The sitewide contamination glyph (U+2622, .contam-icon in
+                   main.css) at display size. The scaleY(-1) is that icon's
+                   signature flip and rides the glyph itself, so the entrance
+                   transform on the wrapper never has to compose with it. -->
+              <div class="m-mark" aria-hidden="true">
+                <span class="m-mark__glyph">&#x2622;</span>
+              </div>
+            </div>
+          </div>
 
           <h4>Dogma Reference</h4>
-          <p>Dogma Reference is a metadata tag, not a value modifier — it never moves the charge. It marks songs where a specific doctrinal framework (Christian, Islamic, Karmic/Dharmic, or a named institution) is doing the song's work.</p>
-          <p>The bar is <strong>load-bearing</strong>. The tag fires only when worshipping inside, proclaiming, converting to, or asserting the doctrine is what the song is <em>for</em>. Naming the sacred does not fire it. A passing scriptural allusion used to illustrate a point in an otherwise secular song does not fire it. Doing the doctrine does.</p>
-          <p>The test is a swap. Replace the doctrine-specific image with a cross-traditional one. If the song's message survives, the framework was decoration — no tag. If the message collapses because the framework was the engine, the tag fires. The tag exists to make doctrinal content visible over time, never to judge it.</p>
+
+          <div class="m-mark-scope">
+            <div class="m-mark-scope__body">
+              <p>Dogma Reference, like Contamination, is a tag, not a value modifier. It doesn't change the song's charge in any way. It marks songs where a specific doctrinal framework (Christian, Islamic, Karmic/Dharmic, or a named institution) is doing the song's work.</p>
+              <p>The tag fires only when worshipping inside, proclaiming, converting to, or asserting the doctrine is what the song is <em>for</em>. Naming the sacred does not fire it. A passing scriptural allusion used to illustrate a point in an otherwise secular song does not fire it.</p>
+              <p><strong>The Swap Test.</strong> The calibrator runs dogma-suspected songs through a "Swap Test", which replaces the doctrine-specific image with a cross-traditional one. If the song's message survives, the framework was decoration — no tag. If the message collapses because the framework was the engine, the tag fires. The tag exists to make doctrinal content visible, never to judge it.</p>
+            </div>
+
+            <div class="m-mark-scope__aside">
+              <!-- The dogma scroll, DRAWN rather than set: the badge glyph used
+                   elsewhere on the site is U+1F4DC, an emoji-presentation
+                   character that ignores `color` and would render as a
+                   full-colour cartoon at this size. Stroked path in the dogma
+                   token instead, same icon language as the flow visual. -->
+              <div class="m-mark" aria-hidden="true">
+                <svg class="m-mark__svg" viewBox="0 0 24 24">
+                  <path d="M19 17V5a2 2 0 0 0-2-2H4"/>
+                  <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reveal on arrival. Covers every .m-mark on the page, which is all
+               three of them: 2b's charge value and 2c's two condition marks.
+               It sits here, after the last of them, because it arms on parse.
+
+               The hidden state is a class this script adds, so no
+               IntersectionObserver (or no JS at all) leaves the marks plainly
+               visible rather than stuck at opacity 0. -->
+          <script>
+          (function(){
+            var marks = document.querySelectorAll('.m-mark');
+            if(!marks.length || !('IntersectionObserver' in window)) return;
+            var io = new IntersectionObserver(function(entries){
+              entries.forEach(function(e){
+                if(!e.isIntersecting) return;
+                e.target.classList.add('is-in');
+                io.unobserve(e.target);
+              });
+            }, { threshold: 0.35 });
+            Array.prototype.forEach.call(marks, function(m){
+              m.classList.add('is-armed');
+              io.observe(m);
+            });
+          })();
+          </script>
         </div>
 
         <div class="method-block method-block-ruled">
@@ -521,15 +601,36 @@
           </div>
 
           <h4>How Songs Are Read</h4>
-          <p>The calibrator reads lyrics sequentially — line by line, accumulating meaning the way a human reads a poem. Each line reshapes what came before it. The same words mean different things depending on what preceded them. After reading the full song, the dominant arc is identified. That is what gets calibrated.</p>
-          <p>The calibrator evaluates what the <strong>words say</strong>, not how the song sounds. Production, melody, and vocal tone are irrelevant. A melancholic track with degraded lyrics is degraded. A catchy track with thoughtful lyrics isn't automatically shallow. Strip the instrumentation and read what's on the page.</p>
-          <p>Songs are calibrated individually, never by artist. The same artist can have an Ascended song and a Corrupted song. Each work stands alone.</p>
+          <p>The calibrator evaluates what the <strong>words say</strong>, not how the song sounds. Production, melody, and vocal tone are irrelevant. A melancholic track with degraded lyrics is degraded. A catchy track with thoughtful lyrics isn't automatically shallow.</p>
+          <p>The calibrator reads lyrics sequentially — line by line, accumulating meaning the way a human reads a poem. Each line reshapes what came before it. The same words mean different things depending on what preceded them. After reading the full song, the <strong>dominant arc</strong> is identified. That is what gets calibrated.</p>
+          <p class="m-cta-row">
+            <a href="#flow" class="m-cta">See the full flow &uarr;</a>
+          </p>
+
+          <!-- The apparatus in two named halves, so "Why Both Together" has two
+               things to argue about. Absorbed from what used to be a whole
+               section of its own (The Gears) and condensed to the part that
+               appears nowhere else on the page. -->
+          <h5 class="m-part">Part 1: The Tenets</h5>
+          <p>It is important to ground your understanding of The Rising Compass calibrator through what are called "the tenets." A tenet is a core principle, belief, or doctrine shared by a group, organization, or philosophy. In this case, the tenets were created based on what is assumed to be humanity's understanding and agreement of what is good, bad and neutral for the individual or society at large.</p>
+          <p>These 58 tenets are the baseline on which all evaluation is made. The tenets are owned by an external platform, Rising Compass' parent entity, Libra Engine, via the Libra Engine Compass. Tenets are amendable, by the public, via <a href="https://lecg.libraengine.com" target="_blank" rel="noopener">Libra Engine's governance department</a>.</p>
+          <p class="m-cta-row">
+            <a href="https://lec.libraengine.com/tenets/" class="m-cta" target="_blank" rel="noopener">View the tenets<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></a>
+          </p>
+
+          <h5 class="m-part">Part 2: The Agent</h5>
+          <p><strong>Claude Opus</strong>, Anthropic's most capable model, is the reader. It works through the lyrics against the full rubric and reports what it found, tenet by tenet, without ever naming the charge. Fixed arithmetic turns those findings into the number. Every calibration is reviewed and can be corrected, and calibrated songs become reference points for future calibrations of other songs.</p>
+          <p>A single reading is never the final word. Every submission or manual recalibration re-runs the lyrics through the calibrator with no memory of that song's own previous runs, and each run is logged with its own tier, charge, summary, and confidence. The canonical calibration drifts toward the confidence-weighted mean as runs accumulate. Where two runs disagree, the Calibration History shows both rather than averaging the disagreement out of sight.</p>
+
+          <h5 class="m-part">Why Both Together</h5>
+          <p>The agent brings the same patience and the same rubric to every song. No favoritism, no fatigue across thousands of songs. The tenets ensure it isn't reading from its own taste: what counts as Ascended, Elevated, Degraded, or Corrupted is a published, contestable artifact, not a private opinion buried in a model.</p>
+          <p>Reading without published criteria is critique. Criteria without reading is rhetoric. A calibration is a reading <em>against</em> criteria, both visible and both accountable.</p>
 
           <h4>Start at Zero</h4>
-          <p>Every song starts at Decent — charge zero. This is not a judgment. It's the starting position. From zero, the calibrator must build a case using <strong>specific lyrical evidence</strong> to move the needle in either direction. If no clear case can be built, the song stays Decent. The burden of proof increases with distance from zero.</p>
+          <p>Every song starts at Decent — charge zero. This is not a judgment. It's the starting position. From zero, the calibrator must build a case using <strong>specific lyrical evidence</strong> applied against the tenets to move the needle in either direction. If no clear case can be built, the song stays Decent. The burden of proof increases with distance from zero.</p>
 
           <h4>Topics Don't Determine Tiers</h4>
-          <p>The calibrator reads <strong>messaging</strong> — what the lyrics say and do on the page. Not topics. The same topic can land at any tier depending on what the lyrics contain. Love, struggle, partying, faith, heartbreak — all neutral. What the song does with the topic is everything.</p>
+          <p>The calibrator reads <strong>messaging</strong> — what the lyrics say and do on the page. Not topics. The same topic can land at any tier depending on what the lyrics contain. Love, struggle, partying, faith, heartbreak — all neutral. What the song does with the topic is what is measured.</p>
         </div>
 
       </div>
@@ -548,133 +649,74 @@
       <div class="m-section-body methodology-content">
 
         <div class="method-block">
-          <h2 class="method-block-first">Five surfaces, one platform</h2>
-          <p>Reading the data is the point. The Rising Compass is only useful if you can see what it sees. Below are the surfaces the platform exposes. Four of them answer a different question over a different span of time. The fifth hands you the calibrator.</p>
+          <p>As mentioned, The Rising Compass is a data-generator/aggregator and a platform that displays that data in consumable formats. Below are the ways in which the Rising Compass presents its data.</p>
         </div>
 
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Surface One</div>
-          <h2>Today's Reading</h2>
-          <p><strong>Daily readings:</strong> Top 20 from the Spotify Top 50 USA chart, calibrated each day at 3am ET and published after human review. The compass reading is a weighted average &mdash; songs ranked higher on the chart carry more weight because they reach more people. Position #1 has 20x the weight of position #20.</p>
-          <p>The result is a single compass degree that reflects the overall direction of what popular music is saying today. The further from center (90&deg;), the stronger the signal &mdash; above 90&deg; trends negative, below 90&deg; trends positive.</p>
-          <p>Today's reading answers one question: <em>what is popular music saying right now, taken as a whole?</em></p>
-          <p>The streaming chart is the reading that sets the compass degree, but it isn't the only chart the platform runs. Downloads, Shazam, YouTube Trending, and New Music Friday each get their own daily or weekly calibrated chart, published on the same approve-before-public gate. They are kept out of the compass charge on purpose. Discovery and purchase behave differently from listening, and folding them together would blur the reading rather than sharpen it. The calendar paints the daily ones back across the year, one day at a time.</p>
-          <p class="m-cta-row">
-            <a href="/" class="m-cta">See today's reading &rarr;</a>
-          </p>
-        </div>
+        <!-- The surfaces as a module grid rather than eight stacked prose
+             blocks. Breaks the reading measure the same way .tier-scope and
+             .m-mark-scope do, because four columns need the room; collapses to
+             two, then one. Each module is ONE link, with the CTA as a span
+             inside it, so nothing nests an anchor inside an anchor. -->
+        <div class="m-surface-grid">
 
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Surface Two</div>
-          <h2>Per-Song Stats &amp; Effect on the Listener</h2>
-          <p>Every song has its own page. The page carries the song's tier, its charge value, the calibrator's one-line summary of what the lyrics are doing, contamination flags if any, and the full Calibration History. Every calibration run is logged, in order. Recalibrations and resets each get their own public note, with the reasoning included.</p>
-          <p>The per-song view is where the abstract becomes concrete. You can see exactly what the calibrator read this song as doing to the listener, and exactly how that reading was arrived at.</p>
-        </div>
+          <div class="m-surface">
+            <h2 class="m-surface__title">Today's Reading</h2>
+            <p class="m-surface__lede">The top 20 of the Spotify Top 50 USA, calibrated every morning and published after human review, weighted so the songs reaching the most people count for the most. One compass degree for what popular music is saying right now.</p>
+            <a class="m-cta m-surface__cta" href="/">See today's reading<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Surface Three</div>
-          <h2>Artist Release Trajectory</h2>
-          <p>Every artist has a page that shows their releases, calibrated. Charge moves over time. An artist whose work climbs from Decent to Elevated across a decade has a visible trajectory. So does one whose work drifts the other way. The calibrator reads songs, not artists. A songwriter's body of work still tells a story the songs alone don't.</p>
-          <p>The trajectory view answers: <em>what is this artist asking the listener to absorb, across their catalog?</em></p>
-        </div>
+          <div class="m-surface">
+            <h2 class="m-surface__title">Song Pages</h2>
+            <p class="m-surface__lede">Every song carries its tier, its charge value, the calibrator's one-line summary, contamination and dogma flags, and the full Calibration History. Every run is logged in order, with its reasoning.</p>
+            <a class="m-cta m-surface__cta" href="/songs/heal-the-world-michael-jackson">View song page<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Surface Four</div>
-          <h2>The Historical Archive</h2>
-          <p><strong>Historical archive:</strong> 700+ songs from the Billboard Year-End Hot 100 top 10, spanning 1960 to present. Originally published as <a href="https://chadlewine.com/observations/popular-music-has-lost-its-moral-compass" target="_blank">Popular Music Has Lost Its Moral Compass</a>, now being recalibrated through the current 58-tenet rubric.</p>
-          <p>The Drift, the homepage view of decade-by-decade charge, is the high-altitude reading of that archive. The full library is browsable directly. The archive answers the long question: <em>where has popular music been pointed, decade by decade?</em></p>
-        </div>
+          <div class="m-surface">
+            <h2 class="m-surface__title">Artist Trajectory</h2>
+            <p class="m-surface__lede">Charge moves over time. An artist whose work climbs from Decent to Elevated across a decade has a visible trajectory, and so does one drifting the other way. What is this artist asking the listener to absorb, across a catalog?</p>
+            <a class="m-cta m-surface__cta" href="/artists/chad-lewine">View artist page<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Surface Five</div>
-          <h2>The Lyrical Charger</h2>
-          <p>The first four surfaces show you songs the platform picked. The Lyrical Charger lets you pick. Paste a set of lyrics or search for a released song, and the same calibrator that reads the daily chart reads yours, returning the tier, the charge value, the data points, and the prose the platform publishes for anything else in the library.</p>
-          <p>A charged song joins the library, so the tool is also how the collection grows past what the charts feed it. Songs that have already been read come back from cache instead of being re-run, and a song settles once it has accumulated enough readings.</p>
-          <p>The charger answers a question none of the other surfaces can: <em>what does this instrument say about the song I brought to it?</em></p>
-          <p class="m-cta-row">
-            <a href="/lyrical-charger/" class="m-cta">Charge a song &rarr;</a>
-            <a href="/lyrical-charger/activity/" class="m-cta">See what others are charging &rarr;</a>
-          </p>
-        </div>
+          <div class="m-surface">
+            <h2 class="m-surface__title">Release Pages</h2>
+            <p class="m-surface__lede">An album is its own unit with its own reading, carrying the mean charge of its tracks plus prose composed from what each song was already found to be doing. The record as the artist sequenced it, not a pile of singles.</p>
+            <a class="m-cta m-surface__cta" href="/artists/the-philharmonik/transcendentalism-i">View release page<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
-      </div>
-    </section>
+          <div class="m-surface">
+            <h2 class="m-surface__title">The Chart Suite</h2>
+            <p class="m-surface__lede">Streaming, downloads, Shazam, YouTube Trending, and New Music Friday each get their own calibrated chart. They stay out of the compass charge on purpose, because discovery and purchase behave differently from listening.</p>
+            <a class="m-cta m-surface__cta" href="/charts/">See the charts<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
+          <div class="m-surface">
+            <h2 class="m-surface__title">The Calendar</h2>
+            <p class="m-surface__lede">Every reading painted its exact charge color, on any chart, drilling from single days out to whole decades. Pick a day and its reading opens. The long view of how the needle actually moved.</p>
+            <a class="m-cta m-surface__cta" href="/calendar/">Open the calendar<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
-    <!-- ═══ 4. WHAT THE COMPASS IS AND ISN'T SAYING ═══ -->
-    <section class="m-section" id="scope">
-      <div class="m-section-header">
-        <span class="m-section-num">4</span>
-        <div>
-          <p class="m-section-eyebrow">How to Hold This</p>
-          <h2 class="m-section-title">What the Compass Is and Isn't Saying</h2>
-        </div>
-      </div>
+          <div class="m-surface">
+            <h2 class="m-surface__title">The Historical Archive</h2>
+            <p class="m-surface__lede">700+ songs from the Billboard Year-End Hot 100, 1960 to present, being recalibrated through the current 58-tenet rubric. The Drift reads it decade by decade: where has popular music been pointed?</p>
+            <a class="m-cta m-surface__cta" href="/library/">Browse the archive<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
-      <div class="m-section-body methodology-content">
+          <div class="m-surface">
+            <h2 class="m-surface__title">The Ether</h2>
+            <p class="m-surface__lede">The other axis. Not what a song is charged at but what it is about, read as topics and themes across the corpus. The Ether Art Chart holds today's, and Topic Trends tracks what the culture keeps returning to.</p>
+            <a class="m-cta m-surface__cta" href="/ether-art-chart/">See the ether art chart<svg class="m-cta__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          </div>
 
-        <div class="method-block">
-          <h2 class="method-block-first">One question, held inside its scope</h2>
-          <p>One line: <em>does this song expand consciousness, or does it diminish it?</em> The tiers and charges are the measurement. The drift is the signal. That is the whole question.</p>
-          <p>Hold the readings inside their scope. The calibrator reads recorded music &mdash; specifically, the lyrics on the page. Not live performance, not production, not vocal tone, not who's singing. And it isn't a verdict on a life. Listening to a Corrupted song doesn't make a person lesser. Listening to an Ascended song doesn't make a person better. The goal isn't to shun red or enforce violet. It's to make what the music is doing visible so listeners can see what they're absorbing.</p>
-          <p>Inside that scope, take the readings seriously. There has been a communal slide away from reading lyrics, paying attention to them, caring what they say. The songwriter has been undervalued because lyrics are the hardest thing to absorb &mdash; they take more work than a melody or a voice. The Rising Compass exists in part to reverse that. Read the lyrics.</p>
         </div>
 
       </div>
     </section>
 
 
-    <!-- ═══ 5. THE GEARS ═══ -->
-    <section class="m-section" id="gears">
-      <div class="m-section-header">
-        <span class="m-section-num">5</span>
-        <div>
-          <p class="m-section-eyebrow">The AI and the Tenets</p>
-          <h2 class="m-section-title">The Gears Behind the Calibrator</h2>
-        </div>
-      </div>
-
-      <div class="m-section-body methodology-content">
-
-        <div class="method-block">
-          <h2 class="method-block-first">Two gears, in mesh</h2>
-          <p>Two gears turn behind the calibrator. One is the <strong>agent</strong>: the AI that reads every song against the rubric. The other is the <strong>tenets</strong>: the published, amendable list of what each tier means in concrete terms. Neither alone is enough. The agent without tenets is arbitrary. The tenets without the agent are unreadable at scale. They turn together.</p>
-        </div>
-
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Gear One</div>
-          <h2>The Agent</h2>
-          <p><strong>The reader:</strong> Claude Opus &mdash; Anthropic's most capable model &mdash; runs each song through the calibrator against the full rubric. Every calibration is reviewed and can be corrected. Calibrated songs become reference points for future calibrations.</p>
-          <p><strong>Runs accumulate.</strong> A single AI reading is never the final word. Every submission of a song re-runs the agent. Each run is logged with its own tier, charge, and summary. The canonical calibration drifts toward the confidence-weighted mean as runs accumulate. The more readings a song receives, the tighter the confidence interval on its true charge.</p>
-          <p>Every song page shows the full <strong>Calibration History</strong>: each individual calibration run with its own charge, tier, summary, and confidence. If one reading says &minus;38 and another says &minus;30, both are visible side by side &mdash; not averaged into a single number that hides the disagreement. We're honest that Claude doesn't produce identical readings every time, and we turn that variance into the mechanism: statistical convergence across runs builds confidence.</p>
-        </div>
-
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Gear Two</div>
-          <h2>The Tenets</h2>
-          <p>The tenets are the living constitution of the Libra Engine Compass. Fifty-eight tenets across five tiers, symmetric top to bottom. Publicly held, publicly amendable. Not by vote, but by deliberation. The burden of changing them is deliberate and high. The words on the tenets page are what we collectively agree on as our moral grounding while interacting with each other in the communities and nations we share.</p>
-          <p>The tenets are not eternal. They are not universal. They are what we agree to here and now, while sharing this culture. They will move when our collective understanding moves. The mechanism for that movement is in <a href="#forces">section 6</a>.</p>
-          <p class="m-cta-row">
-            <a href="https://lec.libraengine.com/tenets/" class="m-cta">Read the tenets &rarr;</a>
-          </p>
-        </div>
-
-        <div class="method-block method-block-ruled">
-          <div class="method-block-label">Why Both Together</div>
-          <h2>The Mesh</h2>
-          <p>The agent ensures that every song gets read with the same patience and the same rubric. No favoritism. No fatigue across thousands of songs.</p>
-          <p>The tenets ensure that the agent isn't reading from its own taste. What counts as Ascended, Elevated, Degraded, or Corrupted is a published, contestable artifact. Not a private opinion buried in a model.</p>
-          <p>Reading without published criteria is critique. Criteria without reading is rhetoric. A calibration is a reading <em>against</em> criteria, both visible and both accountable.</p>
-        </div>
-
-      </div>
-    </section>
-
-
-    <!-- ═══ 6. THE FORCES ═══ -->
+    <!-- ═══ 4. THE FORCES ═══ -->
     <section class="m-section" id="forces">
       <div class="m-section-header">
-        <span class="m-section-num">6</span>
+        <span class="m-section-num">4</span>
         <div>
           <p class="m-section-eyebrow">Misreads, Amendments, Deliberations</p>
           <h2 class="m-section-title">The Forces That Mold the Gears</h2>
@@ -761,10 +803,10 @@
     </section>
 
 
-    <!-- ═══ 7. THE NEW LABEL ═══ -->
+    <!-- ═══ 5. THE NEW LABEL ═══ -->
     <section class="m-section" id="label">
       <div class="m-section-header">
-        <span class="m-section-num">7</span>
+        <span class="m-section-num">5</span>
         <div>
           <p class="m-section-eyebrow">Replacing "Explicit"</p>
           <h2 class="m-section-title">The New Label</h2>
@@ -813,13 +855,13 @@
     </section>
 
 
-    <!-- ═══ 8. COMMON QUESTIONS ═══
+    <!-- ═══ 6. COMMON QUESTIONS ═══
          Eyebrow and title were inverted here relative to every other section
          (and relative to the TOC entry, which links "Common Questions"). Swapped
          2026-08-13 so the subtitle is the eyebrow, as everywhere else. -->
     <section class="m-section" id="questions">
       <div class="m-section-header">
-        <span class="m-section-num">8</span>
+        <span class="m-section-num">6</span>
         <div>
           <p class="m-section-eyebrow">Topics vs. Messaging</p>
           <h2 class="m-section-title">Common Questions</h2>

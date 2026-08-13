@@ -452,6 +452,17 @@
   margin: 1.3rem 0 0.45rem;
 }
 
+/* The plain h5 above is sized as an ASIDE within a group (it sits under body
+   copy on purpose). The Part headings in 2d do structural work instead, so they
+   take a rung of their own between h5 and h4 rather than announcing two
+   paragraphs in type smaller than the paragraphs. */
+.methodology-content h5.m-part {
+  font-size: 1.06rem;
+  font-weight: 700;
+  color: var(--rc-accent);
+  margin: 1.75rem 0 0.5rem;
+}
+
 /* The FAQ's question headings are their own thing (accent, italic, set in
    main.css) and must not pick up the h4 rule above. */
 .methodology-content .rubric-q h4 {
@@ -478,7 +489,23 @@
   align-items: stretch;
 }
 
-.m-section-body .tier-scope {
+/* Prose column pinned to the page measure rather than an even half. The tier
+   stack can take a 1fr/1fr split because its left column is cards, but 2c's
+   left column is body copy sitting between body copy: an even split would
+   narrow those paragraphs against the ones above and below them, changing the
+   measure mid-subsection. The mark takes whatever the break-out adds instead.
+
+   One scope for both marks in 2c (contamination, dogma). Everything except the
+   mark itself is shared, so the pair never drift apart. */
+.m-mark-scope {
+  display: grid;
+  grid-template-columns: minmax(0, var(--m-measure)) 1fr;
+  gap: 2rem;
+  align-items: stretch;
+}
+
+.m-section-body .tier-scope,
+.m-section-body .m-mark-scope {
   width: calc(100% + 29.25rem);
   max-width: calc(100vw - 3rem);
 }
@@ -487,7 +514,8 @@
    the middle of the viewport while the cards travel past it. The translate is
    what centres it -- sticky resolves against the box's own top edge, so `top`
    alone would hang it half a gauge too low. */
-.tier-scope__aside {
+.tier-scope__aside,
+.m-mark-scope__aside {
   position: relative;
 }
 
@@ -533,15 +561,203 @@
   .tier-compass { transition: none; }
 }
 
-/* Stacked, the gauge would sit below five cards it can no longer point at. */
+/* Stacked, the gauge would sit below five cards it can no longer point at, and
+   the contamination mark below the prose it is meant to sit beside. */
 @media (max-width: 1100px) {
   .m-section-body .tier-scope,
-  .tier-scope {
+  .tier-scope,
+  .m-section-body .m-mark-scope,
+  .m-mark-scope {
     width: 100%;
     max-width: var(--m-measure);
     grid-template-columns: 1fr;
   }
-  .tier-scope__aside { display: none; }
+  .tier-scope__aside,
+  .m-mark-scope__aside { display: none; }
+}
+
+/* ─── Surface module grid (section 3) ─────────────────────
+   Four across, two down. Breaks the reading measure the same way .tier-scope
+   and .m-mark-scope do, since four columns of prose need the room, then drops
+   to two and finally one rather than squeezing a lede into a 9rem column. */
+.m-surface-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.6rem;
+}
+
+.m-section-body .m-surface-grid {
+  width: calc(100% + 29.25rem);
+  max-width: calc(100vw - 3rem);
+}
+
+@media (max-width: 1100px) {
+  .m-section-body .m-surface-grid,
+  .m-surface-grid {
+    width: 100%;
+    max-width: var(--m-measure);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .m-surface-grid { grid-template-columns: 1fr; }
+}
+
+/* The CTA is the only link; the module itself is inert. So no hover state on
+   the card -- a panel that lights up under the pointer reads as clickable, and
+   this one isn't. Column layout with the CTA pushed to the foot keeps the
+   buttons on one line across a row of uneven ledes. */
+.methodology-content .m-surface,
+.m-surface {
+  display: flex;
+  flex-direction: column;
+  padding: 1.15rem 1.1rem 1.2rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+}
+
+/* The site accent, the same teal the eyebrow carried before it was removed and
+   the same one the card's hover border takes. NOT --rc-green, which is the
+   Decent TIER token and means something specific about a song's charge. */
+.methodology-content .m-surface__title {
+  font-size: 1.17rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--rc-accent);
+  margin: 0 0 0.5rem;
+}
+
+.methodology-content .m-surface__lede {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--rc-text);
+  margin: 0 0 1rem;
+}
+
+/* Pushed to the foot so every CTA in a row sits on the same baseline. */
+.m-surface__cta {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+
+/* ─── Subsection marks (2c) ───────────────────────────────
+   Display-size twins of the sitewide song badges, parked in the column the
+   compass gauge holds one subsection earlier, so the eye finds them where it
+   just left the dial.
+
+   Centred in the aside, NOT sticky. The gauge in 2b sticks because five tier
+   cards give it a column of travel; these blocks are three paragraphs each, so
+   the aside ends up barely taller than the mark and a sticky box with nowhere
+   to go stops sticking altogether (the same trap the gauge hit at
+   height: 100vh). Sized to sit comfortably inside that shorter column. */
+.m-mark-scope__aside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.m-mark {
+  --m-mark-size: clamp(7rem, 13vw, 12rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The hidden state is ARMED BY THE SCRIPT, never by default. A browser that
+   never runs the reveal (JS off, script error) shows the mark instead of
+   hiding it forever, so the hidden state only exists where something can also
+   un-hide it. The wrapper owns the entrance transform, so it never has to
+   compose with the contamination glyph's own scaleY(-1) flip. */
+.m-mark.is-armed {
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 600ms var(--rc-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+              transform 600ms var(--rc-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.m-mark.is-armed.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Contamination: the radioactive sign (U+2622). Text-presentation by default,
+   so it takes `color` and sits on the page's own red. */
+.m-mark__glyph {
+  font-size: var(--m-mark-size);
+  line-height: 1;
+  color: var(--rc-red);
+  /* The flip is what makes this read as RC's contamination icon and not a
+     stock radiation symbol. Same transform .contam-icon carries in main.css. */
+  transform: scaleY(-1);
+  /* Two soft passes, the wider one doing the room light and the tighter one
+     the edge, both on the page's red rather than glowing white-hot. */
+  text-shadow: 0 0 2.5rem rgba(255, 51, 51, 0.28),
+               0 0 0.9rem rgba(255, 51, 51, 0.35);
+}
+
+/* Dogma: drawn, not set. The badge glyph elsewhere on the site is the scroll
+   EMOJI (U+1F4DC), which is emoji-presentation and therefore ignores `color`
+   -- at 12rem it would render as a full-colour cartoon beside a flat red
+   radiation sign. This is the same scroll as a stroked path in the dogma
+   token, matching the flow visual's icon language. */
+.m-mark__svg {
+  width: var(--m-mark-size);
+  height: var(--m-mark-size);
+  fill: none;
+  stroke: var(--rc-dogma);
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 1.6rem rgba(138, 127, 224, 0.32));
+}
+
+/* The stylized charge value: the CSS twin of the share card's tier badge
+   (drawBadge in cards/rc-charge-card-generator.js) -- tier-coloured fill,
+   rounded, glowing in its own colour, with the value in mono over the tier
+   name. The generator picks its foreground by relative luminance against a
+   0.55 threshold; Decent green (#33cc55) lands at 0.64, so it takes dark type.
+   A tier whose fill is darker than that wants #f4f4fa instead. */
+.m-mark__charge {
+  --m-mark-tier: var(--rc-green);
+  --m-mark-tier-rgb: 51, 204, 85;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.9rem 1.6rem 1rem;
+  border-radius: 16px;
+  background: var(--m-mark-tier);
+  color: #0a0a14;
+  box-shadow: 0 0 2.4rem rgba(var(--m-mark-tier-rgb), 0.34);
+}
+
+.m-mark__charge-score {
+  font-family: var(--rc-font-mono);
+  font-weight: 700;
+  font-size: calc(var(--m-mark-size) * 0.51);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.m-mark__charge-label {
+  font-weight: 600;
+  font-size: calc(var(--m-mark-size) * 0.145);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-mark.is-armed {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 .tier-grid {
@@ -597,8 +813,24 @@
 
 /* No border-top. The header band below now opens each section, and a rule
    sitting a couple of rem above the band read as a stray second line. */
+/* Smooth-scroll the in-page jumps: the TOC, "Why the tenets" down to section 5,
+   "See the full flow" back up to 2a. Scoped to this page by virtue of
+   methodology.css only loading here, and lifted verbatim from the artist
+   index's letter-nav (artists.css), which is where the pattern already lives.
+   Reduced-motion users keep instant jumps. */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
 .m-section {
   padding: 2.5rem 0 1rem;
+  scroll-margin-top: 1rem;
+}
+
+/* The flow visual is an anchor target too ("See the full flow"), so it needs
+   the same landing offset the numbered sections get. */
+.m-subsection {
   scroll-margin-top: 1rem;
 }
 
@@ -695,27 +927,63 @@
   gap: 0.6rem;
 }
 
-/* Scoped through .methodology-content to beat the prose-link rule above
+/* THE sitewide RC action button, not a methodology-only one. This used to be
+   0.85rem Inter in sentence case with teal type -- an outlier against every
+   other button on the site, which are mono, small, uppercase and letter-spaced
+   inside an accent outline (.ether-open-btn and .hp-chart-btn, both main.css).
+   Matched to .ether-open-btn: same type ramp, same border, same accent-hover
+   fill, minus its width:100% and margin-top:auto, which exist only to seat it
+   at the foot of the ether card.
+
+   Scoped through .methodology-content to beat the prose-link rule above
    (0,1,1), which was painting an underline through every CTA button. A bare
    .m-cta is (0,1,0) and its text-decoration:none never applied. */
 .methodology-content .m-cta,
 .m-cta {
-  display: inline-block;
-  padding: 0.55rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
   border: 1px solid var(--rc-accent);
-  border-radius: var(--rc-radius-md);
-  color: var(--rc-accent);
+  border-radius: var(--rc-radius-sm);
+  color: var(--rc-text-bright);
+  /* Rests in the accent wash rather than transparent, and DARKENS on hover
+     into the page's own darkest surface, so the button reads as a lit plate
+     that recedes when pressed. Both are existing tokens; --rc-bg-dark is the
+     same cutout fill .tier-col__name punches through the tier bars. */
+  background: var(--rc-accent-hover);
   text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-family: var(--rc-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   transition: background var(--rc-ease), color var(--rc-ease);
 }
 
-.m-cta:hover {
-  background: var(--rc-accent);
-  color: #0a0a14;
+/* Darker on hover, tinted toward the Elevated blue rather than going flat
+   black. Mixed off the tokens so it tracks either theme's --rc-bg-dark; the
+   flat value above it is the fallback where color-mix is missing, same
+   two-line pattern the prose-link hover uses. */
+/* Stroked in currentColor so it tracks the label through the hover. Sized in
+   em to stay locked to the CTA's own type. */
+.m-cta__icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
+
+.methodology-content .m-cta:hover,
+.m-cta:hover {
+  background: #101d37;
+  background: color-mix(in srgb, var(--rc-bg-dark) 85%, var(--rc-blue));
+  color: var(--rc-text-bright);
+}
+
 
 /* ─── key-points list (already used elsewhere; safe defaults) */
 
