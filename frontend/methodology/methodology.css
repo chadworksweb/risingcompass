@@ -685,10 +685,20 @@
 
 /* ─── Inline CTAs inside section bodies ───────────────────── */
 
+/* Flex so a row can carry more than one CTA (section 3 Surface Five does)
+   without relying on the collapsed whitespace between two inline-blocks. Every
+   row holds only .m-cta links, so nothing here has text to reflow. */
 .m-cta-row {
   margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
 }
 
+/* Scoped through .methodology-content to beat the prose-link rule above
+   (0,1,1), which was painting an underline through every CTA button. A bare
+   .m-cta is (0,1,0) and its text-decoration:none never applied. */
+.methodology-content .m-cta,
 .m-cta {
   display: inline-block;
   padding: 0.55rem 1rem;
