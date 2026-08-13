@@ -462,6 +462,46 @@ transaction over a single SQLAlchemy Core connection (`engine.connect()` +
   Release for the artist. Idempotent.
 - `GET /api/admin/artists/events` — paginated audit log for merge/rename.
 
+### Rebuilding a catalogue (read before you run it, 2026-08-13)
+
+`resolve-metadata` is ADDITIVE and skips by MBID, so it can NEVER retroactively apply
+a tightened filter. Only **`POST /api/admin/artists/{slug}/rebuild-releases`** can.
+Between 2026-06-06 and 2026-08-13 the release filter was codified but never applied to
+any artist, so every catalogue on the site was still the ad-hoc filter's output.
+**Tightening a filter is only half a change; the rebuild is the other half.**
+
+- **The rebuild fetches BEFORE it purges.** It used to do the opposite, and a transient
+  MusicBrainz 503 deleted the Beatles' 105 releases and replaced them with nothing. An
+  outage is now a 503 that changes nothing, and the artist page stays live for the whole
+  multi-minute fetch. Do not reorder these phases.
+- **`get_artist_releases` raises `MusicBrainzUnavailable` rather than truncating.** It
+  used to break its pagination loop on any error and return the pages it had as though
+  complete: one 503 on page 2 of 1,017 release-groups yielded 18 albums and reported
+  success. A short list must never be indistinguishable from a failure.
+- **MB is 1 req/sec and 503s freely under load.** A Beatles-sized rebuild is minutes and
+  routinely needs a retry. `MB_PAGE_ATTEMPTS = 5` with doubling backoff; `search_artist`,
+  `get_artist_releases` and `get_release_tracks` all go through `_mb_get`.
+- **Release aggregates and `release_songs` links are written ONLY during a resolve.** A
+  song calibrated after the last resolve is linked to nothing and invisible to the
+  trajectory, and a recalibrated song leaves its release's `charge_value` stale (Hey Jude
+  displayed 82 against a song reading of 30). Re-resolve after a calibration run.
+
+### Release suppressions (migration 147)
+
+The filter cannot reach a release MB files as official, valid-type, and credited to the
+artist which still is not that artist's catalogue (the Beatles' Tony Sheridan sessions,
+fan-club Christmas discs). **Deleting those by hand does not survive a rebuild** -- the
+fetch re-creates them. `release_suppressions` makes the curation durable.
+
+- `GET|POST /api/admin/artists/{slug}/suppressions`, `DELETE .../suppressions/{id}`.
+  POST both suppresses AND deletes (either alone is half the job), and 409s while the
+  release carries a calibrated song rather than stranding a real reading.
+- Matched on **normalised title, not MBID** (MBIDs churn when MB re-files a group).
+  `artist_utils.normalize_release_title` folds BOTH smart-quote families to ASCII --
+  straight-quote matching is what let "Ain't She Sweet" survive the first cleanup.
+- Lookup is fail-soft: a suppression error must never break a catalogue rebuild.
+- 9 seeded for The Beatles. Full record: `RISING-COMPASS-ARTIST-RELEASES.md`.
+
 ## Artist CRM + outreach log (Hockey Stick Build 8, 2026-06-11)
 
 The Artist Verified funnel (`artist_verifications`: stages lead -> contacted ->
