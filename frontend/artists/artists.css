@@ -68,17 +68,21 @@ body {
   margin: 0;
 }
 
+/* Page header centres its text only -- text-align, never max-width/margin auto.
+   The header block itself stays full width like every other page wrapper. */
 .artist-page-question {
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--rc-text-bright);
   margin: 0;
+  text-align: center;
 }
 .artist-page-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--rc-text-bright);
   margin: 0;
+  text-align: center;
 }
 
 /* --- Search --- */
