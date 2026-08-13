@@ -562,6 +562,7 @@
   let currentZoom = 'all';
   let chartPoints = [];
   let chartData = [];
+  let chartFullW = 0;
   let chartHasYTD = false;
   let tmPlaying = false;
   let tmAnimFrame = null;
@@ -594,6 +595,7 @@
     chartData = data;
 
     const W = 320, H = 120;
+    chartFullW = W;  // module-scope copy so updateTimeMachine can un-clip
     const padL = 30, padR = 16, padT = 10, padB = 22;
     const chartW = W - padL - padR;
     const chartH = H - padT - padB;
@@ -761,7 +763,7 @@
 
       tmStopPlayback();
       tmPosition = nearest;
-      updateTimeMachine(tmPosition);
+      updateTimeMachine(tmPosition, { clip: false });
 
       const dot = document.getElementById('traj-hover-dot');
       if (dot) { dot.classList.add('click-pulse'); setTimeout(() => dot.classList.remove('click-pulse'), 100); }
@@ -803,7 +805,13 @@
   }
 
   // --- Time Machine (drives trajectory clip + compass) ---
-  function updateTimeMachine(pos) {
+  // `opts.clip === false` moves everything EXCEPT the trajectory clip, and
+  // restores the line to full width. Scrubbing the slider is a "show me the
+  // catalogue as of this date" gesture, so clipping is right there. Clicking a
+  // point is "tell me about this release" — truncating the arc to the release
+  // you just asked about throws away the very context you clicked it for.
+  function updateTimeMachine(pos, opts) {
+    const clip = !opts || opts.clip !== false;
     const max = chartData.length - 1;
     if (max < 0) return;
 
@@ -828,11 +836,15 @@
     }
     if (resetBtn) resetBtn.style.display = '';
 
-    // Clip trajectory chart to current position
+    // Clip trajectory chart to current position (or restore it in full).
     const clipRect = document.getElementById('traj-clip-rect');
     if (clipRect && chartPoints.length) {
-      const px = chartPoints[Math.min(i, max)].x + (chartPoints[Math.min(i + 1, max)].x - chartPoints[Math.min(i, max)].x) * frac;
-      clipRect.setAttribute('width', px + 2);
+      if (clip) {
+        const px = chartPoints[Math.min(i, max)].x + (chartPoints[Math.min(i + 1, max)].x - chartPoints[Math.min(i, max)].x) * frac;
+        clipRect.setAttribute('width', px + 2);
+      } else if (chartFullW) {
+        clipRect.setAttribute('width', chartFullW);
+      }
     }
 
     // Move the dot to current position
