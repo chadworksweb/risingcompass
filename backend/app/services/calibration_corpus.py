@@ -221,6 +221,7 @@ def _guard_reasoning(
     *,
     title: str | None = None,
     artist: str | None = None,
+    lyric_free: bool = False,
 ) -> str | None:
     """The single code-level lock on the stored agent argument: a run's
     `reasoning` is persisted ONLY after passing the verbatim-lyric scrub.
@@ -230,9 +231,26 @@ def _guard_reasoning(
     When lyrics ARE present, any sentence carrying a >= MIN_RUN verbatim lyric
     run is stripped; if that guts the text, None is stored. The lyrics are used
     transiently for comparison only and are NEVER persisted (the corpus stores
-    a hash, not the words -- see module docstring)."""
+    a hash, not the words -- see module docstring).
+
+    `lyric_free` is the ALBUM lane, and it is a narrow, structural exemption
+    rather than a bypass. The rc-album lens reads approved song ROWS in running
+    order -- summaries, prose and numbers already scrubbed at song scale. No
+    lyric text exists anywhere in that lane, so there is nothing to check
+    against and nothing that could have been copied: fail-closed would store
+    NOTHING, forever, for every album. Declaring the lane is therefore an
+    assertion the caller must be able to make truthfully, and passing lyrics
+    alongside it contradicts the claim -- so that combination is treated as the
+    ordinary lyric lane and scrubbed anyway."""
     if not reasoning:
         return None
+    if lyric_free and not lyrics:
+        return reasoning
+    if lyric_free and lyrics:
+        logger.warning(
+            "lyric_free run for '%s' by %s was passed lyrics; scrubbing anyway "
+            "(the lane claims no lyrics exist)", title, artist,
+        )
     if not lyrics:
         logger.warning(
             "reasoning supplied without lyrics for '%s' by %s; not stored "
@@ -256,14 +274,22 @@ def log_run(
     calibration: dict,
     triggered_by: str,
     song_id: int | None = None,
+    release_id: int | None = None,
     lyrics_hash: str | None = None,
     lyrics_fingerprint: bytes | None = None,
     agent_model: str | None = None,
     lyrics: str | None = None,
+    lyric_free: bool = False,
 ) -> CalibrationRun:
     """Record one agent run. Always writes. The caller has already committed
     the song row (or decided no song row is appropriate). `song_id` is the
     atomic songs.id and keys the run to the song for consensus aggregation.
+
+    `release_id` keys an ALBUM run instead (migration 149): the rc-album lens
+    emits the same v3 component shape, so a release reading is this same ledger
+    row with the release pointer set and the song pointer NULL. That lane is
+    lyric-free by construction -- it reads approved song rows, never lyrics --
+    so it passes `lyric_free=True` and carries no hash and no fingerprint.
 
     `calibration` may carry a "reasoning" key (the agent's structured argument).
     It is stored ONLY through `_guard_reasoning`, which scrubs verbatim lyrics
@@ -279,6 +305,7 @@ def log_run(
     transcendence = calibration.get("transcendence") or {}
     run = CalibrationRun(
         song_id=song_id,
+        release_id=release_id,
         title=title,
         artist=artist,
         rubric_color=calibration.get("rubric_color"),
@@ -295,9 +322,11 @@ def log_run(
         lyrics_fingerprint=lyrics_fingerprint,
         reasoning=_guard_reasoning(
             calibration.get("reasoning"), lyrics, title=title, artist=artist,
+            lyric_free=lyric_free,
         ),
         visceral_charge=calibration.get("visceral_charge"),
         route=calibration.get("route"),
+        coherence=calibration.get("coherence"),
         harm_value=harm.get("value"),
         harm_pervasive=bool(harm.get("pervasive", False)),
         transcendence_value=transcendence.get("value"),

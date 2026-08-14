@@ -379,6 +379,33 @@ class Release(Base):
     topic_audit = Column(Text)  # JSON-encoded audit dict, or NULL when topics present
     source = Column(String(30))  # 'album_charger' for user-charged albums; else NULL
     submitted_at = Column(DateTime)  # when charged via the Album Charger
+    # --- the rest of the v3 release reading (migration 148) ---
+    # The rc-album lens emits a full v3 reading; migrations 069/090 only had room
+    # for the prose. This is the SONG column set (see Song below), so a release
+    # answers the same questions a song does. The v3 COMPONENTS (visceral,
+    # coherence, harm/transcendence, center, vernier) are deliberately absent --
+    # like a song's, they live per-run on calibration_runs (migration 149).
+    contaminated = Column(Boolean, default=False)
+    contamination_note = Column(Text)
+    dogma_referenced = Column(Boolean, default=False)
+    dogma_note = Column(Text)
+    confidence = Column(Float)
+    # JSON-encoded Text, same convention as topics: the prescription for taking
+    # in the WHOLE album, composed from the release's own finished reading.
+    psyche_facts = Column(Text)
+    effects_pl = Column(Text)
+    calibration_failed = Column(Boolean, default=False)
+    # Prose seal + one-step-back archive, matching the song provenance contract.
+    # prior_arc_prose has no song counterpart -- arc_prose is release-only and
+    # shipped in 069 with no archive slot, and all three lanes archive or none
+    # of them is a contract.
+    societal_prose_generated_at = Column(DateTime)
+    societal_prose_model = Column(Text)
+    prior_listener_effects_prose = Column(Text)
+    prior_societal_effects_prose = Column(Text)
+    prior_arc_prose = Column(Text)
+    prior_societal_prose_generated_at = Column(DateTime)
+    prior_societal_prose_model = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -816,11 +843,20 @@ class CalibrationRun(Base):
     a persisted canonical song row. title + artist snapshot regardless.
     Lyrics themselves are never stored — only a SHA-256 hash for dedupe /
     variance awareness.
+
+    Also logs RELEASE readings (migration 149): the rc-album lens emits the same
+    v3 component shape, so an album run is this table with `release_id` set and
+    `song_id` NULL. The album lane is lyric-free by construction — it reads
+    approved song ROWS, never lyrics — so its runs carry no hash and no
+    fingerprint, and `coherence` carries the axis `route` carries for a song.
     """
     __tablename__ = "calibration_runs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
+    # A run keys to a song OR a release (migration 149). SET NULL because a
+    # catalogue rebuild churns releases.id and the ledger has to outlive it.
+    release_id = Column(Integer, ForeignKey("releases.id", ondelete="SET NULL"))
     title = Column(Text)
     artist = Column(Text)
     rubric_color = Column(String(20))
@@ -849,6 +885,10 @@ class CalibrationRun(Base):
     # has signals. Internal-only: never surfaced outside admin.
     visceral_charge = Column(Integer)  # System-1 first-impression placement
     route = Column(String(40))  # internal_work | collective_stance | encouragement | witness_critique | doctrinal | static_portrait | negative_payload
+    # The album lane's structural axis (migration 149): coherent | anthology --
+    # do the tracks answer each other, or sit side by side. Lens-specific and
+    # sharing this table exactly as `route` does; NULL on every song run.
+    coherence = Column(String(20))
     harm_value = Column(Integer)  # harm axis read, 0..-100
     harm_pervasive = Column(Boolean, default=False, nullable=False)  # R8 pervasiveness; forces harm governance
     transcendence_value = Column(Integer)  # transcendence axis read, 0..+100
@@ -2619,4 +2659,49 @@ class SongProseVersion(Base):
     __table_args__ = (
         Index("ix_song_prose_versions_song", "song_id", "id"),
         Index("ix_song_prose_versions_written", "written_at"),
+    )
+
+
+class ReleaseProseVersion(Base):
+    """Append-only history of a release's generated prose. The album twin of
+    SongProseVersion, deliberately identical so the two read as one system.
+
+    A release carries THREE prose lanes (arc, listener, societal) plus the
+    psyche facts bundle, and migration 148 gives each a single `prior_*` slot --
+    one regen deep. Re-composing release prose is not a re-read of one lyric
+    sheet but a re-read of every approved row in the running order, so what a
+    shallow archive drops here is expensive.
+
+    Release pointer is nullable and NOT a FK because a catalogue rebuild churns
+    `releases.id` by design, so routine maintenance would orphan the history.
+    See migration 150.
+    """
+
+    __tablename__ = "release_prose_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    written_at = Column(DateTime, default=datetime.utcnow,
+                        server_default=text("(now() at time zone 'utc')"), nullable=False)
+
+    release_id = Column(Integer)
+    title = Column(Text)
+    artist = Column(Text)
+
+    lane = Column(String(20), nullable=False)  # arc | listener | societal | psyche_facts
+    prose = Column(Text, nullable=False)
+
+    model = Column(String(80))
+    generated_at = Column(DateTime)
+
+    trigger = Column(String(40))
+
+    # The read this version was written for.
+    rubric_color = Column(String(20))
+    charge_value = Column(Integer)
+
+    environment = Column(String(16), nullable=False, default="prod")
+
+    __table_args__ = (
+        Index("ix_release_prose_versions_release", "release_id", "id"),
+        Index("ix_release_prose_versions_written", "written_at"),
     )

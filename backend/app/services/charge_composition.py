@@ -53,6 +53,20 @@ ROUTE_AXIS = {
     "negative_payload": AXIS_HARM,
 }
 
+# The two lanes that compose a charge from v3 components. They share the
+# arithmetic, the governance rule, the tier derivation and the contamination
+# cross-derivation exactly; they differ only in what the model emits alongside.
+LANE_LYRIC = "lyric"
+LANE_ALBUM = "album"
+LANES = frozenset({LANE_LYRIC, LANE_ALBUM})
+
+# The album lane's structural axis, standing where `route` stands for a song:
+# do the tracks answer each other, or merely sit side by side. It does NOT
+# select a governing axis (an album has no route), so governance falls through
+# to pervasiveness and the sign of the center -- which is precisely what
+# ROUTE_AXIS.get(None) -> AXIS_NEUTRAL already does.
+ALBUM_COHERENCE = frozenset({"coherent", "anthology"})
+
 VERNIER_KEYS = ("sat", "res", "reg", "reach")
 VERNIER_MIN, VERNIER_MAX = -2, 2
 # Total vernier shift is clamped to one half tier-band step in either
@@ -85,7 +99,7 @@ def derive_tier(charge: int) -> str:
 class Components:
     """The validated v3 component set, as emitted by the model."""
     visceral_charge: int
-    route: str
+    route: str | None          # NULL on the album lane -- resolves to AXIS_NEUTRAL
     harm_value: int            # 0..-100
     harm_pervasive: bool
     transcendence_value: int   # 0..+100
@@ -119,13 +133,39 @@ def _require_int(raw: dict, key: str, lo: int, hi: int, problems: list) -> int:
     return value
 
 
-def validate_components(raw: dict) -> Components:
+def validate_components(raw: dict, *, lane: str = LANE_LYRIC) -> Components:
     """Validate the model's v3 JSON into a Components set, or raise
-    CompositionError naming every problem at once."""
+    CompositionError naming every problem at once.
+
+    `lane` selects which emitted shape is legal. The LYRIC lane requires a
+    `route`; the ALBUM lane forbids one and requires a `coherence` instead. The
+    arithmetic downstream is identical -- an album is composed by the same
+    `compose()` under the same governance rule, with a NULL route resolving to
+    the neutral branch so the center sign governs. This parameter exists so the
+    album lane can reach the canonical composer at all: before it, an album read
+    could not pass validation, so the two albums read in August 2026 had the
+    composition formula copied out by hand into a throwaway script, which is how
+    release 1349 came to store a charge its own components do not produce."""
     problems: list[str] = []
 
+    if lane not in LANES:
+        raise CompositionError(f"unknown lane {lane!r}; expected one of {sorted(LANES)}")
+
     route = raw.get("route")
-    if route not in ROUTES:
+    if lane == LANE_ALBUM:
+        if route is not None:
+            problems.append(
+                f"route must be absent on the album lane, got {route!r} "
+                "(an album has no route; governance falls to pervasiveness "
+                "and the center sign)"
+            )
+        coherence = raw.get("coherence")
+        if coherence not in ALBUM_COHERENCE:
+            problems.append(
+                f"coherence invalid: {coherence!r}; "
+                f"expected one of {sorted(ALBUM_COHERENCE)}"
+            )
+    elif route not in ROUTES:
         problems.append(f"route invalid: {route!r}")
 
     harm = raw.get("harm") or {}
