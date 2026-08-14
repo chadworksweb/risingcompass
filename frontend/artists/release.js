@@ -136,15 +136,26 @@
       badge.innerHTML = `<span class="badge-tier badge-tier--uncalibrated">Uncalibrated</span>`;
     }
 
-    // Contamination hazard, same badge shape the song hero carries. The release
-    // row has no `contaminated` flag or note yet, so this is driven by the track
-    // count and the tooltip says exactly that rather than implying a release-level
-    // finding the row does not hold.
+    // Contamination hazard, same badge shape the song hero carries.
+    //
+    // The album's OWN finding governs whenever it has one. `contamination_count`
+    // counts flagged TRACKS, which is a different claim: a release can carry a
+    // flagged track and still not be a contaminated release, because the album
+    // finding is settled against the per-track findings rather than against a
+    // count of them. Driving the badge off the count alone put a red
+    // CONTAMINATED flag on the hero of an album whose reading says it is not
+    // contaminated. The count now speaks only when no album reading exists.
     const contamN = rel.contamination_count || 0;
-    if (contamN > 0) {
-      const cb = document.getElementById('release-contam-badge');
-      const tip = document.getElementById('release-contam-tooltip');
-      if (cb && tip) {
+    const cb = document.getElementById('release-contam-badge');
+    const tip = document.getElementById('release-contam-tooltip');
+    if (cb && tip) {
+      if (rel.has_reading) {
+        if (rel.contaminated) {
+          tip.textContent = rel.contamination_note
+            || 'This release carries contaminating content.';
+          cb.hidden = false;
+        }
+      } else if (contamN > 0) {
         const n = rel.track_count || 0;
         tip.textContent = `${contamN} of ${n} track${n === 1 ? '' : 's'} on this release carries `
           + 'contaminating content. Open a track to see what was flagged.';

@@ -2,6 +2,30 @@
 {% set active_section = 'catalog' %}
 {% block title %}Artists &amp; Releases — Admin{% endblock %}
 
+{% block head_extra %}
+<style>
+  /* This page emitted `class="data-table"` from the day it shipped and nothing
+     ever defined it, so every table rendered as a bare browser default: no
+     border-collapse, no cell padding, columns colliding ("album2026"), and the
+     detail panel's box closing above them. It also made the release rows
+     unclickable -- without border-collapse the default border-spacing leaves
+     gaps between cells, so a click can land on the TABLE instead of the row's
+     onclick. Styled here in the page's own head_extra, the same way runs.html
+     owns .runs-table. */
+  .cx-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: #fff; margin-bottom: 1rem; }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .data-table thead th { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 2px solid var(--border); background: var(--panel-strong); color: var(--text); font-weight: 700; white-space: nowrap; }
+  .data-table td { padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr[onclick]:hover td { background: rgba(0,143,114,0.06); }
+  /* Numbers read as numbers, and the identity column takes the slack. */
+  .data-table .num { text-align: right; font-family: monospace; white-space: nowrap; }
+  .data-table td:not(:first-child), .data-table th:not(:first-child) { white-space: nowrap; }
+  .data-table td:first-child { width: 99%; }
+  .cx-panel-title { font-size: 0.85rem; margin: 1rem 0 0.5rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="stats-grid">
   <div class="stat-card"><div class="val" id="cxArtists">—</div><div class="label">Artists</div></div>
@@ -134,14 +158,14 @@ async function openArtist(slug) {
       + '<div id="cxActionMsg" style="font-size:0.8rem;color:#777;margin-top:0.4rem;"></div>'
       + '</div>';
 
-    h += '<h3 class="section-title" style="font-size:0.85rem;margin-top:1rem;">Releases ('
+    h += '<h3 class="section-title cx-panel-title">Releases ('
       + a.releases.length + ')</h3>';
     if (!a.releases.length) {
       h += '<div style="color:#777;font-size:0.83rem;padding:0.4rem 0;">No releases. '
         + 'Resolve metadata pulls them from MusicBrainz; an artist who is not in '
         + 'MusicBrainz needs one built here.</div>';
     } else {
-      h += '<table class="data-table"><thead><tr>'
+      h += '<div class="cx-table-wrap"><table class="data-table"><thead><tr>'
         + '<th>Title</th><th>Type</th><th>Year</th><th>Tracks</th><th>Aggregate</th>'
         + '<th>Reading</th><th>Source</th></tr></thead><tbody>'
         + a.releases.map(r =>
@@ -150,24 +174,25 @@ async function openArtist(slug) {
             + '<td style="color:#888;">' + esc(r.release_type) + '</td>'
             + '<td style="color:#888;">' + (r.release_year || '—') + '</td>'
             + '<td style="color:#888;">' + r.calibrated_count + ' / ' + r.track_count + '</td>'
-            + '<td>' + tierDot(r.rubric_color) + chargeStr(r.charge_value) + '</td>'
+            + '<td class="num">' + tierDot(r.rubric_color) + chargeStr(r.charge_value) + '</td>'
             + '<td style="color:' + (r.has_reading ? '#3aa76d' : '#888') + ';">'
             + (r.has_reading ? 'yes' : 'none') + '</td>'
             + '<td style="color:#888;font-size:0.78rem;">'
             + esc(r.source || (r.musicbrainz_id ? 'musicbrainz' : 'manual')) + '</td>'
             + '</tr>').join('')
-        + '</tbody></table>';
+        + '</tbody></table></div>';
     }
 
-    h += '<h3 class="section-title" style="font-size:0.85rem;margin-top:1rem;">Credited songs ('
+    h += '<h3 class="section-title cx-panel-title">Credited songs ('
       + unassigned + ')</h3>'
-      + '<table class="data-table"><thead><tr><th>Title</th><th>Charge</th><th>Flags</th></tr></thead><tbody>'
+      + '<div class="cx-table-wrap"><table class="data-table"><thead><tr>'
+      + '<th>Title</th><th>Charge</th><th>Flags</th></tr></thead><tbody>'
       + a.songs.map(s =>
           '<tr><td>' + esc(s.title) + '</td>'
-          + '<td>' + tierDot(s.rubric_color) + chargeStr(s.charge_value) + '</td>'
+          + '<td class="num">' + tierDot(s.rubric_color) + chargeStr(s.charge_value) + '</td>'
           + '<td style="color:#888;font-size:0.78rem;">' + (s.contaminated ? 'contaminated' : '') + '</td>'
           + '</tr>').join('')
-      + '</tbody></table>';
+      + '</tbody></table></div>';
 
     h += '<div id="cxReleasePanel" style="margin-top:1rem;"></div>';
     el.innerHTML = h;

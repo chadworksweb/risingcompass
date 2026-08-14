@@ -581,6 +581,15 @@ def release_detail(slug: str, release_slug: str):
             "track_count": release.track_count,
             "calibrated_count": release.calibrated_count,
             "contamination_count": release.contamination_count,
+            # The RELEASE-level contamination finding (migration 148), settled
+            # under A2 against the per-track findings rather than against a bare
+            # count of flagged tracks. `contamination_count` counts TRACKS and is
+            # a different claim: an album can carry a flagged track and not be a
+            # contaminated album. The page prefers this finding when a reading
+            # exists; see release.js.
+            "contaminated": bool(release.contaminated),
+            "contamination_note": release.contamination_note,
+            "has_reading": release.charge_summary is not None,
             "charge_summary": release.charge_summary,
             "arc_prose": release.arc_prose,
             "listener_effects_prose": release.listener_effects_prose,
