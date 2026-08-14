@@ -50,6 +50,32 @@ TIER_LABELS = {
 }
 
 
+# ============================== QUARANTINED ==============================
+# PRE-RETUNE BAN-WALL, still live on the Album Charger's synthesis path.
+#
+# The 2026-07-09 editorial voice retune (RC-VOICE-RETUNE-STANDARD.md, archived)
+# explicitly scoped "the terminal-supplied prose (charge_summary, editorial,
+# album synthesis)" alongside the two server prose prompts, on the finding that
+# long negative "never" lists fail: a ban is a soft constraint against a hard
+# training prior, so banning one construction just promotes the next one. The
+# replacement was a short POSITIVE spec + gold exemplars + a code-side validator.
+#
+# The retune reached listener_effects_prose.py and societal_effects_prose.py on
+# 2026-07-10 (870b3c3). This constant has not been touched since 2026-05-26
+# (6051772, the Album Charger build) -- ~32 prohibitions, ZERO exemplars.
+#
+# NOTE (corrected 2026-08-14): this was flagged alongside a claim that the
+# missing retune explains weak summary prose. That claim did not survive the
+# corpus -- albums read under the un-retuned block produced accepted summaries.
+# The drift is real; the causal story was not.
+#
+# Its sibling on the same footing is
+# libra-engine-compass backend/app/services/agents/lec_compass_agent_rubric.py
+# :: SUMMARY_VOICE_RULES, which drives charge_summary for every song and album.
+#
+# Scope note: this drives the ALBUM CHARGER's server-side synthesis only. The
+# rc-album v3 lens (the terminal album read) does not use it.
+# =========================================================================
 ALBUM_VOICE = """You are writing the album-level reading on a Rising Compass album page.
 
 The song is the atomic unit. Every track on this album has ALREADY been read individually -- each one has its own listener reading (what the words do to a person) and its own societal reading (what running that song at scale does to a society). Your job is NOT to re-analyze the album as one lump. Your job is to read those finished per-song readings as a body of work and compile the album-level reading FROM them.
