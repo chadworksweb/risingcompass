@@ -203,7 +203,9 @@ endpoint, which stores a supplied calibration with no model call).
 **Canonical rubric = the saved local copy `plans and docs/LEC-RUBRIC-LIVE.md`
 (NOT a per-session live pull).** LEC owns the rubric, but the live `GET /api/rubric`
 text is snapshotted to that file (version-stamped in its header comment; currently
-`069e4968a63c`, pulled 2026-07-07). **Read that file every session and calibrate
+`c57ec1b0a078`, pulled 2026-08-14 — the LEC deploy that day shipped the
+`_apply_glossary` fix, so prod stopped serving a corrupted line inside the live
+prompt and the hash moved off `069e4968a63c`). **Read that file every session and calibrate
 against it. Do NOT re-pull live each time** — the old "always pull, from-memory is
 VOID" gate is retired (changed 2026-07-07 at Chad's direction). **Re-pull + re-save
 ONLY when Chad says the rubric changed**, then update `rubric_version` in the file
@@ -606,6 +608,76 @@ each track and aggregating.
   page (counts + recent charged albums). Email alert `album_charged` (Activity,
   default-on, toggleable) via `alerts.emit_album_charged`.
 
+## Album v3 calibrator (terminal lens lane, LIVE 2026-08-14)
+
+**RC has TWO album paths and they are not the same thing.** The Album Charger
+(above) is the public one: it scores each track from pasted lyrics and takes the
+MEAN. This one READS THE RELEASE as a work, against its own instrument.
+
+- **The instrument is the `rc-album` lens**, a third LEC lens and RC's second
+  (sibling to `rc-lyric`; `cc-essay` is the other). It is the first lens whose
+  METHOD differs in kind rather than vocabulary: its own procedure, its own JSON
+  contract (`coherence` where a song has `route`), domain rules A1-A5 with no
+  gospel sibling, no precedent corpus, no satire.
+- **It reads the approved song ROWS in running order. Never lyrics.** Every track
+  must already carry a finished, approved row. Running order is load-bearing text
+  (A1 closing stance, A2 pervasiveness counted in TRACKS, A3 coherence), so **a
+  reorder is a re-read, not a metadata edit.**
+- **On demand, one at a time. There is no album backfill and none is planned.**
+
+**HARD READ-GATE, separate from the song gate.** Read
+`plans and docs/LEC-ALBUM-RUBRIC-LIVE.md` (currently `40d2c1615ffa`) in the
+current session before producing ANY album output — not even a gut read before
+it. **Reading the SONG rubric does NOT satisfy the album gate**; they are
+different instruments pointed at different texts. The file is now a real pull:
+`GET /api/rubric?lens=rc-album` (each lens hashes independently, so the album
+version moving never touches the song version).
+
+**Writing: `backend/scripts/write_album_reading.py`** (`--release-id N
+--reading-file <lens JSON> --reasoning-file <argument> [--dry-run]`). Always
+`--dry-run` first — a `releases` row goes straight to a public page on write,
+with no approval gate anywhere in front of it. The script:
+1. Composes through `charge_composition.compose` with
+   `validate_components(raw, lane="album")` — the SAME function the song lane
+   uses. **NEVER copy the formula out.** A route-less album resolves to the
+   neutral branch, so governance falls to pervasiveness and the center sign.
+2. Cross-derives contamination from the axis data (the model's flag is a
+   cross-check; a mismatch is recorded as a signal, exactly as on the song lane).
+3. Hard-fails on `services/agents/album_guard.py`. It composes the three song
+   guards and adds the album-scale rules: "album, never record"; track titles
+   checked against every reader-facing field with `multiword_only` DISABLED (a
+   one-word track name is the leak at album scale); each prose lane's
+   paragraph/sentence/word contract; the arc's list-cadence failure mode; and
+   music-review drift, since the lens never heard the album.
+4. Archives replaced prose into BOTH the `prior_*` slot and
+   `release_prose_versions`, stamped with the read it was written FOR.
+5. Logs ONE `calibration_runs` row keyed to `release_id` (`song_id` NULL,
+   `coherence` set, `route` NULL). The argument is stored via
+   `log_run(..., lyric_free=True)` — a narrow structural exemption, because the
+   lane has no lyrics to scrub against and fail-closed would otherwise store
+   nothing, forever, for every album.
+6. Re-reads every column and reports INCOMPLETE rather than success on a NULL.
+
+**Schema (migrations 148/149/150).** `releases` carries the full v3 reading
+(contamination, dogma, confidence, `psyche_facts`, `effects_pl`,
+`calibration_failed`, the prose seal, `prior_*` including the release-only
+`prior_arc_prose`); `calibration_runs` has `release_id` + `coherence`;
+`release_prose_versions` is the album twin of `song_prose_versions` (its
+`release_id` is deliberately NOT an FK — a catalogue rebuild churns
+`releases.id`).
+
+**Two pieces of scar tissue, both from the first two albums:**
+- `validate_components` used to require a `route`, so both album writes copied the
+  composition formula into throwaway scripts. Release 1349 stored **+76** against
+  components that compose to **+77**. Call the composer.
+- Nothing guarded album output, so 1349 shipped two hard prose tells and a
+  second-person listener voice onto a live public page. The guard now runs on
+  every write.
+
+Docs: `RISING-COMPASS-ALBUM-V3.md` (consumer), `LEC-ALBUM-LENS.md` (lens),
+`agent/risingcompass-album-calibration-sop.md` (operator SOP), and section 17 of
+`rising-compass-data-flow-map.html`.
+
 ## Release pages + cover art (2026-06-06)
 
 Per-release detail pages + Cover Art Archive artwork. Full spec:
@@ -617,6 +689,15 @@ Per-release detail pages + Cover Art Archive artwork. Full spec:
   on re-resolve). SSR via `page_ssr.ssr_release` (meta + JSON-LD + baked hero glow);
   endpoint `GET /api/artists/{slug}/releases/{release_slug}` (`release_detail`).
   Page reuses the song-page shell (`release.html`/`release.js`).
+- **The contamination badge is a RELEASE-level claim (fixed 2026-08-14).** It was
+  driven by `contamination_count`, which counts flagged TRACKS -- a different
+  claim, and it put a red CONTAMINATED badge on an album whose own reading says
+  `contaminated = false` (release 1351: one flagged track out of twenty). The
+  album's own finding, settled under A2 against the per-track findings, now
+  governs: `release_detail` returns `contaminated` / `contamination_note` /
+  `has_reading`, and the track count speaks ONLY when no album reading exists.
+  Note `release.js` carries no `?v=` cache-bust unlike `songs.js` /
+  `chart-shell.js`, so Cloudflare can serve a stale copy after a deploy.
 - **Cover art (`mb_cover_art`, migration 091, schema_version 91):** cache keyed by
   the **release-group MBID** (matches `releases.musicbrainz_id`), NOT `releases.id`.
   `has_art` true/false (false = checked-none -> tier dot). URLs **derived** from the
