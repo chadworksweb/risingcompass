@@ -98,25 +98,73 @@
 }
 
 /* --- Wrong-cover report ---
-   Quiet until wanted. It sits under the art on a page whose subject is the
-   reading, not the picture, so it stays at the weight of a footnote and only
-   gains contrast on hover. The whole cluster lives inside .song-art-wrap, which
-   is hidden when there is no art, so nothing here needs its own visibility rule. */
+   An "i" in the bottom-right corner OF the art, because the thing it questions is
+   the picture and nothing else on the page. Quiet by default and only resolved on
+   hover, so it never competes with the cover it sits on. The whole cluster lives
+   inside .song-art-wrap, which is hidden when there is no art, so nothing here
+   needs its own visibility rule. */
+.song-art-frame { position: relative; }
+
 .song-art-report {
-  display: block;
-  margin: 0.4rem 0 0;
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
   padding: 0;
-  background: none;
-  border: 0;
-  color: var(--rc-text-dim, #8a8a93);
-  font-family: inherit;
-  font-size: 0.72rem;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: color 0.15s ease;
+  border-radius: 50%;
+  /* Opaque enough to stay legible over a bright sleeve, dark enough to sit back
+     on a dark one. */
+  background: rgba(10, 10, 14, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.72);
+  cursor: help;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  z-index: 2;
 }
-.song-art-report:hover { color: var(--rc-text, #e8e8ea); text-decoration: underline; }
+.song-art-report:hover,
+.song-art-report:focus-visible {
+  opacity: 1;
+  background: rgba(10, 10, 14, 0.85);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
 .song-art-report[hidden] { display: none; }
+.song-art-report-glyph {
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+}
+/* Opens UPWARD and right-aligned: the trigger is in the bottom corner, so
+   anywhere else puts the tooltip off the card. */
+.song-art-report .contam-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 0.45rem;
+  width: 210px;
+  padding: 0.5rem 0.6rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  font-family: var(--rc-font-body, inherit);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--rc-text);
+  text-align: left;
+  z-index: 10;
+}
+.song-art-report:hover .contam-tooltip,
+.song-art-report:focus .contam-tooltip,
+.song-art-report:focus-within .contam-tooltip { display: block; }
 
 .song-art-report-form { margin: 0.45rem 0 0; }
 .song-art-report-form[hidden] { display: none; }
