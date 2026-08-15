@@ -3148,8 +3148,10 @@ td.yo-charge {
   margin: 0 auto;
   padding: 0 1.5rem;
   display: grid;
-  /* Left 1/4 corporate branding, right 3/4 the menu columns. */
-  grid-template-columns: 1fr 3fr;
+  /* Left branding, right the menu columns. The left column carries a floor
+     rather than a bare 1fr: the wordmark must not wrap, so the column has to
+     be at least as wide as the wordmark, and the menus give up the ~20px. */
+  grid-template-columns: minmax(15rem, 1fr) 3fr;
   gap: 2.5rem;
   align-items: start;
 }
@@ -3165,7 +3167,7 @@ td.yo-charge {
    stacked lockup rather than the head of a list, so they align to each other
    instead of to the link columns beside them. */
 .footer-brand {
-  max-width: 28ch;
+  max-width: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3195,6 +3197,9 @@ td.yo-charge {
 }
 
 .footer-tagline-lead {
+  /* One line, always. It is a wordmark, not a sentence, and it had only 14px
+     of slack at 1440 before this -- narrower windows broke it in half. */
+  white-space: nowrap;
   font-family: var(--rc-font-mono);
   font-size: 0.82rem;
   font-weight: 700;
