@@ -334,6 +334,12 @@ app.include_router(geo.router)
 from app.routers import subscribe as subscribe_router
 app.include_router(subscribe_router.router)
 
+# Wrong-cover-art reports. Mounted bare for the same reason: the song page posts
+# it with no key and no account, because requiring a sign-in to say "that is the
+# wrong album cover" would cost nearly every report it would ever get.
+from app.routers import cover_art_reports
+app.include_router(cover_art_reports.router)
+
 # Public Participation Lobby comments. Reads are anonymous; writes require
 # require_clerk_user (Tier 1) and a claimed handle. No X-Api-Key gate --
 # the JWT (when present) is the authorization for writes.
@@ -387,6 +393,7 @@ from app.routers import launch_admin
 app.include_router(launch_admin.router)
 from app.routers import sentinel_admin
 app.include_router(sentinel_admin.router)  # Site Admin -> Sentinel Auditors (cookie auth)
+app.include_router(cover_art_reports.admin_router)  # Site Admin -> Cover Art (cookie auth)
 from app.routers import provenance
 app.include_router(provenance.router)
 from app.routers import faultline as faultline_router

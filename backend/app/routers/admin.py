@@ -201,6 +201,7 @@ _ADMIN_SECTIONS = {
     "social": "admin/social.html",
     "alltime": "admin/alltime.html",
     "catalog": "admin/catalog.html",
+    "cover-art": "admin/cover_art.html",
     "shield": "admin/shield.html",
     "shop-orders": "admin/shop_orders.html",
 }

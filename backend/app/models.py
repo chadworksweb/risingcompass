@@ -565,6 +565,59 @@ class MbCoverArt(Base):
     checked_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SongCoverArtReport(Base):
+    """A reader's "this is the wrong cover" report on a song page (migration 152).
+
+    The two automated checks catch a wrong ARTIST (the artist-credit check in
+    musicbrainz._pick_release_group) and a release issued years after the song
+    charted (scripts/audit_song_cover_art.py). Neither can catch a right artist
+    on a contemporaneous but wrong release, and nothing in the data can -- a
+    person looking at the page is the only check left, so this is how what they
+    saw gets back.
+
+    No account required: wrong art is a factual claim anyone can see. A report is
+    safe to leave open because it CHANGES NOTHING on its own -- an admin resolves
+    every one.
+
+    `reported_mbid` is the pick that was serving art AT FILING TIME, not the
+    song's current one, so a re-resolve in between can't turn the report into a
+    complaint about a picture nobody ever saw. `mbid_source` says whether that
+    came from the song's own resolved group or from its linked Release, because
+    the two are fixed in different places.
+
+    The `confirmed` rows ARE the rejection list the backfill excludes from a
+    --recheck-misses re-resolve; deriving it rather than storing it twice keeps
+    the two from drifting. See the migration for the full reasoning.
+    """
+    __tablename__ = "song_cover_art_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    reported_mbid = Column(Text)
+    mbid_source = Column(String(10))                     # song | release
+    note = Column(Text)
+    device_id = Column(Text)
+    ip_address = Column(Text)
+    status = Column(String(12), nullable=False, default="open")   # open | confirmed | dismissed
+    environment = Column(String(10), nullable=False, default="prod")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime)
+    resolved_by = Column(String(120))                    # admin username
+    resolution_note = Column(Text)
+
+    __table_args__ = (
+        Index("ix_cover_art_reports_queue", "environment", "status", "created_at"),
+        Index("ix_cover_art_reports_song", "song_id"),
+        # One report per device per song per pick -- scoped to the MBID, so that
+        # art re-resolved to something else can be reported again by the same
+        # person. It is a new claim about a new picture.
+        Index("uq_cover_art_report_device", "song_id", "device_id", "reported_mbid",
+              unique=True,
+              postgresql_where=text("device_id IS NOT NULL"),
+              sqlite_where=text("device_id IS NOT NULL")),
+    )
+
+
 class SongSlug(Base):
     """Lookup table mapping URL slugs to songs across the three song tables."""
     __tablename__ = "song_slugs"

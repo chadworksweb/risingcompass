@@ -65,6 +65,19 @@ def cover_url_for_mbids(db, mbids, size: int = COVER_SIZE) -> str | None:
     release's cover if I have a release, otherwise the one the backfill resolved
     for me".
     """
+    mbid = mbid_with_art(db, mbids)
+    if not mbid:
+        return None
+    return f"{BASE_URL}/release-group/{mbid}/front-{size}"
+
+
+def mbid_with_art(db, mbids) -> str | None:
+    """The FIRST of `mbids` the cache says has art -- the pick actually serving.
+
+    Split out of cover_url_for_mbids because a wrong-cover report has to name the
+    release group the reader was looking at, and only this side of the preference
+    order knows which one won. Same cache-only, fail-soft contract.
+    """
     ordered = [m for m in dict.fromkeys(mbids) if m]  # dedup, keep order, drop falsy
     if not ordered:
         return None
@@ -81,8 +94,7 @@ def cover_url_for_mbids(db, mbids, size: int = COVER_SIZE) -> str | None:
 
     for mbid in ordered:
         if mbid in with_art:
-            base = f"{BASE_URL}/release-group/{mbid}"
-            return f"{base}/front-{size}"
+            return mbid
     return None
 
 

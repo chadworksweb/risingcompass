@@ -97,6 +97,81 @@
   display: block;
 }
 
+/* --- Wrong-cover report ---
+   Quiet until wanted. It sits under the art on a page whose subject is the
+   reading, not the picture, so it stays at the weight of a footnote and only
+   gains contrast on hover. The whole cluster lives inside .song-art-wrap, which
+   is hidden when there is no art, so nothing here needs its own visibility rule. */
+.song-art-report {
+  display: block;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--rc-text-dim, #8a8a93);
+  font-family: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.song-art-report:hover { color: var(--rc-text, #e8e8ea); text-decoration: underline; }
+.song-art-report[hidden] { display: none; }
+
+.song-art-report-form { margin: 0.45rem 0 0; }
+.song-art-report-form[hidden] { display: none; }
+.song-art-report-label {
+  display: block;
+  color: var(--rc-text-dim, #8a8a93);
+  font-size: 0.7rem;
+  margin-bottom: 0.25rem;
+}
+.song-art-report-note {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--rc-border);
+  border-radius: 4px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.78rem;
+}
+/* Off-screen rather than display:none -- a bot reading the DOM fills what it can
+   reach, and a hidden field it skips is a honeypot that catches nothing. */
+.song-art-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.song-art-report-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+.song-art-report-send,
+.song-art-report-cancel {
+  padding: 0.25rem 0.7rem;
+  border-radius: 4px;
+  border: 1px solid var(--rc-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.song-art-report-send:hover,
+.song-art-report-cancel:hover { background: rgba(255, 255, 255, 0.1); }
+.song-art-report-send[disabled] { opacity: 0.5; cursor: default; }
+.song-art-report-done {
+  margin: 0.45rem 0 0;
+  color: var(--rc-text-dim, #8a8a93);
+  font-size: 0.72rem;
+}
+.song-art-report-done[hidden] { display: none; }
+
 /* Tablet portrait and down. The hero row stays two columns until 768px, so the
    summary card is already narrow here and a quarter of it renders the cover at
    75-100px. Stack rather than shrink: capped art above, question at full card

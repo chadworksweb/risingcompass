@@ -1,0 +1,150 @@
+{% extends "admin/_base.html" %}
+{% set active_section = 'cover-art' %}
+{% block title %}Cover Art Reports — Admin{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="val" id="caOpen">—</div><div class="label">Open</div></div>
+  <div class="stat-card"><div class="val" id="caConfirmed">—</div><div class="label">Confirmed wrong</div></div>
+  <div class="stat-card"><div class="val" id="caDismissed">—</div><div class="label">Dismissed</div></div>
+</div>
+
+<h2 class="section-title">Wrong Cover Art Reports</h2>
+<p style="color:#888;font-size:0.82rem;margin:-0.3rem 0 0.6rem;max-width:70ch;">
+  Filed from the song page by readers, no account needed. Rows are grouped by the
+  release group being reported, so the count is how many independent people saw
+  the same wrong picture. Look at the thumbnail against the song and decide.
+  <strong>Confirm</strong> pulls the art and records the release group as rejected,
+  so a later re-resolve can never land back on it. <strong>Dismiss</strong> leaves
+  the art alone. Both resolve every report about that pick at once.
+</p>
+
+<div class="filter-bar" id="caEnvFilters">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">ENV:</span>
+  <button class="filter-btn active" onclick="caFilter('environment','prod')">Prod</button>
+  <button class="filter-btn" onclick="caFilter('environment','local')">Local</button>
+</div>
+<div class="filter-bar" id="caStatusFilters">
+  <span style="font-size:0.75rem;color:#666;align-self:center;margin-right:0.4rem;">STATUS:</span>
+  <button class="filter-btn active" onclick="caFilter('status','open')">Open</button>
+  <button class="filter-btn" onclick="caFilter('status','confirmed')">Confirmed</button>
+  <button class="filter-btn" onclick="caFilter('status','dismissed')">Dismissed</button>
+  <button class="filter-btn" onclick="caFilter('status','')">All</button>
+</div>
+<div id="caList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let caEnv = 'prod';
+let caStatus = 'open';
+
+function onAdminReady() { loadCaStats(); loadCaReports(); }
+
+function caFilter(kind, val) {
+  if (kind === 'environment') caEnv = val; else caStatus = val;
+  const bar = document.getElementById(kind === 'environment' ? 'caEnvFilters' : 'caStatusFilters');
+  bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadCaStats(); loadCaReports();
+}
+
+async function loadCaStats() {
+  try {
+    const resp = await fetch('/api/admin/cover-art-reports/stats?environment=' + encodeURIComponent(caEnv), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const s = await resp.json();
+    document.getElementById('caOpen').textContent = s.open || 0;
+    document.getElementById('caConfirmed').textContent = s.confirmed || 0;
+    document.getElementById('caDismissed').textContent = s.dismissed || 0;
+  } catch (e) { console.error(e); }
+}
+
+async function loadCaReports() {
+  try {
+    const qs = ['environment=' + encodeURIComponent(caEnv)];
+    if (caStatus) qs.push('status=' + encodeURIComponent(caStatus));
+    const resp = await fetch('/api/admin/cover-art-reports?' + qs.join('&'), { headers: adminHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const rows = data.items || [];
+    const el = document.getElementById('caList');
+    if (!rows.length) { el.innerHTML = '<p style="color:#666;">Nothing in the queue for this filter.</p>'; return; }
+    el.innerHTML = rows.map(renderCaReport).join('');
+  } catch (e) { console.error(e); }
+}
+
+function renderCaReport(r) {
+  const when = r.latest_at ? `<time data-utc="${escHtml(r.latest_at)}"></time>` : '—';
+  const art = r.cover_url
+    ? `<img src="${escHtml(r.cover_url)}" alt="" width="86" height="86" style="border-radius:4px;background:#111;object-fit:cover;flex:none;">`
+    : '<div style="width:86px;height:86px;border-radius:4px;background:#1a1a1a;flex:none;"></div>';
+
+  // The two facts that decide the call, and the one that decides whether
+  // confirming will change anything at all.
+  const source = r.mbid_source === 'release'
+    ? '<span style="background:rgba(200,140,40,0.14);color:#c89040;font-size:0.7rem;padding:1px 7px;border-radius:3px;">from linked release</span>'
+    : '<span style="background:rgba(80,140,200,0.14);color:#6aa3d8;font-size:0.7rem;padding:1px 7px;border-radius:3px;">song-resolved</span>';
+  const stale = (r.status === 'open' && !r.still_current && r.mbid_source === 'song')
+    ? ' <span style="color:#c89040;font-size:0.72rem;">(song has since re-resolved to different art)</span>' : '';
+  const dated = r.release_group_date ? ` &middot; release group dated ${escHtml(r.release_group_date)}` : '';
+
+  const songLink = r.song_slug
+    ? `<a href="/songs/${escHtml(r.song_slug)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.78rem;">page</a>` : '';
+  const adminLink = r.song_id
+    ? `<a href="/api/admin/dashboard/song/${r.song_id}" style="color:var(--accent);font-size:0.78rem;">admin</a>` : '';
+  const mbLink = r.reported_mbid
+    ? `<a href="https://musicbrainz.org/release-group/${escHtml(r.reported_mbid)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.78rem;">MusicBrainz</a>` : '';
+
+  const notes = (r.notes || []).length
+    ? `<div style="margin-top:0.45rem;color:#555;font-size:0.8rem;">` +
+      r.notes.map(n => `<div style="border-left:2px solid var(--border);padding-left:0.6rem;margin-bottom:0.2rem;">${escHtml(n)}</div>`).join('') +
+      `</div>`
+    : '';
+
+  const actions = r.status === 'open'
+    ? `<button onclick="resolveCa(${r.id},'confirm')" style="padding:0.25rem 0.7rem;font-size:0.75rem;color:#c33;">Confirm wrong &mdash; pull art</button>
+       <button onclick="resolveCa(${r.id},'dismiss')" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Dismiss &mdash; art is right</button>`
+    : `<span style="color:#888;font-size:0.75rem;">${escHtml(r.status)}</span>`;
+
+  return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;font-size:0.85rem;display:flex;gap:0.9rem;">
+    ${art}
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <div>
+          <strong>${escHtml(r.song_title || '(song removed)')}</strong>
+          <span style="color:#777;">&mdash; ${escHtml(r.song_artist || '')}</span>
+          <span style="margin-left:0.5rem;">${source}</span>
+        </div>
+        <div style="color:#666;font-size:0.78rem;">${when}</div>
+      </div>
+      <div style="color:#777;font-size:0.78rem;margin-top:0.25rem;">
+        <strong style="color:#c55;">${r.report_count}</strong> report${r.report_count === 1 ? '' : 's'}${dated}${stale}
+      </div>
+      <div style="margin-top:0.3rem;display:flex;gap:0.7rem;">${songLink}${adminLink}${mbLink}</div>
+      ${notes}
+      <div style="margin-top:0.5rem;display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">${actions}</div>
+    </div>
+  </div>`;
+}
+
+async function resolveCa(id, action) {
+  if (action === 'confirm' && !confirm('Pull this cover art and record the release group as rejected for this song?')) return;
+  try {
+    const resp = await fetch('/api/admin/cover-art-reports/' + id + '/resolve', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+      body: JSON.stringify({ action, note: '' }),
+    });
+    if (resp.ok) {
+      const out = await resp.json();
+      if (out.needs_release_action) alert(out.detail);
+      loadCaStats(); loadCaReports();
+    } else {
+      const e = await resp.json().catch(() => ({}));
+      alert('Failed: ' + (e.detail || resp.status));
+    }
+  } catch (e) { console.error(e); }
+}
+</script>
+{% endblock %}

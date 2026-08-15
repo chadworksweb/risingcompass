@@ -117,6 +117,35 @@ def _orphan_mbids() -> list[str]:
         db.close()
 
 
+def _rejected_mbids() -> dict[int, set[str]]:
+    """song_id -> release groups a reader reported and an admin confirmed wrong.
+
+    A confirm clears the song's mbid but LEAVES release_group_checked_at set, so
+    the ordinary backfill already skips the song and the pulled art stays pulled.
+    This matters on the deliberate retry (--recheck-misses), which is exactly the
+    pass that would otherwise walk straight back to the rejected cover and re-pick
+    it -- a correction undone by the next automated run, the same way hand-deleted
+    releases were before migration 147.
+    """
+    db = SessionLocal()
+    try:
+        rows = db.execute(text(
+            "SELECT song_id, reported_mbid FROM song_cover_art_reports "
+            "WHERE status = 'confirmed' AND reported_mbid IS NOT NULL"
+        )).fetchall()
+    except Exception as exc:
+        # The table is not load-bearing for a resolve. A pass that can't read it
+        # should still run, just without the exclusions.
+        print(f"  (could not read cover-art rejections: {exc})")
+        return {}
+    finally:
+        db.close()
+    out: dict[int, set[str]] = {}
+    for song_id, mbid in rows:
+        out.setdefault(song_id, set()).add(mbid)
+    return out
+
+
 def _stamp(song_id: int, mbid: str | None, rg_date: str | None = None) -> None:
     """Record the resolve outcome. Own short session per write, like the CAA cache.
 
@@ -164,11 +193,19 @@ async def main():
     print(f"Resolving {len(pending)} song(s) against MusicBrainz "
           f"(~2s each incl. the CAA check, est. {len(pending) * 2}s)...")
 
+    rejected = _rejected_mbids()
+    if rejected:
+        total = sum(len(v) for v in rejected.values())
+        print(f"  ({total} reader-rejected release group(s) across "
+              f"{len(rejected)} song(s) will be skipped.)")
+
     matched, missed = 0, 0
     found_mbids: list[str] = []
     for i, (song_id, title, artist) in enumerate(pending, 1):
         try:
-            hit = await musicbrainz.search_recording_release_group(artist, title)
+            hit = await musicbrainz.search_recording_release_group(
+                artist, title, exclude_mbids=rejected.get(song_id),
+            )
         except Exception as exc:  # never let one bad row end a long run
             print(f"  [{i}/{len(pending)}] ERROR {title} - {artist}: {exc}")
             continue

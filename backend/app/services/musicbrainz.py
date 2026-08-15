@@ -213,6 +213,7 @@ async def search_release_group(artist: str, title: str, limit: int = 8) -> list[
 
 async def search_recording_release_group(
     artist: str, title: str, limit: int = 25,
+    exclude_mbids: Optional[set[str]] = None,
 ) -> Optional[dict]:
     """Resolve a SONG (not an album) to the release-group its art should come from.
 
@@ -237,6 +238,13 @@ async def search_recording_release_group(
     plus MAX_RECORDING_LOOKUPS lookups, so budget a few seconds each and keep
     this OFFLINE (the backfill script) -- never the request path.
 
+    `exclude_mbids` are release groups a HUMAN has already rejected for this song
+    (confirmed `song_cover_art_reports`). They are dropped after the lookup rather
+    than before, because a rejection is about a specific picture, not about the
+    recording that led to it: the scan must keep going and offer the next-best
+    group. Without this, a --recheck-misses pass would walk straight back to the
+    cover a reader already said was wrong.
+
     KNOWN LIMIT: heavily-bootlegged catalogue artists can bury the studio
     recording past the lookup budget and come back as a miss (The Beatles is the
     reliable example). That is the intended failure direction -- no art beats
@@ -259,7 +267,7 @@ async def search_recording_release_group(
     bare_title = _strip_feature(title)
     base = f'recording:"{bare_title}" AND artist:"{primary}"'
     for query in (f"{base} AND status:official", base):
-        hit = await _resolve_from_query(query, bare_title, primary, limit)
+        hit = await _resolve_from_query(query, bare_title, primary, limit, exclude_mbids)
         if hit:
             return hit
     return None
@@ -272,8 +280,10 @@ def _strip_feature(title: str) -> str:
 
 async def _resolve_from_query(
     query: str, title: str, artist: str, limit: int,
+    exclude_mbids: Optional[set[str]] = None,
 ) -> Optional[dict]:
     """Scan one recording-search query's hits for a usable release-group."""
+    excluded = exclude_mbids or set()
     data = await _mb_get("/recording", {"query": query, "fmt": "json", "limit": limit})
     if data is None:
         logger.info("MusicBrainz recording search failed: '%s' / '%s'", artist, title)
@@ -330,7 +340,7 @@ async def _resolve_from_query(
 
         lookups += 1
         releases = await _recording_releases(rec["id"])
-        best = _pick_release_group(releases, want_artist)
+        best = _pick_release_group(releases, want_artist, excluded)
         if best:
             best["score"] = score
             best["recording_title"] = rec.get("title", "")
@@ -406,7 +416,10 @@ def _normalize_match(s: Optional[str]) -> str:
     return re.sub(r"[^a-z0-9]+", "", (s or "").lower())
 
 
-def _pick_release_group(releases: list[dict], want_artist: str = "") -> Optional[dict]:
+def _pick_release_group(
+    releases: list[dict], want_artist: str = "",
+    exclude: Optional[set[str]] = None,
+) -> Optional[dict]:
     """Choose which of a recording's releases supplies the cover art.
 
     Ranked EARLIEST-FIRST, because the first place a song appeared is the cover a
@@ -426,6 +439,11 @@ def _pick_release_group(releases: list[dict], want_artist: str = "") -> Optional
         rg = rel.get("release-group") or {}
         mbid = rg.get("id")
         if not mbid:
+            continue
+        # A reader already looked at this cover on this song's page and said it
+        # was wrong. Dropped here rather than after the pick, so the next-best
+        # group from the SAME recording still gets its chance.
+        if mbid in (exclude or ()):
             continue
         # "Official" is MB's own marker; Bootleg/Promotion/Pseudo-Release are not
         # what a song's cover should come from.

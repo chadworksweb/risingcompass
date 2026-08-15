@@ -88,7 +88,7 @@
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/compass.css">
   <link rel="stylesheet" href="/artists/artists.css">
-  <link rel="stylesheet" href="/songs/songs.css?v=20260812">
+  <link rel="stylesheet" href="/songs/songs.css?v=20260815">
   <link rel="stylesheet" href="/css/comments.css">
   <link rel="stylesheet" href="/audience-resonance/style.css">
   <style>
@@ -535,6 +535,23 @@
         <div class="song-summary-head">
           <div id="song-art-wrap" class="song-art-wrap" hidden>
             <img id="song-art" class="song-art" alt="" loading="lazy">
+            <!-- The last check on a cover is a person looking at it. The
+                 automated checks catch a wrong artist and a release dated years
+                 off, but a right artist on the wrong record of the same year is
+                 invisible in the data and obvious to a reader. Lives inside the
+                 art wrap so it appears only when there is art to be wrong. -->
+            <button type="button" id="song-art-report" class="song-art-report">Wrong cover?</button>
+            <form id="song-art-report-form" class="song-art-report-form" hidden>
+              <label class="song-art-report-label" for="song-art-report-note">Know what it should be? Optional.</label>
+              <input id="song-art-report-note" class="song-art-report-note" type="text" maxlength="500" autocomplete="off">
+              <!-- Honeypot. Real people never see it, bots fill it in. -->
+              <input type="text" id="song-art-hp" class="song-art-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+              <div class="song-art-report-actions">
+                <button type="submit" class="song-art-report-send">Send</button>
+                <button type="button" id="song-art-report-cancel" class="song-art-report-cancel">Cancel</button>
+              </div>
+            </form>
+            <p id="song-art-report-done" class="song-art-report-done" hidden>Got it. Someone will look.</p>
           </div>
           <div>
             <h1 id="song-question" class="song-question">What is this song about?</h1>
@@ -767,7 +784,7 @@
   <script src="/js/auth.js" defer></script>
   <script src="/js/comments.js" defer></script>
   <script src="/cards/rc-charge-card-generator.js?v=20260619-glow2"></script>
-  <script src="/songs/songs.js?v=20260812"></script>
+  <script src="/songs/songs.js?v=20260815"></script>
   <script src="/js/api.js"></script>
   <script src="/audience-resonance/song-page.js" type="module"></script>
   <script src="/js/subscribe.js" defer></script>

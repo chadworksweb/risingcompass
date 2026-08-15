@@ -530,6 +530,71 @@
     wrap.hidden = false;
   }
 
+  // The last check on a cover is a reader looking at it. The resolver catches a
+  // wrong artist and the date audit catches a release issued years off, but a
+  // right artist on the wrong record of the same year reads as correct in every
+  // stored field. No sign-in: requiring an account to say "that is the wrong
+  // sleeve" would cost nearly every report it would ever get.
+  function wireCoverArtReport(slug) {
+    const btn = document.getElementById('song-art-report');
+    const form = document.getElementById('song-art-report-form');
+    const done = document.getElementById('song-art-report-done');
+    if (!btn || !form || !done || !slug || btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+
+    const cancel = document.getElementById('song-art-report-cancel');
+    const note = document.getElementById('song-art-report-note');
+    const hp = document.getElementById('song-art-hp');
+    const send = form.querySelector('.song-art-report-send');
+
+    // A report already filed from this browser stays reported across reloads,
+    // so the same person is never invited to send the same thing twice.
+    const filedKey = `rc-art-reported:${slug}`;
+    try {
+      if (localStorage.getItem(filedKey)) {
+        btn.hidden = true;
+        done.hidden = false;
+        return;
+      }
+    } catch (e) { /* private mode: fall through and let the server dedupe */ }
+
+    btn.addEventListener('click', () => {
+      btn.hidden = true;
+      form.hidden = false;
+      if (note) note.focus();
+    });
+    if (cancel) cancel.addEventListener('click', () => {
+      form.hidden = true;
+      btn.hidden = false;
+    });
+
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (send) send.disabled = true;
+      try {
+        const resp = await fetch(`/api/songs/${encodeURIComponent(slug)}/cover-art-report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            note: note ? note.value : '',
+            device_id: getDeviceId(),
+            hp_website: hp ? hp.value : '',
+          }),
+        });
+        if (!resp.ok && resp.status !== 409) throw new Error(resp.status);
+        // A 409 means the art was already pulled between load and send, which is
+        // the outcome the reader wanted -- thanking them is the honest response.
+        form.hidden = true;
+        done.hidden = false;
+        try { localStorage.setItem(filedKey, '1'); } catch (e) { /* no-op */ }
+      } catch (e) {
+        if (send) send.disabled = false;
+        done.textContent = 'That did not send. Try again in a moment.';
+        done.hidden = false;
+      }
+    });
+  }
+
   function renderArtistClaimCta(song) {
     const link = document.getElementById('artist-claim-link');
     const section = document.getElementById('section-artist-claim');
@@ -864,6 +929,7 @@
     // group's art is pulled, so degrade to no art rather than a broken image —
     // same treatment as the release page.
     showCoverArt(song.cover_url, tagline);
+    wireCoverArtReport(song.slug);
 
     // Canonical + og:url — use the slug-based URL so social shares and
     // crawlers don't dedupe to /songs/song.html.
