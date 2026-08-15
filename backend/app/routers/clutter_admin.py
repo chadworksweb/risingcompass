@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import ClutterAudit, Song
 from app.routers.admin import verify_admin_key
+from app.services import song_removal
 from app.services.agents.leit_sweep import run_leit_sweep
 from app.services import alerts
 
@@ -149,18 +150,30 @@ def resolve_audit(
         raise HTTPException(404, "audit not found")
 
     song_removed = False
+    kept_reason = None
     if action == "remove" and row.song_id is not None:
-        # Reuse the submissions delete path (orphan-aware). It raises 404 only if
-        # the song has no lyrical_charger ingestion -- treat that as "nothing to
-        # remove" rather than failing the resolve.
-        from app.routers.submissions_admin import delete_submission
-        try:
-            result = delete_submission(row.song_id, db=db)
-            song_removed = bool(result.get("song_removed"))
-        except HTTPException as exc:
-            if exc.status_code != 404:
-                raise
-            logger.info("clutter remove: song %s not a deletable submission", row.song_id)
+        # services/song_removal, NOT the submissions delete path. That one fetches
+        # the song through an inner join on its lyrical_charger ingestion, so it
+        # 404s on every chart-born, stream-born and terminal-born song -- and this
+        # swallowed the 404 while still writing status='removed'. The queue was
+        # therefore able to report a removal it had not performed, which is how
+        # the `test / test` placeholder survived being removed twice.
+        result = song_removal.remove_song(db, row.song_id)
+        song_removed = bool(result["song_removed"])
+        kept_reason = result["kept_reason"]
+
+    # A remove that removed nothing is NOT resolved. Leaving it open is the whole
+    # point: the queue's job is to be trustworthy about what is still in the
+    # Library, and silently closing a row over a song that is still live is the
+    # exact failure this replaced.
+    if action == "remove" and not song_removed:
+        # remove_song deletes nothing on the kept branch, so there is nothing to
+        # roll back and nothing to commit.
+        raise HTTPException(
+            409,
+            f"Song kept: {kept_reason}. The finding stays open -- resolve it as "
+            f"'keep' or 'dismiss' if that reference is legitimate.",
+        )
 
     row.status = _ACTION_TO_STATUS[action]
     row.reviewed_at = datetime.utcnow()

@@ -150,7 +150,10 @@ function renderAudit(r) {
 }
 
 async function resolveAudit(id, action) {
-  if (action === 'remove' && !confirm('Delete this song from the Library? This removes the submission and (if orphaned) the song row.')) return;
+  // A song held by a chart appearance, reading, draft or release is REFUSED
+  // (409) and the finding stays open, so this prompt promises only what the
+  // remove can actually deliver.
+  if (action === 'remove' && !confirm('Delete this song from the Library? Refused if it has charted or appears in a reading, draft or release.')) return;
   let notes = null;
   try {
     const resp = await fetch('/api/admin/clutter-audits/' + id + '/resolve', {
