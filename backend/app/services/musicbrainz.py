@@ -596,6 +596,27 @@ async def get_artist_releases(
     return all_releases
 
 
+async def get_release_group_date(release_group_mbid: str) -> Optional[str]:
+    """MusicBrainz's first-release-date for a release group, as MB reports it.
+
+    One throttled lookup, no ranking and no candidate scan, because the group is
+    already chosen -- this only asks the calendar question about a pick that
+    exists. That is what makes it cheap enough to run over the whole pre-migration-151
+    population: those rows share far fewer release groups than they have songs,
+    so the cost is per GROUP, not per song.
+
+    Returns the raw variable-precision string ("1972", "1972-02", "1972-02-01"),
+    "" when MB has no date for the group, or None when the lookup FAILED. The
+    caller must keep those apart: "" is a real answer worth storing, None means
+    ask again later, and collapsing them would permanently mark a song audited
+    against a date nobody ever fetched.
+    """
+    data = await _mb_get(f"/release-group/{release_group_mbid}", {"fmt": "json"})
+    if data is None:
+        return None
+    return data.get("first-release-date") or ""
+
+
 async def get_release_tracks(release_group_mbid: str) -> dict:
     """Fetch the first OFFICIAL release in a group and its track listing.
 
