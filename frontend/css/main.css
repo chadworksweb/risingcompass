@@ -3161,7 +3161,16 @@ td.yo-charge {
   gap: 1.75rem 3.5rem;
 }
 
-.footer-brand { max-width: 28ch; }
+/* The brand column centres on its own axis. The logo and the tagline are one
+   stacked lockup rather than the head of a list, so they align to each other
+   instead of to the link columns beside them. */
+.footer-brand {
+  max-width: 28ch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
 .footer-logo {
   display: inline-flex;
   align-items: center;
