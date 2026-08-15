@@ -27,10 +27,20 @@ to check against and are reported as unauditable rather than guessed at.
   --tolerance N   years of slack before flagging (default 2; a late-in-the-year
                   chart run trails its release into the next year, and MB dates
                   a fair number of legitimate singles a year off the album)
-  --reset         clear the flagged rows' mbid + date + checked_at, so the next
-                  backfill_song_cover_art.py run RE-RESOLVES them from scratch
-                  (with the widened candidate scan) instead of skipping them as
-                  already-checked. Prints and asks before writing.
+  --reset         record each flagged pick as REJECTED, then clear the rows'
+                  mbid + date + checked_at so the next backfill_song_cover_art.py
+                  run re-resolves them. Prints and asks before writing.
+
+                  The rejection is the load-bearing half, and it was missing at
+                  first. Clearing alone re-runs an unchanged resolver over
+                  unchanged MusicBrainz data and lands on the identical wrong
+                  group: deterministic, so the whole pass is ~2 lookups per song
+                  spent to arrive back where it started. Writing a confirmed
+                  `song_cover_art_reports` row first is what excludes that group
+                  from the candidate scan, so the re-resolve can reach the
+                  next-best release instead. Same table, same mechanism, as a
+                  reader-filed report -- the audit is just another witness that
+                  a particular cover is wrong for a particular song.
   --limit N       cap the report
 
 Usage:
@@ -52,6 +62,7 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import text
 
+from app.config import settings
 from app.database import SessionLocal
 
 # MB dates are variable-precision ("1972", "1972-02", "1972-02-01"), so the year is
@@ -90,14 +101,16 @@ def main() -> None:
         db.close()
 
     flagged, unauditable, ok = [], 0, 0
-    for sid, title, artist, rg_date, _mbid, chart_year in rows:
+    for sid, title, artist, rg_date, mbid, chart_year in rows:
         rg_year = _year(rg_date)
         if rg_year is None or chart_year is None:
             unauditable += 1
             continue
         gap = rg_year - int(chart_year)
         if gap > args.tolerance:
-            flagged.append((gap, sid, title, artist, rg_date, int(chart_year)))
+            # The MBID rides along because --reset has to name the group it is
+            # rejecting; the report alone only needs the human-readable fields.
+            flagged.append((gap, sid, title, artist, rg_date, int(chart_year), mbid))
         else:
             ok += 1
 
@@ -109,7 +122,7 @@ def main() -> None:
           f"No chart year or no MB date (unauditable): {unauditable}")
     print(f"Flagged (release group issued >{args.tolerance}y after first chart): "
           f"{len(flagged)}\n")
-    for gap, sid, title, artist, rg_date, chart_year in shown:
+    for gap, sid, title, artist, rg_date, chart_year, _mbid in shown:
         print(f"  +{gap:>3}y  [{sid}] {title} - {artist}")
         print(f"          charted {chart_year}, release group dated {rg_date}")
 
@@ -118,10 +131,10 @@ def main() -> None:
             print(f"\nRe-run with --reset to queue these {len(flagged)} for re-resolve.")
         return
 
-    print(f"\n--reset will clear release_group_mbid + date + checked_at on "
-          f"{len(flagged)} song(s).")
+    print(f"\n--reset will record {len(flagged)} rejected release group(s), then "
+          f"clear release_group_mbid + date + checked_at on those songs.")
     print("They lose their (wrong) art now and are re-resolved on the next "
-          "backfill_song_cover_art.py run.")
+          "backfill_song_cover_art.py run, which will skip the rejected group.")
     if input("Proceed? [y/N] ").strip().lower() != "y":
         print("Aborted, nothing written.")
         return
@@ -129,6 +142,28 @@ def main() -> None:
     ids = [f[1] for f in flagged]
     db = SessionLocal()
     try:
+        # Record the rejection BEFORE clearing, in one transaction. The clear is
+        # what makes the song re-resolvable; the rejection is what stops the
+        # re-resolve returning the same group. Doing the clear alone leaves a
+        # deterministic no-op, which is what this originally shipped as.
+        for gap, sid, title, artist, rg_date, chart_year, mbid in flagged:
+            db.execute(
+                text("""
+                    INSERT INTO song_cover_art_reports
+                        (song_id, reported_mbid, mbid_source, note, status,
+                         environment, resolved_at, resolved_by)
+                    VALUES
+                        (:sid, :mbid, 'song', :note, 'confirmed',
+                         :env, NOW(), 'date_audit')
+                """),
+                {
+                    "sid": sid,
+                    "mbid": mbid,
+                    "note": (f"Date audit: charted {chart_year}, release group "
+                             f"dated {rg_date} (+{gap}y)."),
+                    "env": settings.environment,
+                },
+            )
         db.execute(
             text("UPDATE songs SET release_group_mbid = NULL, "
                  "release_group_date = NULL, release_group_checked_at = NULL "
@@ -138,7 +173,8 @@ def main() -> None:
         db.commit()
     finally:
         db.close()
-    print(f"Reset {len(ids)} song(s). Re-run the backfill to re-resolve them.")
+    print(f"Rejected {len(ids)} release group(s) and reset those songs. "
+          f"Re-run the backfill to re-resolve them.")
 
 
 if __name__ == "__main__":
