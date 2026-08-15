@@ -122,7 +122,17 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://risingcompass.net/themes/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://risingcompass.net/topic-trends/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/topics/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
