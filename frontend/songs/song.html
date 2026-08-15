@@ -85,10 +85,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/main.css?v=20260815">
   <link rel="stylesheet" href="/css/compass.css">
   <link rel="stylesheet" href="/artists/artists.css">
-  <link rel="stylesheet" href="/songs/songs.css?v=20260815b">
+  <link rel="stylesheet" href="/songs/songs.css?v=20260815c">
   <link rel="stylesheet" href="/css/comments.css">
   <link rel="stylesheet" href="/audience-resonance/style.css">
   <style>
@@ -565,6 +565,10 @@
           </div>
         </div>
         <p id="summary-text" class="summary-text-big is-loading">Loading summary…</p>
+        <!-- What the compass decided this song is about. Linked, because each
+             subject has a page of its own; dominant topic first, which is the
+             order the tagger wrote them in. -->
+        <p class="song-topics" id="song-topics" hidden></p>
       </section>
     </div>
 
@@ -613,10 +617,16 @@
     </div>
 
     <!-- Section: Audience Vibe — democratic needle alongside the diagnostic compass -->
-    <section class="song-section song-section--full" id="section-vibe">
+    <section class="song-section song-section--full song-break" id="section-vibe">
+      <!-- Readout (2/3) beside the ballot (1/3): the crowd's position on the
+           left, the way to move it on the right. The heading + intro live
+           inside the readout frame, so the ballot can stick beside all of it. -->
+      <div class="audience-vibe-row">
+      <div class="audience-vibe-left">
+      <div class="audience-vibe-readout">
+
       <h2>Audience Vibe</h2>
       <p class="direct-answer" id="audience-vibe-intro">The compass reads the lyrics. The Audience Vibe reads the people — the general place the audience thinks the compass should be pointing for this song, not a raw tally of votes. Two needles, one song; the gap between them is the data.</p>
-      <p class="audience-vibe-experimental">Audience Vibe is experimental. Something off? <a href="/misread-submission.html" class="accent-link">Let us know &rarr;</a></p>
 
       <!-- Amphitheater motif: a loose seating arc standing in for the crowd.
            Accent + symbolism, drawn procedurally by songs.js. -->
@@ -663,6 +673,14 @@
         <p class="audience-vibe-year-note" id="audience-vibe-year-note"></p>
       </div>
 
+      </div><!-- /.audience-vibe-readout -->
+
+      <p class="audience-vibe-experimental">Audience Vibe is experimental. Something off? <a href="/misread-submission.html" class="accent-link">Let us know &rarr;</a></p>
+
+      </div><!-- /.audience-vibe-left -->
+
+      <div class="audience-vibe-ballot">
+
       <p class="audience-vibe-prompt" id="audience-vibe-prompt">Do you think it should stay where it is, or be pushed further in one direction?</p>
 
       <div class="audience-vibe-actions" id="audience-vibe-actions">
@@ -693,6 +711,9 @@
         </div>
       </details>
 
+      </div><!-- /.audience-vibe-ballot -->
+      </div><!-- /.audience-vibe-row -->
+
       <!-- Discussion -- nested panel at the foot of Audience Vibe; the comments
            widget mounts into #song-comments after the song resolves (songs.js). -->
       <div id="song-comments" class="vibe-discussion" hidden></div>
@@ -708,8 +729,28 @@
       <p class="ar-song-cta"><a href="/audience-resonance/submit/" id="ar-share-cta" class="accent-link">Share a Resonance for this song &rarr;</a></p>
     </section>
 
-    <!-- ROW: calibration runs + flag activity -->
-    <div class="song-row">
+    <!-- Sections: similar by the reading. Both are derived from this song's own
+         ether topics and where its charge landed, never from genre or
+         popularity. Each stays hidden until the API returns rows for it, so an
+         untagged song shows nothing rather than an empty promise. -->
+    <section class="song-section song-section--full song-break" id="section-related" hidden>
+      <h2>Similar Songs</h2>
+      <ul class="related-grid" id="related-songs"></ul>
+    </section>
+
+    <!-- Similar Artists: PARKED until artist pages are worth sending people to.
+         The API already returns the artists and songs.js already renders them,
+         both guarded on the element being present, so restoring this is
+         uncommenting the block. Nothing else has to change.
+    <section class="song-section song-section--full song-break" id="section-related-artists" hidden>
+      <h2>Similar Artists</h2>
+      <ul class="related-grid" id="related-artists"></ul>
+    </section>
+    -->
+
+    <!-- ROW: calibration runs + flag activity. Housekeeping on how this
+         reading was arrived at, so it sits under the readings themselves. -->
+    <div class="song-row song-break">
       <!-- Calibration Runs — corpus of every agent pass on this song -->
       <section class="song-section" id="section-runs">
         <h2>Calibration Runs</h2>
@@ -729,24 +770,18 @@
       </section>
     </div>
 
-    <!-- ROW: artist claim + how calibrated -->
-    <div class="song-row">
-      <!-- Artist Claim CTA — inbound 'are you the artist?' lead capture -->
-      <section class="song-section" id="section-artist-claim">
-        <h2>Are You the Artist of This Song?</h2>
-        <p class="direct-answer">If this is your song, we'd like to talk. Verification happens face-to-face (or by video with anti-deepfake protocol) — no AI shortcuts. Once you're verified, you can publish a note about this song that lives on this page.</p>
-        <p class="flag-cta">
-          <a id="artist-claim-link" href="/artist-claim.html" class="accent-link">Tell us about this song &rarr;</a>
-        </p>
-      </section>
-
-      <!-- About / How calibrated -->
-      <section class="song-section" id="section-about">
-      <h2>How Was This Song Calibrated?</h2>
-      <p class="direct-answer">The Rising Compass calibrates songs based exclusively on lyric content using a 58-tenet rubric. No genre, no popularity, no artist reputation. Just the words and what they transmit.</p>
-      <p><a href="/#methodology" class="accent-link">Read the full methodology</a></p>
-      </section>
-    </div>
+    <!-- Footnotes: the artist-claim and methodology CTAs, condensed from two
+         full cards to one line of links. Both IDs are kept because songs.js
+         still gates them -- it points the claim link at this song and hides
+         that line once a verified artist block publishes. -->
+    <p class="song-footnotes">
+      <span class="song-footnote" id="section-artist-claim">
+        <a id="artist-claim-link" href="/artist-claim.html" class="accent-link">Are you the artist of this song?</a>
+      </span>
+      <span class="song-footnote" id="section-about">
+        <a href="/#methodology" class="accent-link">How was this song calibrated?</a>
+      </span>
+    </p>
 
     <!-- Subscriber capture (Build 2b). Drop-in: see /js/subscribe.js. -->
     <div class="rc-subscribe" data-source="song_page"
@@ -791,7 +826,7 @@
   <script src="/js/auth.js" defer></script>
   <script src="/js/comments.js" defer></script>
   <script src="/cards/rc-charge-card-generator.js?v=20260619-glow2"></script>
-  <script src="/songs/songs.js?v=20260815b"></script>
+  <script src="/songs/songs.js?v=20260815c"></script>
   <script src="/js/api.js"></script>
   <script src="/audience-resonance/song-page.js" type="module"></script>
   <script src="/js/subscribe.js" defer></script>
@@ -812,7 +847,10 @@
         </svg>
         <span>The Rising Compass</span>
       </a>
-      <p class="footer-tagline">Visualizing the vibrational charge of the songs that dominate popular culture.</p>
+      <p class="footer-tagline">
+        <span class="footer-tagline-lead">Making the Vibe Visible</span>
+        <span class="footer-tagline-sub">what our songs are really saying</span>
+      </p>
     </div>
 
     <div class="footer-menus">
@@ -824,6 +862,7 @@
         <li><a href="/artists/">Artists</a></li>
         <li><a href="/calendar/">Calendar</a></li>
         <li><a href="/ether-art-chart/">Ether Art Chart</a></li>
+        <li><a href="/themes/">Themes &amp; Topics</a></li>
         <li><a href="/topic-trends/">Topic Trends</a></li>
         <li><a href="/audience-resonance/">Audience Resonance</a></li>
         <li><a href="/shop/">Shop</a></li>

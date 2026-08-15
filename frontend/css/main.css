@@ -20,6 +20,9 @@
   --rc-text-dim: #c0c0ca;
   --rc-text-bright: #eeeef4;
   --rc-accent: #00d4aa;
+  /* Hover state for links. A lifted accent rather than a white, so a link
+     still reads as a link while it is being pointed at. */
+  --rc-accent-bright: #4fe6c6;
 
   /* Derived colors */
   --rc-divider: rgba(255, 255, 255, 0.04);
@@ -135,6 +138,40 @@ a:focus-visible {
 :focus:not(:focus-visible) {
   outline: none;
 }
+
+/* === Links: the ONE global rule ==========================================
+   Every anchor on the site gets its colour here, in the stylesheet every page
+   loads. This existed nowhere before: `.accent-link` was defined only in
+   songs/songs.css, and there was no bare `a` rule at all, so any page that did
+   not happen to load the song stylesheet rendered the browser's blue and
+   visited-purple. That is why every NEW page arrived with default links.
+
+   Two properties keep it permanent:
+     1. It lives in main.css, and scripts/build_partials.py fails the build if
+        a public page does not load main.css. A new page cannot miss this.
+     2. The bare `a` selector is the lowest specificity on the site (0,0,1), so
+        any component class overrides it without needing !important. Nothing
+        has to fight this rule; it only fills the gap where nothing else spoke.
+
+   :visited is pinned to the same colour on purpose. The compass has no
+   read/unread state worth showing, and purple text on this ground reads as a
+   rendering fault rather than a visited link. */
+a {
+  color: var(--rc-accent);
+  text-decoration: none;
+}
+a:visited { color: var(--rc-accent); }
+a:hover { color: var(--rc-accent-bright); }
+
+/* The explicit class, kept because ~40 templates already use it. Same values
+   as the bare rule; it exists so markup can say "this is a link" where the
+   surrounding component has set its own colour. */
+.accent-link {
+  color: var(--rc-accent);
+  text-decoration: none;
+}
+.accent-link:visited { color: var(--rc-accent); }
+.accent-link:hover { color: var(--rc-accent-bright); text-decoration: underline; }
 
 /* === Inverted Container (light-on-dark → dark-on-light) === */
 .rc-inverted {
@@ -3135,12 +3172,29 @@ td.yo-charge {
   text-decoration: none;
 }
 .footer-logo svg { flex: 0 0 auto; }
+/* Two lines, two weights: the claim, then what it means. The lead is
+   uppercased in CSS rather than typed in caps so the source stays readable and
+   a screen reader does not spell it out. */
 .footer-tagline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
   margin: 0.7rem 0 0;
   color: var(--rc-text-dim);
-  line-height: 1.5;
+  line-height: 1.4;
   font-size: 0.78rem;
 }
+
+.footer-tagline-lead {
+  font-family: var(--rc-font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-text-bright);
+}
+
+.footer-tagline-sub { color: var(--rc-text-dim); }
 
 .footer-head {
   margin: 0 0 1rem;
@@ -3171,6 +3225,21 @@ td.yo-charge {
 }
 .footer-links a:hover,
 .footer-legal a:hover { color: var(--rc-accent); }
+
+/* Touch spacing. A mobile audit found 36 footer links under the 32px minimum
+   height, which was every short tap target on the page bar seven. The footer
+   is six columns of tightly-set links and the longest thing on a phone, so it
+   is where a mis-tap actually happens. Padding rather than a taller font, so
+   nothing about the type changes. Scoped to coarse pointers, since a mouse
+   does not need the room and the desktop footer is dense on purpose. */
+@media (pointer: coarse) {
+  .footer-links a,
+  .footer-legal a {
+    display: inline-block;
+    padding: 0.45rem 0;
+  }
+  .footer-links li { line-height: 1.2; }
+}
 
 .footer-bottom {
   margin-top: 2.25rem;
@@ -3573,7 +3642,9 @@ td.yo-charge {
      the border itself is transparent, letting the ramp show through.
      CAUTION: never set border-color on any state here (hover, focus, snoozed).
      An opaque border-color paints over the ramp and the spectrum vanishes --
-     that is why hover moves the glow rather than the border. */
+     that is why hover moves the glow rather than the border.
+     The ring is 2px, not 1px, and that is load-bearing for the bob -- see the
+     animation block below. */
   background:
     linear-gradient(var(--rc-bg-card), var(--rc-bg-card)) padding-box,
     linear-gradient(90deg,
@@ -3582,7 +3653,7 @@ td.yo-charge {
       var(--rc-green) 50%,
       var(--rc-orange) 75%,
       var(--rc-red) 100%) border-box;
-  border: 1px solid transparent;
+  border: 2px solid transparent;
   font-family: var(--rc-font);
   font-size: clamp(0.72rem, 2.4vw, 0.84rem);
   letter-spacing: 0.01em;
@@ -3671,13 +3742,33 @@ td.yo-charge {
   border-radius: 5px;
 }
 
-/* Gentle bob while visible in pill mode -- signals liveness without shouting. */
+/* Gentle bob while visible in pill mode -- signals liveness without shouting.
+   Three properties here exist only to keep the ring from flickering while it
+   moves, and they only work together. Measured on a 1.43 DPR display (Windows
+   scaling), sampling the ring's rendered luminance across bob phases:
+
+     - Plain transform, no filter: the layer position SNAPS to whole device
+       pixels, so the ring holds one constant brightness but teleports a row at
+       a time. On a 5px bob that is about seven jumps, and a bright ring against
+       a dark page makes every one of them visible.
+     - filter unlocks SUBPIXEL positioning, so the pill glides -- but at a 1px
+       ring the ring's mass then splits across two rows and its brightness
+       swings 33% frame to frame. Smooth motion, pulsing frame.
+     - filter plus a 2px ring: the core always fully covers a row, so peak
+       brightness is pinned flat and only the soft edge varies. Smooth AND
+       steady.
+
+   So: do not thin the border back to 1px, and do not drop the filter. Either
+   one alone brings the flicker back, by a different mechanism. */
 .rc-essay-toast--visible:not(.rc-essay-toast--snoozed) .rc-essay-toast__inner {
   animation: rc-essay-toast-bob 3.6s ease-in-out 800ms infinite;
+  filter: blur(0.01px);
+  will-change: transform;
+  backface-visibility: hidden;
 }
 @keyframes rc-essay-toast-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -5px, 0); }
 }
 
 @media (max-width: 480px) {

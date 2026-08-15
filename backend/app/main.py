@@ -305,6 +305,9 @@ app.include_router(vibe.user_router)  # Clerk-authed, no X-Api-Key; before the g
 app.include_router(vibe.router, dependencies=_api_key_dep)
 app.include_router(ether_art_chart.router, dependencies=_public_read_dep)
 app.include_router(topic_trends.router, dependencies=_public_read_dep)
+from app.routers import topics as topics_router
+app.include_router(topics_router.router, dependencies=_public_read_dep)
+app.include_router(topics_router.themes_router, dependencies=_public_read_dep)
 app.include_router(chart_snapshots.public_router, dependencies=_public_read_dep)
 from app.routers import alltime_charts
 app.include_router(alltime_charts.public_router, dependencies=_public_read_dep)

@@ -72,33 +72,25 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Subscribe -- The Rising Compass</title>
-  <meta name="description" content="Get the daily Rising Compass reading straight to your inbox: the day's charge and the songs behind it.">
-  <link rel="canonical" href="https://risingcompass.net/subscribe/">
+  <title id="page-title">Song Topics | The Rising Compass</title>
+  <meta id="meta-description" name="description" content="Every topic the compass tracks in lyrics, ranked by how many songs carry it, with how each one reads.">
+  <meta id="og-title" property="og:title" content="Song Topics | The Rising Compass">
+  <meta id="og-description" property="og:description" content="Every topic the compass tracks in lyrics, ranked by how many songs carry it, with how each one reads.">
+  <meta id="og-url" property="og:url" content="https://risingcompass.net/topics/">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/subscribe/">
-  <meta property="og:title" content="Subscribe -- The Rising Compass">
-  <meta property="og:description" content="Get the daily reading straight to your inbox.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-  <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
-  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+  <link id="canonical-link" rel="canonical" href="https://risingcompass.net/topics/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css?v=20260815">
-  <style>
-    .subscribe-page{max-width:760px;margin:0 auto;padding:4.5rem 1.25rem 5.5rem}
-    .subscribe-page-title{font-size:2.1rem;font-weight:700;letter-spacing:-.02em;
-      color:var(--rc-text-bright);margin:0 0 .85rem;text-align:center;line-height:1.1}
-    .subscribe-page-intro{color:var(--rc-text-dim);font-size:1.06rem;line-height:1.65;
-      text-align:center;margin:0 auto 2.25rem;max-width:620px}
-  </style>
+  <!-- The song page's card + section shapes are reused wholesale here, the same
+       way the release page reuses them. Keep the version in step with
+       song.html so the two never diverge behind a stale edge cache. -->
+  <link rel="stylesheet" href="/songs/songs.css?v=20260815c">
+  <link rel="stylesheet" href="/topics/topics.css?v=20260815">
+  <link rel="icon" href="/favicon.ico">
 </head>
 <body>
-  <a class="skip-nav" href="#subscribe-main">Skip to content</a>
-
   <!-- INCLUDE:header -->
 <header class="rc-header">
   <div class="rc-header-inner">
@@ -172,16 +164,23 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="subscribe-main" class="subscribe-page">
-    <h1 class="subscribe-page-title">Follow the readings</h1>
-    <p class="subscribe-page-intro">Every day, the songs at the top of the charts get read through the same 58-tenet rubric that scores the public Compass. Subscribe and that reading comes to your inbox: the day's charge and the songs behind it, nothing else.</p>
-    <div class="rc-subscribe" data-source="subscribe_page"
-         data-heading=""
+  <main class="topic-main" id="topic-main">
+    <section class="song-section song-section--full">
+      <h1 class="topic-title">Song Topics</h1>
+      <p class="direct-answer" id="index-intro">Every topic the compass tracks, ranked by how many songs carry it.</p>
+    </section>
+
+    <nav class="topic-crossnav"><a href="/themes/">See them grouped into themes &rarr;</a></nav>
+    <div id="topic-list"></div>
+
+    <div class="rc-subscribe" data-source="song_page"
+         data-heading="Follow the readings"
          data-blurb="Get the daily reading straight to your inbox."></div>
   </main>
 
+  <script src="/js/api.js"></script>
+  <script src="/topics/topics-index.js?v=20260815"></script>
   <script src="/js/subscribe.js" defer></script>
-
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">

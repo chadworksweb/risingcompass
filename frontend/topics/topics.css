@@ -1,0 +1,370 @@
+/* === Topic pages ===
+   Deliberately reuses the song page's section, card, and grid shapes
+   (.song-section, .related-grid, .related-card) so a reader meets one visual
+   language across the site. Only what is genuinely new to these pages lives
+   here. */
+
+.topic-main {
+  max-width: var(--rc-max-width, 1200px);
+  margin: var(--rc-gap-panel, 1.5rem) auto;
+  padding: 0 var(--rc-card-padding, 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rc-gap-panel, 1.5rem);
+}
+
+/* Matches the song page's rhythm: a block that opens a new movement gets
+   double the standard gap above it. */
+.topic-main .song-break { margin-top: var(--rc-gap-panel, 1.5rem); }
+
+.topic-crumbs {
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+  letter-spacing: 0.04em;
+}
+.topic-crumbs a { color: var(--rc-text-dim); text-decoration: none; }
+.topic-crumbs a:hover { color: var(--rc-accent); }
+.topic-crumb-sep { margin: 0 0.4rem; opacity: 0.5; }
+.topic-crumb-sep[hidden] { display: none; }
+
+/* The last crumb is where you are, so it is the only one that is not a link
+   and the only one carrying full-strength ink. Capitalised to match the H1,
+   since topic labels come out of the taxonomy lower-case. */
+.topic-crumbs [aria-current="page"] {
+  color: var(--rc-text-bright);
+  text-transform: capitalize;
+}
+
+.topic-title {
+  margin: 0 0 0.6rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--rc-text-bright);
+  text-transform: capitalize;
+}
+
+/* The parent theme, named under the title. Topics and themes are sibling
+   collections in the URL, so this line is where the taxonomy relation lives. */
+.topic-parent {
+  margin: 0 0 0.7rem;
+  font-size: 0.85rem;
+  color: var(--rc-text-dim);
+}
+.topic-parent[hidden] { display: none; }
+.topic-parent a { color: var(--rc-text-bright); text-decoration: none; }
+.topic-parent a:hover { color: var(--rc-accent); }
+
+/* Cross-link between the two indexes, since neither is the other's parent. */
+.topic-crossnav { margin: -0.5rem 0 0; font-size: 0.85rem; }
+.topic-crossnav a { color: var(--rc-accent); text-decoration: none; }
+.topic-crossnav a:hover { text-decoration: underline; }
+
+/* --- the flat topic ranking (/topics/) --- */
+.topic-rank { list-style: none; margin: 0; padding: 0;
+  border-top: 1px solid var(--rc-divider, rgba(255, 255, 255, 0.06)); }
+
+.topic-rank-row { border-bottom: 1px solid var(--rc-divider, rgba(255, 255, 255, 0.06)); }
+
+.topic-rank-link {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.3rem 1.25rem;
+  padding: 0.8rem 0.5rem;
+  text-decoration: none;
+  transition: background var(--rc-ease-fast, 0.15s) ease;
+}
+.topic-rank-link:hover { background: rgba(255, 255, 255, 0.03); }
+
+.topic-rank-charge {
+  font-family: var(--rc-font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.topic-rank-id { min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+
+.topic-rank-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  text-transform: capitalize;
+}
+.topic-rank-link:hover .topic-rank-name { color: var(--rc-accent); }
+
+.topic-rank-theme { font-size: 0.75rem; color: var(--rc-text-dim); }
+
+.topic-rank-songs {
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The taxonomy's own definition of the topic. Quieter than the finding,
+   because it is context rather than result. */
+.topic-scope {
+  margin: 0 0 0.9rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--rc-text-dim);
+  font-style: italic;
+  max-width: 70ch;
+}
+
+/* The headline finding. This is the page's reason to exist, so it is the
+   largest thing on it after the name. */
+.topic-finding {
+  margin: 0 0 1.1rem;
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: var(--rc-text-bright);
+  max-width: 60ch;
+}
+
+.topic-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-top: 1px solid var(--rc-border);
+  padding-top: 1rem;
+}
+
+.topic-stat { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; }
+
+.topic-stat-label {
+  flex: 0 0 9rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+}
+
+.topic-stat-value {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: 0.88rem;
+  color: var(--rc-text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+
+.topic-tier-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.78rem;
+  color: var(--rc-text-dim);
+}
+.topic-tier-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* --- filter + paging --- */
+.topic-filter { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0 0 1rem; }
+
+.topic-filter-btn {
+  padding: 0.4rem 0.85rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  color: var(--rc-text-dim);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: color var(--rc-ease, 0.2s) ease, border-color var(--rc-ease, 0.2s) ease;
+}
+.topic-filter-btn:hover { color: var(--rc-text-bright); }
+.topic-filter-btn.is-active {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+}
+
+.topic-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+/* The handoff to the Library, shown once the single Show more is spent. */
+.topic-deeper {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--rc-text-dim);
+  text-align: center;
+}
+.topic-deeper[hidden] { display: none; }
+.topic-more-btn {
+  padding: 0.6rem 1.4rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  color: var(--rc-text-bright);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.topic-more-btn:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
+.topic-more-btn[hidden] { display: none; }
+
+/* --- the song list ---
+   A ranking, so it reads as rows with the charge in a fixed left column: the
+   eye runs down one column of numbers instead of hunting each card for its
+   figure. The whole row is the link, matching the cards elsewhere. */
+.topic-song-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rc-divider, rgba(255, 255, 255, 0.06));
+}
+
+.topic-row { border-bottom: 1px solid var(--rc-divider, rgba(255, 255, 255, 0.06)); }
+
+.topic-row-link {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 20rem) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.5rem 1.25rem;
+  padding: 0.7rem 0.5rem;
+  text-decoration: none;
+  transition: background var(--rc-ease-fast, 0.15s) ease;
+}
+.topic-row-link:hover { background: rgba(255, 255, 255, 0.03); }
+
+.topic-row-charge {
+  font-family: var(--rc-font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.topic-row-id { min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+
+.topic-row-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topic-row-link:hover .topic-row-title { color: var(--rc-accent); }
+
+.topic-row-artist { font-size: 0.78rem; color: var(--rc-text-dim); }
+
+/* The deadpan line, held to one line so the rows stay an even ladder. */
+.topic-row-why {
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--rc-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .topic-row-link {
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    gap: 0.2rem 0.75rem;
+  }
+  /* The deadpan drops under the title rather than squeezing a third column. */
+  .topic-row-why { grid-column: 2; }
+}
+
+/* --- siblings --- */
+.topic-sibling-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.6rem;
+}
+
+.topic-sibling {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  text-decoration: none;
+  transition: border-color var(--rc-ease, 0.2s) ease;
+}
+.topic-sibling:hover { border-color: var(--rc-border-ui, #646490); }
+.topic-sibling-name {
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  text-transform: capitalize;
+}
+.topic-sibling:hover .topic-sibling-name { color: var(--rc-accent); }
+.topic-sibling-meta { font-size: 0.75rem; color: var(--rc-text-dim); }
+
+/* --- index page --- */
+.topic-theme-count {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--rc-text-dim);
+  font-family: var(--rc-font-mono);
+}
+
+.topic-index-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.topic-index-card { display: flex; }
+
+.topic-index-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  padding: 1rem 1.1rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+  text-decoration: none;
+  transition: border-color var(--rc-ease, 0.2s) ease;
+}
+.topic-index-link:hover { border-color: var(--rc-border-ui, #646490); }
+
+.topic-index-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--rc-text-bright);
+  text-transform: capitalize;
+}
+.topic-index-link:hover .topic-index-name { color: var(--rc-accent); }
+
+.topic-index-meta {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-family: var(--rc-font-mono);
+  font-size: 0.75rem;
+  color: var(--rc-text-dim);
+}
+.topic-index-charge { font-weight: 700; }
+
+@media (max-width: 768px) {
+  .topic-title { font-size: 1.5rem; }
+  .topic-finding { font-size: 1.05rem; }
+  .topic-stat-label { flex-basis: 100%; }
+}

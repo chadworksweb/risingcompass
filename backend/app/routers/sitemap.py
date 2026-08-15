@@ -29,6 +29,7 @@ page_ssr) so crawlers can read it. nginx on the root host proxies
 
 from __future__ import annotations
 
+import logging
 import math
 import time
 from datetime import datetime
@@ -42,6 +43,8 @@ from sqlalchemy import text
 from app.database import SessionLocal
 from app.routers.page_ssr import _FRONTEND_DIR, _SITE
 from app.services.artist_utils import generate_song_slug
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["sitemap"])
 
@@ -209,13 +212,44 @@ def _build_index() -> str:
     return "\n".join(out) + "\n"
 
 
+def _topic_paths() -> list[str]:
+    """One URL per ether topic. Read from the live taxonomy rather than a
+    hardcoded list, so a topic added in admin appears here without a deploy.
+    Slug rename is disabled by design, so these URLs cannot churn underneath a
+    crawler. Fails soft: a taxonomy read error drops the topic block rather
+    than breaking the whole sitemap."""
+    try:
+        from app.database import SessionLocal
+        from app.services import ether_taxonomy
+        with SessionLocal() as db:
+            slugs = sorted(ether_taxonomy.topic_hierarchy(db).get("topics", {}).keys())
+        return [f"/topics/{s}" for s in slugs]
+    except Exception:
+        logger.exception("sitemap: topic paths unavailable")
+        return []
+
+
+def _theme_paths() -> list[str]:
+    """One URL per theme, the parent tier above topics. Same live-taxonomy
+    read and the same fail-soft posture as the topics above."""
+    try:
+        from app.database import SessionLocal
+        from app.services import ether_taxonomy
+        with SessionLocal() as db:
+            themes = ether_taxonomy.topic_hierarchy(db).get("themes", [])
+        return [f"/themes/{t['slug']}" for t in themes]
+    except Exception:
+        logger.exception("sitemap: theme paths unavailable")
+        return []
+
+
 def _build_pages() -> str:
     out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<?xml-stylesheet type="text/xsl" href="/sitemap-style.xml"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
-    for p in _page_paths():
+    for p in _page_paths() + _theme_paths() + _topic_paths():
         out.append("  <url>")
         out.append(f"    <loc>{escape(_SITE + p)}</loc>")
         out.append(f"    <changefreq>{_page_changefreq(p)}</changefreq>")

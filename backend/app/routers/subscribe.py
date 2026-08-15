@@ -67,7 +67,10 @@ async def subscribe(
     if "@" not in email or "." not in email.split("@")[-1]:
         return SubscribeOut(status="invalid", message="That email does not look right.")
 
-    status, row = subs.subscribe(db, email, data.source, data.source_detail)
+    status, row = subs.subscribe(
+        db, email, data.source, data.source_detail,
+        first_name=data.first_name, last_name=data.last_name,
+    )
 
     if status == "already_subscribed":
         return SubscribeOut(

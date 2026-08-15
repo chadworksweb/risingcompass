@@ -72,33 +72,25 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Subscribe -- The Rising Compass</title>
-  <meta name="description" content="Get the daily Rising Compass reading straight to your inbox: the day's charge and the songs behind it.">
-  <link rel="canonical" href="https://risingcompass.net/subscribe/">
+  <title id="page-title">Songs about this theme | The Rising Compass</title>
+  <meta id="meta-description" name="description" content="What the compass finds in songs under this theme, across the whole library.">
+  <meta id="og-title" property="og:title" content="Songs about this theme | The Rising Compass">
+  <meta id="og-description" property="og:description" content="What the compass finds in songs under this theme, across the whole library.">
+  <meta id="og-url" property="og:url" content="https://risingcompass.net/topics/">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/subscribe/">
-  <meta property="og:title" content="Subscribe -- The Rising Compass">
-  <meta property="og:description" content="Get the daily reading straight to your inbox.">
-  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
-  <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
-  <link rel="apple-touch-icon" href="/img/favicon-192.png">
+  <link id="canonical-link" rel="canonical" href="https://risingcompass.net/topics/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css?v=20260815">
-  <style>
-    .subscribe-page{max-width:760px;margin:0 auto;padding:4.5rem 1.25rem 5.5rem}
-    .subscribe-page-title{font-size:2.1rem;font-weight:700;letter-spacing:-.02em;
-      color:var(--rc-text-bright);margin:0 0 .85rem;text-align:center;line-height:1.1}
-    .subscribe-page-intro{color:var(--rc-text-dim);font-size:1.06rem;line-height:1.65;
-      text-align:center;margin:0 auto 2.25rem;max-width:620px}
-  </style>
+  <!-- The song page's card + section shapes are reused wholesale here, the same
+       way the release page reuses them. Keep the version in step with
+       song.html so the two never diverge behind a stale edge cache. -->
+  <link rel="stylesheet" href="/songs/songs.css?v=20260815c">
+  <link rel="stylesheet" href="/topics/topics.css?v=20260815">
+  <link rel="icon" href="/favicon.ico">
 </head>
 <body>
-  <a class="skip-nav" href="#subscribe-main">Skip to content</a>
-
   <!-- INCLUDE:header -->
 <header class="rc-header">
   <div class="rc-header-inner">
@@ -172,16 +164,56 @@
 </header>
 <!-- /INCLUDE:header -->
 
-  <main id="subscribe-main" class="subscribe-page">
-    <h1 class="subscribe-page-title">Follow the readings</h1>
-    <p class="subscribe-page-intro">Every day, the songs at the top of the charts get read through the same 58-tenet rubric that scores the public Compass. Subscribe and that reading comes to your inbox: the day's charge and the songs behind it, nothing else.</p>
-    <div class="rc-subscribe" data-source="subscribe_page"
-         data-heading=""
+  <main class="topic-main" id="topic-main">
+    <!-- Themes / this theme. The index is the tier above. -->
+    <nav class="topic-crumbs" aria-label="Breadcrumb">
+      <a href="/themes/">Themes</a>
+      <span class="topic-crumb-sep" aria-hidden="true">/</span>
+      <span id="crumb-theme" aria-current="page"></span>
+    </nav>
+
+    <section class="song-section song-section--full" id="theme-head">
+      <h1 class="topic-title" id="theme-title">Loading&hellip;</h1>
+      <p class="topic-finding" id="theme-finding"></p>
+      <ul class="topic-stats" id="theme-stats"></ul>
+    </section>
+
+    <section class="song-section song-section--full song-break" id="theme-topics">
+      <h2>Topics</h2>
+      <ul class="topic-index-grid" id="theme-topic-grid"></ul>
+    </section>
+
+    <!-- TOPICS, not themes: each of these is filed primarily under another
+         theme while naming this one as a secondary. Only rendered when the
+         taxonomy actually records a crossing. -->
+    <section class="song-section song-section--full song-break" id="theme-also" hidden>
+      <h2 id="theme-also-h">Related topics</h2>
+      <ul class="topic-index-grid" id="theme-also-grid"></ul>
+    </section>
+
+    <section class="song-section song-section--full song-break" id="theme-extremes" hidden>
+      <h2>The span</h2>
+      <ul class="related-grid" id="theme-extremes-grid"></ul>
+    </section>
+
+    <section class="song-section song-section--full song-break" id="theme-related" hidden>
+      <h2>Related themes</h2>
+      <ul class="topic-sibling-list" id="theme-related-list"></ul>
+    </section>
+
+    <div class="rc-subscribe" data-source="song_page"
+         data-heading="Follow the readings"
          data-blurb="Get the daily reading straight to your inbox."></div>
+
+    <div id="theme-notfound" class="song-notfound" hidden>
+      <h1>No such theme</h1>
+      <p>The compass does not track a theme by that name. <a href="/topics/" class="accent-link">See the ones it does &rarr;</a></p>
+    </div>
   </main>
 
+  <script src="/js/api.js"></script>
+  <script src="/themes/themes.js?v=20260815"></script>
   <script src="/js/subscribe.js" defer></script>
-
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">

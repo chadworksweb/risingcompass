@@ -97,7 +97,7 @@ def _set_attr(html: str, tag_id: str, attr: str, value: str) -> str:
 
 
 def _inject(html: str, *, title: str, description: str, canonical: str,
-            json_ld: dict) -> str:
+            json_ld: dict | list) -> str:
     html = _set_title(html, title)
     html = _set_attr(html, "meta-description", "content", description)
     html = _set_attr(html, "og-title", "content", title)
@@ -119,6 +119,20 @@ def _clamp(text: str, limit: int = 165) -> str:
         return text
     cut = text[:limit].rsplit(" ", 1)[0].rstrip(" ,.;:-")
     return f"{cut}..."
+
+
+def _breadcrumb_ld(items: list[tuple[str, str]]) -> dict:
+    """BreadcrumbList from (name, url) pairs, root first. The visible crumbs and
+    this list are built from the same pairs at the call site, so the structured
+    hierarchy can never disagree with the one a reader sees."""
+    return {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": i + 1, "name": name, "item": url}
+            for i, (name, url) in enumerate(items)
+        ],
+    }
 
 
 def _faq_ld(question: str, answer: str, url: str) -> dict:
@@ -316,6 +330,177 @@ def ssr_artist(slug: str):
         description=description,
         canonical=canonical,
         json_ld=_faq_ld(question, description, canonical),
+    )
+    return HTMLResponse(html)
+
+
+# --- topic pages -----------------------------------------------------------
+# The whole point of a topic page is a finding a crawler can lift, so the
+# finding goes in the meta description and the FAQ answer, not just in the DOM
+# after JS runs. Both routes are single dotless segments, so /topics/topics.js
+# and /topics/topics.css keep being served as static assets.
+
+@router.get("/themes/", response_class=HTMLResponse)
+@router.get("/themes", response_class=HTMLResponse)
+def ssr_themes_index():
+    tpl = _load_template("themes/index.html")
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    from app.services import topic_pages
+    with SessionLocal() as db:
+        data = topic_pages.index(db)
+
+    n_topics = sum(len(t["topics"]) for t in data["themes"])
+    n_songs = data["library"]["songs"]
+    question = "What are songs about?"
+    answer = (
+        f"The Rising Compass sorts what songs are about into {len(data['themes'])} themes "
+        f"holding {n_topics} topics, read across {n_songs} calibrated songs against the "
+        f"same lyric rubric."
+    )
+    canonical = f"{_SITE}/themes/"
+    html = _inject(
+        tpl,
+        title="Song Themes | The Rising Compass",
+        description=_clamp(answer),
+        canonical=canonical,
+        json_ld=_faq_ld(question, answer, canonical),
+    )
+    return HTMLResponse(html)
+
+
+@router.get("/topics/{slug}", response_class=HTMLResponse)
+def ssr_topic(slug: str):
+    tpl = _load_template("topics/topic.html")
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    from app.services import topic_pages
+    with SessionLocal() as db:
+        data = topic_pages.detail(db, slug)
+    if data is None:
+        # A slug the taxonomy does not know is a real 404, not an empty subject.
+        return HTMLResponse(tpl, status_code=404)
+
+    label = data["topic"]["label"]
+    st = data["stats"]
+    lib = data["library"]
+    question = f"What do songs about {label} read?"
+
+    # The answer is the finding itself, stated in the order the page states it.
+    parts = [
+        f"{st['songs']} calibrated songs carry {label}, averaging "
+        f"{'+' if (st['avg_charge'] or 0) > 0 else ''}{st['avg_charge']}"
+    ]
+    if st["avg_charge"] is not None and lib["avg_charge"] is not None:
+        delta = st["avg_charge"] - lib["avg_charge"]
+        if abs(delta) >= 3:
+            parts.append(f"{abs(delta)} points {'above' if delta > 0 else 'below'} the library")
+    if st.get("min_charge") is not None:
+        parts.append(
+            f"running from {'+' if st['min_charge'] > 0 else ''}{st['min_charge']} to "
+            f"{'+' if st['max_charge'] > 0 else ''}{st['max_charge']}"
+        )
+    answer = ", ".join(parts) + "."
+
+    canonical = f"{_SITE}/topics/{slug}"
+    # Topics / this topic. The crumb mirrors the URL, and the URL is a sibling
+    # collection: a topic does not sit inside its theme's path, so the crumb
+    # must not claim it does. The theme is surfaced on the page instead.
+    crumbs = [("Topics", f"{_SITE}/topics/"), (label, canonical)]
+    html = _inject(
+        tpl,
+        # The title states the topic; the FAQ question and the description
+        # carry the finding. Keeping them distinct means the SERP line and the
+        # answer-engine payload are not the same sentence twice.
+        title=f"Songs about {label} | The Rising Compass",
+        description=_clamp(answer),
+        canonical=canonical,
+        json_ld=[_faq_ld(question, answer, canonical), _breadcrumb_ld(crumbs)],
+    )
+    return HTMLResponse(html)
+
+
+@router.get("/topics/", response_class=HTMLResponse)
+@router.get("/topics", response_class=HTMLResponse)
+def ssr_topics_index():
+    """The topic collection's own front door.
+
+    Themes are the parent of topics in the TAXONOMY, but nesting that in the
+    path would make a topic URL read /themes/meaning-mortality/grief, so the two
+    live as sibling collections and each keeps its own index. The parent theme
+    travels as a label on the row and as a link on the topic page, which is
+    where the relation belongs.
+    """
+    tpl = _load_template("topics/index.html")
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    from app.services import topic_pages
+    with SessionLocal() as db:
+        data = topic_pages.index(db)
+
+    n_topics = sum(len(t["topics"]) for t in data["themes"])
+    n_songs = data["library"]["songs"]
+    question = "What topics does The Rising Compass track?"
+    answer = (
+        f"All {n_topics} topics the compass reads for in lyrics, ranked by how many of "
+        f"{n_songs} calibrated songs carry each one."
+    )
+    canonical = f"{_SITE}/topics/"
+    html = _inject(
+        tpl,
+        title="Song Topics | The Rising Compass",
+        description=_clamp(answer),
+        canonical=canonical,
+        json_ld=[
+            _faq_ld(question, answer, canonical),
+            _breadcrumb_ld([("Topics", canonical)]),
+        ],
+    )
+    return HTMLResponse(html)
+
+
+@router.get("/themes/{slug}", response_class=HTMLResponse)
+def ssr_theme(slug: str):
+    tpl = _load_template("themes/theme.html")
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    from app.services import topic_pages
+    with SessionLocal() as db:
+        data = topic_pages.theme_detail(db, slug)
+    if data is None:
+        return HTMLResponse(tpl, status_code=404)
+
+    label = data["theme"]["label"]
+    st = data["stats"]
+    question = f"What do songs about {label} read?"
+    answer = (
+        f"{len(data['topics'])} topics sit under {label}, carried by {st['songs']} "
+        f"calibrated songs averaging "
+        f"{'+' if (st['avg_charge'] or 0) > 0 else ''}{st['avg_charge']}"
+    )
+    if st.get("min_charge") is not None:
+        answer += (
+            f", running from {'+' if st['min_charge'] > 0 else ''}{st['min_charge']} to "
+            f"{'+' if st['max_charge'] > 0 else ''}{st['max_charge']}"
+        )
+    answer += "."
+
+    canonical = f"{_SITE}/themes/{slug}"
+    # Two levels, because a theme IS the second tier.
+    crumbs = [
+        ("Themes", f"{_SITE}/themes/"),
+        (label, canonical),
+    ]
+    html = _inject(
+        tpl,
+        title=f"Songs about {label} | The Rising Compass",
+        description=_clamp(answer),
+        canonical=canonical,
+        json_ld=[_faq_ld(question, answer, canonical), _breadcrumb_ld(crumbs)],
     )
     return HTMLResponse(html)
 

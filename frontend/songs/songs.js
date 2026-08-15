@@ -78,6 +78,11 @@
       ArtistsAPI.getSongCalibrationRuns(slug)
         .then(data => renderCalibrationRuns(data.runs || [], data.consensus))
         .catch(err => console.warn('Calibration runs unavailable:', err));
+      // Related by the reading. Independent too -- a song with no topics
+      // tagged simply leaves the section hidden.
+      ArtistsAPI.getSongRelated(slug)
+        .then(data => renderRelated(data))
+        .catch(err => console.warn('Related readings unavailable:', err));
       // Audience Vibe layer (independent — no song.song_source means no needle).
       if (song.song_source && song.song_id) {
         initAudienceVibe(song);
@@ -671,6 +676,120 @@
     if (claimSection) claimSection.hidden = true;
   }
 
+  // Ether topics as links to their own pages. Slug to label without a second
+  // API call: the tagger's slugs are kebab-case, and the topic page carries the
+  // taxonomy's canonical label if the two ever diverge.
+  function topicLabel(slug) {
+    return String(slug || '').replace(/-/g, ' ');
+  }
+
+  function renderSongTopics(song) {
+    const el = document.getElementById('song-topics');
+    if (!el) return;
+    const topics = Array.isArray(song.topics) ? song.topics.filter(Boolean) : [];
+    if (!topics.length) return;
+    // Topics only. The theme chip was cut deliberately: it put 2,279 links into
+    // 9 URLs, the most concentrated pattern on the site, to tell a reader where
+    // the song is FILED rather than what it is about. The theme is still one
+    // click away, named on every topic page.
+    el.innerHTML = topics.map(t =>
+      `<a class="song-topic" href="/topics/${encodeURIComponent(t)}">${escapeHtml(topicLabel(t))}</a>`
+    ).join('');
+    el.hidden = false;
+  }
+
+  // --- Related by the reading -------------------------------------------
+  // The payload already says WHY each row is there (which topics it shares,
+  // how far apart the two charges landed), so the page states the relation
+  // instead of asserting a bare resemblance.
+
+  function signedCharge(v) {
+    if (v == null) return '—';
+    return (v > 0 ? '+' : '') + v;
+  }
+
+  function sharedNote(item) {
+    const topics = (item.shared_topic_labels || []).join(', ');
+    if (!topics) return '';
+    return `Shares ${escapeHtml(topics)}`;
+  }
+
+  function relatedCard(href, kicker, kickerColor, name, sub, why) {
+    const dot = kickerColor
+      ? `<span class="related-card-dot" style="background:${kickerColor}" aria-hidden="true"></span>`
+      : '';
+    // A song with no topics tagged has nothing to say on this line, and an
+    // empty rule with a lone full stop under it looks like a bug.
+    const stripped = (why || '').replace(/[.\s]/g, '');
+    const whyHtml = stripped ? `<span class="related-card-why">${why}</span>` : '';
+    // The anchor wraps the whole card, so the entire tile is the target rather
+    // than the title alone.
+    return `
+      <li class="related-card">
+        <a class="related-card-link" href="${href}">
+          <span class="related-card-kicker">${dot}${kicker}</span>
+          <span class="related-card-name">${escapeHtml(name || '')}</span>
+          <span class="related-card-sub">${escapeHtml(sub || '')}</span>
+          ${whyHtml}
+        </a>
+      </li>`;
+  }
+
+  function renderRelated(data) {
+    const section = document.getElementById('section-related');
+    const artistSection = document.getElementById('section-related-artists');
+    if (!section || !data) return;
+    const songs = data.songs || [];
+    const artists = data.artists || [];
+    if (!songs.length && !artists.length) return;
+
+    // No lede on either section. The basis still rides in the payload, and
+    // each card states its own reason on its why line, so the relation is
+    // never asserted without being shown.
+
+    const songList = document.getElementById('related-songs');
+    if (songList) {
+      songList.innerHTML = songs.map(s => {
+        const note = sharedNote(s);
+        const gap = s.charge_gap === 0
+          ? 'Same charge'
+          : `${s.charge_gap} point${s.charge_gap === 1 ? '' : 's'} apart`;
+        const kicker = [escapeHtml(s.tier_label || ''), signedCharge(s.charge_value)]
+          .filter(Boolean).join(' ');
+        return relatedCard(
+          `/songs/${encodeURIComponent(s.slug)}`,
+          `<span style="color:${s.tier_hex || '#888'}">${kicker}</span>`,
+          s.tier_hex || '#888',
+          s.title,
+          s.artist,
+          `${note}${note ? '. ' : ''}${gap}.`
+        );
+      }).join('');
+    }
+
+    const artistList = document.getElementById('related-artists');
+    if (artistList) {
+      artistList.innerHTML = artists.map(a => {
+        const note = sharedNote(a);
+        const n = a.song_count || 0;
+        const reads = n === 1 ? 'One song reads this way' : `${n} songs read this way`;
+        // No tier dot here: an artist has no tier. The average is a summary of
+        // their matching songs, not a reading of the artist.
+        return relatedCard(
+          `/artists/${encodeURIComponent(a.slug)}`,
+          reads,
+          null,
+          a.name,
+          `${signedCharge(a.avg_charge)} average across them`,
+          `${note}.`
+        );
+      }).join('');
+    }
+
+    section.hidden = !songs.length;
+    if (artistSection) artistSection.hidden = !artists.length;
+  }
+
   function renderFlagCounts(song, counts) {
     const section = document.getElementById('section-flags');
     if (!section) return;
@@ -952,8 +1071,10 @@
     setH2('section-vibe', `Audience Vibe on ${tagline}`);
     setH2('section-runs', `Calibration Runs for ${tagline}`);
     setH2('section-flags', 'Flag Activity on This Song');
-    setH2('section-about', 'How Was This Song Calibrated?');
-    setH2('section-artist-claim', 'Are You the Artist of This Song?');
+    // Similar Songs / Similar Artists keep their plain headings on purpose --
+    // the song is already named everywhere above them.
+    // section-about / section-artist-claim carry no heading any more -- they
+    // are one-line footnote links (.song-footnotes in song.html).
 
     // Hero
     document.getElementById('song-title').textContent = song.title;
@@ -1020,6 +1141,10 @@
       : isUncalibrated
       ? `${tagline} is currently uncalibrated. See the history section below for the reasoning behind the most recent reset.`
       : song.charge_summary || `${tagline} is calibrated as ${tierLabel} by The Rising Compass.`;
+
+    // What the compass decided the song is ABOUT. Each subject has a page, so
+    // these are links: the tagging was invisible to readers until now.
+    renderSongTopics(song);
 
     // Section 3: Effects — per-song prose if available, else tier-generic fallback.
     const effectsSection = document.getElementById('section-listener-effects');

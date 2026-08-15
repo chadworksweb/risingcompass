@@ -48,6 +48,27 @@ MAIN_CSS_RE = re.compile(
     r"""<link[^>]+href=["']/css/main\.css(?:\?[^"']*)?["']""",
 )
 
+# The only pages allowed to skip main.css. Each one is deliberately isolated
+# from the site sheet; anything else missing main.css is a bug, not a choice.
+#   cards/  -- the charge-card render harness. It is screenshotted at fixed
+#              pixel sizes, so inheriting site typography would change the
+#              output image. noindex, never linked.
+PAGES_EXEMPT_FROM_MAIN_CSS = ("cards/",)
+
+# A noindex meta-refresh stub is not a page anyone reads: it hands the browser
+# straight on. Loading the whole site stylesheet to style a link that shows for
+# a few milliseconds is the wrong trade. Detected by what the file IS rather
+# than by filename, so the exemption cannot go stale when files move or when a
+# stub is later replaced by a real page.
+REDIRECT_STUB_RE = re.compile(
+    r"""<meta[^>]+http-equiv=["']refresh["']""", re.IGNORECASE)
+NOINDEX_RE = re.compile(
+    r"""<meta[^>]+name=["']robots["'][^>]+noindex""", re.IGNORECASE)
+
+
+def is_redirect_stub(content: str) -> bool:
+    return bool(REDIRECT_STUB_RE.search(content) and NOINDEX_RE.search(content))
+
 
 def load_partial(name: str) -> str:
     path = PARTIALS_DIR / f"{name}.html"
@@ -66,21 +87,35 @@ def render(content: str) -> str:
 
 
 def find_main_css_violations(path: Path, content: str) -> str | None:
-    """Pages that include shared header/footer partials must also load
-    /css/main.css (the stylesheet is where .rc-header / .site-footer / etc.
-    live). Returns a one-line violation string, or None if the file is fine."""
-    used = set()
-    for m in INCLUDE_RE.finditer(content):
-        name = m.group(2)
-        if name in PARTIALS_REQUIRING_MAIN_CSS:
-            used.add(name)
-    if not used:
+    """EVERY public page must load /css/main.css.
+
+    This used to fire only for pages using the shared header/footer partials.
+    That was too narrow: main.css is also the only place the global anchor
+    colour is defined, so a page that skipped it rendered the browser's blue
+    and visited-purple links. A page could pass this check and still ship with
+    default links, which is exactly what kept happening on new pages.
+
+    So the gate is now universal, with a short allowlist for pages that are
+    deliberately unstyled by the site sheet.
+
+    Returns a one-line violation string, or None if the file is fine.
+    """
+    rel = path.relative_to(ROOT).as_posix()
+    if any(rel.startswith(p) for p in PAGES_EXEMPT_FROM_MAIN_CSS):
+        return None
+    if is_redirect_stub(content):
         return None
     if MAIN_CSS_RE.search(content):
         return None
-    parts = ", ".join(sorted(used))
-    return f"{path.relative_to(ROOT)}: uses shared partial(s) [{parts}] but does not load /css/main.css"
-
+    used = sorted(
+        m.group(2) for m in INCLUDE_RE.finditer(content)
+        if m.group(2) in PARTIALS_REQUIRING_MAIN_CSS
+    )
+    if used:
+        parts = ", ".join(used)
+        return f"{rel}: uses shared partial(s) [{parts}] but does not load /css/main.css"
+    return (f"{rel}: does not load /css/main.css, so its links render in the "
+            f"browser's default blue and visited-purple")
 
 def iter_html_files() -> list[Path]:
     out: list[Path] = []
@@ -119,14 +154,14 @@ def build_once(check: bool = False) -> int:
         if drift:
             print(f"{drift} file(s) need rebuild — run scripts/build_partials.py", file=sys.stderr)
         if violations:
-            print(f"{len(violations)} file(s) use shared partials without loading /css/main.css", file=sys.stderr)
+            print(f"{len(violations)} file(s) do not load /css/main.css", file=sys.stderr)
         return 1 if (drift or violations) else 0
     if written == 0:
         print("partials: up to date")
     else:
         print(f"partials: {written} file(s) updated")
     if violations:
-        print(f"{len(violations)} file(s) use shared partials without loading /css/main.css", file=sys.stderr)
+        print(f"{len(violations)} file(s) do not load /css/main.css", file=sys.stderr)
         return 1
     return 0
 

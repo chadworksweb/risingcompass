@@ -20,6 +20,13 @@
   align-items: stretch;
 }
 
+/* Doubles the standard panel gap above a block that opens a new movement of
+   the page: the crowd's read, the neighbours, and the record of how the
+   reading was arrived at. .song-main's gap supplies the other half, and a
+   hidden section contributes neither, so an empty Similar Songs leaves no
+   trench behind it. */
+.song-break { margin-top: var(--rc-gap-panel, 1.5rem); }
+
 .song-row > .song-section {
   flex: 1 1 320px;
   min-width: 0;
@@ -50,8 +57,42 @@
   padding-bottom: 0.6rem;
   border-bottom: 1px solid var(--rc-border);
 }
+/* Ether topics under the summary: what the compass decided the song is about,
+   each one a link to that subject's page. Quiet chips, because they are
+   navigation off the reading rather than part of it. */
+.song-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1rem 0 0;
+}
+.song-topics[hidden] { display: none; }
+
+.song-topic {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rc-border);
+  border-radius: 999px;
+  background: var(--rc-bg-card);
+  color: var(--rc-text-dim);
+  font-size: 0.75rem;
+  text-decoration: none;
+  text-transform: capitalize;
+  transition: color var(--rc-ease, 0.2s) ease, border-color var(--rc-ease, 0.2s) ease;
+}
+.song-topic:hover { color: var(--rc-accent); border-color: var(--rc-accent); }
+
+/* The theme chip leads the row, one tier up from the topics beside it, so it
+   carries brighter ink and a firmer edge. Same shape on purpose: they are
+   siblings in the navigation even though they are different things. */
+.song-topic--theme {
+  color: var(--rc-text-bright);
+  border-color: var(--rc-border-ui, #646490);
+  font-weight: 600;
+}
+
 .summary-text-big {
-  font-size: 1.6rem;
+  /* 10% under the question above it (1.6rem), so the two stop competing. */
+  font-size: 1.44rem;
   line-height: 1.4;
   font-weight: 400;
   color: var(--rc-text-bright);
@@ -513,11 +554,9 @@
   letter-spacing: 0.01em;
 }
 
-.accent-link {
-  color: var(--rc-accent);
-  text-decoration: none;
-}
-.accent-link:hover { text-decoration: underline; }
+/* .accent-link moved to css/main.css so every page gets it, not just the ones
+   that load this stylesheet. Defining it here was why new pages rendered
+   browser-blue links. Do not re-add it. */
 
 /* --- Sections (cards) ---
    Each section is now a distinct raised card on the dark page so the
@@ -577,6 +616,17 @@
   padding-bottom: 0.6rem;
   border-bottom: 1px solid var(--rc-border);
   letter-spacing: 0.01em;
+}
+
+/* From Audience Vibe down, the page stops diagnosing this song and starts
+   opening onto the crowd, the neighbours, and the record, so those headings
+   step up 40% (1.15rem -> 1.61rem). Written as a sibling selector rather than
+   a list of IDs so anything added below inherits the size instead of quietly
+   reverting to the smaller one. The subscribe block heads with an h3 and the
+   not-found state with an h1, so neither is caught. */
+#section-vibe h2:not(.song-page-title),
+#section-vibe ~ * h2:not(.song-page-title) {
+  font-size: 1.61rem;
 }
 
 .direct-answer {
@@ -702,25 +752,31 @@
    Matching gutters on both sides of the text keep that centre honest AND stop a
    long title from running under the button; the right gutter is the button's
    parking space, the left one is its mirror. */
-.song-hero-idrow { position: relative; }
-.song-hero-idtext {
-  --cc-gutter: 7rem;
-  padding: 0 var(--cc-gutter);
-}
-.song-hero-idrow .cc-menu {
+/* The share menu is pinned to the hero card itself, bottom-right, so where it
+   sits is a property of the module and nothing else. It used to be centred on
+   the title block, which meant the text had to reserve a gutter on BOTH sides
+   to stay optically centred around it -- and every rem of that gutter cost the
+   title two, breaking names like "Pocketful of Sunshine" across two lines.
+   Nothing reserves space for the button now, so the title gets the full width.
+   idrow drops its positioning so the hero section is the anchor. */
+.song-hero-idrow { position: static; }
+.song-hero-idtext { padding: 0; }
+
+/* Offsets are 0 because an absolute box is placed against the PADDING box, so
+   this lands the button exactly on the card's content corner, in line with
+   where everything else in the card starts and stops. */
+.song-section--hero .cc-menu {
   position: absolute;
   right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 0;
+  top: auto;
+  transform: none;
   margin-top: 0;
 }
 
-/* Narrow cards: a 7rem gutter each side would leave the title ~90px to wrap in.
-   Drop the button to its glyph and shrink the gutter with it; the accessible
-   name lives on the button's aria-label. This block MUST stay after the base
-   rule above -- both are single-class, so source order decides the winner. */
+/* Narrow cards: drop the button to its glyph so it stays a quiet corner
+   affordance. The accessible name lives on the button's aria-label. */
 @media (max-width: 1024px) {
-  .song-hero-idtext { --cc-gutter: 3.25rem; }
   .song-hero-idrow .charge-card-btn--sm .cc-btn-label { display: none; }
   .song-hero-idrow .charge-card-btn--sm { padding: 0.34rem 0.45rem; }
 }
@@ -733,18 +789,18 @@
   font-size: 0.72rem;
 }
 
-/* Pinned top-right, so the menu drops DOWN and right-aligns instead of opening
-   upward off the top of the card (the old placement sat low in the hero). */
+/* The button now sits in the card's bottom corner, so the menu opens UPWARD --
+   downward would drop it out of the hero and over the section below. */
 .song-hero-idrow .cc-ratio {
-  top: calc(100% + 0.45rem);
-  bottom: auto;
+  bottom: calc(100% + 0.45rem);
+  top: auto;
   left: auto;
   right: 0;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6), 0 0 26px rgba(0, 212, 170, 0.22);
+  box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.6), 0 0 26px rgba(0, 212, 170, 0.22);
 }
-/* Caret logic inverts with the direction: down while closed, up when open. */
-.song-hero-idrow .cc-caret { transform: rotate(0deg); }
-.song-hero-idrow .charge-card-btn[aria-expanded="true"] .cc-caret { transform: rotate(180deg); }
+/* Caret follows the direction it will open: up while closed, down to close. */
+.song-hero-idrow .cc-caret { transform: rotate(180deg); }
+.song-hero-idrow .charge-card-btn[aria-expanded="true"] .cc-caret { transform: rotate(0deg); }
 
 /* "Get link" is a different kind of action from the two card shapes, so it sits
    under a divider and confirms in place rather than opening a toast. */
@@ -964,6 +1020,77 @@
 }
 
 /* --- Audience Vibe --- */
+/* Readout (2/3) beside the ballot (1/3), one row. align-items: start is what
+   gives the sticky ballot room to travel -- centre or stretch pins it. */
+.audience-vibe-row {
+  /* One shade lighter than the section it sits in (--rc-bg-panel), shared by
+     the ballot and the vote chips so they read as the same raised surface. */
+  --rc-vibe-raised: #1e1e30;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+.audience-vibe-left,
+.audience-vibe-ballot {
+  min-width: 0;
+}
+
+/* The beta note sits under the framed readout, outside it, closing the left
+   column. It is inline-flex by default, so centring it takes a fit-content
+   width and auto margins -- text-align on the wrapper would leak into the
+   readout's heading and intro. */
+.audience-vibe-left > .audience-vibe-experimental {
+  display: flex;
+  width: fit-content;
+  margin: 0.8rem auto 0;
+}
+
+/* Left column: framed, with its own interior room. Carries the heading and
+   intro too, so the frame holds the whole reading. */
+.audience-vibe-readout {
+  padding: 2rem;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+}
+
+.audience-vibe-readout > h2 { margin-top: 0; }
+
+/* Right column: a lighter shade of the same dark surface, so the ballot lifts
+   off the section without leaving the palette. Rides along as the readout
+   scrolls past; the header is not fixed, so 1.5rem of clearance is all the
+   offset it needs. */
+.audience-vibe-ballot {
+  position: sticky;
+  top: 1.5rem;
+  padding: 1.5rem 1.25rem;
+  background: var(--rc-vibe-raised, #1e1e30);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+}
+
+/* Three push buttons never fit across a third of the row, so the ballot stacks
+   them full-width. Order still reads higher / agree / lower top to bottom. */
+.audience-vibe-ballot .audience-vibe-actions {
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
+/* The panel is now lighter than the button default, which would sink them.
+   A thin white wash puts them back on top of it. */
+.audience-vibe-ballot .audience-vibe-push-btn {
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.audience-vibe-ballot .audience-vibe-how-body {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+
 .audience-vibe-needle-wrap {
   display: flex;
   flex-direction: column;
@@ -981,16 +1108,23 @@
 
 .audience-vibe-split {
   display: flex;
-  align-items: flex-start;
-  gap: 1.4rem;
+  align-items: stretch;
+  gap: 0.6rem;
   font-family: var(--rc-font-mono);
 }
 
+/* Each count sits on the same raised shade as the ballot, so the three tallies
+   read as one set of chips rather than loose numbers. */
 .audience-vibe-split-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.1rem;
+  min-width: 5.5rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--rc-vibe-raised, #1e1e30);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
 }
 
 .audience-vibe-split-label {
@@ -1167,13 +1301,115 @@
   border: 1px solid rgba(0, 212, 170, 0.3);
 }
 
-#section-about h2,
-#section-artist-claim h2 { font-size: 0.88rem; }
-#section-about .direct-answer,
-#section-artist-claim .direct-answer { font-size: 0.8rem; }
-#section-about .key-points { font-size: 0.704rem; }
-#section-about p,
-#section-artist-claim p { font-size: 0.8rem; }
+/* --- Similar Songs / Similar Artists --- */
+/* One grid, two sections. Cards are given room deliberately: these are
+   readings in their own right, not a related-links rail, so each one gets the
+   same reading order the page uses -- where it landed, what it is, then why it
+   is here. */
+.related-grid {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+/* The anchor carries the padding rather than the card, so the whole tile is
+   the click target instead of just the title. */
+.related-card {
+  display: flex;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-lg);
+  transition: border-color var(--rc-ease, 0.2s) ease;
+}
+
+.related-card:hover { border-color: var(--rc-border-ui, #646490); }
+
+.related-card-link {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.2rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: inherit;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Tier + charge first, in mono, the way the rest of the page states a
+   reading. */
+.related-card-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.6rem;
+  font-family: var(--rc-font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+}
+
+.related-card-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.related-card-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--rc-text-bright);
+  transition: color var(--rc-ease-fast, 0.15s) ease;
+}
+
+.related-card-link:hover .related-card-name { color: var(--rc-accent); }
+
+.related-card-sub {
+  font-size: 0.85rem;
+  color: var(--rc-text-dim);
+}
+
+/* The why line is the point of the card, so it gets its own space under a
+   rule rather than trailing the title as an aside. */
+.related-card-why {
+  display: block;
+  margin: 0.9rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--rc-divider, rgba(255, 255, 255, 0.06));
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--rc-text-dim);
+}
+
+/* Page footnotes -- the artist-claim and methodology CTAs. They used to be two
+   full cards, which gave sub-focus housekeeping the same weight as the reading
+   itself; they are one line of links at the foot of the page now. The release
+   page keeps its cards (#release-about / #release-artist-claim in
+   artists.css). */
+.song-footnotes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.song-footnote[hidden] { display: none; }
+
+/* Separator only between two VISIBLE links -- the claim line disappears once
+   the artist is verified, and a leading dot would be left behind. */
+.song-footnote:not([hidden]) + .song-footnote:not([hidden])::before {
+  content: "\00B7";
+  margin: 0 0.7rem;
+  color: var(--rc-text-dim);
+  opacity: 0.6;
+}
 
 .audience-vibe-status--pending {
   display: flex;
@@ -1333,10 +1569,30 @@
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .song-row--hero { grid-template-columns: 1fr; }
+  .related-grid { grid-template-columns: 1fr; }
+  .related-card-link { padding: 1rem; }
+  .audience-vibe-row { grid-template-columns: 1fr; gap: 1rem; }
+  .audience-vibe-readout { padding: 1rem; }
+  .audience-vibe-ballot { position: static; }
+  .audience-vibe-ballot .audience-vibe-actions {
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
   .song-section--hero { padding: 1.5rem 1rem 1rem; }
   .badge-charge { font-size: 2rem; }
   .song-page-title { font-size: 1.4rem; }
   .song-section { padding: 1rem; }
+}
+
+@media (max-width: 768px) {
+  /* Floor the smallest type on a phone. The vibe split labels sit at 0.64rem
+     (10px), which reads fine on a monitor and is genuinely hard to read in the
+     hand. 11px is the floor; the card kickers are left at 11px on purpose,
+     since lifting them further would flatten the card's hierarchy against its
+     1.05rem title. */
+  .audience-vibe-split-label { font-size: 0.69rem; }
+  .audience-vibe-year-note { font-size: 0.78rem; }
 }
 
 @media (max-width: 480px) {

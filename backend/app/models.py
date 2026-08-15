@@ -1370,6 +1370,11 @@ class RcSubscriber(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(Text, nullable=False, unique=True)
     email_hash = Column(String(64), nullable=False, index=True)
+    # Optional courtesy (migration 153). The email is the list; a name only lets
+    # a digest greet someone, so neither is required and NULL means "not given"
+    # rather than "missing".
+    first_name = Column(Text, nullable=True)
+    last_name = Column(Text, nullable=True)
     status = Column(String(16), nullable=False, default="pending")  # pending | confirmed | unsubscribed
     source = Column(String(40), nullable=True)
     source_detail = Column(Text, nullable=True)

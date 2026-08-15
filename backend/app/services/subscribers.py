@@ -86,8 +86,20 @@ def _token() -> str:
 
 # --- lifecycle --------------------------------------------------------------
 
+def clean_name(value: str) -> Optional[str]:
+    """A supplied name, or None. Blank and whitespace-only both mean not given,
+    which is the same thing as never having been asked."""
+    name = (value or "").strip()[:80]
+    return name or None
+
+
 def subscribe(
-    db: Session, email: str, source: str = "", source_detail: str = ""
+    db: Session,
+    email: str,
+    source: str = "",
+    source_detail: str = "",
+    first_name: str = "",
+    last_name: str = "",
 ) -> Tuple[str, Optional[RcSubscriber]]:
     """Upsert a subscriber and return (status, row). Statuses:
       pending_confirm    -- new row (or re-opened), confirm email should be sent
@@ -97,12 +109,16 @@ def subscribe(
     """
     norm = normalize_email(email)
     src = source if source in VALID_SOURCES else "other"
+    first = clean_name(first_name)
+    last = clean_name(last_name)
     row = db.query(RcSubscriber).filter(RcSubscriber.email == norm).first()
 
     if row is None:
         row = RcSubscriber(
             email=norm,
             email_hash=hash_email(norm),
+            first_name=first,
+            last_name=last,
             status="pending",
             source=src,
             source_detail=(source_detail or "").strip()[:500] or None,
@@ -116,7 +132,17 @@ def subscribe(
         db.refresh(row)
         return "pending_confirm", row
 
+    # A name given on a later attempt fills a blank, but a blank never erases a
+    # name already on the row -- re-subscribing from a form left empty is not a
+    # request to be forgotten by name.
+    if first and not row.first_name:
+        row.first_name = first
+    if last and not row.last_name:
+        row.last_name = last
+
     if row.status == "confirmed":
+        if db.is_modified(row):
+            db.commit()
         return "already_subscribed", row
 
     # pending or previously unsubscribed -> (re)open and re-issue a confirm

@@ -10,7 +10,7 @@ from app.auth import optional_admin_session, optional_clerk_user
 from sqlalchemy import text
 from app.database import SessionLocal
 from app.models import (
-    Song, SongSlug,
+    Song, SongSlug, SongArtist,
     ReleaseSong, Release, Artist, MisreadSubmission, SongRecalibration, SongReset,
     CalibrationRun, PrePublishCorrection, User,
 )
@@ -18,7 +18,7 @@ from app.services.calibration_corpus import compute_consensus
 from app.services.song_search import search_unified
 from app.constants import COLOR_LABELS, COLOR_HEX, chart_source_label
 from app.services.artist_utils import generate_song_slug
-from app.services import coverart
+from app.services import coverart, ether_taxonomy
 
 logger = logging.getLogger(__name__)
 
@@ -278,6 +278,260 @@ def song_calibration_runs(slug: str, limit: int = 50):
         db.close()
 
 
+# --- Related by the reading ------------------------------------------------
+#
+# RC's relation is the lens, not the market. Two songs are related here because
+# they carry the same ether topics and land near each other on the charge
+# scale -- never because of genre, label, popularity, or a MusicBrainz
+# adjacency, which is the relation every other music site already draws and the
+# one thing this site is not for.
+#
+# Scoring, highest first:
+#   shared topics  x100  -- the primary axis; more overlap always outranks less
+#   dominant match  +40  -- topics[0] is the dominant read, so agreeing there
+#                           beats agreeing on an incidental tag
+#   proximity     0..100 -- 100 minus the charge gap, so within one tier of
+#                           overlap the closer reading wins
+# Proximity maxes below one shared topic on purpose: topics decide the set,
+# charge only orders it.
+RELATED_SONG_LIMIT = 6
+RELATED_ARTIST_LIMIT = 6
+_RELATED_CANDIDATE_CAP = 1200
+_SHARED_TOPIC_WEIGHT = 100
+_DOMINANT_TOPIC_BONUS = 40
+# Fallback band for a song with no topics: same tier, within this many points.
+_RELATED_CHARGE_BAND = 8
+
+
+def _related_title_key(title: str) -> str:
+    """Collapse a title to what it is a version OF. A remix, live cut, or
+    radio edit shares every topic with its parent and lands beside it, so
+    without this the list spends two of its six rows on the same song."""
+    t = (title or "").lower()
+    for opener, closer in (("(", ")"), ("[", "]")):
+        while opener in t:
+            head, _, rest = t.partition(opener)
+            _, _, tail = rest.partition(closer)
+            t = head + tail
+    return "".join(c for c in t if c.isalnum() or c == " ").strip()
+
+
+def _slug_safe_topics(raw_topics) -> list[str]:
+    """Topic slugs safe to interpolate into a LIKE. The vocabulary is closed and
+    kebab-case, so anything else is data rot and gets dropped rather than
+    matched."""
+    out = []
+    for t in raw_topics or []:
+        if isinstance(t, str) and t and all(c.isalnum() or c == "-" for c in t):
+            out.append(t)
+    return out
+
+
+@router.get("/{slug}/related")
+def song_related(slug: str):
+    """Songs and artists related to this one BY THE READING.
+
+    Returns `songs`, `artists`, and the `basis` the relation was drawn on, so
+    the page can state why each one is there instead of asserting a bare
+    resemblance.
+    """
+    import json as _json
+
+    db = SessionLocal()
+    try:
+        slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
+        base_id = _slug_unified_id(db, slug_row) if slug_row else None
+        if not base_id:
+            found = _find_by_generated_slug(slug, db)
+            base_id = found.get("song_id") if found else None
+        base = db.query(Song).get(base_id) if base_id else None
+        if not base:
+            raise HTTPException(404, "Song not found")
+
+        try:
+            base_topics = _slug_safe_topics(_json.loads(base.topics) if base.topics else [])
+        except (ValueError, TypeError):
+            base_topics = []
+        base_charge = base.charge_value
+        dominant = base_topics[0] if base_topics else None
+
+        # The song's own credits, so the section surfaces other artists rather
+        # than turning into a second copy of this artist's catalogue.
+        base_artist_ids = {
+            r[0] for r in db.query(SongArtist.artist_id)
+            .filter(SongArtist.song_id == base.id).all()
+        }
+
+        cand_q = (
+            db.query(Song.id, Song.title, Song.artist, Song.topics,
+                     Song.charge_value, Song.rubric_color)
+            .filter(Song.id != base.id)
+            .filter(Song.charge_value.isnot(None))
+            .filter(Song.calibration_failed.isnot(True))
+        )
+        if base_topics:
+            basis_kind = "topics"
+            cand_q = cand_q.filter(or_(*[
+                Song.topics.like(f'%"{t}"%') for t in base_topics
+            ]))
+        else:
+            # No topics tagged: the only reading left to relate on is where it
+            # landed, so fall back to its own tier inside a tight charge band.
+            basis_kind = "charge"
+            if base_charge is None or not base.rubric_color:
+                return {"songs": [], "artists": [], "basis": {"kind": "none"}}
+            cand_q = (
+                cand_q.filter(Song.rubric_color == base.rubric_color)
+                .filter(Song.charge_value >= base_charge - _RELATED_CHARGE_BAND)
+                .filter(Song.charge_value <= base_charge + _RELATED_CHARGE_BAND)
+            )
+
+        candidates = cand_q.limit(_RELATED_CANDIDATE_CAP).all()
+
+        base_topic_set = set(base_topics)
+        scored = []
+        for row in candidates:
+            try:
+                cand_topics = _json.loads(row.topics) if row.topics else []
+            except (ValueError, TypeError):
+                cand_topics = []
+            cand_topics = _slug_safe_topics(cand_topics)
+            # Ordered by THIS song's reading, not the candidate's, so the same
+            # overlap is phrased the same way down the whole list.
+            cand_set = set(cand_topics)
+            shared = [t for t in base_topics if t in cand_set]
+            # The LIKE is a substring match, so a slug that is a prefix of
+            # another ("power" inside "power-fantasy") can pull in a song that
+            # shares nothing. The parsed intersection is the real test.
+            if basis_kind == "topics" and not shared:
+                continue
+            gap = abs((row.charge_value or 0) - (base_charge or 0))
+            score = (
+                len(shared) * _SHARED_TOPIC_WEIGHT
+                + (_DOMINANT_TOPIC_BONUS if dominant and cand_topics[:1] == [dominant] else 0)
+                + (100 - min(gap, 100))
+            )
+            scored.append({
+                "row": row,
+                "shared": shared,
+                "gap": gap,
+                "score": score,
+            })
+
+        scored.sort(key=lambda s: (-s["score"], s["gap"], s["row"].title or ""))
+
+        # --- artists: aggregated over the WHOLE candidate set, not just the
+        # songs that made the cut, so an artist who reads this way across four
+        # songs outranks one who did it once with a closer charge.
+        artists_out = []
+        if scored:
+            by_song = {s["row"].id: s for s in scored}
+            credit_rows = (
+                db.query(SongArtist.song_id, Artist.id, Artist.name, Artist.slug)
+                .join(Artist, Artist.id == SongArtist.artist_id)
+                .filter(SongArtist.song_id.in_(list(by_song.keys())))
+                .all()
+            )
+            agg: dict[int, dict] = {}
+            for song_id, artist_id, name, artist_slug in credit_rows:
+                if artist_id in base_artist_ids or not artist_slug:
+                    continue
+                s = by_song.get(song_id)
+                if not s:
+                    continue
+                a = agg.setdefault(artist_id, {
+                    "name": name,
+                    "slug": artist_slug,
+                    "song_count": 0,
+                    "shared": set(),
+                    "best_score": 0,
+                    "charge_total": 0,
+                })
+                a["song_count"] += 1
+                a["shared"].update(s["shared"])
+                a["best_score"] = max(a["best_score"], s["score"])
+                a["charge_total"] += s["row"].charge_value or 0
+            # Rank on the closest song an artist actually has, with the count
+            # as a pure tie-break. Counting first ranks by how much of an
+            # artist happens to be ingested -- a 55-song catalogue then tops
+            # every page it touches, which is a fact about the library, not
+            # about this song. The count still rides along in the payload, so
+            # the page can say "four songs read this way" without that number
+            # deciding the order.
+            ranked = sorted(
+                agg.values(),
+                key=lambda a: (-a["best_score"], -a["song_count"], a["name"]),
+            )[:RELATED_ARTIST_LIMIT]
+            for a in ranked:
+                artists_out.append({
+                    "name": a["name"],
+                    "slug": a["slug"],
+                    "song_count": a["song_count"],
+                    "avg_charge": round(a["charge_total"] / a["song_count"]),
+                    "shared_topics": [t for t in base_topics if t in a["shared"]],
+                })
+
+        # --- songs: one per artist and one per work, so six rows are six
+        # different acts and no row is a remix of the row above it.
+        songs_out = []
+        seen_artists = set()
+        seen_titles = set()
+        for s in scored:
+            row = s["row"]
+            key = (row.artist or "").strip().lower()
+            title_key = _related_title_key(row.title)
+            if key and key in seen_artists:
+                continue
+            if title_key and title_key in seen_titles:
+                continue
+            seen_artists.add(key)
+            seen_titles.add(title_key)
+            songs_out.append({
+                "slug": _get_or_create_slug(row.title, row.artist or "", "songs", row.id, db),
+                "title": row.title,
+                "artist": row.artist,
+                "charge_value": row.charge_value,
+                "rubric_color": row.rubric_color,
+                "tier_label": COLOR_LABELS.get(row.rubric_color, "") if row.rubric_color else "",
+                "tier_hex": COLOR_HEX.get(row.rubric_color, "#999") if row.rubric_color else "#999",
+                "shared_topics": s["shared"],
+                "charge_gap": s["gap"],
+            })
+            if len(songs_out) >= RELATED_SONG_LIMIT:
+                break
+
+        labels = {}
+        try:
+            labels = {
+                slug_: meta.get("label") or slug_.replace("-", " ")
+                for slug_, meta in ether_taxonomy.topics(db).items()
+            }
+        except Exception:  # taxonomy is presentation only -- never fail the lane
+            logger.exception("related: topic label resolve failed")
+
+        def _label(t: str) -> str:
+            return labels.get(t, t.replace("-", " "))
+
+        for item in songs_out:
+            item["shared_topic_labels"] = [_label(t) for t in item["shared_topics"]]
+        for item in artists_out:
+            item["shared_topic_labels"] = [_label(t) for t in item["shared_topics"]]
+
+        return {
+            "songs": songs_out,
+            "artists": artists_out,
+            "basis": {
+                "kind": basis_kind,
+                "topics": base_topics,
+                "topic_labels": [_label(t) for t in base_topics],
+                "charge_value": base_charge,
+                "tier_label": COLOR_LABELS.get(base.rubric_color, "") if base.rubric_color else "",
+            },
+        }
+    finally:
+        db.close()
+
+
 @router.get("/search")
 def song_search_unified(
     request: Request,
@@ -467,6 +721,27 @@ def _synthesize_initial_run(unified_id: int, db) -> dict | None:
     }
 
 
+def _dominant_theme(topics, db) -> dict | None:
+    """The theme the song's dominant topic sits under, or None. Fails soft: a
+    taxonomy hiccup costs a chip, never the song page."""
+    if not topics:
+        return None
+    try:
+        hierarchy = ether_taxonomy.topic_hierarchy(db)
+        meta = hierarchy.get("topics", {}).get(topics[0]) or {}
+        slug = meta.get("primary")
+        if not slug:
+            return None
+        label = next(
+            (t["label"] for t in hierarchy.get("themes", []) if t["slug"] == slug),
+            slug,
+        )
+        return {"slug": slug, "label": label}
+    except Exception:
+        logger.exception("dominant theme resolve failed")
+        return None
+
+
 def _resolve_song(unified_id: int, db) -> dict | None:
     """Resolve a unified song id to a full display dict."""
     row = db.query(Song).get(unified_id)
@@ -498,6 +773,11 @@ def _resolve_song(unified_id: int, db) -> dict | None:
         # Ether Art Chart fields -- feed the shareable charge card on the song page.
         "deadpan_line": row.deadpan_line,
         "topics": topics,
+        # The DOMINANT topic's theme, so the song page can lead its topic chips
+        # with the parent tier. Resolved from the live taxonomy, never stored on
+        # the song: a topic's theme is an editable classification, and caching
+        # it here would let the two drift.
+        "theme": _dominant_theme(topics, db),
         "listener_effects_prose": row.listener_effects_prose,
         "societal_effects_prose": row.societal_effects_prose,
         "uncalibrated": is_uncalibrated,

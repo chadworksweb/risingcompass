@@ -103,7 +103,7 @@ function renderSubscriber(r) {
     <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
       <div>
         <span style="color:${statusColor};font-weight:bold;text-transform:uppercase;font-size:0.72rem;">${escHtml(r.status)}</span>
-        <strong style="margin-left:0.5rem;">${escHtml(r.email)}</strong>${promoted}
+        <strong style="margin-left:0.5rem;">${escHtml(r.email)}</strong>${promoted}${r.name ? `<span style="color:#888;margin-left:0.5rem;">${escHtml(r.name)}</span>` : ''}
       </div>
       <div style="color:#666;font-size:0.78rem;">${when}</div>
     </div>

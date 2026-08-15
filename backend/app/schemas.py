@@ -1311,6 +1311,9 @@ class SubscribeIn(BaseModel):
     """Public on-site subscribe (RC's own list, Build 2b). Bot-protected at the
     endpoint. `source` records which surface captured the email."""
     email: str = Field(..., min_length=4, max_length=254)
+    # Optional. The form asks, the list does not require it.
+    first_name: str = Field("", max_length=80)
+    last_name: str = Field("", max_length=80)
     source: str = ""
     source_detail: str = ""
     hp_website: str = ""

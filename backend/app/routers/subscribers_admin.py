@@ -49,6 +49,9 @@ def list_subscribers(status: str = Query(""), db: Session = Depends(get_db)):
             {
                 "id": r.id,
                 "email": r.email,
+                # Optional on capture, so this is blank for anyone who
+                # subscribed before the form asked, or who skipped it.
+                "name": " ".join(p for p in (r.first_name, r.last_name) if p),
                 "status": r.status,
                 "source": r.source,
                 "source_detail": r.source_detail,
