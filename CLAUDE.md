@@ -392,6 +392,109 @@ Spec: `RISING-COMPASS-TAXONOMY-EDITOR-SCOPE.md`.
   map honored by the rollups + a server-side retag tool. Until then the slug is
   immutable.
 
+## Themes and Topics public pages (LIVE 2026-08-15)
+
+The public face of the ether taxonomy. The tagger had been writing topics onto
+every calibrated song for months with nowhere for a reader to land, so 2,284
+tagged songs carried tags that led nowhere. Plan:
+`RISING-COMPASS-TOPIC-PAGES-SCOPE.md`. Session note: `2026-08-15b`.
+
+**Two SIBLING collections, not a nest.** A theme is the parent of a topic in the
+TAXONOMY, but the URLs do not express it: nesting would produce
+`/themes/meaning-mortality/grief` for a page whose subject is one word.
+
+    /themes/  ->  /themes/{slug}    9 themes
+    /topics/  ->  /topics/{slug}   32 topics
+
+- Breadcrumbs mirror the COLLECTION, never the taxonomy (`Topics / Grief`).
+  The parent theme is stated on the topic page instead ("A topic under Meaning
+  & Mortality"). A crumb must not claim a path the page does not occupy.
+- Code: `services/topic_pages.py` (aggregates), `routers/topics.py`
+  (`/api/topics`, `/api/topics/{slug}`, `/api/themes/{slug}`, all under
+  `_public_read_dep`), SSR in `page_ssr.py`, frontend in `frontend/topics/` and
+  `frontend/themes/`.
+- Topic slugs and labels come from `ether_taxonomy` (the DB taxonomy), never a
+  hardcoded list, so an admin edit lands without a deploy. Same for the sitemap
+  entries.
+
+**THE COUNTING RULE.** A song registers ONCE in a theme however many of that
+theme's topics it carries. Romance is 1,527 distinct songs, not the 2,263 its
+topic counts sum to. `credits` exists in the payload only to explain that
+arithmetic, never as a second way to count songs. A tags-per-song "depth"
+measure was built and deliberately removed.
+
+**Pages open with a FINDING, not a list**, and a section with nothing true to
+say hides itself. Two gates enforce that, both in `topic_pages.py`:
+`DOMINANT_DELTA_FLOOR = 3` (suppress the dominant/incidental split inside the
+noise) and `MIN_THEME_CROSSINGS = 2` (at one shared topic, five of eight themes
+qualified as "related", which is a menu).
+
+**Aggregates compute on read** with a 60s cache and no summary table. At 2.3k
+tagged songs the grouped scan is free and a summary table would go stale on the
+first recalibration. Revisit around 50k songs.
+
+### nginx: the routes live ON THE SERVER, not in this repo
+
+`location /topics/` and `location /themes/` were added by hand to
+`/root/proxy/nginx/conf.d/risingcompass.conf` on le-projects-01. They are NOT in
+git (`deploy/nginx.conf` is only a pointer note), so **a proxy rebuild from the
+repo loses them and all 41 detail pages 404.** Backup on the box:
+`risingcompass.conf.bak-topics-20260815-181356`.
+
+They mirror `/songs/` (`try_files $uri @topic_detail` -> named location ->
+`rc-backend:8000`) with one deliberate difference: **no `$uri/`.** Both
+directories DO contain an `index.html`, and matching the directory would serve
+it statically and skip the SSR injection, so the two index pages would ship
+without their meta and JSON-LD.
+
+**Verifying prod from the shell needs the right SNI.** Port 80 with a Host
+header hits a parked default server, and HTTPS to `localhost` picks the default
+TLS block. Cloudflare 403s scripted requests to the public hostname (including
+`fetch()` and iframes from a real browser session); only top-level navigation
+passes. The probe that works:
+
+    docker compose exec -T nginx curl -sk \
+      --resolve risingcompass.net:443:127.0.0.1 https://risingcompass.net/topics/
+
+### Related surfaces shipped alongside
+
+- **Song page topic chips** (`songs.js::renderSongTopics`), the half that turns
+  2,284 songs into inbound links. `_dominant_theme()` in `routers/songs.py`
+  resolves the theme live from the taxonomy rather than storing it on the song.
+- **Similar Songs** (`GET /api/songs/{slug}/related`), related BY THE READING:
+  shared topics x100, dominant-topic agreement +40, charge proximity 0-100.
+  Never genre or MusicBrainz adjacency. Artists rank by their CLOSEST song, not
+  by how many they have, because counting first put a 55-song catalogue on top
+  of every page it touched.
+
+### Not built
+
+Phase 3 crossings (topic x tier, ~70 pages gated at 15 songs; 139 pairs exist,
+70 carry 15+). Tier pages at `/tiers/{slug}`. The `public_scope` pass: topic
+pages currently show the tagger's `scope` text, which was written as classifier
+INSTRUCTION, so add a separate column rather than editing the prompt copy for
+tone. Band, boundary, and exact-charge URLs are explicitly rejected; reasons in
+the scope doc.
+
+## Site-wide link colour (fixed 2026-08-15)
+
+`css/main.css` owns the ONE global anchor rule: bare `a`, `a:visited` pinned to
+the same accent so nothing goes purple, and `.accent-link`. Before this,
+`.accent-link` was defined only in `songs/songs.css` and there was no bare `a`
+rule anywhere, so **every page that did not load the song stylesheet rendered
+the browser's blue and visited-purple.** Do not re-add `.accent-link` to a page
+stylesheet.
+
+Two guards keep it fixed:
+
+- `scripts/build_partials.py` fails the build if ANY public page does not load
+  `/css/main.css`. It used to check only pages using the header/footer partials,
+  which is how a page could pass and still ship default links. Redirect stubs
+  are exempt by SHAPE (noindex + meta-refresh), not by filename.
+- `main.css` is versioned (`?v=`) across every page. It had no cache-bust at
+  all, so a stale edge copy would keep serving old global CSS. **Bump it on any
+  main.css change**, same rule as `songs.css`/`songs.js`.
+
 ## Calibration Runs admin (Site Admin -> Calibration -> Runs, 2026-06-06)
 
 Read-only window onto `calibration_runs` (the run ledger behind each song's
@@ -1468,6 +1571,14 @@ runner.)
   (`/account/?mode=signup&prefill_email=...`); `GET /api/unsubscribe?token=`.
   Service `services/subscribers.py`. Frontend: drop-in `frontend/js/subscribe.js`
   card on the song page + homepage.
+- **Optional name (migration 153, 2026-08-15).** `rc_subscribers.first_name` /
+  `last_name`, both nullable with no backfill: NULL means "not given", which is
+  a true statement about everyone captured before the form asked. **Only the
+  email is required**, in the markup (`required` on that input alone), in the
+  schema (`SubscribeIn` defaults both names to `""`), and in the service. A name
+  supplied later FILLS a blank, but a blank never erases a name already on the
+  row -- re-subscribing from an empty form is not a request to be forgotten by
+  name. Surfaced in the Subscribers admin list.
 - **No-duplicate / promote-to-Clerk.** `users` stores NO plaintext email; the link
   key is `users.email_hash` (sha256 of the Clerk email), set fail-soft at provision
   (`clerk.ensure_user_for_clerk_id` -> `get_clerk_user_email`) and matched against
