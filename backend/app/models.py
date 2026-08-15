@@ -1898,6 +1898,13 @@ class Song(Base):
     # match" -- a recorded miss, so the backfill skips the song instead of
     # re-searching it every pass. NULL means never searched.
     release_group_checked_at = Column(DateTime)
+    # MB's first-release-date for the picked release group (migration 151), as MB
+    # reports it -- "1972", "1972-02", "1972-02-01". TEXT, not DATE: MB dates are
+    # variable-precision and compare correctly as strings. Kept so a bad pick is
+    # detectable in bulk: the artist-credit check stops a wrong ARTIST, but a right
+    # artist on an archival set or reissue is only visible against the calendar
+    # (charted 1972, release group dated 2022). NULL on rows resolved before 151.
+    release_group_date = Column(Text)
     # server_default so the raw-SQL insert in song_sync.upsert_unified_song (the
     # unified write chokepoint) stamps a time -- a client-side `default=` only
     # fires on ORM inserts, which this table never uses. See migration 116.

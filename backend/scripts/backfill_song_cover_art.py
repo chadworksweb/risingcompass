@@ -117,12 +117,22 @@ def _orphan_mbids() -> list[str]:
         db.close()
 
 
-def _stamp(song_id: int, mbid: str | None) -> None:
-    """Record the resolve outcome. Own short session per write, like the CAA cache."""
+def _stamp(song_id: int, mbid: str | None, rg_date: str | None = None) -> None:
+    """Record the resolve outcome. Own short session per write, like the CAA cache.
+
+    `rg_date` is MB's first-release-date for the picked release group. It is stored
+    (migration 151) so a bad pick is detectable in bulk afterwards: the artist-credit
+    check catches a wrong artist, but a right artist on an archival set or reissue
+    only shows up against the calendar. See scripts/audit_song_cover_art.py.
+    """
     db = SessionLocal()
     try:
         db.query(Song).filter(Song.id == song_id).update(
-            {"release_group_mbid": mbid, "release_group_checked_at": datetime.utcnow()},
+            {
+                "release_group_mbid": mbid,
+                "release_group_date": rg_date or None,
+                "release_group_checked_at": datetime.utcnow(),
+            },
             synchronize_session=False,
         )
         db.commit()
@@ -164,7 +174,7 @@ async def main():
             continue
 
         mbid = hit["mbid"] if hit else None
-        _stamp(song_id, mbid)
+        _stamp(song_id, mbid, hit.get("first_release_date") if hit else None)
         if mbid:
             matched += 1
             found_mbids.append(mbid)

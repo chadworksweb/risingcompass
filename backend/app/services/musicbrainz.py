@@ -27,9 +27,16 @@ MB_TIMEOUT = 30.0
 # songs carry a long tail of per-compilation recording entries ahead of the
 # studio one, so this has to be wide enough to reach past them.
 MAX_RECORDING_LOOKUPS = 8
-# ...but stop as soon as this many usable release-groups are in hand; they have
-# already cleared the bootleg/compilation filters, so more only refines the date.
-ENOUGH_CANDIDATES = 3
+# ...and spend the whole budget rather than stopping at the first few that clear
+# the filters. Clearing them is NOT evidence of being canonical: MB tags many
+# reissues and archival sets with no secondary-type at all, and their titles dodge
+# HITS_COMPILATION_RE, so an early stop banks whatever junk sorted first and never
+# looks up the studio album at all. This was 3, and that truncation -- not the
+# artist-credit check, which held -- is what put a 1990 single's art on a 1977
+# album track and a 2022 archival set's art on a 1972 one. Scanning the full
+# budget costs lookups only on songs that HAVE many candidates, which are exactly
+# the catalogue songs that were failing.
+ENOUGH_CANDIDATES = MAX_RECORDING_LOOKUPS
 # Attempts for a catalogue-page fetch. Higher than the cover-art default: a
 # dropped page here silently shortens an artist's whole catalogue, whereas a
 # dropped cover-art lookup only costs one thumbnail.
