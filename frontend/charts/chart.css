@@ -32,6 +32,24 @@
 .chart-page-links a { color: var(--rc-accent, #00d4aa); text-decoration: none; }
 .chart-page-links a:hover { text-decoration: underline; }
 
+/* The hub link is the page's PARENT, not another peer view, so it does not read
+   like the Calendar and Ether links beside it. Every chart page used to list its
+   siblings by name here, which meant eight hand-maintained lists that a new
+   chart had to be added to in eight places (and never was: pages disagreed about
+   which charts existed). One link up to /charts/ replaces all of it. */
+.chart-page-links__hub {
+  font-weight: 600;
+  padding-right: 1rem;
+  border-right: 1px solid var(--rc-border, #2a2a3a);
+}
+
+/* Alone in the nav (the all-time charts have no Calendar view) the divider would
+   be a rule against nothing. */
+.chart-page-links__hub:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
 /* Canon chart shell: the paired left (charge + editorial + list) / right (Ether
    Art Chart) cards, rendered by /js/chart-shell.js. Mirrors the homepage
    .main-dashboard pairing (42% 1fr) so a chart page reads identically; the
