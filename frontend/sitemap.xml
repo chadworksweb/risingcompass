@@ -142,7 +142,12 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://risingcompass.net/charts/streamed-all-time/</loc>
+    <loc>https://risingcompass.net/charts/best-selling-albums/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/charts/itunes/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -152,7 +157,27 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://risingcompass.net/charts/best-selling-albums/</loc>
+    <loc>https://risingcompass.net/charts/new-music-friday/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/charts/shazam/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/charts/spotify/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/charts/streamed-all-time/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risingcompass.net/charts/youtube/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>

@@ -8,6 +8,7 @@ Included:
   - "/" (the home page, from frontend/index.html)
   - Each direct subdirectory that contains an index.html  (e.g. /search/)
   - Each *.html file sitting at the root of frontend/  (e.g. /privacy.html)
+  - Every real page one level inside /charts/ (see SCANNED_SUBDIRS)
 
 Excluded:
   - Asset directories (css / img / js / scripts / songs) — either not pages
@@ -45,12 +46,56 @@ EXCLUDED_FILE_NAMES = {
 
 # Curated nested pages worth indexing that the top-level scan won't find
 # (the scan never recurses). Add nested page paths here as they ship.
+#
+# The /charts/ children are NOT listed here -- they are scanned, see
+# SCANNED_SUBDIRS below.
 EXTRA_PAGES = [
     "/lyrical-charger/activity/",
-    "/charts/streamed-all-time/",
-    "/charts/most-streamed-albums/",
-    "/charts/best-selling-albums/",
 ]
+
+# Subdirectories whose children are scanned rather than curated.
+#
+# /charts/ earns this because it is the one directory the project has a written
+# recipe for GROWING (CLAUDE.md "Adding a chart shell"), and "add the page to
+# sitemap.xml" is a step in that recipe that gets missed: five live chart pages
+# (spotify, itunes, shazam, youtube, new-music-friday) were absent for months
+# while the three hand-added all-time ones were present. Curation is the right
+# default for a one-off nested page; it is the wrong default for a set that
+# gains a member every time a new feed is wired up.
+SCANNED_SUBDIRS = ("charts",)
+
+
+def _is_redirect_stub(html_path: Path) -> bool:
+    """True for a noindex + meta-refresh stub left behind by a rename.
+
+    Matched by SHAPE, not by filename, the same way build_partials.py exempts
+    them from its main.css check. /charts/daily-listens/ and
+    /charts/daily-downloads/ are stubs pointing at /charts/spotify/ and
+    /charts/itunes/; indexing them would put two canonical-elsewhere duplicates
+    in the sitemap.
+    """
+    try:
+        head = html_path.read_text(encoding="utf-8", errors="replace")[:2000].lower()
+    except OSError:
+        return False
+    return 'name="robots"' in head and "noindex" in head and 'http-equiv="refresh"' in head
+
+
+def _scanned_subdir_pages() -> list[str]:
+    """Return URL paths for every real page one level inside SCANNED_SUBDIRS."""
+    urls: list[str] = []
+    for parent_name in SCANNED_SUBDIRS:
+        parent = FRONTEND_DIR / parent_name
+        if not parent.is_dir():
+            continue
+        for entry in sorted(parent.iterdir(), key=lambda p: p.name.lower()):
+            if entry.name.startswith(".") or not entry.is_dir():
+                continue
+            index = entry / "index.html"
+            if not index.is_file() or _is_redirect_stub(index):
+                continue
+            urls.append(f"/{parent_name}/{entry.name}/")
+    return urls
 
 
 def _top_level_pages() -> list[str]:
@@ -73,7 +118,7 @@ def _top_level_pages() -> list[str]:
             if entry.suffix.lower() == ".html":
                 urls.append(f"/{entry.name}")
 
-    for extra in EXTRA_PAGES:
+    for extra in EXTRA_PAGES + _scanned_subdir_pages():
         if extra not in urls:
             urls.append(extra)
 
