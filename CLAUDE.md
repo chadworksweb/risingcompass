@@ -1827,8 +1827,10 @@ waitlist work while dark. Full spec: `RISING-COMPASS-SENTINEL-AUDITOR-SCOPE.md`.
   which returns `{items:[...]}` (NOT `{results}` -- that bit the first build). Footer link
   **"Become an Auditor" -> /sentinel/ is LIVE** (Participate column). NO leaderboard page.
 - **Go-live (separate step):** flip `POST /api/admin/sentinel/flag/toggle {"enabled":true}`
-  (opens apply + portal), then add `/sentinel/` to `sitemap.xml` (remove the `sentinel` entry
-  from `generate-sitemap.py`'s EXCLUDED_DIR_NAMES). **Pre-launch TODO:** wire a visible
+  (opens apply + portal). The sitemap step this used to list is already done and the
+  instruction was stale: seeding moved to `backend/app/routers/sitemap.py`, whose
+  `_EXCLUDED_DIR_NAMES` never carried `sentinel`, so `/sentinel/` is already in the served
+  `/sitemap/pages.xml` while dark. **Pre-launch TODO:** wire a visible
   Turnstile widget onto the apply/finding forms (honeypot + rate limits are already active).
 - **Verified:** Playwright + throwaway Postgres (dark gating, admin flag toggle + waitlist,
   real Clerk apply->approve->file->triage->accept, contribution counts, reopen-zeroes-points,

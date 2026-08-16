@@ -37,15 +37,20 @@ RC_DEPLOY_STATUS="deployed"
 # ---------------------------------------------------------------------------
 # Auto-commit safety (the 2026-05-28 incident)
 # ---------------------------------------------------------------------------
-# deploy.sh regenerates two build artifacts before every deploy -- the
-# header/footer partials (build_partials.py) and sitemap.xml
-# (generate-sitemap.py) -- and auto-commits them so the server's `git pull`
-# renders the latest output. The old code staged them with `git add -u
-# frontend`, which blind-sweeps EVERY modified tracked frontend file. On
-# 2026-05-28 that silently committed + pushed + deployed 8 uncommitted
-# monetization frontend files to prod.
+# deploy.sh regenerates the header/footer partials (build_partials.py) before
+# every deploy and auto-commits them so the server's `git pull` renders the
+# latest output. The old code staged them with `git add -u frontend`, which
+# blind-sweeps EVERY modified tracked frontend file. On 2026-05-28 that
+# silently committed + pushed + deployed 8 uncommitted monetization frontend
+# files to prod.
 #
-# The fix: stage ONLY the files the two scripts actually regenerate on this
+# (It used to regenerate frontend/sitemap.xml here too. That file and its
+# generator were DELETED 2026-08-16: prod serves a sitemap index from
+# backend/app/routers/sitemap.py, so the static one was never read, and
+# regenerating it on every deploy is what made the dead file look like the
+# source of truth.)
+#
+# The fix: stage ONLY the files the script actually regenerates on this
 # run (the post-run dirty set MINUS the pre-run dirty set), and ABORT if any
 # UNRELATED frontend file is dirty -- so unrelated uncommitted work can never
 # be swept again. Auto-commits are made LOCALLY; the single push near the end
@@ -69,12 +74,11 @@ lines_added() {  # $1 = pre list, $2 = post list (both newline-separated)
         <(printf '%s\n' "$1") <(printf '%s\n' "$2")
 }
 
-# Regeneration steps, wrapped as functions so the staging logic can be
-# exercised in isolation (tests stub these); the real deploy runs the scripts.
+# Regeneration step, wrapped as a function so the staging logic can be
+# exercised in isolation (tests stub this); the real deploy runs the script.
 run_build_partials()   { python3 "$1/frontend/scripts/build_partials.py"; }
-run_generate_sitemap() { python3 "$1/frontend/scripts/generate-sitemap.py"; }
 
-# Regenerate partials + sitemap and auto-commit ONLY what changed, refusing to
+# Regenerate the partials and auto-commit ONLY what changed, refusing to
 # touch unrelated dirty frontend files. Commits locally (no push, no ssh) so it
 # is safe to dry-run against a throwaway repo. Returns 1 (does NOT exit) on an
 # unrelated-dirty abort so the caller can report the aborted run.
@@ -82,9 +86,11 @@ run_generate_sitemap() { python3 "$1/frontend/scripts/generate-sitemap.py"; }
 #   $2 = allow_dirty (true|false)
 autocommit_regenerated() {
     local repo="$1" allow_dirty="$2"
-    local pre post regenerated partials sitemap f
+    local pre post regenerated partials f
 
     RC_SWEPT_PARTIALS=""
+    # Kept (always "false") so the LEIT deploy-event payload shape does not
+    # change under the dashboard. The sitemap is no longer a build artifact.
     RC_SWEPT_SITEMAP="false"
 
     # Snapshot the dirty frontend tree BEFORE regenerating anything. Whatever is
@@ -101,10 +107,10 @@ autocommit_regenerated() {
         else
             {
                 echo "ERROR: refusing to deploy -- unrelated uncommitted frontend changes."
-                echo "These files are dirty but are NOT partial/sitemap output:"
+                echo "These files are dirty but are NOT partial output:"
                 printf '  %s\n' $pre
                 echo ""
-                echo "deploy.sh auto-commits the regenerated partials/sitemap and pushes"
+                echo "deploy.sh auto-commits the regenerated partials and pushes"
                 echo "to prod; sweeping these in alongside them is the 2026-05-28 incident."
                 echo "Commit, stash, or revert them -- or re-run with --allow-dirty to"
                 echo "deploy and leave them uncommitted."
@@ -115,21 +121,18 @@ autocommit_regenerated() {
 
     echo "=== Building partials (header/footer) ==="
     run_build_partials "$repo"
-    echo "=== Regenerating sitemap ==="
-    run_generate_sitemap "$repo"
 
-    # Whatever became dirty that wasn't dirty before = exactly what the two
-    # scripts regenerated on this run. This is the ONLY thing we auto-commit.
+    # Whatever became dirty that wasn't dirty before = exactly what the script
+    # regenerated on this run. This is the ONLY thing we auto-commit.
     post="$(frontend_dirty_files "$repo")"
     regenerated="$(lines_added "$pre" "$post")"
 
     if [ -z "$regenerated" ]; then
-        echo "partials + sitemap: up to date, nothing to auto-commit"
+        echo "partials: up to date, nothing to auto-commit"
         return 0
     fi
 
-    sitemap="$(printf '%s\n' "$regenerated" | grep -xF 'frontend/sitemap.xml' || true)"
-    partials="$(printf '%s\n' "$regenerated" | grep -v '^$' | grep -vxF 'frontend/sitemap.xml' || true)"
+    partials="$(printf '%s\n' "$regenerated" | grep -v '^$' || true)"
 
     if [ -n "$partials" ]; then
         echo "partial content regenerated -- committing:"
@@ -139,13 +142,6 @@ autocommit_regenerated() {
         done <<< "$partials"
         git -C "$repo" commit -m "Rebuild header/footer partials (auto)"
         RC_SWEPT_PARTIALS="$partials"
-    fi
-
-    if [ -n "$sitemap" ]; then
-        echo "sitemap.xml regenerated -- committing"
-        git -C "$repo" add -- frontend/sitemap.xml
-        git -C "$repo" commit -m "Regenerate sitemap.xml (auto)"
-        RC_SWEPT_SITEMAP="true"
     fi
 }
 
@@ -286,9 +282,9 @@ run_deploy() {
         # Operator has turned auto-commit off in the LEIT dashboard. Do not
         # regenerate or commit anything; they will rebuild + commit manually.
         echo ""
-        echo "Auto-commit is DISABLED via the LEIT dashboard -- skipping partial/"
-        echo "sitemap regeneration. If partials or the sitemap changed, rebuild and"
-        echo "commit them manually before deploying."
+        echo "Auto-commit is DISABLED via the LEIT dashboard -- skipping partial"
+        echo "regeneration. If the partials changed, rebuild and commit them"
+        echo "manually before deploying."
         RC_PRE_DIRTY="$(frontend_dirty_files "$repo_root")"
         RC_SWEPT_PARTIALS=""
         RC_SWEPT_SITEMAP="false"
@@ -305,7 +301,7 @@ run_deploy() {
     fi
 
     # Re-bake the chart statics + llms from live data (fail-soft, explicit files
-    # only). Gated on the same auto-commit toggle as partials/sitemap.
+    # only). Gated on the same auto-commit toggle as the partials.
     if [ "$RC_TOGGLE_ENABLED" != disabled ]; then
         echo "=== Re-baking chart statics + llms (fail-soft) ==="
         bake_chart_statics "$repo_root" || true
@@ -326,7 +322,7 @@ run_deploy() {
     # Detect what changed in the pull. Use ORIG_HEAD (set by `git pull` to the
     # pre-pull commit) so multi-commit pulls are detected in full. HEAD~1 only
     # inspects the most recent commit, which silently misses changes when a
-    # partials/sitemap auto-commit lands on top of a real change.
+    # partials auto-commit lands on top of a real change.
     local changed backend_changed=false frontend_changed=false
     changed=$(ssh "$SERVER" "sudo bash -c 'cd $REMOTE_DIR && git diff --name-only ORIG_HEAD HEAD'")
 

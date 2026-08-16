@@ -1,9 +1,19 @@
 """Dynamic, DB-backed sitemap for risingcompass.net.
 
-Replaces the old static `frontend/sitemap.xml` (top-level pages only,
+Replaced the old static `frontend/sitemap.xml` (top-level pages only,
 regenerated on deploy) with a sitemap INDEX served live by the backend, so
 songs added daily by the reading/iTunes crons + Lyrical Charger appear without
 waiting for a deploy.
+
+THIS IS THE ONLY SITEMAP. The static file and its generator
+(`frontend/scripts/generate-sitemap.py`) were DELETED 2026-08-16. They had
+survived as a second, unread copy of this file's page-scan logic, and the two
+drifted: five live chart pages were in neither, then were fixed in the DEAD one
+first, because a generator sitting in the frontend tree looks authoritative.
+If you change what pages are seeded, change it here, and check the result with
+
+    docker compose exec -T nginx curl -sk \\
+      --resolve risingcompass.net:443:127.0.0.1 https://risingcompass.net/sitemap.xml
 
 Layout (the canonical "sitemap index" shape large catalog sites use, e.g.
 Genius):
@@ -52,9 +62,7 @@ router = APIRouter(tags=["sitemap"])
 # index stays tiny; lower it only if a single shard's byte size approaches 50 MB.
 SHARD_SIZE = 50_000
 
-# Pages the top-level scan can't find (it never recurses). Mirrors the retired
-# frontend/scripts/generate-sitemap.py EXTRA_PAGES -- keep the two in sync until
-# that script is removed.
+# Pages the top-level scan can't find (it never recurses).
 #
 # The /charts/ children are NOT listed here -- they are scanned, see
 # _SCANNED_SUBDIRS below.
