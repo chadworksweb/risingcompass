@@ -55,12 +55,23 @@ SHARD_SIZE = 50_000
 # Pages the top-level scan can't find (it never recurses). Mirrors the retired
 # frontend/scripts/generate-sitemap.py EXTRA_PAGES -- keep the two in sync until
 # that script is removed.
+#
+# The /charts/ children are NOT listed here -- they are scanned, see
+# _SCANNED_SUBDIRS below.
 _EXTRA_PAGES = [
     "/lyrical-charger/activity/",
-    "/charts/streamed-all-time/",
-    "/charts/most-streamed-albums/",
-    "/charts/best-selling-albums/",
 ]
+
+# Subdirectories whose children are scanned rather than curated.
+#
+# /charts/ earns this because it is the one directory the project has a written
+# recipe for GROWING (CLAUDE.md "Adding a chart shell"), and "add the page to
+# sitemap.xml" is a step in that recipe that gets missed. Five live chart pages
+# (spotify, itunes, shazam, youtube, new-music-friday) were absent from the
+# served sitemap while the three hand-added all-time ones were present. Curation
+# is the right default for a one-off nested page; it is the wrong default for a
+# set that gains a member every time a new feed is wired up.
+_SCANNED_SUBDIRS = ("charts",)
 # cards = the card-render harness (noindex); account = per-user sign-in;
 # dev = internal roadmap/changelog. None belong in a crawl seed list.
 _EXCLUDED_DIR_NAMES = {"css", "img", "js", "scripts", "songs", "cards", "account", "dev"}
@@ -107,6 +118,49 @@ def _cached(key: str, build) -> Response:
 
 # --- page scan (top-level frontend pages) ---------------------------------
 
+def _is_redirect_stub(html_path: Path) -> bool:
+    """True for a noindex + meta-refresh stub left behind by a rename.
+
+    Matched by SHAPE, not by filename, the same way build_partials.py exempts
+    them from its main.css check. /charts/daily-listens/ and
+    /charts/daily-downloads/ are stubs pointing at /charts/spotify/ and
+    /charts/itunes/; seeding a crawler with them would advertise two
+    canonical-elsewhere duplicates.
+    """
+    try:
+        head = html_path.read_text(encoding="utf-8", errors="replace")[:2000].lower()
+    except OSError:
+        return False
+    return (
+        'name="robots"' in head
+        and "noindex" in head
+        and 'http-equiv="refresh"' in head
+    )
+
+
+def _scanned_subdir_paths(base: Path) -> list[str]:
+    """URL paths for every real page one level inside _SCANNED_SUBDIRS.
+
+    Fail-soft: an unreadable directory yields nothing rather than raising. The
+    sitemap is a crawler convenience and must never 500 the route.
+    """
+    paths: list[str] = []
+    for parent_name in _SCANNED_SUBDIRS:
+        parent = base / parent_name
+        try:
+            entries = sorted(parent.iterdir(), key=lambda p: p.name.lower())
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.name.startswith(".") or not entry.is_dir():
+                continue
+            index = entry / "index.html"
+            if not index.is_file() or _is_redirect_stub(index):
+                continue
+            paths.append(f"/{parent_name}/{entry.name}/")
+    return paths
+
+
 def _page_paths() -> list[str]:
     """Top-level page URLs: '/', each direct subdir with an index.html, and each
     root-level *.html. Mirrors the old generate-sitemap.py scan."""
@@ -129,7 +183,7 @@ def _page_paths() -> list[str]:
                 continue
             if entry.suffix.lower() == ".html":
                 paths.append(f"/{entry.name}")
-    for extra in _EXTRA_PAGES:
+    for extra in _EXTRA_PAGES + _scanned_subdir_paths(base):
         if extra not in paths:
             paths.append(extra)
     return paths
