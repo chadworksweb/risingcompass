@@ -209,6 +209,103 @@
   border-radius: var(--rc-radius-md);
 }
 
+/* ─── Common Questions toggle panel ───────────────────────────
+   Ported from the chadworks FAQ accordion (.svc-acc in that project's
+   global.css): same geometry, same +/- marker, same grid-template-rows
+   disclosure. Only the palette moves -- every colour here is an RC token, so
+   the panel reads as this site rather than as a transplant.
+
+   The disclosure is grid-template-rows (0fr -> 1fr) rather than max-height
+   because the answers differ in length; a max-height guess either clips the
+   long ones or eases against dead space on the short ones. */
+.m-acc {
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-md);
+  background: var(--rc-bg-card);
+  overflow: hidden;
+}
+
+.m-acc__item { border-bottom: 1px solid var(--rc-border); }
+.m-acc__item:last-child { border-bottom: none; }
+
+.m-acc__q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2rem;
+  width: 100%;
+  padding: 1.05rem 1.2rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--rc-text-bright);
+  transition: background 0.25s ease;
+}
+
+.m-acc__q:hover { background: rgba(255, 255, 255, 0.04); }
+
+.m-acc__q:focus-visible {
+  outline: 2px solid var(--rc-accent);
+  outline-offset: -2px;
+}
+
+/* The marker is generated content, so it never lands in the accessible name of
+   the button (which is the question) and never gets read out as "plus". */
+.m-acc__q::after {
+  content: "+";
+  flex-shrink: 0;
+  font-family: var(--rc-font-mono, monospace);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--rc-accent);
+  transition: transform 0.35s ease, color 0.25s ease;
+}
+
+.m-acc__item.is-open .m-acc__q::after {
+  content: "\2212";
+  transform: rotate(180deg);
+}
+
+.m-acc__a {
+  display: grid;
+  grid-template-rows: 0fr;
+  background: rgba(0, 0, 0, 0.22);
+  transition: grid-template-rows 0.4s ease;
+}
+
+.m-acc__item.is-open .m-acc__a { grid-template-rows: 1fr; }
+
+/* min-height:0 is load-bearing: a grid item's default min-height is auto, which
+   refuses to shrink below its content and defeats the 0fr row entirely. */
+.m-acc__a-inner { overflow: hidden; min-height: 0; }
+
+.m-acc__a p {
+  margin: 0;
+  padding: 1.2rem;
+  font-size: 0.94rem;
+  line-height: 1.7;
+  color: var(--rc-text);
+}
+
+.m-acc__a p + p { padding-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-acc__a { transition: none; }
+  .m-acc__q::after { transition: none; }
+}
+
+/* Standalone section divider. Same token and weight as .method-block-ruled's
+   border-top, which is what drew this line before the block above it was cut. */
+.m-rule {
+  margin: 1.5rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--rc-border);
+}
+
 /* Living-instrument callout */
 .m-living-callout {
   margin: 1.75rem 0 0;
@@ -601,8 +698,17 @@
   }
 }
 
+/* Both selectors, not just the bare one. The 1100px block above states
+   `.m-section-body .m-surface-grid` (0,2,0), which beats a bare
+   `.m-surface-grid` (0,1,0) here no matter what the source order is, so the
+   single-column drop never applied and phones kept the two-up grid: 171px
+   columns with three-word lines and CTA labels wrapping to three rows. Same
+   specificity trap as .m-sub-num vs .m-section-num. */
 @media (max-width: 620px) {
-  .m-surface-grid { grid-template-columns: 1fr; }
+  .m-section-body .m-surface-grid,
+  .m-surface-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* The CTA is the only link; the module itself is inert. So no hover state on
@@ -1020,8 +1126,34 @@ html { scroll-behavior: smooth; }
     font-size: 0.92rem;
   }
 
+  /* THE MOBILE HEADING LADDER.
+
+     This block used to hold one rule, `.m-section-title { font-size: 1.25rem }`,
+     which is the exact size of .methodology-content h2. So at phone widths the
+     ladder collapsed: section title 20px, block h2 20px, h4 19.84px, subsection
+     h3 19.2px. Four rungs inside 0.8px of each other and only ~5px above the
+     15.2px body copy, which is why the page read as one undifferentiated column
+     on a phone and why a section boundary was invisible without its rule.
+
+     All four are restated here TOGETHER rather than tuning one, because the
+     failure was the interval between them, not any single value. Keep them in
+     this order if any one of them moves. */
   .m-section-title {
-    font-size: 1.25rem;
+    font-size: 1.6rem;
+  }
+
+  .m-sub-head .m-sub-title {
+    font-size: 1.4rem;
+  }
+
+  .methodology-content h2 {
+    font-size: 1.3rem;
+  }
+
+  /* h4 groups blocks INSIDE a subsection, so it belongs under the block h2. At
+     1.24rem it was sitting above it. */
+  .methodology-content h4 {
+    font-size: 1.08rem;
   }
 }
 
