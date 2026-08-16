@@ -594,7 +594,10 @@
           </script>
         </div>
 
-        <div class="method-block method-block-ruled">
+        <!-- id here so Force One can point at the runs mechanic instead of
+             restating it. 2d is a .method-block, not a .m-subsection, so it
+             takes its own scroll-margin (see methodology.css). -->
+        <div class="method-block method-block-ruled" id="rubric">
           <div class="m-sub-head">
             <span class="m-section-num m-sub-num">2d</span>
             <h3 class="m-sub-title">The Rubric</h3>
@@ -734,7 +737,7 @@
           <h2>Auxiliary Measurements Per Song</h2>
           <p>Each song detail page shows additional independent signals that expand a song's data beyond the main charge suite:</p>
           <ul class="key-points">
-            <li><strong>Agent consensus</strong> — every submission of a song re-runs the agent. Each run is logged with its own tier, charge, and summary. The canonical calibration drifts toward the confidence-weighted mean as runs accumulate.</li>
+            <li><strong>The calibrator's reading</strong> — the song's canonical tier and charge, settled across every run the song has had. The mechanism is in <a href="#rubric">The Rubric</a>.</li>
             <li><strong>Audience Vibe</strong> — a separate democratic needle anyone can push once per year. The crowd gets to place the song where <em>they</em> think it belongs, independent of the calibrator's reading.</li>
             <li><strong>The gap between them</strong> — when the calibrator and the crowd diverge, that divergence is a signal. Either the rubric has a blind spot the public is exposing, or the crowd is drifting and the calibrator is holding the line. Both outcomes are valuable data.</li>
           </ul>

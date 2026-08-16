@@ -969,8 +969,11 @@ html { scroll-behavior: smooth; }
 }
 
 /* The flow visual is an anchor target too ("See the full flow"), so it needs
-   the same landing offset the numbered sections get. */
-.m-subsection {
+   the same landing offset the numbered sections get. 2d (#rubric) is a
+   .method-block rather than a .m-subsection but is linked from Force One, so it
+   takes the offset here too. */
+.m-subsection,
+#rubric {
   scroll-margin-top: 1rem;
 }
 
