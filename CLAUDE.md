@@ -476,14 +476,43 @@ INSTRUCTION, so add a separate column rather than editing the prompt copy for
 tone. Band, boundary, and exact-charge URLs are explicitly rejected; reasons in
 the scope doc.
 
-## Site-wide link colour (fixed 2026-08-15)
+## Site-wide link colour (fixed 2026-08-15, SCOPED 2026-08-16)
 
-`css/main.css` owns the ONE global anchor rule: bare `a`, `a:visited` pinned to
-the same accent so nothing goes purple, and `.accent-link`. Before this,
-`.accent-link` was defined only in `songs/songs.css` and there was no bare `a`
-rule anywhere, so **every page that did not load the song stylesheet rendered
-the browser's blue and visited-purple.** Do not re-add `.accent-link` to a page
-stylesheet.
+`css/main.css` owns the ONE global anchor rule, and it is scoped to
+**`a:not([class])`**: it speaks only where no component has claimed the anchor.
+`:visited` and `:hover` are pinned to the accent so nothing goes purple and the
+hover lifts, both riding `:where()`. Before the original fix, `.accent-link` was
+defined only in `songs/songs.css` and there was no bare `a` rule anywhere, so
+**every page that did not load the song stylesheet rendered the browser's blue
+and visited-purple.** Do not re-add `.accent-link` to a page stylesheet.
+
+**THE :visited TRAP (why the scope is not optional, 2026-08-16).** The rule
+shipped unscoped, as bare `a` / `a:visited` / `a:hover`, on the reasoning that
+(0,0,1) is the lowest specificity on the site so any component class overrides
+it. That is true of `a` and FALSE of its pseudo-classes: **`a:visited` is
+(0,1,1) and BEATS a component class like `.song-title-link` at (0,1,0).** Chart
+links set `color: inherit` at rest and state only a border on hover, so nothing
+stood in the global rule's way. Live result: every chart link the reader had
+already clicked rendered accent green while its unvisited neighbours stayed
+white, a song list that looked half-broken and looked DIFFERENT for every
+reader. `a:hover` was the same bug awake, greening any chart link under the
+cursor.
+
+- **A fresh automated browser cannot see this.** It has no history, so every
+  link is unvisited and the panel renders perfectly. Two rounds of Playwright
+  scans reported no fault while the bug was plainly visible in Chad's Chrome.
+  **When a colour report cannot be reproduced, check the STATE-dependent rules
+  (`:visited`, `:hover`, `:focus`) before doubting the report.** A screenshot
+  settled it in seconds: the only green rows were the ones he had clicked.
+- **`:where()` carries zero specificity**, so `a:not([class]):where(:visited)`
+  stays at (0,1,1), equal to component rules like `.footer-links a` rather than
+  beating them, and source order decides. A plain `:visited` would be (0,2,1)
+  and would reintroduce the identical trap one level down, in the footer.
+- **A component owns its own states.** Chart links (`.song-title-link`,
+  `.artist-link`, `.ether-title-link`) state their hover on themselves: the
+  accent colour lift, no border, no underline. `color` had to be ADDED to their
+  `transition`, which had only ever animated `border-color`, or the lift snaps
+  instead of fading over the 0.2s the border used to take.
 
 Two guards keep it fixed:
 
