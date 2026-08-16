@@ -159,8 +159,13 @@
     border-left: 7px solid transparent; border-right: 7px solid transparent;
     border-top: 10px solid var(--cf-flow); z-index: 1;
   }
-  /* replay drops out of the corner so it never crowds the centred heading */
-  .cflow-replay { position: static; margin: 0 auto 1.25rem; display: flex; width: max-content; }
+  /* Replay is desktop-only. It used to drop out of the corner and sit above the
+     centred heading, which put a control ahead of the content on the narrowest
+     screens. The stacked layout already re-flashes each card as it scrolls into
+     view, so on a phone the scroll IS the replay and the button buys nothing.
+     Hidden rather than removed from the markup: the same partial serves both
+     layouts, and the handler no-ops when the button isn't reachable. */
+  .cflow-replay { display: none; }
 }
 
 @media (max-width: 600px) {

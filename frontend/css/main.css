@@ -385,6 +385,13 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  /* Always one line. The icon is flex:none, so the label span was the only
+     thing left to absorb the squeeze from the search field and it broke
+     "Sign in" across two rows on a phone, doubling the header's height.
+     nowrap keeps the label whole; flex:none stops the button itself being
+     compressed to make room for the search. */
+  white-space: nowrap;
+  flex: none;
   text-decoration: none;
   font-family: var(--rc-font);
   font-size: 0.82rem;
