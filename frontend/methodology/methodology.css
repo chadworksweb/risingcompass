@@ -124,11 +124,19 @@
    row, same stack point. */
 .m-intro {
   display: grid;
-  /* The prose column is the shared measure, not a fraction, so it lands on the
-     same width the sections below use. The aside takes what is left and never
-     drops under 15rem, which is what makes the prose give way first on a
-     mid-size window instead of squeezing the TOC. */
-  grid-template-columns: minmax(0, var(--m-measure)) minmax(15rem, 1fr);
+  /* The prose column is a measure, not a fraction, so it lands on a width the
+     sections below recognise. The aside takes what is left and never drops
+     under 15rem, which is what makes the prose give way first on a mid-size
+     window instead of squeezing the TOC.
+
+     ONE STEP NARROWER than --m-measure (Chad, 2026-08-16). The hero column used
+     to be the full 42.75rem, which left the TOC a 252px strip at 1024 and
+     wrapped "Making the Vibe Visible" inside the manifesto card under it. The
+     hero is the one place two columns of DIFFERENT kinds of content sit side by
+     side, so it does not owe the body measure an exact match: 38rem still reads
+     as prose and hands the aside ~76px it can use. */
+  --m-hero-measure: 38rem;
+  grid-template-columns: minmax(0, var(--m-hero-measure)) minmax(15rem, 1fr);
   gap: clamp(1.25rem, 4vw, 2.5rem);
   align-items: start;
 }
@@ -349,12 +357,18 @@
   /* Fills the TOC column rather than hugging its text, so it reads as the
      panel's sibling module (Chad, ss11). Hence the panel radius here instead
      of the toast's 999px pill. */
+  /* STACKED, badge above the text (Chad, 2026-08-16). Side by side, the chip
+     ate a fixed slice of an already-narrow TOC column and the title wrapped
+     mid-phrase ("Making the Vibe / Visible"). Above it, the text gets the card's
+     full inner width and the title holds one line. */
   display: flex;
-  align-items: center;
-  /* One token for the horizontal inset AND the badge-to-text gap, so the air
-     after the chip matches the air before it (Chad, ss13). */
+  flex-direction: column;
+  align-items: flex-start;
+  /* The horizontal inset still comes from one token so the air on both sides of
+     the card matches; the badge-to-text gap is now VERTICAL and set separately,
+     since a stacked gap the size of a horizontal inset is far too much air. */
   --m-manifesto-inset: clamp(1.1rem, 3vw, 1.5rem);
-  gap: var(--m-manifesto-inset);
+  gap: 0.55rem;
   margin-top: 0.9rem;
   padding: clamp(0.85rem, 2.2vw, 1.1rem) var(--m-manifesto-inset);
   color: var(--rc-text-bright);
@@ -659,8 +673,17 @@
 }
 
 /* Stacked, the gauge would sit below five cards it can no longer point at, and
-   the contamination mark below the prose it is meant to sit beside. */
-@media (max-width: 1100px) {
+   the contamination mark below the prose it is meant to sit beside.
+
+   980, NOT 1100 (2026-08-16). At 1100 the aside vanished while the reading
+   measure stayed at 684px, so a 1024 window rendered every block from the tier
+   stack down in a 684px column with 316px of dead space on its right, all on one
+   side: the hero and the section bands run full width, so the page taught a
+   full-width rhythm and then hugged the left for the rest of its length. Above
+   1100 that same space is the compass and the marks, which is why it only ever
+   looked wrong in the tablet-landscape band. Dropping to 980 keeps the aside
+   alive at 1024 and lets it fill the space it was always meant to fill. */
+@media (max-width: 980px) {
   .m-section-body .tier-scope,
   .tier-scope,
   .m-section-body .m-mark-scope,
@@ -689,12 +712,23 @@
   max-width: calc(100vw - 3rem);
 }
 
+/* Two across, still BROKEN OUT. Matched to the 980 the scopes above now use, so
+   the whole page leaves the tablet-landscape rail behind at one width instead of
+   two. It keeps the break-out here rather than falling back to the measure,
+   because four 232px columns at 1024 wrap the CTA labels; two wide ones do not
+   and still fill the row. */
 @media (max-width: 1100px) {
+  .m-section-body .m-surface-grid,
+  .m-surface-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
   .m-section-body .m-surface-grid,
   .m-surface-grid {
     width: 100%;
     max-width: var(--m-measure);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
