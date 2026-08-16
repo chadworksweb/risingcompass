@@ -149,19 +149,41 @@ a:focus-visible {
    Two properties keep it permanent:
      1. It lives in main.css, and scripts/build_partials.py fails the build if
         a public page does not load main.css. A new page cannot miss this.
-     2. The bare `a` selector is the lowest specificity on the site (0,0,1), so
-        any component class overrides it without needing !important. Nothing
-        has to fight this rule; it only fills the gap where nothing else spoke.
+     2. It is scoped to `a:not([class])`, so it speaks ONLY where no component
+        has claimed the anchor. A classed link is its component's business.
 
-   :visited is pinned to the same colour on purpose. The compass has no
-   read/unread state worth showing, and purple text on this ground reads as a
-   rendering fault rather than a visited link. */
-a {
+   THE :visited TRAP, and why the scope is not optional. A bare `a:visited`
+   rule is specificity (0,1,1), which BEATS a component class like
+   `.song-title-link` at (0,1,0). So a global visited colour repaints every
+   chart link the reader has already clicked, and the panel renders half white
+   and half accent depending on browser history: the unvisited rows keep the
+   component's colour, the visited ones go green. It cannot be fixed by
+   reordering, because specificity decides it, and it is invisible in a fresh
+   automated browser, which has no history. `:not([class])` is what keeps the
+   rule out of the components entirely.
+
+   :visited is pinned to the accent (not left to the browser) on purpose. The
+   compass has no read/unread state worth showing, and purple text on this
+   ground reads as a rendering fault rather than a visited link. */
+a:not([class]) {
   color: var(--rc-accent);
   text-decoration: none;
 }
-a:visited { color: var(--rc-accent); }
-a:hover { color: var(--rc-accent-bright); }
+/* `:where()` contributes ZERO specificity, so this stays at (0,1,1), exactly
+   equal to the rule above and to component rules like `.footer-links a`. A
+   plain `:visited` would be (0,2,1) and would beat them, which is the same trap
+   one level down: visited footer links would go accent while their unvisited
+   neighbours stayed grey. At equal specificity, source order decides, so any
+   component defined later simply wins for its own links. */
+a:not([class]):where(:visited) { color: var(--rc-accent); }
+
+/* Hover lifts the accent, and it is scoped the same two ways as the rest.
+   `a:not([class])` keeps it off component links: those set `color: inherit` at
+   rest and state no colour on hover, so an unscoped `a:hover` had nothing
+   standing in its way and turned every chart title green under the cursor.
+   `:where(:hover)` holds the specificity at (0,1,1) instead of (0,2,1), so a
+   component's own hover rule defined later still wins for its own links. */
+a:not([class]):where(:hover) { color: var(--rc-accent-bright); }
 
 /* The explicit class, kept because ~40 templates already use it. Same values
    as the bare rule; it exists so markup can say "this is a link" where the
@@ -171,7 +193,10 @@ a:hover { color: var(--rc-accent-bright); }
   text-decoration: none;
 }
 .accent-link:visited { color: var(--rc-accent); }
-.accent-link:hover { color: var(--rc-accent-bright); text-decoration: underline; }
+/* Hover is the colour lift alone. The underline that used to live here came
+   from the old songs.css definition; it is deliberately gone, so .accent-link
+   and the bare `a` rule now hover identically. */
+.accent-link:hover { color: var(--rc-accent-bright); }
 
 /* === Inverted Container (light-on-dark → dark-on-light) === */
 .rc-inverted {
@@ -560,9 +585,9 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   color: inherit;
   text-decoration: none;
   border-bottom: 1px solid transparent;
-  transition: border-color var(--rc-ease);
+  transition: color var(--rc-ease), border-color var(--rc-ease);
 }
-.ether-title-link:hover { border-bottom-color: var(--rc-accent); }
+.ether-title-link:hover { color: var(--rc-accent-bright); }
 
 .ether-meta {
   display: flex;
@@ -1056,11 +1081,13 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   color: inherit;
   text-decoration: none;
   border-bottom: 1px solid transparent;
-  transition: border-color var(--rc-ease);
+  transition: color var(--rc-ease), border-color var(--rc-ease);
 }
 .song-title-link:hover,
 .song-title-link:focus-visible {
-  border-bottom-color: var(--rc-accent);
+  /* Hover is the accent lift, stated ON the component so nothing global has to
+     reach in. No border and no underline. */
+  color: var(--rc-accent-bright);
   outline: none;
 }
 
@@ -1076,11 +1103,11 @@ a.rc-search-item:hover, .rc-search-item.active { background: var(--rc-accent-hov
   color: inherit;
   text-decoration: none;
   border-bottom: 1px solid transparent;
-  transition: border-color var(--rc-ease);
+  transition: color var(--rc-ease), border-color var(--rc-ease);
 }
 .artist-link:hover,
 .artist-link:focus-visible {
-  border-bottom-color: var(--rc-accent);
+  color: var(--rc-accent-bright);
   outline: none;
 }
 
