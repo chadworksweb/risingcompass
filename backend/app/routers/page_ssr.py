@@ -23,12 +23,14 @@ import os
 import re
 from html import escape as _esc
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from app.config import settings
+from app.constants import COLOR_HEX
 from app.database import SessionLocal
 from app.models import Artist
 
@@ -181,6 +183,746 @@ def _hero_style(charge) -> str:
     return f"--charge-color: #{r:02x}{g:02x}{b:02x}; --charge-glow: rgba({r}, {g}, {b}, 0.45);"
 
 
+# --- body injection --------------------------------------------------------
+#
+# The head helpers above bake meta. These bake CONTENT. Used by the topics and
+# themes family, whose every outbound link is client-rendered: the raw HTML of
+# a topic page carried zero links into the 2,284 song pages it exists to reach,
+# and its <h1> read "Loading...". Rendering runs only if a crawler executes the
+# JS, which is a second queue and the weaker path.
+#
+# All four are surgical and IDEMPOTENT-SAFE: they only ever touch an element
+# that is empty (or whose text they replace outright), so the client JS -- which
+# overwrites the same nodes on load -- stays the source of truth for interactive
+# readers. Nothing here changes what a reader sees; it changes when.
+
+def _body_or_plain(renderer, html: str, data: dict) -> str:
+    """Run a body renderer, falling back to the un-injected HTML on any error.
+
+    The body render is an ENHANCEMENT: the page already works because the
+    client JS fetches the same payload and fills the same nodes. So a bug in a
+    renderer must cost a crawler its shortcut, never cost a reader the page.
+    Without this, one unexpected None would 500 all 41 pages at once.
+    """
+    try:
+        return renderer(html, data)
+    except Exception:
+        logger.exception("page_ssr: body render failed; serving meta-only HTML")
+        return html
+
+
+def _fill(html: str, elem_id: str, inner: str) -> str:
+    """Render `inner` into the EMPTY element bearing this id.
+
+    Matches only an empty element, so a template that somehow already carries
+    markup is left alone rather than having a second copy nested inside it.
+    """
+    pattern = re.compile(
+        r'(<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*>)\s*(</(?P=tag)>)'
+    )
+    return pattern.sub(lambda m: m.group(1) + inner + m.group(3), html, count=1)
+
+
+def _set_text(html: str, elem_id: str, value: str) -> str:
+    """Replace the text content of the element bearing this id. For the plain
+    single-text-node elements only (h1, p) -- it does not descend."""
+    pattern = re.compile(
+        r'(<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*>).*?(</(?P=tag)>)',
+        re.S,
+    )
+    return pattern.sub(lambda m: m.group(1) + _esc(value, quote=False) + m.group(3),
+                       html, count=1)
+
+
+def _show(html: str, elem_id: str) -> str:
+    """Drop the `hidden` attribute from the element bearing this id.
+
+    A section we just filled has something true to say, so it must not ship
+    hidden -- hidden content is discounted, and the client JS reveals it a
+    moment later anyway.
+    """
+    pattern = re.compile(
+        r'(<[a-zA-Z0-9]+[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*?)\s+hidden(\s*>)'
+    )
+    return pattern.sub(r"\1\2", html, count=1)
+
+
+def _set_html(html: str, elem_id: str, inner: str) -> str:
+    """Replace the inner markup of the element bearing this id, whatever it
+    holds. `_fill` refuses a non-empty element on purpose; this is for the
+    nodes that ship with a placeholder inside (the prose lanes' "Loading...")
+    where replacing IS the intent.
+
+    Finds the element's OWN closing tag by counting depth, rather than taking
+    the first one a lazy `.*?` reaches. That shortcut is correct exactly until
+    the replacement contains a child of the same tag name -- at which point a
+    re-run matches inside its own previous output and eats it. The shop grid
+    is a div of divs, and the second bake grew the file by a card instead of
+    replacing it. Anything baked onto disk gets re-run, so this has to be
+    re-entrant.
+    """
+    open_re = re.compile(
+        r'<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*?(?P<selfclose>/?)>'
+    )
+    m = open_re.search(html)
+    if m is None or m.group("selfclose"):
+        return html
+    tag = m.group("tag")
+    start = m.end()
+    depth = 1
+    scan = re.compile(r"<(/?)" + re.escape(tag) + r"\b[^>]*?(/?)>", re.I)
+    pos = start
+    while depth:
+        nxt = scan.search(html, pos)
+        if nxt is None:
+            return html  # unbalanced markup: change nothing
+        pos = nxt.end()
+        if nxt.group(1):
+            depth -= 1
+        elif not nxt.group(2):
+            depth += 1
+    return html[:start] + inner + html[nxt.start():]
+
+
+def _declass(html: str, elem_id: str, cls: str) -> str:
+    """Drop one class from the element bearing this id. The templates mark
+    not-yet-filled prose with `is-loading`, and the client strips it as it
+    writes; a server-filled node has to strip it too or it ships dimmed."""
+    pattern = re.compile(
+        r'(<[a-zA-Z0-9]+[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*\bclass=")([^"]*)(")'
+    )
+
+    def _sub(m):
+        kept = [c for c in m.group(2).split() if c != cls]
+        return m.group(1) + " ".join(kept) + m.group(3)
+
+    return pattern.sub(_sub, html, count=1)
+
+
+def _prose_html(prose: str) -> str:
+    """Blank-line-separated prose to paragraphs. Mirrors the split/trim/filter
+    chain both song-page prose lanes use client-side."""
+    parts = [p.strip() for p in re.split(r"\n{2,}", prose)]
+    return "".join(f"<p>{_t(p)}</p>" for p in parts if p)
+
+
+def _hide(html: str, elem_id: str) -> str:
+    """Add `hidden` to the element bearing this id. The inverse of `_show`, for
+    the loading rows the client hides once it has painted."""
+    pattern = re.compile(
+        r'(<[a-zA-Z0-9]+[^>]*\bid="' + re.escape(elem_id) + r'")([^>]*?)(\s*>)'
+    )
+
+    def _sub(m):
+        if re.search(r"\bhidden\b", m.group(2)):
+            return m.group(0)
+        return m.group(1) + m.group(2) + " hidden" + m.group(3)
+
+    return pattern.sub(_sub, html, count=1)
+
+
+def _t(value) -> str:
+    """Escape for a text node. Quotes stay raw, matching what the client's
+    textContent -> innerHTML round-trip emits, so the two renders agree."""
+    return _esc("" if value is None else str(value), quote=False)
+
+
+def _u(slug) -> str:
+    """A path segment, escaped for an href. Mirrors encodeURIComponent."""
+    return _esc(quote(str(slug or ""), safe=""))
+
+
+# The client scripts print an em dash where there is no reading. Kept as an
+# escape so this file stays ASCII, and named so the intent survives the escape.
+_NO_READING = chr(0x2014)
+
+
+def _signed(v) -> str:
+    """+N / N, or an em dash when there is no reading. Mirrors `signed()` in
+    topics.js / themes.js -- the character matters, the two renders sit in the
+    same DOM position one paint apart."""
+    if v is None:
+        return _NO_READING
+    return f"+{v}" if v > 0 else str(v)
+
+
+def _charge_hex(v) -> str:
+    """The compass ramp as a hex string. Mirrors `chargeColor()` in the topic
+    and theme scripts, over the same `_spectrum_rgb` the hero glow uses."""
+    if v is None:
+        return "#888"
+    r, g, b = _spectrum_rgb(v)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+# The three row shapes the family shares. Each mirrors its counterpart in
+# frontend/topics/topics.js or frontend/themes/themes.js EXACTLY -- same
+# classes, same order, same text -- so hydration replaces like with like
+# instead of visibly rewriting the page. Change one, change its twin.
+
+def _ssr_song_card(s: dict) -> str:
+    """`songCard` -- the span's two ends, one card each."""
+    kicker = " ".join(x for x in [_t(s.get("tier_label") or ""),
+                                  _signed(s.get("charge_value"))] if x)
+    hexv = _t(s.get("tier_hex") or "#888")
+    why = (f'<span class="related-card-why">{_t(s["deadpan_line"])}</span>'
+           if s.get("deadpan_line") else "")
+    return (
+        '<li class="related-card">'
+        f'<a class="related-card-link" href="/songs/{_u(s.get("slug"))}">'
+        '<span class="related-card-kicker">'
+        f'<span class="related-card-dot" style="background:{hexv}" aria-hidden="true"></span>'
+        f'<span style="color:{hexv}">{kicker}</span>'
+        '</span>'
+        f'<span class="related-card-name">{_t(s.get("title"))}</span>'
+        f'<span class="related-card-sub">{_t(s.get("artist"))}</span>'
+        f'{why}</a></li>'
+    )
+
+
+def _ssr_song_row(s: dict) -> str:
+    """`songRow` -- the ranking under the finding, charge first."""
+    hexv = _t(s.get("tier_hex") or "#888")
+    why = (f'<span class="topic-row-why">{_t(s["deadpan_line"])}</span>'
+           if s.get("deadpan_line") else "")
+    return (
+        '<li class="topic-row">'
+        f'<a class="topic-row-link" href="/songs/{_u(s.get("slug"))}">'
+        f'<span class="topic-row-charge" style="color:{hexv}">{_signed(s.get("charge_value"))}</span>'
+        '<span class="topic-row-id">'
+        f'<span class="topic-row-title">{_t(s.get("title"))}</span>'
+        f'<span class="topic-row-artist">{_t(s.get("artist"))}</span>'
+        '</span>'
+        f'{why}</a></li>'
+    )
+
+
+def _ssr_topic_card(t: dict) -> str:
+    """`topicCard` -- a topic as a tile, on the theme page and both indexes."""
+    return (
+        '<li class="topic-index-card">'
+        f'<a class="topic-index-link" href="/topics/{_u(t.get("slug"))}">'
+        f'<span class="topic-index-name">{_t(t.get("label"))}</span>'
+        '<span class="topic-index-meta">'
+        f'<span class="topic-index-charge" style="color:{_charge_hex(t.get("avg_charge"))}">'
+        f'{_signed(t.get("avg_charge"))} avg</span>'
+        f'<span class="topic-index-songs">{t.get("songs", 0)} songs</span>'
+        '</span></a></li>'
+    )
+
+
+def _ssr_tier_chips(tiers: dict) -> str:
+    bits = [("Ascended", tiers.get("violet"), "#9933ff"),
+            ("Elevated", tiers.get("blue"), "#3388ff"),
+            ("Decent", tiers.get("green"), "#33cc55"),
+            ("Degraded", tiers.get("orange"), "#ffbb33"),
+            ("Corrupted", tiers.get("red"), "#ff3333")]
+    return "".join(
+        f'<span class="topic-tier-chip">'
+        f'<span class="topic-tier-dot" style="background:{hexv}"></span>{n} {label}</span>'
+        for label, n, hexv in bits if n
+    )
+
+
+def _ssr_stats_list(st: dict, lib: dict) -> str:
+    pct = st.get("contaminated_pct") or 0
+    contam = (f'{pct}% carry a contamination flag, against '
+              f'{lib.get("contaminated_pct", 0)}% across the library'
+              if pct > 0 else "None of them carry a contamination flag")
+    return (
+        '<li class="topic-stat"><span class="topic-stat-label">Contamination</span>'
+        f'<span class="topic-stat-value">{_t(contam)}.</span></li>'
+        '<li class="topic-stat"><span class="topic-stat-label">Where they land</span>'
+        f'<span class="topic-stat-value">{_ssr_tier_chips(st.get("tiers") or {})}</span></li>'
+    )
+
+
+def _delta_clause(value, baseline, template: str) -> str:
+    """The "N points above/below the library" clause, or nothing. Both pages
+    suppress it under 3 points, which is where the difference stops being one."""
+    if value is None or baseline is None:
+        return ""
+    delta = value - baseline
+    if abs(delta) < 3:
+        return ""
+    return template.format(n=abs(delta), dir="above" if delta > 0 else "below")
+
+
+def _ssr_song_body(html: str, song: dict) -> str:
+    """Server-render the song page's reading. Mirrors the hero / summary /
+    topics / effects block in frontend/songs/songs.js.
+
+    DELIBERATELY OUT OF SCOPE, both for the same reason -- the client owns them:
+    * The tier badge and compass gauge. The gauge is a canvas widget, and
+      `ssr_song` already decided raw tier/charge stay out of crawler-visible
+      text ("Degraded -44" reads as jargon and depresses CTR). Rendering the
+      badge server-side would contradict that AND flip visibly to the gauge.
+    * Similar Songs / Similar Artists. Those come from a SECOND endpoint
+      (`song_related`), which is a topic-scored scan costing about as much
+      again as the whole page. Song pages are `cf-cache-status: DYNAMIC`, so
+      that lands on every request -- and every song it would link is in the
+      sitemap already, so the crawl gain does not buy the latency.
+    """
+    title = song.get("title") or ""
+    artist = song.get("artist") or ""
+    tagline = f'"{title}" by {artist}' if artist else f'"{title}"'
+    uncalibrated = bool(song.get("uncalibrated")) or song.get("charge_value") is None
+    unavailable = bool(song.get("lyrics_unavailable"))
+
+    html = _set_text(html, "song-title", title)
+    if song.get("artist_slug"):
+        html = _fill(html, "song-artist",
+                     f'<a href="/artists/{_u(song["artist_slug"])}" '
+                     f'class="accent-link">{_t(artist)}</a>')
+    else:
+        html = _fill(html, "song-artist", _t(artist))
+
+    if song.get("origin_chart_label"):
+        html = _fill(html, "song-origin-chart",
+                     _t(f'First surfaced on {song["origin_chart_label"]}'))
+        html = _show(html, "song-origin-chart")
+
+    # The headline read. The three branches are the client's, in its order.
+    if unavailable:
+        summary = (f"{tagline} is released, but its lyrics are not available to read on "
+                   f"any source, so The Rising Compass carries no reading for it. If the "
+                   f"lyrics surface, it will be calibrated like any other song.")
+    elif uncalibrated:
+        summary = (f"{tagline} is currently uncalibrated. See the history section below "
+                   f"for the reasoning behind the most recent reset.")
+    else:
+        summary = song.get("charge_summary") or ""
+    if summary:
+        html = _set_text(html, "summary-text", summary)
+        html = _declass(html, "summary-text", "is-loading")
+
+    topics = [t for t in (song.get("topics") or []) if t]
+    if topics:
+        html = _fill(html, "song-topics", "".join(
+            f'<a class="song-topic" href="/topics/{_u(t)}">'
+            f'{_t(str(t).replace("-", " "))}</a>' for t in topics))
+        html = _show(html, "song-topics")
+
+    # Both prose lanes, but only for a song that HAS a reading. The client
+    # hides these sections outright when uncalibrated, and a server render that
+    # disagreed would flash prose that does not apply.
+    #
+    # A missing lane is left as its placeholder ON PURPOSE. The client falls
+    # back to tier-generic copy there, which is the same paragraph on every
+    # song of that colour -- baking it would put duplicate boilerplate on
+    # hundreds of pages, which is worth less than nothing to a crawler, and
+    # would fork the tier table into Python to go stale.
+    if not uncalibrated:
+        for field, elem in (("listener_effects_prose", "listener-effects-prose"),
+                            ("societal_effects_prose", "societal-effects-prose")):
+            prose = song.get(field)
+            if prose:
+                html = _set_html(html, elem, _prose_html(prose))
+                html = _declass(html, elem, "is-loading")
+
+    return html
+
+
+def _charge_or_blank(v) -> str:
+    """+N / N, or nothing at all. The artist and release lists print an empty
+    charge for an uncalibrated row rather than a dash -- their own
+    `chargeDisplay()`, which differs from the topic pages' `signed()`."""
+    if v is None:
+        return ""
+    return f"+{v}" if v > 0 else str(v)
+
+
+def _ssr_artist_body(html: str, data: dict) -> str:
+    """Server-render the artist page's two lists. Mirrors `renderTopSongRow`
+    and `renderReleaseRow` in frontend/artists/artists.js.
+
+    The compass, the charge widget and the trajectory chart are all left to the
+    client: they are canvas/SVG instruments built from the same payload, and
+    there is nothing in a drawn curve for a crawler to read.
+    """
+    songs = data.get("songs") or []
+    releases = data.get("releases") or []
+    artist_slug = data.get("slug") or ""
+
+    if songs:
+        rows = []
+        for i, s in enumerate(songs):
+            color = _t(COLOR_HEX.get(s.get("rubric_color")) or "#999")
+            title = _t(s.get("title"))
+            node = (f'<a class="song-title-link" href="/songs/{_u(s["slug"])}">{title}</a>'
+                    if s.get("slug") else f'<span class="song-title">{title}</span>')
+            rows.append(
+                '<li class="song-item artist-top-song-item">'
+                f'<span class="top-song-rank">{i + 1}</span>'
+                f'<span class="song-dot" style="background:{color}"></span>'
+                f'<div class="song-info">{node}</div>'
+                f'<span class="song-charge" style="color:{color}">'
+                f'{_charge_or_blank(s.get("charge_value"))}</span></li>'
+            )
+        html = _set_html(html, "top-songs-list", "".join(rows))
+
+    if releases:
+        rows = []
+        for r in releases:
+            color = _t(COLOR_HEX.get(r.get("rubric_color")) or "#999")
+            rtype = r.get("release_type")
+            type_label = "Album" if rtype == "album" else "EP" if rtype == "ep" else "Single"
+            date = r.get("release_date") or (str(r["release_year"]) if r.get("release_year") else "")
+            charge = _charge_or_blank(r.get("charge_value"))
+            # The client swaps a dead thumbnail back to the tier dot with an
+            # onerror handler. Server-side we render the dot whenever there is
+            # no recorded art, and let that same handler cover the dead-link
+            # case once the page hydrates.
+            lead = (f'<img class="release-thumb" src="{_esc(r["cover_thumb_url"])}" alt="" '
+                    f'loading="lazy">' if r.get("cover_thumb_url")
+                    else f'<span class="release-dot" style="background:{color}"></span>')
+            inner = (
+                f'{lead}<div class="release-compact-main">'
+                f'<span class="release-compact-title">{_t(r.get("title"))}</span>'
+                '<span class="release-compact-meta">'
+                f'<span class="release-type">{type_label}</span>'
+                + (f'<span class="release-date">{_t(date)}</span>' if date else "")
+                + '</span></div>'
+                f'<span class="release-compact-charge" style="color:{color}" '
+                f'aria-label="{_esc(r.get("tier_label") or "")}">{charge or chr(0x00B7)}</span>'
+            )
+            body = (f'<a class="release-compact-link" '
+                    f'href="/artists/{_u(artist_slug)}/{_u(r["slug"])}">{inner}</a>'
+                    if artist_slug and r.get("slug") else inner)
+            rows.append(f'<li class="release-compact-item">{body}</li>')
+        html = _set_html(html, "releases-list", "".join(rows))
+
+    return html
+
+
+def _ssr_release_body(html: str, rel: dict) -> str:
+    """Server-render the release page. Mirrors frontend/artists/release.js.
+
+    The tracklist is the payload here: it is the only place a release's songs
+    are linked from, and `release_detail` already carries it.
+    """
+    title = rel.get("title") or ""
+    artist = (rel.get("artist") or {}).get("name") or ""
+    artist_slug = (rel.get("artist") or {}).get("slug") or ""
+
+    html = _set_text(html, "release-title", title)
+    html = _declass(html, "release-title", "is-loading")
+
+    rtype = rel.get("release_type")
+    type_label = "Album" if rtype == "album" else "EP" if rtype == "ep" else "Single"
+    date = rel.get("release_date") or (str(rel["release_year"]) if rel.get("release_year") else "")
+    parts = []
+    if artist_slug:
+        parts.append(f'<a href="/artists/{_u(artist_slug)}" class="accent-link">{_t(artist)}</a>')
+    elif artist:
+        parts.append(_t(artist))
+    parts.append(type_label)
+    if date:
+        parts.append(_t(date))
+    n_tracks = rel.get("track_count")
+    if n_tracks:
+        parts.append(f'{n_tracks} track{"" if n_tracks == 1 else "s"}')
+    html = _set_html(html, "release-meta", " &middot; ".join(parts))
+
+    summary = rel.get("charge_summary")
+    if summary:
+        html = _set_text(html, "release-summary", summary)
+        html = _declass(html, "release-summary", "is-loading")
+
+    if rel.get("arc_prose"):
+        html = _set_html(html, "release-arc", _prose_html(rel["arc_prose"]))
+        html = _show(html, "release-arc-section")
+
+    for field, elem, section in (
+        ("listener_effects_prose", "release-listener-effects", "release-listener-effects-section"),
+        ("societal_effects_prose", "release-societal", "release-societal-section"),
+    ):
+        if rel.get(field):
+            html = _set_html(html, elem, _prose_html(rel[field]))
+            html = _show(html, section)
+
+    # The tracklist is the payload here: it is the only place a release's songs
+    # are linked from. Mirrors `renderTrack`, including its uncalibrated
+    # treatment (dim row, dim dot, a middot in place of a charge).
+    tracks = rel.get("tracks") or []
+    if tracks:
+        rows = []
+        dim = "var(--rc-text-dim)"
+        for t in tracks:
+            calibrated = t.get("charge_value") is not None
+            color = _t(COLOR_HEX.get(t.get("rubric_color")) or "#3a3a55")
+            name = _t(t.get("title"))
+            node = (f'<a href="/songs/{_u(t["slug"])}">{name}</a>' if t.get("slug") else name)
+            meta = (f'<span class="release-compact-meta"><span>Track {t["track_number"]}</span></span>'
+                    if t.get("track_number") is not None else "")
+            rows.append(
+                f'<li class="release-compact-item{"" if calibrated else " is-uncalibrated"}">'
+                f'<span class="release-dot" style="background:{color if calibrated else "#3a3a55"}"></span>'
+                '<div class="release-compact-main">'
+                f'<span class="release-compact-title"{"" if calibrated else f" style=\"color:{dim}\""}>'
+                f'{node}</span>{meta}</div>'
+                f'<span class="release-compact-charge" style="color:{color if calibrated else dim}">'
+                f'{_charge_or_blank(t.get("charge_value")) if calibrated else "&middot;"}</span></li>'
+            )
+        html = _set_html(html, "release-tracks", "".join(rows))
+
+    return html
+
+
+def _ssr_topic_body(html: str, d: dict) -> str:
+    """Server-render the topic page: its finding, its span, and the first page
+    of its ranking. Mirrors `renderHead`/`renderExtremes`/`renderSiblings`/
+    `renderSongs` in frontend/topics/topics.js."""
+    topic, st, lib = d["topic"], d["stats"], d["library"]
+    label = topic.get("label") or ""
+
+    html = _set_text(html, "topic-title", label)
+    html = _fill(html, "crumb-current", _t(label))
+    if topic.get("scope"):
+        html = _set_text(html, "topic-scope", topic["scope"])
+
+    theme = topic.get("theme")
+    if theme and theme.get("slug"):
+        html = _fill(html, "topic-parent",
+                     f'A topic under <a href="/themes/{_u(theme["slug"])}">'
+                     f'{_t(theme.get("label"))}</a>')
+        html = _show(html, "topic-parent")
+
+    finding = (f'{st.get("songs", 0)} calibrated songs carry this topic. '
+               f'They average {_signed(st.get("avg_charge"))}')
+    finding += _delta_clause(st.get("avg_charge"), lib.get("avg_charge"),
+                             ", which is {n} points {dir} the library as a whole")
+    finding += (f', and they run from {_signed(st.get("min_charge"))} to '
+                f'{_signed(st.get("max_charge"))}.')
+    html = _set_text(html, "topic-finding", finding)
+    html = _fill(html, "topic-stats", _ssr_stats_list(st, lib))
+
+    sp = d.get("dominant_split")
+    if sp:
+        copy = (
+            f'{sp["dominant_songs"]} of these songs are mostly about {label}, and those '
+            f'average {_signed(sp["avg_dominant"])}. Where {label} is present but not the '
+            f'point, the average is {_signed(sp["avg_incidental"])}. The topic reads '
+            f'{"higher" if sp["delta"] > 0 else "lower"} by {abs(sp["delta"])} points '
+            f'when it leads.'
+        )
+        html = _set_text(html, "topic-split-copy", copy)
+        html = _show(html, "topic-split")
+
+    ex = d.get("extremes") or {}
+    high, low = ex.get("highest"), ex.get("lowest")
+    ends = [s for s in (high, low) if s]
+    if low and high and low["id"] == high["id"]:
+        ends = [high]
+    if ends:
+        html = _fill(html, "topic-extremes-grid",
+                     "".join(_ssr_song_card(s) for s in ends))
+        html = _show(html, "topic-extremes")
+
+    # The span already named these two, so the ranking skips them rather than
+    # linking the same song twice on one page. Same rule as renderSongs().
+    span_ids = {s["id"] for s in ends}
+    rows = [s for s in (d.get("songs") or []) if s["id"] not in span_ids]
+    html = _fill(html, "topic-song-grid", "".join(_ssr_song_row(s) for s in rows))
+
+    sibs = d.get("siblings") or []
+    if sibs:
+        theme_label = (topic.get("theme") or {}).get("label")
+        if theme_label:
+            html = _set_text(html, "topic-siblings-h",
+                             f"Other topics under {theme_label}")
+        html = _fill(html, "topic-sibling-list", "".join(
+            f'<li><a href="/topics/{_u(s["slug"])}" class="topic-sibling">'
+            f'<span class="topic-sibling-name">{_t(s["label"])}</span>'
+            f'<span class="topic-sibling-meta">{s["songs"]} songs, averaging '
+            f'{_signed(s.get("avg_charge"))}</span></a></li>' for s in sibs))
+        html = _show(html, "topic-siblings")
+
+    return html
+
+
+def _ssr_theme_body(html: str, d: dict) -> str:
+    """Server-render the theme page. Mirrors `init()` in
+    frontend/themes/themes.js. A theme carries no song list of its own -- its
+    outbound links are its topics -- so those are what matter here."""
+    st, lib = d["stats"], d["library"]
+    label = d["theme"]["label"]
+    topics = d.get("topics") or []
+
+    html = _set_text(html, "theme-title", label)
+    html = _fill(html, "crumb-theme", _t(label))
+
+    n = len(topics)
+    finding = ("One topic sits under this theme, carried by "
+               if n == 1 else f"{n} topics sit under this theme, carried by ")
+    finding += f'{st.get("songs", 0):,} calibrated songs'
+    finding += f'. They average {_signed(st.get("avg_charge"))}'
+    finding += _delta_clause(st.get("avg_charge"), lib.get("avg_charge"),
+                             ", {n} points {dir} the library as a whole")
+    finding += (f', and run from {_signed(st.get("min_charge"))} to '
+                f'{_signed(st.get("max_charge"))}.')
+    html = _set_text(html, "theme-finding", finding)
+    html = _fill(html, "theme-stats", _ssr_stats_list(st, lib))
+
+    html = _fill(html, "theme-topic-grid",
+                 "".join(_ssr_topic_card(t) for t in topics))
+
+    also = d.get("also_topics") or []
+    if also:
+        html = _fill(html, "theme-also-grid",
+                     "".join(_ssr_topic_card(t) for t in also))
+        html = _show(html, "theme-also")
+
+    ex = d.get("extremes") or {}
+    high, low = ex.get("highest"), ex.get("lowest")
+    ends = [s for s in (high, low) if s]
+    if low and high and low["id"] == high["id"]:
+        ends = [high]
+    if ends:
+        html = _fill(html, "theme-extremes-grid",
+                     "".join(_ssr_song_card(s) for s in ends))
+        html = _show(html, "theme-extremes")
+
+    rel = d.get("related_themes") or []
+    if rel:
+        html = _fill(html, "theme-related-list", "".join(
+            f'<li><a href="/themes/{_u(s["slug"])}" class="topic-sibling">'
+            f'<span class="topic-sibling-name">{_t(s["label"])}</span>'
+            f'<span class="topic-sibling-meta">'
+            + ("1 topic crosses between them" if s["shared_topics"] == 1
+               else f'{s["shared_topics"]} topics cross between them')
+            + '</span></a></li>' for s in rel))
+        html = _show(html, "theme-related")
+
+    return html
+
+
+def _artists_letter_key(name: str) -> str:
+    first = (name or "").strip()[:1].upper()
+    return first if "A" <= first <= "Z" else "#"
+
+
+def _ssr_artists_index_body(html: str, data: dict) -> str:
+    """The A-Z artist index. Mirrors the inline script in artists/index.html.
+
+    This page had 47 characters of raw body text -- the least of any indexable
+    page on the site -- while rendering roughly 1,500 links to readers. It is
+    the front door to every artist page, so it is the one worth baking most.
+    """
+    artists = data.get("artists") or []
+    if not artists:
+        return html
+
+    groups: dict[str, list] = {}
+    for a in artists:
+        groups.setdefault(_artists_letter_key(a.get("name")), []).append(a)
+    # A-Z, then '#' last for the names that do not start with a letter.
+    keys = sorted(groups, key=lambda k: (k == "#", k))
+
+    html = _set_html(html, "artists-letter-nav", "".join(
+        f'<a href="#letter-{"hash" if k == "#" else k}" '
+        f'class="artists-letter-nav-link">{_t(k)}</a>' for k in keys))
+    html = _show(html, "artists-letter-nav")
+
+    body = []
+    for k in keys:
+        sec = f'letter-{"hash" if k == "#" else k}'
+        names = "".join(
+            f'<li><a class="artists-index-link" href="/artists/{_u(a["slug"])}">'
+            f'{_t(a.get("name"))}</a></li>' for a in groups[k])
+        body.append(
+            f'<section class="artists-index-group" id="{sec}" '
+            f'aria-label="Artists starting with {_esc(k)}">'
+            f'<h2 class="artists-index-letter">{_t(k)}</h2>'
+            f'<ul class="artists-index-names">{names}</ul></section>')
+    html = _set_html(html, "artists-index-list", "".join(body))
+    # The client hides this the moment it paints; a baked page has already
+    # painted, so shipping "Loading artists..." would be a lie in the markup.
+    return _hide(html, "artists-index-loading")
+
+
+def _ssr_shop_body(html: str, data: dict) -> str:
+    """The shop grid. Mirrors `renderGrid` in shop/shop.js, minus the colour
+    swatches -- those are hover/tap previews with nothing in them to read.
+
+    Product LINKS are baked, but note they point at `/shop/product.html?p=slug`.
+    A query-string URL cannot be baked per product (one file, many products),
+    so the detail pages stay client-only until the shop moves to a path-based
+    URL. That is a routing change, not a rendering one.
+    """
+    products = data.get("products") or []
+    if not products:
+        return html
+    cards = []
+    for p in products:
+        price = ("" if p.get("price") is None
+                 else f'<div class="shop-card__price">from ${float(p["price"]):.2f}</div>')
+        img = (f'<img class="shop-card__img" src="{_esc(p.get("image_url") or "")}" '
+               f'alt="{_esc(p.get("title") or "")}" loading="lazy">')
+        cards.append(
+            f'<a class="shop-card" href="/shop/product.html?p={_u(p.get("slug"))}">'
+            f'{img}<div class="shop-card__body">'
+            f'<div class="shop-card__title">{_t(p.get("title"))}</div>'
+            f'{price}</div></a>')
+    return _set_html(html, "shop-grid", "".join(cards))
+
+
+def _ssr_topics_index_body(html: str, data: dict) -> str:
+    """The flat ranking of all 32 topics. This page and its sibling are the
+    crawl entry to every detail page in the family, so shipping them empty put
+    all 41 behind a render pass. Mirrors frontend/topics/topics-index.js."""
+    rows = []
+    for theme in data.get("themes") or []:
+        for t in theme.get("topics") or []:
+            rows.append(dict(t, theme=theme))
+    rows.sort(key=lambda t: (-t["songs"], t["label"]))
+
+    n_songs = (data.get("library") or {}).get("songs")
+    if n_songs:
+        html = _set_text(html, "index-intro",
+                         f"All {len(rows)} topics the compass tracks, ranked by how many "
+                         f"of {n_songs} calibrated songs carry each one.")
+
+    body = "".join(
+        '<li class="topic-rank-row">'
+        f'<a class="topic-rank-link" href="/topics/{_u(t["slug"])}">'
+        f'<span class="topic-rank-charge" style="color:{_charge_hex(t.get("avg_charge"))}">'
+        f'{_signed(t.get("avg_charge"))}</span>'
+        '<span class="topic-rank-id">'
+        f'<span class="topic-rank-name">{_t(t["label"])}</span>'
+        f'<span class="topic-rank-theme">{_t(t["theme"]["label"])}</span>'
+        '</span>'
+        f'<span class="topic-rank-songs">{t["songs"]} songs</span>'
+        '</a></li>' for t in rows)
+    return _fill(html, "topic-list",
+                 '<section class="song-section song-section--full">'
+                 f'<ul class="topic-rank" id="topic-rank">{body}</ul></section>')
+
+
+def _ssr_themes_index_body(html: str, data: dict) -> str:
+    """Every theme with its topics under it. Mirrors
+    frontend/themes/themes-index.js."""
+    themes = [t for t in (data.get("themes") or []) if t.get("topics")]
+    n_topics = sum(len(t["topics"]) for t in themes)
+    n_songs = (data.get("library") or {}).get("songs")
+    if n_songs:
+        html = _set_text(html, "index-intro",
+                         f"The compass sorts what songs are about into {len(data['themes'])} "
+                         f"themes, holding {n_topics} topics across {n_songs:,} calibrated "
+                         f"songs. Each theme reads its own way.")
+
+    body = "".join(
+        '<section class="song-section song-section--full song-break">'
+        f'<h2><a class="topic-theme-link" href="/themes/{_u(theme["slug"])}">'
+        f'{_t(theme["label"])}</a></h2>'
+        f'<p class="topic-theme-count">{len(theme["topics"])} topics, '
+        f'{theme["songs"]} song credits.</p>'
+        '<ul class="topic-index-grid">'
+        + "".join(_ssr_topic_card(t) for t in theme["topics"])
+        + '</ul></section>' for theme in themes)
+    return _fill(html, "theme-list", body)
+
+
 # --- routes ----------------------------------------------------------------
 
 @router.get("/songs/{slug}", response_class=HTMLResponse)
@@ -246,7 +988,7 @@ def ssr_song(slug: str):
             f'<section class="song-section song-section--hero" style="{style}"',
             1,
         )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_song_body, html, song))
 
 
 @router.get("/artists/{slug}/{release_slug}", response_class=HTMLResponse)
@@ -298,7 +1040,7 @@ def ssr_release(slug: str, release_slug: str):
             f'<section class="song-section song-section--hero" id="release-hero" style="{style}"',
             1,
         )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_release_body, html, rel))
 
 
 @router.get("/artists/{slug}", response_class=HTMLResponse)
@@ -331,7 +1073,22 @@ def ssr_artist(slug: str):
         canonical=canonical,
         json_ld=_faq_ld(question, description, canonical),
     )
-    return HTMLResponse(html)
+
+    # The two lists the page exists to show. Both endpoints sit behind the
+    # artist cache, so this is a dict lookup on any warmed catalogue, and the
+    # page still renders if either one fails.
+    data = {"slug": slug, "songs": [], "releases": []}
+    from app.routers.artists import artist_releases, artist_top_songs
+    try:
+        data["songs"] = artist_top_songs(slug, 0, 20).get("items") or []
+    except Exception:
+        logger.exception("page_ssr: artist top songs failed for %s", slug)
+    try:
+        data["releases"] = artist_releases(slug, 0, 10, "desc", "released").get("items") or []
+    except Exception:
+        logger.exception("page_ssr: artist releases failed for %s", slug)
+
+    return HTMLResponse(_body_or_plain(_ssr_artist_body, html, data))
 
 
 # --- topic pages -----------------------------------------------------------
@@ -367,7 +1124,7 @@ def ssr_themes_index():
         canonical=canonical,
         json_ld=_faq_ld(question, answer, canonical),
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_themes_index_body, html, data))
 
 
 @router.get("/topics/{slug}", response_class=HTMLResponse)
@@ -419,7 +1176,7 @@ def ssr_topic(slug: str):
         canonical=canonical,
         json_ld=[_faq_ld(question, answer, canonical), _breadcrumb_ld(crumbs)],
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_topic_body, html, data))
 
 
 @router.get("/topics/", response_class=HTMLResponse)
@@ -459,7 +1216,7 @@ def ssr_topics_index():
             _breadcrumb_ld([("Topics", canonical)]),
         ],
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_topics_index_body, html, data))
 
 
 @router.get("/themes/{slug}", response_class=HTMLResponse)
@@ -502,7 +1259,7 @@ def ssr_theme(slug: str):
         canonical=canonical,
         json_ld=[_faq_ld(question, answer, canonical), _breadcrumb_ld(crumbs)],
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_theme_body, html, data))
 
 
 # --- all-time chart pages --------------------------------------------------
