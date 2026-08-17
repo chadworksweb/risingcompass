@@ -529,10 +529,27 @@
     const wrap = document.getElementById('song-art-wrap');
     const img = document.getElementById('song-art');
     if (!url || !wrap || !img) return;
-    img.onerror = () => { wrap.hidden = true; };
     img.alt = tagline ? `Cover art for ${tagline}` : 'Cover art';
+    // REVEAL ON LOAD, NOT ON SRC-SET.
+    //
+    // The art is HOTLINKED: cover_url points at coverartarchive.org, which
+    // 307-redirects to archive.org storage. Measured 2026-08-16, that second hop
+    // ran 8.8s to first byte on one release and returned 502 on three
+    // consecutive tries for another. It is the slowest thing on the page by an
+    // order of magnitude and it is not ours to speed up.
+    //
+    // Unhiding as soon as src was set meant the frame opened empty and STAYED
+    // empty for the whole wait, then collapsed again if the fetch failed: two
+    // layout shifts and several seconds of a blank box. Gating on load means the
+    // page renders as if there were no art until there demonstrably is some, so
+    // a slow or dead hotlink now costs nothing visible.
+    //
+    // The <img> must be loading="eager" for this to work at all: the wrap starts
+    // hidden, and a lazy image inside a hidden element never begins loading, so
+    // onload would never fire and the art would never appear.
+    img.onload = () => { wrap.hidden = false; };
+    img.onerror = () => { wrap.hidden = true; };
     img.src = url;
-    wrap.hidden = false;
   }
 
   // The last check on a cover is a reader looking at it. The resolver catches a

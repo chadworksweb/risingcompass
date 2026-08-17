@@ -80,8 +80,13 @@ def compute_degree(
                    chart where rank encodes popularity. "flat" gives every song
                    equal weight -- a plain arithmetic mean -- for a curated,
                    equal-push list (e.g. New Music Friday) where position is
-                   editorial ordering, not a popularity gradient. Any unknown
-                   value is treated as "ranked".
+                   editorial ordering, not a popularity gradient. "supplied"
+                   reads a precomputed weight off each song's 'weight' key, for
+                   an aggregate whose weights are not a function of one rank --
+                   the Unified Charge Chart, where a song's weight is the SUM of
+                   its normalized rank weights across every chart it appeared on
+                   (services/unified_chart.py). Any unknown value is treated as
+                   "ranked".
 
     Returns degree 0-180.
     """
@@ -92,10 +97,16 @@ def compute_degree(
     total_weight = 0.0
     weighted_sum = 0.0
     flat = weighting == "flat"
+    supplied = weighting == "supplied"
 
     for song in songs:
-        pos = song.get("chart_position") or song.get("position", 5)
-        w = 1.0 if flat else position_weight(pos)
+        if supplied:
+            # The caller owns the weight. Guard against a negative, which would
+            # let one song subtract from the aggregate instead of pulling it.
+            w = max(0.0, float(song.get("weight", 0.0)))
+        else:
+            pos = song.get("chart_position") or song.get("position", 5)
+            w = 1.0 if flat else position_weight(pos)
 
         # Use charge_value if available, otherwise fall back to fixed color degree
         cv = song.get("charge_value")

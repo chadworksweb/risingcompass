@@ -82,6 +82,18 @@ class ChartSnapshot(Base):
     # Charting on pre-order: no songs row / reading yet. Rendered as "Pre-order"
     # on the panel, excluded from the snapshot aggregate.
     preorder = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    # The unified songs.id this slot refers to (migration 154). Stamped at
+    # approval from the draft's already-resolved agent_draft_songs.song_id, the
+    # same way the daily branch stamps ReadingSong.song_id -- the draft ran the
+    # identity ladder and is then deleted, so without this the answer is lost.
+    # Nullable: fetch-time (unpublished) rows precede any draft, and historical
+    # rows predate the stamp. NULL means "no confirmed identity" and must be
+    # treated as ineligible by anything unioning across charts; falling back to
+    # title+artist string matching is what this column exists to stop (the same
+    # song arrives spelled differently from every feeder).
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
+
+    song = relationship("Song", foreign_keys=[song_id])
 
     __table_args__ = (
         UniqueConstraint("date", "chart_source", "position", name="uq_chart_snapshots_date_source_pos"),
@@ -2769,4 +2781,94 @@ class ReleaseProseVersion(Base):
     __table_args__ = (
         Index("ix_release_prose_versions_release", "release_id", "id"),
         Index("ix_release_prose_versions_written", "written_at"),
+    )
+
+
+# --- Unified Charge Chart (migration 155) ---------------------------------- #
+# The synthesis of the four daily charts into one ranked chart and one charge.
+# DERIVED, never ingested: there is no feed, nothing first-surfaces here, and it
+# consumes the constituent charges rather than contributing one. That is why it
+# has no `charts` row, no `chart_appearances`, and no entry in
+# AGGREGATING_CHART_SLUGS. Composer: services/unified_chart.py (pure).
+# Persistence + recompose: services/unified_store.py.
+# Spec: RISING-COMPASS-UNIFIED-CHARGE-CHART-SCOPE.md
+
+
+class UnifiedChartWeight(Base):
+    """Per-constituent source weight, the single arbitrary knob in the design.
+
+    Lives in its own table rather than on `charts` because `charts` carries only
+    the two charts that take chart_appearances; iTunes, Shazam and YouTube have
+    no row there. Pre-registered at 1.0 across the board; a change here is an
+    audited data edit, and every reading stamps the vector it used.
+    """
+    __tablename__ = "unified_chart_weights"
+
+    slug = Column(Text, primary_key=True)
+    weight = Column(Float, nullable=False, default=1.0, server_default=text("1.0"))
+    note = Column(Text)
+    updated_at = Column(DateTime, default=datetime.utcnow,
+                        server_default=text("(now() at time zone 'utc')"), nullable=False)
+
+
+class UnifiedReading(Base):
+    """One composed day of the Unified Charge Chart."""
+    __tablename__ = "unified_readings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, unique=True, nullable=False)
+
+    compass_degree = Column(Float, nullable=False)
+    charge_level = Column(Text, nullable=False)
+    contamination_count = Column(Integer, nullable=False, default=0)
+    song_count = Column(Integer, nullable=False, default=0)
+
+    # JSON-in-TEXT, RC's convention for per-row JSON bundles.
+    sources_included = Column(Text, nullable=False, default="[]", server_default="[]")
+    sources_excluded = Column(Text, nullable=False, default="[]", server_default="[]")
+    source_count = Column(Integer, nullable=False, default=0)
+
+    weights_version = Column(Text, nullable=False, default="", server_default="")
+    weights = Column(Text, nullable=False, default="{}", server_default="{}")
+
+    # The editorial is the publication gate: the reading composes automatically
+    # and goes public when the editorial lands, so prose and number stay in
+    # lockstep. See the scope, section 8.6.
+    editorial = Column(Text)
+    published = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    # A recompose that changes the numbers of an already-published reading sets
+    # this rather than republishing prose written against the old figure.
+    editorial_stale = Column(Boolean, nullable=False, default=False,
+                             server_default=text("false"))
+
+    composed_at = Column(DateTime, default=datetime.utcnow,
+                         server_default=text("(now() at time zone 'utc')"), nullable=False)
+    published_at = Column(DateTime)
+
+    songs = relationship("UnifiedReadingSong", back_populates="reading",
+                         cascade="all, delete-orphan",
+                         order_by="UnifiedReadingSong.position")
+
+
+class UnifiedReadingSong(Base):
+    """One song's slot in a composed day. `unified_weight` IS the ranking key."""
+    __tablename__ = "unified_reading_songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    reading_id = Column(Integer, ForeignKey("unified_readings.id", ondelete="CASCADE"),
+                        nullable=False)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    position = Column(Integer, nullable=False)
+
+    unified_weight = Column(Float, nullable=False)
+    # Denormalized from `sources` so corroboration filters on an integer.
+    chart_count = Column(Integer, nullable=False, default=1)
+    sources = Column(Text, nullable=False, default="{}", server_default="{}")
+
+    reading = relationship("UnifiedReading", back_populates="songs")
+    song = relationship("Song", foreign_keys=[song_id])
+
+    __table_args__ = (
+        UniqueConstraint("reading_id", "song_id", name="uq_unified_reading_song"),
+        Index("ix_unified_reading_songs_reading", "reading_id", "position"),
     )

@@ -37,7 +37,8 @@ from app.services.agents.email_notifier import send_draft_email
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge, degree_to_score_display
 from app.services.contamination import count_contaminated, enforce_contamination_rule
-from app.constants import COLOR_LABELS, COLOR_HEX, DRAFT_TYPE_DISPLAY_NAMES, draft_display_name, is_chart_draft_type, has_null_disposition, song_needs_lyrics, chart_weighting
+from app.constants import COLOR_LABELS, COLOR_HEX, DRAFT_TYPE_DISPLAY_NAMES, draft_display_name, is_chart_draft_type, has_null_disposition, song_needs_lyrics, chart_weighting, UNIFIED_CONSTITUENT_SLUGS
+from app.services import unified_store
 
 router = APIRouter(prefix="/api/admin/agent", tags=["agent"])
 
@@ -688,6 +689,13 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
         # Stamp the snapshot aggregate (computed during lyrics-supply, same as
         # the daily reading) onto every row so the chart-agnostic Calendar can
         # paint each day its spectrum color without recomputing on read.
+        # song_id carries the draft's already-resolved identity onto the public
+        # row (migration 154), mirroring the daily branch's ReadingSong stamp
+        # above. The draft ran the full identity ladder during calibration and is
+        # deleted moments later by _cleanup_day_drafts, so this is the last point
+        # at which the answer exists. Without it, anything unioning across charts
+        # is back to matching feeder strings, and the same song spelled two ways
+        # counts twice.
         for song in sorted(draft.songs, key=lambda s: s.position):
             db.add(ChartSnapshot(
                 date=draft.date,
@@ -695,6 +703,7 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
                 position=song.position,
                 title=song.title,
                 artist=song.artist,
+                song_id=song.song_id,
                 compass_degree=draft.compass_degree,
                 charge_level=draft.charge_level,
                 editorial=draft.editorial_summary,
@@ -712,6 +721,20 @@ def approve_draft(draft_ref: str, db: Session = Depends(get_db)):
     # Cleanup: only nuke drafts of the SAME type so a daily approval
     # doesn't kill a same-day iTunes chart draft and vice versa.
     _cleanup_day_drafts(draft.date, draft.draft_type, db)
+
+    # === UNIFIED CHARGE CHART RECOMPOSE ===
+    # The four daily constituents land at different times, so the day's synthesis
+    # is rebuilt every time one of them is approved. Runs for BOTH branches (the
+    # daily reading and the chart snapshots) because either can be the one that
+    # completes the day, and after the commit so it composes from what is now
+    # actually published.
+    #
+    # recompose_safe never raises: the constituent charts are the primary
+    # artifact and the synthesis is downstream of them, so a composition failure
+    # must not fail an approval. It also never unpublishes and never overwrites a
+    # supplied editorial (see services/unified_store.py).
+    if draft.draft_type in UNIFIED_CONSTITUENT_SLUGS or draft.draft_type == "daily":
+        unified_store.recompose_safe(db, draft.date)
 
     return response
 

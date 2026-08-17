@@ -57,6 +57,48 @@ def chart_weighting(chart_slug: str | None) -> str:
     "flat" for a curated equal-push list (FLAT_MEAN_CHART_SLUGS), else "ranked"."""
     return "flat" if chart_slug in FLAT_MEAN_CHART_SLUGS else "ranked"
 
+
+# The charts the Unified Charge Chart composes. ORDER IS DISPLAY ORDER.
+#
+# These four and only these four. Every one is a DAILY chart measuring what
+# people actually consumed, which is what makes them summable into one reading.
+#
+# spotify_top50_usa is read from DailyReading/ReadingSong (it is the daily
+# reading, not a chart snapshot); the other three come from published
+# ChartSnapshot rows. The composer handles that split so callers do not have to.
+#
+# spotify_nmf_usa is DELIBERATELY ABSENT and is not an oversight. New Music
+# Friday is not a consumption chart at all: it is a weekly editorial push of new
+# releases, which is exactly why it already carries flat weighting (see
+# FLAT_MEAN_CHART_SLUGS above -- position there is ordering, not popularity).
+# Folding it in would mix a "what got promoted" signal into a "what got consumed"
+# measurement, and being weekly it would make Friday structurally unlike every
+# other day in the series. Decided 2026-08-16; see
+# RISING-COMPASS-UNIFIED-CHARGE-CHART-SCOPE.md decision 6.
+#
+# The unified chart is DERIVED, so this set never gains an entry in
+# CHART_SOURCE_TO_CHART_SLUG or AGGREGATING_CHART_SLUGS: it has no feed, nothing
+# first-surfaces on it, and it consumes these charges rather than contributing
+# one. Adding it there would double-count every song on the board.
+UNIFIED_CONSTITUENT_SLUGS = (
+    "spotify_top50_usa",
+    "itunes_download_usa",
+    "shazam_top200_usa",
+    "youtube_trending_usa",
+)
+
+# A constituent contributes only if this share of its rank weight is eligible
+# (identified AND calibrated). Weight share, not song count: an unresolved #1
+# costs ~28% of a 20-song chart's vote while an unresolved #20 costs ~1.4%, so
+# counting songs would treat those as the same loss.
+#
+# In practice this should almost never fire. Approving a chart already blocks
+# until every song carries a reading or a null disposition, and the identity
+# ladder resolved 100% of published snapshot rows when measured 2026-08-16. It is
+# a guard against an anomalous day (a chart heavy with pre-orders, a feeder
+# format change breaking resolution), not a routine mechanism.
+UNIFIED_COVERAGE_FLOOR = 0.80
+
 # Degree mapping for legacy (pre-5-tier) songs. Old 3-tier system had
 # no violet tier, so most songs were green or orange. Blue is mapped to 65
 # (upper Elevated, nearly Decent) to reflect that coarseness honestly.

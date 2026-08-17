@@ -20,9 +20,13 @@ def test_scale_invariant_total_is_ignored():
 
 
 def test_ratios_match_design_band():
-    # s=0.7 design targets: #1 ~= 8x the #20, ~= 25x the #100.
-    assert round(position_weight(1) / position_weight(20), 1) == 8.1
-    assert round(position_weight(1) / position_weight(100), 1) == 25.1
+    # s = 1.0 (Zipf's law proper, set 2026-07-03): #1 counts 20x the #20 and
+    # 100x the #100. These assertions previously encoded the s = 0.7 targets
+    # (8.1x and 25.1x) and had been failing since that change went in, unnoticed
+    # because pytest is not installed in the backend venv. Derive from ZIPF_S so
+    # the next tune cannot silently strand them again.
+    assert round(position_weight(1) / position_weight(20), 1) == round(20 ** ZIPF_S, 1)
+    assert round(position_weight(1) / position_weight(100), 1) == round(100 ** ZIPF_S, 1)
 
 
 def test_top_outweighs_tail_independent_of_depth():

@@ -31,13 +31,20 @@
 
   // CAA hotlinks can 404 if a group's art is pulled; degrade to the tier glow
   // by hiding the broken image rather than showing a broken-image icon.
+  //
+  // Reveal on LOAD, not on src-set, for the reason spelled out in
+  // songs.js::showCoverArt: the hotlink 307s to archive.org, which measured
+  // seconds-to-502 on 2026-08-16, and unhiding early left an empty frame open
+  // for the whole wait and shifted the layout twice. The <img> is loading="eager"
+  // because a lazy image inside a hidden wrap never loads, so onload would never
+  // fire.
   function showArt(url) {
     const wrap = document.getElementById('release-art-wrap');
     const img = document.getElementById('release-art');
     if (!url || !wrap || !img) return;
+    img.onload = () => { wrap.hidden = false; };
     img.onerror = () => { wrap.hidden = true; };
     img.src = url;
-    wrap.hidden = false;
   }
 
   function proseHtml(text) {

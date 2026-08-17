@@ -135,6 +135,17 @@ const API = (() => {
     getChartYearDates: (key, year) => get(`/api/compass/chart/${encodeURIComponent(key)}/years/${year}/dates`),
     getChartReading: (key, date) => get(`/api/compass/chart/${encodeURIComponent(key)}/reading/${date}`),
     getChartDailyChart: (key, days) => get(`/api/compass/chart/${encodeURIComponent(key)}/daily-chart${days ? '?days=' + days : ''}`),
+    // Unified Charge Chart: the synthesis of the four daily charts. No `key` --
+    // it is one derived chart, not a registry of feeds. 404s until the day's
+    // editorial is supplied, because on this chart the editorial IS the publish
+    // gate; the page hides itself on a 404 like every other chart page.
+    getUnifiedCurrent: () => get('/api/compass/unified/current'),
+    getUnifiedReading: (date) => get(`/api/compass/unified/reading/${date}`),
+    getUnifiedDailyChart: (days) => get(`/api/compass/unified/daily-chart${days ? '?days=' + days : ''}`),
+    // Calendar family, mirroring getChartYears / getChartYearDates so the
+    // Calendar's source adapter swaps in without a second renderer.
+    getUnifiedYears: () => get('/api/compass/unified/years'),
+    getUnifiedYearDates: (year) => get(`/api/compass/unified/years/${year}/dates`),
     // Charger Activity feeds (public). overview = all three at once for first paint.
     getChargerActivityOverview: (limit = 12) => get(`/api/charger-activity/overview?limit=${limit}`),
     getChargerActivityFeed: (feed, { window, limit = 20, offset = 0 } = {}) => {

@@ -546,7 +546,9 @@
                  art wrap so it appears only when there is art to be wrong, and
                  sits ON the art so it reads as being about the picture. -->
             <div class="song-art-frame">
-              <img id="song-art" class="song-art" alt="" loading="lazy">
+              <!-- eager, NOT lazy: the wrap starts hidden and songs.js reveals it on
+                   onload, and a lazy image inside a hidden element never loads. -->
+              <img id="song-art" class="song-art" alt="" loading="eager" decoding="async">
               <button type="button" id="song-art-report" class="song-art-report"
                       aria-label="Report this cover art as wrong">
                 <span class="song-art-report-glyph" aria-hidden="true">i</span>
@@ -831,7 +833,7 @@
   <script src="/js/auth.js" defer></script>
   <script src="/js/comments.js" defer></script>
   <script src="/cards/rc-charge-card-generator.js?v=20260619-glow2"></script>
-  <script src="/songs/songs.js?v=20260815c"></script>
+  <script src="/songs/songs.js?v=20260816u"></script>
   <script src="/js/api.js"></script>
   <script src="/audience-resonance/song-page.js" type="module"></script>
   <script src="/js/subscribe.js" defer></script>
@@ -877,6 +879,7 @@
     <nav class="footer-col" aria-label="Charts">
       <h2 class="footer-head">Charts</h2>
       <ul class="footer-links">
+        <li><a href="/charts/unified/">The Unified Charge Chart</a></li>
         <li><a href="/charts/spotify/">Spotify (US)</a></li>
         <li><a href="/charts/itunes/">iTunes</a></li>
         <li><a href="/charts/shazam/">Shazam</a></li>

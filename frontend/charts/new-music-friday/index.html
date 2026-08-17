@@ -90,7 +90,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css?v=20260816b">
   <link rel="stylesheet" href="/css/responsive.css">
-  <link rel="stylesheet" href="/charts/chart.css">
+  <link rel="stylesheet" href="/charts/chart.css?v=20260816u">
+  <link rel="stylesheet" href="/css/compass.css">
 </head>
 <body>
   <a class="skip-nav" href="#chart-main">Skip to content</a>
@@ -182,13 +183,28 @@
         <a href="/ether-art-chart/">Ether Art Chart</a>
       </nav>
     </div>
+    <div class="dash-row1">
+      <div class="card" id="compass-panel" style="position:relative;">
+        <div class="card-header">This Week's Charge</div>
+        <div id="contam-container"></div>
+        <div id="compass-container"></div>
+      </div>
+      <!-- The whole trajectory panel (era tabs + both charts) is built by the
+           DailyChargePanel capsule; chart pages ship the Historical tab dark.
+           This board is WEEKLY, so the capsule is mounted with cadence:'weekly'
+           and its zoom presets are counted in weeks (see chart.js). -->
+      <div class="card" id="trajectory-panel"></div>
+    </div>
     <div id="chart-root"></div>
   </main>
 
-  <script>window.RC_CHART = { source: 'new-music-friday', title: 'New Music Friday', sub: 'New Music Friday - USA' };</script>
-  <script src="/js/api.js"></script>
+  <script>window.RC_CHART = { source: 'new-music-friday', title: 'New Music Friday', sub: 'New Music Friday - USA', cadence: 'weekly' };</script>
+  <script src="/js/api.js?v=20260816u"></script>
   <script src="/js/chart-shell.js?v=20260619b"></script>
-  <script src="/charts/chart.js"></script>
+  <script src="/js/compass.js"></script>
+  <script src="/js/contamination.js"></script>
+  <script src="/js/daily-charge-panel.js?v=20260816u"></script>
+  <script src="/charts/chart.js?v=20260816u"></script>
 
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
@@ -232,6 +248,7 @@
     <nav class="footer-col" aria-label="Charts">
       <h2 class="footer-head">Charts</h2>
       <ul class="footer-links">
+        <li><a href="/charts/unified/">The Unified Charge Chart</a></li>
         <li><a href="/charts/spotify/">Spotify (US)</a></li>
         <li><a href="/charts/itunes/">iTunes</a></li>
         <li><a href="/charts/shazam/">Shazam</a></li>

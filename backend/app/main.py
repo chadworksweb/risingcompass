@@ -309,6 +309,11 @@ from app.routers import topics as topics_router
 app.include_router(topics_router.router, dependencies=_public_read_dep)
 app.include_router(topics_router.themes_router, dependencies=_public_read_dep)
 app.include_router(chart_snapshots.public_router, dependencies=_public_read_dep)
+# Unified Charge Chart: the synthesis of the four daily charts. DERIVED --
+# no feed, no chart_appearances, not in AGGREGATING_CHART_SLUGS. Publishing is
+# the editorial write (see routers/unified.py).
+from app.routers import unified as unified_router
+app.include_router(unified_router.public_router, dependencies=_public_read_dep)
 from app.routers import alltime_charts
 app.include_router(alltime_charts.public_router, dependencies=_public_read_dep)
 from app.routers import audience_resonance
@@ -453,6 +458,7 @@ app.include_router(calibration_log.router)
 app.include_router(calibration_log.public_router, dependencies=_public_read_dep)
 app.include_router(charger_activity.public_router, dependencies=_public_read_dep)
 app.include_router(chart_snapshots.admin_router)
+app.include_router(unified_router.admin_router)
 # Scrape Shield session-token grant (Layer 2). Public, origin-gated, no key dep.
 from app.routers import shield as shield_router
 app.include_router(shield_router.router)

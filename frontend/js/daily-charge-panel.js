@@ -190,6 +190,9 @@
     var _onYearSelect = opts.onYearSelect || function () {};
     var _syncCalendar = opts.syncCalendar || function () {};
     var _setCompassMode = opts.setCompassMode || function () {};
+    // 'daily' (default) or 'weekly' -- drives the zoom-preset row so a weekly
+    // chart's buttons are counted in weeks rather than mislabelled as days.
+    var _cadence = opts.cadence === 'weekly' ? 'weekly' : 'daily';
     var eraTaglines = opts.eraTaglines || {};
     var _dailyTagline = eraTaglines.daily || 'trailing 365 days, day by day';
     var _histTagline = eraTaglines.historical || "where we've been and where we are";
@@ -393,10 +396,7 @@
         <div class="traj-zoom-bar">
           <span class="traj-zoom-window daily-zoom-window" aria-live="polite"></span>
           <div class="traj-zoom-presets">
-            <button class="traj-zoom-btn active" data-zoom="year">Year</button>
-            <button class="traj-zoom-btn" data-zoom="q">Q</button>
-            <button class="traj-zoom-btn" data-zoom="m">M</button>
-            <button class="traj-zoom-btn" data-zoom="w">W</button>
+            ${presetButtonsHtml()}
           </div>
           <div class="traj-overview daily-overview" role="slider" aria-label="Date range locator: drag the box to pan, drag the edges to zoom" tabindex="-1"></div>
         </div>
@@ -460,14 +460,49 @@
     return null;
   }
 
+  // Zoom presets are INDEX-based: `back` is how many points to step back from
+  // the newest one. That only reads correctly when the label matches how much
+  // time a point covers, so the table is keyed by the chart's CADENCE.
+  //
+  // A weekly chart through the daily table would label seven POINTS as "W" when
+  // they are seven Fridays, and its Q/M/Year buttons would all clamp to the same
+  // view. New Music Friday is the weekly one (Spotify refreshes that playlist
+  // once a week), so it gets presets counted in weeks.
+  //
+  // The daily row is byte-identical to what shipped before, so no daily chart
+  // changes behaviour.
+  const CADENCE_PRESETS = {
+    daily: [
+      { key: 'year', label: 'Year', back: null },
+      { key: 'q',    label: 'Q',    back: 89 },
+      { key: 'm',    label: 'M',    back: 29 },
+      { key: 'w',    label: 'W',    back: 6 },
+    ],
+    weekly: [
+      { key: 'all', label: 'All', back: null },
+      { key: '1y',  label: '1Y',  back: 51 },
+      { key: '6m',  label: '6M',  back: 25 },
+      { key: '3m',  label: '3M',  back: 12 },
+    ],
+  };
+
+  function presetRow() {
+    return CADENCE_PRESETS[_cadence] || CADENCE_PRESETS.daily;
+  }
+
+  function presetButtonsHtml() {
+    return presetRow().map((p, i) =>
+      `<button class="traj-zoom-btn${i === 0 ? ' active' : ''}" data-zoom="${p.key}">${p.label}</button>`
+    ).join('\n            ');
+  }
+
   function snapDailyPreset(zoom) {
     if (!dailyChartData.length) return;
     const lastIdx = dailyChartData.length - 1;
     dailyZoomEndIdx = lastIdx;
-    if (zoom === 'year') dailyZoomStartIdx = 0;
-    else if (zoom === 'q') dailyZoomStartIdx = Math.max(0, lastIdx - 89);
-    else if (zoom === 'm') dailyZoomStartIdx = Math.max(0, lastIdx - 29);
-    else if (zoom === 'w') dailyZoomStartIdx = Math.max(0, lastIdx - 6);
+    const preset = presetRow().find(p => p.key === zoom);
+    if (!preset) return;
+    dailyZoomStartIdx = preset.back == null ? 0 : Math.max(0, lastIdx - preset.back);
   }
 
   function formatDateShort(iso) {
