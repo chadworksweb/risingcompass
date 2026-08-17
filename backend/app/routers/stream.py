@@ -26,7 +26,7 @@ from app.database import get_db
 from app.schemas import StreamSongIn, StreamSongOut, StreamPromoteIn
 from app.routers.admin import verify_admin_key
 from app.services.agents.calibrator import calibrate_song_async
-from app.services import musixmatch
+from app.services import musixmatch, song_removal
 from app.services.artist_linker import parse_artist_string
 from app.services.calibration_corpus import record_and_reconcile, hash_lyrics
 from app.services.song_sync import store_calibrated_song
@@ -301,12 +301,14 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
 
 @router.delete("/{song_id}", dependencies=[Depends(verify_admin_key)])
 def delete_stream_song(song_id: int, db: Session = Depends(get_db)):
-    """Remove a stream entry. Deletes the stream ingestion; if that leaves the
-    songs row a pure stream artifact (no chart appearance, no other ingestion,
-    not referenced by any reading), the song and its directly-owned reference
-    rows are removed too -- mirroring the legacy 'the row disappears'. A song
-    that has since charted or been referenced is kept (only the stream ingestion
-    drops)."""
+    """Remove a stream entry. Deletes the stream ingestion, then asks
+    `song_removal.remove_song` whether anything real still holds the song: if it
+    is now a pure stream artifact the song and its directly-owned rows go too,
+    mirroring the legacy 'the row disappears'. A song that has since charted, been
+    read, drafted, released, or ingested by another feeder is kept and only the
+    stream ingestion drops. The hard-reference list lives in `song_removal` --
+    this endpoint used to carry its own copy and it was missing `release_songs`,
+    so a stream delete could strand a release track."""
     row = _fetch_stream_entry(db, song_id)
     if not row:
         raise HTTPException(404, "Stream song not found")
@@ -315,17 +317,7 @@ def delete_stream_song(song_id: int, db: Session = Depends(get_db)):
 
     db.execute(text("DELETE FROM song_ingestions WHERE id = :i"), {"i": song_id})
 
-    orphan = (
-        not db.execute(text("SELECT 1 FROM song_ingestions WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM chart_appearances WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM reading_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM agent_draft_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-    )
-    if orphan:
-        for t in ("song_artists", "song_slugs", "user_calibrations", "calibration_runs",
-                  "misread_submissions"):
-            db.execute(text(f"DELETE FROM {t} WHERE song_id = :s"), {"s": sid})
-        db.execute(text("DELETE FROM song_id_map WHERE new_song_id = :s"), {"s": sid})
-        db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": sid})
+    result = song_removal.remove_song(db, sid, ingestion_holds=True)
     db.commit()
-    return {"deleted": song_id, "title": title, "artist": artist, "song_removed": orphan}
+    return {"deleted": song_id, "title": title, "artist": artist,
+            "song_removed": result["song_removed"], "kept_reason": result["kept_reason"]}

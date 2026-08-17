@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas import SubmittedSongOut, SubmissionStatsOut
 from app.routers.admin import verify_admin_key
+from app.services import song_removal
 
 router = APIRouter(prefix="/api/admin/submissions", tags=["submissions-admin"])
 
@@ -176,12 +177,12 @@ def submission_stats(db: Session = Depends(get_db)):
 
 @router.delete("/{submission_id}", dependencies=[Depends(verify_admin_key)])
 def delete_submission(submission_id: int, db: Session = Depends(get_db)):
-    """Remove a submission. Deletes the lyrical_charger ingestion; if that leaves
-    the songs row a pure submission artifact (no chart appearance, no other
-    ingestion, not referenced by any reading / draft / release), the song and its
-    directly-owned reference rows are removed too -- mirroring the legacy 'the
-    submitted_songs row disappears'. A song that has since charted or been
-    referenced is kept (only the lyrical_charger ingestion drops)."""
+    """Remove a submission. Deletes the lyrical_charger ingestion, then asks
+    `song_removal.remove_song` whether anything real still holds the song: if it
+    is now a pure submission artifact the song and its directly-owned rows go too,
+    mirroring the legacy 'the submitted_songs row disappears'. A song that has
+    since charted or been referenced is kept and only the lyrical_charger
+    ingestion drops. The hard-reference list lives in `song_removal`, not here."""
     row = _fetch_submission(db, submission_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Submission ID {submission_id} not found")
@@ -193,18 +194,7 @@ def delete_submission(submission_id: int, db: Session = Depends(get_db)):
         {"s": sid},
     )
 
-    orphan = (
-        not db.execute(text("SELECT 1 FROM song_ingestions WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM chart_appearances WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM reading_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM agent_draft_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-        and not db.execute(text("SELECT 1 FROM release_songs WHERE song_id = :s LIMIT 1"), {"s": sid}).scalar()
-    )
-    if orphan:
-        for t in ("song_artists", "song_slugs", "user_calibrations", "calibration_runs",
-                  "misread_submissions"):
-            db.execute(text(f"DELETE FROM {t} WHERE song_id = :s"), {"s": sid})
-        db.execute(text("DELETE FROM song_id_map WHERE new_song_id = :s"), {"s": sid})
-        db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": sid})
+    result = song_removal.remove_song(db, sid, ingestion_holds=True)
     db.commit()
-    return {"deleted": submission_id, "title": title, "artist": artist, "song_removed": orphan}
+    return {"deleted": submission_id, "title": title, "artist": artist,
+            "song_removed": result["song_removed"], "kept_reason": result["kept_reason"]}

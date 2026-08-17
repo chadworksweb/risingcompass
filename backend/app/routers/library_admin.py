@@ -17,6 +17,7 @@ from app.database import get_db
 from app.models import Song
 from app.schemas import LibrarySongCreate, LibrarySongUpdate, LibrarySongOut
 from app.routers.admin import verify_admin_key
+from app.services import song_removal
 from app.services.artist_linker import parse_artist_string, link_song_artists
 from app.services.song_identity import compute_canonical_key
 from app.services.song_sync import store_calibrated_song
@@ -134,11 +135,11 @@ def update_library_song(song_id: int, data: LibrarySongUpdate, db: Session = Dep
 
 @router.delete("/songs/{song_id}", dependencies=[Depends(verify_admin_key)])
 def delete_library_song(song_id: int, db: Session = Depends(get_db)):
-    """Delete a library song. Removes the catalog_backfill ingestion; if that leaves
-    the songs row a pure library artifact (no chart appearance, no other ingestion,
-    not referenced by any reading or release), the song and its directly-owned
-    reference rows are removed too. A song that also charts or is on a release is
-    kept (only the catalog_backfill ingestion drops)."""
+    """Delete a library song. Removes the catalog_backfill ingestion, then asks
+    `song_removal.remove_song` whether anything real still holds the song: if it is
+    now a pure library artifact the song and its directly-owned rows go too. A song
+    that also charts or is on a release is kept and only the catalog_backfill
+    ingestion drops. The hard-reference list lives in `song_removal`, not here."""
     song = db.query(Song).filter(Song.id == song_id).first()
     if not song:
         raise HTTPException(status_code=404, detail=f"Library song ID {song_id} not found")
@@ -146,18 +147,7 @@ def delete_library_song(song_id: int, db: Session = Depends(get_db)):
 
     db.execute(text("DELETE FROM song_ingestions WHERE song_id = :s AND method = 'catalog_backfill'"), {"s": song_id})
 
-    orphan = (
-        not db.execute(text("SELECT 1 FROM song_ingestions WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
-        and not db.execute(text("SELECT 1 FROM chart_appearances WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
-        and not db.execute(text("SELECT 1 FROM reading_songs WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
-        and not db.execute(text("SELECT 1 FROM release_songs WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
-        and not db.execute(text("SELECT 1 FROM agent_draft_songs WHERE song_id = :s LIMIT 1"), {"s": song_id}).scalar()
-    )
-    if orphan:
-        for t in ("song_artists", "song_slugs", "user_calibrations", "calibration_runs",
-                  "misread_submissions"):
-            db.execute(text(f"DELETE FROM {t} WHERE song_id = :s"), {"s": song_id})
-        db.execute(text("DELETE FROM song_id_map WHERE new_song_id = :s"), {"s": song_id})
-        db.execute(text("DELETE FROM songs WHERE id = :s"), {"s": song_id})
+    result = song_removal.remove_song(db, song_id, ingestion_holds=True)
     db.commit()
-    return {"deleted": song_id, "title": title, "artist": artist, "song_removed": orphan}
+    return {"deleted": song_id, "title": title, "artist": artist,
+            "song_removed": result["song_removed"], "kept_reason": result["kept_reason"]}

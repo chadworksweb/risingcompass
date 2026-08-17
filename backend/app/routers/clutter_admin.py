@@ -152,12 +152,18 @@ def resolve_audit(
     song_removed = False
     kept_reason = None
     if action == "remove" and row.song_id is not None:
-        # services/song_removal, NOT the submissions delete path. That one fetches
-        # the song through an inner join on its lyrical_charger ingestion, so it
-        # 404s on every chart-born, stream-born and terminal-born song -- and this
-        # swallowed the 404 while still writing status='removed'. The queue was
-        # therefore able to report a removal it had not performed, which is how
+        # song_removal directly, NOT the submissions delete ENDPOINT. That one
+        # fetches the song through an inner join on its lyrical_charger ingestion,
+        # so it 404s on every chart-born, stream-born and terminal-born song -- and
+        # this swallowed the 404 while still writing status='removed'. The queue
+        # was therefore able to report a removal it had not performed, which is how
         # the `test / test` placeholder survived being removed twice.
+        #
+        # `ingestion_holds` stays FALSE here (the default). The feeder endpoints
+        # set it because they delete their own ingestion first and a surviving one
+        # means another feeder still claims the song. The clutter queue removes a
+        # song a human judged to be clutter whatever fed it, so the ingestion is
+        # the provenance of the thing being removed, not a reason to keep it.
         result = song_removal.remove_song(db, row.song_id)
         song_removed = bool(result["song_removed"])
         kept_reason = result["kept_reason"]
