@@ -1341,16 +1341,6 @@ class SubscriberBroadcastIn(BaseModel):
     dry_run: bool = False
 
 
-class SubscriberOut(BaseModel):
-    id: int
-    email: str
-    status: str
-    source: Optional[str] = None
-    confirmed_at: Optional[datetime.datetime] = None
-    promoted: bool = False
-    created_at: datetime.datetime
-
-
 class GeneralInquiryCreate(BaseModel):
     """Public inquiry submission. Bot-protected at the endpoint."""
     name: Optional[str] = Field(None, max_length=200)

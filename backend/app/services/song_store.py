@@ -28,39 +28,6 @@ def _aggregating_chart_ids(db: Session):
     return db.query(Chart.id).filter(Chart.slug.in_(AGGREGATING_CHART_SLUGS))
 
 
-# --- common serialization ------------------------------------------------- #
-def serialize_song(song: Song, *, position=None, days_on_chart=1, slug=None,
-                   artist_slug=None) -> dict:
-    """Public-facing song dict. Matches the shape the legacy routers returned
-    (title/artist/rubric_color/charge_value/contaminated/.../position)."""
-    return {
-        "id": song.id,
-        "title": song.title,
-        "artist": song.artist,
-        "rubric_color": song.rubric_color,
-        "charge_value": song.charge_value,
-        "contaminated": bool(song.contaminated),
-        "contamination_note": song.contamination_note,
-        "charge_summary": song.charge_summary,
-        "instrumental": bool(song.instrumental),
-        "position": position,
-        "days_on_chart": days_on_chart,
-        "song_slug": slug,
-        "artist_slug": artist_slug,
-    }
-
-
-# --- charting role -------------------------------------------------------- #
-def is_charting(db: Session, song_id: int) -> bool:
-    """True if the song has >=1 appearance on an aggregating chart."""
-    return db.query(
-        db.query(ChartAppearance.id)
-        .filter(ChartAppearance.song_id == song_id)
-        .filter(ChartAppearance.chart_id.in_(_aggregating_chart_ids(db)))
-        .exists()
-    ).scalar()
-
-
 # --- year + decade aggregates (historical, via appearances) --------------- #
 def available_chart_years(db: Session, max_year: int | None = None) -> list[int]:
     """Distinct years with >=1 aggregating-chart appearance, ascending."""
@@ -129,10 +96,6 @@ def all_aggregating_appearance_rows(db: Session):
         .filter(ChartAppearance.chart_id.in_(_aggregating_chart_ids(db)))
         .all()
     )
-
-
-def get_song(db: Session, song_id: int) -> Song | None:
-    return db.query(Song).get(song_id)
 
 
 def find_song_by_title_artist(db: Session, title: str, artist: str) -> Song | None:
