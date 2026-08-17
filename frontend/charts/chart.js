@@ -121,9 +121,16 @@
   function mountTrajectory(loadSeries) {
     var panel = document.getElementById('trajectory-panel');
     if (panel && window.DailyChargePanel) {
+      // A weekly chart carries one point per Friday, so its zoom presets are
+      // counted in weeks and its tagline says so. Declared per page via
+      // window.RC_CHART.cadence; anything else is treated as daily.
+      var weekly = CFG.cadence === 'weekly';
       DailyChargePanel.mount(panel, {
         loadDaily: loadSeries,
-        eraTaglines: { daily: 'trailing days, day by day' },
+        cadence: weekly ? 'weekly' : 'daily',
+        eraTaglines: {
+          daily: weekly ? 'trailing weeks, Friday by Friday' : 'trailing days, day by day',
+        },
       });
     }
   }
