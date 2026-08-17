@@ -157,6 +157,18 @@
 
   // --- Row rendering ---
 
+  // The Library is a working tool, not an SEO surface. Its rows are a filtered
+  // view of the same songs the sitemap already lists and the topic, artist and
+  // song pages already link, so its outbound links are marked nofollow rather
+  // than adding a third path to the same destinations.
+  //
+  // Worth knowing what this does and does not buy: since 2020 Google treats
+  // nofollow as a HINT, not a directive, so it does not keep a target out of
+  // the index -- it only declines to vouch for it from here. Keeping the page
+  // itself out of search is a separate switch (a robots meta plus dropping it
+  // from the sitemap's page list), deliberately not flipped here.
+  const NOFOLLOW = ' rel="nofollow"';
+
   function cellHtml(col, row) {
     if (col.synthetic && col.name === 'charge') {
       const cv = row.charge_value;
@@ -175,7 +187,7 @@
       const href = slug ? `/songs/${encodeURIComponent(slug)}` : null;
       const titleAttr = escapeHtml(String(title));
       const content = href
-        ? `<a href="${href}" class="lib-link">${inner}</a>`
+        ? `<a href="${href}" class="lib-link"${NOFOLLOW}>${inner}</a>`
         : inner;
       return `<td class="lib-td" title="${titleAttr}">${content}</td>`;
     }
@@ -187,7 +199,7 @@
       const titleAttr = escapeHtml(String(name));
       const slug = row.artist_slug;
       const content = slug
-        ? `<a href="/artists/${encodeURIComponent(slug)}" class="lib-link">${inner}</a>`
+        ? `<a href="/artists/${encodeURIComponent(slug)}" class="lib-link"${NOFOLLOW}>${inner}</a>`
         : inner;
       return `<td class="lib-td" title="${titleAttr}">${content}</td>`;
     }
