@@ -922,6 +922,15 @@ argument, which lives nowhere else) and its prose versions, and labels the
 provenance: `lens` versus `pre_v3`. Three Michael Jackson albums are pre-v3 --
 backfill readings with no run, no components, no psyche facts.
 
+**Releases are in sitewide search** (2026-08-17): `GET /api/releases/search`, its
+own public prefix, wired into the header dropdown AND `/search/` as a Releases
+group. **The Library is NOT part of this** and keeps its own entitlement-gated
+lane. Two scoping calls, both deliberate: only releases carrying a reading are
+returned (`charge_summary IS NOT NULL` -- the catalogue's hundreds of
+MusicBrainz-derived rows would bury the real readings in a typeahead), and
+apostrophes fold on both sides so "dont blame" finds "Don't Blame Me". Result
+URLs use `slugify(title)` within the artist, never `releases.id`.
+
 Docs: `RISING-COMPASS-ALBUM-V3.md` (consumer), `LEC-ALBUM-LENS.md` (lens),
 `agent/risingcompass-album-calibration-sop.md` (operator SOP), and section 17 of
 `rising-compass-data-flow-map.html`.
