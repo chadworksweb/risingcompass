@@ -250,12 +250,142 @@ async function openRelease(id) {
       + '</select> '
       + '<button class="filter-btn" onclick="addTrack()">Add</button> '
       + '<button class="filter-btn" onclick="saveTracks(' + id + ')">Save running order</button>'
-      + '</div></div>';
+      + '</div>'
+      + readingBlock(r)
+      + runsBlock(r.runs)
+      + proseVersionsBlock(r.prose_versions)
+      + '</div>';
     panel.innerHTML = h;
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (e) {
     panel.innerHTML = '<div style="padding:0.8rem;color:#d1495b;">' + esc(e.message) + '</div>';
   }
+}
+
+// --- The reading ------------------------------------------------------------
+// This panel used to stop at identity + running order, because the router
+// deliberately owns those and not the reading. It still does not EDIT a reading
+// -- the terminal write lane owns that -- but it now SHOWS one, which is a
+// different thing: an admin could previously see that a release had a reading
+// and nothing about what the reading said.
+
+const H4 = 'font-size:0.8rem;text-transform:uppercase;letter-spacing:0.03em;color:var(--text-dim);margin:1.2rem 0 0.4rem;';
+const DIM = 'color:#888;font-size:0.78rem;';
+
+function field(label, value) {
+  if (value === null || value === undefined || value === '') return '';
+  return '<div style="margin:0 0 0.5rem;"><div style="' + DIM + 'text-transform:uppercase;letter-spacing:0.04em;">'
+    + esc(label) + '</div><div style="font-size:0.83rem;line-height:1.5;white-space:pre-wrap;">'
+    + esc(String(value)) + '</div></div>';
+}
+
+function readingBlock(r) {
+  const d = r.reading || {};
+  if (!r.has_reading) {
+    return '<h4 style="' + H4 + '">Album reading</h4>'
+      + '<div style="' + DIM + '">No reading. The aggregate above is the legacy placeholder mean of the calibrated tracks, not a reading of the release.</div>';
+  }
+  // Which instrument produced this. A reading with no run behind it predates the
+  // v3 lens, so it carries no components, no confidence and no argument -- worth
+  // saying outright rather than leaving an admin to infer it from empty panels.
+  const prov = r.reading_provenance === 'lens'
+    ? '<span style="color:#3aa76d;">rc-album lens</span> — components and argument below'
+    : '<span style="color:#e08b3a;">pre-v3</span> — written before the album lens, so it has no run, no components, no confidence and no psyche facts';
+
+  const flags = [];
+  if (d.contaminated) flags.push('<span style="color:#d1495b;">contaminated</span>');
+  if (d.dogma_referenced) flags.push('<span style="color:#8a7fe0;">dogma referenced</span>');
+  if (d.calibration_failed) flags.push('<span style="color:#d1495b;">calibration failed</span>');
+  if (d.confidence !== null && d.confidence !== undefined) flags.push('confidence ' + d.confidence);
+
+  let h = '<h4 style="' + H4 + '">Album reading</h4>'
+    + '<div style="' + DIM + 'margin-bottom:0.6rem;">Provenance: ' + prov + '</div>'
+    + (flags.length ? '<div style="font-size:0.8rem;margin-bottom:0.6rem;">' + flags.join(' · ') + '</div>' : '')
+    + field('Summary', d.charge_summary)
+    + field('Placard', d.deadpan_line)
+    + field('Contamination note', d.contamination_note)
+    + field('Dogma note', d.dogma_note)
+    + field('Arc', d.arc_prose)
+    + field('Listener effects', d.listener_effects_prose)
+    + field('Societal effects', d.societal_effects_prose);
+
+  if (Array.isArray(d.topics) && d.topics.length) h += field('Topics', d.topics.join(', '));
+  if (Array.isArray(d.effects_pl) && d.effects_pl.length) h += field('Effects (per listen)', d.effects_pl.join(', '));
+
+  const pf = d.psyche_facts;
+  if (pf && typeof pf === 'object') {
+    h += '<div style="' + DIM + 'text-transform:uppercase;letter-spacing:0.04em;margin:0.8rem 0 0.3rem;">Psyche facts</div>';
+    ['purpose', 'indicated_for', 'do_not_use_if', 'directions', 'onset', 'duration', 'warning'].forEach(k => {
+      const v = Array.isArray(pf[k]) ? pf[k].join(', ') : pf[k];
+      h += field(k.replace(/_/g, ' '), v);
+    });
+  }
+
+  // The prose seal, and the archive slots -- "what did the last write replace"
+  // answered on the same screen instead of from a query.
+  if (d.societal_prose_model) {
+    h += '<div style="' + DIM + 'margin-top:0.6rem;">Societal prose seal: ' + esc(d.societal_prose_model)
+      + (d.societal_prose_generated_at ? ' · ' + esc(d.societal_prose_generated_at) : '') + '</div>';
+  }
+  const priors = [
+    ['Previous arc', d.prior_arc_prose],
+    ['Previous listener effects', d.prior_listener_effects_prose],
+    ['Previous societal effects', d.prior_societal_effects_prose],
+  ].filter(p => p[1]);
+  if (priors.length) {
+    h += '<details style="margin-top:0.6rem;"><summary style="' + DIM + 'cursor:pointer;">Replaced prose ('
+      + priors.length + ')</summary><div style="margin-top:0.5rem;">'
+      + priors.map(p => field(p[0], p[1])).join('') + '</div></details>';
+  }
+  return h;
+}
+
+function runsBlock(runs) {
+  let h = '<h4 style="' + H4 + '">Run history</h4>';
+  if (!runs || !runs.length) {
+    return h + '<div style="' + DIM + '">No runs keyed to this release. Either it predates the v3 lens, or its reading was written outside the run ledger.</div>';
+  }
+  h += '<p style="' + DIM + 'margin:0 0 0.5rem;">The album lane stores its argument here and nowhere else. `coherence` is the album\'s structural axis and rides the column a song run uses for `route`.</p>';
+  h += runs.map(r => {
+    const head = (r.superseded ? '<span style="color:#888;text-decoration:line-through;">' : '<span>')
+      + 'Run ' + r.id + '</span>'
+      + (r.superseded ? ' <span style="color:#e08b3a;font-size:0.75rem;">superseded'
+          + (r.superseded_reason ? ' · ' + esc(r.superseded_reason) : '') + '</span>' : '');
+    const comp = [
+      ['coherence', r.coherence], ['visceral', r.visceral_charge],
+      ['harm', r.harm_value + (r.harm_pervasive ? ' pervasive' : ' discrete')],
+      ['transcendence', r.transcendence_value], ['governing', r.governing_axis],
+      ['center', r.center], ['divergence', r.gut_divergence], ['confidence', r.confidence],
+    ].filter(c => c[1] !== null && c[1] !== undefined && c[1] !== '')
+      .map(c => c[0] + ' ' + c[1]).join(' · ');
+    return '<div style="border:1px solid var(--border);border-radius:3px;padding:0.5rem 0.6rem;margin-bottom:0.5rem;">'
+      + '<div style="font-size:0.83rem;">' + head + ' <span style="' + DIM + '">' + esc(r.run_at || '') + '</span></div>'
+      + '<div style="font-size:0.8rem;margin-top:0.25rem;">' + tierDot(r.rubric_color) + chargeStr(r.charge_value)
+      + ' <span style="' + DIM + '">' + esc(comp) + '</span></div>'
+      + (r.vernier ? '<div style="' + DIM + 'margin-top:0.2rem;">vernier ' + esc(JSON.stringify(r.vernier)) + '</div>' : '')
+      + (r.triggered_by ? '<div style="' + DIM + 'margin-top:0.2rem;">triggered by ' + esc(r.triggered_by) + '</div>' : '')
+      + (r.reasoning
+          ? '<details style="margin-top:0.4rem;"><summary style="' + DIM + 'cursor:pointer;">Argument</summary>'
+            + '<div style="font-size:0.82rem;line-height:1.55;white-space:pre-wrap;margin-top:0.4rem;">'
+            + esc(r.reasoning) + '</div></details>'
+          : '<div style="' + DIM + 'margin-top:0.2rem;">No argument stored.</div>')
+      + '</div>';
+  }).join('');
+  return h;
+}
+
+function proseVersionsBlock(versions) {
+  let h = '<h4 style="' + H4 + '">Prose versions</h4>';
+  if (!versions || !versions.length) {
+    return h + '<div style="' + DIM + '">Nothing archived. A version lands here whenever a write replaces existing prose.</div>';
+  }
+  return h + versions.map(v =>
+    '<details style="border:1px solid var(--border);border-radius:3px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;">'
+    + '<summary style="cursor:pointer;font-size:0.83rem;">' + esc(v.lane) + ' <span style="' + DIM + '">'
+    + esc(v.written_at || '') + (v.trigger ? ' · ' + esc(v.trigger) : '')
+    + (v.model ? ' · ' + esc(v.model) : '') + '</span></summary>'
+    + '<div style="font-size:0.82rem;line-height:1.55;white-space:pre-wrap;margin-top:0.4rem;">'
+    + esc(v.prose) + '</div></details>').join('');
 }
 
 function trackRows(tracks) {

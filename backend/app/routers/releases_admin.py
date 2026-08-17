@@ -37,7 +37,9 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Artist, Release, ReleaseSong, Song
+from app.models import (
+    Artist, CalibrationRun, Release, ReleaseProseVersion, ReleaseSong, Song,
+)
 from app.routers.admin import verify_admin_key
 from app.services.artist_utils import compute_release_charge
 
@@ -55,6 +57,21 @@ VALID_TYPES = {"album", "ep", "single"}
 # metadata-only (MusicBrainz-derived, or created here and awaiting a reading).
 READING_FIELDS = ("charge_summary", "arc_prose", "listener_effects_prose",
                   "societal_effects_prose", "deadpan_line")
+
+
+def _json_col(raw):
+    """Decode one of the JSON-encoded Text columns, fail-soft.
+
+    A malformed value costs the panel that one block, never the whole release.
+    """
+    try:
+        return json.loads(raw) if raw else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _iso(dt):
+    return dt.isoformat() if dt else None
 
 
 def _has_reading(rel: Release) -> bool:
@@ -195,10 +212,102 @@ def get_release(release_id: int, db: Session = Depends(get_db)):
         "listener_effects_prose": rel.listener_effects_prose,
         "societal_effects_prose": rel.societal_effects_prose,
         "deadpan_line": rel.deadpan_line,
-        "topics": json.loads(rel.topics) if rel.topics else None,
-        "topic_audit": json.loads(rel.topic_audit) if rel.topic_audit else None,
+        "topics": _json_col(rel.topics),
+        "topic_audit": _json_col(rel.topic_audit),
+        # The v3 half. This panel used to stop at the seven fields above, which
+        # were all the Album Charger ever produced -- so an admin looking at a
+        # lens reading could not see its findings, its confidence, or the label
+        # it wrote, and had no way to tell a v3 read from a pre-v3 backfill.
+        "contaminated": bool(rel.contaminated),
+        "contamination_note": rel.contamination_note,
+        "dogma_referenced": bool(rel.dogma_referenced),
+        "dogma_note": rel.dogma_note,
+        "confidence": rel.confidence,
+        "psyche_facts": _json_col(rel.psyche_facts),
+        "effects_pl": _json_col(rel.effects_pl),
+        "calibration_failed": bool(rel.calibration_failed),
+        "societal_prose_generated_at": _iso(rel.societal_prose_generated_at),
+        "societal_prose_model": rel.societal_prose_model,
+        # The archive slots, so "what did the last write replace" is answerable
+        # from the same screen rather than from a query.
+        "prior_arc_prose": rel.prior_arc_prose,
+        "prior_listener_effects_prose": rel.prior_listener_effects_prose,
+        "prior_societal_effects_prose": rel.prior_societal_effects_prose,
     }
+    out["runs"] = _release_runs(db, release_id)
+    out["prose_versions"] = _release_prose_versions(db, release_id)
+    # Which instrument produced what is on the row. A release carrying a reading
+    # with no run behind it is a pre-v3 backfill, and that is worth stating
+    # rather than leaving an admin to infer it from an empty run list.
+    out["reading_provenance"] = (
+        None if not _has_reading(rel)
+        else ("lens" if out["runs"] else "pre_v3")
+    )
     return out
+
+
+def _release_runs(db: Session, release_id: int) -> list[dict]:
+    """The album run ledger for this release, newest first.
+
+    Keyed on `calibration_runs.release_id` (migration 149). `coherence` is the
+    album lane's structural axis and rides the column `route` uses on a song run,
+    so a song run and an album run share this table without sharing a shape.
+    """
+    rows = (
+        db.query(CalibrationRun)
+        .filter(CalibrationRun.release_id == release_id)
+        .order_by(CalibrationRun.run_at.desc(), CalibrationRun.id.desc())
+        .all()
+    )
+    return [{
+        "id": r.id,
+        "run_at": _iso(r.run_at),
+        "superseded": bool(r.superseded),
+        "superseded_reason": r.superseded_reason,
+        "rubric_color": r.rubric_color,
+        "charge_value": r.charge_value,
+        "coherence": r.coherence,
+        "visceral_charge": r.visceral_charge,
+        "harm_value": r.harm_value,
+        "harm_pervasive": bool(r.harm_pervasive),
+        "transcendence_value": r.transcendence_value,
+        "governing_axis": r.governing_axis,
+        "center": r.center,
+        "vernier": _json_col(r.vernier),
+        "gut_divergence": r.gut_divergence,
+        "confidence": r.confidence,
+        "triggered_by": r.triggered_by,
+        "agent_model": r.agent_model,
+        "calibration_failed": bool(r.calibration_failed),
+        # The stored argument. This is the whole reason the ledger takes a
+        # release: it is the only place the album's reasoning survives.
+        "reasoning": r.reasoning,
+    } for r in rows]
+
+
+def _release_prose_versions(db: Session, release_id: int) -> list[dict]:
+    """Archived prose for this release, newest first.
+
+    `release_prose_versions.release_id` is deliberately NOT an FK -- a catalogue
+    rebuild churns `releases.id` -- so this is a plain equality match and can
+    legitimately return rows for a release that was rebuilt underneath it.
+    """
+    rows = (
+        db.query(ReleaseProseVersion)
+        .filter(ReleaseProseVersion.release_id == release_id)
+        .order_by(ReleaseProseVersion.written_at.desc(), ReleaseProseVersion.id.desc())
+        .all()
+    )
+    return [{
+        "id": v.id,
+        "written_at": _iso(v.written_at),
+        "lane": v.lane,
+        "prose": v.prose,
+        "model": v.model,
+        "trigger": v.trigger,
+        "rubric_color": v.rubric_color,
+        "charge_value": v.charge_value,
+    } for v in rows]
 
 
 @router.get("/{release_id}/candidate-songs")
