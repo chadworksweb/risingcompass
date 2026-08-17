@@ -120,7 +120,22 @@ autocommit_regenerated() {
     fi
 
     echo "=== Building partials (header/footer) ==="
-    run_build_partials "$repo"
+    # A NONZERO EXIT HERE ABORTS THE DEPLOY. build_partials.py runs the frontend
+    # gates (every public page loads /css/main.css; every same-origin .js/.css
+    # carries a ?v= cache-bust and is loaded once) and returns 1 on a violation.
+    # That return value used to be discarded, so both gates printed to stderr and
+    # the deploy shipped anyway -- a gate that does not gate. It still writes the
+    # partials it CAN before failing, so a rerun after the fix is clean.
+    if ! run_build_partials "$repo"; then
+        {
+            echo ""
+            echo "ERROR: refusing to deploy -- frontend gate violation (above)."
+            echo "Fix the listed files, then re-run. Missing ?v= on a script or"
+            echo "stylesheet means Cloudflare keeps serving the old copy for up to"
+            echo "4h against new markup, which is the 2026-08-12 song.html incident."
+        } >&2
+        return 1
+    fi
 
     # Whatever became dirty that wasn't dirty before = exactly what the script
     # regenerated on this run. This is the ONLY thing we auto-commit.

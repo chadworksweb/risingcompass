@@ -66,6 +66,53 @@ NOINDEX_RE = re.compile(
     r"""<meta[^>]+name=["']robots["'][^>]+noindex""", re.IGNORECASE)
 
 
+# EVERY same-origin script/stylesheet must carry a `?v=` cache-bust.
+#
+# risingcompass.net sits behind Cloudflare with a 4h edge TTL on static assets.
+# The page HTML is SSR'd and serves DYNAMIC, so a deploy updates the markup
+# immediately while the edge keeps handing out the OLD JS and CSS. That is not a
+# theoretical race: on 2026-08-12 new song.html markup shipped against JULY
+# copies of songs.css and songs.js (cf-cache-status: HIT, Last-Modified
+# 2026-07-07). The cover-art wrap rendered with nothing to unhide it and the
+# share menu ran old handlers.
+#
+# CLAUDE.md has said "bump ?v= on any edit" ever since, and the rule was followed
+# for the three files it named while ~30 shared assets kept shipping with no
+# version at all -- including /js/auth.js and /js/api.js, which nearly every page
+# loads. A rule people have to remember is a rule that decays. This is the same
+# shape of gate as the main.css check above, for the same reason.
+ASSET_TAG_RE = re.compile(
+    r"""<(?:script|link)\b[^>]*?\b(?:src|href)=["'](/[^"'>?]+\.(?:js|css))(\?[^"'>]*)?["']""",
+    re.IGNORECASE,
+)
+
+
+def find_cachebust_violations(path: Path, content: str) -> list[str]:
+    """Same-origin .js/.css must carry ?v=, and must not be loaded twice.
+
+    The duplicate check rides along because it is the same scan and the same
+    class of bug: /methodology/calibrator-before-after/ loaded /js/consent.js
+    twice, once from the baked footer partial with ?v= and once hand-added below
+    the include marker without one, so the consent bar initialised twice and the
+    unversioned copy was whatever the edge happened to be holding. RC uses no
+    preload/modulepreload anywhere, so a repeated path is always a mistake.
+    """
+    rel = path.relative_to(ROOT).as_posix()
+    if is_redirect_stub(content):
+        return []
+    out: list[str] = []
+    seen: dict[str, int] = {}
+    for m in ASSET_TAG_RE.finditer(content):
+        asset, query = m.group(1), m.group(2) or ""
+        seen[asset] = seen.get(asset, 0) + 1
+        if "v=" not in query:
+            out.append(f"{rel}: {asset} has no ?v= cache-bust")
+    for asset, count in seen.items():
+        if count > 1:
+            out.append(f"{rel}: loads {asset} {count} times")
+    return out
+
+
 def is_redirect_stub(content: str) -> bool:
     return bool(REDIRECT_STUB_RE.search(content) and NOINDEX_RE.search(content))
 
@@ -139,6 +186,7 @@ def build_once(check: bool = False) -> int:
         v = find_main_css_violations(path, rendered)
         if v:
             violations.append(v)
+        violations.extend(find_cachebust_violations(path, rendered))
         if rendered == original:
             continue
         if check:
@@ -154,14 +202,14 @@ def build_once(check: bool = False) -> int:
         if drift:
             print(f"{drift} file(s) need rebuild — run scripts/build_partials.py", file=sys.stderr)
         if violations:
-            print(f"{len(violations)} file(s) do not load /css/main.css", file=sys.stderr)
+            print(f"{len(violations)} gate violation(s) -- see VIOLATION lines above", file=sys.stderr)
         return 1 if (drift or violations) else 0
     if written == 0:
         print("partials: up to date")
     else:
         print(f"partials: {written} file(s) updated")
     if violations:
-        print(f"{len(violations)} file(s) do not load /css/main.css", file=sys.stderr)
+        print(f"{len(violations)} gate violation(s) -- see VIOLATION lines above", file=sys.stderr)
         return 1
     return 0
 
