@@ -82,7 +82,21 @@ NOINDEX_RE = re.compile(
 # loads. A rule people have to remember is a rule that decays. This is the same
 # shape of gate as the main.css check above, for the same reason.
 ASSET_TAG_RE = re.compile(
-    r"""<(?:script|link)\b[^>]*?\b(?:src|href)=["'](/[^"'>?]+\.(?:js|css))(\?[^"'>]*)?["']""",
+    r"""<(?:script|link)\b[^>]*?\b(?:src|href)=["']([^"'>?:]+\.(?:js|css))(\?[^"'>]*)?["']""",
+    re.IGNORECASE,
+)
+# Excluding the leading `/` from the pattern above is deliberate: three
+# stylesheets were referenced RELATIVELY (`href="style.css"`), so an
+# absolute-only pattern reported them as absent rather than as unversioned and
+# two of them shipped with no cache-bust at all. Requiring `[^:]` in the path
+# keeps `https://fonts.googleapis.com/...` and `data:` out.
+#
+# A relative reference is itself a violation, for the reason MAIN_CSS_RE already
+# documents: it resolves against whatever depth the URL happens to sit at, so a
+# stray trailing slash 404s it silently. /lyrical-charger/ and /topic-trends/ are
+# exactly the directory URLs where that bites.
+RELATIVE_ASSET_RE = re.compile(
+    r"""<(?:script|link)\b[^>]*?\b(?:src|href)=["'](?!/|https?:|data:|//)([^"'>?:]+\.(?:js|css))""",
     re.IGNORECASE,
 )
 
@@ -110,6 +124,8 @@ def find_cachebust_violations(path: Path, content: str) -> list[str]:
     for asset, count in seen.items():
         if count > 1:
             out.append(f"{rel}: loads {asset} {count} times")
+    for m in RELATIVE_ASSET_RE.finditer(content):
+        out.append(f"{rel}: {m.group(1)} is a RELATIVE asset path -- use /the/absolute/one")
     return out
 
 

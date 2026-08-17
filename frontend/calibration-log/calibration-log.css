@@ -1,26 +1,3 @@
-/* === Calibration Log — feed page === */
-
-.cl-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--rc-border);
-  background: var(--rc-bg-panel);
-}
-
-.cl-back-link {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--rc-text-dim);
-  text-decoration: none;
-  font-size: 0.85rem;
-  transition: color var(--rc-ease);
-}
-
-.cl-back-link:hover { color: var(--rc-accent); }
-.cl-back-link svg { flex-shrink: 0; }
 
 /* Size and weight come from the global h1 rule in main.css (the Library
    heading is the reference); only the page-specific bits live here. */
@@ -204,14 +181,6 @@
 
 .cl-entry-title a:hover {
   border-bottom-color: var(--rc-accent);
-}
-
-.cl-entry-meta {
-  font-family: var(--rc-font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  color: var(--rc-text-dim);
-  margin-bottom: 1rem;
 }
 
 /* === Diff display === */

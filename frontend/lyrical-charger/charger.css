@@ -230,27 +230,6 @@ main {
   .lc-title::after { display: none; }
 }
 
-.powered-by-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.4rem;
-  font-size: 0.65rem;
-  color: var(--rc-text-dim);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  text-decoration: none;
-  transition: color var(--rc-ease);
-}
-
-.powered-by-link:hover {
-  color: var(--rc-accent);
-}
-
-.rc-logo {
-  flex-shrink: 0;
-}
-
 /* ---- Screen 1: Entry ---- */
 .hero {
   text-align: center;
@@ -1289,7 +1268,6 @@ main {
   display: flex;
   justify-content: center;
 }
-
 
 /* ---- Responsive ---- */
 @media (min-width: 640px) {

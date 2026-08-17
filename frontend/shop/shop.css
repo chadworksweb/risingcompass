@@ -10,7 +10,6 @@
   font-size: 1.5rem; font-weight: 700; color: var(--rc-text-bright);
   letter-spacing: 0.01em; margin-bottom: 0.4rem;
 }
-.shop-sub { font-size: 0.9rem; color: var(--rc-text-dim); line-height: 1.55; max-width: 46rem; }
 
 /* --- Grid --- */
 .shop-grid {

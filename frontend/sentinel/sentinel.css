@@ -15,26 +15,6 @@
   margin: 0 0 0.6rem;
 }
 
-.sn-hero h1 {
-  font-size: clamp(1.8rem, 4vw, 2.7rem);
-  line-height: 1.1;
-  margin: 0 0 0.9rem;
-}
-
-.sn-lede {
-  font-size: 1.05rem;
-  line-height: 1.6;
-  max-width: 60ch;
-  color: var(--rc-text-soft, #c8c8d4);
-}
-
-.sn-cta-row {
-  margin-top: 1.5rem;
-  display: flex;
-  gap: 0.7rem;
-  flex-wrap: wrap;
-}
-
 .sn-btn {
   display: inline-block;
   padding: 0.65rem 1.3rem;
@@ -49,39 +29,7 @@
 }
 .sn-btn:hover { filter: brightness(1.08); }
 
-.sn-btn-ghost {
-  background: transparent;
-  color: var(--rc-text, #eeeef4);
-  border-color: var(--rc-border, #3a3a52);
-}
-
-.sn-band {
-  margin-top: 2.6rem;
-  padding-top: 2.2rem;
-  border-top: 1px solid var(--rc-border, #2a2a3c);
-}
-
-.sn-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1.6rem;
-}
-
-.sn-cell h3 {
-  font-size: 1.05rem;
-  margin: 0 0 0.5rem;
-}
-.sn-cell p {
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: var(--rc-text-soft, #c8c8d4);
-  margin: 0;
-}
-.sn-cell a { color: var(--rc-accent, #00d4aa); }
-
 /* ----- apply form ----- */
-.sn-apply, .sn-closed { margin-top: 2.8rem; }
-.sn-apply h2, .sn-closed h2 { font-size: 1.5rem; margin: 0 0 0.5rem; }
 .sn-apply-note { color: var(--rc-text-soft, #c8c8d4); font-size: 0.92rem; margin: 0 0 1.2rem; }
 
 #sn-apply-form { max-width: 620px; }
@@ -189,16 +137,6 @@
 .sn-disp { margin-top: 0.4rem; font-size: 0.84rem; color: #7fb8b0; }
 
 /* ----- leaderboard ----- */
-.sn-board { width: 100%; border-collapse: collapse; margin-top: 1.2rem; }
-.sn-board th, .sn-board td {
-  text-align: left;
-  padding: 0.6rem 0.8rem;
-  border-bottom: 1px solid var(--rc-border, #2a2a3c);
-  font-size: 0.9rem;
-}
-.sn-board th { color: var(--rc-text-soft, #9a9aac); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.sn-board .sn-rank { color: var(--rc-text-soft, #9a9aac); width: 3rem; }
-.sn-board .sn-pts { font-weight: 700; color: var(--rc-accent, #00d4aa); }
 
 /* ============================================================
    Intake landing (recruitment page, RC instrument idiom)
@@ -254,14 +192,6 @@
   margin: 0.7rem 0 0;
   font-size: 0.88rem;
   color: var(--rc-text-soft, #c8c8d4);
-}
-
-/* intake layout: brief beside the application card */
-.sn-intake-grid {
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 2.2rem;
-  align-items: start;
 }
 @media (max-width: 860px) { .sn-intake-grid { grid-template-columns: 1fr; gap: 1.6rem; } }
 

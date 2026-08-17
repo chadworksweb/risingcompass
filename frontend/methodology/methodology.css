@@ -576,15 +576,6 @@
   margin: 1.75rem 0 0.5rem;
 }
 
-/* The FAQ's question headings are their own thing (accent, italic, set in
-   main.css) and must not pick up the h4 rule above. */
-.methodology-content .rubric-q h4 {
-  color: var(--rc-accent);
-  font-size: 0.88rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem;
-}
-
 /* ─── Tier spectrum stack ───────────────────────
    One card per tier, one card per row, colour bar as its heading and the
    description beneath. Full width of the reading measure, top to bottom in
@@ -784,7 +775,6 @@
   margin-top: auto;
   align-self: flex-start;
 }
-
 
 /* ─── Subsection marks (2c) ───────────────────────────────
    Display-size twins of the sitewide song badges, parked in the column the
@@ -1128,7 +1118,6 @@ html { scroll-behavior: smooth; }
   background: color-mix(in srgb, var(--rc-bg-dark) 85%, var(--rc-blue));
   color: var(--rc-text-bright);
 }
-
 
 /* ─── key-points list (already used elsewhere; safe defaults) */
 

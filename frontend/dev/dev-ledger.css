@@ -211,7 +211,6 @@
 .dl-card-title { color: var(--rc-text-bright); font-weight: 600; font-size: 0.95rem; }
 .dl-card-text { color: var(--rc-text-dim); font-size: 0.88rem; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
 .dl-card-foot { margin-top: 0.4rem; font-size: 0.75rem; color: var(--rc-text-dim); font-family: var(--rc-font-mono); }
-.dl-status-chip { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--rc-accent); }
 
 /* --- submit form --- */
 .dl-submit {
