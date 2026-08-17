@@ -22,12 +22,10 @@
 .cl-back-link:hover { color: var(--rc-accent); }
 .cl-back-link svg { flex-shrink: 0; }
 
+/* Size and weight come from the global h1 rule in main.css (the Library
+   heading is the reference); only the page-specific bits live here. */
 .cl-page-title {
-  font-size: 1.3rem;
-  font-weight: 600;
   color: var(--rc-text-bright);
-  margin: 0;
-  margin-left: auto;
   letter-spacing: 0.02em;
 }
 
@@ -41,7 +39,6 @@
 
 @media (max-width: 600px) {
   .cl-header { padding: 0.75rem 1rem; }
-  .cl-page-title { font-size: 1.1rem; }
 }
 
 .cl-intro {

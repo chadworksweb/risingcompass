@@ -29,7 +29,11 @@ html, body {
   color: var(--eac-ink);
 }
 
-body {
+/* The serif treatment is scoped to this page's own content, NOT to body. The
+   shared header and footer partials live in the same body, and .site-footer
+   sets no font-family of its own, so a body-level rule here leaked Cardo into
+   the sitewide footer. Keep every page-aesthetic font rule inside .eac-main. */
+.eac-main {
   font-family: 'Cardo', Georgia, 'Times New Roman', serif;
   font-size: 18px;
   line-height: 1.65;

@@ -61,11 +61,11 @@ body {
 .back-link svg { flex-shrink: 0; }
 .back-arrow { font-size: 1.1rem; }
 
+/* Page title on the Artists index / Search / Library headings. Size and weight
+   come from the global h1 rule in main.css (the Library heading is the
+   reference); this states only what is page-specific. */
 .artists-title {
-  font-size: 1.3rem;
-  font-weight: 600;
   color: var(--rc-text-bright);
-  margin: 0;
 }
 
 /* Page header centres its text only -- text-align, never max-width/margin auto.

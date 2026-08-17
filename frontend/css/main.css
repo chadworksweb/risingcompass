@@ -232,6 +232,17 @@ body {
   overflow-x: hidden;
 }
 
+/* Global h1. The Library page's heading is the reference: 2rem, bold, bright.
+   Element-level on purpose, so it sets the DEFAULT and any page whose title
+   class states its own size still wins. Vertical margins are deliberately not
+   set here, since pages that rely on the browser's h1 margins would shift. */
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--rc-text-bright);
+}
+
 /* === Layout === */
 .site-header {
   text-align: center;
@@ -3154,6 +3165,28 @@ td.yo-charge {
   font-family: var(--rc-font-mono);
   text-align: right;
   width: 3rem;
+}
+
+/* === Page title row ===
+   For a page <h1> that sits BETWEEN the header partial and <main>, outside any
+   content wrapper. Without this it renders flush to the viewport edge while the
+   header above and the content below both sit in the site column, which reads
+   as a broken left margin on wide screens. Matches .rc-header-inner exactly, so
+   the title aligns with the logo. Carries NO typography: the page's own title
+   class keeps that.
+
+   Qualified as h1.page-title-row (0,1,1) on purpose: page title classes like
+   .artists-title (0,1,0) set `margin: 0`, and their stylesheet loads AFTER
+   main.css, so an unqualified .page-title-row lost the centering to source
+   order and the box stayed pinned left. */
+h1.page-title-row {
+  max-width: var(--rc-max-width);
+  margin: 0 auto;
+  padding: 1rem 1.5rem 0;
+}
+
+@media (max-width: 700px) {
+  h1.page-title-row { padding: 0.75rem 1rem 0; }
 }
 
 /* === Footer === */

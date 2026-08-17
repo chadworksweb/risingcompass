@@ -85,7 +85,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/main.css?v=20260816">
+  <link rel="stylesheet" href="/css/main.css?v=20260816b">
   <link rel="stylesheet" href="/css/compass.css">
   <link rel="stylesheet" href="/artists/artists.css">
   <link rel="stylesheet" href="/songs/songs.css?v=20260815c">
@@ -419,10 +419,15 @@
       aria-expanded="false" aria-controls="rcSearchPanel" aria-autocomplete="list">
     <div class="rc-search-panel" id="rcSearchPanel" role="listbox" hidden></div>
   </div>
+  <!-- Sign in / Account entry point, hidden 2026-08-16. The sync script below
+       is left in place and simply no-ops when the link is absent, so
+       uncommenting this block restores the behaviour with no other edits. -->
+  <!--
   <a href="/account/" id="rc-account-link" class="rc-account-link" data-state="out">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     <span class="rc-account-label">Sign in</span>
   </a>
+  -->
   </div>
   <script>
     (function(){
@@ -896,8 +901,8 @@
       <ul class="footer-links">
         <li><a href="/methodology/">Methodology</a></li>
         <li><a href="/methodology/calibrator-before-after/">Calibrator: Before &amp; After</a></li>
-        <li><a href="https://lec.libraengine.com/tenets/">Tenets</a></li>
-        <li><a href="https://lecg.libraengine.com/amendments/">Amendments</a></li>
+        <li><a href="https://lec.libraengine.com/tenets/" target="_blank" rel="noopener">Tenets</a></li>
+        <li><a href="https://lecg.libraengine.com/amendments/" target="_blank" rel="noopener">Amendments</a></li>
       </ul>
     </nav>
 
