@@ -75,7 +75,7 @@
     nodes[activeIdx].scrollIntoView({ block: 'nearest' });
   }
 
-  function render(artists, songs, q) {
+  function render(artists, releases, songs, q) {
     items = [];
     let html = '';
 
@@ -97,6 +97,26 @@
             <span class="rc-search-sub">${meta} — trajectory not built</span>
           </div>`;
         }
+      }
+    }
+
+    // Releases sit between artists and songs: broader than a song, narrower than
+    // an artist. Only releases carrying a reading come back from the endpoint,
+    // so every row here is a real page.
+    if (releases.length) {
+      html += '<div class="rc-search-group-label">Releases</div>';
+      for (const r of releases) {
+        const url = `/artists/${encodeURIComponent(r.artist_slug)}/${encodeURIComponent(r.slug)}`;
+        const dot = COLOR_HEX[r.rubric_color] || '#999';
+        const type = r.release_type === 'ep' ? 'EP'
+          : r.release_type === 'single' ? 'Single' : 'Album';
+        const sub = r.release_year ? `${type} &middot; ${r.release_year}` : type;
+        items.push({ url });
+        html += `<a class="rc-search-item" href="${url}" role="option">
+          <span class="rc-search-dot" style="background:${dot}"></span>
+          <span class="rc-search-name">${esc(r.title)} <span style="color:var(--rc-text-dim);font-weight:400;">— ${esc(r.artist)}</span></span>
+          <span class="rc-search-sub" style="color:${dot}">${sub}</span>
+        </a>`;
       }
     }
 
@@ -130,12 +150,13 @@
     controller = new AbortController();
     const mySeq = ++seq;
     try {
-      const [artistData, songData] = await Promise.all([
+      const [artistData, releaseData, songData] = await Promise.all([
         getJSON(`/api/artists/search?q=${encodeURIComponent(q)}&limit=${PER_KIND}`, controller.signal),
+        getJSON(`/api/releases/search?q=${encodeURIComponent(q)}&limit=${PER_KIND}`, controller.signal),
         getJSON(`/api/songs?q=${encodeURIComponent(q)}&limit=${PER_KIND}`, controller.signal),
       ]);
       if (mySeq !== seq) return;
-      render(artistData.results || [], songData.results || [], q);
+      render(artistData.results || [], releaseData.results || [], songData.results || [], q);
     } catch (err) {
       if (err && err.name === 'AbortError') return;
       if (mySeq !== seq) return;

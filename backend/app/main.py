@@ -287,6 +287,7 @@ from app.routers import album_charger
 app.include_router(album_charger.router, dependencies=[Depends(verify_api_or_service_key)])
 app.include_router(badge.router, dependencies=_api_key_dep)
 app.include_router(artists.router, dependencies=_public_read_dep)
+app.include_router(artists.releases_router, dependencies=_public_read_dep)
 app.include_router(songs.router, dependencies=_public_read_dep)
 # Public page SSR (/songs/<slug>, /artists/<slug>) -- bakes per-entity meta +
 # JSON-LD into the head for crawlers. Browser/crawler page loads, so NO

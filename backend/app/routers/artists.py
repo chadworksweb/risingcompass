@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/artists", tags=["artists"])
 
+# Releases hang off artists and their code lives here, but a release search is
+# not an artist route -- mounting it under /api/artists would read as one and
+# collide with the /{slug}/... shapes. Its own prefix, mounted beside `router`
+# in main.py under the same public-read dependency.
+releases_router = APIRouter(prefix="/api/releases", tags=["releases"])
+
 
 # --- Search-result cache ---------------------------------------------------
 # Typeahead hits the same prefixes repeatedly ("th", "the", "th"...). A short
@@ -499,6 +505,92 @@ def artist_releases(
         return payload
     finally:
         db.close()
+
+
+@releases_router.get("/search")
+def release_search(
+    q: str = Query(..., min_length=2),
+    limit: int = Query(20, ge=1, le=50),
+):
+    """Search releases by title, for the sitewide search surfaces.
+
+    Scope note: this is the SITEWIDE search lane (the header dropdown and
+    /search/), NOT the Library. The Library has its own entitlement-gated
+    endpoint and is deliberately untouched here.
+
+    **Only releases carrying a reading are returned.** A catalogue holds hundreds
+    of MusicBrainz-derived rows whose only content is a title and a placeholder
+    mean, and putting those in a typeahead would bury the handful of releases the
+    instrument has actually read under near-empty pages. `charge_summary IS NOT
+    NULL` is the same test `_has_reading` and the release page use.
+
+    Ordered by charge descending so the strongest reading leads, matching how the
+    artist page ranks its own releases.
+    """
+    q_lower = q.strip().lower()
+    cache_key = ("release", q_lower, limit)
+    cached = _search_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    like_pat = f"%{q_lower}%"
+    like_pat_norm = f"%{q_lower.replace('&', 'and')}%"
+    # Apostrophes are stripped from BOTH sides so "dont blame" finds "Don't Blame
+    # Me". Three of the readable releases carry one, and nobody types it into a
+    # search box. Both quote families are folded, because a title sourced from
+    # MusicBrainz can carry the curly one (I'm People is filed with U+2019).
+    def _fold(s: str) -> str:
+        return s.replace("'", "").replace("’", "")
+    like_pat_apos = f"%{_fold(q_lower)}%"
+
+    db = SessionLocal()
+    try:
+        rows = db.execute(text(
+            """
+            SELECT r.title, r.release_type, r.release_date, r.release_year,
+                   r.rubric_color, r.charge_value, r.track_count,
+                   r.contaminated, r.musicbrainz_id,
+                   a.name AS artist_name, a.slug AS artist_slug
+            FROM releases r
+            JOIN artists a ON a.id = r.artist_id
+            WHERE r.charge_summary IS NOT NULL
+              AND (lower(r.title) LIKE :pat
+                   OR replace(lower(r.title), '&', 'and') LIKE :pat_norm
+                   OR replace(replace(lower(r.title), '''', ''), :curly, '') LIKE :pat_apos
+                   OR lower(a.name) LIKE :pat
+                   OR replace(replace(lower(a.name), '''', ''), :curly, '') LIKE :pat_apos)
+            ORDER BY r.charge_value DESC NULLS LAST, r.title
+            LIMIT :limit
+            """
+        ), {"pat": like_pat, "pat_norm": like_pat_norm, "pat_apos": like_pat_apos,
+            "curly": "’", "limit": limit}).fetchall()
+    finally:
+        db.close()
+
+    results = []
+    for r in rows:
+        results.append({
+            # The URL is slugify(title) within the artist, exactly as the release
+            # page resolves it -- never releases.id, which churns on a rebuild.
+            "slug": slugify(r.title),
+            "artist_slug": r.artist_slug,
+            "title": r.title,
+            "artist": r.artist_name,
+            "release_type": r.release_type,
+            "release_year": r.release_year or (r.release_date.year if r.release_date else None),
+            "rubric_color": r.rubric_color,
+            "charge_value": r.charge_value,
+            "tier_label": COLOR_LABELS.get(r.rubric_color, "") if r.rubric_color else "",
+            "tier_hex": COLOR_HEX.get(r.rubric_color, "#999") if r.rubric_color else "#999",
+            "track_count": r.track_count,
+            "contaminated": bool(r.contaminated),
+            "cover_thumb_url": (coverart.coverart_urls(r.musicbrainz_id)["thumb_url"]
+                                if r.musicbrainz_id else None),
+        })
+
+    out = {"results": results, "count": len(results)}
+    _search_cache_set(cache_key, out)
+    return out
 
 
 def _release_json(raw):

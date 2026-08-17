@@ -76,19 +76,21 @@
       announce('Searching');
 
       try {
-        const [artistData, songData] = await Promise.all([
+        const [artistData, releaseData, songData] = await Promise.all([
           ArtistsAPI.searchArtists(q, 10, controller.signal),
+          ArtistsAPI.searchReleases(q, 10, controller.signal),
           ArtistsAPI.searchSongs(q, 10, controller.signal),
         ]);
 
         if (mySeq !== requestSeq) return;
 
         const artists = artistData.results || [];
+        const releases = releaseData.results || [];
         const songs = songData.results || [];
 
         if (searchingState) searchingState.hidden = true;
 
-        if (artists.length === 0 && songs.length === 0) {
+        if (artists.length === 0 && releases.length === 0 && songs.length === 0) {
           resultsContainer.innerHTML = '';
           emptyState.hidden = false;
           announce('No results found');
@@ -117,6 +119,30 @@
                 </div>
               </li>`;
             }
+          }
+          html += '</ul></div>';
+        }
+
+        // Releases between artists and songs: broader than a song, narrower than
+        // an artist. Only releases carrying a reading come back, so every row is
+        // a real page rather than a title with a placeholder mean.
+        if (releases.length > 0) {
+          html += '<div class="results-section"><h2 class="results-heading">Releases</h2><ul class="results-list">';
+          for (const r of releases) {
+            const dotColor = COLOR_HEX[r.rubric_color] || '#999';
+            const type = r.release_type === 'ep' ? 'EP'
+              : r.release_type === 'single' ? 'Single' : 'Album';
+            const meta = [type, r.release_year, r.track_count ? `${r.track_count} tracks` : null]
+              .filter(Boolean).join(' · ');
+            html += `<li class="result-item result-song">
+              <a href="/artists/${encodeURIComponent(r.artist_slug)}/${encodeURIComponent(r.slug)}">
+                <span class="result-dot" style="background:${dotColor}"></span>
+                <span class="result-name">${escapeHtml(r.title)}</span>
+                <span class="result-artist-name">${escapeHtml(r.artist)}</span>
+                <span class="result-meta">${escapeHtml(meta)}</span>
+                <span class="result-tier" style="color:${dotColor}">${escapeHtml(r.tier_label)}</span>
+              </a>
+            </li>`;
           }
           html += '</ul></div>';
         }

@@ -34,6 +34,10 @@ const ArtistsAPI = (() => {
       return get(path);
     },
     searchSongs: (q, limit = 20, signal) => get(`/api/songs?q=${encodeURIComponent(q)}&limit=${limit}`, signal),
+    // Sitewide search only. Returns releases carrying a reading; the Library has
+    // its own entitlement-gated lane and is not part of this.
+    searchReleases: (q, limit = 20, signal) =>
+      get(`/api/releases/search?q=${encodeURIComponent(q)}&limit=${limit}`, signal),
     searchLibrary: async (params = {}) => {
       // Library uses BOTH headers when signed-in: X-Api-Key (router-level
       // dep on songs.router) AND Authorization: Bearer (so the backend
