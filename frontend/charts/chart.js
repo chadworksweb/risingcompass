@@ -138,7 +138,13 @@
   async function load() {
     var root = document.getElementById('chart-root');
     if (!root) return;
-    root.innerHTML = '<div class="card"><div class="loading" role="status">Loading ' + S.escapeHtml(CFG.title) + '...</div></div>';
+    // A server-rendered summary already stands here (page_ssr marks it
+    // data-ssr). Leave it up rather than replacing real content with
+    // "Loading..." -- the full shell replaces it a moment later either way, and
+    // blanking it first is a worse first paint than the page had before SSR.
+    if (!root.querySelector('[data-ssr]')) {
+      root.innerHTML = '<div class="card"><div class="loading" role="status">Loading ' + S.escapeHtml(CFG.title) + '...</div></div>';
+    }
 
     var reading = null, etherSongs = null, loadSeries = null;
 

@@ -12,3 +12,5 @@ deploy/_sitemap_nginx_block.txt  text eol=lf
 deploy/_topics_nginx_block.txt   text eol=lf
 deploy/_apply_shop_product_nginx.sh   text eol=lf
 deploy/_shop_product_nginx_block.txt  text eol=lf
+deploy/_apply_reading_nginx.sh        text eol=lf
+deploy/_reading_nginx_block.txt       text eol=lf

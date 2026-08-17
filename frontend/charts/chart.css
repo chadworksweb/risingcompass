@@ -122,24 +122,6 @@
 }
 .song-item.non-music { opacity: 0.78; }
 
-/* Server-rendered ranked list (SSR/GEO): present in the raw HTML for crawlers
-   and shown for the brief moment before alltime.js hydrates #chart-root. Kept
-   simple + readable; the interactive paired view replaces it on load. */
-.ssr-chart-list { list-style: none; margin: 0; padding: 0; max-width: var(--rc-max-width); }
-.ssr-chart-list li {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem;
-  padding: 0.4rem 0.2rem; border-bottom: 1px solid var(--rc-divider, rgba(255,255,255,0.06));
-  font-size: 0.9rem;
-}
-.ssr-rank { font-family: var(--rc-font-mono, monospace); color: var(--rc-text-dim); min-width: 2.2rem; text-align: right; }
-.ssr-name a { color: var(--rc-text-bright); text-decoration: none; }
-.ssr-name a:hover { text-decoration: underline; }
-.ssr-artist { color: var(--rc-text-dim); font-style: italic; }
-.ssr-metric { color: var(--rc-text-dim); font-family: var(--rc-font-mono, monospace); font-size: 0.78rem; }
-.ssr-tier { text-transform: uppercase; font-size: 0.66rem; letter-spacing: 0.05em; color: var(--rc-text-dim); }
-.ssr-deadpan { color: var(--rc-text); }
-.ssr-tag { font-size: 0.66rem; text-transform: uppercase; color: var(--rc-text-dim); border: 1px dashed var(--rc-border); padding: 0 0.35rem; border-radius: 3px; }
-
 /* === Charts hub (/charts/) ===
    The index for every board. Reuses the standalone chart page's own frame
    (.chart-page wrapper, .chart-page-intro / -title / -source / -links) and the

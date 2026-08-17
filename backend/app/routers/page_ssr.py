@@ -30,7 +30,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from app.config import settings
-from app.constants import COLOR_HEX
+from app.constants import COLOR_HEX, COLOR_LABELS
 from app.database import SessionLocal
 from app.models import Artist
 
@@ -893,6 +893,88 @@ def _ssr_shop_product_body(html: str, p: dict) -> str:
                      '</div></div>')
 
 
+def _ssr_reading_summary(html: str, reading: dict, container_id: str) -> str:
+    """A PLAIN ranked list of the day's reading, for the surfaces that render
+    through `js/chart-shell.js`.
+
+    THIS IS NOT A SERVER COPY OF THE CHART SHELL, and must never become one.
+    CLAUDE.md forbids re-implementing that module -- the rule exists because
+    three drifted copies of it once had to be collapsed back into one. So this
+    deliberately renders something ELSE: the DATA (position, title, artist,
+    tier, charge, and the editorial) with none of the chrome. No tooltips, no
+    dispute links, no badges, no MEI panel. There is nothing in a hover tooltip
+    for a crawler to read, and nothing here for the shell to drift against,
+    because the two are not trying to look alike.
+
+    The shell overwrites this container wholesale on load, so a reader sees the
+    real thing a beat later. `data-ssr` marks the node so the client can skip
+    its "Loading..." overwrite and leave this standing until the real render
+    lands -- otherwise the page would go summary -> "Loading..." -> chart,
+    which is a worse first paint than it has today.
+    """
+    songs = sorted((reading.get("songs") or []),
+                   key=lambda s: (s.get("position") is None, s.get("position") or 0))
+    if not songs:
+        return html
+
+    rows = []
+    for s in songs:
+        pos = s.get("position")
+        title = _t(s.get("title"))
+        slug = s.get("song_slug")
+        # Link only once calibrated -- an uncalibrated row has no page yet.
+        name = (f'<a href="/songs/{_u(slug)}">{title}</a>'
+                if slug and s.get("rubric_color") else title)
+        tier = COLOR_LABELS.get(s.get("rubric_color") or "", "")
+        charge = s.get("charge_value")
+        note = " ".join(x for x in [tier, _signed(charge) if charge is not None else ""] if x)
+        rows.append(
+            f'<li><span class="ssr-rank">{_t(pos) if pos is not None else ""}</span> '
+            f'<span class="ssr-name">{name}</span> '
+            f'<span class="ssr-artist">{_t(s.get("artist"))}</span>'
+            + (f' <span class="ssr-tier">{_t(note)}</span>' if note else "")
+            + '</li>'
+        )
+
+    head = ""
+    if reading.get("date"):
+        head += f'<p class="ssr-reading-date">Reading for {_t(reading["date"])}.</p>'
+    if reading.get("editorial"):
+        head += f'<p class="ssr-reading-editorial">{_t(reading["editorial"])}</p>'
+
+    return _set_html(html, container_id,
+                     f'<div class="ssr-reading" data-ssr="1">{head}'
+                     f'<ol class="ssr-chart-list">{"".join(rows)}</ol></div>')
+
+
+def _as_dict(obj) -> dict:
+    """These endpoints return Pydantic response models, not dicts, and so do the
+    song rows inside them -- `.get()` on either is an AttributeError. Normalise
+    once, here, rather than sprinkling hasattr checks through the renderer."""
+    if isinstance(obj, dict):
+        return obj
+    dump = getattr(obj, "model_dump", None)
+    if callable(dump):
+        try:
+            return dump()
+        except Exception:
+            pass
+    return dict(getattr(obj, "__dict__", {}) or {})
+
+
+def _normalize_reading(kind: str, data) -> dict:
+    """Flatten the three reading shapes the chart shell already unifies client-
+    side (`charts/chart.js`): the daily compass reading, a chart snapshot, and
+    the derived unified reading. Same keys, so one renderer serves all seven
+    surfaces."""
+    d = _as_dict(data)
+    if kind == "daily" and not d.get("has_reading"):
+        return {}
+    songs = [_as_dict(s) for s in (d.get("songs") or [])]
+    editorial = d.get("editorial_summary") if kind == "daily" else d.get("editorial")
+    return {"date": d.get("date"), "editorial": editorial, "songs": songs}
+
+
 def _ssr_topics_index_body(html: str, data: dict) -> str:
     """The flat ranking of all 32 topics. This page and its sibling are the
     crawl entry to every detail page in the family, so shipping them empty put
@@ -1354,6 +1436,102 @@ def ssr_theme(slug: str):
         json_ld=[_faq_ld(question, answer, canonical), _breadcrumb_ld(crumbs)],
     )
     return HTMLResponse(_body_or_plain(_ssr_theme_body, html, data))
+
+
+# --- daily reading surfaces (homepage + the six chart pages) ---------------
+#
+# All seven render through js/chart-shell.js, so none of them could be given a
+# server-rendered copy of that module -- see _ssr_reading_summary for why. They
+# get the plain data summary instead, into the one container each page's client
+# code overwrites (#reading-content on the homepage, #chart-root on a chart).
+#
+# ROUTING NOTE: every one of these is an EXACT nginx match, so `location /`
+# keeps serving every asset beneath them. Deploy the backend BEFORE adding the
+# nginx blocks -- routing a live page at a backend that lacks the route 404s it.
+
+_READING_PAGES: dict[str, tuple[str, str, str, str]] = {
+    # path: (template, kind, key, container id)
+    "/": ("index.html", "daily", "", "reading-content"),
+    "/charts/spotify/": ("charts/spotify/index.html", "daily", "", "chart-root"),
+    "/charts/itunes/": ("charts/itunes/index.html", "snapshot", "itunes", "chart-root"),
+    "/charts/shazam/": ("charts/shazam/index.html", "snapshot", "shazam", "chart-root"),
+    "/charts/youtube/": ("charts/youtube/index.html", "snapshot", "youtube", "chart-root"),
+    "/charts/new-music-friday/": ("charts/new-music-friday/index.html", "snapshot",
+                                  "new-music-friday", "chart-root"),
+    "/charts/unified/": ("charts/unified/index.html", "unified", "", "chart-root"),
+}
+
+
+def _fetch_reading(kind: str, key: str):
+    """One reading, whichever of the three shapes it takes. Returns None on any
+    miss -- an unapproved chart simply has nothing to render yet, which is a
+    normal daily state and not an error."""
+    from fastapi import HTTPException
+    try:
+        with SessionLocal() as db:
+            if kind == "daily":
+                from app.routers.compass import get_current
+                return get_current(db)
+            if kind == "unified":
+                from app.routers.unified import get_current_unified
+                return get_current_unified(db)
+            from app.routers.chart_snapshots import get_current_snapshot
+            return get_current_snapshot(key, db)
+    except HTTPException:
+        return None
+    except Exception:
+        logger.exception("page_ssr: reading fetch failed (%s/%s)", kind, key)
+        return None
+
+
+def _render_reading_page(path: str) -> HTMLResponse:
+    tpl_path, kind, key, container = _READING_PAGES[path]
+    tpl = _load_template(tpl_path)
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+    data = _fetch_reading(kind, key)
+    if data is None:
+        return HTMLResponse(tpl)
+    reading = _normalize_reading(kind, data)
+    if not reading.get("songs"):
+        return HTMLResponse(tpl)
+    return HTMLResponse(
+        _body_or_plain(lambda h, r: _ssr_reading_summary(h, r, container), tpl, reading))
+
+
+@router.get("/", response_class=HTMLResponse)
+def ssr_home():
+    return _render_reading_page("/")
+
+
+@router.get("/charts/spotify/", response_class=HTMLResponse)
+def ssr_chart_spotify():
+    return _render_reading_page("/charts/spotify/")
+
+
+@router.get("/charts/itunes/", response_class=HTMLResponse)
+def ssr_chart_itunes():
+    return _render_reading_page("/charts/itunes/")
+
+
+@router.get("/charts/shazam/", response_class=HTMLResponse)
+def ssr_chart_shazam():
+    return _render_reading_page("/charts/shazam/")
+
+
+@router.get("/charts/youtube/", response_class=HTMLResponse)
+def ssr_chart_youtube():
+    return _render_reading_page("/charts/youtube/")
+
+
+@router.get("/charts/new-music-friday/", response_class=HTMLResponse)
+def ssr_chart_nmf():
+    return _render_reading_page("/charts/new-music-friday/")
+
+
+@router.get("/charts/unified/", response_class=HTMLResponse)
+def ssr_chart_unified():
+    return _render_reading_page("/charts/unified/")
 
 
 # --- all-time chart pages --------------------------------------------------
