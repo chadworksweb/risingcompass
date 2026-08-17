@@ -17,6 +17,7 @@ from app.services.artist_utils import (
     derive_tier, slugify,
 )
 from app.services import coverart
+from app.services.effects_pl_vocab import effects_pl_detail
 from app.services.compass_calc import charge_to_degree
 from app.services.charge_calc import degree_to_charge
 
@@ -500,6 +501,20 @@ def artist_releases(
         db.close()
 
 
+def _release_json(raw):
+    """Decode one of `releases`' JSON-encoded Text columns (`topics`,
+    `psyche_facts`), the same convention `songs` uses.
+
+    Fail-soft on purpose: a malformed value costs the page that one block, not
+    the reading.
+    """
+    import json as _json
+    try:
+        return _json.loads(raw) if raw else None
+    except (ValueError, TypeError):
+        return None
+
+
 @router.get("/{slug}/releases/{release_slug}")
 def release_detail(slug: str, release_slug: str):
     """A single release's reading page: hero charge + cover + summary / arc /
@@ -589,11 +604,32 @@ def release_detail(slug: str, release_slug: str):
             # exists; see release.js.
             "contaminated": bool(release.contaminated),
             "contamination_note": release.contamination_note,
+            # Dogma is the release's own metadata tag, exactly as on a song: it
+            # flags a load-bearing doctrinal framework and never moves the
+            # charge. Carried here because the album lane authors it on every
+            # write and the page had no way to read it.
+            "dogma_referenced": bool(release.dogma_referenced),
+            "dogma_note": release.dogma_note,
             "has_reading": release.charge_summary is not None,
             "charge_summary": release.charge_summary,
             "arc_prose": release.arc_prose,
             "listener_effects_prose": release.listener_effects_prose,
             "societal_effects_prose": release.societal_effects_prose,
+            # The album's own topics, linking out to the same /topics/ pages the
+            # song chips use. Stored JSON-encoded like songs.topics; a malformed
+            # value degrades to no chips rather than failing the page.
+            "topics": _release_json(release.topics),
+            # The placard. The album lane authors one on every write and until
+            # now nothing rendered it anywhere -- the song page's only consumer
+            # is its share card, which a release page does not have.
+            "deadpan_line": release.deadpan_line,
+            # The prescription label. Same seven keys as a song's, authored by
+            # the album lens against the release rather than a track.
+            "psyche_facts": _release_json(release.psyche_facts),
+            # Per-listen effects, resolved through the RC-owned vocabulary to
+            # [{slug,label,shadow}] -- the same badge shape chadlewine and DBM
+            # consume, so the page never keeps its own copy of the labels.
+            "effects_pl_labels": effects_pl_detail(_release_json(release.effects_pl)),
             "cover_url": cover_url,
             "artist": {"name": artist.name, "slug": artist.slug},
             "tracks": tracks,

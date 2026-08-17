@@ -86,7 +86,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css?v=20260817b">
   <link rel="stylesheet" href="/css/compass.css?v=20260817b">
-  <link rel="stylesheet" href="/artists/artists.css?v=20260817b">
+  <link rel="stylesheet" href="/artists/artists.css?v=20260817k">
   <link rel="stylesheet" href="/songs/songs.css?v=20260817b">
 </head>
 <body>
@@ -175,17 +175,19 @@
     <!-- ROW: hero (compass + title) beside the summary (art + headline read) -->
     <div class="song-row song-row--hero">
       <section class="song-section song-section--hero" id="release-hero" aria-label="Release calibration">
-        <!-- Contamination hazard, same badge the song hero carries. Driven by
-             contamination_count until the release row gets its own flag. -->
-        <div id="release-contam-badge" class="song-contam-badge" hidden tabindex="0" aria-label="Contaminated">
-          <span class="contam-icon" aria-hidden="true">&#x2622;</span>
-          <span class="song-contam-badge-label">Contaminated</span>
-          <div class="contam-tooltip" id="release-contam-tooltip"></div>
-        </div>
+        <!-- Contamination + dogma keep the hero corners the labelled pills held.
+             Only the MARK changed: these are .song-contam / .song-dogma from
+             main.css, the same mini glyphs the homepage panel uses, with the
+             note in `title` the way the panel's dogma glyph already carries it. -->
+        <span id="release-contam-mark" class="release-mark release-mark--contam" hidden></span>
+        <span id="release-dogma-mark" class="release-mark release-mark--dogma" hidden></span>
         <div class="song-hero">
           <div id="release-compass-container" class="song-compass-container" hidden></div>
           <div id="release-tier-badge" class="song-tier-badge" hidden></div>
           <h2 id="release-title" class="song-page-title is-loading">Loading...</h2>
+          <!-- Two stacked lines, not one middot run: the artist is the second
+               half of the release's identity and gets its own line above the
+               type / date / track-count facts. -->
           <p id="release-meta" class="song-page-artist"></p>
         </div>
       </section>
@@ -202,6 +204,17 @@
           </div>
         </div>
         <p id="release-summary" class="summary-text-big is-loading">Loading summary...</p>
+        <!-- The placard, between the summary and the tags. Written for every
+             album read and, until now, shown nowhere: the song page's only
+             consumer is its share card, which a release page does not have. It
+             is a fragment, not a sentence, so it is set as a caption rather
+             than body copy. -->
+        <p id="release-deadpan" class="release-deadpan" hidden></p>
+        <!-- What the compass decided this release is about. Linked, because
+             each subject has a page of its own; dominant topic first, which is
+             the order the album lens wrote them in. Same chips as the song
+             page, same /topics/ destinations. -->
+        <p class="song-topics" id="release-topics" hidden></p>
       </section>
     </div>
 
@@ -234,35 +247,79 @@
       </section>
     </div>
 
-    <!-- Tracklist -->
-
-    <!-- ROW: artist claim + how calibrated + misread. The song page runs these
-         as two rows plus a full flag-activity panel; a release has no flag
-         corpus of its own, so the flag panel shrinks to the misread CTA and the
-         three sit on one row. Headings are set per release type in release.js. -->
-    <div class="song-row song-row--three">
-      <section class="song-section" id="release-artist-claim">
-        <h2 id="release-claim-heading">Are You the Artist Behind This Release?</h2>
-        <p class="direct-answer" id="release-claim-body">If this is your album, we would like to talk. Verification happens face to face, or by video with an anti-deepfake protocol, and never by AI shortcut. Once you are verified you can publish a note that lives on this page.</p>
-        <p class="flag-cta">
-          <a id="release-claim-link" href="/artist-claim.html" class="accent-link">Tell us about this release &rarr;</a>
-        </p>
-      </section>
-
-      <section class="song-section" id="release-about">
-        <h2 id="release-about-heading">How Was This Release Calibrated?</h2>
-        <p class="direct-answer">Every track here was read on its lyrics alone against a 58-tenet rubric. The release reading is built from those finished track readings in running order, so the sequence is part of what gets read. No genre, no sales figures, no chart position, no artist reputation.</p>
-        <p><a href="/#methodology" class="accent-link">Read the full methodology</a></p>
-      </section>
-
-      <section class="song-section" id="release-misread">
-        <h2>Did We Get This Wrong?</h2>
-        <p class="direct-answer" id="release-misread-body">Readings get re-run. If the calibration here misses what the album actually does, file a report and it goes into the queue for another pass.</p>
-        <p class="flag-cta">
-          <a id="release-misread-link" href="/misread-submission.html" class="accent-link">File a report &rarr;</a>
-        </p>
+    <!-- ROW: Psyche Facts - the prescription label for the whole release.
+         Mirrors the chadlewine SongLabel panel, minus the four fields this page
+         already carries in their own sections (tier, charge, summary, and both
+         prose lanes). Fields render only when authored. -->
+    <div class="song-row">
+      <section class="song-section" id="release-psyche-section" hidden>
+        <div class="psyche-label" role="group" aria-labelledby="release-psyche-kicker">
+          <div class="psyche-label__head">
+            <span class="psyche-label__kicker" id="release-psyche-kicker">Psyche Facts</span>
+            <span class="psyche-label__track" id="release-psyche-track"></span>
+          </div>
+          <div class="psyche-label__field" id="release-psyche-purpose-field" hidden>
+            <span class="psyche-label__label">Purpose</span>
+            <div class="psyche-label__body" id="release-psyche-purpose"></div>
+          </div>
+          <div class="psyche-label__field" id="release-psyche-indicated-field" hidden>
+            <span class="psyche-label__label">Indicated for</span>
+            <ul class="psyche-label__tags" id="release-psyche-indicated"></ul>
+          </div>
+          <div class="psyche-label__field psyche-label__field--warn" id="release-psyche-donotuse-field" hidden>
+            <span class="psyche-label__label">Do not use if</span>
+            <div class="psyche-label__body" id="release-psyche-donotuse"></div>
+          </div>
+          <div class="psyche-label__field" id="release-psyche-effects-field" hidden>
+            <span class="psyche-label__label">Effects <span class="psyche-label__sub">per listen</span></span>
+            <ul class="psyche-label__effects" id="release-psyche-effects"></ul>
+          </div>
+          <div class="psyche-label__field" id="release-psyche-directions-field" hidden>
+            <span class="psyche-label__label">Directions</span>
+            <div class="psyche-label__body" id="release-psyche-directions"></div>
+          </div>
+          <div class="psyche-label__field" id="release-psyche-onset-field" hidden>
+            <span class="psyche-label__label">Onset / Duration</span>
+            <div class="psyche-label__body" id="release-psyche-onset"></div>
+          </div>
+          <!-- WARNING IS ON HOLD, NOT DROPPED (Chad, 2026-08-17). The album
+               lane keeps authoring `psyche_facts.warning` and the API keeps
+               carrying it inside the psyche_facts object; this panel just does
+               not render it while the sitewide treatment is undecided. Every
+               warning in the corpus is currently a genuine caution, and whether
+               that register is right is the open question. Restore this field
+               once that is settled -- the data will be waiting. -->
+        </div>
       </section>
     </div>
+
+    <!-- ROW: metadata flags - dogma reference. Same shape and same footnote as
+         the song page; contamination lives as a hero badge on both. -->
+    <div class="song-row">
+      <section class="song-section" id="release-section-dogma" hidden>
+        <h2>Dogma Reference</h2>
+        <p id="release-dogma-answer" class="direct-answer"></p>
+        <p class="dogma-footnote">Dogma Reference is a metadata tag, not a score modifier. It flags only when a specific doctrinal framework (Christian, Islamic, Karmic/Dharmic, Institutional) is load-bearing &mdash; when worshipping inside, proclaiming, or asserting that doctrine is what the work is for. Naming the sacred does not fire the tag, and neither does a passing scriptural allusion used to illustrate a point in an otherwise secular work. Doing the doctrine does.</p>
+      </section>
+    </div>
+
+    <!-- Tracklist -->
+
+    <!-- Footnotes: artist claim, methodology and misread, condensed from three
+         full cards to one line of links, exactly as the song page condensed its
+         two. All three IDs are kept because release.js still gates them and
+         phrases each link per release type. -->
+    <p class="song-footnotes">
+      <span class="song-footnote" id="release-artist-claim">
+        <a id="release-claim-link" href="/artist-claim.html" class="accent-link">Are you the artist of this release?</a>
+      </span>
+      <span class="song-footnote" id="release-about">
+        <a id="release-about-link" href="/#methodology" class="accent-link">How was this release calibrated?</a>
+      </span>
+      <span class="song-footnote" id="release-misread">
+        <a id="release-misread-link" href="/misread-submission.html" class="accent-link">Did we get this wrong?</a>
+      </span>
+    </p>
 
     <!-- Subscriber capture. Drop-in: see /js/subscribe.js. -->
     <div class="rc-subscribe" data-source="release_page"
@@ -404,7 +461,7 @@
 
   <script src="/artists/artists-api.js?v=20260817"></script>
   <script src="/js/compass.js?v=20260622"></script>
-  <script src="/artists/release.js?v=20260816u"></script>
+  <script src="/artists/release.js?v=20260817j"></script>
   <script src="/js/subscribe.js?v=20260817" defer></script>
 </body>
 </html>

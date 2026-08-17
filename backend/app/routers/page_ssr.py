@@ -595,6 +595,26 @@ def _ssr_artist_body(html: str, data: dict) -> str:
     return html
 
 
+_MONTHS = ("January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December")
+
+
+def _format_release_date(iso) -> str:
+    """"2026-05-01" -> "May, 01 2026". Twin of `formatReleaseDate` in release.js.
+
+    Parsed off the string rather than through a date type, for the same reason
+    the JS side does: the value is a plain calendar date and must never acquire a
+    timezone on the way to being displayed. Day stays zero-padded.
+    """
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", str(iso or ""))
+    if not m:
+        return ""
+    month_index = int(m.group(2)) - 1
+    if not 0 <= month_index < 12:
+        return ""
+    return f"{_MONTHS[month_index]}, {m.group(3)} {m.group(1)}"
+
+
 def _ssr_release_body(html: str, rel: dict) -> str:
     """Server-render the release page. Mirrors frontend/artists/release.js.
 
@@ -610,24 +630,72 @@ def _ssr_release_body(html: str, rel: dict) -> str:
 
     rtype = rel.get("release_type")
     type_label = "Album" if rtype == "album" else "EP" if rtype == "ep" else "Single"
-    date = rel.get("release_date") or (str(rel["release_year"]) if rel.get("release_year") else "")
-    parts = []
+    # "2026-05-01" -> "May, 01 2026", mirroring release.js. A year-only release
+    # has no month or day to spell out, so it stays a year.
+    date = _format_release_date(rel.get("release_date")) or (
+        str(rel["release_year"]) if rel.get("release_year") else "")
+    # Artist on its own line above the release facts, mirroring release.js.
     if artist_slug:
-        parts.append(f'<a href="/artists/{_u(artist_slug)}" class="accent-link">{_t(artist)}</a>')
-    elif artist:
-        parts.append(_t(artist))
-    parts.append(type_label)
+        artist_node = f'<a href="/artists/{_u(artist_slug)}" class="accent-link">{_t(artist)}</a>'
+    else:
+        artist_node = _t(artist)
+    facts = [type_label]
     if date:
-        parts.append(_t(date))
+        facts.append(_t(date))
     n_tracks = rel.get("track_count")
     if n_tracks:
-        parts.append(f'{n_tracks} track{"" if n_tracks == 1 else "s"}')
-    html = _set_html(html, "release-meta", " &middot; ".join(parts))
+        facts.append(f'{n_tracks} track{"" if n_tracks == 1 else "s"}')
+    html = _set_html(
+        html, "release-meta",
+        f'<span class="release-meta-artist">{artist_node}</span>'
+        f'<span class="release-meta-facts">{" &middot; ".join(facts)}</span>',
+    )
+
+    # Contamination + dogma as the mini inline marks, mirroring release.js
+    # including its rule that the album's own finding governs when it has one and
+    # the flagged-track count speaks only when it does not.
+    contam_note = ""
+    if rel.get("has_reading"):
+        if rel.get("contaminated"):
+            contam_note = rel.get("contamination_note") or "This release carries contaminating content."
+    elif (rel.get("contamination_count") or 0) > 0:
+        n_flagged = rel["contamination_count"]
+        n_all = rel.get("track_count") or 0
+        contam_note = (f"{n_flagged} of {n_all} track{'' if n_all == 1 else 's'} on this release "
+                       "carries contaminating content. Open a track to see what was flagged.")
+    dogma_note = (rel.get("dogma_note")
+                  or "This release invokes a specific doctrinal framework. "
+                     "Metadata only, it does not affect the charge.") if rel.get("dogma_referenced") else ""
+    for elem_id, cls, glyph, note in (
+        ("release-contam-mark", "song-contam", "&#x2622;", contam_note),
+        ("release-dogma-mark", "song-dogma", "&#x1F4DC;", dogma_note),
+    ):
+        if not note:
+            continue
+        html = _fill(html, elem_id, f'<span class="{cls}" aria-hidden="true">{glyph}</span>')
+        html = _show(html, elem_id)
+        # The note lives on the mark itself, so it has to be added to the tag the
+        # `hidden` attribute just came off.
+        html = html.replace(f'<span id="{elem_id}"', f'<span id="{elem_id}" title="{_t(note)}"', 1)
+
+    deadpan = (rel.get("deadpan_line") or "").strip()
+    if deadpan:
+        html = _set_text(html, "release-deadpan", deadpan)
+        html = _show(html, "release-deadpan")
 
     summary = rel.get("charge_summary")
     if summary:
         html = _set_text(html, "release-summary", summary)
         html = _declass(html, "release-summary", "is-loading")
+
+    # The album's own topic chips, same markup and same destinations as the
+    # song page's. Real inbound links to /topics/, so they belong in raw HTML.
+    topics = [t for t in (rel.get("topics") or []) if t]
+    if topics:
+        html = _fill(html, "release-topics", "".join(
+            f'<a class="song-topic" href="/topics/{_u(t)}">'
+            f'{_t(str(t).replace("-", " "))}</a>' for t in topics))
+        html = _show(html, "release-topics")
 
     if rel.get("arc_prose"):
         html = _set_html(html, "release-arc", _prose_html(rel["arc_prose"]))
@@ -640,6 +708,54 @@ def _ssr_release_body(html: str, rel: dict) -> str:
         if rel.get(field):
             html = _set_html(html, elem, _prose_html(rel[field]))
             html = _show(html, section)
+
+    # Psyche Facts. Mirrors the panel in release.js field for field, including
+    # its rule that a single authored field is enough to show the panel, and its
+    # omission of `warning` -- that field is on hold pending the sitewide
+    # decision (see the note in release.html), still authored and still carried
+    # in the payload, just not rendered.
+    pf = rel.get("psyche_facts") or {}
+    effects = rel.get("effects_pl_labels") or []
+    indicated = [t for t in (pf.get("indicated_for") or []) if t]
+    onset_duration = " / ".join([x for x in (pf.get("onset"), pf.get("duration")) if x])
+    any_field = False
+    for key, value in (("purpose", pf.get("purpose")),
+                       ("donotuse", pf.get("do_not_use_if")),
+                       ("directions", pf.get("directions")),
+                       ("onset", onset_duration)):
+        if value:
+            html = _set_text(html, f"release-psyche-{key}", value)
+            html = _show(html, f"release-psyche-{key}-field")
+            any_field = True
+    if indicated:
+        html = _fill(html, "release-psyche-indicated",
+                     "".join(f"<li>{_t(t)}</li>" for t in indicated))
+        html = _show(html, "release-psyche-indicated-field")
+        any_field = True
+    if effects:
+        html = _fill(html, "release-psyche-effects", "".join(
+            '<li class="psyche-label__effect'
+            + (" psyche-label__effect--shadow" if e.get("shadow") else "")
+            + f'">{_t(e.get("label"))}</li>' for e in effects))
+        html = _show(html, "release-psyche-effects-field")
+        any_field = True
+    if any_field:
+        html = _set_text(html, "release-psyche-track",
+                         " / ".join(x for x in (title, artist) if x))
+        html = _show(html, "release-psyche-section")
+
+    # Dogma Reference, when the release's own tag fired. The heading takes the
+    # tagline for the same reason every other H2 on this page does.
+    if rel.get("dogma_referenced"):
+        tagline = f'"{title}" by {artist}' if artist else f'"{title}"'
+        html = _set_text(html, "release-dogma-answer",
+                         rel.get("dogma_note")
+                         or f"{tagline} references a specific doctrinal framework.")
+        html = _show(html, "release-section-dogma")
+        # The H2 keeps its static "Dogma Reference" here and the client swaps in
+        # the taglined version on load, same as every other H2 on this page.
+        # No server-side H2 rewriting exists for releases and one section is not
+        # the reason to invent it.
 
     # The tracklist is the payload here: it is the only place a release's songs
     # are linked from. Mirrors `renderTrack`, including its uncalibrated
