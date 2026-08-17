@@ -218,29 +218,6 @@ def get_calendar_charts(db: Session = Depends(get_db)):
         "source": "daily",
     }]
 
-    # The Unified Charge Chart, second in the list. DERIVED, so it is not in
-    # CHART_REGISTRY and the loop below can never find it: it has no fetcher and
-    # writes no ChartSnapshot rows. It is appended explicitly, and only once it
-    # has a PUBLISHED reading, which mirrors the "has painted data" gate the
-    # Tier-2 loop applies to snapshot charts. On this chart publication means an
-    # editorial was supplied (see routers/unified.py), so the gate is stricter
-    # than the others by design.
-    #
-    # source "unified" is its own value, distinct from "daily" and "chart",
-    # because its data comes from neither the drift endpoints nor the snapshot
-    # endpoints. Every consumer (homepage toggle, Calendar) branches on it.
-    has_unified = db.query(
-        db.query(UnifiedReading.id)
-        .filter(UnifiedReading.published.is_(True))
-        .exists()
-    ).scalar()
-    if has_unified:
-        charts.append({
-            "key": "unified",
-            "label": "Unified",
-            "sub": "Every daily chart, weighted and summed",
-            "source": "unified",
-        })
     for key, entry in CHART_REGISTRY.items():
         slug = entry["slug"]
         if slug in AGGREGATING_CHART_SLUGS:        # Tier 1 -- it IS the charge
@@ -265,6 +242,33 @@ def get_calendar_charts(db: Session = Depends(get_db)):
             "label": entry["calendar_label"],
             "sub": entry.get("calendar_sub") or chart_source_label(slug) or entry["label"],
             "source": "chart",
+        })
+
+    # The Unified Charge Chart goes LAST, after the boards it is composed from.
+    # Ordering is the argument: a reader meets the individual platforms first and
+    # the synthesis of them at the end, which is the same reason the /charts/ hub
+    # gives it its own group rather than a sixth card in the row.
+    #
+    # It is appended explicitly rather than found by the loop above because it is
+    # DERIVED: not in CHART_REGISTRY, no fetcher, no ChartSnapshot rows. The
+    # published check mirrors the "has painted data" gate the Tier-2 loop
+    # applies, but is stricter by design, because on this chart publication means
+    # an editorial was supplied (see routers/unified.py).
+    #
+    # source "unified" is its own value, distinct from "daily" and "chart",
+    # because its data comes from neither the drift endpoints nor the snapshot
+    # endpoints. Every consumer (homepage toggle, Calendar) branches on it.
+    has_unified = db.query(
+        db.query(UnifiedReading.id)
+        .filter(UnifiedReading.published.is_(True))
+        .exists()
+    ).scalar()
+    if has_unified:
+        charts.append({
+            "key": "unified",
+            "label": "Unified",
+            "sub": "Every daily chart, weighted and summed",
+            "source": "unified",
         })
     return charts
 
