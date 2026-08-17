@@ -186,26 +186,16 @@ def _primary_artist_name(artist: str, structured: list[dict] | None) -> str:
 # Auto-attach a release-group MBID only when the top hit is a strong,
 # unambiguous title match; otherwise hand the candidates to the frontend
 # picker (the user decides). Admin gets a verify email either way.
-_MB_MIN_SCORE = 92
-_MB_MARGIN = 12
-
-
-def _pick_mb_match(submitted_title: str, candidates: list[dict]):
-    """Return (chosen_mbid, needs_pick, top_candidates).
-
-    chosen + not needs_pick -> confident auto-attach.
-    none   + needs_pick     -> ambiguous; show the picker.
-    none   + not needs_pick -> no candidates at all (no cover).
-    """
-    if not candidates:
-        return (None, False, [])
-    top = candidates[0]
-    tslug = slugify(submitted_title)
-    title_match = bool(tslug) and slugify(top.get("title", "")) == tslug
-    margin_ok = len(candidates) == 1 or (top["score"] - candidates[1]["score"]) >= _MB_MARGIN
-    if top["score"] >= _MB_MIN_SCORE and title_match and margin_ok:
-        return (top["mbid"], False, candidates[:6])
-    return (None, True, candidates[:6])
+#
+# The rule MOVED to services/release_mbid.py, which is now its single owner --
+# the terminal/cron lane resolves the same question for hand-created releases and
+# a second copy of the thresholds is exactly the drift this codebase keeps
+# paying for. Same function, same numbers, imported rather than repeated.
+from app.services.release_mbid import (  # noqa: E402
+    MB_MARGIN as _MB_MARGIN,
+    MB_MIN_SCORE as _MB_MIN_SCORE,
+    pick_mb_match as _pick_mb_match,
+)
 
 
 def _attach_release_mbid(release_id: int, mbid: str) -> None:

@@ -410,6 +410,8 @@ from app.routers import faultline_agent
 app.include_router(faultline_agent.router)
 from app.routers import leit_sweep
 app.include_router(leit_sweep.router)
+from app.routers import cover_art_cron
+app.include_router(cover_art_cron.router)  # nightly cover-art sweep (cron key)
 from app.routers import lec_drift
 app.include_router(lec_drift.router)
 from app.routers import social_broadcast
