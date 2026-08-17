@@ -23,6 +23,7 @@ import os
 import re
 from html import escape as _esc
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -179,6 +180,381 @@ def _hero_style(charge) -> str:
         return ""
     r, g, b = _spectrum_rgb(charge)
     return f"--charge-color: #{r:02x}{g:02x}{b:02x}; --charge-glow: rgba({r}, {g}, {b}, 0.45);"
+
+
+# --- body injection --------------------------------------------------------
+#
+# The head helpers above bake meta. These bake CONTENT. Used by the topics and
+# themes family, whose every outbound link is client-rendered: the raw HTML of
+# a topic page carried zero links into the 2,284 song pages it exists to reach,
+# and its <h1> read "Loading...". Rendering runs only if a crawler executes the
+# JS, which is a second queue and the weaker path.
+#
+# All four are surgical and IDEMPOTENT-SAFE: they only ever touch an element
+# that is empty (or whose text they replace outright), so the client JS -- which
+# overwrites the same nodes on load -- stays the source of truth for interactive
+# readers. Nothing here changes what a reader sees; it changes when.
+
+def _body_or_plain(renderer, html: str, data: dict) -> str:
+    """Run a body renderer, falling back to the un-injected HTML on any error.
+
+    The body render is an ENHANCEMENT: the page already works because the
+    client JS fetches the same payload and fills the same nodes. So a bug in a
+    renderer must cost a crawler its shortcut, never cost a reader the page.
+    Without this, one unexpected None would 500 all 41 pages at once.
+    """
+    try:
+        return renderer(html, data)
+    except Exception:
+        logger.exception("page_ssr: body render failed; serving meta-only HTML")
+        return html
+
+
+def _fill(html: str, elem_id: str, inner: str) -> str:
+    """Render `inner` into the EMPTY element bearing this id.
+
+    Matches only an empty element, so a template that somehow already carries
+    markup is left alone rather than having a second copy nested inside it.
+    """
+    pattern = re.compile(
+        r'(<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*>)\s*(</(?P=tag)>)'
+    )
+    return pattern.sub(lambda m: m.group(1) + inner + m.group(3), html, count=1)
+
+
+def _set_text(html: str, elem_id: str, value: str) -> str:
+    """Replace the text content of the element bearing this id. For the plain
+    single-text-node elements only (h1, p) -- it does not descend."""
+    pattern = re.compile(
+        r'(<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*>).*?(</(?P=tag)>)',
+        re.S,
+    )
+    return pattern.sub(lambda m: m.group(1) + _esc(value, quote=False) + m.group(3),
+                       html, count=1)
+
+
+def _show(html: str, elem_id: str) -> str:
+    """Drop the `hidden` attribute from the element bearing this id.
+
+    A section we just filled has something true to say, so it must not ship
+    hidden -- hidden content is discounted, and the client JS reveals it a
+    moment later anyway.
+    """
+    pattern = re.compile(
+        r'(<[a-zA-Z0-9]+[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*?)\s+hidden(\s*>)'
+    )
+    return pattern.sub(r"\1\2", html, count=1)
+
+
+def _t(value) -> str:
+    """Escape for a text node. Quotes stay raw, matching what the client's
+    textContent -> innerHTML round-trip emits, so the two renders agree."""
+    return _esc("" if value is None else str(value), quote=False)
+
+
+def _u(slug) -> str:
+    """A path segment, escaped for an href. Mirrors encodeURIComponent."""
+    return _esc(quote(str(slug or ""), safe=""))
+
+
+# The client scripts print an em dash where there is no reading. Kept as an
+# escape so this file stays ASCII, and named so the intent survives the escape.
+_NO_READING = chr(0x2014)
+
+
+def _signed(v) -> str:
+    """+N / N, or an em dash when there is no reading. Mirrors `signed()` in
+    topics.js / themes.js -- the character matters, the two renders sit in the
+    same DOM position one paint apart."""
+    if v is None:
+        return _NO_READING
+    return f"+{v}" if v > 0 else str(v)
+
+
+def _charge_hex(v) -> str:
+    """The compass ramp as a hex string. Mirrors `chargeColor()` in the topic
+    and theme scripts, over the same `_spectrum_rgb` the hero glow uses."""
+    if v is None:
+        return "#888"
+    r, g, b = _spectrum_rgb(v)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+# The three row shapes the family shares. Each mirrors its counterpart in
+# frontend/topics/topics.js or frontend/themes/themes.js EXACTLY -- same
+# classes, same order, same text -- so hydration replaces like with like
+# instead of visibly rewriting the page. Change one, change its twin.
+
+def _ssr_song_card(s: dict) -> str:
+    """`songCard` -- the span's two ends, one card each."""
+    kicker = " ".join(x for x in [_t(s.get("tier_label") or ""),
+                                  _signed(s.get("charge_value"))] if x)
+    hexv = _t(s.get("tier_hex") or "#888")
+    why = (f'<span class="related-card-why">{_t(s["deadpan_line"])}</span>'
+           if s.get("deadpan_line") else "")
+    return (
+        '<li class="related-card">'
+        f'<a class="related-card-link" href="/songs/{_u(s.get("slug"))}">'
+        '<span class="related-card-kicker">'
+        f'<span class="related-card-dot" style="background:{hexv}" aria-hidden="true"></span>'
+        f'<span style="color:{hexv}">{kicker}</span>'
+        '</span>'
+        f'<span class="related-card-name">{_t(s.get("title"))}</span>'
+        f'<span class="related-card-sub">{_t(s.get("artist"))}</span>'
+        f'{why}</a></li>'
+    )
+
+
+def _ssr_song_row(s: dict) -> str:
+    """`songRow` -- the ranking under the finding, charge first."""
+    hexv = _t(s.get("tier_hex") or "#888")
+    why = (f'<span class="topic-row-why">{_t(s["deadpan_line"])}</span>'
+           if s.get("deadpan_line") else "")
+    return (
+        '<li class="topic-row">'
+        f'<a class="topic-row-link" href="/songs/{_u(s.get("slug"))}">'
+        f'<span class="topic-row-charge" style="color:{hexv}">{_signed(s.get("charge_value"))}</span>'
+        '<span class="topic-row-id">'
+        f'<span class="topic-row-title">{_t(s.get("title"))}</span>'
+        f'<span class="topic-row-artist">{_t(s.get("artist"))}</span>'
+        '</span>'
+        f'{why}</a></li>'
+    )
+
+
+def _ssr_topic_card(t: dict) -> str:
+    """`topicCard` -- a topic as a tile, on the theme page and both indexes."""
+    return (
+        '<li class="topic-index-card">'
+        f'<a class="topic-index-link" href="/topics/{_u(t.get("slug"))}">'
+        f'<span class="topic-index-name">{_t(t.get("label"))}</span>'
+        '<span class="topic-index-meta">'
+        f'<span class="topic-index-charge" style="color:{_charge_hex(t.get("avg_charge"))}">'
+        f'{_signed(t.get("avg_charge"))} avg</span>'
+        f'<span class="topic-index-songs">{t.get("songs", 0)} songs</span>'
+        '</span></a></li>'
+    )
+
+
+def _ssr_tier_chips(tiers: dict) -> str:
+    bits = [("Ascended", tiers.get("violet"), "#9933ff"),
+            ("Elevated", tiers.get("blue"), "#3388ff"),
+            ("Decent", tiers.get("green"), "#33cc55"),
+            ("Degraded", tiers.get("orange"), "#ffbb33"),
+            ("Corrupted", tiers.get("red"), "#ff3333")]
+    return "".join(
+        f'<span class="topic-tier-chip">'
+        f'<span class="topic-tier-dot" style="background:{hexv}"></span>{n} {label}</span>'
+        for label, n, hexv in bits if n
+    )
+
+
+def _ssr_stats_list(st: dict, lib: dict) -> str:
+    pct = st.get("contaminated_pct") or 0
+    contam = (f'{pct}% carry a contamination flag, against '
+              f'{lib.get("contaminated_pct", 0)}% across the library'
+              if pct > 0 else "None of them carry a contamination flag")
+    return (
+        '<li class="topic-stat"><span class="topic-stat-label">Contamination</span>'
+        f'<span class="topic-stat-value">{_t(contam)}.</span></li>'
+        '<li class="topic-stat"><span class="topic-stat-label">Where they land</span>'
+        f'<span class="topic-stat-value">{_ssr_tier_chips(st.get("tiers") or {})}</span></li>'
+    )
+
+
+def _delta_clause(value, baseline, template: str) -> str:
+    """The "N points above/below the library" clause, or nothing. Both pages
+    suppress it under 3 points, which is where the difference stops being one."""
+    if value is None or baseline is None:
+        return ""
+    delta = value - baseline
+    if abs(delta) < 3:
+        return ""
+    return template.format(n=abs(delta), dir="above" if delta > 0 else "below")
+
+
+def _ssr_topic_body(html: str, d: dict) -> str:
+    """Server-render the topic page: its finding, its span, and the first page
+    of its ranking. Mirrors `renderHead`/`renderExtremes`/`renderSiblings`/
+    `renderSongs` in frontend/topics/topics.js."""
+    topic, st, lib = d["topic"], d["stats"], d["library"]
+    label = topic.get("label") or ""
+
+    html = _set_text(html, "topic-title", label)
+    html = _fill(html, "crumb-current", _t(label))
+    if topic.get("scope"):
+        html = _set_text(html, "topic-scope", topic["scope"])
+
+    theme = topic.get("theme")
+    if theme and theme.get("slug"):
+        html = _fill(html, "topic-parent",
+                     f'A topic under <a href="/themes/{_u(theme["slug"])}">'
+                     f'{_t(theme.get("label"))}</a>')
+        html = _show(html, "topic-parent")
+
+    finding = (f'{st.get("songs", 0)} calibrated songs carry this topic. '
+               f'They average {_signed(st.get("avg_charge"))}')
+    finding += _delta_clause(st.get("avg_charge"), lib.get("avg_charge"),
+                             ", which is {n} points {dir} the library as a whole")
+    finding += (f', and they run from {_signed(st.get("min_charge"))} to '
+                f'{_signed(st.get("max_charge"))}.')
+    html = _set_text(html, "topic-finding", finding)
+    html = _fill(html, "topic-stats", _ssr_stats_list(st, lib))
+
+    sp = d.get("dominant_split")
+    if sp:
+        copy = (
+            f'{sp["dominant_songs"]} of these songs are mostly about {label}, and those '
+            f'average {_signed(sp["avg_dominant"])}. Where {label} is present but not the '
+            f'point, the average is {_signed(sp["avg_incidental"])}. The topic reads '
+            f'{"higher" if sp["delta"] > 0 else "lower"} by {abs(sp["delta"])} points '
+            f'when it leads.'
+        )
+        html = _set_text(html, "topic-split-copy", copy)
+        html = _show(html, "topic-split")
+
+    ex = d.get("extremes") or {}
+    high, low = ex.get("highest"), ex.get("lowest")
+    ends = [s for s in (high, low) if s]
+    if low and high and low["id"] == high["id"]:
+        ends = [high]
+    if ends:
+        html = _fill(html, "topic-extremes-grid",
+                     "".join(_ssr_song_card(s) for s in ends))
+        html = _show(html, "topic-extremes")
+
+    # The span already named these two, so the ranking skips them rather than
+    # linking the same song twice on one page. Same rule as renderSongs().
+    span_ids = {s["id"] for s in ends}
+    rows = [s for s in (d.get("songs") or []) if s["id"] not in span_ids]
+    html = _fill(html, "topic-song-grid", "".join(_ssr_song_row(s) for s in rows))
+
+    sibs = d.get("siblings") or []
+    if sibs:
+        theme_label = (topic.get("theme") or {}).get("label")
+        if theme_label:
+            html = _set_text(html, "topic-siblings-h",
+                             f"Other topics under {theme_label}")
+        html = _fill(html, "topic-sibling-list", "".join(
+            f'<li><a href="/topics/{_u(s["slug"])}" class="topic-sibling">'
+            f'<span class="topic-sibling-name">{_t(s["label"])}</span>'
+            f'<span class="topic-sibling-meta">{s["songs"]} songs, averaging '
+            f'{_signed(s.get("avg_charge"))}</span></a></li>' for s in sibs))
+        html = _show(html, "topic-siblings")
+
+    return html
+
+
+def _ssr_theme_body(html: str, d: dict) -> str:
+    """Server-render the theme page. Mirrors `init()` in
+    frontend/themes/themes.js. A theme carries no song list of its own -- its
+    outbound links are its topics -- so those are what matter here."""
+    st, lib = d["stats"], d["library"]
+    label = d["theme"]["label"]
+    topics = d.get("topics") or []
+
+    html = _set_text(html, "theme-title", label)
+    html = _fill(html, "crumb-theme", _t(label))
+
+    n = len(topics)
+    finding = ("One topic sits under this theme, carried by "
+               if n == 1 else f"{n} topics sit under this theme, carried by ")
+    finding += f'{st.get("songs", 0):,} calibrated songs'
+    finding += f'. They average {_signed(st.get("avg_charge"))}'
+    finding += _delta_clause(st.get("avg_charge"), lib.get("avg_charge"),
+                             ", {n} points {dir} the library as a whole")
+    finding += (f', and run from {_signed(st.get("min_charge"))} to '
+                f'{_signed(st.get("max_charge"))}.')
+    html = _set_text(html, "theme-finding", finding)
+    html = _fill(html, "theme-stats", _ssr_stats_list(st, lib))
+
+    html = _fill(html, "theme-topic-grid",
+                 "".join(_ssr_topic_card(t) for t in topics))
+
+    also = d.get("also_topics") or []
+    if also:
+        html = _fill(html, "theme-also-grid",
+                     "".join(_ssr_topic_card(t) for t in also))
+        html = _show(html, "theme-also")
+
+    ex = d.get("extremes") or {}
+    high, low = ex.get("highest"), ex.get("lowest")
+    ends = [s for s in (high, low) if s]
+    if low and high and low["id"] == high["id"]:
+        ends = [high]
+    if ends:
+        html = _fill(html, "theme-extremes-grid",
+                     "".join(_ssr_song_card(s) for s in ends))
+        html = _show(html, "theme-extremes")
+
+    rel = d.get("related_themes") or []
+    if rel:
+        html = _fill(html, "theme-related-list", "".join(
+            f'<li><a href="/themes/{_u(s["slug"])}" class="topic-sibling">'
+            f'<span class="topic-sibling-name">{_t(s["label"])}</span>'
+            f'<span class="topic-sibling-meta">'
+            + ("1 topic crosses between them" if s["shared_topics"] == 1
+               else f'{s["shared_topics"]} topics cross between them')
+            + '</span></a></li>' for s in rel))
+        html = _show(html, "theme-related")
+
+    return html
+
+
+def _ssr_topics_index_body(html: str, data: dict) -> str:
+    """The flat ranking of all 32 topics. This page and its sibling are the
+    crawl entry to every detail page in the family, so shipping them empty put
+    all 41 behind a render pass. Mirrors frontend/topics/topics-index.js."""
+    rows = []
+    for theme in data.get("themes") or []:
+        for t in theme.get("topics") or []:
+            rows.append(dict(t, theme=theme))
+    rows.sort(key=lambda t: (-t["songs"], t["label"]))
+
+    n_songs = (data.get("library") or {}).get("songs")
+    if n_songs:
+        html = _set_text(html, "index-intro",
+                         f"All {len(rows)} topics the compass tracks, ranked by how many "
+                         f"of {n_songs} calibrated songs carry each one.")
+
+    body = "".join(
+        '<li class="topic-rank-row">'
+        f'<a class="topic-rank-link" href="/topics/{_u(t["slug"])}">'
+        f'<span class="topic-rank-charge" style="color:{_charge_hex(t.get("avg_charge"))}">'
+        f'{_signed(t.get("avg_charge"))}</span>'
+        '<span class="topic-rank-id">'
+        f'<span class="topic-rank-name">{_t(t["label"])}</span>'
+        f'<span class="topic-rank-theme">{_t(t["theme"]["label"])}</span>'
+        '</span>'
+        f'<span class="topic-rank-songs">{t["songs"]} songs</span>'
+        '</a></li>' for t in rows)
+    return _fill(html, "topic-list",
+                 '<section class="song-section song-section--full">'
+                 f'<ul class="topic-rank" id="topic-rank">{body}</ul></section>')
+
+
+def _ssr_themes_index_body(html: str, data: dict) -> str:
+    """Every theme with its topics under it. Mirrors
+    frontend/themes/themes-index.js."""
+    themes = [t for t in (data.get("themes") or []) if t.get("topics")]
+    n_topics = sum(len(t["topics"]) for t in themes)
+    n_songs = (data.get("library") or {}).get("songs")
+    if n_songs:
+        html = _set_text(html, "index-intro",
+                         f"The compass sorts what songs are about into {len(data['themes'])} "
+                         f"themes, holding {n_topics} topics across {n_songs:,} calibrated "
+                         f"songs. Each theme reads its own way.")
+
+    body = "".join(
+        '<section class="song-section song-section--full song-break">'
+        f'<h2><a class="topic-theme-link" href="/themes/{_u(theme["slug"])}">'
+        f'{_t(theme["label"])}</a></h2>'
+        f'<p class="topic-theme-count">{len(theme["topics"])} topics, '
+        f'{theme["songs"]} song credits.</p>'
+        '<ul class="topic-index-grid">'
+        + "".join(_ssr_topic_card(t) for t in theme["topics"])
+        + '</ul></section>' for theme in themes)
+    return _fill(html, "theme-list", body)
 
 
 # --- routes ----------------------------------------------------------------
@@ -367,7 +743,7 @@ def ssr_themes_index():
         canonical=canonical,
         json_ld=_faq_ld(question, answer, canonical),
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_themes_index_body, html, data))
 
 
 @router.get("/topics/{slug}", response_class=HTMLResponse)
@@ -419,7 +795,7 @@ def ssr_topic(slug: str):
         canonical=canonical,
         json_ld=[_faq_ld(question, answer, canonical), _breadcrumb_ld(crumbs)],
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_topic_body, html, data))
 
 
 @router.get("/topics/", response_class=HTMLResponse)
@@ -459,7 +835,7 @@ def ssr_topics_index():
             _breadcrumb_ld([("Topics", canonical)]),
         ],
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_topics_index_body, html, data))
 
 
 @router.get("/themes/{slug}", response_class=HTMLResponse)
@@ -502,7 +878,7 @@ def ssr_theme(slug: str):
         canonical=canonical,
         json_ld=[_faq_ld(question, answer, canonical), _breadcrumb_ld(crumbs)],
     )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_theme_body, html, data))
 
 
 # --- all-time chart pages --------------------------------------------------
