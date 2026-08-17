@@ -316,7 +316,7 @@ def _store_calibration(title: str, artist: str, chart_position: int,
             try:
                 db.rollback()
             except Exception:
-                pass
+                logger.debug("compass_agent: swallowed in _store_calibration", exc_info=True)
     try:
         from app.services.calibration_corpus import record_and_reconcile
         record_and_reconcile(
@@ -356,7 +356,7 @@ def _store_calibration(title: str, artist: str, chart_position: int,
         try:
             db.rollback()
         except Exception:
-            pass
+            logger.debug("compass_agent: swallowed in _store_calibration", exc_info=True)
 
     return song_id
 
@@ -458,7 +458,7 @@ def run_compass_agent(
                     try:
                         rec_db.rollback()
                     except Exception:
-                        pass
+                        logger.debug("compass_agent: swallowed in run_compass_agent", exc_info=True)
                 finally:
                     rec_db.close()
             calibrated_songs.append({

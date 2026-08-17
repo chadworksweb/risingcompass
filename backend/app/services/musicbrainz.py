@@ -400,6 +400,7 @@ async def _mb_get(path: str, params: dict, attempts: int = 2) -> Optional[dict]:
                 resp.raise_for_status()
                 return resp.json()
         except Exception as exc:
+            logger.debug("musicbrainz: swallowed in _mb_get", exc_info=True)
             last_exc = exc
             if attempt < attempts - 1:
                 await asyncio.sleep(2.0 * (2 ** attempt))

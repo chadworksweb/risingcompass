@@ -466,6 +466,9 @@ async def rebuild_releases(
         ).rowcount or 0
         conn.commit()
     except Exception:
+        # Cleanup guards, deliberately silent: a rollback or close that fails
+        # while we are ALREADY handling an error has nothing actionable to say,
+        # and the outer handler below logs the real failure.
         try: conn.rollback()
         except Exception: pass
         logger.exception("rebuild-releases purge failed for %s", slug)
@@ -827,6 +830,9 @@ def merge_artist(
     except HTTPException:
         raise
     except Exception:
+        # Cleanup guards, deliberately silent: a rollback or close that fails
+        # while we are ALREADY handling an error has nothing actionable to say,
+        # and the outer handler below logs the real failure.
         try: conn.rollback()
         except Exception: pass
         logger.exception("artist merge failed (%s → %s)", slug, req.target_slug)
@@ -948,6 +954,9 @@ def rename_artist(
     except HTTPException:
         raise
     except Exception:
+        # Cleanup guards, deliberately silent: a rollback or close that fails
+        # while we are ALREADY handling an error has nothing actionable to say,
+        # and the outer handler below logs the real failure.
         try: conn.rollback()
         except Exception: pass
         logger.exception("artist rename failed (%s)", slug)

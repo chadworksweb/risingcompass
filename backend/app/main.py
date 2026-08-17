@@ -245,7 +245,7 @@ async def log_api_call(request: Request, call_next):
             for k, v in qp.items():
                 ctx[k] = v[:200] if isinstance(v, str) else v
         except Exception:
-            pass
+            logger.debug("main: swallowed in log_api_call", exc_info=True)
         endpoint_ctx = getattr(request.state, "call_context", None)
         if isinstance(endpoint_ctx, dict):
             for k, v in endpoint_ctx.items():

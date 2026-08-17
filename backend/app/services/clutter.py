@@ -59,6 +59,7 @@ def record_clutter_finding(
         try:
             payload_json = json.dumps(payload, default=str)[:4000]
         except Exception:
+            logger.debug("clutter: swallowed in record_clutter_finding", exc_info=True)
             payload_json = None
 
     def _insert(session) -> int | None:

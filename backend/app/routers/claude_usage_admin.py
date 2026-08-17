@@ -4,6 +4,7 @@ Backs the "Claude Usage" admin tab. Reads from claude_api_usage, populated by
 app.services.claude_meter on every Anthropic messages.create() call.
 """
 
+import logging
 import json
 from datetime import datetime, timedelta
 
@@ -14,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import ClaudeApiUsage, Song, SongSlug, SongArtist, Artist
 from app.routers.admin import verify_admin_key
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/claude-usage", tags=["claude-usage-admin"])
 
@@ -35,7 +38,7 @@ def _day_expr(tz: str | None):
             local_ts = func.timezone(tz, func.timezone("UTC", ClaudeApiUsage.ts))
             return func.date(local_ts)
         except Exception:
-            pass
+            logger.debug("claude_usage_admin: swallowed in _day_expr", exc_info=True)
     return func.date(ClaudeApiUsage.ts)
 
 
@@ -52,6 +55,7 @@ def _attach_song_links(calls, db):
             try:
                 k = compute_canonical_key(ctx.get("title"), ctx.get("artist") or "")
             except Exception:
+                logger.debug("claude_usage_admin: swallowed in _attach_song_links", exc_info=True)
                 k = None
             if k:
                 key_to_idxs.setdefault(k, []).append(i)
@@ -335,6 +339,7 @@ def list_calls(
             try:
                 ctx = json.loads(r.context_json)
             except Exception:
+                logger.debug("claude_usage_admin: swallowed in _row", exc_info=True)
                 ctx = None
         return {
             "id": r.id,

@@ -149,7 +149,7 @@ def _song_brief(idx: int, song: Song) -> str:
             if isinstance(t, list) and t:
                 topics = ", ".join(str(x) for x in t[:3])
         except Exception:
-            pass
+            logger.debug("leit_sweep: swallowed in _song_brief", exc_info=True)
     summary = (song.charge_summary or "").strip()[:300]
     deadpan = (song.deadpan_line or "").strip()[:200]
     return (

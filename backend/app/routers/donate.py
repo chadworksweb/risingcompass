@@ -70,6 +70,7 @@ def _origin_of(url: str) -> Optional[str]:
             return None
         return f"{u.scheme}://{u.netloc}"
     except Exception:
+        logger.debug("donate: swallowed in _origin_of", exc_info=True)
         return None
 
 

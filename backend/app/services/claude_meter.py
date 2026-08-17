@@ -140,6 +140,7 @@ def _build_row(
             trimmed = {k: (v[:200] if isinstance(v, str) else v) for k, v in context.items()}
             ctx_json = json.dumps(trimmed, default=str)
         except Exception:
+            logger.debug("claude_meter: swallowed in _build_row", exc_info=True)
             ctx_json = None
     return {
         "ts": datetime.utcnow(),

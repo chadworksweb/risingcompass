@@ -358,7 +358,7 @@ async def page_view(request: Request, background_tasks: BackgroundTasks):
                 "title": str(body.get("title", ""))[:200],
             }
     except Exception:
-        pass
+        logger.debug("analyzer: swallowed in page_view", exc_info=True)
     schedule_event(background_tasks, "page_view", request, payload=payload)
     return {"ok": True}
 
@@ -1049,7 +1049,7 @@ async def _calibrate_lyrics_impl(
                                         "source": source, "recovered": True},
                                song_id=submitted_id)
             except Exception:
-                pass
+                logger.debug("analyzer: swallowed in _calibrate_lyrics_impl", exc_info=True)
             return LyricsCalibrateOut(
                 status="saved_view_on_page",
                 title=title, artist=artist, song_slug=song_slug,
@@ -1605,7 +1605,7 @@ async def calibrate_search(
                                         "source": source, "recovered": True},
                                song_id=submitted_id)
             except Exception:
-                pass
+                logger.debug("analyzer: swallowed in calibrate_search", exc_info=True)
             return LyricsCalibrateOut(
                 status="saved_view_on_page",
                 title=title, artist=artist, song_slug=song_slug,

@@ -145,7 +145,7 @@ def report(conn, data, groups):
     print("=" * 78)
     print("UNIFY SONGS -- DRY RUN MERGE REPORT")
     print("=" * 78)
-    print(f"\nSource rows: " + ", ".join(f"{s}={src_counts[s]}" for s in SOURCES)
+    print("\nSource rows: " + ", ".join(f"{s}={src_counts[s]}" for s in SOURCES)
           + f"  (total {total_members})")
     print(f"Unified songs (canonical groups): {len(groups)}")
     print(f"Rows eliminated by merge: {total_members - len(groups)}")
@@ -197,7 +197,7 @@ def report(conn, data, groups):
             print(f"    {cs:28} {n}")
 
     # song_ingestions preview
-    print(f"\n--- song_ingestions to build (1 per source row) ---")
+    print("\n--- song_ingestions to build (1 per source row) ---")
     ing = defaultdict(int)
     for ms in groups.values():
         for m in ms:
@@ -210,7 +210,7 @@ def report(conn, data, groups):
     for k, ms in groups.items():
         for m in ms:
             key_of[(m["source"], m["id"])] = k
-    print(f"\n--- reference repoint preview ---")
+    print("\n--- reference repoint preview ---")
     _repoint_preview(conn, key_of)
     _collision_preview(conn, key_of)
     print("\n" + "=" * 78)
@@ -245,7 +245,7 @@ def _repoint_preview(conn, key_of):
 
 
 def _collision_preview(conn, key_of):
-    print(f"\n--- UNIQUE-collapse collisions (rows to dedupe/combine on merge) ---")
+    print("\n--- UNIQUE-collapse collisions (rows to dedupe/combine on merge) ---")
     for spec in COLLISION_SPECS:
         t, extra = spec["table"], spec["extra"]
         cols = ", ".join(["song_source", "song_id"] + extra)

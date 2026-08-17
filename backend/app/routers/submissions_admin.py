@@ -9,6 +9,7 @@ the legacy `submitted_songs.source` workflow field now lives in that ingestion's
 lyrical_charger ingestion.
 """
 
+import logging
 import json
 from datetime import datetime, date
 
@@ -20,6 +21,8 @@ from app.database import get_db
 from app.schemas import SubmittedSongOut, SubmissionStatsOut
 from app.routers.admin import verify_admin_key
 from app.services import song_removal
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/submissions", tags=["submissions-admin"])
 
@@ -54,6 +57,7 @@ def _sub_out(row) -> dict:
         try:
             detail = json.loads(detail)
         except Exception:
+            logger.debug("submissions_admin: swallowed in _sub_out", exc_info=True)
             detail = {}
     detail = detail or {}
     return {

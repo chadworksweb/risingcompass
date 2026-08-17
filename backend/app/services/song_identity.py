@@ -106,7 +106,7 @@ def extract_primary_artist(artist):
         if entries:
             return entries[0].get("name") or ""
     except Exception:
-        pass
+        logger.debug("song_identity: swallowed in extract_primary_artist", exc_info=True)
     return artist
 
 
@@ -137,6 +137,7 @@ def clean_artist_set_key(artist):
         from app.services.artist_linker import parse_artist_string
         entries = parse_artist_string(_collapse_and_connector(artist or ""))
     except Exception:
+        logger.debug("song_identity: swallowed in clean_artist_set_key", exc_info=True)
         entries = []
     primaries = []
     for e in entries:
@@ -160,6 +161,7 @@ def primary_artist_token_set(artist):
         from app.services.artist_linker import parse_artist_string
         entries = parse_artist_string(artist or "")
     except Exception:
+        logger.debug("song_identity: swallowed in primary_artist_token_set", exc_info=True)
         entries = []
     toks = set()
     for e in entries:
@@ -381,6 +383,7 @@ def resolve_song_identity(db, title, artist, lyrics=None) -> Resolution:
                     == "true"
                 )
             except Exception:
+                logger.debug("song_identity: swallowed in resolve_song_identity", exc_info=True)
                 shared_enabled = True  # fail open
             if shared_enabled:
                 from app.services.feeder_clean import clean_title_artist
@@ -467,6 +470,7 @@ def _trgm_resolve(db, title, artist, key, clean_key, autolink=False):
             {"nt": nt, "na": na, "ck": clean_key, "k": key},
         ).fetchall()
     except Exception:
+        logger.debug("song_identity: swallowed in _trgm_resolve", exc_info=True)
         return None  # pg_trgm unavailable -> no fuzzy rung
     candidates = []
     for sid, tsim, asim in rows:

@@ -1,5 +1,6 @@
 """Admin endpoints for API client metering — clients, keys, usage."""
 
+import logging
 import json
 from datetime import datetime, timedelta
 
@@ -12,6 +13,8 @@ from app.database import get_db
 from app.models import ApiClient, ApiClientKey, ApiCallLog
 from app.routers.admin import verify_admin_key
 from app.services.api_clients import issue_key
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/api-clients", tags=["api-clients-admin"])
 
@@ -193,6 +196,7 @@ def client_calls(
             try:
                 ctx = json.loads(r.context_json)
             except Exception:
+                logger.debug("api_clients_admin: swallowed in client_calls", exc_info=True)
                 ctx = None
         calls.append({
             "id": r.id, "ts": r.ts.isoformat() if r.ts else None,

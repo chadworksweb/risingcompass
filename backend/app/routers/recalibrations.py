@@ -434,11 +434,11 @@ def list_proposals(
         q = q.filter(SongRecalibrationProposal.status == status)
     if pipeline:
         if pipeline not in VALID_PIPELINES:
-            raise HTTPException(400, f"Invalid pipeline")
+            raise HTTPException(400, "Invalid pipeline")
         q = q.filter(SongRecalibrationProposal.pipeline == pipeline)
     if lens:
         if lens not in VALID_LENSES:
-            raise HTTPException(400, f"Invalid lens")
+            raise HTTPException(400, "Invalid lens")
         q = q.filter(SongRecalibrationProposal.lens == lens)
     rows = q.order_by(SongRecalibrationProposal.created_at.desc()).limit(limit).all()
     return [_proposal_to_out(p, db) for p in rows]

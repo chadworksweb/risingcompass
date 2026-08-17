@@ -110,7 +110,7 @@ def _us_region(request: Request, ip: str | None, country: str | None) -> str | N
                 return sub.strip().upper()
         except Exception:
             # Private/local/unknown IP, or address-not-found in the city DB.
-            pass
+            logger.debug("geo: swallowed in _us_region", exc_info=True)
     return None
 
 
@@ -128,4 +128,5 @@ def geo_country(request: Request) -> GeoOut:
         return GeoOut(country=country, region=_us_region(request, ip, country))
     except Exception:
         # Private/local/unknown IP, or address-not-found in the DB.
+        logger.debug("geo: swallowed in geo_country", exc_info=True)
         return GeoOut(country=None)

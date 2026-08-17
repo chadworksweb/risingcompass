@@ -156,11 +156,6 @@
 }
 .account-consent strong { color: var(--rc-text); }
 
-.account-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .account-btn {
   margin-top: 1.25rem;
   background: var(--rc-accent-subtle);

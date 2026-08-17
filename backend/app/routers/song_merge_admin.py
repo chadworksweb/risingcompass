@@ -261,6 +261,7 @@ def list_merge_events(environment: str = "prod", limit: int = 100,
         try:
             rewrites = json.loads(r.rewrites_json) if r.rewrites_json else None
         except Exception:
+            logger.debug("song_merge_admin: swallowed in list_merge_events", exc_info=True)
             rewrites = None
         out.append({
             "id": r.id, "occurred_at": _iso(r.occurred_at), "actor": r.actor,

@@ -62,6 +62,7 @@ def _stream_out(row) -> dict:
         try:
             detail = json.loads(detail)
         except Exception:
+            logger.debug("stream: swallowed in _stream_out", exc_info=True)
             detail = {}
     detail = detail or {}
     return {
@@ -267,6 +268,7 @@ def promote_stream_song(song_id: int, body: StreamPromoteIn, db: Session = Depen
         try:
             detail = json.loads(detail)
         except Exception:
+            logger.debug("stream: swallowed in promote_stream_song", exc_info=True)
             detail = {}
     detail = detail or {}
     if detail.get("status") == "promoted":

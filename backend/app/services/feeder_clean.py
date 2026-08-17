@@ -27,10 +27,13 @@ The 2026-06-15 miss this resolves:
          extraction; previously only "Official MV"-class titles did)
 """
 
+import logging
 import re
 
 from app.services.song_search import normalize_for_search
 from app.services.artist_linker import parse_artist_string
+
+logger = logging.getLogger(__name__)
 
 
 # --- closed token lists ---------------------------------------------------- #
@@ -140,7 +143,7 @@ def _primary(artist):
         if entries:
             return entries[0].get("name") or ""
     except Exception:
-        pass
+        logger.debug("feeder_clean: swallowed in _primary", exc_info=True)
     return artist
 
 

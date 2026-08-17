@@ -49,6 +49,7 @@ def _loads(s: str | None):
     try:
         return json.loads(s)
     except Exception:
+        logger.debug("clutter_admin: swallowed in _loads", exc_info=True)
         return s
 
 

@@ -160,6 +160,7 @@ def verify_admin_link_token(token: str) -> Optional[str]:
     try:
         path = base64.urlsafe_b64decode((b64 + "=" * (-len(b64) % 4)).encode()).decode()
     except Exception:
+        logger.debug("auth: swallowed in verify_admin_link_token", exc_info=True)
         return None
     # Same-origin admin paths only (defense-in-depth vs open redirect).
     if not path.startswith("/api/admin/") or path.startswith("//"):

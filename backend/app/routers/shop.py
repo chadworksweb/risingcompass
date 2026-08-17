@@ -73,6 +73,7 @@ def _origin_of(url: str) -> Optional[str]:
             return None
         return f"{u.scheme}://{u.netloc}"
     except Exception:
+        logger.debug("shop: swallowed in _origin_of", exc_info=True)
         return None
 
 
@@ -375,6 +376,7 @@ async def calculate_shipping(request: Request):
     try:
         session = await run_in_threadpool(shop_stripe.retrieve_session, session_id)
     except Exception:
+        logger.debug("shop: swallowed in calculate_shipping", exc_info=True)
         return {"type": "reject", "errorMessage": "Checkout session not found."}
 
     meta = session.metadata or {}
@@ -384,6 +386,7 @@ async def calculate_shipping(request: Request):
     try:
         cart = json.loads(meta.get("cart_items") or "[]")
     except Exception:
+        logger.debug("shop: swallowed in calculate_shipping", exc_info=True)
         return {"type": "reject", "errorMessage": "Could not read your cart."}
 
     # Build Printify line items from the cart (all shop products are Printify).
@@ -521,6 +524,7 @@ def _push_order_to_printify(order_id: int) -> None:
                 order.printify_error = str(e)[:300]
                 db.commit()
         except Exception:
+            logger.debug("shop: swallowed in _push_order_to_printify", exc_info=True)
             db.rollback()
     except Exception:
         logger.exception("shop: unexpected error pushing order %s to Printify", order_id)

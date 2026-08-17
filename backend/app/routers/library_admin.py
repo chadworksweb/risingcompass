@@ -7,6 +7,7 @@ There is no library_songs row. Responses are rebuilt from songs + the
 catalog_backfill ingestion.
 """
 
+import logging
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -22,6 +23,8 @@ from app.services.artist_linker import parse_artist_string, link_song_artists
 from app.services.song_identity import compute_canonical_key
 from app.services.song_sync import store_calibrated_song
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/admin/library", tags=["library-admin"])
 
 
@@ -36,7 +39,7 @@ def _catalog_source(db: Session, song_id: int) -> str:
         try:
             return (json.loads(det) or {}).get("source") or "manual"
         except Exception:
-            pass
+            logger.debug("library_admin: swallowed in _catalog_source", exc_info=True)
     return "manual"
 
 

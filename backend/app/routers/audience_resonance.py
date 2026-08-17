@@ -345,6 +345,7 @@ def submit(body: SubmitIn, db: Session = Depends(get_db),
         try:
             sliced = json.loads(job.slice_json)
         except Exception:
+            logger.debug("audience_resonance: swallowed in submit", exc_info=True)
             sliced = None
     if sliced and sliced.get("status") == "done":
         prop_true = sliced.get("prop_true", 0)

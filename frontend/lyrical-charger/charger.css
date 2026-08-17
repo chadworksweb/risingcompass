@@ -294,10 +294,14 @@ main {
   display: block;
 }
 
-/* Meta fields (title/artist) */
+/* Meta fields (title/artist). Single-column at every width -- artist rows stack
+   full-width. This used to be declared three times: `1fr 1fr` here, an
+   unconditional `1fr` override 166 lines below that always won, and a 480px
+   breakpoint setting `1fr` again on top of a value that already applied
+   everywhere. The two-column layout had not rendered in any of them. */
 .meta-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
@@ -458,11 +462,6 @@ main {
   font-family: inherit;
   font-size: inherit;
   font-weight: 600;
-}
-
-/* Single-column grid — artist rows stack full-width */
-.meta-fields {
-  grid-template-columns: 1fr;
 }
 
 /* Lyrics textarea */
@@ -1285,10 +1284,6 @@ main {
 }
 
 @media (max-width: 480px) {
-  .meta-fields {
-    grid-template-columns: 1fr;
-  }
-
   .hero-headline {
     font-size: 1.3rem;
   }

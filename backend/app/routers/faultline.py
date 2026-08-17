@@ -43,6 +43,7 @@ def _loads(s: str | None):
     try:
         return json.loads(s)
     except Exception:
+        logger.debug("faultline: swallowed in _loads", exc_info=True)
         return s  # surface raw text rather than hide a malformed blob
 
 
