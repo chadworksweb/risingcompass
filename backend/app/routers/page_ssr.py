@@ -251,12 +251,37 @@ def _set_html(html: str, elem_id: str, inner: str) -> str:
     """Replace the inner markup of the element bearing this id, whatever it
     holds. `_fill` refuses a non-empty element on purpose; this is for the
     nodes that ship with a placeholder inside (the prose lanes' "Loading...")
-    where replacing IS the intent."""
-    pattern = re.compile(
-        r'(<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*>).*?(</(?P=tag)>)',
-        re.S,
+    where replacing IS the intent.
+
+    Finds the element's OWN closing tag by counting depth, rather than taking
+    the first one a lazy `.*?` reaches. That shortcut is correct exactly until
+    the replacement contains a child of the same tag name -- at which point a
+    re-run matches inside its own previous output and eats it. The shop grid
+    is a div of divs, and the second bake grew the file by a card instead of
+    replacing it. Anything baked onto disk gets re-run, so this has to be
+    re-entrant.
+    """
+    open_re = re.compile(
+        r'<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*?(?P<selfclose>/?)>'
     )
-    return pattern.sub(lambda m: m.group(1) + inner + m.group(3), html, count=1)
+    m = open_re.search(html)
+    if m is None or m.group("selfclose"):
+        return html
+    tag = m.group("tag")
+    start = m.end()
+    depth = 1
+    scan = re.compile(r"<(/?)" + re.escape(tag) + r"\b[^>]*?(/?)>", re.I)
+    pos = start
+    while depth:
+        nxt = scan.search(html, pos)
+        if nxt is None:
+            return html  # unbalanced markup: change nothing
+        pos = nxt.end()
+        if nxt.group(1):
+            depth -= 1
+        elif not nxt.group(2):
+            depth += 1
+    return html[:start] + inner + html[nxt.start():]
 
 
 def _declass(html: str, elem_id: str, cls: str) -> str:
@@ -279,6 +304,21 @@ def _prose_html(prose: str) -> str:
     chain both song-page prose lanes use client-side."""
     parts = [p.strip() for p in re.split(r"\n{2,}", prose)]
     return "".join(f"<p>{_t(p)}</p>" for p in parts if p)
+
+
+def _hide(html: str, elem_id: str) -> str:
+    """Add `hidden` to the element bearing this id. The inverse of `_show`, for
+    the loading rows the client hides once it has painted."""
+    pattern = re.compile(
+        r'(<[a-zA-Z0-9]+[^>]*\bid="' + re.escape(elem_id) + r'")([^>]*?)(\s*>)'
+    )
+
+    def _sub(m):
+        if re.search(r"\bhidden\b", m.group(2)):
+            return m.group(0)
+        return m.group(1) + m.group(2) + " hidden" + m.group(3)
+
+    return pattern.sub(_sub, html, count=1)
 
 
 def _t(value) -> str:
@@ -755,6 +795,76 @@ def _ssr_theme_body(html: str, d: dict) -> str:
         html = _show(html, "theme-related")
 
     return html
+
+
+def _artists_letter_key(name: str) -> str:
+    first = (name or "").strip()[:1].upper()
+    return first if "A" <= first <= "Z" else "#"
+
+
+def _ssr_artists_index_body(html: str, data: dict) -> str:
+    """The A-Z artist index. Mirrors the inline script in artists/index.html.
+
+    This page had 47 characters of raw body text -- the least of any indexable
+    page on the site -- while rendering roughly 1,500 links to readers. It is
+    the front door to every artist page, so it is the one worth baking most.
+    """
+    artists = data.get("artists") or []
+    if not artists:
+        return html
+
+    groups: dict[str, list] = {}
+    for a in artists:
+        groups.setdefault(_artists_letter_key(a.get("name")), []).append(a)
+    # A-Z, then '#' last for the names that do not start with a letter.
+    keys = sorted(groups, key=lambda k: (k == "#", k))
+
+    html = _set_html(html, "artists-letter-nav", "".join(
+        f'<a href="#letter-{"hash" if k == "#" else k}" '
+        f'class="artists-letter-nav-link">{_t(k)}</a>' for k in keys))
+    html = _show(html, "artists-letter-nav")
+
+    body = []
+    for k in keys:
+        sec = f'letter-{"hash" if k == "#" else k}'
+        names = "".join(
+            f'<li><a class="artists-index-link" href="/artists/{_u(a["slug"])}">'
+            f'{_t(a.get("name"))}</a></li>' for a in groups[k])
+        body.append(
+            f'<section class="artists-index-group" id="{sec}" '
+            f'aria-label="Artists starting with {_esc(k)}">'
+            f'<h2 class="artists-index-letter">{_t(k)}</h2>'
+            f'<ul class="artists-index-names">{names}</ul></section>')
+    html = _set_html(html, "artists-index-list", "".join(body))
+    # The client hides this the moment it paints; a baked page has already
+    # painted, so shipping "Loading artists..." would be a lie in the markup.
+    return _hide(html, "artists-index-loading")
+
+
+def _ssr_shop_body(html: str, data: dict) -> str:
+    """The shop grid. Mirrors `renderGrid` in shop/shop.js, minus the colour
+    swatches -- those are hover/tap previews with nothing in them to read.
+
+    Product LINKS are baked, but note they point at `/shop/product.html?p=slug`.
+    A query-string URL cannot be baked per product (one file, many products),
+    so the detail pages stay client-only until the shop moves to a path-based
+    URL. That is a routing change, not a rendering one.
+    """
+    products = data.get("products") or []
+    if not products:
+        return html
+    cards = []
+    for p in products:
+        price = ("" if p.get("price") is None
+                 else f'<div class="shop-card__price">from ${float(p["price"]):.2f}</div>')
+        img = (f'<img class="shop-card__img" src="{_esc(p.get("image_url") or "")}" '
+               f'alt="{_esc(p.get("title") or "")}" loading="lazy">')
+        cards.append(
+            f'<a class="shop-card" href="/shop/product.html?p={_u(p.get("slug"))}">'
+            f'{img}<div class="shop-card__body">'
+            f'<div class="shop-card__title">{_t(p.get("title"))}</div>'
+            f'{price}</div></a>')
+    return _set_html(html, "shop-grid", "".join(cards))
 
 
 def _ssr_topics_index_body(html: str, data: dict) -> str:

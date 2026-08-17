@@ -174,6 +174,8 @@ BAKED_FILES=(
     frontend/charts/streamed-all-time/index.html
     frontend/charts/most-streamed-albums/index.html
     frontend/charts/best-selling-albums/index.html
+    frontend/artists/index.html
+    frontend/shop/index.html
     frontend/llms.txt
     frontend/llms-full.txt
 )
@@ -186,6 +188,10 @@ bake_chart_statics() {  # $1 = repo root
     # Run from backend/ so pydantic-settings finds backend/.env (the bakers
     # import app.config). Output paths resolve independent of CWD.
     ( cd "$repo/backend" && "$py" scripts/bake_chart_ssr.py ) || { echo "(chart bake failed -- skipping)"; return 0; }
+    # Static-page bodies (the A-Z artist index, the shop grid). Same lane as
+    # the chart bake: these pages are served off disk by nginx, so a body they
+    # do not carry is a body no crawler sees. Fail-soft like its siblings.
+    ( cd "$repo/backend" && "$py" scripts/bake_static_ssr.py ) || { echo "(static bake failed -- skipping)"; return 0; }
     ( cd "$repo/backend" && "$py" scripts/bake_llms.py )      || { echo "(llms bake failed -- skipping)"; return 0; }
     git -C "$repo" add -- "${BAKED_FILES[@]}" 2>/dev/null || true
     if git -C "$repo" diff --cached --quiet -- "${BAKED_FILES[@]}"; then
