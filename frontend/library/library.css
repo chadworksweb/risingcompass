@@ -84,6 +84,13 @@
   margin: 1.5rem 0 0;
 }
 
+/* Page title. The content box comes from .page-title-row in main.css (the h1
+   sits outside #main and would otherwise render flush to the viewport edge);
+   this only supplies the colour, since artists.css is not loaded here. */
+.lib-title {
+  color: var(--rc-text-bright);
+}
+
 /* Intro */
 .lib-intro {
   max-width: var(--rc-max-width, 1100px);
