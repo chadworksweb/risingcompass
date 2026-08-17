@@ -1667,8 +1667,5 @@ const App = (() => {
   };
 })();
 
-// Tier popup moved to /js/tier-popup.js. Loaded only on pages that show
-// the .charge-legend-seg buttons (currently /methodology/).
-
 // Boot
 document.addEventListener('DOMContentLoaded', App.init);

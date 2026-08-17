@@ -1,8 +1,10 @@
 /* ============================================================
    Methodology page — supplements main.css
    Existing classes used: .methodology-content, .method-block,
-   .method-block-ruled, .method-block-label, .charge-legend,
-   .charge-legend-seg, .tier-popup, .rubric-q, .key-points
+   .method-block-ruled, .method-block-label, .key-points
+   (.charge-legend*, .tier-popup* and .rubric-q were listed here until
+   2026-08-17. The tier-popup feature they belonged to had lost its markup and
+   its loader; the styles were removed with it.)
    ============================================================ */
 
 .m-main {
