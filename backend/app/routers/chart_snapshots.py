@@ -36,7 +36,7 @@ from sqlalchemy.orm import Session
 from app.auth import verify_reading_cron_key
 from app.constants import AGGREGATING_CHART_SLUGS, chart_source_label
 from app.database import SessionLocal, get_db
-from app.models import AgentDraft, ChartSnapshot, Song
+from app.models import AgentDraft, ChartSnapshot, Song, UnifiedReading
 from app.schemas import ReadingSongOut
 from app.services.agents.chart_source import (
     fetch_itunes_songs,
@@ -217,6 +217,30 @@ def get_calendar_charts(db: Session = Depends(get_db)):
         "sub": "Spotify Top 50 - USA",
         "source": "daily",
     }]
+
+    # The Unified Charge Chart, second in the list. DERIVED, so it is not in
+    # CHART_REGISTRY and the loop below can never find it: it has no fetcher and
+    # writes no ChartSnapshot rows. It is appended explicitly, and only once it
+    # has a PUBLISHED reading, which mirrors the "has painted data" gate the
+    # Tier-2 loop applies to snapshot charts. On this chart publication means an
+    # editorial was supplied (see routers/unified.py), so the gate is stricter
+    # than the others by design.
+    #
+    # source "unified" is its own value, distinct from "daily" and "chart",
+    # because its data comes from neither the drift endpoints nor the snapshot
+    # endpoints. Every consumer (homepage toggle, Calendar) branches on it.
+    has_unified = db.query(
+        db.query(UnifiedReading.id)
+        .filter(UnifiedReading.published.is_(True))
+        .exists()
+    ).scalar()
+    if has_unified:
+        charts.append({
+            "key": "unified",
+            "label": "Unified",
+            "sub": "Every daily chart, weighted and summed",
+            "source": "unified",
+        })
     for key, entry in CHART_REGISTRY.items():
         slug = entry["slug"]
         if slug in AGGREGATING_CHART_SLUGS:        # Tier 1 -- it IS the charge

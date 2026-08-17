@@ -142,6 +142,10 @@ const API = (() => {
     getUnifiedCurrent: () => get('/api/compass/unified/current'),
     getUnifiedReading: (date) => get(`/api/compass/unified/reading/${date}`),
     getUnifiedDailyChart: (days) => get(`/api/compass/unified/daily-chart${days ? '?days=' + days : ''}`),
+    // Calendar family, mirroring getChartYears / getChartYearDates so the
+    // Calendar's source adapter swaps in without a second renderer.
+    getUnifiedYears: () => get('/api/compass/unified/years'),
+    getUnifiedYearDates: (year) => get(`/api/compass/unified/years/${year}/dates`),
     // Charger Activity feeds (public). overview = all three at once for first paint.
     getChargerActivityOverview: (limit = 12) => get(`/api/charger-activity/overview?limit=${limit}`),
     getChargerActivityFeed: (feed, { window, limit = 20, offset = 0 } = {}) => {

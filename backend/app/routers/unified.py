@@ -21,6 +21,7 @@ import logging
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.auth import verify_admin_or_lyrics_key
@@ -46,6 +47,7 @@ from app.services.artist_utils import (
     normalize_artist_name,
     resolve_artist_slugs,
 )
+from app.services.charge_calc import degree_to_charge
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +226,55 @@ def get_current_unified(db: Session = Depends(get_db)):
     if not row:
         raise HTTPException(status_code=404, detail="No published unified reading")
     return _shape(db, row)
+
+
+@public_router.get("/years")
+def get_unified_years(db: Session = Depends(get_db)):
+    """Years with published unified readings, each with a year-mean aggregate.
+
+    Mirrors /api/drift/years and /api/compass/chart/{key}/years so the Calendar
+    sizes its bounds and colours year and decade tiles from the same shape.
+    """
+    rows = (
+        db.query(extract("year", UnifiedReading.date).label("yr"),
+                 func.avg(UnifiedReading.compass_degree).label("avg_deg"))
+        .filter(UnifiedReading.published.is_(True))
+        .group_by("yr")
+        .order_by("yr")
+        .all()
+    )
+    out = []
+    for yr, avg_deg in rows:
+        deg = round(float(avg_deg), 1)
+        out.append({"year": int(yr), "compass_degree": deg,
+                    "charge_level": degree_to_charge(deg)})
+    return out
+
+
+@public_router.get("/years/{year}/dates")
+def get_unified_year_dates(year: int, db: Session = Depends(get_db)):
+    """Per-day published unified aggregates for one year.
+
+    Same shape as /api/drift/years/{year}/dates so the Calendar swaps data
+    sources without a second renderer.
+    """
+    rows = (
+        db.query(UnifiedReading.date,
+                 UnifiedReading.compass_degree,
+                 UnifiedReading.charge_level)
+        .filter(UnifiedReading.published.is_(True),
+                UnifiedReading.date >= date(year, 1, 1),
+                UnifiedReading.date <= date(year, 12, 31))
+        .order_by(UnifiedReading.date)
+        .all()
+    )
+    return {
+        "dates": [r[0].isoformat() for r in rows],
+        "readings": [
+            {"date": r[0].isoformat(), "compass_degree": r[1], "charge_level": r[2]}
+            for r in rows
+        ],
+    }
 
 
 @public_router.get("/reading/{reading_date}", response_model=UnifiedReadingOut)

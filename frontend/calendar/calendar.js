@@ -36,17 +36,28 @@
   }
 
   // --- Data-source adapter: same calendar, swappable chart behind it ---
-  // For a 'chart' source the calendar key IS the chart-snapshot registry key.
+  // Three sources, each with its own endpoint family:
+  //   'daily'   -> the drift endpoints (Spotify Top 50 = the daily reading)
+  //   'chart'   -> the chart-snapshot endpoints; the calendar key IS the
+  //                CHART_REGISTRY key
+  //   'unified' -> the Unified Charge Chart. Its own family, because it is
+  //                DERIVED: no snapshot rows and no drift lineage, so neither
+  //                of the other two can serve it. It also paints only days
+  //                whose editorial has been supplied, since on that chart
+  //                publication IS the editorial.
   function fetchYears() {
     var c = chartCfg();
+    if (c.source === 'unified') return API.getUnifiedYears();
     return c.source === 'chart' ? API.getChartYears(curChart) : API.getDriftYears();
   }
   function fetchYearDates(year) {
     var c = chartCfg();
+    if (c.source === 'unified') return API.getUnifiedYearDates(year);
     return c.source === 'chart' ? API.getChartYearDates(curChart, year) : API.getYearDates(year);
   }
   function fetchReading(date) {
     var c = chartCfg();
+    if (c.source === 'unified') return API.getUnifiedReading(date);
     return c.source === 'chart' ? API.getChartReading(curChart, date) : API.getReading(date);
   }
 

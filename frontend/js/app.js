@@ -95,7 +95,9 @@ const App = (() => {
       trajPanelHandle = DailyChargePanel.mount(trajPanel, {
         // The Daily tab follows the homepage chart toggle: the closure reads
         // the live selection and switchHomeChart() calls reloadDaily().
-        loadDaily: () => homeChart === 'spotify' ? API.getDailyChart() : API.getChartDailyChart(homeChart),
+        loadDaily: () => homeChart === 'spotify' ? API.getDailyChart()
+          : homeChart === 'unified' ? API.getUnifiedDailyChart()
+          : API.getChartDailyChart(homeChart),
         // Anomaly markers are daily-reading facts; other charts load none
         // (returning {} clears the previous chart's markers on reload).
         loadAnomalies: () => homeChart === 'spotify' ? loadChartAnomalies() : Promise.resolve({}),
@@ -551,8 +553,15 @@ const App = (() => {
         renderHomeChartEmpty(true);
       }
     } else {
+      // The Unified Charge Chart is DERIVED, so it has no chart-snapshot row to
+      // fetch. Its payload is deliberately shaped like a snapshot (date,
+      // compass_degree, charge_level, contamination_count, editorial, songs) so
+      // renderHomeChartReading takes it unchanged; only the fetch differs.
       let snap = null, failed = false;
-      try { snap = await API.getChartSnapshot(key); } catch (e) { failed = true; }
+      try {
+        snap = key === 'unified' ? await API.getUnifiedCurrent()
+                                 : await API.getChartSnapshot(key);
+      } catch (e) { failed = true; }
       unswitch(rc); unswitch(ec);
       if (snap && (snap.songs || []).length) {
         renderHomeChartReading(snap);
