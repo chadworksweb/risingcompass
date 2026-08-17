@@ -84,10 +84,19 @@ LIST_CADENCE_LIMIT = 2
 
 # What the lens cannot have perceived. Kept tight on purpose: only words whose
 # musical sense dominates, so a metaphorical use is rare enough that rephrasing
-# is cheaper than a carve-out. ("sound" and "harmony" are deliberately absent --
-# their everyday meanings are far more common.)
+# is cheaper than a carve-out. ("sound", "harmony" and "arrangement" are
+# deliberately absent -- their everyday meanings are far more common.)
+#
+# The lens text names "sound ... arrangement" among the things it cannot see, and
+# this list still does not carry them, on purpose. The lens rule is SEMANTIC (do
+# not describe how the album sounds); this guard is a WORD match, and it can only
+# be as wide as the words whose musical reading is the likely one. "Arrangement"
+# came off the list 2026-08-17 after it blocked a legitimate non-musical use: RC's
+# own live prose exemplars use it that way twice ("a punishing arrangement",
+# "arrangements that run on human depletion"), which is the same everyday-meaning-
+# dominates test that kept "sound" off from the start.
 _REVIEW_TERMS = (
-    "production", "produced", "instrumentation", "arrangement", "vocal",
+    "production", "produced", "instrumentation", "vocal",
     "vocals", "vocalist", "melody", "melodic", "guitar", "guitars", "drums",
     "bass", "synth", "synths", "tempo", "falsetto", "riff", "riffs",
     "mixing", "mastering", "sonics", "timbre",

@@ -822,6 +822,20 @@ each track and aggregating.
 (above) is the public one: it scores each track from pasted lyrics and takes the
 MEAN. This one READS THE RELEASE as a work, against its own instrument.
 
+**They converge, in a fixed order (Chad's ruling, 2026-08-17).** Fine-tune and
+APPROVE this terminal calibrator first, THEN adapt it into the public Album
+Charger. Do not repoint the charger at the lens as an interim step, and do not
+retune `album_synthesis.py::ALBUM_VOICE` -- it is superseded and retires with
+that rewrite. Safe to park because `album_charger.disabled` is absent from
+`system_flags` and the flag is fail-closed, so the charger is OFF in prod. Its
+one hazard is latent, not live: `routers/album_charger.py` overwrites an
+existing release's `charge_value` / `rubric_color` / all four prose fields /
+`deadpan_line` / `topics` unconditionally -- no guard, no archive, no run logged
+-- so charging a release that carries a v3 lens reading would silently replace
+it with the track-charge mean. **If the charger is ever re-enabled before the
+rewrite lands, guard that overwrite first** (refuse when the release has a
+`calibration_runs` row keyed to `release_id`).
+
 - **The instrument is the `rc-album` lens**, a third LEC lens and RC's second
   (sibling to `rc-lyric`; `cc-essay` is the other). It is the first lens whose
   METHOD differs in kind rather than vocabulary: its own procedure, its own JSON

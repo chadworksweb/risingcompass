@@ -50,31 +50,65 @@ TIER_LABELS = {
 }
 
 
-# ============================== QUARANTINED ==============================
-# PRE-RETUNE BAN-WALL, still live on the Album Charger's synthesis path.
+# ====================== SUPERSEDED -- DO NOT INVEST ======================
+# The rc-album v3 lens replaces this. Retire it with the charger rewrite.
 #
-# The 2026-07-09 editorial voice retune (RC-VOICE-RETUNE-STANDARD.md, archived)
-# explicitly scoped "the terminal-supplied prose (charge_summary, editorial,
-# album synthesis)" alongside the two server prose prompts, on the finding that
-# long negative "never" lists fail: a ban is a soft constraint against a hard
-# training prior, so banning one construction just promotes the next one. The
-# replacement was a short POSITIVE spec + gold exemplars + a code-side validator.
+# WHAT IT DRIVES TODAY: the Album Charger's server-side synthesis, and nothing
+# else. RC has two album readers. This is the public one, which scores each
+# track from pasted lyrics and takes the MEAN. The rc-album v3 lens (the
+# terminal album read, `write_album_reading.py`) does NOT use this constant and
+# never did -- its voice lives in the album rubric's METHOD half, which the
+# operator reads at the album gate.
 #
-# The retune reached listener_effects_prose.py and societal_effects_prose.py on
-# 2026-07-10 (870b3c3). This constant has not been touched since 2026-05-26
-# (6051772, the Album Charger build) -- ~32 prohibitions, ZERO exemplars.
+# CHAD'S RULING, 2026-08-17. The public Album Charger does not come back on the
+# old mean-plus-synthesis model, and it does not get patched into the lens
+# either. The order is: fine-tune and APPROVE the terminal v3 album calibrator
+# first, then adapt THAT into the public charger. So this file has a defined
+# end, and the trigger is an approval that has not happened yet.
 #
-# NOTE (corrected 2026-08-14): this was flagged alongside a claim that the
-# missing retune explains weak summary prose. That claim did not survive the
-# corpus -- albums read under the un-retuned block produced accepted summaries.
-# The drift is real; the causal story was not.
+# WHAT THAT MEANS FOR ANYONE READING THIS:
+#   - Do not retune, replace, or "fix the voice" of the block below. Effort
+#     spent here is spent on a constant with a scheduled death.
+#   - Do not repoint the charger at the lens as an interim step. Two album
+#     readers that overwrite each other is the known status quo; a half-migration
+#     makes it three.
+#   - `RISING-COMPASS-ALBUM-V3.md` section 2 says "Replace generate_album_
+#     synthesis with a call to LEC at artifact_type='album'". That replacement
+#     is still the destination; it is sequenced AFTER the terminal approval, not
+#     abandoned.
 #
-# Its sibling on the same footing is
-# libra-engine-compass backend/app/services/agents/lec_compass_agent_rubric.py
-# :: SUMMARY_VOICE_RULES, which drives charge_summary for every song and album.
+# EXPOSURE IS ZERO, AND THAT IS WHY THIS CAN WAIT. `album_charger.disabled` is
+# ABSENT from `system_flags` and the flag is fail-closed, so the Album Charger
+# is off in prod (the whole Lyrical Charger is disabled as well). The live
+# hazard it would otherwise carry -- `routers/album_charger.py` overwrites an
+# existing release's reading fields unconditionally, with no guard, no archive
+# and no run logged, so charging a release that carries a v3 lens reading would
+# silently replace it with the mean -- is LATENT, not live. If the charger is
+# ever re-enabled BEFORE the rewrite lands, that overwrite needs a guard first
+# (refuse when the release has a `calibration_runs` row keyed to `release_id`).
 #
-# Scope note: this drives the ALBUM CHARGER's server-side synthesis only. The
-# rc-album v3 lens (the terminal album read) does not use it.
+# THE VOICE DRIFT, recorded but no longer actionable. The 2026-07-09 editorial
+# voice retune (RC-VOICE-RETUNE-STANDARD.md, archived) explicitly scoped "the
+# terminal-supplied prose (charge_summary, editorial, album synthesis)" on the
+# finding that long negative "never" lists fail: a ban is a soft constraint
+# against a hard training prior, so banning one construction just promotes the
+# next one. The replacement was a short POSITIVE spec + gold exemplars + a
+# code-side validator. It reached listener_effects_prose.py and
+# societal_effects_prose.py on 2026-07-10 (870b3c3) and never reached this
+# constant, untouched since 2026-05-26 (6051772) -- ~32 prohibitions, ZERO
+# exemplars.
+#
+# WHAT THAT DRIFT IS NOT EVIDENCE OF (corrected 2026-08-14). It was first
+# flagged alongside a claim that the missing retune explains weak album summary
+# prose. The corpus disproves it: releases read under this same un-retuned
+# block produced summaries Chad accepted. A stale spec and a weak output were
+# correlated in one instance and the cause was asserted from that. Real
+# finding, wrong mechanism. Do not cite it as a standing explanation.
+#
+# NOT the same case as libra-engine-compass ::SUMMARY_VOICE_RULES, which the
+# 2026-08-14 note paired with this one. That constant was CARVED, not retired:
+# `_render_summary_voice` uses it as the universal base for both lenses, and it
+# is live and load-bearing. This one is genuinely superseded. See its own header.
 # =========================================================================
 ALBUM_VOICE = """You are writing the album-level reading on a Rising Compass album page.
 
