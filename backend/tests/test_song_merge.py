@@ -74,6 +74,77 @@ def test_merge_repoints_and_deletes():
     assert rw["song_slugs"] == 1 and rw["chart_appearances"] == 1 and rw["song_ingestions"] == 1
 
 
+def test_merge_carries_the_whole_panel_and_published_slots():
+    """The two failures found on 2026-08-17, both silent:
+
+    1. A merge into a STUB dropped psyche_facts / effects_pl (and left the stub's
+       permanent no-lyrics hold standing over a real reading), so the row looked
+       calibrated while the Psyche Facts panel was gone.
+    2. unified_reading_songs (CASCADE) and chart_snapshots (SET NULL) were not
+       repointed, so a merge quietly shrank a PUBLISHED unified day and orphaned
+       published chart positions.
+    """
+    eng = _build_engine()
+    with eng.begin() as c:
+        # target = stub carrying the permanent hold; source = today's real reading
+        c.execute(text(
+            "INSERT INTO songs (id,title,artist,canonical_key,rubric_color,lyrics_unavailable) "
+            "VALUES (10,'Leo Leo Remix','Bulin 47','k1',NULL,1)"))
+        c.execute(text(
+            "INSERT INTO songs (id,title,artist,canonical_key,rubric_color,charge_value,"
+            "psyche_facts,effects_pl,lyrics_unavailable) "
+            "VALUES (11,'Bulin 47 - Leo Leo Remix (Video Oficial)','Bulin 47 Oficial','k2',"
+            "'green',-7,'{\"purpose\":\"p\"}','[\"fires-you-up\"]',0)"))
+        c.execute(text("INSERT INTO unified_readings (id,date,compass_degree,charge_level,contamination_count,"
+                       "song_count,sources_included,sources_excluded,source_count,weights_version,weights,composed_at) "
+                       "VALUES (1,'2026-08-17',111.1,'green',0,62,'[]','[]',4,'v1','{}','2026-08-17 12:00:00')"))
+        c.execute(text("INSERT INTO unified_reading_songs (reading_id,song_id,position,unified_weight,chart_count,sources) "
+                       "VALUES (1,11,45,0.05,1,'{}')"))
+        c.execute(text("INSERT INTO chart_snapshots (date,chart_source,position,title,artist,song_id) "
+                       "VALUES ('2026-08-17','youtube_trending_usa',14,"
+                       "'Bulin 47 - Leo Leo Remix (Video Oficial)','Bulin 47 Oficial',11)"))
+
+    with eng.begin() as c:
+        rw = merge_songs(c, 11, 10, actor="tester", environment="local")
+
+    with eng.connect() as c:
+        row = c.execute(text(
+            "SELECT rubric_color,charge_value,psyche_facts,effects_pl,lyrics_unavailable "
+            "FROM songs WHERE id=10")).fetchone()
+        assert row[0] == "green" and row[1] == -7, row
+        assert row[2] and row[3], f"psyche panel dropped by the merge: {row}"
+        assert not row[4], "the stub's no-lyrics hold survived a real reading"
+        assert c.execute(text(
+            "SELECT song_id FROM unified_reading_songs WHERE reading_id=1")).scalar() == 10
+        assert c.execute(text(
+            "SELECT song_id FROM chart_snapshots WHERE position=14")).scalar() == 10
+        # the chart's own historical string is provenance and stays put
+        assert "Video Oficial" in c.execute(text(
+            "SELECT title FROM chart_snapshots WHERE position=14")).scalar()
+    assert rw["unified_reading_songs"] == 1 and rw["chart_snapshots"] == 1
+    assert rw["calibration_copied_from_source"] is True
+
+
+def test_merge_dedupes_a_shared_unified_day():
+    """Both rows charting into the SAME published day: the target's slot survives
+    and the source's is dropped, rather than tripping UNIQUE(reading_id, song_id)."""
+    eng = _build_engine()
+    with eng.begin() as c:
+        c.execute(text("INSERT INTO songs (id,title,artist,canonical_key,rubric_color,charge_value) "
+                       "VALUES (20,'t','a','k1','green',5),(21,'t2','a2','k2','green',6)"))
+        c.execute(text("INSERT INTO unified_readings (id,date,compass_degree,charge_level,contamination_count,"
+                       "song_count,sources_included,sources_excluded,source_count,weights_version,weights,composed_at) "
+                       "VALUES (1,'2026-08-17',111.1,'green',0,62,'[]','[]',4,'v1','{}','2026-08-17 12:00:00')"))
+        c.execute(text("INSERT INTO unified_reading_songs (reading_id,song_id,position,unified_weight,chart_count,sources) "
+                       "VALUES (1,20,3,0.6,3,'{}'),(1,21,40,0.05,1,'{}')"))
+    with eng.begin() as c:
+        merge_songs(c, 21, 20, actor="tester", environment="local")
+    with eng.connect() as c:
+        rows = c.execute(text(
+            "SELECT song_id,position FROM unified_reading_songs WHERE reading_id=1")).fetchall()
+        assert [tuple(r) for r in rows] == [(20, 3)], rows
+
+
 def test_self_merge_rejected():
     from app.services.song_merge import MergeError
     eng = _build_engine()

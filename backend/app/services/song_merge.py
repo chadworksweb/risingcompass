@@ -29,15 +29,26 @@ logger = logging.getLogger(__name__)
 # calibration (rubric_color IS NULL), so a merge into a stub keeps the reading.
 # Identity columns (title, artist, canonical_key, canonical_key_clean) are NEVER
 # copied -- the target's identity survives.
+#
+# KEEP THIS IN STEP WITH `song_sync._CALIB`. A column that lands on the songs row
+# through the write path but is missing here goes NULL on every merge into a stub,
+# on a merge that otherwise reports success. That is how `psyche_facts` and
+# `effects_pl` were lost on 2026-08-17: the reading survived, the Psyche Facts
+# panel did not, and nothing said so.
+#
+# `lyrics_unavailable` is copied deliberately: merging a real reading into a
+# stub that carries the permanent no-lyrics hold is the case where the lyrics
+# finally surfaced, and the SOP says a later calibration clears the hold.
 _CALIB_COLS = [
     "rubric_color", "charge_value", "charge_summary", "contaminated",
     "contamination_note", "dogma_referenced", "dogma_note", "instrumental",
-    "translated", "medley", "preorder", "confidence",
+    "lyrics_unavailable", "translated", "medley", "preorder", "confidence",
     "listener_effects_prose", "societal_effects_prose",
     "societal_prose_generated_at", "societal_prose_model",
     "prior_listener_effects_prose", "prior_societal_effects_prose",
     "prior_societal_prose_generated_at", "prior_societal_prose_model",
     "deadpan_line", "topics", "topic_audit", "activations",
+    "psyche_facts", "effects_pl",
     "calibration_failed", "message_analysis", "expression_analysis",
     "intention_analysis", "canonical_calibration_method", "origin_chart",
     "album_id", "track_number",
@@ -157,6 +168,24 @@ def merge_songs(conn, source_id: int, target_id: int, *, actor: str | None = Non
         "AND release_id IN (SELECT release_id FROM release_songs WHERE song_id = :tgt)"
     ), {"src": source_id, "tgt": target_id})
     _repoint("release_songs")
+
+    # unified_reading_songs UNIQUE(reading_id, song_id), ondelete CASCADE. MUST be
+    # repointed: without it the source's slots are deleted with the source song and
+    # a PUBLISHED unified day silently loses songs, leaving its stored aggregate
+    # describing a set of rows that no longer exists. Dedupe on reading first, for
+    # the case where both rows charted into the same day (keep the target's slot,
+    # which already carries the better-ranked position).
+    conn.execute(text(
+        "DELETE FROM unified_reading_songs WHERE song_id = :src "
+        "AND reading_id IN (SELECT reading_id FROM unified_reading_songs WHERE song_id = :tgt)"
+    ), {"src": source_id, "tgt": target_id})
+    _repoint("unified_reading_songs")
+
+    # chart_snapshots, ondelete SET NULL. The snapshot's own (title, artist) is the
+    # chart's historical string and is deliberately NOT rewritten; only the
+    # identity pointer moves. Left alone, the source's slots go NULL and every
+    # cross-chart union treats those published positions as unidentified.
+    _repoint("chart_snapshots")
 
     # song_identity_aliases UNIQUE(alias_key) -- global, so source and target can
     # never share a key and a plain repoint cannot collide. MUST repoint (not
