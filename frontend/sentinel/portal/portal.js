@@ -17,6 +17,7 @@
   async function init() {
     let cfg;
     try { cfg = await window.API.get('/api/sentinel/config'); } catch (_) { cfg = null; }
+    window.RCTurnstile.configure(cfg && cfg.turnstile_site_key);
     if (!cfg || !cfg.enabled) {
       setState('<p>The Sentinel Auditor Team is not open right now.</p>');
       return;
@@ -62,6 +63,9 @@
     wireScopeToggle();
     wireSongPicker();
     wireFindingForm();
+    // Render only once the finding form is actually on screen -- Turnstile
+    // will not render into a hidden container.
+    window.RCTurnstile.mount('sn-finding-turnstile-mount');
     loadMyFindings();
   }
 
@@ -145,15 +149,19 @@
           evidence_url: $('sn-evidence').value.trim() || null,
           proposed_severity: $('sn-severity').value,
           hp_website: $('sn-hp').value || null,
+          turnstile_token: window.RCTurnstile.token('sn-finding-turnstile-mount'),
         }, { auth: true });
         msg.textContent = 'Finding submitted. Thank you.';
         form.reset();
         pickedSong = null;
         $('sn-song-picked').hidden = true;
+        // Token is single use; a second finding needs a fresh one.
+        window.RCTurnstile.reset('sn-finding-turnstile-mount');
         btn.disabled = false;
         loadMyFindings();
       } catch (err) {
         btn.disabled = false;
+        window.RCTurnstile.reset('sn-finding-turnstile-mount');
         msg.textContent = (err && err.message) ? err.message : 'Submit failed. Try again.';
       }
     });

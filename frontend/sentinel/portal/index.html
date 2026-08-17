@@ -76,7 +76,7 @@
 <!-- /INCLUDE:analytics -->
   <link rel="stylesheet" href="/css/main.css?v=20260817">
   <link rel="stylesheet" href="/css/responsive.css?v=20260817">
-  <link rel="stylesheet" href="/sentinel/sentinel.css?v=20260817b">
+  <link rel="stylesheet" href="/sentinel/sentinel.css?v=20260817c">
 </head>
 <body class="rc-elevated">
   <!-- INCLUDE:header -->
@@ -230,6 +230,7 @@
         </label>
 
         <input type="text" id="sn-hp" class="sn-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div id="sn-finding-turnstile-mount" class="sn-turnstile-mount" hidden></div>
         <button type="submit" class="sn-btn" id="sn-finding-submit">Submit finding</button>
         <p class="sn-form-msg" id="sn-finding-msg" role="status"></p>
       </form>
@@ -367,6 +368,7 @@
 
   <script src="/js/api.js?v=20260817"></script>
   <script src="/js/auth.js?v=20260817"></script>
-  <script src="/sentinel/portal/portal.js?v=20260622c" defer></script>
+  <script src="/js/rc-turnstile.js?v=20260817"></script>
+  <script src="/sentinel/portal/portal.js?v=20260817c" defer></script>
 </body>
 </html>

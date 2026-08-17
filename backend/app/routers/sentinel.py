@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db, SessionLocal
 from app.auth import require_clerk_user
 from app.models import SentinelAuditor, SentinelFinding, SentinelWaitlist, Song, SongSlug, User
@@ -98,8 +99,21 @@ class FindingIn(BaseModel):
 @router.get("/config")
 def config(db: Session = Depends(get_db)):
     """Lightweight public config. `enabled` is the dark-launch gate -- false means
-    the whole program is closed. Leaks nothing else."""
-    return {"enabled": is_sentinel_auditor_enabled(db)}
+    the whole program is closed.
+
+    `turnstile_site_key` is the PUBLIC half of the Turnstile pair and is meant to
+    be rendered into the page; the secret never leaves the server. It has to be
+    here because every write endpoint on this router already runs
+    `_check_bot_protection`, which REQUIRES a token whenever TURNSTILE_SECRET is
+    set -- and it is set in prod. Until the frontend could read this key and
+    render a widget, apply and file-a-finding returned 422 "Bot verification
+    required" on every submission. The forms were not merely unhardened, they
+    could not succeed. Mirrors /api/analyzer/config, which exposes it the same way.
+    """
+    return {
+        "enabled": is_sentinel_auditor_enabled(db),
+        "turnstile_site_key": settings.turnstile_site_key,
+    }
 
 
 # ---------- notify-me waitlist (always available, even while dark) ----------

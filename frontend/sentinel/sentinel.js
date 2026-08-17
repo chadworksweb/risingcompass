@@ -30,9 +30,11 @@
   async function init() {
     let cfg = null;
     try { cfg = await window.API.get('/api/sentinel/config'); } catch (_) {}
+    window.RCTurnstile.configure(cfg && cfg.turnstile_site_key);
     if (!cfg || !cfg.enabled) {
       only('waitlist');
       wireWaitlist();
+      window.RCTurnstile.mount('sn-wl-turnstile-mount');
       return;
     }
     try { if (window.Auth) await window.Auth.init(); } catch (_) {}
@@ -60,6 +62,7 @@
     }
     only('apply');
     wireApply();
+    window.RCTurnstile.mount('sn-turnstile-mount');
   }
 
   function wireApply() {
@@ -81,6 +84,7 @@
       try {
         const res = await window.API.post('/api/sentinel/apply', {
           motivation, focus_area, hp_website: $('sn-hp').value || null,
+          turnstile_token: window.RCTurnstile.token('sn-turnstile-mount'),
         }, { auth: true });
         msg.textContent = res.already_applied
           ? 'You have already applied. Status: ' + res.status + '.'
@@ -89,6 +93,7 @@
         setTimeout(() => { window.location.href = '/sentinel/portal/'; }, 1400);
       } catch (err) {
         btn.disabled = false;
+        window.RCTurnstile.reset('sn-turnstile-mount');
         if (err && err.status === 409) {
           msg.innerHTML = 'You need a handle first. <a href="/account/">Set one up</a>, then come back.';
         } else if (err && err.status === 503) {
@@ -115,11 +120,13 @@
       try {
         const res = await window.API.post('/api/sentinel/waitlist', {
           email, hp_website: $('sn-wl-hp').value || null,
+          turnstile_token: window.RCTurnstile.token('sn-wl-turnstile-mount'),
         });
         msg.textContent = res.message || 'You are on the list.';
         btn.textContent = 'On the list';
       } catch (err) {
         btn.disabled = false;
+        window.RCTurnstile.reset('sn-wl-turnstile-mount');
         msg.textContent = (err && err.message) ? err.message : 'Could not add you. Try again.';
       }
     });

@@ -77,7 +77,7 @@
 <!-- /INCLUDE:analytics -->
   <link rel="stylesheet" href="/css/main.css?v=20260817">
   <link rel="stylesheet" href="/css/responsive.css?v=20260817">
-  <link rel="stylesheet" href="/sentinel/sentinel.css?v=20260817b">
+  <link rel="stylesheet" href="/sentinel/sentinel.css?v=20260817c">
 </head>
 <body class="rc-elevated">
   <!-- INCLUDE:header -->
@@ -195,6 +195,7 @@
                 placeholder="A few lines on your angle and what you expect to find."></textarea>
             </label>
             <input type="text" id="sn-hp" class="sn-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <div id="sn-turnstile-mount" class="sn-turnstile-mount" hidden></div>
             <button type="submit" class="sn-btn" id="sn-apply-submit">Submit application</button>
             <p class="sn-form-msg" id="sn-apply-msg" role="status"></p>
           </form>
@@ -210,6 +211,7 @@
                 placeholder="you@example.com">
             </label>
             <input type="text" id="sn-wl-hp" class="sn-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <div id="sn-wl-turnstile-mount" class="sn-turnstile-mount" hidden></div>
             <button type="submit" class="sn-btn" id="sn-wl-submit">Notify me when it opens</button>
             <p class="sn-form-msg" id="sn-wl-msg" role="status"></p>
           </form>
@@ -392,6 +394,7 @@
 
   <script src="/js/api.js?v=20260817"></script>
   <script src="/js/auth.js?v=20260817"></script>
-  <script src="/sentinel/sentinel.js?v=20260622c" defer></script>
+  <script src="/js/rc-turnstile.js?v=20260817"></script>
+  <script src="/sentinel/sentinel.js?v=20260817c" defer></script>
 </body>
 </html>

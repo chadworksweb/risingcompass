@@ -63,6 +63,13 @@
   opacity: 0;
 }
 
+/* Turnstile mount. Ships `hidden`; the JS unhides it only once a widget has
+   actually rendered, so a page with no site key configured shows no empty gap. */
+.sn-turnstile-mount {
+  margin: 0.9rem 0 0.2rem;
+  min-height: 65px;
+}
+
 .sn-form-msg { margin-top: 0.8rem; font-size: 0.88rem; color: var(--rc-text-soft, #c8c8d4); min-height: 1.2em; }
 .sn-form-msg a { color: var(--rc-accent, #00d4aa); }
 
