@@ -13,11 +13,10 @@ import re
 import json
 import logging
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, func, or_
+from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.models import (

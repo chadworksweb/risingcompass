@@ -22,7 +22,7 @@ from sqlalchemy.orm import sessionmaker
 
 from fastapi import HTTPException
 
-from app.models import Base, EtherTheme, EtherTopic, SystemFlag
+from app.models import Base, EtherTheme, EtherTopic
 from app.services import ether_taxonomy as tax
 from app.services.ether_taxonomy import (
     ETHER_THEMES, ETHER_TAXONOMY, ETHER_TOPIC_PRIMARY,

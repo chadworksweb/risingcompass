@@ -3,15 +3,14 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, extract
+from sqlalchemy import func
 from datetime import date, timedelta
 
 from app.database import get_db
-from app.models import Song, DailyReading, ReadingSong, WeeklyAlbumReading
-from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, DailyReadingSummary, PaginatedReadings, ReadingSongOut
+from app.models import DailyReading, ReadingSong, WeeklyAlbumReading
+from app.schemas import CompassCurrent, DailyChartPoint, DailyReadingOut, PaginatedReadings, ReadingSongOut
 from app.services.compass_calc import compute_degree
 from app.services.charge_calc import degree_to_charge
-from app.services.contamination import count_contaminated
 from app.services.artist_utils import generate_song_slug, normalize_artist_name, resolve_artist_slugs
 from app.constants import HISTORICAL_DEGREES
 from app.services import song_store

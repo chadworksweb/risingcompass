@@ -23,7 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.auth import verify_admin_or_lyrics_key
-from app.database import get_db, SessionLocal
+from app.database import SessionLocal
 from app.models import Song
 from app.services.prose_versions import record_prose_versions
 

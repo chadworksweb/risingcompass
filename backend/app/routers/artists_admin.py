@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from sqlalchemy import func, text
 
 from app.auth import require_admin_session
-from app.config import settings
 from app.database import SessionLocal, engine
 from app.models import (
     Artist, ArtistAdminEvent, Release, ReleaseSong, ReleaseSuppression, Song,
@@ -18,7 +17,7 @@ from app.models import (
 )
 from app.services.artist_utils import (
     generate_artist_slug, normalize_artist_name, compute_release_charge,
-    count_songs_by_artist, resolve_artist_releases, _fetch_musicbrainz_data,
+    resolve_artist_releases, _fetch_musicbrainz_data,
     normalize_release_title,
 )
 from app.services.musicbrainz import MusicBrainzUnavailable

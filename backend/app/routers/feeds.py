@@ -36,7 +36,6 @@ from xml.sax.saxutils import escape
 
 from fastapi import APIRouter
 from fastapi.responses import Response
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal

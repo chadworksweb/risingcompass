@@ -20,7 +20,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.models import BackfillJob, BackfillJobRow
 from app.routers.admin import verify_admin_key

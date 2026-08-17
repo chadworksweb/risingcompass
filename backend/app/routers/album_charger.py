@@ -87,7 +87,6 @@ from app.routers.analyzer import (
     _validate_lyrics,
     _resolve_source,
     _record_user_calibration,
-    _log_error_event,
 )
 from app.routers.songs import _get_or_create_slug
 

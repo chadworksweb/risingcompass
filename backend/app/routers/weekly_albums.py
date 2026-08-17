@@ -4,9 +4,9 @@ from sqlalchemy import func
 from datetime import date
 
 from app.database import get_db
-from app.models import WeeklyAlbumReading, WeeklyAlbumEntry
+from app.models import WeeklyAlbumReading
 from app.schemas import (
-    WeeklyAlbumReadingOut, WeeklyAlbumReadingSummary, PaginatedWeeklyAlbumReadings,
+    WeeklyAlbumReadingOut, PaginatedWeeklyAlbumReadings,
     WeeklyAlbumEntryOut,
 )
 from app.services.artist_utils import normalize_artist_name, resolve_artist_slugs

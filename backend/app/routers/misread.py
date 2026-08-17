@@ -22,7 +22,6 @@ from app.auth import require_clerk_user
 from app.models import User
 from app.routers.admin import verify_admin_key
 from app.routers.analyzer import limiter
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 

@@ -37,7 +37,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.models import Song
 from app.routers.admin import verify_admin_key

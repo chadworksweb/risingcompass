@@ -2,7 +2,6 @@
 
 import json
 import logging
-import re
 from datetime import date, datetime
 
 from sqlalchemy.orm import Session

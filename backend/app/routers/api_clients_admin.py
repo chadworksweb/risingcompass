@@ -1,7 +1,7 @@
 """Admin endpoints for API client metering — clients, keys, usage."""
 
 import json
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel

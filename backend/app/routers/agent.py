@@ -22,7 +22,7 @@ from app.schemas import (
     PrePublishCorrectionIn, PrePublishCorrectionOut, CorrectionApplyOut,
     EditorialSupplyIn,
 )
-from app.auth import create_approval_token, verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
+from app.auth import verify_approval_token, verify_reading_cron_key, verify_admin_or_lyrics_key
 from app.config import settings
 from app.routers.admin import verify_admin_key
 from sqlalchemy import text

@@ -7,7 +7,7 @@ app.services.claude_meter on every Anthropic messages.create() call.
 import json
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 

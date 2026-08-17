@@ -14,7 +14,7 @@ from app.models import (
 )
 from app.constants import COLOR_LABELS, COLOR_HEX
 from app.services.artist_utils import (
-    count_songs_by_artist, derive_tier, generate_song_slug, slugify,
+    derive_tier, slugify,
 )
 from app.services import coverart
 from app.services.compass_calc import charge_to_degree

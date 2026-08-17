@@ -20,7 +20,6 @@ from app.schemas import (
 from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
     set_lyrical_charger_disabled, set_lyrical_charger_disabled_message,
-    DEFAULT_LC_DISABLED_MESSAGE,
     lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
     set_lyrical_charger_anon_daily_limit, set_lyrical_charger_user_daily_limit,
     lyrical_charger_free_daily_charges, set_lyrical_charger_free_daily_charges,
