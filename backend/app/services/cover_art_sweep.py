@@ -40,6 +40,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_RELEASE_LIMIT = 15
 DEFAULT_SONG_LIMIT = 60
 
+# Consecutive song misses that end a run. See the note at the break below: a
+# miss and a MusicBrainz outage are indistinguishable, and a miss is stamped
+# permanently, so a solid run of them is treated as the API being down.
+MISS_RUN_ABORT = 8
+
 
 def pending_songs(limit: int | None, recheck_misses: bool = False) -> list[tuple[int, str, str]]:
     """Songs with no resolvable cover art yet, newest first.
@@ -175,6 +180,7 @@ async def sweep_songs(limit: int | None = DEFAULT_SONG_LIMIT,
 
     rejected = rejected_mbids()
     found: list[str] = []
+    consecutive_misses = 0
     for i, (song_id, title, artist) in enumerate(pending, 1):
         try:
             hit = await musicbrainz.search_recording_release_group(
@@ -190,10 +196,30 @@ async def sweep_songs(limit: int | None = DEFAULT_SONG_LIMIT,
         if mbid:
             stats["matched"] += 1
             found.append(mbid)
+            consecutive_misses = 0
         else:
             stats["no_match"] += 1
+            consecutive_misses += 1
         if on_row:
             on_row(i, len(pending), title, artist, hit)
+
+        # STOP ON A RUN OF MISSES, because a miss and an outage look identical.
+        # `_mb_get` swallows its errors and returns None, so
+        # `search_recording_release_group` cannot tell "searched, found nothing"
+        # from "could not search" -- and a miss STAMPS checked_at, which is
+        # permanent until someone runs --recheck-misses. Hand-run that was safe:
+        # the operator watched 503s scroll past. Automated nightly it would burn
+        # a whole batch into recorded misses every time MusicBrainz wobbled.
+        # A genuine no-match tail is mixed; a solid run of them is the API being
+        # down. Stopping costs one slice, which the next run picks up anyway.
+        if consecutive_misses >= MISS_RUN_ABORT:
+            stats["aborted_on_miss_run"] = True
+            logger.warning(
+                "Song cover-art sweep stopped after %s consecutive misses -- "
+                "treating it as a MusicBrainz outage rather than stamping the rest",
+                consecutive_misses,
+            )
+            break
 
     if found:
         res = await coverart.ensure_cover_art(found)

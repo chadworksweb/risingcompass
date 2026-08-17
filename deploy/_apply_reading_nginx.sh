@@ -74,7 +74,19 @@ awk -v blockfile="$BLOCK" -v marker="$MARKER" '
 
 # Exactly one. A duplicated location makes nginx refuse to start, and a zero
 # means the marker matched nothing.
-for needle in 'location = /' \n              'location = /charts/spotify/' \n              'location = /charts/itunes/' \n              'location = /charts/shazam/' \n              'location = /charts/youtube/' \n              'location = /charts/new-music-friday/' \n              'location = /charts/unified/'; do
+# NOTE: this list was once written with literal "\n" between the entries instead
+# of real newlines, so the loop iterated over a stray `n` and the check failed
+# every time on a needle that was never a location. The guard did its job and
+# refused to touch the config, which is why it surfaced as a blocked apply rather
+# than a broken nginx. Keep one quoted needle per line.
+for needle in \
+    'location = /' \
+    'location = /charts/spotify/' \
+    'location = /charts/itunes/' \
+    'location = /charts/shazam/' \
+    'location = /charts/youtube/' \
+    'location = /charts/new-music-friday/' \
+    'location = /charts/unified/'; do
     if [ "$(grep -c "^    $needle {" "$TMP")" != "1" ]; then
         echo "ERROR: insertion produced unexpected result for '$needle'; leaving config untouched" >&2
         rm -f "$TMP"; exit 1
