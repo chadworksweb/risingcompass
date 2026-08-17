@@ -72,8 +72,17 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Shop — The Rising Compass</title>
-  <meta name="description" content="A product from The Rising Compass shop.">
+  <!-- These carry ids so page_ssr._inject can rewrite them per product. One
+       file serves every product via ?p=slug, so WITHOUT a per-product canonical
+       all three products were byte-identical raw HTML titled "Shop" -- three
+       URLs a crawler reads as duplicates of each other. The canonical is the
+       ?p= URL itself, which is the address the product actually lives at. -->
+  <title id="page-title">Shop — The Rising Compass</title>
+  <meta id="meta-description" name="description" content="A product from The Rising Compass shop.">
+  <meta id="og-title" property="og:title" content="Shop — The Rising Compass">
+  <meta id="og-description" property="og:description" content="A product from The Rising Compass shop.">
+  <meta id="og-url" property="og:url" content="https://risingcompass.net/shop/">
+  <link id="canonical-link" rel="canonical" href="https://risingcompass.net/shop/">
 
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">

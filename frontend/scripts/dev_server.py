@@ -113,6 +113,12 @@ SSR_PROXY_PATTERNS = [
     re.compile(r"^/charts/streamed-all-time/?$"),
     re.compile(r"^/charts/most-streamed-albums/?$"),
     re.compile(r"^/charts/best-selling-albums/?$"),
+    # The shop's one-file product page. THE ONLY PATTERN HERE THAT MATCHES A
+    # DOTTED PATH, and deliberately so: every product is served from this single
+    # file via ?p=slug, so without per-product meta all of them are byte-
+    # identical raw HTML under different URLs. Anchored exactly, so it cannot
+    # reach any other file under /shop/.
+    re.compile(r"^/shop/product\.html$"),
 ]
 
 

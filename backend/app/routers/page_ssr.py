@@ -867,6 +867,32 @@ def _ssr_shop_body(html: str, data: dict) -> str:
     return _set_html(html, "shop-grid", "".join(cards))
 
 
+def _ssr_shop_product_body(html: str, p: dict) -> str:
+    """The product detail body. Mirrors `renderDetail` in shop/shop.js for the
+    static half only -- cover, title, price, description, back link.
+
+    The colour/size pickers and the buy button are left out: they are inert
+    without JS, and `shop.js` replaces this whole container on load anyway.
+    What matters here is that the product's name and description exist in the
+    raw HTML at all, since three products previously shared one body.
+    """
+    title = _t(p.get("title"))
+    price = ("" if p.get("price") is None
+             else f'<div class="product__price">from ${float(p["price"]):.2f}</div>')
+    img = (f'<img class="product__cover" src="{_esc(p["image_url"])}" '
+           f'alt="{_esc(p.get("title") or "")}">' if p.get("image_url") else "")
+    desc = _t(p.get("description") or "")
+    return _set_html(html, "product-root",
+                     '<div class="product__grid">'
+                     f'<div class="product__art">{img}</div>'
+                     '<div class="product__info">'
+                     f'<h1 class="product__title">{title}</h1>'
+                     f'{price}'
+                     f'<div class="product__desc">{desc}</div>'
+                     '<a class="product__back" href="/shop/">&larr; Back to the shop</a>'
+                     '</div></div>')
+
+
 def _ssr_topics_index_body(html: str, data: dict) -> str:
     """The flat ranking of all 32 topics. This page and its sibling are the
     crawl entry to every detail page in the family, so shipping them empty put
@@ -989,6 +1015,74 @@ def ssr_song(slug: str):
             1,
         )
     return HTMLResponse(_body_or_plain(_ssr_song_body, html, song))
+
+
+@router.get("/shop/product.html", response_class=HTMLResponse)
+def ssr_shop_product(p: str = ""):
+    """Per-product meta for the shop's one-file detail page.
+
+    THE PROBLEM THIS SOLVES IS DUPLICATION, NOT PRETTINESS. Every product is
+    served from this single file via `?p=slug`, and the file shipped a
+    hardcoded `<title>Shop</title>`, no canonical, and no og:*. So all three
+    products were byte-identical raw HTML under three URLs -- the exact shape a
+    crawler reads as duplicates and collapses. `shop.js` sets document.title
+    client-side, which is invisible to anything that does not run JS.
+
+    A path-based URL (/shop/{slug}) would be nicer still, but that is a URL
+    migration needing redirects; this is the contained half, and it is the half
+    that stops the duplication.
+    """
+    tpl = _load_template("shop/product.html")
+    if tpl is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    slug = (p or "").strip()
+    if not slug:
+        # A bare /shop/product.html renders "Product not found" -- a soft 404
+        # unless we say otherwise.
+        return HTMLResponse(tpl, status_code=404)
+
+    with SessionLocal() as db:
+        row = db.execute(text(
+            "SELECT slug, title, description, image_url, price "
+            "FROM shop_products WHERE slug = :s AND status = 'active'"
+        ), {"s": slug}).first()
+    if row is None:
+        return HTMLResponse(tpl, status_code=404)
+
+    title = row.title or "this product"
+    desc = " ".join((row.description or "").split())
+    canonical = f"{_SITE}/shop/product.html?p={quote(slug, safe='')}"
+    price = row.price
+
+    product_ld = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": title,
+        "url": canonical,
+        "brand": {"@type": "Brand", "name": "The Rising Compass"},
+    }
+    if desc:
+        product_ld["description"] = _clamp(desc, 500)
+    if row.image_url:
+        product_ld["image"] = row.image_url
+    if price is not None:
+        product_ld["offers"] = {
+            "@type": "Offer",
+            "price": f"{float(price):.2f}",
+            "priceCurrency": "USD",
+            "url": canonical,
+            "availability": "https://schema.org/InStock",
+        }
+
+    html = _inject(
+        tpl,
+        title=f"{title} - The Rising Compass",
+        description=_clamp(desc or f"{title}, from The Rising Compass shop."),
+        canonical=canonical,
+        json_ld=product_ld,
+    )
+    return HTMLResponse(_body_or_plain(_ssr_shop_product_body, html, dict(row._mapping)))
 
 
 @router.get("/artists/{slug}/{release_slug}", response_class=HTMLResponse)

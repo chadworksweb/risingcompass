@@ -81,8 +81,13 @@ _EXTRA_PAGES = [
 # set that gains a member every time a new feed is wired up.
 _SCANNED_SUBDIRS = ("charts",)
 # cards = the card-render harness (noindex); account = per-user sign-in;
-# dev = internal roadmap/changelog. None belong in a crawl seed list.
-_EXCLUDED_DIR_NAMES = {"css", "img", "js", "scripts", "songs", "cards", "account", "dev"}
+# dev = internal roadmap/changelog; search = a control surface whose body reads
+# "Searching... No results found" until someone types, so there is nothing on it
+# to index and every crawl of it is a wasted fetch. None belong in a crawl seed
+# list. (Dropping a URL here stops ADVERTISING it; the page carries its own
+# noindex to actually keep it out.)
+_EXCLUDED_DIR_NAMES = {"css", "img", "js", "scripts", "songs", "cards", "account",
+                       "dev", "search"}
 _EXCLUDED_FILE_NAMES = {"sitemap.xml", "robots.txt", "_headers"}
 
 # The historical backfill stamps created_at with the song's chart year (back

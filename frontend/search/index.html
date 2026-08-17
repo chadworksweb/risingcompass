@@ -72,6 +72,12 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
+  <!-- A control surface, not a document: the body reads "Searching... No
+       results found" until someone types. `follow` on purpose, so the links a
+       search does produce still pass through to the song and artist pages.
+       Paired with the `search` entry in sitemap.py's _EXCLUDED_DIR_NAMES --
+       dropping the sitemap entry stops advertising it, this keeps it out. -->
+  <meta name="robots" content="noindex, follow">
   <title>Search — The Rising Compass</title>
   <meta name="description" content="Search any artist or song and see its lyrical charge calibration. The Rising Compass calibrates music by what the lyrics transmit, not genre or popularity.">
   <meta property="og:title" content="Search — The Rising Compass">
