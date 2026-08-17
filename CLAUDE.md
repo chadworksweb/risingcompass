@@ -896,6 +896,32 @@ with no approval gate anywhere in front of it. The script:
   second-person listener voice onto a live public page. The guard now runs on
   every write.
 
+**THE INSTRUMENT IS DONE (2026-08-17). It is a tool you run, not a project to
+resume.** Lens, dispatch, migrations, guards, write lane, reader surface and
+admin surface are all built, deployed and verified. Running an album is the SOP
+and nothing else:
+
+1. Take the tracklist from `Dropbox/Debug/dd2.txt` or from chat.
+2. Calibrate each track as an ORDINARY song calibration -- same rubric, same
+   pipeline, same supply set, same guards. The tracklist says WHICH songs and in
+   what order to record them; it is not a mode.
+3. Read the release with the album gate, then `write_album_reading.py --dry-run`,
+   then the same command without it.
+
+**Do not build anything else for the song half.** (Chad, 2026-08-17: "the song
+calibrator works. the album calibrator is not to reinvent it.") The known
+recap-summary drift is an operator note, not a gap to close with a guard.
+
+**The reader now sees the whole reading** (2026-08-17): topics, the placard, a
+Psyche Facts panel, and contamination/dogma as the homepage panel's mini marks.
+`psyche_facts.warning` is authored and stored but deliberately NOT rendered --
+the register question is open and the field is on hold, not dropped.
+
+**Site Admin -> Catalog** shows a release's v3 half, its run (with the stored
+argument, which lives nowhere else) and its prose versions, and labels the
+provenance: `lens` versus `pre_v3`. Three Michael Jackson albums are pre-v3 --
+backfill readings with no run, no components, no psyche facts.
+
 Docs: `RISING-COMPASS-ALBUM-V3.md` (consumer), `LEC-ALBUM-LENS.md` (lens),
 `agent/risingcompass-album-calibration-sop.md` (operator SOP), and section 17 of
 `rising-compass-data-flow-map.html`.
@@ -962,9 +988,41 @@ unflattering verdict, so it fails the terms on both counts. Do not re-propose it
   `_pick_release_group`: title/type heuristics lose to oddly-named comps ("Top
   Medleys" is an Official Album with no compilation tag), but those are credited to
   Various Artists. Failure direction is deliberate: **no art beats wrong art.**
-- **SOP, manual + chunked, no cron:** `.venv\Scripts\python.exe
-  scripts\backfill_song_cover_art.py --limit 200` (newest songs first, idempotent);
+- **AUTOMATIC since 2026-08-17. Nothing to run by hand.** The nightly sweep
+  (below) resolves song cover art and release MBIDs on a schedule. The manual
+  lane still exists for a catch-up pass: `.venv\Scripts\python.exe
+  scripts\backfill_song_cover_art.py --limit 200` (newest first, idempotent);
   occasionally `--recheck-misses` since MusicBrainz gains entries over time.
+
+### The nightly cover-art sweep (LIVE 2026-08-17)
+
+`45 9 * * *` on le-projects-01 -> `deploy/cover-art.sh` ->
+`POST /api/admin/agent/cron/cover-art` (reading-cron key) ->
+`services/cover_art_sweep.py`. Before this, NOTHING was automatic: song art was a
+hand-run script and release MBIDs were only ever a side effect of a MusicBrainz
+catalogue resolve or an Album Charger run, so a release created by hand for a
+terminal album read could never show art at all.
+
+- **Releases resolve BEFORE songs**, because attaching one release MBID drops its
+  whole tracklist out of the song queue in a single lookup instead of N.
+- **`services/release_mbid.py` owns the match rule** for BOTH lanes -- the Album
+  Charger imports its thresholds rather than keeping a second copy. It also reads
+  a free corroborating signal: the release's own tracks often already carry a
+  `release_group_mbid`. That only ever CONFIRMS (two agreeing tracks, unclaimed,
+  and also present in the search results).
+- **Bounded per run** (15 releases + 60 songs). MusicBrainz is 1 req/sec and 503s
+  freely, so a backlog drains over nights. NEVER call the resolvers from a
+  request -- one song costs up to 2 searches + 8 lookups.
+- **It stops after 8 consecutive song misses, and that guard is load-bearing.**
+  `_mb_get` swallows its errors and returns None, so a MusicBrainz OUTAGE and a
+  genuine no-match are indistinguishable -- and a miss stamps
+  `release_group_checked_at`, which is permanent until `--recheck-misses`. Run by
+  hand that was safe because the operator watched the 503s. Automated, an outage
+  would burn a whole batch into recorded misses, nightly, unseen.
+- **`has_art` is read back off the `mb_cover_art` CACHE, never off
+  `ensure_cover_art`'s return** -- it reports only what it checked this call and
+  skips already-cached MBIDs, so a group another lane resolved comes back absent
+  and reads as "no art".
 - **Frontend:** `.song-summary-head` in `songs/song.html` mirrors the release page's
   `.rel-summary-head`; `songs.js::showCoverArt` hides the wrap on a 404 so a pulled
   hotlink degrades to the tier glow. `og:image` deliberately NOT wired.
