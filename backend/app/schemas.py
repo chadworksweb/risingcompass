@@ -1483,3 +1483,80 @@ class ShieldLimitsIn(BaseModel):
     read_per_minute: Optional[int] = None
     read_per_day: Optional[int] = None
     botscore_threshold: Optional[int] = None
+
+
+# --- Unified Charge Chart -------------------------------------------------- #
+# The synthesis of the four daily charts. Song rows reuse ReadingSongOut so
+# chart-shell.js renders this page with the same component as every other chart;
+# the union-specific fields ride alongside rather than replacing it.
+
+
+class UnifiedSongOut(ReadingSongOut):
+    """A ReadingSongOut plus what makes this chart a UNION.
+
+    `unified_weight` is the real ranking key (`position` is its rendering), and
+    `chart_count` / `sources` are the corroboration signal: which constituents
+    carried this song, and where each one placed it.
+    """
+    unified_weight: float = 0.0
+    chart_count: int = 1
+    sources: dict[str, int] = {}
+
+
+class UnifiedSourceOut(BaseModel):
+    """One constituent's contribution to the day, for the composition strip."""
+    slug: str
+    label: Optional[str] = None
+    weight: float = 1.0
+    slots: int = 0
+    eligible: int = 0
+    coverage: float = 1.0
+    # That chart's OWN reading for the day, so the strip can show the spread
+    # between the highest and lowest platform. This is the finding the unified
+    # page exists to surface, and no other page can show it.
+    compass_degree: Optional[float] = None
+    charge_level: Optional[str] = None
+
+
+class UnifiedReadingOut(BaseModel):
+    date: datetime.date
+    compass_degree: float
+    charge_level: str
+    contamination_count: int
+    song_count: int
+    source_count: int
+    editorial: Optional[str] = None
+    editorial_stale: bool = False
+    published: bool = False
+    weights_version: str = ""
+    songs: list[UnifiedSongOut] = []
+    sources_included: list[UnifiedSourceOut] = []
+    sources_excluded: list[dict] = []
+
+    model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def charge_score(self) -> int:
+        return round((90 - self.compass_degree) * 100 / 90)
+
+    @computed_field
+    @property
+    def spread(self) -> Optional[int]:
+        """Charge-point distance between the highest and lowest constituent.
+
+        The single most striking number the instrument produces: on 2026-08-16
+        iTunes read +2 while YouTube read -62, from the same culture on the same
+        day. None when fewer than two constituents carry a reading.
+        """
+        degs = [s.compass_degree for s in self.sources_included
+                if s.compass_degree is not None]
+        if len(degs) < 2:
+            return None
+        return round((max(degs) - min(degs)) * 100 / 90)
+
+
+class UnifiedEditorialIn(BaseModel):
+    """Supplying the editorial is what PUBLISHES a unified reading (scope 8.6)."""
+    editorial: str
+    force: bool = False

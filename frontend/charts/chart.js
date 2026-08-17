@@ -54,6 +54,53 @@
     S.wireTooltips(document.getElementById('chart-reading-content'));
   }
 
+  // Composition strip: what the unified reading was built from. No other chart
+  // page has this, because no other chart HAS a composition -- and it is the
+  // finding the page exists to surface. A reader can see here that a purchase
+  // chart and an algorithmic one read the same day tens of points apart.
+  // No-ops (renders nothing) when the reading carries no composition, which is
+  // every other chart, so this stays safe in the shared file.
+  function renderComposition(root, comp) {
+    if (!comp || !(comp.sources || []).length) return;
+
+    var rows = comp.sources.map(function (s) {
+      var score = (s.compass_degree == null)
+        ? null : Math.round((90 - s.compass_degree) * 100 / 90);
+      var tier = s.charge_level || '';
+      var cov = Math.round((s.coverage != null ? s.coverage : 1) * 100);
+      return ''
+        + '<li class="ucc-src">'
+          + '<span class="ucc-src-name">' + S.escapeHtml(s.label || s.slug) + '</span>'
+          + (score == null ? '<span class="ucc-src-score">--</span>'
+              : '<span class="ucc-src-score" style="color:' + (S.COLOR_HEX[tier] || 'inherit') + '">'
+                + (score > 0 ? '+' : '') + score + '</span>')
+          + '<span class="ucc-src-meta">weight ' + (s.weight != null ? s.weight : 1)
+            + ' &middot; ' + s.eligible + '/' + s.slots + ' counted'
+            + (cov < 100 ? ' (' + cov + '%)' : '')
+          + '</span>'
+        + '</li>';
+    }).join('');
+
+    var missing = (comp.excluded || []).map(function (e) {
+      return S.escapeHtml(e.slug) + ' (' + S.escapeHtml(e.reason || 'absent') + ')';
+    }).join(', ');
+
+    var html = ''
+      + '<div class="card ucc-strip">'
+        + '<div class="card-header">What this reading is made of</div>'
+        + '<p class="card-desc">Every daily chart, weighted and summed. '
+          + 'A song on more than one chart carries more of the reading.</p>'
+        + '<ul class="ucc-srcs">' + rows + '</ul>'
+        + (comp.spread != null
+            ? '<p class="ucc-spread"><strong>' + comp.spread + ' points</strong> '
+              + 'separate the highest and lowest chart today.</p>'
+            : '')
+        + (missing ? '<p class="ucc-missing">Not counted today: ' + missing + '.</p>' : '')
+      + '</div>';
+
+    root.insertAdjacentHTML('beforeend', html);
+  }
+
   // Dial: the reused Compass gauge + contamination badge, from the aggregate.
   // (Compass/Contamination are top-level `const` modules, so they live on the
   // global lexical binding, NOT window -- guard with typeof, reference bare.)
@@ -88,7 +135,34 @@
 
     var reading = null, etherSongs = null, loadSeries = null;
 
-    if (CFG.source === 'daily') {
+    if (CFG.source === 'unified') {
+      // The Unified Charge Chart is DERIVED: no feed, no snapshot rows, and no
+      // `key`. It also 404s until the day's editorial is supplied, because on
+      // this chart the editorial IS the publish gate.
+      let data;
+      try {
+        data = await API.getUnifiedCurrent();
+      } catch (e) {
+        renderEmpty(root, "The unified reading for today hasn't published yet. It composes once all four daily charts are approved.");
+        return;
+      }
+      if (!(data.songs || []).length) {
+        renderEmpty(root, "The unified reading hasn't published yet.");
+        return;
+      }
+      reading = {
+        date: data.date, degree: data.compass_degree, charge: data.charge_level,
+        contaminationCount: data.contamination_count, editorial: data.editorial,
+        songs: data.songs,
+        composition: {
+          sources: data.sources_included || [],
+          excluded: data.sources_excluded || [],
+          spread: data.spread,
+          songCount: data.song_count,
+        },
+      };
+      loadSeries = function () { return API.getUnifiedDailyChart(); };
+    } else if (CFG.source === 'daily') {
       let data;
       try {
         data = await API.getCompassCurrent();
@@ -128,6 +202,7 @@
     }
 
     renderShell(root, reading, etherSongs);
+    renderComposition(root, reading.composition);
     renderDial(reading);
     mountTrajectory(loadSeries);
   }

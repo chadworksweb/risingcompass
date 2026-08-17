@@ -260,3 +260,66 @@
   text-transform: uppercase;
   color: var(--rc-text-dim);
 }
+
+/* === Unified Charge Chart: the composition strip =========================
+   Only the unified page renders this (chart.js no-ops without composition
+   data). It is the page's reason to exist: the reader sees that a purchase
+   chart and an algorithmic chart read the same day tens of points apart. */
+.ucc-strip {
+  margin-top: 1.25rem;
+}
+
+.ucc-srcs {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  /* auto-fit so four sources sit in a row on desktop and stack on mobile
+     without a media query. */
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.75rem;
+}
+
+.ucc-src {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ucc-src-name {
+  font-family: var(--rc-font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--rc-text-dim);
+}
+
+.ucc-src-score {
+  font-family: var(--rc-font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.ucc-src-meta {
+  font-size: 0.7rem;
+  color: var(--rc-text-dim);
+}
+
+.ucc-spread {
+  margin: 0.9rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rc-border);
+  font-size: 0.9rem;
+}
+
+.ucc-missing {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--rc-text-dim);
+}

@@ -72,13 +72,15 @@
   };
 </script>
 <!-- /INCLUDE:analytics -->
-  <title>Artists A–Z — The Rising Compass</title>
-  <meta name="description" content="Every artist calibrated by The Rising Compass, listed alphabetically.">
-  <meta property="og:title" content="Artists A–Z — The Rising Compass">
-  <meta property="og:description" content="Every artist calibrated by The Rising Compass, listed alphabetically.">
+  <title>The Unified Charge Chart -- The Rising Compass</title>
+  <meta name="description" content="Every daily chart The Rising Compass reads, weighted and summed into one reading. What the western world is actually consuming, across streaming, purchase, discovery and video.">
+  <link rel="canonical" href="https://risingcompass.net/charts/unified/">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://risingcompass.net/artists/">
-  <link rel="canonical" href="https://risingcompass.net/artists/">
+  <meta property="og:url" content="https://risingcompass.net/charts/unified/">
+  <meta property="og:title" content="The Unified Charge Chart -- The Rising Compass">
+  <meta property="og:description" content="Every daily chart, weighted and summed into one reading.">
+  <meta property="og:image" content="https://risingcompass.net/img/rising-compass-og-image_web.webp">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-48.png" sizes="48x48" type="image/png">
   <link rel="apple-touch-icon" href="/img/favicon-192.png">
@@ -86,10 +88,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css?v=20260816b">
-  <link rel="stylesheet" href="/artists/artists.css?v=20260813">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/charts/chart.css?v=20260816u">
+  <link rel="stylesheet" href="/css/compass.css">
 </head>
 <body>
-  <a class="skip-nav" href="#main">Skip to content</a>
+  <a class="skip-nav" href="#chart-main">Skip to content</a>
 
   <!-- INCLUDE:header -->
 <header class="rc-header">
@@ -168,89 +172,37 @@
   <script src="/js/header-search.js" defer></script>
 </header>
 <!-- /INCLUDE:header -->
-  <h1 class="artists-title page-title-row">Artists A&ndash;Z</h1>
 
-  <main id="main" class="artists-index-main">
-    <nav id="artists-letter-nav" class="artists-letter-nav" aria-label="Jump to letter" hidden></nav>
-    <div id="artists-index-loading" class="artists-index-loading" role="status" aria-live="polite">Loading artists&hellip;</div>
-    <div id="artists-index-list" class="artists-index-list"></div>
-    <div id="artists-index-empty" class="artists-index-empty" hidden>No artists indexed yet.</div>
+  <main id="chart-main" class="chart-page">
+    <div class="chart-page-intro">
+      <h1 class="chart-page-title">The Unified Charge Chart</h1>
+      <p class="chart-page-source">Spotify, iTunes, Shazam and YouTube, weighted and summed</p>
+      <nav class="chart-page-links" aria-label="Related views">
+        <a class="chart-page-links__hub" href="/charts/">&larr; All charts</a>
+        <a href="/ether-art-chart/">Ether Art Chart</a>
+      </nav>
+    </div>
+    <div class="dash-row1">
+      <div class="card" id="compass-panel" style="position:relative;">
+        <div class="card-header">Today's Charge</div>
+        <div id="contam-container"></div>
+        <div id="compass-container"></div>
+      </div>
+      <!-- The whole trajectory panel (era tabs + both charts) is built by the
+           DailyChargePanel capsule; chart pages ship the Historical tab dark. -->
+      <div class="card" id="trajectory-panel"></div>
+    </div>
+    <div id="chart-root"></div>
   </main>
 
-  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <script>window.RC_CHART = { source: 'unified', title: 'The Unified Charge Chart', sub: 'Every daily chart, weighted and summed into one reading' };</script>
+  <script src="/js/api.js?v=20260816u"></script>
+  <script src="/js/chart-shell.js?v=20260619b"></script>
+  <script src="/js/compass.js"></script>
+  <script src="/js/contamination.js"></script>
+  <script src="/js/daily-charge-panel.js?v=20260711a"></script>
+  <script src="/charts/chart.js?v=20260816u"></script>
 
-  <script src="/artists/artists-api.js"></script>
-  <script>
-    (() => {
-      'use strict';
-      const listEl = document.getElementById('artists-index-list');
-      const navEl = document.getElementById('artists-letter-nav');
-      const loadingEl = document.getElementById('artists-index-loading');
-      const emptyEl = document.getElementById('artists-index-empty');
-
-      function escapeHtml(str) {
-        const d = document.createElement('div');
-        d.textContent = str == null ? '' : str;
-        return d.innerHTML;
-      }
-
-      function letterKey(name) {
-        const first = (name || '').trim().charAt(0).toUpperCase();
-        return /[A-Z]/.test(first) ? first : '#';
-      }
-
-      async function load() {
-        try {
-          const data = await ArtistsAPI.listArtists();
-          const artists = (data && data.artists) || [];
-          if (!artists.length) {
-            loadingEl.hidden = true;
-            emptyEl.hidden = false;
-            return;
-          }
-
-          const groups = new Map();
-          for (const a of artists) {
-            const k = letterKey(a.name);
-            if (!groups.has(k)) groups.set(k, []);
-            groups.get(k).push(a);
-          }
-          // Stable order: A-Z then '#' last for non-alphabetical starts.
-          const keys = [...groups.keys()].sort((a, b) => {
-            if (a === '#') return 1;
-            if (b === '#') return -1;
-            return a.localeCompare(b);
-          });
-
-          // Letter jump-nav (anchors into section ids).
-          navEl.innerHTML = keys.map(k =>
-            `<a href="#letter-${k === '#' ? 'hash' : k}" class="artists-letter-nav-link">${k}</a>`
-          ).join('');
-          navEl.hidden = false;
-
-          // Groups.
-          let html = '';
-          for (const k of keys) {
-            const secId = `letter-${k === '#' ? 'hash' : k}`;
-            html += `<section class="artists-index-group" id="${secId}" aria-label="Artists starting with ${k}">`;
-            html += `<h2 class="artists-index-letter">${k}</h2>`;
-            html += '<ul class="artists-index-names">';
-            for (const a of groups.get(k)) {
-              html += `<li><a class="artists-index-link" href="/artists/${encodeURIComponent(a.slug)}">${escapeHtml(a.name)}</a></li>`;
-            }
-            html += '</ul></section>';
-          }
-          listEl.innerHTML = html;
-          loadingEl.hidden = true;
-        } catch (err) {
-          console.error('Failed to load artist list:', err);
-          loadingEl.textContent = 'Couldn’t load the artist list. Try refreshing.';
-        }
-      }
-
-      load();
-    })();
-  </script>
   <!-- INCLUDE:footer -->
 <footer class="site-footer">
   <div class="footer-grid">
