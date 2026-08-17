@@ -30,6 +30,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from app.config import settings
+from app.constants import COLOR_HEX
 from app.database import SessionLocal
 from app.models import Artist
 
@@ -246,6 +247,40 @@ def _show(html: str, elem_id: str) -> str:
     return pattern.sub(r"\1\2", html, count=1)
 
 
+def _set_html(html: str, elem_id: str, inner: str) -> str:
+    """Replace the inner markup of the element bearing this id, whatever it
+    holds. `_fill` refuses a non-empty element on purpose; this is for the
+    nodes that ship with a placeholder inside (the prose lanes' "Loading...")
+    where replacing IS the intent."""
+    pattern = re.compile(
+        r'(<(?P<tag>[a-zA-Z0-9]+)[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*>).*?(</(?P=tag)>)',
+        re.S,
+    )
+    return pattern.sub(lambda m: m.group(1) + inner + m.group(3), html, count=1)
+
+
+def _declass(html: str, elem_id: str, cls: str) -> str:
+    """Drop one class from the element bearing this id. The templates mark
+    not-yet-filled prose with `is-loading`, and the client strips it as it
+    writes; a server-filled node has to strip it too or it ships dimmed."""
+    pattern = re.compile(
+        r'(<[a-zA-Z0-9]+[^>]*\bid="' + re.escape(elem_id) + r'"[^>]*\bclass=")([^"]*)(")'
+    )
+
+    def _sub(m):
+        kept = [c for c in m.group(2).split() if c != cls]
+        return m.group(1) + " ".join(kept) + m.group(3)
+
+    return pattern.sub(_sub, html, count=1)
+
+
+def _prose_html(prose: str) -> str:
+    """Blank-line-separated prose to paragraphs. Mirrors the split/trim/filter
+    chain both song-page prose lanes use client-side."""
+    parts = [p.strip() for p in re.split(r"\n{2,}", prose)]
+    return "".join(f"<p>{_t(p)}</p>" for p in parts if p)
+
+
 def _t(value) -> str:
     """Escape for a text node. Quotes stay raw, matching what the client's
     textContent -> innerHTML round-trip emits, so the two renders agree."""
@@ -371,6 +406,227 @@ def _delta_clause(value, baseline, template: str) -> str:
     if abs(delta) < 3:
         return ""
     return template.format(n=abs(delta), dir="above" if delta > 0 else "below")
+
+
+def _ssr_song_body(html: str, song: dict) -> str:
+    """Server-render the song page's reading. Mirrors the hero / summary /
+    topics / effects block in frontend/songs/songs.js.
+
+    DELIBERATELY OUT OF SCOPE, both for the same reason -- the client owns them:
+    * The tier badge and compass gauge. The gauge is a canvas widget, and
+      `ssr_song` already decided raw tier/charge stay out of crawler-visible
+      text ("Degraded -44" reads as jargon and depresses CTR). Rendering the
+      badge server-side would contradict that AND flip visibly to the gauge.
+    * Similar Songs / Similar Artists. Those come from a SECOND endpoint
+      (`song_related`), which is a topic-scored scan costing about as much
+      again as the whole page. Song pages are `cf-cache-status: DYNAMIC`, so
+      that lands on every request -- and every song it would link is in the
+      sitemap already, so the crawl gain does not buy the latency.
+    """
+    title = song.get("title") or ""
+    artist = song.get("artist") or ""
+    tagline = f'"{title}" by {artist}' if artist else f'"{title}"'
+    uncalibrated = bool(song.get("uncalibrated")) or song.get("charge_value") is None
+    unavailable = bool(song.get("lyrics_unavailable"))
+
+    html = _set_text(html, "song-title", title)
+    if song.get("artist_slug"):
+        html = _fill(html, "song-artist",
+                     f'<a href="/artists/{_u(song["artist_slug"])}" '
+                     f'class="accent-link">{_t(artist)}</a>')
+    else:
+        html = _fill(html, "song-artist", _t(artist))
+
+    if song.get("origin_chart_label"):
+        html = _fill(html, "song-origin-chart",
+                     _t(f'First surfaced on {song["origin_chart_label"]}'))
+        html = _show(html, "song-origin-chart")
+
+    # The headline read. The three branches are the client's, in its order.
+    if unavailable:
+        summary = (f"{tagline} is released, but its lyrics are not available to read on "
+                   f"any source, so The Rising Compass carries no reading for it. If the "
+                   f"lyrics surface, it will be calibrated like any other song.")
+    elif uncalibrated:
+        summary = (f"{tagline} is currently uncalibrated. See the history section below "
+                   f"for the reasoning behind the most recent reset.")
+    else:
+        summary = song.get("charge_summary") or ""
+    if summary:
+        html = _set_text(html, "summary-text", summary)
+        html = _declass(html, "summary-text", "is-loading")
+
+    topics = [t for t in (song.get("topics") or []) if t]
+    if topics:
+        html = _fill(html, "song-topics", "".join(
+            f'<a class="song-topic" href="/topics/{_u(t)}">'
+            f'{_t(str(t).replace("-", " "))}</a>' for t in topics))
+        html = _show(html, "song-topics")
+
+    # Both prose lanes, but only for a song that HAS a reading. The client
+    # hides these sections outright when uncalibrated, and a server render that
+    # disagreed would flash prose that does not apply.
+    #
+    # A missing lane is left as its placeholder ON PURPOSE. The client falls
+    # back to tier-generic copy there, which is the same paragraph on every
+    # song of that colour -- baking it would put duplicate boilerplate on
+    # hundreds of pages, which is worth less than nothing to a crawler, and
+    # would fork the tier table into Python to go stale.
+    if not uncalibrated:
+        for field, elem in (("listener_effects_prose", "listener-effects-prose"),
+                            ("societal_effects_prose", "societal-effects-prose")):
+            prose = song.get(field)
+            if prose:
+                html = _set_html(html, elem, _prose_html(prose))
+                html = _declass(html, elem, "is-loading")
+
+    return html
+
+
+def _charge_or_blank(v) -> str:
+    """+N / N, or nothing at all. The artist and release lists print an empty
+    charge for an uncalibrated row rather than a dash -- their own
+    `chargeDisplay()`, which differs from the topic pages' `signed()`."""
+    if v is None:
+        return ""
+    return f"+{v}" if v > 0 else str(v)
+
+
+def _ssr_artist_body(html: str, data: dict) -> str:
+    """Server-render the artist page's two lists. Mirrors `renderTopSongRow`
+    and `renderReleaseRow` in frontend/artists/artists.js.
+
+    The compass, the charge widget and the trajectory chart are all left to the
+    client: they are canvas/SVG instruments built from the same payload, and
+    there is nothing in a drawn curve for a crawler to read.
+    """
+    songs = data.get("songs") or []
+    releases = data.get("releases") or []
+    artist_slug = data.get("slug") or ""
+
+    if songs:
+        rows = []
+        for i, s in enumerate(songs):
+            color = _t(COLOR_HEX.get(s.get("rubric_color")) or "#999")
+            title = _t(s.get("title"))
+            node = (f'<a class="song-title-link" href="/songs/{_u(s["slug"])}">{title}</a>'
+                    if s.get("slug") else f'<span class="song-title">{title}</span>')
+            rows.append(
+                '<li class="song-item artist-top-song-item">'
+                f'<span class="top-song-rank">{i + 1}</span>'
+                f'<span class="song-dot" style="background:{color}"></span>'
+                f'<div class="song-info">{node}</div>'
+                f'<span class="song-charge" style="color:{color}">'
+                f'{_charge_or_blank(s.get("charge_value"))}</span></li>'
+            )
+        html = _set_html(html, "top-songs-list", "".join(rows))
+
+    if releases:
+        rows = []
+        for r in releases:
+            color = _t(COLOR_HEX.get(r.get("rubric_color")) or "#999")
+            rtype = r.get("release_type")
+            type_label = "Album" if rtype == "album" else "EP" if rtype == "ep" else "Single"
+            date = r.get("release_date") or (str(r["release_year"]) if r.get("release_year") else "")
+            charge = _charge_or_blank(r.get("charge_value"))
+            # The client swaps a dead thumbnail back to the tier dot with an
+            # onerror handler. Server-side we render the dot whenever there is
+            # no recorded art, and let that same handler cover the dead-link
+            # case once the page hydrates.
+            lead = (f'<img class="release-thumb" src="{_esc(r["cover_thumb_url"])}" alt="" '
+                    f'loading="lazy">' if r.get("cover_thumb_url")
+                    else f'<span class="release-dot" style="background:{color}"></span>')
+            inner = (
+                f'{lead}<div class="release-compact-main">'
+                f'<span class="release-compact-title">{_t(r.get("title"))}</span>'
+                '<span class="release-compact-meta">'
+                f'<span class="release-type">{type_label}</span>'
+                + (f'<span class="release-date">{_t(date)}</span>' if date else "")
+                + '</span></div>'
+                f'<span class="release-compact-charge" style="color:{color}" '
+                f'aria-label="{_esc(r.get("tier_label") or "")}">{charge or chr(0x00B7)}</span>'
+            )
+            body = (f'<a class="release-compact-link" '
+                    f'href="/artists/{_u(artist_slug)}/{_u(r["slug"])}">{inner}</a>'
+                    if artist_slug and r.get("slug") else inner)
+            rows.append(f'<li class="release-compact-item">{body}</li>')
+        html = _set_html(html, "releases-list", "".join(rows))
+
+    return html
+
+
+def _ssr_release_body(html: str, rel: dict) -> str:
+    """Server-render the release page. Mirrors frontend/artists/release.js.
+
+    The tracklist is the payload here: it is the only place a release's songs
+    are linked from, and `release_detail` already carries it.
+    """
+    title = rel.get("title") or ""
+    artist = (rel.get("artist") or {}).get("name") or ""
+    artist_slug = (rel.get("artist") or {}).get("slug") or ""
+
+    html = _set_text(html, "release-title", title)
+    html = _declass(html, "release-title", "is-loading")
+
+    rtype = rel.get("release_type")
+    type_label = "Album" if rtype == "album" else "EP" if rtype == "ep" else "Single"
+    date = rel.get("release_date") or (str(rel["release_year"]) if rel.get("release_year") else "")
+    parts = []
+    if artist_slug:
+        parts.append(f'<a href="/artists/{_u(artist_slug)}" class="accent-link">{_t(artist)}</a>')
+    elif artist:
+        parts.append(_t(artist))
+    parts.append(type_label)
+    if date:
+        parts.append(_t(date))
+    n_tracks = rel.get("track_count")
+    if n_tracks:
+        parts.append(f'{n_tracks} track{"" if n_tracks == 1 else "s"}')
+    html = _set_html(html, "release-meta", " &middot; ".join(parts))
+
+    summary = rel.get("charge_summary")
+    if summary:
+        html = _set_text(html, "release-summary", summary)
+        html = _declass(html, "release-summary", "is-loading")
+
+    if rel.get("arc_prose"):
+        html = _set_html(html, "release-arc", _prose_html(rel["arc_prose"]))
+        html = _show(html, "release-arc-section")
+
+    for field, elem, section in (
+        ("listener_effects_prose", "release-listener-effects", "release-listener-effects-section"),
+        ("societal_effects_prose", "release-societal", "release-societal-section"),
+    ):
+        if rel.get(field):
+            html = _set_html(html, elem, _prose_html(rel[field]))
+            html = _show(html, section)
+
+    # The tracklist is the payload here: it is the only place a release's songs
+    # are linked from. Mirrors `renderTrack`, including its uncalibrated
+    # treatment (dim row, dim dot, a middot in place of a charge).
+    tracks = rel.get("tracks") or []
+    if tracks:
+        rows = []
+        dim = "var(--rc-text-dim)"
+        for t in tracks:
+            calibrated = t.get("charge_value") is not None
+            color = _t(COLOR_HEX.get(t.get("rubric_color")) or "#3a3a55")
+            name = _t(t.get("title"))
+            node = (f'<a href="/songs/{_u(t["slug"])}">{name}</a>' if t.get("slug") else name)
+            meta = (f'<span class="release-compact-meta"><span>Track {t["track_number"]}</span></span>'
+                    if t.get("track_number") is not None else "")
+            rows.append(
+                f'<li class="release-compact-item{"" if calibrated else " is-uncalibrated"}">'
+                f'<span class="release-dot" style="background:{color if calibrated else "#3a3a55"}"></span>'
+                '<div class="release-compact-main">'
+                f'<span class="release-compact-title"{"" if calibrated else f" style=\"color:{dim}\""}>'
+                f'{node}</span>{meta}</div>'
+                f'<span class="release-compact-charge" style="color:{color if calibrated else dim}">'
+                f'{_charge_or_blank(t.get("charge_value")) if calibrated else "&middot;"}</span></li>'
+            )
+        html = _set_html(html, "release-tracks", "".join(rows))
+
+    return html
 
 
 def _ssr_topic_body(html: str, d: dict) -> str:
@@ -622,7 +878,7 @@ def ssr_song(slug: str):
             f'<section class="song-section song-section--hero" style="{style}"',
             1,
         )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_song_body, html, song))
 
 
 @router.get("/artists/{slug}/{release_slug}", response_class=HTMLResponse)
@@ -674,7 +930,7 @@ def ssr_release(slug: str, release_slug: str):
             f'<section class="song-section song-section--hero" id="release-hero" style="{style}"',
             1,
         )
-    return HTMLResponse(html)
+    return HTMLResponse(_body_or_plain(_ssr_release_body, html, rel))
 
 
 @router.get("/artists/{slug}", response_class=HTMLResponse)
@@ -707,7 +963,22 @@ def ssr_artist(slug: str):
         canonical=canonical,
         json_ld=_faq_ld(question, description, canonical),
     )
-    return HTMLResponse(html)
+
+    # The two lists the page exists to show. Both endpoints sit behind the
+    # artist cache, so this is a dict lookup on any warmed catalogue, and the
+    # page still renders if either one fails.
+    data = {"slug": slug, "songs": [], "releases": []}
+    from app.routers.artists import artist_releases, artist_top_songs
+    try:
+        data["songs"] = artist_top_songs(slug, 0, 20).get("items") or []
+    except Exception:
+        logger.exception("page_ssr: artist top songs failed for %s", slug)
+    try:
+        data["releases"] = artist_releases(slug, 0, 10, "desc", "released").get("items") or []
+    except Exception:
+        logger.exception("page_ssr: artist releases failed for %s", slug)
+
+    return HTMLResponse(_body_or_plain(_ssr_artist_body, html, data))
 
 
 # --- topic pages -----------------------------------------------------------
