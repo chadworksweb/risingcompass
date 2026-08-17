@@ -1,0 +1,27 @@
+
+    # Clean topic + theme URLs -> backend SSR (per-page meta + JSON-LD).
+    # No `$uri/` in try_files on purpose: both dirs DO contain an index.html,
+    # and matching the directory would serve that file statically and skip the
+    # SSR injection, so the two index pages would ship without their meta.
+    location /topics/ {
+        try_files $uri @topic_detail;
+    }
+    location @topic_detail {
+        proxy_pass http://rc-backend:8000;
+        proxy_read_timeout 60s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /themes/ {
+        try_files $uri @theme_detail;
+    }
+    location @theme_detail {
+        proxy_pass http://rc-backend:8000;
+        proxy_read_timeout 60s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
