@@ -1,0 +1,12 @@
+# These files are copied to le-projects-01 and executed / parsed by Linux
+# tooling, so they must check out with LF endings regardless of the developer's
+# core.autocrlf. A CRLF `set -euo pipefail` fails under Linux bash, and the
+# block files are spliced verbatim into an nginx config.
+#
+# Deliberately NARROW. deploy.sh and the other repo scripts run locally under
+# Git Bash on Windows and have always carried CRLF; renormalising the whole
+# repo is a separate decision from keeping these four working.
+deploy/_apply_sitemap_nginx.sh   text eol=lf
+deploy/_apply_topics_nginx.sh    text eol=lf
+deploy/_sitemap_nginx_block.txt  text eol=lf
+deploy/_topics_nginx_block.txt   text eol=lf
