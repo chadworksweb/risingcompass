@@ -193,7 +193,9 @@
       <section class="song-section song-section--summary">
         <div class="rel-summary-head">
           <div id="release-art-wrap" class="rel-art-wrap" hidden>
-            <img id="release-art" class="rel-art" alt="" loading="lazy">
+            <!-- eager, NOT lazy: release.js reveals the wrap on onload and a lazy
+               image inside a hidden element never loads. -->
+            <img id="release-art" class="rel-art" alt="" loading="eager" decoding="async">
           </div>
           <div>
             <h1 id="release-question" class="song-question">What is this album about?</h1>
@@ -402,7 +404,7 @@
 
   <script src="/artists/artists-api.js"></script>
   <script src="/js/compass.js?v=20260622"></script>
-  <script src="/artists/release.js"></script>
+  <script src="/artists/release.js?v=20260816u"></script>
   <script src="/js/subscribe.js" defer></script>
 </body>
 </html>
