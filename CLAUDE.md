@@ -433,13 +433,89 @@ qualified as "related", which is a menu).
 tagged songs the grouped scan is free and a summary table would go stale on the
 first recalibration. Revisit around 50k songs.
 
-### nginx: the routes live ON THE SERVER, not in this repo
+## Server-rendered BODIES (page_ssr, 2026-08-17)
 
-`location /topics/` and `location /themes/` were added by hand to
-`/root/proxy/nginx/conf.d/risingcompass.conf` on le-projects-01. They are NOT in
-git (`deploy/nginx.conf` is only a pointer note), so **a proxy rebuild from the
-repo loses them and all 41 detail pages 404.** Backup on the box:
+`page_ssr.py` used to bake only the `<head>` -- meta + JSON-LD -- and stop. So
+a crawler that does not execute JS got a correct `<title>` over a body of
+chrome: "Loading...", "Loading summary", the share menu. On the song page that
+was 2,295 URLs whose entire reading existed only after a fetch, and topic pages
+carried **two** entity links in raw HTML while rendering 33 to readers.
+
+Seven surfaces now render their body server-side. Raw-HTML entity links,
+before -> after: `/songs/{slug}` 2 -> 6 (+ the whole reading as text),
+`/artists/{slug}` 1 -> 19, `/artists/{slug}/{release}` 2 -> tracklist,
+`/topics/{slug}` 2 -> 33, `/themes/{slug}` 2 -> 14, `/topics/` 2 -> 34,
+`/themes/` 2 -> 43, `/artists/` 2 -> **1,489**, `/shop/` -> 3 products.
+
+**TWO DELIVERY LANES, and which one a page gets is decided by its ROUTING, not
+by preference.** A page already routed to the backend renders per request. A
+page nginx serves off disk gets BAKED into the file, because adding an nginx
+location means editing config that is not in this repo.
+
+* **Dynamic** (`ssr_song` / `ssr_artist` / `ssr_release` / the four topic +
+  theme routes): renders live, no ops work, reflects a recalibration instantly.
+* **Baked** (`scripts/bake_static_ssr.py`, sibling of `bake_chart_ssr.py`, both
+  run by `deploy.sh` -> `bake_chart_statics`): `/artists/` and `/shop/`. Output
+  is committed via `BAKED_FILES`.
+
+**Body helpers mirror their JS twin class-for-class.** `_fill` (empty node
+only), `_set_html` (replaces a node holding a placeholder), `_set_text`,
+`_declass`, `_show` / `_hide`. Change a renderer, change its twin in
+`topics.js` / `themes.js` / `songs.js` / `artists.js` / `release.js` -- the
+client overwrites the same nodes on load, so a drift shows up as a visible
+rewrite. Every container involved is flex or grid, which is what makes the
+whitespace difference between compact server markup and indented template
+literals inert.
+
+**`_body_or_plain` wraps every renderer** and serves the un-injected HTML on any
+error. The body render is an ENHANCEMENT -- the client fills the same nodes from
+the same payload -- so a renderer bug costs a crawler its shortcut, never a
+reader the page.
+
+**`_set_html` counts tag depth, and must.** It used to take the first closing
+tag a lazy `.*?` reached, which is correct until the replacement contains a
+child of the same tag name. The shop grid is a div of divs, and the second bake
+grew the file by a card instead of replacing it. Anything written to disk gets
+re-run, so re-entrancy is a requirement.
+
+**Deliberately NOT rendered, each for a stated reason** (all recorded at the
+call site or in the baker's docstring, so nobody re-litigates them):
+the song tier badge + compass gauge (a canvas instrument, and `ssr_song`
+already ruled raw tier/charge out of crawler-visible text as CTR-depressing
+jargon); Similar Songs (a second endpoint measuring ~500ms, on pages that are
+`cf-cache-status: DYNAMIC`); a missing prose lane (the client's fallback is
+tier-generic copy, identical across every song of that colour); `/library/`
+(entitlement-gated rows + a column-config table, for a prize of 20 links);
+`/shop/product.html` (one file per every product via `?p=slug` -- needs a
+path-based URL first); and the homepage + six chart pages + ether art chart,
+which all render through `js/chart-shell.js`. **Do not fork the chart shell to
+do it** -- CLAUDE.md already forbids re-implementing it and that rule cost
+three drifted copies once. The open option is prerendering through the real
+shell with the Playwright already in the image for social cards.
+
+### nginx: the routes live ON THE SERVER, with a copy in this repo (2026-08-17)
+
+`location /topics/` and `location /themes/` live in
+`/root/proxy/nginx/conf.d/risingcompass.conf` on le-projects-01. The shared
+proxy is not in any repo -- it carries other projects' server blocks -- so for
+two days these existed in exactly one place, and **a proxy rebuild lost them and
+404'd all 41 detail pages.** Backup on the box:
 `risingcompass.conf.bak-topics-20260815-181356`.
+
+They are now RECORDED in git, following the pattern the dynamic sitemap already
+used: **`deploy/_topics_nginx_block.txt`** (copied verbatim off the running
+config) + **`deploy/_apply_topics_nginx.sh`** (idempotent, timestamped backup,
+insertion sanity check on all four locations, and a failed `nginx -t` restores
+the backup). Recovery after a rebuild:
+
+    scp deploy/_topics_nginx_block.txt deploy/_apply_topics_nginx.sh <box>:/tmp/
+    sudo bash /tmp/_apply_topics_nginx.sh
+
+Running it on a healthy box prints `already present -- nothing to do` and
+changes nothing; that is the expected result, not a skip. The four files that
+ship to the box are pinned `eol=lf` in `.gitattributes`, because a CRLF
+`set -euo pipefail` fails under Linux bash and `core.autocrlf` would hand a
+fresh Windows checkout exactly that.
 
 They mirror `/songs/` (`try_files $uri @topic_detail` -> named location ->
 `rc-backend:8000`) with one deliberate difference: **no `$uri/`.** Both
