@@ -189,32 +189,34 @@ def _shape(db: Session, row: UnifiedReading) -> UnifiedReadingOut:
 # swallowed as a date.
 
 
-# THE ARCHIVE IS NOT PUBLICATION-GATED. THE HEADLINE IS.
+# EVERY PUBLIC READ IS PUBLICATION-GATED. `published` MEANS PUBLIC, UNIFORMLY.
 #
-# `current` serves only PUBLISHED readings, because that is RC speaking in the
-# present tense and the editorial is what it says. Everything below (the trailing
-# series, the Calendar's years and dates, and a specific past date) serves every
-# COMPOSED day, editorial or not.
+# Decision 2026-08-16 (Chad): the historical backlog was published outright, in
+# one boundaried pass (scripts/publish_unified_backlog.py), and from here the
+# editorial gate governs every future day exactly as designed.
 #
-# The gate's purpose in scope 8.6 was that an editorial written against a
-# three-of-four composition describes a figure the fourth approval moves. That is
-# a statement about TODAY, which recomposes through the day as its constituents
-# land. A settled past day does not recompose, so the reason does not reach it.
+# That settles a question this router briefly answered the other way. For a few
+# hours the archive endpoints served every COMPOSED day while only `current`
+# required publication, so the 69 backfilled days could be seen without anyone
+# writing 69 retroactive editorials. Publishing the backlog reaches the same
+# place by the honest route and restores one invariant instead of two rules:
+# a day is public when it has been published, everywhere, with no endpoint
+# quietly disagreeing.
 #
-# The stronger reason: a historical unified degree is arithmetic over per-chart
-# readings that are ALREADY PUBLIC on their own chart pages. Withholding the sum
-# of four published numbers does not protect anything, it just leaves the
-# instrument unable to show its own history. Requiring 69 editorials to draw a
-# line that is already derivable would be ceremony, not editorial judgment.
+# What that costs, accepted deliberately: a day whose editorial is never written
+# is absent from the series and the Calendar as well as from the headline. It is
+# composed and stored, and one call to the editorial endpoint brings the whole
+# thing forward at once.
 #
-# A past reading with no editorial renders cleanly: chart-shell's editorialHtml
-# returns empty on a falsy value, and `published` rides in the payload so any
-# consumer can tell the difference.
+# A published reading with NO editorial is still legal and still renders: the
+# backlog days carry none, and chart-shell's editorialHtml returns empty on a
+# falsy value, so they simply show no editorial line. `published` rides in the
+# payload either way.
 
 
 @public_router.get("/daily-chart")
 def get_unified_daily_chart(days: int = 365, db: Session = Depends(get_db)):
-    """Trailing N days of unified degrees, published or not.
+    """Trailing N days of PUBLISHED unified degrees.
 
     Same shape as /api/compass/daily-chart and /api/compass/chart/{key}/daily-chart
     so the shared DailyChargePanel capsule renders it with no changes, plus
@@ -228,7 +230,7 @@ def get_unified_daily_chart(days: int = 365, db: Session = Depends(get_db)):
                  UnifiedReading.compass_degree,
                  UnifiedReading.charge_level,
                  UnifiedReading.source_count)
-        .filter(UnifiedReading.date >= cutoff)
+        .filter(UnifiedReading.published.is_(True), UnifiedReading.date >= cutoff)
         .order_by(UnifiedReading.date.asc())
         .all()
     )
@@ -266,6 +268,7 @@ def get_unified_years(db: Session = Depends(get_db)):
     rows = (
         db.query(extract("year", UnifiedReading.date).label("yr"),
                  func.avg(UnifiedReading.compass_degree).label("avg_deg"))
+        .filter(UnifiedReading.published.is_(True))
         .group_by("yr")
         .order_by("yr")
         .all()
@@ -280,7 +283,7 @@ def get_unified_years(db: Session = Depends(get_db)):
 
 @public_router.get("/years/{year}/dates")
 def get_unified_year_dates(year: int, db: Session = Depends(get_db)):
-    """Per-day unified aggregates for one year, published or not.
+    """Per-day PUBLISHED unified aggregates for one year.
 
     Same shape as /api/drift/years/{year}/dates so the Calendar swaps data
     sources without a second renderer.
@@ -290,7 +293,8 @@ def get_unified_year_dates(year: int, db: Session = Depends(get_db)):
                  UnifiedReading.compass_degree,
                  UnifiedReading.charge_level,
                  UnifiedReading.source_count)
-        .filter(UnifiedReading.date >= date(year, 1, 1),
+        .filter(UnifiedReading.published.is_(True),
+                UnifiedReading.date >= date(year, 1, 1),
                 UnifiedReading.date <= date(year, 12, 31))
         .order_by(UnifiedReading.date)
         .all()
@@ -307,20 +311,21 @@ def get_unified_year_dates(year: int, db: Session = Depends(get_db)):
 
 @public_router.get("/reading/{reading_date}", response_model=UnifiedReadingOut)
 def get_unified_reading(reading_date: date, db: Session = Depends(get_db)):
-    """One unified day, published or not.
+    """One PUBLISHED unified day.
 
-    A day with no editorial renders cleanly (the shell no-ops on a falsy
-    editorial), and `published` rides in the payload so a consumer can tell.
-    A painted day in the Calendar must always be openable; gating this while
-    the years/dates endpoints paint it would strand every past day.
+    A published day with no editorial is legal and renders cleanly (the shell
+    no-ops on a falsy editorial); the whole backlog is in that state. Gating
+    matches the years/dates endpoints on purpose, so a day the Calendar paints
+    is always openable and a day it does not paint is not reachable here either.
     """
     row = (
         db.query(UnifiedReading)
-        .filter(UnifiedReading.date == reading_date)
+        .filter(UnifiedReading.date == reading_date,
+                UnifiedReading.published.is_(True))
         .one_or_none()
     )
     if not row:
-        raise HTTPException(status_code=404, detail="No unified reading for this date")
+        raise HTTPException(status_code=404, detail="No published unified reading for this date")
     return _shape(db, row)
 
 
