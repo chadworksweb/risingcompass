@@ -52,13 +52,19 @@
       if (!el) return;
       await loadScript();
       if (!window.turnstile) return;
+      // Two hide conventions exist in this codebase: the `hidden` ATTRIBUTE
+      // (sentinel) and a `hidden` CLASS (lyrical charger). Clear both, or the
+      // widget renders into a container that is still visually hidden and the
+      // user sees nothing to solve.
       el.hidden = false;
+      el.classList.remove('hidden');
       try {
         widgets[mountId] = window.turnstile.render(el, Object.assign({
           sitekey: sitekey, theme: 'dark', size: 'flexible',
         }, opts || {}));
       } catch (_) {
         el.hidden = true;
+        el.classList.add('hidden');
       }
     },
 

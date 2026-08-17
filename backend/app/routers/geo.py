@@ -57,7 +57,13 @@ def _get_reader():
         _reader = geoip2.database.Reader(_GEOIP_DB_PATH)
         logger.info("GeoIP country DB loaded from %s", _GEOIP_DB_PATH)
     except Exception as exc:  # missing file, missing package, corrupt db
-        logger.warning("GeoIP unavailable (%s); /api/geo-country returns null", exc)
+        # Not a per-request miss: this fires ONCE at load, and when it does the
+        # cookie bar loses its country signal and fail-closes to opt-in for
+        # EVERY visitor worldwide. That is a silent, site-wide consent-behaviour
+        # change with a legal dimension, and at warning it never reached
+        # Faultline. Error, so a missing mmdb opens exactly one fault.
+        logger.error("GeoIP unavailable (%s); /api/geo-country returns null and "
+                     "the consent bar fail-closes to opt-in everywhere", exc)
         _reader = False
     return _reader or None
 

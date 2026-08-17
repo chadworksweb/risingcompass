@@ -84,7 +84,6 @@ const btnShareClose = $('#btn-share-close');
 // --- State ---
 let activeTab = 'paste';
 let selectedTrack = null;  // { track_id, title, artist }
-let turnstileWidgetId = null;
 let lastResult = null;     // last calibration payload, for the charge card
 
 // --- Auth (optional) ---
@@ -120,19 +119,17 @@ function getHpValue() {
   return ($('#hp-website')?.value || '').trim();
 }
 
+// Both delegate to the shared /js/rc-turnstile.js helper. The names and the
+// EMPTY-STRING return are kept because ~14 call sites below depend on them;
+// RCTurnstile.token() returns null, which would serialise as JSON null instead.
+const TS_MOUNT = 'turnstile-mount';
+
 function getTurnstileToken() {
-  if (!window.turnstile || turnstileWidgetId === null) return '';
-  try {
-    return window.turnstile.getResponse(turnstileWidgetId) || '';
-  } catch {
-    return '';
-  }
+  return window.RCTurnstile.token(TS_MOUNT) || '';
 }
 
 function resetTurnstile() {
-  if (window.turnstile && turnstileWidgetId !== null) {
-    try { window.turnstile.reset(turnstileWidgetId); } catch {}
-  }
+  window.RCTurnstile.reset(TS_MOUNT);
 }
 
 // ============================================================
@@ -567,24 +564,11 @@ async function initBotProtection() {
     const resp = await fetch(`${API_BASE}/config`, { headers });
     if (!resp.ok) return;
     const cfg = await resp.json();
-    if (!cfg.turnstile_site_key) return;
-
-    // Inject Turnstile script
-    const script = document.createElement('script');
-    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad';
-    script.async = true;
-    script.defer = true;
-    window.onTurnstileLoad = () => {
-      const mount = $('#turnstile-mount');
-      if (!mount) return;
-      mount.classList.remove('hidden');
-      turnstileWidgetId = window.turnstile.render(mount, {
-        sitekey: cfg.turnstile_site_key,
-        theme: 'dark',
-        size: 'flexible',
-      });
-    };
-    document.head.appendChild(script);
+    window.RCTurnstile.configure(cfg.turnstile_site_key);
+    // ONE widget for the whole page. Both tabs read the same token via
+    // getTurnstileToken(), and only one submission is ever in flight, so a
+    // second widget would just be another thing to keep reset.
+    await window.RCTurnstile.mount(TS_MOUNT);
   } catch {
     // Bot protection is best-effort; swallow errors so the page still works.
   }

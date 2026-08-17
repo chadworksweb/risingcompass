@@ -63,24 +63,34 @@ async def score_via_lec(
     if settings.lec_api_key:
         headers["X-Api-Key"] = settings.lec_api_key
 
+    # LEC is RC's SOLE live scorer on all six paths. A failure here is not a
+    # degraded read, it is NO read: the song comes back unscored and a human has
+    # to pick it up. These were logger.warning, which lands in backend.log but
+    # never reaches Faultline (the ledger captures ERROR records off the root
+    # logger), so an LEC outage could run silently for as long as nobody
+    # happened to read the file log. Promoted to error so each one opens a fault.
+    #
+    # The /api/rubric calls below stay at warning on purpose: that is a version
+    # probe for drift detection, not the scoring path, and a miss there costs a
+    # staleness check rather than a reading.
     try:
         async with httpx.AsyncClient(timeout=settings.lec_timeout_seconds) as client:
             resp = await client.post(f"{base}/api/score", json=payload, headers=headers)
     except Exception:
-        logger.warning("LEC /api/score request failed for %s / %s; needs human review",
-                       title, artist, exc_info=True)
+        logger.error("LEC /api/score request failed for %s / %s; needs human review",
+                     title, artist, exc_info=True)
         return None
 
     if resp.status_code != 200:
-        logger.warning("LEC /api/score returned %s for %s / %s; needs human review",
-                       resp.status_code, title, artist)
+        logger.error("LEC /api/score returned %s for %s / %s; needs human review",
+                     resp.status_code, title, artist)
         return None
 
     try:
         data = resp.json()
     except Exception:
-        logger.warning("LEC /api/score returned non-JSON for %s / %s; needs human review",
-                       title, artist)
+        logger.error("LEC /api/score returned non-JSON for %s / %s; needs human review",
+                     title, artist)
         return None
 
     if data.get("status") != "scored" or data.get("color_key") is None:
