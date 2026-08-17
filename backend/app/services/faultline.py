@@ -27,7 +27,7 @@ import os
 import queue
 import threading
 import traceback as _tb
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Module logger -- EXCLUDED from capture (see _EXCLUDED_PREFIXES) so a write
 # failure logged here can never feed back into the handler.
@@ -134,11 +134,11 @@ _writer_lock = threading.Lock()
 
 # Cached enable-flag so the hot path never reads the DB. Refreshed by the
 # writer thread on a TTL.
-_enabled_cache = {"value": True, "checked_at": datetime.min}
+_enabled_cache = {"value": True, "checked_at": datetime.min.replace(tzinfo=timezone.utc)}
 
 
 def _refresh_enabled() -> bool:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if (now - _enabled_cache["checked_at"]) < timedelta(seconds=_FLAG_TTL_SECONDS):
         return _enabled_cache["value"]
     try:
@@ -168,7 +168,7 @@ def _persist(payload: dict) -> None:
     regressed = False
     is_new = False
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         ctx_json = json.dumps(payload["context"], default=str)
         sig = (
             db.query(ErrorSignature)

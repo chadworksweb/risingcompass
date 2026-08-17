@@ -26,7 +26,7 @@ import json
 import logging
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -464,7 +464,7 @@ async def calculate_shipping(request: Request):
 # ---------------------------------------------------------------------------
 
 def _new_order_number() -> str:
-    return f"RC{datetime.utcnow().strftime('%y%m%d')}-{secrets.token_hex(3).upper()}"
+    return f"RC{datetime.now(timezone.utc).strftime('%y%m%d')}-{secrets.token_hex(3).upper()}"
 
 
 def _push_order_to_printify(order_id: int) -> None:
@@ -508,7 +508,7 @@ def _push_order_to_printify(order_id: int) -> None:
         resp = printify_service.create_order(payload)
         printify_id = resp.get("id")
         order.printify_order_id = printify_id
-        order.pushed_to_printify_at = datetime.utcnow()
+        order.pushed_to_printify_at = datetime.now(timezone.utc)
         order.status = "in_production"
         order.printify_error = None
         db.commit()
@@ -793,7 +793,7 @@ async def printify_webhook(request: Request, x_pfy_signature: str = Header(defau
         elif event_type == "order:shipment:created":
             already_shipped = order.status in ("shipped", "delivered")
             order.status = "shipped"
-            order.shipped_at = datetime.utcnow()
+            order.shipped_at = datetime.now(timezone.utc)
             order.carrier = shipment.get("carrier")
             order.tracking_number = shipment.get("number")
             order.tracking_url = shipment.get("url")
@@ -820,7 +820,7 @@ async def printify_webhook(request: Request, x_pfy_signature: str = Header(defau
                 }
         elif event_type == "order:shipment:delivered":
             order.status = "delivered"
-            order.delivered_at = datetime.utcnow()
+            order.delivered_at = datetime.now(timezone.utc)
         db.commit()
     except Exception:
         logger.exception("shop printify webhook: DB update failed")

@@ -9,7 +9,7 @@ Example:
   /api/admin/db/compass_songs?rubric_color=red&charge_value__lt=-50&year__gte=2020&sort_by=charge_value&sort_dir=asc
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -97,10 +97,15 @@ def _coerce(col, raw: str):
     if t == "date":
         return date.fromisoformat(raw)
     if t == "datetime":
+        # The columns are timestamptz now, so a filter value has to be aware or
+        # the comparison is decided by whatever the session timezone happens to
+        # be. An admin typing a bare `2026-08-17T10:00` means UTC, because UTC is
+        # what every row in this database is stored in.
         try:
-            return datetime.fromisoformat(raw)
+            parsed = datetime.fromisoformat(raw)
         except ValueError:
-            return datetime.combine(date.fromisoformat(raw), datetime.min.time())
+            parsed = datetime.combine(date.fromisoformat(raw), datetime.min.time())
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
     return raw
 
 

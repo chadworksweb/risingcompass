@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -183,7 +183,7 @@ def resolve_audit(
         )
 
     row.status = _ACTION_TO_STATUS[action]
-    row.reviewed_at = datetime.utcnow()
+    row.reviewed_at = datetime.now(timezone.utc)
     row.reviewed_by = getattr(request.state, "admin_username", None) or "admin"
     row.review_notes = (data.notes or None)
     db.commit()

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -441,7 +441,7 @@ def _apply_subscription_state(user_id: int, sub: dict) -> None:
         u.subscription_tier = tier_key
         u.subscription_status = status
         if period_end_ts:
-            u.subscription_period_end = datetime.utcfromtimestamp(int(period_end_ts))
+            u.subscription_period_end = datetime.fromtimestamp(int(period_end_ts), timezone.utc)
         db.commit()
     except Exception:
         db.rollback()

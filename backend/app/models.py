@@ -2,8 +2,22 @@ from sqlalchemy import (
     CheckConstraint, Column, Integer, BigInteger, String, Text, Float, Boolean, Date, DateTime, ForeignKey, Index, JSON, LargeBinary, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database import Base
+
+
+def _utcnow():
+    """Aware UTC `now`, the default/onupdate callable on every timestamp column.
+
+    SQLAlchemy wants a zero-arg CALLABLE here, which is why these were written
+    as a bare function REFERENCE with no parentheses. That is also why the
+    timezone sweep nearly missed them: it rewrote call sites of the form
+    `<name>()`, and a bare reference matches none of those. All 143 of them
+    across 118 lines would have kept stamping naive values into columns that are
+    now timestamptz -- the exact naive/aware mix the migration exists to avoid.
+    """
+    return datetime.now(timezone.utc)
+
 
 
 # Phase 5d (2026-06-05): the four legacy song tables -- compass_songs,
@@ -72,7 +86,7 @@ class ChartSnapshot(Base):
     # agent already generated onto the chart's AgentDraft. Nullable: unpublished
     # rows and pre-editorial snapshots carry none.
     editorial = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
     # Approval gate: rows are written unpublished by the scraper/refresh, then
     # flipped to True when the chart draft is approved (agent.approve_draft).
     # The public endpoint only serves published rows, so an unapproved or
@@ -142,7 +156,7 @@ class AgentDraft(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     label = Column(Text, unique=True, nullable=True)  # e.g. compass_song_2026-02-22_draft
     draft_type = Column(Text, default="daily")  # daily / manual
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
     status = Column(String(20), default="pending")  # pending / approved / rejected
     date = Column(Date, nullable=False)
     compass_degree = Column(Float)
@@ -236,8 +250,8 @@ class UserCalibration(Base):
     rubric_color = Column(Text)
     charge_value = Column(Integer)
     charge_summary = Column(Text)
-    calibrated_at = Column(DateTime, default=datetime.utcnow)  # last run time
-    created_at = Column(DateTime, default=datetime.utcnow)     # first run time
+    calibrated_at = Column(DateTime(timezone=True), default=_utcnow)  # last run time
+    created_at = Column(DateTime(timezone=True), default=_utcnow)     # first run time
 
 
 class LcEvent(Base):
@@ -249,7 +263,7 @@ class LcEvent(Base):
     __tablename__ = "lc_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    occurred_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    occurred_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     event_type = Column(String(40), nullable=False)
     ip_address = Column(String(64))
     user_agent = Column(String(512))
@@ -275,8 +289,8 @@ class AlbumCalibration(Base):
     charge_summary = Column(Text)
     track_count = Column(Integer, nullable=False, default=0)
     contamination_count = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         UniqueConstraint(
@@ -290,7 +304,7 @@ class MisreadSubmission(Base):
     __tablename__ = "misread_submissions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
     song_title = Column(Text, nullable=False)
     song_artist = Column(Text, nullable=False)
     song_color = Column(Text, nullable=False)
@@ -332,16 +346,16 @@ class ProseProvenanceAnchor(Base):
     song_table = Column(Text, nullable=False)  # compass_songs|library_songs|submitted_songs|stream_songs
     song_id = Column(Integer, nullable=False)
     prose_sha256 = Column(Text, nullable=False)  # sha256(table:id | generated_at | model | prose)
-    generated_at = Column(DateTime, nullable=False)  # copy of the sealed generated_at
+    generated_at = Column(DateTime(timezone=True), nullable=False)  # copy of the sealed generated_at
     model = Column(Text, nullable=False)  # copy of the sealed model ('legacy_unknown' for proxy rows)
-    sealed_at = Column(DateTime, default=datetime.utcnow)  # when this anchor row was created
+    sealed_at = Column(DateTime(timezone=True), default=_utcnow)  # when this anchor row was created
     github_commit_sha = Column(Text)  # commit that recorded this hash in the public log
-    github_committed_at = Column(DateTime)
+    github_committed_at = Column(DateTime(timezone=True))
     ots_status = Column(Text, nullable=False, default="pending")  # pending|submitted|complete|failed
     ots_proof_path = Column(Text)  # path to the batch .ots proof in the provenance repo
     ots_bitcoin_block = Column(Integer)  # Bitcoin block height once confirmed
-    ots_block_time = Column(DateTime)  # block timestamp once confirmed (optional)
-    ots_last_verified_at = Column(DateTime)  # when the integrity cron last ran `ots verify` (migration 077)
+    ots_block_time = Column(DateTime(timezone=True))  # block timestamp once confirmed (optional)
+    ots_last_verified_at = Column(DateTime(timezone=True))  # when the integrity cron last ran `ots verify` (migration 077)
     ots_verify_status = Column(Text)  # last re-verify result: ok|mismatch|inconclusive (migration 077)
 
 
@@ -354,8 +368,8 @@ class Artist(Base):
     slug = Column(String(250), unique=True, nullable=False)
     musicbrainz_id = Column(Text)
     spotify_id = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     releases = relationship("Release", back_populates="artist", cascade="all, delete-orphan")
 
@@ -390,7 +404,7 @@ class Release(Base):
     topics = Column(Text)       # JSON-encoded list of taxonomy slugs
     topic_audit = Column(Text)  # JSON-encoded audit dict, or NULL when topics present
     source = Column(String(30))  # 'album_charger' for user-charged albums; else NULL
-    submitted_at = Column(DateTime)  # when charged via the Album Charger
+    submitted_at = Column(DateTime(timezone=True))  # when charged via the Album Charger
     # --- the rest of the v3 release reading (migration 148) ---
     # The rc-album lens emits a full v3 reading; migrations 069/090 only had room
     # for the prose. This is the SONG column set (see Song below), so a release
@@ -411,15 +425,15 @@ class Release(Base):
     # prior_arc_prose has no song counterpart -- arc_prose is release-only and
     # shipped in 069 with no archive slot, and all three lanes archive or none
     # of them is a contract.
-    societal_prose_generated_at = Column(DateTime)
+    societal_prose_generated_at = Column(DateTime(timezone=True))
     societal_prose_model = Column(Text)
     prior_listener_effects_prose = Column(Text)
     prior_societal_effects_prose = Column(Text)
     prior_arc_prose = Column(Text)
-    prior_societal_prose_generated_at = Column(DateTime)
+    prior_societal_prose_generated_at = Column(DateTime(timezone=True))
     prior_societal_prose_model = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         UniqueConstraint("artist_id", "title", name="uq_releases_artist_title"),
@@ -444,7 +458,7 @@ class SongArtist(Base):
     artist_id = Column(Integer, ForeignKey("artists.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(20), nullable=False, default="primary")
     position = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("song_id", "artist_id", name="uq_song_artists_uid_artist"),
@@ -472,7 +486,7 @@ class DraftSongEdit(Base):
     __tablename__ = "draft_song_edits"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    occurred_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     actor = Column(String(64))
 
     # Draft coordinates. Kept as loose values, not FKs: chart drafts are DELETED
@@ -503,7 +517,7 @@ class ArtistAdminEvent(Base):
     __tablename__ = "artist_admin_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    occurred_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     event_type = Column(String(20), nullable=False)  # merge | rename
     actor = Column(String(64))
 
@@ -556,7 +570,7 @@ class ReleaseSuppression(Base):
     title_norm = Column(Text, nullable=False)
     title_snapshot = Column(Text, nullable=False)
     reason = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class MbCoverArt(Base):
@@ -574,7 +588,7 @@ class MbCoverArt(Base):
 
     musicbrainz_id = Column(Text, primary_key=True)  # release-group MBID
     has_art = Column(Boolean, nullable=False, default=False)
-    checked_at = Column(DateTime, default=datetime.utcnow)
+    checked_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class SongCoverArtReport(Base):
@@ -612,8 +626,8 @@ class SongCoverArtReport(Base):
     ip_address = Column(Text)
     status = Column(String(12), nullable=False, default="open")   # open | confirmed | dismissed
     environment = Column(String(10), nullable=False, default="prod")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    resolved_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    resolved_at = Column(DateTime(timezone=True))
     resolved_by = Column(String(120))                    # admin username
     resolution_note = Column(Text)
 
@@ -640,14 +654,14 @@ class SongSlug(Base):
     artist = Column(Text, nullable=False)
     # Unified renovation (5c-2): the atomic songs.id.
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class MisreadBan(Base):
     __tablename__ = "misread_bans"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
     device_id = Column(Text, nullable=True)
     ip_address = Column(Text, nullable=True)
     reason = Column(Text)
@@ -670,8 +684,8 @@ class ApiClient(Base):
     status = Column(String(16), default="active")  # active | suspended | revoked
     behavior = Column(String(16), default="service", nullable=False)
     notes = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow)
 
     keys = relationship("ApiClientKey", back_populates="client", cascade="all, delete-orphan")
 
@@ -685,9 +699,9 @@ class ApiClientKey(Base):
     key_hash = Column(String(64), unique=True, nullable=False)
     key_prefix = Column(String(12), nullable=False)
     label = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_used_at = Column(DateTime)
-    revoked_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    last_used_at = Column(DateTime(timezone=True))
+    revoked_at = Column(DateTime(timezone=True))
 
     client = relationship("ApiClient", back_populates="keys")
 
@@ -720,8 +734,8 @@ class SongRecalibrationProposal(Base):
     review_notes = Column(Text)
     rubric_change_slug = Column(String(100))  # pipeline=rubric_update only: stable id grouping affected songs
     rubric_change_note = Column(Text)  # pipeline=rubric_update only: 1-2 sentence description of the rule
-    created_at = Column(DateTime, default=datetime.utcnow)
-    resolved_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    resolved_at = Column(DateTime(timezone=True))
     # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
     activations = Column(Text)
     calibration_failed = Column(Boolean, default=False)
@@ -755,7 +769,7 @@ class SongRecalibration(Base):
     vibe_snapshot = Column(Text)  # JSON: {value, pushes_up, pushes_down} captured from audience_vibe_needles at apply time (wired 2026-05-12)
     rubric_change_slug = Column(String(100))  # groups songs recalibrated by the same rubric change
     rubric_change_note = Column(Text)  # 1-2 sentence description of the rubric rule that triggered this
-    applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    applied_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     # Calibration Log promote columns (migration 032). human_rationale is
     # admin prose separate from ai_rationale; promoted_to_feed gates public
     # visibility in the unified feed; tags is freeform groundwork for a
@@ -766,7 +780,7 @@ class SongRecalibration(Base):
     # (2026-04-23). Manual promote step retired; column kept for backward
     # compatibility + migration path.
     promoted_to_feed = Column(Boolean, default=True, nullable=False)
-    promoted_at = Column(DateTime, default=datetime.utcnow)
+    promoted_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class PrePublishCorrection(Base):
@@ -786,7 +800,7 @@ class PrePublishCorrection(Base):
     draft_id = Column(Integer)
     draft_song_id = Column(Integer)
     compass_song_id = Column(Integer)  # nullable — draft song may not be linked yet
-    occurred_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    occurred_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     before_rubric_color = Column(Text)
     before_charge_value = Column(Integer)
     before_contaminated = Column(Boolean)
@@ -801,7 +815,7 @@ class PrePublishCorrection(Base):
     tags = Column(Text)  # freeform; JSON array or CSV
     # Auto-promoted — see SongRecalibration comment above (2026-04-23).
     promoted_to_feed = Column(Boolean, default=True, nullable=False)
-    promoted_at = Column(DateTime, default=datetime.utcnow)
+    promoted_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class AudienceVibeNeedle(Base):
@@ -818,9 +832,9 @@ class AudienceVibeNeedle(Base):
     pushes_up_total = Column(Integer, nullable=False, default=0)
     pushes_down_total = Column(Integer, nullable=False, default=0)
     pushes_agree_total = Column(Integer, nullable=False, default=0)
-    last_push_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_push_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("song_id", name="uq_vibe_needles_uid"),
@@ -845,7 +859,7 @@ class AudienceVibePush(Base):
     device_id = Column(Text)
     ip_address = Column(Text)
     push_year = Column(Integer, nullable=False)
-    pushed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    pushed_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     __table_args__ = (
         UniqueConstraint(
@@ -871,8 +885,8 @@ class AudienceVibeReviewCase(Base):
     gap = Column(Integer, nullable=False)  # abs(compass_charge - vibe_value)
     status = Column(String(20), nullable=False, default="open")  # open | acknowledged | recalibrated | dismissed
     admin_notes = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    resolved_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    resolved_at = Column(DateTime(timezone=True))
 
 
 class Trash(Base):
@@ -893,7 +907,7 @@ class Trash(Base):
     row_data = Column(Text, nullable=False)  # JSON
     related_data = Column(Text)  # JSON — optional junction snapshot
     reason = Column(Text, nullable=False)
-    deleted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
 class CalibrationRun(Base):
@@ -936,10 +950,10 @@ class CalibrationRun(Base):
     triggered_by = Column(String(40))
     lyrics_hash = Column(String(64))
     lyrics_fingerprint = Column(LargeBinary)  # 128-fn MinHash signature for divergence detection — see services/lyrics_fingerprint.py
-    run_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    run_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     superseded = Column(Boolean, default=False, nullable=False)  # true if a later rubric_update invalidated this run
     superseded_reason = Column(String(100))  # e.g. rubric_change_slug that invalidated this
-    superseded_at = Column(DateTime)
+    superseded_at = Column(DateTime(timezone=True))
     # Migration-added calibration fields (kept in sync with the live schema 2026-05-24)
     activations = Column(Text)
     calibration_failed = Column(Boolean, default=False)
@@ -988,7 +1002,7 @@ class SongReset(Base):
     before_contaminated = Column(Boolean)
     before_contamination_note = Column(Text)
     reason = Column(Text, nullable=False)
-    reset_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    reset_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
 class ApiCallLog(Base):
@@ -1002,7 +1016,7 @@ class ApiCallLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     client_id = Column(Integer, ForeignKey("api_clients.id", ondelete="SET NULL"))
-    ts = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ts = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     method = Column(String(8), nullable=False)
     path = Column(String(255), nullable=False)
     status = Column(Integer)
@@ -1024,7 +1038,7 @@ class ClaudeApiUsage(Base):
     __tablename__ = "claude_api_usage"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    ts = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ts = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     call_site = Column(String(64), nullable=False)
     model = Column(String(64), nullable=False)
     input_tokens = Column(Integer, nullable=False, default=0)
@@ -1072,10 +1086,10 @@ class ArtistVerification(Base):
     deepfake_reference_match_confirmed = Column(Boolean, nullable=False, default=False)
     deepfake_recording_archived = Column(Boolean, nullable=False, default=False)
     deepfake_recording_url = Column(Text)
-    contacted_at = Column(DateTime)
-    verified_at = Column(DateTime)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    contacted_at = Column(DateTime(timezone=True))
+    verified_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     artist = relationship("Artist")
 
@@ -1098,10 +1112,10 @@ class ArtistVerificationBlock(Base):
     video_url = Column(Text)
     audio_url = Column(Text)
     published = Column(Boolean, nullable=False, default=False)
-    published_at = Column(DateTime)
+    published_at = Column(DateTime(timezone=True))
     internal_notes = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         UniqueConstraint("artist_id", "song_id", name="uq_av_blocks_artist_uid"),
@@ -1120,7 +1134,7 @@ class ArtistVerificationInquiry(Base):
     __tablename__ = "artist_verification_inquiries"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     song_title = Column(Text, nullable=False)
     song_artist = Column(Text, nullable=False)
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="SET NULL"))  # unified renovation (5c-2): the atomic songs.id
@@ -1154,10 +1168,10 @@ class ArtistOutreach(Base):
     song_title = Column(Text)
     channel = Column(String(20), nullable=False, default="email")  # email | dm | other
     contact_used = Column(Text)  # the address/handle it actually went to
-    sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    sent_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     notes = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     artist = relationship("Artist")
 
@@ -1182,12 +1196,12 @@ class AdminUser(Base):
     # this is purely the per-admin render zone. Default America/New_York (ET).
     timezone = Column(String(64), nullable=False, default="America/New_York")
     failed_login_count = Column(Integer, nullable=False, default=0)
-    locked_until = Column(DateTime)
-    last_login_at = Column(DateTime)
+    locked_until = Column(DateTime(timezone=True))
+    last_login_at = Column(DateTime(timezone=True))
     last_login_ip = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
     )
 
 
@@ -1204,13 +1218,13 @@ class AdminSession(Base):
         Integer, ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False
     )
     token_hash = Column(String(64), unique=True, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    expires_at = Column(DateTime, nullable=False)
-    absolute_expires_at = Column(DateTime, nullable=False)
-    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    absolute_expires_at = Column(DateTime(timezone=True), nullable=False)
+    last_seen_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     ip = Column(Text)
     user_agent = Column(Text)
-    revoked_at = Column(DateTime)
+    revoked_at = Column(DateTime(timezone=True))
 
 
 class AdminLoginAttempt(Base):
@@ -1229,7 +1243,7 @@ class AdminLoginAttempt(Base):
     user_agent = Column(Text)
     success = Column(Boolean, nullable=False, default=False)
     reason = Column(Text)
-    attempted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    attempted_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
 
 class BackfillJob(Base):
@@ -1251,9 +1265,9 @@ class BackfillJob(Base):
     failed_rows = Column(Integer, nullable=False, default=0)
     created_by = Column(Integer)  # admin_users.id
     note = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    started_at = Column(DateTime)
-    completed_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
 
 
 class BackfillJobRow(Base):
@@ -1288,8 +1302,8 @@ class BackfillJobRow(Base):
     deadpan_line = Column(Text)
     topics = Column(Text)
     topic_audit = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class SystemFlag(Base):
@@ -1297,7 +1311,7 @@ class SystemFlag(Base):
 
     key = Column(Text, primary_key=True)
     value = Column(Text, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
 
 class EtherTheme(Base):
@@ -1316,8 +1330,8 @@ class EtherTheme(Base):
     slug = Column(Text, nullable=False, unique=True)
     label = Column(Text, nullable=False)
     sort_order = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
 
 class EtherTopic(Base):
@@ -1349,8 +1363,8 @@ class EtherTopic(Base):
     # + the valid-slug set; otherwise the code constants (ETHER_TAXONOMY) do.
     scope = Column(Text, nullable=True)
     examples = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
 
 class LyricalChargerSubscriber(Base):
@@ -1358,8 +1372,8 @@ class LyricalChargerSubscriber(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(Text, nullable=False, unique=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    notified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    notified_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class RcSubscriber(Base):
@@ -1391,12 +1405,12 @@ class RcSubscriber(Base):
     source = Column(String(40), nullable=True)
     source_detail = Column(Text, nullable=True)
     confirm_token = Column(String(64), nullable=True)
-    confirmed_at = Column(DateTime, nullable=True)
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)
     unsubscribe_token = Column(String(64), nullable=False)
-    unsubscribed_at = Column(DateTime, nullable=True)
+    unsubscribed_at = Column(DateTime(timezone=True), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    promoted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    promoted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     # Date key (YYYY-MM-DD) of the last reading digest sent -- per-recipient
     # dedup so a re-run only targets those who have not yet received it.
     last_digest_key = Column(String(10), nullable=True)
@@ -1420,8 +1434,8 @@ class Donation(Base):
     source = Column(Text, nullable=True)
     customer_email = Column(Text, nullable=True)
     payment_intent_id = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class ShopProduct(Base):
@@ -1454,8 +1468,8 @@ class ShopProduct(Base):
     variants = Column(Text, nullable=True)           # JSON list (enabled variants)
     status = Column(Text, nullable=False, default="active")  # active | inactive
     display_order = Column(Integer, nullable=False, default=0)
-    last_synced_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class ShopOrder(Base):
@@ -1506,10 +1520,10 @@ class ShopOrder(Base):
     tracking_number = Column(Text, nullable=True)
     tracking_url = Column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    pushed_to_printify_at = Column(DateTime, nullable=True)
-    shipped_at = Column(DateTime, nullable=True)
-    delivered_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    pushed_to_printify_at = Column(DateTime(timezone=True), nullable=True)
+    shipped_at = Column(DateTime(timezone=True), nullable=True)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class ShopSubscriber(Base):
@@ -1521,8 +1535,8 @@ class ShopSubscriber(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(Text, nullable=False, unique=True)
-    notified_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    notified_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class Comment(Base):
@@ -1562,17 +1576,17 @@ class Comment(Base):
     )
     content = Column(Text, nullable=False)
     content_length = Column(Integer, nullable=False)
-    edited_at = Column(DateTime)
+    edited_at = Column(DateTime(timezone=True))
     # Three distinct removal states with different semantics:
     #   withdrawn_at -- user "take back". Attribution kept; original content
     #                   revealable on press-and-hold.
     #   deleted_at   -- admin moderation delete. No attribution, no reveal.
     #   hidden_at    -- admin suppression pending review. Reversible.
-    withdrawn_at = Column(DateTime)
-    deleted_at = Column(DateTime)
-    hidden_at = Column(DateTime)
+    withdrawn_at = Column(DateTime(timezone=True))
+    deleted_at = Column(DateTime(timezone=True))
+    hidden_at = Column(DateTime(timezone=True))
     hidden_reason = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
 
 class CommentReport(Base):
@@ -1587,9 +1601,9 @@ class CommentReport(Base):
     reason = Column(Text, nullable=False)
     notes = Column(Text)
     status = Column(Text, nullable=False, default="pending")
-    resolved_at = Column(DateTime)
+    resolved_at = Column(DateTime(timezone=True))
     resolved_by_admin_id = Column(Integer)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
 
 class AccountVerification(Base):
@@ -1612,11 +1626,11 @@ class AccountVerification(Base):
     provider = Column(Text, nullable=False)
     provider_reference = Column(Text, nullable=False)
     status = Column(Text, nullable=False, default="requires_input")
-    verified_at = Column(DateTime)
+    verified_at = Column(DateTime(timezone=True))
     failure_reason = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
     )
 
 
@@ -1630,7 +1644,7 @@ class AdminAlertPref(Base):
     channel = Column(Text, primary_key=True, default="email")
     enabled = Column(Boolean, nullable=False, default=True)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
     )
 
 
@@ -1651,7 +1665,7 @@ class ModerationEvent(Base):
     target_comment_id = Column(Integer)
     reason = Column(Text)
     details = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
 
 class CommentNotification(Base):
@@ -1668,8 +1682,8 @@ class CommentNotification(Base):
     type = Column(Text, nullable=False)
     comment_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
     actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    read_at = Column(DateTime)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    read_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
 
 class User(Base):
@@ -1701,10 +1715,10 @@ class User(Base):
     # public display in the Deliberation Chamber. Shown only when BOTH are
     # set -- a name captured without consent is never surfaced.
     legal_name = Column(Text)
-    legal_name_public_consent_at = Column(DateTime)
-    banned_at = Column(DateTime)
+    legal_name_public_consent_at = Column(DateTime(timezone=True))
+    banned_at = Column(DateTime(timezone=True))
     banned_reason = Column(Text)
-    suspended_until = Column(DateTime)
+    suspended_until = Column(DateTime(timezone=True))
     # Billing / metering (migration 072). Two-bucket credit model + Stripe
     # linkage. credit_ledger is the source of truth; these are the
     # denormalised fast-read counts.
@@ -1712,7 +1726,7 @@ class User(Base):
     stripe_subscription_id = Column(Text)
     subscription_tier = Column(String(30), nullable=False, default="free")
     subscription_status = Column(String(20))
-    subscription_period_end = Column(DateTime)
+    subscription_period_end = Column(DateTime(timezone=True))
     allowance_credits = Column(Integer, nullable=False, default=0)
     purchased_credits = Column(Integer, nullable=False, default=0)
     # Admin-granted unlimited Lyrical Charger comp (migration 083). Orthogonal
@@ -1721,9 +1735,9 @@ class User(Base):
     # calibrate rate-limiter lifts the per-user daily backstop. Charger-only;
     # Library entitlement is unaffected.
     comp_unlimited = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
     )
 
 
@@ -1763,7 +1777,7 @@ class CreditLedger(Base):
     ref_type = Column(String(40))
     ref_id = Column(Text)
     context_json = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
 
 class GeneralInquiry(Base):
@@ -1787,8 +1801,8 @@ class GeneralInquiry(Base):
     page_url = Column(Text)            # referring page path, if supplied
     ip_address = Column(String(45))
     status = Column(String(20), default="new")  # new | read | closed
-    created_at = Column(DateTime, default=datetime.utcnow)
-    handled_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    handled_at = Column(DateTime(timezone=True))
 
 
 class ChartAnomaly(Base):
@@ -1810,8 +1824,8 @@ class ChartAnomaly(Base):
     album = Column(Text)
     note = Column(Text)                               # freeform fallback / extra context
     active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
 
 class AlbumChargeJob(Base):
@@ -1836,8 +1850,8 @@ class AlbumChargeJob(Base):
     result_json = Column(Text)           # final AlbumCalibrateOut payload (JSON)
     error_message = Column(Text)
     ip_address = Column(String(45))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
 
 class CalibrateJob(Base):
@@ -1864,8 +1878,8 @@ class CalibrateJob(Base):
     result_json = Column(Text)           # final LyricsCalibrateOut payload (JSON)
     error_message = Column(Text)
     ip_address = Column(String(45))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
 
 # ===========================================================================
@@ -1917,11 +1931,11 @@ class Song(Base):
     confidence = Column(Float)
     listener_effects_prose = Column(Text)
     societal_effects_prose = Column(Text)
-    societal_prose_generated_at = Column(DateTime)
+    societal_prose_generated_at = Column(DateTime(timezone=True))
     societal_prose_model = Column(Text)
     prior_listener_effects_prose = Column(Text)
     prior_societal_effects_prose = Column(Text)
-    prior_societal_prose_generated_at = Column(DateTime)
+    prior_societal_prose_generated_at = Column(DateTime(timezone=True))
     prior_societal_prose_model = Column(Text)
     deadpan_line = Column(Text)
     topics = Column(Text)
@@ -1967,7 +1981,7 @@ class Song(Base):
     # Set + release_group_mbid NULL means "searched MusicBrainz, no confident
     # match" -- a recorded miss, so the backfill skips the song instead of
     # re-searching it every pass. NULL means never searched.
-    release_group_checked_at = Column(DateTime)
+    release_group_checked_at = Column(DateTime(timezone=True))
     # MB's first-release-date for the picked release group (migration 151), as MB
     # reports it -- "1972", "1972-02", "1972-02-01". TEXT, not DATE: MB dates are
     # variable-precision and compare correctly as strings. Kept so a bad pick is
@@ -1978,7 +1992,7 @@ class Song(Base):
     # server_default so the raw-SQL insert in song_sync.upsert_unified_song (the
     # unified write chokepoint) stamps a time -- a client-side `default=` only
     # fires on ORM inserts, which this table never uses. See migration 116.
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
+    created_at = Column(DateTime(timezone=True), default=_utcnow, server_default=text("(now() at time zone 'utc')"))
 
 
 class Chart(Base):
@@ -1993,7 +2007,7 @@ class Chart(Base):
     cadence = Column(Text, nullable=False, default="annual", server_default="annual")  # annual|daily|weekly
     provider = Column(Text)
     active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class ChartAppearance(Base):
@@ -2013,7 +2027,7 @@ class ChartAppearance(Base):
     period = Column(Date)  # specific date for daily/weekly charts; NULL for annual
     position = Column(Integer)
     position_letter = Column(Text, nullable=False, server_default="", default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class SongIngestion(Base):
@@ -2028,7 +2042,7 @@ class SongIngestion(Base):
     api_client_id = Column(Integer)
     ip_address = Column(String(45))  # new home for submitted_songs.ip_address PII
     detail = Column(Text)            # JSON: stream source_url/platform, submitted source, etc.
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class SongIdentityAlias(Base):
@@ -2064,7 +2078,7 @@ class SongIdentityAlias(Base):
     alias_artist = Column(Text)
     source = Column(Text, nullable=False, default="relink")  # relink | admin
     notes = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
 class SongIdMap(Base):
@@ -2108,9 +2122,9 @@ class DevLedgerItem(Base):
     admin_note = Column(Text)  # internal triage note, never served publicly
     resolution = Column(Text)  # public "why closed / how shipped"
     duplicate_of_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    published_at = Column(DateTime)  # when is_public first set true
-    shipped_at = Column(DateTime)  # when status -> shipped
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    published_at = Column(DateTime(timezone=True))  # when is_public first set true
+    shipped_at = Column(DateTime(timezone=True))  # when status -> shipped
     resolved_by_admin_id = Column(Integer)
 
     submitted_by = relationship("User", foreign_keys=[submitted_by_user_id])
@@ -2125,7 +2139,7 @@ class DevLedgerVote(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     item_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (UniqueConstraint("item_id", "user_id", name="uq_dev_ledger_vote_item_user"),)
 
@@ -2159,17 +2173,17 @@ class ErrorSignature(Base):
     area = Column(String(40))                           # set on triage: calibration|billing|...
     status = Column(String(20), nullable=False, default="new")       # lifecycle (see scope S5)
     environment = Column(String(10), nullable=False, default="local")  # local|prod
-    first_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    first_seen_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    last_seen_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     occurrence_count = Column(Integer, nullable=False, default=0)
     last_traceback = Column(Text)                       # freshest full traceback
     last_context = Column(Text)                         # JSON: path, method, actor, ids...
     assigned_to = Column(String(120))                   # agent id or admin handle
     claimed_by = Column(String(120))                    # lease holder (agent worker id)
-    claim_expires_at = Column(DateTime)                 # lease TTL
+    claim_expires_at = Column(DateTime(timezone=True))                 # lease TTL
     dev_ledger_item_id = Column(Integer, ForeignKey("dev_ledger_items.id", ondelete="SET NULL"), nullable=True)
     resolution = Column(Text)
-    resolved_at = Column(DateTime)
+    resolved_at = Column(DateTime(timezone=True))
     resolved_by = Column(String(120))
     muted = Column(Boolean, nullable=False, default=False)
 
@@ -2187,7 +2201,7 @@ class ErrorOccurrence(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     signature_id = Column(Integer, ForeignKey("error_signatures.id", ondelete="CASCADE"), nullable=False)
-    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    occurred_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     traceback = Column(Text)
     context = Column(Text)                               # JSON blob
     environment = Column(String(10), nullable=False, default="local")
@@ -2213,7 +2227,7 @@ class ErrorAction(Base):
     note = Column(Text)
     payload = Column(Text)                               # JSON blob
     idempotency_key = Column(String(80))                # dedupe re-fired agent calls
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_error_action_sig_time", "signature_id", "created_at"),
@@ -2250,8 +2264,8 @@ class ClutterAudit(Base):
     status = Column(String(16), nullable=False, default="open")  # open | kept | removed | dismissed
     environment = Column(String(10), nullable=False, default="local")  # local | prod
     payload_json = Column(Text)                          # title/artist/ip snapshot at detection
-    detected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    reviewed_at = Column(DateTime)
+    detected_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    reviewed_at = Column(DateTime(timezone=True))
     reviewed_by = Column(String(120))                    # admin handle
     review_notes = Column(Text)
 
@@ -2289,9 +2303,9 @@ class SentinelAuditor(Base):
     handle_snapshot = Column(String(120))                # denorm of the handle for the admin queue
     review_notes = Column(Text)
     reviewed_by = Column(String(120))                    # admin username
-    reviewed_at = Column(DateTime)
-    applied_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    reviewed_at = Column(DateTime(timezone=True))
+    applied_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     findings = relationship("SentinelFinding", back_populates="auditor",
                             cascade="all, delete-orphan")
@@ -2337,10 +2351,10 @@ class SentinelFinding(Base):
     disposition = Column(Text)                            # admin response shown back to the auditor
     points_awarded = Column(Integer, nullable=False, default=0)  # snapshot at acceptance
     environment = Column(String(10), nullable=False, default="local")  # local | prod
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
     reviewed_by = Column(String(120))                    # admin username
-    reviewed_at = Column(DateTime)
+    reviewed_at = Column(DateTime(timezone=True))
 
     auditor = relationship("SentinelAuditor", back_populates="findings")
     song = relationship("Song")
@@ -2362,8 +2376,8 @@ class SentinelWaitlist(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(Text, nullable=False, unique=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    notified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    notified_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class SongMergeCandidate(Base):
@@ -2392,9 +2406,9 @@ class SongMergeCandidate(Base):
     payload_json = Column(Text)                          # optional snapshot at detection
     # server_default so the RAW-SQL insert in song_sync (the resolve-ladder trgm
     # path) populates it; a client-side default fires only on ORM inserts.
-    detected_at = Column(DateTime, nullable=False, default=datetime.utcnow,
+    detected_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow,
                          server_default=text("CURRENT_TIMESTAMP"))
-    reviewed_at = Column(DateTime)
+    reviewed_at = Column(DateTime(timezone=True))
     reviewed_by = Column(String(120))                    # admin handle
     review_notes = Column(Text)
 
@@ -2418,7 +2432,7 @@ class SongMergeEvent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     # server_default so the merge service's raw-SQL INSERT (which omits this) is
     # safe on a fresh create_all DB too, matching the migration's DDL default.
-    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow,
+    occurred_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow,
                          server_default=text("CURRENT_TIMESTAMP"))
     actor = Column(String(120))                          # admin handle | 'system'
     source_song_id = Column(Integer)                     # deleted row's id (no FK)
@@ -2454,8 +2468,8 @@ class AgentRun(Base):
     flagged = Column(Integer, nullable=False, default=0)
     error = Column(Text)                                  # set on status='error'
     environment = Column(String(10), nullable=False, default="local")
-    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    finished_at = Column(DateTime)
+    started_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    finished_at = Column(DateTime(timezone=True))
     duration_ms = Column(Integer)
 
     __table_args__ = (
@@ -2496,8 +2510,8 @@ class AlltimeStreamSong(Base):
     topics = Column(Text)                                  # JSON-encoded list
     song_slug = Column(Text)
     artist_slug = Column(Text)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         Index("idx_alltime_stream_songs_rank", "rank"),
@@ -2534,9 +2548,9 @@ class AlltimeAlbum(Base):
     topics = Column(Text)                                  # JSON-encoded list
     artist_slug = Column(Text)
     release_slug = Column(Text)
-    last_reviewed_at = Column(DateTime)                    # drives the staleness banner
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_reviewed_at = Column(DateTime(timezone=True))                    # drives the staleness banner
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         Index("idx_alltime_albums_rank", "rank"),
@@ -2569,8 +2583,8 @@ class AlltimeStreamAlbum(Base):
     artist_slug = Column(Text)
     release_slug = Column(Text)
     non_music = Column(Boolean, default=False)             # nulled + tagged, parallel to instrumental
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         Index("idx_alltime_stream_albums_rank", "rank"),
@@ -2594,7 +2608,7 @@ class SocialCard(Base):
     ref = Column(Text, nullable=False)          # song_id (str) | reading date ISO
     png = Column(LargeBinary, nullable=False)   # BYTEA on Postgres
     content_type = Column(Text, nullable=False, default="image/png")
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
+    created_at = Column(DateTime(timezone=True), default=_utcnow, server_default=text("(now() at time zone 'utc')"))
 
 
 class SocialPost(Base):
@@ -2619,8 +2633,8 @@ class SocialPost(Base):
     # prepared | dark | queued | posted | skipped | error
     status = Column(Text, nullable=False, default="prepared")
     error = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
-    posted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, server_default=text("(now() at time zone 'utc')"))
+    posted_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("ix_social_posts_song", "song_id"),
@@ -2664,8 +2678,8 @@ class Resonance(Base):
     coherence_json = Column(Text, nullable=True)
     # Hand-authored build/demo seed; excluded from every real aggregate.
     is_synthetic = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"), onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, server_default=text("(now() at time zone 'utc')"))
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, server_default=text("(now() at time zone 'utc')"), onupdate=_utcnow)
 
     __table_args__ = (
         Index("ix_resonances_song", "song_id"),
@@ -2687,8 +2701,8 @@ class ResonanceSliceJob(Base):
     status = Column(String(20), nullable=False, default="queued")  # queued|running|done|error
     slice_json = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"))
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=text("(now() at time zone 'utc')"), onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, server_default=text("(now() at time zone 'utc')"))
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, server_default=text("(now() at time zone 'utc')"), onupdate=_utcnow)
 
 
 class SongProseVersion(Base):
@@ -2711,7 +2725,7 @@ class SongProseVersion(Base):
     __tablename__ = "song_prose_versions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    written_at = Column(DateTime, default=datetime.utcnow,
+    written_at = Column(DateTime(timezone=True), default=_utcnow,
                         server_default=text("(now() at time zone 'utc')"), nullable=False)
 
     song_id = Column(Integer)
@@ -2722,7 +2736,7 @@ class SongProseVersion(Base):
     prose = Column(Text, nullable=False)
 
     model = Column(String(80))
-    generated_at = Column(DateTime)
+    generated_at = Column(DateTime(timezone=True))
 
     trigger = Column(String(40))
 
@@ -2757,7 +2771,7 @@ class ReleaseProseVersion(Base):
     __tablename__ = "release_prose_versions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    written_at = Column(DateTime, default=datetime.utcnow,
+    written_at = Column(DateTime(timezone=True), default=_utcnow,
                         server_default=text("(now() at time zone 'utc')"), nullable=False)
 
     release_id = Column(Integer)
@@ -2768,7 +2782,7 @@ class ReleaseProseVersion(Base):
     prose = Column(Text, nullable=False)
 
     model = Column(String(80))
-    generated_at = Column(DateTime)
+    generated_at = Column(DateTime(timezone=True))
 
     trigger = Column(String(40))
 
@@ -2807,7 +2821,7 @@ class UnifiedChartWeight(Base):
     slug = Column(Text, primary_key=True)
     weight = Column(Float, nullable=False, default=1.0, server_default=text("1.0"))
     note = Column(Text)
-    updated_at = Column(DateTime, default=datetime.utcnow,
+    updated_at = Column(DateTime(timezone=True), default=_utcnow,
                         server_default=text("(now() at time zone 'utc')"), nullable=False)
 
 
@@ -2841,9 +2855,9 @@ class UnifiedReading(Base):
     editorial_stale = Column(Boolean, nullable=False, default=False,
                              server_default=text("false"))
 
-    composed_at = Column(DateTime, default=datetime.utcnow,
+    composed_at = Column(DateTime(timezone=True), default=_utcnow,
                          server_default=text("(now() at time zone 'utc')"), nullable=False)
-    published_at = Column(DateTime)
+    published_at = Column(DateTime(timezone=True))
 
     songs = relationship("UnifiedReadingSong", back_populates="reading",
                          cascade="all, delete-orphan",

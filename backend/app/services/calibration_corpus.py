@@ -461,8 +461,8 @@ def supersede_live_runs(db: Session, song_id: int, reason: str) -> int:
     full history with each retired run flagged.
 
     Caller commits."""
-    from datetime import datetime as _dt
-    now = _dt.utcnow()
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc)
     prior = (
         db.query(CalibrationRun)
         .filter(CalibrationRun.song_id == song_id)

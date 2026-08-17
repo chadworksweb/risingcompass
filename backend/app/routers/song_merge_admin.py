@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -186,7 +186,7 @@ def resolve_candidate(cand_id: int, data: ResolveCandidateIn, request: Request,
             | (SongMergeCandidate.target_song_id == drop_id),
         ).all():
             other.status = "superseded"
-            other.reviewed_at = datetime.utcnow()
+            other.reviewed_at = datetime.now(timezone.utc)
             other.reviewed_by = actor
         db.flush()
         try:
@@ -203,7 +203,7 @@ def resolve_candidate(cand_id: int, data: ResolveCandidateIn, request: Request,
     else:
         cand.status = _ACTION_TO_STATUS[action]
 
-    cand.reviewed_at = datetime.utcnow()
+    cand.reviewed_at = datetime.now(timezone.utc)
     cand.reviewed_by = actor
     cand.review_notes = data.notes or None
     db.commit()
@@ -231,7 +231,7 @@ def merge_song_into(source_id: int, data: MergeIntoIn, request: Request,
         | (SongMergeCandidate.target_song_id == source_id),
     ).all():
         cand.status = "merged"
-        cand.reviewed_at = datetime.utcnow()
+        cand.reviewed_at = datetime.now(timezone.utc)
         cand.reviewed_by = actor
     db.flush()
     try:

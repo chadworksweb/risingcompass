@@ -17,7 +17,7 @@ the unified id so every vote for a song aggregates onto one needle.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import func, text
@@ -183,7 +183,7 @@ def get_state(db: Session, source: str, song_id: int, device_id: Optional[str]) 
         .filter(AudienceVibeNeedle.song_id == unified_id)
         .first()
     )
-    year = datetime.utcnow().year
+    year = datetime.now(timezone.utc).year
 
     if not needle:
         eligible = bool(device_id)
@@ -237,7 +237,7 @@ def apply_push(
     song = _resolve_song(db, source, song_id)  # validate target
     unified_id = song.id
     compass_charge = song.charge_value
-    year = datetime.utcnow().year
+    year = datetime.now(timezone.utc).year
 
     if not _check_eligibility(db, unified_id, device_id, year):
         raise VibeError("Already pushed this song this year. Each person gets one push per song per year.")
@@ -268,7 +268,7 @@ def apply_push(
         needle.pushes_down_total,
     )
     needle.current_value = new_value
-    needle.last_push_at = datetime.utcnow()
+    needle.last_push_at = datetime.now(timezone.utc)
     needle.updated_at = needle.last_push_at
 
     case = _maybe_open_review_case(db, unified_id, song, new_value)

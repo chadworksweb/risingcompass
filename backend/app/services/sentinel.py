@@ -128,10 +128,10 @@ def record_finding(
 # --- triage (admin) ---------------------------------------------------------
 
 def _stamp_accept(finding: SentinelFinding, *, actor_ref: str | None) -> None:
-    from datetime import datetime
+    from datetime import datetime, timezone
     sev = finding.accepted_severity or finding.proposed_severity
     finding.points_awarded = SEVERITY_POINTS.get(sev, 0)
-    finding.reviewed_at = datetime.utcnow()
+    finding.reviewed_at = datetime.now(timezone.utc)
     finding.reviewed_by = actor_ref
 
 

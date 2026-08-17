@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Allow running this script from anywhere — make `app` importable.
@@ -90,7 +90,7 @@ def main() -> int:
             user.is_active = True
             user.failed_login_count = 0
             user.locked_until = None
-            user.updated_at = datetime.utcnow()
+            user.updated_at = datetime.now(timezone.utc)
             db.commit()
             print(f"Updated admin user '{username}' (id={user.id}). Lockout cleared.")
 

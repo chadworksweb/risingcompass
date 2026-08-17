@@ -17,7 +17,7 @@ import html
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -136,7 +136,7 @@ def sync_printify_products(db: Session) -> dict:
         return {"ok": False, "fetched": 0, "created": 0, "updated": 0, "errors": [str(e)]}
 
     products = envelope.get("data") or []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     created = 0
     updated = 0
     errors: list[str] = []

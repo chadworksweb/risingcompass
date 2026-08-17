@@ -27,7 +27,7 @@ handles for error lc_events).
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException
@@ -84,7 +84,7 @@ def _record_comp_run(
 
 def _utc_day_start() -> datetime:
     """UTC midnight of the current day -- the daily-free reset boundary."""
-    return datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    return datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _daily_free_eligible(user: User) -> bool:

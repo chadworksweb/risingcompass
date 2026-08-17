@@ -16,7 +16,7 @@ delivery queue.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 import stripe
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -96,7 +96,7 @@ async def stripe_identity_webhook(
             logger.warning("Reconciled missing AV row for session %s via metadata.rc_user_id=%s",
                            session_id, rc_user_id)
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if event_type == "identity.verification_session.verified":
             av.status = "verified"

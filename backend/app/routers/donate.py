@@ -16,7 +16,7 @@ disclosure shows up next to the consent checkbox in the LC widget.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import stripe
@@ -193,7 +193,7 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(defaul
             cd = obj.get("customer_details") or {}
             donation.customer_email = cd.get("email")
             donation.payment_intent_id = obj.get("payment_intent")
-            donation.completed_at = datetime.utcnow()
+            donation.completed_at = datetime.now(timezone.utc)
             db.commit()
             logger.info("Donation %s succeeded: %d %s", donation.stripe_session_id,
                         donation.amount_cents, donation.currency)
@@ -201,7 +201,7 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(defaul
         elif event_type in ("checkout.session.expired", "checkout.session.async_payment_failed"):
             if donation:
                 donation.status = "expired" if event_type.endswith("expired") else "failed"
-                donation.completed_at = datetime.utcnow()
+                donation.completed_at = datetime.now(timezone.utc)
                 db.commit()
 
         # Other event types: ignore. We could log them, but Stripe re-sends

@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from anthropic import Anthropic
@@ -254,7 +254,7 @@ def generate_societal_effects_prose(
             )
             # Seal provenance at the moment the call succeeds, before any
             # post-processing -- the timestamp the prophecy instrument proves against.
-            generated_at = datetime.utcnow()
+            generated_at = datetime.now(timezone.utc)
             model = getattr(response, "model", None) or AGENT_MODEL
             raw = (response.content[0].text or "").strip()
         except Exception:

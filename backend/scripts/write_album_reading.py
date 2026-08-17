@@ -40,7 +40,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -211,7 +211,7 @@ def main() -> int:
         # 4. WRITE -- archive first, then the row, then the run ledger.
         from app.config import settings
         environment = getattr(settings, "environment", "prod")
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         archived = _archive_prose(
             db, release, reading, color=composed.rubric_color,

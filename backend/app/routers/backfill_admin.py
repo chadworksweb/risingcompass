@@ -13,7 +13,7 @@ automation exists for hands-off runs you start and walk away from.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -308,7 +308,7 @@ def supply_lyrics(job_id: int, row_id: int, data: LyricsIn, db: Session = Depend
     if row.status == "needs_lyrics":
         row.status = "queued"
         row.error = None
-    row.updated_at = datetime.utcnow()
+    row.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
     return _row_to_out(row)
@@ -320,7 +320,7 @@ def supply_lyrics(job_id: int, row_id: int, data: LyricsIn, db: Session = Depend
 def skip_row(job_id: int, row_id: int, db: Session = Depends(get_db)):
     row = _load_row(db, job_id, row_id)
     row.status = "skipped"
-    row.updated_at = datetime.utcnow()
+    row.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
     return _row_to_out(row)
@@ -338,7 +338,7 @@ def retry_row(job_id: int, row_id: int, db: Session = Depends(get_db)):
     else:
         row.status = "queued"
     row.error = None
-    row.updated_at = datetime.utcnow()
+    row.updated_at = datetime.now(timezone.utc)
     # Don't decrement failed_rows — it counts attempts, not currently-failed.
     db.commit()
     db.refresh(row)
@@ -376,7 +376,7 @@ async def musixmatch_fetch(job_id: int, row_id: int, track_id: int,
     if row.status == "needs_lyrics":
         row.status = "queued"
         row.error = None
-    row.updated_at = datetime.utcnow()
+    row.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
     return _row_to_out(row)

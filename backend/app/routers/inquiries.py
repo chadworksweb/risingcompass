@@ -8,7 +8,7 @@ submissions email the admin (moderation alert, pref-gated).
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -111,7 +111,7 @@ def update_inquiry_status(inquiry_id: int, data: GeneralInquiryStatusUpdate,
     if not inquiry:
         raise HTTPException(404, "Inquiry not found")
     inquiry.status = data.status
-    inquiry.handled_at = datetime.utcnow() if data.status != "new" else None
+    inquiry.handled_at = datetime.now(timezone.utc) if data.status != "new" else None
     db.commit()
     db.refresh(inquiry)
     return inquiry

@@ -15,7 +15,7 @@ of truth for "what happened to this user" and "what did this admin do".
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -282,7 +282,7 @@ def hide(
     comment = _get_comment_or_404(db, comment_id)
     if comment.hidden_at is not None:
         return ActionOut(ok=True)
-    comment.hidden_at = datetime.utcnow()
+    comment.hidden_at = datetime.now(timezone.utc)
     comment.hidden_reason = payload.reason
     _audit(
         db,
@@ -334,7 +334,7 @@ def cooldown(
         raise HTTPException(status_code=404, detail="Author not found")
     if author.status == "banned":
         raise HTTPException(status_code=409, detail="Cannot cooldown a banned account")
-    until = datetime.utcnow() + timedelta(hours=payload.hours)
+    until = datetime.now(timezone.utc) + timedelta(hours=payload.hours)
     author.suspended_until = until
     author.status = "suspended"
     _audit(
@@ -365,7 +365,7 @@ def ban(
 
     clerk_ok = clerk_svc.ban_clerk_user(author.clerk_user_id)
     author.status = "banned"
-    author.banned_at = datetime.utcnow()
+    author.banned_at = datetime.now(timezone.utc)
     author.banned_reason = payload.reason
     author.suspended_until = None
     _audit(
@@ -396,7 +396,7 @@ def admin_delete(
     comment = _get_comment_or_404(db, comment_id)
     if comment.deleted_at is not None:
         return ActionOut(ok=True)
-    comment.deleted_at = datetime.utcnow()
+    comment.deleted_at = datetime.now(timezone.utc)
     _audit(
         db,
         action="admin_delete",
@@ -417,7 +417,7 @@ def dismiss_reports(
     _admin: User = Depends(require_admin_session),
 ):
     comment = _get_comment_or_404(db, comment_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     updated = (
         db.query(CommentReport)
         .filter(CommentReport.comment_id == comment.id)

@@ -13,7 +13,7 @@ same comment gets a single (reply) notification, not two.
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import func, text
@@ -159,7 +159,7 @@ def unread_count(db: Session, user: User) -> int:
 
 def mark_all_read(db: Session, user: User) -> int:
     """Mark every unread notification read. Returns the count marked."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     marked = (
         db.query(CommentNotification)
         .filter(CommentNotification.user_id == user.id)

@@ -17,7 +17,7 @@ shortcut endpoints are stable and 307-redirect to Internet Archive storage.
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 
@@ -169,7 +169,7 @@ async def ensure_cover_art(musicbrainz_ids) -> dict:
             db.merge(MbCoverArt(
                 musicbrainz_id=mbid,
                 has_art=bool(has_art),
-                checked_at=datetime.utcnow(),
+                checked_at=datetime.now(timezone.utc),
             ))
             db.commit()
         finally:

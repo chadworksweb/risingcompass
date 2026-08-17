@@ -44,7 +44,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -112,7 +112,7 @@ def main() -> int:
                   f"{r.source_count} chart(s)")
 
         if args.apply:
-            stamp = datetime.utcnow()
+            stamp = datetime.now(timezone.utc)
             for r in rows:
                 r.published = True
                 r.published_at = stamp

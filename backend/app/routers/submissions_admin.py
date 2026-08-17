@@ -11,7 +11,7 @@ lyrical_charger ingestion.
 
 import logging
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
@@ -111,7 +111,7 @@ def list_submissions(
         params["contam"] = contaminated
     if since:
         sql += " AND s.created_at >= :since"
-        params["since"] = datetime.combine(since, datetime.min.time())
+        params["since"] = datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc)
     # DISTINCT ON requires the distinct expression to lead ORDER BY; the outer
     # newest-first ordering + paging is applied to the de-duplicated set.
     sql = (
@@ -142,7 +142,7 @@ def submission_stats(db: Session = Depends(get_db)):
         text("SELECT count(*) FROM (" + base + ") b")
     ).scalar() or 0
 
-    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_start = datetime.combine(date.today(), datetime.min.time(), tzinfo=timezone.utc)
     today_count = db.execute(
         text("SELECT count(*) FROM (" + base + ") b WHERE b.created_at >= :t"),
         {"t": today_start},

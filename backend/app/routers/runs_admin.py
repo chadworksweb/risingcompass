@@ -15,7 +15,7 @@ Admin cookie auth only (verify_admin_key) -- never publicly exposed.
 """
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import case, func
@@ -49,7 +49,7 @@ _WINDOWS = {
 
 def _window_cutoff(window: str | None):
     if window and window in _WINDOWS:
-        return datetime.utcnow() - _WINDOWS[window]
+        return datetime.now(timezone.utc) - _WINDOWS[window]
     return None
 
 

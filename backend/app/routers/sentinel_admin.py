@@ -16,7 +16,7 @@ prod worklist. The page passes `?environment=local` when testing locally.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -116,7 +116,7 @@ def review_application(
     if not row:
         raise HTTPException(404, "application not found")
     row.status = _REVIEW_TO_STATUS[action]
-    row.reviewed_at = datetime.utcnow()
+    row.reviewed_at = datetime.now(timezone.utc)
     row.reviewed_by = getattr(request.state, "admin_username", None) or "admin"
     if data.notes is not None:
         row.review_notes = data.notes.strip() or None

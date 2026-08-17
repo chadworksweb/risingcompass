@@ -6,7 +6,7 @@ pattern.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -164,7 +164,7 @@ def update_review_case(case_id: int, data: CaseStatusUpdate, db: Session = Depen
     if data.admin_notes is not None:
         case.admin_notes = data.admin_notes
     if data.status != "open" and case.resolved_at is None:
-        case.resolved_at = datetime.utcnow()
+        case.resolved_at = datetime.now(timezone.utc)
     db.commit()
     return {
         "id": case.id, "status": case.status,

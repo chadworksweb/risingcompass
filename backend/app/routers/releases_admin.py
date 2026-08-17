@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -268,7 +268,7 @@ def create_release(req: CreateReleaseRequest, db: Session = Depends(get_db)):
     rel = Release(
         artist_id=artist.id, title=title, release_type=req.release_type,
         release_date=rdate, release_year=ryear, source=None,
-        submitted_at=datetime.utcnow(),
+        submitted_at=datetime.now(timezone.utc),
     )
     db.add(rel)
     db.flush()

@@ -19,7 +19,7 @@ error -- so it can never affect the reading it rides on.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_
 
@@ -54,7 +54,7 @@ def _already_notified(db) -> bool:
 
 
 def _mark_notified(db) -> None:
-    db.add(SystemFlag(key=NOTIFIED_FLAG_KEY, value=datetime.utcnow().isoformat()))
+    db.add(SystemFlag(key=NOTIFIED_FLAG_KEY, value=datetime.now(timezone.utc).isoformat()))
     db.commit()
 
 
@@ -65,7 +65,7 @@ def analyze(db) -> dict:
     cache is org-wide and prefix-keyed, so any caller keeps it warm) was within
     TTL_SECONDS. The first call after any gap is a 'cold write'.
     """
-    cutoff = datetime.utcnow() - timedelta(days=WINDOW_DAYS)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=WINDOW_DAYS)
     rows = (
         db.query(ClaudeApiUsage.ts)
         .filter(and_(

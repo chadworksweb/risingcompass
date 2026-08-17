@@ -12,7 +12,7 @@ Run on the server against prod:
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database import SessionLocal
 from app.models import AlltimeAlbum
 
@@ -89,7 +89,7 @@ def main():
             row.certified_units = units
             row.units_millions = millions
             row.release_year = year
-            row.last_reviewed_at = datetime.utcnow()
+            row.last_reviewed_at = datetime.now(timezone.utc)
         db.commit()
         print(f"Seeded all-time albums: {created} created, {updated} updated "
               f"({len(ALBUMS)} total).")

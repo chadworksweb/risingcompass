@@ -22,7 +22,7 @@ RISING-COMPASS-DEV-LEDGER-SCOPE.md.
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException
@@ -251,7 +251,7 @@ def triage(
         if item.item_type == "change" and status not in CHANGE_STATUSES:
             raise HTTPException(status_code=400, detail="Invalid status for a change item")
         if status == "shipped" and item.shipped_at is None:
-            item.shipped_at = datetime.utcnow()
+            item.shipped_at = datetime.now(timezone.utc)
         item.status = status
 
     if stage is not None:
@@ -283,7 +283,7 @@ def triage(
 
     if is_public is not None:
         if is_public and item.published_at is None:
-            item.published_at = datetime.utcnow()
+            item.published_at = datetime.now(timezone.utc)
         item.is_public = bool(is_public)
 
     item.resolved_by_admin_id = admin_id
@@ -308,7 +308,7 @@ def cut_release(db: Session, *, item_ids: list[int], version: str, admin_id: int
     if not item_ids:
         raise HTTPException(status_code=400, detail="No items to release")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     items = db.query(DevLedgerItem).filter(DevLedgerItem.id.in_(item_ids)).all()
     for item in items:
         item.version = version

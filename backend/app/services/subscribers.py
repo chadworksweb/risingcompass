@@ -19,7 +19,7 @@ request so the POST stays fast.
 import hashlib
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -169,7 +169,7 @@ def confirm(db: Session, token: str) -> Optional[RcSubscriber]:
     if row is None:
         return None
     row.status = "confirmed"
-    row.confirmed_at = datetime.utcnow()
+    row.confirmed_at = datetime.now(timezone.utc)
     row.confirm_token = None  # single-use
     db.commit()
     db.refresh(row)
@@ -183,7 +183,7 @@ def unsubscribe(db: Session, token: str) -> Optional[RcSubscriber]:
     if row is None:
         return None
     row.status = "unsubscribed"
-    row.unsubscribed_at = datetime.utcnow()
+    row.unsubscribed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
     return row
@@ -219,10 +219,10 @@ def set_prefs_by_token(
         row.status = "confirmed"
         row.unsubscribed_at = None
         if row.confirmed_at is None:
-            row.confirmed_at = datetime.utcnow()
+            row.confirmed_at = datetime.now(timezone.utc)
     elif subscribed is False:
         row.status = "unsubscribed"
-        row.unsubscribed_at = datetime.utcnow()
+        row.unsubscribed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
     return row
@@ -239,7 +239,7 @@ def link_user_for_subscriber(db: Session, sub: RcSubscriber) -> bool:
     if user is None:
         return False
     sub.user_id = user.id
-    sub.promoted_at = datetime.utcnow()
+    sub.promoted_at = datetime.now(timezone.utc)
     logger.info("Linked existing user id=%s to new subscriber id=%s by email hash", user.id, sub.id)
     return True
 
@@ -259,7 +259,7 @@ def link_subscribers_for_user(db: Session, user: User, email: Optional[str]) -> 
         .filter(RcSubscriber.email_hash == h, RcSubscriber.user_id.is_(None))
         .all()
     )
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for r in rows:
         r.user_id = user.id
         r.promoted_at = now

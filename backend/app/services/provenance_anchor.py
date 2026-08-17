@@ -36,7 +36,7 @@ import logging
 import os
 import re
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from sqlalchemy import func, text
@@ -298,7 +298,7 @@ def evaluate_breaches(db) -> list[str]:
     h = _health_raw(db)
     if not h["enabled"]:
         return []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     breaches: list[str] = []
     if h["integrity_mismatches"]:
         breaches.append(
@@ -498,7 +498,7 @@ def sweep(db, *, limit: int = 2000) -> dict:
              f"Anchor {len(new_records)} societal-prose hashes "
              f"(anchors {new_anchor_ids[0]}-{new_anchor_ids[-1]})")
         commit_sha = _git(repo, "rev-parse", "HEAD").strip()
-        committed_at = datetime.utcnow()
+        committed_at = datetime.now(timezone.utc)
     except Exception:
         logger.exception("provenance sweep: git commit failed")
 
@@ -608,7 +608,7 @@ def reverify(db, *, sample: int | None = None) -> dict:
     if not proof_paths:
         return {"status": "nothing_to_verify", **status_counts(db)}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     checked = 0
     mismatches: list[str] = []
     inconclusive = 0

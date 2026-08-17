@@ -30,7 +30,7 @@ plainly that the fix belongs in Artists & Releases -- silently succeeding while
 changing nothing is the one outcome worth ruling out.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -290,7 +290,7 @@ def resolve_report(
         # else: already re-resolved to something else since the report was filed,
         # so there is nothing to clear -- but the rejection still gets recorded.
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     affected = (
         db.query(SongCoverArtReport)
         .filter(SongCoverArtReport.song_id == report.song_id)

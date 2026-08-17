@@ -22,7 +22,7 @@ verification_method to be set before stage='active'.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from html import escape
 from typing import Optional
 
@@ -525,7 +525,7 @@ def upsert_verification(
         setattr(v, k, val)
 
     if v.funnel_stage in {"contacted", "in_conversation", "active"} and v.contacted_at is None:
-        v.contacted_at = datetime.utcnow()
+        v.contacted_at = datetime.now(timezone.utc)
 
     if v.funnel_stage == "active":
         if not _gate_passes(v):
@@ -536,7 +536,7 @@ def upsert_verification(
                 "require verification_method set.",
             )
         if v.verified_at is None:
-            v.verified_at = datetime.utcnow()
+            v.verified_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(v)
@@ -632,7 +632,7 @@ def create_block(
         audio_url=data.audio_url,
         internal_notes=data.internal_notes,
         published=data.published,
-        published_at=datetime.utcnow() if data.published else None,
+        published_at=datetime.now(timezone.utc) if data.published else None,
     )
     db.add(block)
     db.commit()
@@ -673,7 +673,7 @@ def update_block(
             )
         if not _gate_passes(v):
             raise HTTPException(400, "Cannot publish: deepfake gate not satisfied.")
-        block.published_at = datetime.utcnow()
+        block.published_at = datetime.now(timezone.utc)
     elif update_data.get("published") is False:
         block.published_at = None
 
@@ -810,7 +810,7 @@ def create_outreach(
         song_title=title,
         channel=data.channel,
         contact_used=data.contact_used,
-        sent_at=data.sent_at or datetime.utcnow(),
+        sent_at=data.sent_at or datetime.now(timezone.utc),
         notes=data.notes,
     )
     db.add(touch)

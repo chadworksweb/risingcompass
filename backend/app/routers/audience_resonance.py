@@ -23,7 +23,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -75,7 +75,7 @@ SLICE_JOB_TTL = timedelta(minutes=10)
 def _update_slice_job(token: str, **fields) -> None:
     """Short-lived write to the job row. Bumps updated_at; swallows errors so
     slice telemetry can never crash the worker."""
-    fields["updated_at"] = datetime.utcnow()
+    fields["updated_at"] = datetime.now(timezone.utc)
     db = SessionLocal()
     try:
         db.query(ResonanceSliceJob).filter(
@@ -92,7 +92,7 @@ def _prune_slice_jobs() -> None:
     result a submission needs is copied onto the resonances row at /submit)."""
     db = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - SLICE_JOB_TTL
+        cutoff = datetime.now(timezone.utc) - SLICE_JOB_TTL
         db.query(ResonanceSliceJob).filter(
             ResonanceSliceJob.created_at < cutoff).delete(synchronize_session=False)
         db.commit()
@@ -307,7 +307,7 @@ async def slice_status(token: str, request: Request, db: Session = Depends(get_d
     if job is None:
         raise HTTPException(status_code=404, detail="unknown_slice")
     if job.status in ("queued", "running") and job.updated_at \
-            and (datetime.utcnow() - job.updated_at) > SLICE_JOB_TTL:
+            and (datetime.now(timezone.utc) - job.updated_at) > SLICE_JOB_TTL:
         return {"status": "error", "error": "slice_timed_out"}
     sl = None
     if job.slice_json:

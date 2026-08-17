@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from html import escape
 from typing import Optional
 
@@ -158,7 +158,7 @@ def notify_shop_live(db: Session, *, force: bool = False, dry_run: bool = False)
                 "detail": "Resend not configured"}
     sent = 0
     errors = 0
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for s in subs:
         if send_shop_live(s.email):
             s.notified_at = now

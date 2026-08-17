@@ -32,7 +32,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -160,7 +160,7 @@ def _stamp(song_id: int, mbid: str | None, rg_date: str | None = None) -> None:
             {
                 "release_group_mbid": mbid,
                 "release_group_date": rg_date or None,
-                "release_group_checked_at": datetime.utcnow(),
+                "release_group_checked_at": datetime.now(timezone.utc),
             },
             synchronize_session=False,
         )

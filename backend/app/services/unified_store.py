@@ -38,7 +38,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import date as _date
+from datetime import date as _date, timezone
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -131,7 +131,7 @@ def store(db: Session, reading: ComposedReading, commit: bool = True) -> Unified
         )
         for k, v in fields.items():
             setattr(row, k, v)
-        row.composed_at = datetime.utcnow()
+        row.composed_at = datetime.now(timezone.utc)
         # Published prose written against numbers that have since moved is stale,
         # not wrong to keep. Flag it; never silently republish over it, and never
         # unpublish (that is the editorial's decision, not a background job's).
@@ -221,7 +221,7 @@ def publish(db: Session, on_date: _date, editorial: str,
     row.editorial_stale = False
     if not row.published:
         row.published = True
-        row.published_at = datetime.utcnow()
+        row.published_at = datetime.now(timezone.utc)
     if commit:
         db.commit()
         db.refresh(row)

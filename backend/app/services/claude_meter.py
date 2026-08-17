@@ -23,7 +23,7 @@ import json
 import logging
 import time as _time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.database import SessionLocal
@@ -143,7 +143,7 @@ def _build_row(
             logger.debug("claude_meter: swallowed in _build_row", exc_info=True)
             ctx_json = None
     return {
-        "ts": datetime.utcnow(),
+        "ts": datetime.now(timezone.utc),
         "call_site": call_site[:64],
         "model": (model or "unknown")[:64],
         "input_tokens": input_tokens,

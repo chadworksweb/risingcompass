@@ -244,8 +244,8 @@ async def regenerate_prose(
     # terminal seal (mirrors the storage-chokepoint write-time floor) before the
     # 16:00 UTC provenance sweep anchors it.
     if supplied and calibration.get("societal_effects_prose") and not calibration.get("societal_prose_generated_at"):
-        from datetime import datetime
-        calibration["societal_prose_generated_at"] = datetime.utcnow()
+        from datetime import datetime, timezone
+        calibration["societal_prose_generated_at"] = datetime.now(timezone.utc)
         calibration["societal_prose_model"] = "terminal_supplied"
 
     new_listener_effects_prose = calibration.get("listener_effects_prose")

@@ -143,8 +143,8 @@ def queue(
         .limit(limit * 2 if not include_claimed else limit)
         .all()
     )
-    from datetime import datetime
-    now = datetime.utcnow()
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     out = []
     for s in rows:
         leased = triage._lease_active(s, now)

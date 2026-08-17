@@ -17,7 +17,7 @@ See RISING-COMPASS-SONG-ENTITY-RENOVATION.md. NEVER touches prose_provenance_anc
 import argparse
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 
@@ -106,7 +106,7 @@ def enrichment_score(row):
 def member_sort_key(m):
     row = m["row"]
     auth = 2 if m["source"] in AUTH_SOURCES else 1
-    gen = row.get("societal_prose_generated_at") or datetime.min
+    gen = row.get("societal_prose_generated_at") or datetime.min.replace(tzinfo=timezone.utc)
     return (auth, enrichment_score(row), gen, SOURCE_PRECEDENCE[m["source"]], -m["id"])
 
 
@@ -310,7 +310,7 @@ def apply(conn, data, groups):
                 album_id = m["row"].get("album_id")
                 track_number = m["row"].get("track_number")
                 break
-        created = min((get_created(m["row"], m["source"]) or datetime.utcnow()) for m in members)
+        created = min((get_created(m["row"], m["source"]) or datetime.now(timezone.utc)) for m in members)
         vals = {c: wr.get(c) for c in CALIB_COLS}
         vals.update({
             "title": wr.get("title"), "artist": wr.get("artist"), "canonical_key": key,
@@ -371,7 +371,7 @@ def apply(conn, data, groups):
                 "VALUES (:sid, :m, :ip, :d, :ca)"),
                 {"sid": sid, "m": METHOD_BY_SOURCE[src],
                  "ip": r.get("ip_address"), "d": json.dumps(detail),
-                 "ca": get_created(r, src) or datetime.utcnow()})
+                 "ca": get_created(r, src) or datetime.now(timezone.utc)})
 
     # 7. repoint the NEW pointer columns ONLY. No deletes/dedup in Phase 2: the
     # live site still reads the shared tables (song_artists, vibe needles, ...) by

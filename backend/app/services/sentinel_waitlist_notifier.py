@@ -8,7 +8,7 @@ retry picks them up. Mirrors services/lc_subscriber_notifier.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 import httpx
@@ -93,7 +93,7 @@ def notify_waitlist(db: Session, config: Settings) -> dict:
         .all()
     )
     sent = failed = 0
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for sub in pending:
         if _send_one(sub.email, config):
             sub.notified_at = now

@@ -11,7 +11,7 @@ posting privileges in the Lobby (and Misread reports in Phase 2).
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -263,7 +263,7 @@ def start_identity_verification(
     # Record the public-display consent now, at the moment of opt-in. The
     # name itself is filled in later by the verified webhook; display is
     # gated on this timestamp being present.
-    user.legal_name_public_consent_at = datetime.utcnow()
+    user.legal_name_public_consent_at = datetime.now(timezone.utc)
     db.commit()
 
     logger.info("Started Stripe Identity session %s for user %s", session.id, user.id)

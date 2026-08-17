@@ -13,7 +13,7 @@ rows). If the corpus grows past ~50k this wants a precomputed normalized column.
 
 import json
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Any
 
 from sqlalchemy import func
@@ -212,10 +212,14 @@ def search_unified(
         y = year_map.get(row.id)
         if y:
             try:
-                return (False, datetime(int(y), 1, 1))
+                # AWARE: this tuple is sorted against row.created_at, which is
+                # timestamptz. Python refuses to order a naive datetime against
+                # an aware one, so a naive year-stamp here is a TypeError on
+                # any date-sorted search that hits a row with no created_at.
+                return (False, datetime(int(y), 1, 1, tzinfo=timezone.utc))
             except (ValueError, TypeError):
                 pass
-        return (True, datetime.min)
+        return (True, datetime.min.replace(tzinfo=timezone.utc))
 
     rows.sort(key=_sort_key, reverse=(sort_dir == "desc"))
 

@@ -1,7 +1,7 @@
 """Admin endpoints for Lyrical Charger event log."""
 
 import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc, func
@@ -44,7 +44,7 @@ def list_events(
     if ip:
         q = q.filter(LcEvent.ip_address == ip)
     if since:
-        q = q.filter(LcEvent.occurred_at >= datetime.combine(since, datetime.min.time()))
+        q = q.filter(LcEvent.occurred_at >= datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc))
 
     total = q.count()
     rows = q.order_by(desc(LcEvent.occurred_at)).offset(offset).limit(limit).all()
@@ -54,8 +54,8 @@ def list_events(
 @router.get("/stats", dependencies=[Depends(verify_admin_key)])
 def event_stats(db: Session = Depends(get_db)):
     """Top-level activity stats for the dashboard cards."""
-    now = datetime.utcnow()
-    today_start = datetime.combine(date.today(), datetime.min.time())
+    now = datetime.now(timezone.utc)
+    today_start = datetime.combine(date.today(), datetime.min.time(), tzinfo=timezone.utc)
     week_start = now - timedelta(days=7)
 
     total = db.query(func.count(LcEvent.id)).scalar() or 0
@@ -119,8 +119,8 @@ def album_charger_activity(
     """Album Charger monitoring: counts of albums charged plus the most
     recent ones. Albums charged through the tool are Releases tagged
     source='album_charger' (distinct from MusicBrainz/Spotify-derived ones)."""
-    now = datetime.utcnow()
-    today_start = datetime.combine(date.today(), datetime.min.time())
+    now = datetime.now(timezone.utc)
+    today_start = datetime.combine(date.today(), datetime.min.time(), tzinfo=timezone.utc)
     week_start = now - timedelta(days=7)
 
     base = db.query(Release).filter(Release.source == "album_charger")

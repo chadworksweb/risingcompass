@@ -6,7 +6,7 @@ app.services.claude_meter on every Anthropic messages.create() call.
 
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, desc, func
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/admin/claude-usage", tags=["claude-usage-admin"]
 
 def _resolve_since(days: int) -> datetime:
     days = max(1, min(days, 365))
-    return datetime.utcnow() - timedelta(days=days)
+    return datetime.now(timezone.utc) - timedelta(days=days)
 
 
 def _day_expr(tz: str | None):

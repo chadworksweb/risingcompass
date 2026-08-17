@@ -17,7 +17,7 @@ import secrets
 import threading
 import time as _time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -112,7 +112,7 @@ def _stamp_last_used(key_id: int) -> None:
         db = SessionLocal()
         try:
             db.query(ApiClientKey).filter(ApiClientKey.id == key_id).update(
-                {ApiClientKey.last_used_at: datetime.utcnow()}
+                {ApiClientKey.last_used_at: datetime.now(timezone.utc)}
             )
             db.commit()
         finally:
@@ -133,7 +133,7 @@ def _ensure_client(db: Session, *, slug: str, name: str, behavior: str,
     if client:
         if sync_notes and notes is not None and client.notes != notes:
             client.notes = notes
-            client.updated_at = datetime.utcnow()
+            client.updated_at = datetime.now(timezone.utc)
             logger.info("Resynced notes for api_client %s", slug)
         return client
     client = ApiClient(slug=slug, name=name, behavior=behavior, plan_tier=plan_tier, notes=notes)

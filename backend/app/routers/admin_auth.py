@@ -8,7 +8,7 @@ authorizes every admin API call. /api/admin/auth/me + /api/admin/auth/logout
 work off the cookie too.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -107,7 +107,7 @@ def login_submit(
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if user.locked_until and user.locked_until > datetime.utcnow():
+    if user.locked_until and user.locked_until > datetime.now(timezone.utc):
         auth_svc.waste_time_against_unknown_user(body.password)
         auth_svc.record_attempt(
             db, username=body.username, ip=ip, user_agent=ua,
@@ -118,7 +118,7 @@ def login_submit(
     if not auth_svc.verify_password(user.password_hash, body.password):
         user.failed_login_count = (user.failed_login_count or 0) + 1
         if user.failed_login_count >= settings.admin_lockout_threshold:
-            user.locked_until = datetime.utcnow() + timedelta(
+            user.locked_until = datetime.now(timezone.utc) + timedelta(
                 seconds=settings.admin_lockout_duration_seconds
             )
         db.commit()
@@ -131,7 +131,7 @@ def login_submit(
     # Success — reset counters, mint session, set cookie.
     user.failed_login_count = 0
     user.locked_until = None
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = datetime.now(timezone.utc)
     user.last_login_ip = ip
     db.commit()
 

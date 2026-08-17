@@ -42,7 +42,7 @@ from __future__ import annotations
 import logging
 import math
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -89,7 +89,8 @@ _EXCLUDED_FILE_NAMES = {"sitemap.xml", "robots.txt", "_headers"}
 # to 1960). A page can't have been modified before the site existed, and GSC
 # rejects such lastmod values as invalid dates -- omit the tag instead
 # (lastmod is optional).
-_LASTMOD_FLOOR = datetime(2025, 1, 1)
+# AWARE: compared against songs.created_at, which is timestamptz.
+_LASTMOD_FLOOR = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
 _DAILY_PATHS = {
     "/", "/calibration-log/", "/artists/", "/search/", "/library/",

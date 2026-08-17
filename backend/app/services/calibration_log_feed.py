@@ -18,7 +18,7 @@ Read side only. Write side is owned by the capture routers
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
@@ -237,7 +237,7 @@ def list_feed_entries(
         for row in q.all():
             entries.append(_recalibration_to_entry(row, db, slug_cache))
 
-    entries.sort(key=lambda e: e["occurred_at"] or datetime.min, reverse=True)
+    entries.sort(key=lambda e: e["occurred_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
     total = len(entries)
     window = entries[offset:offset + limit] if limit > 0 else entries[offset:]

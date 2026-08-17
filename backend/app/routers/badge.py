@@ -12,7 +12,7 @@ Album calibrate: computes + stores album calibration from track lookups.
 import re
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -275,7 +275,7 @@ def album_calibrate(req: AlbumCalibrateRequest):
             existing.charge_summary = summary
             existing.track_count = len(charges)
             existing.contamination_count = contaminated_count
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = datetime.now(timezone.utc)
         else:
             existing = AlbumCalibration(
                 title=title,

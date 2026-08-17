@@ -82,7 +82,7 @@ Multi-disc / double albums (codified 2026-06-09):
 import argparse
 import json
 import sys
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from pathlib import Path
 
 # Make `app` importable whether run in-container or locally (mirrors calibrate_song.py).
@@ -217,7 +217,7 @@ def main() -> int:
         print("DRY RUN -- nothing written.")
         return 0
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     db = SessionLocal()
     try:
         links = []

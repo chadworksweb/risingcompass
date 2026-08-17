@@ -2,7 +2,7 @@
 
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -80,7 +80,7 @@ def _client_summary(db: Session, c: ApiClient, since: datetime) -> dict:
 @router.get("", dependencies=[Depends(verify_admin_key)])
 def list_clients(db: Session = Depends(get_db)):
     """All clients with 7-day activity summary."""
-    since = datetime.utcnow() - timedelta(days=7)
+    since = datetime.now(timezone.utc) - timedelta(days=7)
     clients = db.query(ApiClient).order_by(ApiClient.slug).all()
     return {"clients": [_client_summary(db, c, since) for c in clients]}
 
@@ -99,7 +99,7 @@ def create_client(body: ClientCreateIn, db: Session = Depends(get_db)):
     db.add(client)
     db.commit()
     db.refresh(client)
-    since = datetime.utcnow() - timedelta(days=7)
+    since = datetime.now(timezone.utc) - timedelta(days=7)
     return _client_summary(db, client, since)
 
 
@@ -124,10 +124,10 @@ def update_client(client_id: int, body: ClientUpdateIn, db: Session = Depends(ge
         client.contact_email = body.contact_email
     if body.notes is not None:
         client.notes = body.notes
-    client.updated_at = datetime.utcnow()
+    client.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(client)
-    since = datetime.utcnow() - timedelta(days=7)
+    since = datetime.now(timezone.utc) - timedelta(days=7)
     return _client_summary(db, client, since)
 
 
@@ -137,7 +137,7 @@ def client_detail(client_id: int, db: Session = Depends(get_db)):
     if not client:
         raise HTTPException(404, "Client not found")
 
-    since = datetime.utcnow() - timedelta(days=7)
+    since = datetime.now(timezone.utc) - timedelta(days=7)
 
     # Per-endpoint breakdown (last 7d)
     endpoint_rows = (
@@ -225,7 +225,7 @@ def revoke_key(key_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Key not found")
     if key.revoked_at:
         return {"revoked": True, "already": True}
-    key.revoked_at = datetime.utcnow()
+    key.revoked_at = datetime.now(timezone.utc)
     db.commit()
     return {"revoked": True, "already": False}
 
@@ -240,7 +240,7 @@ def rotate_key(client_id: int, body: KeyCreateIn, db: Session = Depends(get_db))
     if not client:
         raise HTTPException(404, "Client not found")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     active_keys = (
         db.query(ApiClientKey)
         .filter(ApiClientKey.client_id == client_id)

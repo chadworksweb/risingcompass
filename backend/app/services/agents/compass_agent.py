@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -260,7 +260,7 @@ def _store_calibration(title: str, artist: str, chart_position: int,
     # feedback_rc_no_api_in_terminal.
     if (result.get("societal_effects_prose") is not None
             and result.get("societal_prose_generated_at") is None):
-        result["societal_prose_generated_at"] = datetime.utcnow()
+        result["societal_prose_generated_at"] = datetime.now(timezone.utc)
         result["societal_prose_model"] = result.get("societal_prose_model") or "terminal_supplied"
 
     # Native unified storage (Phase 5b): upsert the atomic songs row by

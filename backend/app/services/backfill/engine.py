@@ -30,7 +30,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import func
@@ -101,7 +101,7 @@ async def _step(job_id: int) -> str:
         if job.status != "running":
             job.status = "running"
             if not job.started_at:
-                job.started_at = datetime.utcnow()
+                job.started_at = datetime.now(timezone.utc)
             db.commit()
 
         row = (
@@ -120,7 +120,7 @@ async def _step(job_id: int) -> str:
         if not row.lyrics or not row.lyrics.strip():
             if row.status != "needs_lyrics":
                 row.status = "needs_lyrics"
-                row.updated_at = datetime.utcnow()
+                row.updated_at = datetime.now(timezone.utc)
                 db.commit()
             # Are there any rows that ARE actionable?
             actionable = (
@@ -179,7 +179,7 @@ def _finish_or_park(db: Session, job: BackfillJob) -> str:
         return "exit"
 
     job.status = "completed"
-    job.completed_at = datetime.utcnow()
+    job.completed_at = datetime.now(timezone.utc)
     db.commit()
     logger.info("Backfill job %s completed", job.id)
     return "exit"
@@ -389,7 +389,7 @@ def _set_row_status(row_id: int, status: str) -> None:
         if not row:
             return
         row.status = status
-        row.updated_at = datetime.utcnow()
+        row.updated_at = datetime.now(timezone.utc)
         db.commit()
     finally:
         db.close()
@@ -403,7 +403,7 @@ def _fail_row(row_id: int, error: str) -> None:
             return
         row.status = "failed"
         row.error = (error or "")[:1000]
-        row.updated_at = datetime.utcnow()
+        row.updated_at = datetime.now(timezone.utc)
         # Bump job counter
         job = db.query(BackfillJob).filter(BackfillJob.id == row.job_id).first()
         if job:
@@ -437,7 +437,7 @@ def _complete_row(
             row.topic_audit = (
                 json.dumps(ether["topic_audit"]) if ether.get("topic_audit") else None
             )
-        row.updated_at = datetime.utcnow()
+        row.updated_at = datetime.now(timezone.utc)
         # Bump job counter
         job = db.query(BackfillJob).filter(BackfillJob.id == ctx.job_id).first()
         if job:

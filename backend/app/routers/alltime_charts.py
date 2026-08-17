@@ -20,7 +20,7 @@ Album admin: GET/POST/PATCH/DELETE /api/admin/alltime/albums (+ release link).
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import func
@@ -425,7 +425,7 @@ def _staleness(db: Session) -> dict:
     if not last:
         return {"last_reviewed_at": None, "days_since": None,
                 "due": total > 0, "total": total}
-    days = (datetime.utcnow() - last).days
+    days = (datetime.now(timezone.utc) - last).days
     return {
         "last_reviewed_at": last.isoformat(),
         "days_since": days,
@@ -472,7 +472,7 @@ def admin_create_album(payload: dict = Body(...), db: Session = Depends(get_db))
         certified_units=(payload.get("certified_units") or None),
         units_millions=payload.get("units_millions"),
         release_year=payload.get("release_year"),
-        last_reviewed_at=datetime.utcnow(),
+        last_reviewed_at=datetime.now(timezone.utc),
     )
     db.add(row)
     db.commit()
@@ -488,7 +488,7 @@ def admin_update_album(album_id: int, payload: dict = Body(...), db: Session = D
                   "units_millions", "release_year"):
         if field in payload:
             setattr(row, field, payload[field])
-    row.last_reviewed_at = datetime.utcnow()
+    row.last_reviewed_at = datetime.now(timezone.utc)
     db.commit()
     return _admin_album_row(row)
 
@@ -558,6 +558,6 @@ def admin_link_release(album_id: int, payload: dict = Body(...), db: Session = D
     row.charge_summary = rel.charge_summary
     row.deadpan_line = rel.deadpan_line
     row.topics = rel.topics  # already JSON-encoded on the Release
-    row.last_reviewed_at = datetime.utcnow()
+    row.last_reviewed_at = datetime.now(timezone.utc)
     db.commit()
     return _admin_album_row(row)

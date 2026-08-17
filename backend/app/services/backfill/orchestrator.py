@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -106,7 +106,7 @@ def cancel_job(job_id: int) -> None:
             raise ValueError(f"backfill job {job_id} not found")
         job.status = "cancelled"
         job.paused_flag = 1
-        job.completed_at = datetime.utcnow()
+        job.completed_at = datetime.now(timezone.utc)
         db.commit()
     finally:
         db.close()

@@ -16,7 +16,7 @@ read them for "limits" display without divergence.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException
@@ -61,7 +61,7 @@ def enforce_rate_limit(db: Session, user: User) -> None:
     they're suspended or banned."""
     if user.status == "banned":
         raise HTTPException(status_code=403, detail="Account banned")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if user.suspended_until and user.suspended_until > now:
         until = user.suspended_until.isoformat() + "Z"
         raise HTTPException(
@@ -226,7 +226,7 @@ def withdraw_own(db: Session, user: User, comment_id: int) -> Comment:
         raise HTTPException(status_code=403, detail="Not your comment")
     if comment.withdrawn_at is not None:
         return comment  # idempotent
-    comment.withdrawn_at = datetime.utcnow()
+    comment.withdrawn_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(comment)
     return comment
@@ -282,7 +282,7 @@ def apply_auto_hide(db: Session, comment: Comment) -> bool:
     just applied (i.e., the comment was not already hidden)."""
     if comment.hidden_at is not None:
         return False
-    cutoff = datetime.utcnow() - timedelta(hours=AUTO_HIDE_WINDOW_HOURS)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=AUTO_HIDE_WINDOW_HOURS)
     distinct = (
         db.query(func.count(func.distinct(CommentReport.reporter_id)))
         .filter(CommentReport.comment_id == comment.id)
@@ -292,7 +292,7 @@ def apply_auto_hide(db: Session, comment: Comment) -> bool:
     )
     if distinct < AUTO_HIDE_DISTINCT_REPORTERS:
         return False
-    comment.hidden_at = datetime.utcnow()
+    comment.hidden_at = datetime.now(timezone.utc)
     comment.hidden_reason = (
         f"Auto-hidden after {distinct} reports in the last "
         f"{AUTO_HIDE_WINDOW_HOURS}h. An admin will review."

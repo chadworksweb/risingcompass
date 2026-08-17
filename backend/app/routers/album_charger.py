@@ -38,7 +38,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -239,7 +239,7 @@ def _update_job(token: str, **fields) -> None:
     """Short-lived write to the job row. Always bumps updated_at (Core-style
     .update() doesn't fire the ORM onupdate). Swallows errors -- progress
     telemetry must never crash the worker."""
-    fields["updated_at"] = datetime.utcnow()
+    fields["updated_at"] = datetime.now(timezone.utc)
     db = SessionLocal()
     try:
         db.query(AlbumChargeJob).filter(AlbumChargeJob.job_token == token).update(fields)
@@ -553,7 +553,7 @@ async def _run_album_charge(
                 .filter(Release.title == album_title)
                 .first()
             )
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             if release is None:
                 release = Release(artist_id=artist_entity.id, title=album_title,
                                   release_type=body.release_type)
@@ -813,7 +813,7 @@ async def album_status(job_token: str, request: Request, db: Session = Depends(g
     # container restarted mid-charge) is reported as an error so the UI stops
     # polling forever.
     if job.status in ("queued", "running") and job.updated_at \
-            and (datetime.utcnow() - job.updated_at) > JOB_STALE_AFTER:
+            and (datetime.now(timezone.utc) - job.updated_at) > JOB_STALE_AFTER:
         return AlbumChargeStatusOut(
             status="error", phase=job.phase,
             total_tracks=job.total_tracks or 0, calibrated_tracks=job.calibrated_tracks or 0,

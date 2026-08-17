@@ -24,7 +24,7 @@ summary, contamination) -- never the paywalled prose. Backs
 `/lyrical-charger/activity/`.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Query
 from sqlalchemy import func, or_
@@ -198,7 +198,7 @@ def _most_run(db, window: str, limit: int, offset: int):
         )
     )
     if window == "30d":
-        cutoff = datetime.utcnow() - timedelta(days=30)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
         base = base.filter(CalibrationRun.run_at >= cutoff)
     base = base.group_by(CalibrationRun.song_id)
     total = base.order_by(None).count()

@@ -16,7 +16,7 @@ Lifecycle (see RISING-COMPASS-FAULTLINE-SCOPE.md S5):
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -157,7 +157,7 @@ def apply_status(
 
     sig.status = to_status
     if to_status == "resolved":
-        sig.resolved_at = datetime.utcnow()
+        sig.resolved_at = datetime.now(timezone.utc)
         sig.resolved_by = actor_ref
         if resolution:
             sig.resolution = resolution
@@ -280,7 +280,7 @@ def claim_signature(
     """Lease the fault to `worker_id`. Re-claiming your own active lease just
     extends it; claiming someone else's ACTIVE lease raises ClaimConflict. An
     expired lease is reclaimable by anyone."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if _lease_active(sig, now) and sig.claimed_by != worker_id:
         raise ClaimConflict(
             f"Held by '{sig.claimed_by}' until {sig.claim_expires_at.isoformat()}."
@@ -303,7 +303,7 @@ def heartbeat_claim(
     ttl_seconds: int = DEFAULT_CLAIM_TTL_SECONDS,
 ) -> ErrorSignature:
     """Extend an active lease. The caller must currently hold it."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if sig.claimed_by != worker_id or not _lease_active(sig, now):
         raise ClaimConflict("Lease not held by this worker (expired or reassigned).")
     sig.claim_expires_at = now + timedelta(seconds=max(30, ttl_seconds))

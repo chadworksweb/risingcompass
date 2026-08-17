@@ -27,7 +27,7 @@ import re
 import secrets
 import unicodedata
 from calendar import month_name
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -378,7 +378,7 @@ async def run_social_broadcast(trigger: str = "manual") -> dict:
             res = await buffer_client.post_items(items)
             posted, errors = res["posted"], res["errors"]
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for e in plan:
             p = e["platform"]
             if not configured:
@@ -578,7 +578,7 @@ async def publish_song(song_id: int, platforms: list[str] | None = None,
             res = await buffer_client.post_items(items)
             posted, errors = res["posted"], res["errors"]
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for e in plan:
             p = e["platform"]
             if not configured:

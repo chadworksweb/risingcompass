@@ -16,7 +16,7 @@ derived from `claude_api_usage` by the agent's `call_site`. Everything is
 env-scoped (local dev shares the prod DB via the tunnel)."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
 
@@ -91,7 +91,7 @@ def start_run(agent_id: str, trigger: str = "cron") -> int | None:
                 trigger=(trigger if trigger in ("cron", "admin") else "cron"),
                 status="running",
                 environment=settings.environment,
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
             )
             db.add(row)
             db.commit()
@@ -118,7 +118,7 @@ def finish_run(run_id: int | None, *, status: str, scanned: int = 0,
             row.scanned = scanned or 0
             row.flagged = flagged or 0
             row.error = (error or None)
-            row.finished_at = datetime.utcnow()
+            row.finished_at = datetime.now(timezone.utc)
             if row.started_at:
                 row.duration_ms = int(
                     (row.finished_at - row.started_at).total_seconds() * 1000
@@ -145,7 +145,7 @@ def _cost_for(db, call_site: str) -> dict:
         return round(float(cost or 0.0), 4), int(calls or 0)
 
     all_cost, all_calls = _sum()
-    since_30 = datetime.utcnow() - timedelta(days=30)
+    since_30 = datetime.now(timezone.utc) - timedelta(days=30)
     cost_30, calls_30 = _sum(since_30)
     return {
         "cost_all_usd": all_cost, "calls_all": all_calls,
@@ -155,7 +155,7 @@ def _cost_for(db, call_site: str) -> dict:
 
 def _health(agent: dict, last_run: AgentRun | None) -> dict:
     """Derive a health badge from the agent's most recent run."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if last_run is None:
         return {"status": "never_run", "label": "Never run", "last_run_at": None}
     age_h = (now - last_run.started_at).total_seconds() / 3600 if last_run.started_at else None

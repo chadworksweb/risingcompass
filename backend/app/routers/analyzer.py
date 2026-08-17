@@ -6,7 +6,7 @@ import logging
 import re
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Callable
 
@@ -545,8 +545,8 @@ def _record_user_calibration(
             )
             .first()
         )
-        from datetime import datetime as _dt
-        now = _dt.utcnow()
+        from datetime import datetime as _dt, timezone as _tz
+        now = _dt.now(_tz.utc)
         if existing:
             existing.song_slug = song_slug or existing.song_slug
             existing.title = title or existing.title
@@ -1113,7 +1113,7 @@ class _ShimRequest:
 def _update_calib_job(token: str, **fields) -> None:
     """Short-lived write to the job row. Bumps updated_at. Swallows errors --
     progress telemetry must never crash the worker."""
-    fields["updated_at"] = datetime.utcnow()
+    fields["updated_at"] = datetime.now(timezone.utc)
     db = SessionLocal()
     try:
         db.query(CalibrateJob).filter(CalibrateJob.job_token == token).update(fields)
@@ -1283,8 +1283,8 @@ async def calibrate_lyrics_status(job_token: str, request: Request):
     # A job stuck running past the stale window (e.g. a redeploy mid-charge) is
     # reported as errored so the UI stops polling.
     if job.status in ("queued", "running"):
-        ref = job.updated_at or job.created_at or datetime.utcnow()
-        if datetime.utcnow() - ref > CALIB_JOB_STALE_AFTER:
+        ref = job.updated_at or job.created_at or datetime.now(timezone.utc)
+        if datetime.now(timezone.utc) - ref > CALIB_JOB_STALE_AFTER:
             return CalibrateStatusOut(status="error", phase=job.phase,
                                       error="This calibration timed out. Please try again.")
         return CalibrateStatusOut(status=job.status, phase=job.phase)

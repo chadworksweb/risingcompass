@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from argon2 import PasswordHasher
@@ -97,7 +97,7 @@ def too_many_recent_failures(
     """Return True if either the username or the IP has exceeded the
     failure cap inside the rolling window. Rejects login before any
     password verification when triggered."""
-    cutoff = datetime.utcnow() - timedelta(seconds=settings.admin_login_window_seconds)
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=settings.admin_login_window_seconds)
     cap = settings.admin_login_max_failures_per_window
 
     if username:
@@ -134,7 +134,7 @@ def create_session(
 ) -> str:
     """Mint a new session and return the RAW token (caller sets cookie)."""
     raw = generate_session_token()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     sess = AdminSession(
         user_id=user.id,
         token_hash=hash_token(raw),
@@ -162,7 +162,7 @@ def lookup_session(
         return None
     if sess.revoked_at is not None:
         return None
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if sess.expires_at < now or sess.absolute_expires_at < now:
         return None
     user = db.query(AdminUser).filter(AdminUser.id == sess.user_id).first()
@@ -173,7 +173,7 @@ def lookup_session(
 
 def touch_session(db: Session, sess: AdminSession) -> None:
     """Slide the idle window forward, capped by absolute expiry."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     new_expires = now + timedelta(seconds=settings.admin_session_idle_seconds)
     if new_expires > sess.absolute_expires_at:
         new_expires = sess.absolute_expires_at
@@ -183,13 +183,13 @@ def touch_session(db: Session, sess: AdminSession) -> None:
 
 
 def revoke_session(db: Session, sess: AdminSession) -> None:
-    sess.revoked_at = datetime.utcnow()
+    sess.revoked_at = datetime.now(timezone.utc)
     db.commit()
 
 
 def revoke_all_for_user(db: Session, user_id: int) -> int:
     """Revoke every active session for one user. Returns count revoked."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     n = (
         db.query(AdminSession)
         .filter(AdminSession.user_id == user_id)

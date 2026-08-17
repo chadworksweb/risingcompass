@@ -26,7 +26,7 @@ import json
 import logging
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -617,7 +617,7 @@ def accept_proposal(
     # after recalibration re-averaged against the old runs and mis-tiered).
     # Prior runs stay in the DB with superseded=True → visible in history,
     # excluded from consensus math.
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     slug = p.rubric_change_slug or p.pipeline
     prior = (
         db.query(CalibrationRun)
@@ -651,7 +651,7 @@ def accept_proposal(
     # Resolve the proposal.
     p.status = "accepted"
     p.review_notes = data.internal_notes
-    p.resolved_at = datetime.utcnow()
+    p.resolved_at = datetime.now(timezone.utc)
 
     # Close the originating satirical flag, if any.
     if p.pipeline == "satirical_flag" and p.trigger_ref_id:
@@ -715,7 +715,7 @@ def reject_proposal(
 
     p.status = "rejected"
     p.review_notes = data.review_notes
-    p.resolved_at = datetime.utcnow()
+    p.resolved_at = datetime.now(timezone.utc)
 
     # Close the originating satirical flag as rejected too — admin investigated
     # and chose not to apply. The flag stays in the queue with a clear status.
@@ -787,7 +787,7 @@ def apply_supplied_correction(
     song.contamination_note = data.contamination_note if data.contaminated else None
 
     # Supersede prior live runs so consensus restarts against the new verdict.
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     prior = (
         db.query(CalibrationRun)
         .filter(CalibrationRun.song_id == unified_id)
@@ -887,7 +887,7 @@ def era_supersede(data: EraSupersedeIn, db: Session = Depends(get_db)):
     if not data.confirm:
         raise HTTPException(400, "confirm=true is required to move the era boundary")
     reason = data.reason.strip()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     updated = (
         db.query(CalibrationRun)
         .filter(CalibrationRun.superseded.is_(False))
