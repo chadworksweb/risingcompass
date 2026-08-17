@@ -47,12 +47,6 @@ const EtherArtChart = (() => {
     return `<span class="${className}">${inner}</span>`;
   }
 
-  function topicChipHtml(topic) {
-    if (!topic) return '';
-    const t = String(topic).replace(/-/g, ' ');
-    return `<span class="ether-chip">${escapeHtml(t)}</span>`;
-  }
-
   // The ether row template is canon in /js/chart-shell.js so the homepage card,
   // the iTunes panel, and the standalone chart pages all render an identical
   // row. This module keeps only the fetch/mode logic around it.

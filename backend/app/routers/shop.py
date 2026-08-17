@@ -76,17 +76,6 @@ def _origin_of(url: str) -> Optional[str]:
         return None
 
 
-def _request_origin(request: Request) -> str:
-    origin = request.headers.get("origin")
-    if origin and origin in _ALLOWED_RETURN_ORIGINS:
-        return origin
-    ref = request.headers.get("referer")
-    ro = _origin_of(ref) if ref else None
-    if ro and ro in _ALLOWED_RETURN_ORIGINS:
-        return ro
-    return "https://risingcompass.net"
-
-
 def _variant_label(v: dict) -> str:
     """Human label for a variant, e.g. "Black / L" or "L" or the raw title."""
     size = v.get("size")
@@ -280,8 +269,11 @@ async def cart_checkout(
     if not settings.stripe_secret_key or not settings.stripe_publishable_key:
         raise HTTPException(503, "The shop is not configured for checkout yet.")
 
-    origin = _request_origin(request)
-    # return_url must be a same-origin RC URL (Stripe uses it verbatim).
+    # return_url must be a same-origin RC URL (Stripe uses it verbatim). This is
+    # the ONLY origin check: the request's own Origin/Referer was computed here
+    # for a while and never read, which read like a same-origin check that had
+    # been replaced rather than added. Confirmed with Chad 2026-08-17 that none
+    # was intended, so the dead call is gone rather than wired up.
     if _origin_of(body.return_url) not in _ALLOWED_RETURN_ORIGINS:
         raise HTTPException(400, "return_url origin not allowed")
 
@@ -578,6 +570,31 @@ async def shop_webhook(request: Request, stripe_signature: str = Header(default=
         try:
             cart = json.loads(meta.get("cart_items") or "[]")
         except Exception:
+            # THE CUSTOMER HAS ALREADY PAID at this point. Falling back to an
+            # empty cart still writes the order, so a malformed cart produces a
+            # paid order with an empty line_snapshot, no Printify push, and
+            # nothing to fulfil from. This used to be silent, which meant the
+            # only trace was an order that looked oddly empty in the admin list.
+            # Loud on both channels: logger.exception so Faultline opens a fault,
+            # and an admin email because the Stripe event is the only place the
+            # real cart still exists and it has to be read before it ages out.
+            raw_cart = meta.get("cart_items")
+            logger.exception(
+                "shop: UNREADABLE cart_items on PAID session %s -- order will be "
+                "written with no line items. Raw metadata: %r", session_id, raw_cart,
+            )
+            # Rides the EXISTING shop_order alert key on purpose. get_pref()
+            # returns False for a key with no row ("alerts must be opted into,
+            # never accidentally on after a fresh deploy"), so a brand-new key
+            # would be silently off and this alert would never send -- a fix that
+            # fixes nothing. shop_order is already enabled in prod and is the
+            # channel the operator already watches for orders.
+            try:
+                alerts.emit_shop_cart_unreadable(
+                    session_id=session_id, raw_cart=raw_cart,
+                )
+            except Exception:
+                logger.exception("shop: could not send the unreadable-cart alert")
             cart = []
 
         # Snapshot line items from the current product catalog.
@@ -677,6 +694,14 @@ def _notify_admin_order(order_id: int) -> None:
             try:
                 items = json.loads(o.line_items) if o.line_items else []
             except Exception:
+                # line_items is a column WE wrote as JSON, so a parse failure
+                # means the write was already broken -- not an expected input
+                # condition. Silent, this rendered an order with no items in the
+                # admin alert email and said nothing.
+                logger.exception(
+                    "shop: unreadable line_items on order %s -- alerting with an "
+                    "empty item list", o.order_number,
+                )
                 items = []
             alerts.emit_shop_order(
                 order_number=o.order_number,
@@ -773,6 +798,13 @@ async def printify_webhook(request: Request, x_pfy_signature: str = Header(defau
                 try:
                     items = json.loads(order.line_items) if order.line_items else []
                 except Exception:
+                    # Same column, same reasoning as above, worse consequence:
+                    # silent, this sent the CUSTOMER a shipping notice listing
+                    # nothing.
+                    logger.exception(
+                        "shop: unreadable line_items on order %s -- shipping "
+                        "notice will list no items", order.order_number,
+                    )
                     items = []
                 ship_notice = {
                     "to_email": order.buyer_email,
@@ -887,6 +919,12 @@ def admin_list_orders(request: Request, admin=Depends(require_admin_session)):
             try:
                 items = json.loads(o.line_items) if o.line_items else []
             except Exception:
+                # Same column again. Silent, an order with corrupt line_items was
+                # indistinguishable in the admin ledger from one with none.
+                logger.exception(
+                    "shop: unreadable line_items on order %s -- listing it with "
+                    "no items", o.order_number,
+                )
                 items = []
             out.append({
                 "id": o.id,

@@ -70,15 +70,6 @@
       '</svg>';
   }
 
-  // Map a charge (-100..100) to an SVG needle rotation. Negative degrees rotate
-  // counter-clockwise (toward violet/left); positive toward red/right. The 90deg
-  // span matches the site dial (rotation = -score*90/100), so the needle lands in
-  // the same reproportioned band as the live compass instead of a compressed arc.
-  function chargeToRot(charge) {
-    var c = Math.max(-100, Math.min(100, charge || 0));
-    return -(c / 100) * 90;
-  }
-
   var _compassCache = {};
   function loadCompass(rotDeg) {
     var key = String(Math.round(rotDeg));
@@ -217,24 +208,6 @@
     ctx.fillText(label, cx, boxY + padTop + scoreSize + gap + labelSize * 0.82);
     ctx.textAlign = 'left';
     return { left: boxX, right: rightEdgeX, top: boxY, bottom: boxY + boxH, width: boxW, height: boxH };
-  }
-
-  // Small outlined speech bubble (the comment indicator from the RC badge).
-  function drawBubble(ctx, x, y, color) {
-    var w = 30, h = 22, r = 7;
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 2.5;
-    roundRect(ctx, x, y, w, h, r);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x + 8, y + h - 1);
-    ctx.lineTo(x + 5, y + h + 9);
-    ctx.lineTo(x + 17, y + h - 1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
   }
 
   function pick(data) {
@@ -431,15 +404,6 @@
   // documents: { date, degree, charge, contaminationCount, editorial, songs[] }.
   // ============================================================
 
-  // Long-form date, e.g. "Monday, June 9, 2026". Parsed at local midnight to
-  // avoid a UTC off-by-one on the date-only string.
-  function formatLongDate(dateStr) {
-    if (!dateStr) return '';
-    var d = new Date(String(dateStr) + 'T00:00:00');
-    if (isNaN(d.getTime())) return String(dateStr);
-    return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  }
-
   // Date split into two lines: day-of-week, then "Month D, YYYY".
   function formatDateParts(dateStr) {
     if (!dateStr) return { dow: '', mdy: '' };
@@ -558,24 +522,6 @@
     ctx.strokeStyle = hex;
     ctx.lineWidth = blw;
     ctx.strokeRect(bx, bx, bw, bh);
-  }
-
-  // Draw the bottom brand block (compass mark + "THE RISING COMPASS" + url).
-  function drawCompassBrand(ctx, compassFlat, leftX, H) {
-    H = H || POST_H;
-    var fy = H - 100 - 44;
-    var markSize = 32;
-    if (compassFlat) ctx.drawImage(compassFlat, leftX, fy - markSize / 2, markSize, markSize);
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#c8c8d8';
-    ctx.font = '700 22px "JetBrains Mono"';
-    setLS(ctx, 2);
-    ctx.fillText('THE RISING COMPASS', leftX + markSize + 14, fy + 1);
-    setLS(ctx, 0);
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#6a6a82';
-    ctx.font = '400 20px "JetBrains Mono"';
-    ctx.fillText('risingcompass.net', leftX, H - 100);
   }
 
   async function renderReading(reading, canvas, opts) {

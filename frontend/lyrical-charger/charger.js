@@ -794,25 +794,6 @@ function showCommercialWarning(data) {
   if (cancel) cancel.addEventListener('click', closeCommercialWarning);
 })();
 
-// Mirrors backend detect_prose_like. Returns reason string if prose-like.
-function detectProseLike(text) {
-  const lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
-  if (!lines.length) return null;
-  const words = text.match(/\S+/g) || [];
-  if (words.length < 40) return null;
-  const longest = Math.max(...lines.map(l => l.length));
-  if (longest > 300) return 'One or more lines are very long (over 300 characters). Song lyrics are usually broken into short lines.';
-  const avg = lines.reduce((s, l) => s + l.length, 0) / lines.length;
-  if (avg > 100) return 'The average line is very long. Song lyrics usually break every few words, not in paragraph-like chunks.';
-  const ratio = lines.length / Math.max(words.length, 1);
-  if (ratio < 0.05) return 'Line breaks are sparse — this reads more like prose than lyrics.';
-  const lowered = lines.map(l => l.toLowerCase().trim());
-  const unique = new Set(lowered);
-  const dupes = lowered.length - unique.size;
-  if (dupes === 0 && words.length > 250 && avg > 60) return 'Nothing repeats here. Song lyrics typically have a refrain or repeated lines. This reads like prose.';
-  return null;
-}
-
 // Real-progress phase map. The single-song charge is now an async job
 // (POST /calibrate-lyrics/start -> poll /status/{token}); the worker reports its
 // TRUE phase as it runs, so these percentages track actual backend work instead

@@ -362,6 +362,48 @@ def emit_shop_order(*, order_number: str, buyer_name: Optional[str],
     )
 
 
+def emit_shop_cart_unreadable(*, session_id: str, raw_cart: Optional[str]) -> None:
+    """Activity alert -- a PAID Stripe session carried cart_items metadata that
+    did not parse, so the order was written with no line items and will not push
+    to Printify.
+
+    Rides the `shop_order` key rather than a new one: get_pref returns False for
+    a key with no row, so a fresh key ships silently OFF and this alert would
+    never fire. Same category and channel the operator already watches, and the
+    condition it reports is a shop order that needs a human.
+    """
+    site = settings.site_url.rstrip("/")
+    shown = escape(raw_cart) if raw_cart else "(empty / missing)"
+    html = f"""
+    <div style="font-family:system-ui,sans-serif;font-size:14px;color:#222;">
+      <p style="margin:0 0 10px;">
+        <strong style="color:#cc3333;">Paid order with an unreadable cart.</strong>
+      </p>
+      <p style="margin:0 0 10px;">
+        Stripe session <code>{escape(session_id)}</code> was PAID, but its
+        <code>cart_items</code> metadata did not parse. The order has been written
+        with <strong>no line items</strong> and will not push to Printify.
+      </p>
+      <p style="margin:0 0 6px;font-size:13px;color:#555;">Raw cart_items:</p>
+      <pre style="margin:0 0 12px;padding:8px;background:#f5f5f5;border:1px solid #ddd;
+                  white-space:pre-wrap;word-break:break-all;font-size:12px;">{shown}</pre>
+      <p style="margin:0 0 10px;font-size:13px;color:#555;">
+        Recover the real cart from the Stripe dashboard event before it ages out,
+        then fix the order by hand.
+      </p>
+      <p style="margin:0;font-size:13px;color:#555;">
+        <a href="{site}/api/admin/dashboard/shop-orders" style="color:#008f72;">Shop orders</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="activity",
+        alert_key="shop_order",
+        subject=f"UNREADABLE cart on paid session {session_id}",
+        html_body=html,
+    )
+
+
 def emit_provenance_health(*, breaches: list[str], health: dict) -> None:
     """Activity alert -- the provenance health check found one or more breaches
     (backlog, stalled sweep, unpushed commits, or OTS proofs stuck off-chain).
