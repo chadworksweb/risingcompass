@@ -569,9 +569,6 @@ def merge_rows(data: MergeIn, db: Session = Depends(get_db)):
     if data.source_id == data.target_id:
         raise HTTPException(400, "Source and target are the same row")
 
-    src_poly = _table_to_polymorphic(data.source_table)
-    tgt_poly = _table_to_polymorphic(data.target_table)
-
     SrcModel = TABLES[data.source_table]
     TgtModel = TABLES[data.target_table]
     src_row = db.query(SrcModel).get(data.source_id)

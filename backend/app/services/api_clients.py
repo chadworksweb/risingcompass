@@ -193,7 +193,7 @@ def bootstrap_system_clients() -> None:
             ),
             sync_notes=True,
         )
-        chadlewine = _ensure_client(
+        _ensure_client(
             db, slug="chadlewine", name="Chad Lewine (chadlewine.com)",
             behavior="service", plan_tier="internal",
             notes=(

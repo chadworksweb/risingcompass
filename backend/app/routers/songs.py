@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy import func, or_, and_
 
 from app import billing_config
-from app.auth import optional_admin_session, optional_clerk_user
+from app.auth import optional_clerk_user
 from sqlalchemy import text
 from app.database import SessionLocal
 from app.models import (
@@ -84,16 +84,20 @@ def song_flag_counts(slug: str):
 
 
 @router.get("/{slug}/history")
-def song_history(slug: str, admin_user=Depends(optional_admin_session)):
+def song_history(slug: str):
     """Public recalibration history for a song. Renders as small print on the
     song page — the recalibrate suite is honest about its history because that
     honesty IS the proof of objectivity. Lists every applied recalibration
     chronologically with the admin-written public summary.
 
-    Public callers see only rows with promoted_to_feed=true. Authed admins
-    (rc_admin_session cookie) see every row — the full internal audit trail.
+    EVERY row is public. This used to be split -- public callers saw only
+    promoted_to_feed=true rows, admins saw the rest -- but recalibrations have
+    been auto-promoted since 2026-04-23 and the gate came out with that change
+    (see below). The docstring kept describing the split for four months after
+    it stopped existing, and the endpoint kept taking an admin-session
+    dependency to compute a flag nothing read, which cost a session lookup on
+    every public request. Both are gone; the behaviour is unchanged.
     """
-    admin = admin_user is not None
     db = SessionLocal()
     try:
         slug_row = db.query(SongSlug).filter(SongSlug.slug == slug).first()
@@ -388,7 +392,6 @@ def song_related(slug: str):
 
         candidates = cand_q.limit(_RELATED_CANDIDATE_CAP).all()
 
-        base_topic_set = set(base_topics)
         scored = []
         for row in candidates:
             try:

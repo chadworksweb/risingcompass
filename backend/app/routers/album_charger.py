@@ -583,7 +583,9 @@ async def _run_album_charge(
             write_db.flush()
 
             for w in scored:
-                c_source, c_id = w.get("canonical", ("songs", None))
+                # The leading slot is the retired polymorphic song_source; every
+                # canonical row is a `songs` row now, so only the id is read.
+                _, c_id = w.get("canonical", ("songs", None))
                 if c_id is None:
                     continue
                 write_db.add(ReleaseSong(
