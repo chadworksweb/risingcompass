@@ -424,6 +424,63 @@ def test_clean_feeder_display_cleans_ost_channel_title():
     assert ct == "Flower Man", (ct, ca)
 
 
+# --- leading ARTIST credit: pipe form + multi-artist prefix (2026-08-18) ----- #
+# The YouTube feeder delivers "ARTIST | TITLE (Video Oficial)". _strip_pipe_tail
+# keeps the text BEFORE the pipe (right for a "Title | @channel" tail), which on
+# this shape threw the title away and left the artist name as the whole title --
+# a clean key of the artist name TWICE, which collides with every other song by
+# that artist. Both songs below re-minted as duplicates on 2026-08-16 and again
+# on 2026-08-17.
+
+def test_leading_artist_pipe_form_keeps_the_title():
+    stored = ("Donde Hubo Fuego Cenizas Quedan", "Anuel AA")
+    feeder = ("Anuel AA | Donde Hubo Fuego Cenizas Quedan (Video Oficial)", "Anuel AA")
+    ct, _ = clean_title_artist(*feeder)
+    assert ct == "Donde Hubo Fuego Cenizas Quedan", ct
+    assert _same_clean(stored, feeder)
+
+
+def test_leading_artist_pipe_never_degenerates_to_artist_name():
+    # The regression in its own right: two DIFFERENT songs by one artist must not
+    # collapse onto the same clean key.
+    a = ("Anuel AA | Song One (Video Oficial)", "Anuel AA")
+    b = ("Anuel AA | Song Two (Video Oficial)", "Anuel AA")
+    assert compute_canonical_key_clean(*a) != compute_canonical_key_clean(*b)
+
+
+def test_multi_artist_prefix_matches_on_a_component():
+    # Feeder credits the whole collaboration in the title prefix while the chart
+    # credits only the lead, so the prefix never equals the credited artist.
+    feeder = ("Bulin 47 X Afriken An - Leo Leo Remix (Video Oficial)", "Bulin 47 Oficial")
+    ct, ca = clean_title_artist(*feeder)
+    assert ct == "Leo Leo Remix", ct
+    assert ca == "Bulin 47", ca
+    # The stored row carries both artists, so the SET key differs by design; the
+    # LEAD key is the bridge the resolve ladder matches on.
+    stored = ("Leo Leo Remix", "Bulin 47 & Afriken An")
+    assert (compute_canonical_key_clean_lead(*feeder)
+            == compute_canonical_key_clean_lead(*stored))
+
+
+def test_bare_oficial_channel_suffix_stripped():
+    assert clean_title_artist("Some Song", "Bulin 47 Oficial")[1] == "Bulin 47"
+    assert clean_title_artist("Some Song", "Artist Official")[1] == "Artist"
+
+
+def test_pipe_tail_still_stripped_when_prefix_is_not_an_artist():
+    # The tail case _strip_pipe_tail exists for must keep working.
+    assert clean_title_artist("Some Song | @somechannel", "Some Artist")[0] == "Some Song"
+
+
+def test_leading_pipe_prefix_that_is_not_the_artist_is_left_alone():
+    # No artist match on either side of the pipe -> the tail rule applies as before.
+    assert clean_title_artist("Rock | Roll", "Some Band")[0] == "Rock"
+
+
+def test_dash_prefix_unrelated_to_artist_still_preserved():
+    assert clean_title_artist("New York - Paris", "Some Band")[0] == "New York - Paris"
+
+
 def _run():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

@@ -123,6 +123,12 @@ _SOUNDTRACK_SUFFIX_RE = re.compile(
 _VEVO_RE = re.compile(r"\s*vevo\s*$", re.I)
 _TOPIC_RE = re.compile(r"\s*-\s*topic\s*$", re.I)
 _OFFICIAL_ARTIST_RE = re.compile(r"\s*-\s*official\s*$", re.I)
+# Bare (undashed) channel-official suffix, English + Spanish/Portuguese: the
+# self-run channel "Bulin 47 Oficial" is the same cruft as "Artist - Official",
+# just without the dash the regex above requires. Bare-suffix stripping already
+# has precedent here (_VEVO_RE), and the blank-fallback in clean_title_artist
+# backstops the pathological case of an artist whose whole name is the word.
+_OFFICIAL_BARE_ARTIST_RE = re.compile(r"\s+(?:official|oficial)\s*$", re.I)
 _BRACKET_RE = re.compile(r"[\(\[]([^\(\)\[\]]*)[\)\]]")
 _LANG_PAREN_RE = re.compile(r"[\(\[][^\(\)\[\]]*[\)\]]")
 _WS_RE = re.compile(r"\s+")
@@ -210,20 +216,61 @@ def _strip_soundtrack_suffix(title):
     return out if out.strip() else title
 
 
-def _strip_leading_artist(title, *artist_candidates):
-    """Drop a leading "ARTIST - " prefix when ARTIST matches a known artist
-    string (the credited primary or a title-derived hint). Conservative: only
-    strips when the prefix actually equals an artist, so "New York - Paris"
-    (no artist match) is left intact."""
-    if " - " not in title:
-        return title
-    prefix, rest = title.split(" - ", 1)
+# A leading artist credit is separated from the title by a dash OR a pipe.
+# Both appear on the same feeds: "Olivia Rodrigo - stupid song (...)" and
+# "Anuel AA | Donde Hubo Fuego Cenizas Quedan (Video Oficial)".
+_LEADING_SEP_RE = re.compile(r"\s+[-|]\s+")
+
+
+def _prefix_names_artist(prefix, artist_candidates):
+    """True when a leading title prefix names the credited artist.
+
+    Exact match first (the plain "ARTIST - Title" case). A feeder title also
+    credits the FULL collaboration in its prefix while the chart credits only the
+    lead ("Bulin 47 X Afriken An - Leo Leo Remix" against a credited "Bulin 47"),
+    so the prefix is additionally parsed into artist components and any component
+    matching a candidate counts. Conservative by construction: a component must
+    EQUAL a credited artist, so "New York - Paris" still matches nothing."""
     pn = normalize_for_search(prefix)
     if not pn:
+        return False
+    cands = {normalize_for_search(c) for c in artist_candidates if c}
+    cands.discard("")
+    if not cands:
+        return False
+    if pn in cands:
+        return True
+    try:
+        components = [e.get("name") or "" for e in parse_artist_string(prefix)]
+    except Exception:
+        logger.debug("feeder_clean: swallowed in _prefix_names_artist", exc_info=True)
+        return False
+    # A single component is just the prefix again; only a genuine multi-artist
+    # credit adds anything, so this cannot loosen the exact check above.
+    if len(components) < 2:
+        return False
+    return any(normalize_for_search(c) in cands for c in components)
+
+
+def _strip_leading_artist(title, *artist_candidates):
+    """Drop a leading "ARTIST - " or "ARTIST | " prefix when ARTIST names a known
+    artist (the credited primary, a title-derived hint, or one component of a
+    multi-artist credit). Conservative: only strips when the prefix actually
+    names an artist, so "New York - Paris" is left intact.
+
+    The pipe form matters more than it looks. `_strip_pipe_tail` keeps the text
+    BEFORE a pipe, which is right for the trailing-channel-credit shape
+    ("Title | @channel") and catastrophic for the leading-credit shape: it
+    reduces "ARTIST | TITLE" to the artist name alone, and a clean key that is
+    only the artist name twice collides with EVERY other song by that artist.
+    So this runs first and consumes the leading-credit pipe before the tail
+    stripper ever sees one."""
+    m = _LEADING_SEP_RE.search(title)
+    if not m:
         return title
-    for cand in artist_candidates:
-        if cand and normalize_for_search(cand) == pn and rest.strip():
-            return rest.strip()
+    prefix, rest = title[:m.start()], title[m.end():]
+    if rest.strip() and _prefix_names_artist(prefix, artist_candidates):
+        return rest.strip()
     return title
 
 
@@ -270,6 +317,9 @@ def clean_artist(artist):
         return a
     a = _TOPIC_RE.sub("", a).strip()
     a = _OFFICIAL_ARTIST_RE.sub("", a).strip()
+    stripped = _OFFICIAL_BARE_ARTIST_RE.sub("", a).strip()
+    if stripped:
+        a = stripped
     a = _VEVO_RE.sub("", a).strip()
     return a
 
@@ -320,10 +370,13 @@ def clean_title_artist(title, artist):
         a = artist_hint
     primary_clean = _primary(a)
 
-    # 2. Leading "ARTIST - " prefix (cleaned primary, raw primary, or the hint).
-    t = _strip_leading_artist(t, primary_clean, artist_hint, primary_raw)
+    # 2. Leading "ARTIST - " / "ARTIST | " credit (cleaned primary, raw primary,
+    #    the hint, or the full artist string for a multi-artist prefix). MUST run
+    #    before the pipe-tail strip below, which would otherwise keep the artist
+    #    name and throw the title away on the "ARTIST | TITLE" shape.
+    t = _strip_leading_artist(t, primary_clean, artist_hint, primary_raw, a, raw_artist)
 
-    # 3. Channel/credit pipe tail.
+    # 3. Channel/credit pipe tail (what remains is a genuine trailing credit).
     t = _strip_pipe_tail(t)
 
     # 3b. Trailing uploader-channel credit ('... - Artist & @Channel'). Runs
@@ -353,6 +406,19 @@ def clean_title_artist(title, artist):
         t = raw_title
     if not normalize_for_search(a):
         a = raw_artist
+
+    # Degenerate-title backstop: a cleaned title that is nothing but the artist
+    # name carries no song identity at all, and its clean key (artist + artist)
+    # collides with every OTHER song by that artist that cleans the same way --
+    # a mis-merge, which is worse than the duplicate the cleaning exists to
+    # prevent. Seen on 2026-08-16/17 when the pipe tail-stripper ate an
+    # "ARTIST | TITLE" title. The leading-credit fix above closes that path;
+    # this catches any future strip that lands in the same place.
+    nt_final = normalize_for_search(t)
+    if nt_final and nt_final in {normalize_for_search(a),
+                                 normalize_for_search(_primary(a))}:
+        t = raw_title
+
     return t.strip(), a.strip()
 
 
