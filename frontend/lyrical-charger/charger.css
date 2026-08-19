@@ -2154,3 +2154,175 @@ a.atr-title:hover { color: var(--rc-accent); text-decoration: underline; }
 }
 .cover-pick-meta { font-size: 0.72rem; color: var(--rc-text-dim); }
 .cover-pick-status { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--rc-text-dim); }
+
+/* ============================================================
+   Contest lane (prepublish)
+
+   Shown only while a reading is HELD. It sits where the misread link would
+   be, and replaces it: with a re-read one click away, sending the reader to
+   an admin queue instead would be the worse offer.
+
+   Styled quieter than the reading itself on purpose. This is a question about
+   the reading, not part of it, and it should never compete with the charge.
+   ============================================================ */
+.result-contest {
+  max-width: 34rem;
+  margin: 0 auto 1.5rem;
+  padding: 1.1rem 1.3rem;
+  background: var(--rc-bg-card);
+  border: 1px solid var(--rc-border);
+  border-radius: var(--rc-radius);
+}
+
+.contest-held-note {
+  font-size: 0.82rem;
+  color: var(--rc-text-dim);
+  text-align: center;
+  margin: 0 0 0.9rem;
+  line-height: 1.6;
+}
+
+/* BETA. This lane decides when a reading reaches the library, so the label is
+   filled rather than outlined and sits ahead of the sentence on every screen of
+   it -- a tag the eye lands on before the copy, not a footnote under it.
+   `display: inline-block` keeps its padding intact inside a centred line, and
+   the bottom margin only applies when it wraps to its own row on narrow
+   screens. */
+.contest-beta {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+  padding: 0.12rem 0.42rem;
+  border-radius: 3px;
+  background: var(--rc-accent);
+  /* Dark ON the accent, not the accent on dark: the tag is filled, so the text
+     takes the page's deepest background as its colour. */
+  color: var(--rc-bg-dark);
+  font-family: var(--rc-font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+.contest-held-actions,
+.contest-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.contest-form-title {
+  font-family: var(--rc-font-mono);
+  font-size: 0.85rem;
+  color: var(--rc-text-bright);
+  text-align: center;
+  margin: 0 0 0.9rem;
+}
+
+.contest-axes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.1rem;
+}
+
+.contest-axis {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  color: var(--rc-text);
+  line-height: 1.5;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--rc-radius);
+  cursor: pointer;
+  transition: background var(--rc-ease), border-color var(--rc-ease);
+}
+
+.contest-axis:hover {
+  background: var(--rc-accent-subtle);
+  border-color: var(--rc-border);
+}
+
+.contest-axis input {
+  margin-top: 0.2rem;
+  accent-color: var(--rc-accent);
+  flex-shrink: 0;
+}
+
+.contest-label {
+  display: block;
+  font-family: var(--rc-font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--rc-text-dim);
+  margin-bottom: 0.4rem;
+}
+
+.contest-note,
+.contest-lyrics,
+.contest-email {
+  width: 100%;
+  background: var(--rc-bg-panel);
+  border: 1px solid var(--rc-border-ui);
+  border-radius: var(--rc-radius);
+  color: var(--rc-text-bright);
+  font-family: var(--rc-font);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  padding: 0.6rem 0.7rem;
+  resize: vertical;
+}
+
+.contest-note:focus,
+.contest-lyrics:focus,
+.contest-email:focus {
+  outline: none;
+  border-color: var(--rc-accent);
+}
+
+/* Offered only to signed-out readers on the decline step -- a signed-in one's
+   address is already known server-side. Single line, so no resize handle. */
+.contest-email {
+  resize: none;
+  margin-bottom: 0.9rem;
+}
+
+.contest-help {
+  font-size: 0.7rem;
+  color: var(--rc-text-dim);
+  line-height: 1.55;
+  margin: 0.35rem 0 1.1rem;
+}
+
+/* The guard's rejections carry the instruction that makes the next attempt
+   work, so this has to be readable rather than a red flash. */
+.contest-error {
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--rc-text-bright);
+  background: var(--rc-contam-bg);
+  border: 1px solid var(--rc-contam-border);
+  border-radius: var(--rc-radius);
+}
+
+.contest-done {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.contest-done p {
+  font-size: 0.82rem;
+  color: var(--rc-text-dim);
+  line-height: 1.6;
+  margin: 0;
+}

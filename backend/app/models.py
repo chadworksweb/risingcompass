@@ -1882,6 +1882,74 @@ class CalibrateJob(Base):
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
 
+class LcPrepublishRead(Base):
+    """One Lyrical Charger reading, held and shown but not yet committed.
+
+    A public reading is no longer published at the moment it is rendered. It is
+    held here, and publication waits on the reader: accept (or say nothing and
+    let the sweep decide) and it commits; contest it and a re-read replaces it;
+    decline the re-read and it escalates to misread_submissions instead.
+
+    Holding rather than publishing-then-superseding is what makes "as if the
+    first reading never existed" literally true. A superseded run stays visible
+    in the song page runs timeline and still counts toward _most_run, so the
+    overwrite design leaked the original into two public surfaces. A held row
+    that never publishes leaks nowhere.
+
+    NO LYRICS. Hard legal constraint (LC-LYRICS-GUARDS.md). The re-read gets its
+    text from the READER PASTING IT AGAIN -- charger.js clears the input as soon
+    as a reading lands, so nothing is available to resend even in principle --
+    and lyrics_fingerprint (one-way MinHash) is what proves the re-paste is the
+    same song via max_jaccard/DIVERGENCE_THRESHOLD.
+
+    Migration 157.
+    """
+    __tablename__ = "lc_prepublish_reads"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # Not unique: a contested job owns two rows, the original and the re-read.
+    # No `index=True`: migration 157 declares this index explicitly, and having
+    # both produced two indexes on one column (ix_lc_prepublish_job_token from
+    # the migration, ix_lc_prepublish_reads_job_token from create_all) -- paid
+    # for on every insert, twice, for one lookup.
+    job_token = Column(String(64), nullable=False)
+    # Set on the RE-READ only, pointing back at the reading that drew the
+    # objection. NULL on a first reading.
+    contest_of_id = Column(Integer, ForeignKey("lc_prepublish_reads.id", ondelete="CASCADE"))
+
+    title = Column(Text, nullable=False)
+    artist = Column(Text, nullable=False)
+    source = Column(String(50))
+
+    lyrics_fingerprint = Column(LargeBinary)  # one-way; never the lyrics
+
+    calibration_json = Column(Text, nullable=False)  # the held calibration dict
+    result_json = Column(Text)                       # payload as the reader saw it
+
+    user_id = Column(Integer, ForeignKey("users.id"))
+    device_id = Column(Text)
+    ip_address = Column(Text)
+
+    # held | publishing | published | contested | declined | discarded.
+    # 'publishing' is the transient claim one caller holds while it runs the
+    # publish writes; see lc_publish._claim_for_publish.
+    status = Column(String(20), nullable=False, default="held")
+
+    # Re-read rows only. contest_note is the reader's POINTER at a line; a
+    # proposed tier never reaches this column because the guard rejects the
+    # whole contest when it finds one.
+    contest_axis = Column(String(40))
+    contest_note = Column(Text)
+    tier_moved = Column(Boolean)
+
+    published_song_id = Column(Integer)
+    published_at = Column(DateTime(timezone=True))
+
+    environment = Column(String(10), nullable=False, default="prod")
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
 # ===========================================================================
 # Unified song-entity renovation (migrations 081/082). `songs` is the atomic
 # unit AND the entire Library; "charting" is a derived role via chart

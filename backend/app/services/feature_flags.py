@@ -37,6 +37,21 @@ IDENTITY_TRGM_KEY = "identity_trgm.enabled"
 # stream looks right.
 IDENTITY_TRGM_AUTOLINK_KEY = "identity_trgm.autolink"
 
+# Lyrical Charger PREPUBLISH: hold a public reading instead of committing it, so
+# the reader can contest it once before it enters the Library. Fail CLOSED --
+# absent flag = OFF = today's behaviour exactly, publish on delivery.
+#
+# It is gated because flipping it changes when every public reading publishes,
+# and the reader-facing half (the accept / contest control on the result screen)
+# has to be live at the same moment. With the flag on and no UI, nothing would be
+# broken but every reading would wait out the 30-minute sweep before appearing --
+# correct, and not what anyone wants. Turn it on when both halves ship.
+LC_PREPUBLISH_KEY = "lc_prepublish.enabled"
+
+
+def is_lc_prepublish_enabled(db: Session) -> bool:
+    return (_get_flag(db, LC_PREPUBLISH_KEY) or "false").lower() == "true"
+
 
 def is_identity_trgm_enabled(db: Session) -> bool:
     return (_get_flag(db, IDENTITY_TRGM_KEY) or "false").lower() == "true"

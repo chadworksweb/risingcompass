@@ -15,3 +15,4 @@ deploy/_shop_product_nginx_block.txt  text eol=lf
 deploy/_apply_reading_nginx.sh        text eol=lf
 deploy/_reading_nginx_block.txt       text eol=lf
 deploy/cover-art.sh                    text eol=lf
+deploy/lc-prepublish-sweep.sh          text eol=lf

@@ -473,6 +473,72 @@ def emit_provenance_integrity(*, mismatches: list[str], health: dict) -> None:
     )
 
 
+def emit_contest_filed(*, read_id: int, title: str, artist: str,
+                       axis_label: str, note: str,
+                       first_tier: Optional[str], second_tier: Optional[str],
+                       tier_moved: bool, outcome: str) -> None:
+    """Moderation alert -- a Lyrical Charger reader contested a reading.
+
+    FIRED AFTER THE READER DECIDES, not when they file. It is seconds later and
+    it carries the whole story in one message: what they objected to, whether
+    the re-read moved, and whether they took it. An email at filing time can
+    only say that a contest started, which means opening the queue to learn
+    anything at all.
+
+    The interesting row is not the one where the reader was satisfied. It is
+    `outcome='declined'` with `tier_moved=False`: the rubric read it the same
+    way twice and a person still says it is wrong. Those, repeated on one axis
+    against one song, are the rubric-gap signal this whole feature exists to
+    collect.
+    """
+    site = settings.site_url.rstrip("/")
+    snippet = note if len(note) <= 400 else note[:400] + "..."
+    # No second tier means no re-read was ever produced (the model call failed
+    # and the reader never came back), so there is no transition to report and
+    # "unchanged" would be a lie -- it would read as the rubric holding its
+    # ground when in fact it never looked twice.
+    if not second_tier:
+        moved = f"{escape(first_tier or '?')}, never re-read"
+    elif tier_moved:
+        moved = f"{escape(first_tier or '?')} &rarr; <strong>{escape(second_tier or '?')}</strong>"
+    else:
+        moved = f"unchanged ({escape(first_tier or '?')})"
+    outcome_label = {
+        "accepted": "Reader ACCEPTED the re-read",
+        "declined": "Reader DECLINED -- escalated to the misread queue",
+        "abandoned": "Reader left; the re-read published on the sweep",
+        "reread_failed": ("The re-read could not be run and the reader left; "
+                          "the reading they objected to published on the sweep"),
+    }.get(outcome, outcome)
+    flag = "" if (tier_moved or not second_tier) else (
+        '<p style="margin:0 0 12px;font-size:13px;color:#a35;">'
+        'The re-read did not move. Repeat contests on this axis for this song '
+        'are a rubric-gap signal.</p>'
+    )
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+      <p style="margin:0 0 6px;font-size:14px;color:#555;">
+        Contested reading &middot; <strong>{escape(title)}</strong> &mdash; {escape(artist)}
+      </p>
+      <p style="margin:0 0 4px;font-size:14px;color:#333;"><strong>{escape(axis_label)}</strong></p>
+      <blockquote style="margin:0 0 16px;padding:10px 14px;background:#f7f7f9;border-left:3px solid #008f72;border-radius:0 4px 4px 0;font-size:14px;color:#333;white-space:pre-wrap;">{escape(snippet)}</blockquote>
+      <p style="margin:0 0 6px;font-size:13px;color:#555;">Tier: {moved}</p>
+      <p style="margin:0 0 12px;font-size:13px;color:#555;">{escape(outcome_label)}</p>
+      {flag}
+      <p style="margin:0;font-size:13px;color:#555;">
+        Read #{read_id} &middot;
+        <a href="{site}/api/admin/dashboard/misread" style="color:#008f72;">Misread queue</a>
+      </p>
+    </div>
+    """
+    send_alert(
+        category="moderation",
+        alert_key="contest_filed",
+        subject=f"Contested reading: {title} - {artist}",
+        html_body=html,
+    )
+
+
 def emit_lec_rubric_drift(*, old_version: str, new_version: str) -> None:
     """Moderation alert -- LEC's published scoring rubric version changed.
 

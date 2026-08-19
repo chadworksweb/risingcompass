@@ -601,6 +601,7 @@ async def _calibrate_lyrics_impl(
     current_user: User | None,
     progress_cb: Callable[[str], None] | None = None,
     skip_bot_check: bool = False,
+    job_token: str | None = None,
 ):
     """Calibrate raw lyrics text. Stores the calibration (not the lyrics).
 
@@ -860,6 +861,148 @@ async def _calibrate_lyrics_impl(
 
         listener_effects_prose = calibration.get("listener_effects_prose")
         societal_effects_prose = calibration.get("societal_effects_prose")
+
+        # PREPUBLISH BRANCH (lc_prepublish.enabled, fail-closed). Public
+        # readings are HELD rather than committed, so the reader gets one
+        # chance to say the read is wrong before it enters the Library. The
+        # publish-side writes (song row, run ledger + consensus, slug, user
+        # attribution) move to lc_publish.publish_read, fired by /accept or by
+        # the TTL sweep.
+        #
+        # This branch RETURNS. It is deliberately an insertion rather than a
+        # wrapper around the publish block below: that block is the hot path
+        # for every service caller and every terminal write, and the safest
+        # change to a hot path is one that does not touch it. With the flag off
+        # nothing here executes and the function behaves exactly as before.
+        #
+        # Scope is narrow on purpose. Only PUBLIC callers hold: service and
+        # terminal callers (RC_SERVICE_KEY, calibrate_song.py) publish inline as
+        # they always have, and a supplied_calibration is authoritative by
+        # definition and has no reader to contest it.
+        hold_this_run = False
+        if is_public and not use_supplied:
+            flag_db = SessionLocal()
+            try:
+                from app.services.feature_flags import is_lc_prepublish_enabled
+                hold_this_run = is_lc_prepublish_enabled(flag_db)
+            except Exception:
+                # Fail-closed: a flag read that errors publishes inline, which
+                # is the behaviour that predates this lane.
+                logger.exception("lc_prepublish flag read failed; publishing inline")
+                hold_this_run = False
+            finally:
+                flag_db.close()
+
+        if hold_this_run:
+            from app.services import lc_publish
+
+            hold_token = job_token or uuid.uuid4().hex
+            result_payload = {
+                "status": "scored",
+                "tier": color,
+                "tier_label": COLOR_LABELS.get(color),
+                "charge": calibration.get("charge_value"),
+                "contaminated": calibration.get("contaminated", False),
+                "contamination_note": calibration.get("contamination_note"),
+                "charge_summary": calibration.get("charge_summary"),
+                "confidence": calibration.get("confidence", 0.0),
+                "title": title,
+                "artist": artist,
+                "listener_effects_prose": listener_effects_prose,
+                "societal_effects_prose": societal_effects_prose,
+                "deadpan_line": calibration.get("deadpan_line"),
+                "topics": calibration.get("topics"),
+            }
+
+            hold_db = SessionLocal()
+            try:
+                held_row = lc_publish.hold_read(
+                    hold_db,
+                    job_token=hold_token,
+                    title=title, artist=artist, source=source,
+                    calibration=calibration,
+                    result_payload=result_payload,
+                    # Used ONLY to scrub the stored argument while the words are
+                    # still in memory. Never written. See lc_publish.
+                    lyrics=body.lyrics,
+                    lyrics_fingerprint=fingerprint,
+                    user_id=current_user.id if current_user is not None else None,
+                    ip_address=get_remote_address(request),
+                )
+                held_id = held_row.id
+            finally:
+                hold_db.close()
+
+            # THE CHARGE DOES NOT WAIT FOR PUBLICATION. The reader received a
+            # reading, and they received it whether or not they go on to
+            # contest it; deferring would hand a free reading to anyone who
+            # clicks contest. ref_id keys on the held row rather than a song id,
+            # which does not exist yet -- and it stays distinct from the
+            # 'submitted_song' ref space so the ledger's idempotency guard can
+            # never collide a hold with a published song of the same number.
+            if current_user is not None:
+                cost = (
+                    billing_config.COST_SONG_CACHE_HIT if cached_calibration
+                    else billing_config.COST_SONG_MISS
+                )
+                if cost > 0:
+                    charge_ref_id = f"hold:{held_id}"
+                    try:
+                        charge_result = billing_svc.charge_song(
+                            current_user.id, cost,
+                            reason=("song_cache_hit" if cached_calibration else "song_miss"),
+                            ref_type="prepublish_read", ref_id=charge_ref_id,
+                            context={"title": title[:80], "artist": artist[:80]},
+                        )
+                    except HTTPException:
+                        logger.warning(
+                            "charge_song failed post-success (held) user=%s read=%s",
+                            current_user.id, held_id,
+                        )
+                        billing_svc.record_unbilled_overrun(
+                            current_user.id, cost,
+                            ref_type="prepublish_read", ref_id=charge_ref_id,
+                            context={"title": title[:80], "artist": artist[:80]},
+                        )
+
+            # Telemetry fires at DELIVERY, like the charge: this event answers
+            # "what did the audience run", and they ran it. song_id is null
+            # because no song row exists yet; the publish step is what ties a
+            # reading to a song.
+            try:
+                schedule_event(background_tasks, "submission_success", request,
+                               payload={"title": title, "artist": artist, "source": source,
+                                        "tier": color, "charge": calibration.get("charge_value"),
+                                        "contaminated": calibration.get("contaminated", False),
+                                        "confidence": calibration.get("confidence"),
+                                        "held": True},
+                               song_id=None)
+            except Exception:
+                logger.exception("submission_success event failed (non-fatal, held)")
+
+            return LyricsCalibrateOut(
+                status="scored",
+                tier=color,
+                tier_label=COLOR_LABELS.get(color),
+                charge=calibration.get("charge_value"),
+                contaminated=calibration.get("contaminated", False),
+                contamination_note=calibration.get("contamination_note"),
+                charge_summary=calibration.get("charge_summary"),
+                confidence=calibration.get("confidence", 0.0),
+                title=title,
+                artist=artist,
+                # No slug and no consensus while held: neither exists until the
+                # reading publishes, and inventing either would point the reader
+                # at a page that is not there.
+                song_slug=None,
+                consensus=None,
+                listener_effects_prose=listener_effects_prose,
+                societal_effects_prose=societal_effects_prose,
+                deadpan_line=calibration.get("deadpan_line"),
+                topics=calibration.get("topics"),
+                held=True,
+                job_token=hold_token,
+            )
 
         # Phase 3: open a fresh write session now (after the Opus call) and
         # own the whole write transaction here. Kept separate from Phase 1 so
@@ -1158,6 +1301,7 @@ async def _run_single_calibration(
             body=body, request=shim, background_tasks=BackgroundTasks(),
             tier=tier, current_user=user_obj,
             progress_cb=_phase, skip_bot_check=True,
+            job_token=token,
         )
         _store_calib_result(token, result)
     except HTTPException as exc:

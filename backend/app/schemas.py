@@ -693,6 +693,15 @@ class LyricsCalibrateOut(BaseModel):
     # ether tagger failed soft or no lyrics were available.
     deadpan_line: Optional[str] = None
     topics: Optional[list] = None
+    # PREPUBLISH (lc_prepublish.enabled). When true the reading has been
+    # delivered but NOT committed to the Library: it is held, and the reader can
+    # accept it, contest it once, or say nothing and let the sweep publish it.
+    # `song_slug` is null while held, because the song page does not exist yet.
+    # `job_token` is the reader's handle for /accept, /contest and /decline.
+    # Both stay null/false on every non-public path and whenever the flag is off,
+    # so an existing client sees exactly the payload it always saw.
+    held: bool = False
+    job_token: Optional[str] = None
 
 
 class SongSearchIn(BaseModel):

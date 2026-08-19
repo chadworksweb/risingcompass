@@ -222,6 +222,7 @@ def _guard_reasoning(
     title: str | None = None,
     artist: str | None = None,
     lyric_free: bool = False,
+    pre_scrubbed: bool = False,
 ) -> str | None:
     """The single code-level lock on the stored agent argument: a run's
     `reasoning` is persisted ONLY after passing the verbatim-lyric scrub.
@@ -250,6 +251,33 @@ def _guard_reasoning(
         logger.warning(
             "lyric_free run for '%s' by %s was passed lyrics; scrubbing anyway "
             "(the lane claims no lyrics exist)", title, artist,
+        )
+    if pre_scrubbed and not lyrics:
+        # The LYRICAL CHARGER PREPUBLISH lane. Like lyric_free this is an
+        # assertion, not a bypass, and it is a DIFFERENT assertion: not "no
+        # lyrics ever existed here" but "this exact string already went through
+        # this function, in this process, while the real lyrics were in hand".
+        #
+        # It exists because the prepublish log splits one calibration across two
+        # requests. The reading is produced while the reader's pasted lyrics are
+        # in memory, then HELD; the run is not logged until they accept it (or
+        # the sweep publishes it), by which time the lyrics are long gone --
+        # never stored, which is the whole point of the lane. Fail-closed at
+        # that second moment would silently drop the argument on every public
+        # Lyrical Charger run, and reasoning capture was deliberately wired to
+        # that path.
+        #
+        # The claim is true BY CONSTRUCTION rather than by trust: the only
+        # caller is `lc_publish.hold_read`, which stores nothing but this
+        # function's own return value, computed against the real lyrics. There
+        # is no path that reaches here with an unscrubbed string. Passing
+        # lyrics alongside contradicts the claim, so that combination falls
+        # through and gets scrubbed again, exactly as lyric_free does.
+        return reasoning
+    if pre_scrubbed and lyrics:
+        logger.warning(
+            "pre_scrubbed run for '%s' by %s was passed lyrics; scrubbing again "
+            "(the lane claims the scrub already ran)", title, artist,
         )
     if not lyrics:
         logger.warning(
@@ -280,6 +308,7 @@ def log_run(
     agent_model: str | None = None,
     lyrics: str | None = None,
     lyric_free: bool = False,
+    pre_scrubbed: bool = False,
 ) -> CalibrationRun:
     """Record one agent run. Always writes. The caller has already committed
     the song row (or decided no song row is appropriate). `song_id` is the
@@ -323,6 +352,7 @@ def log_run(
         reasoning=_guard_reasoning(
             calibration.get("reasoning"), lyrics, title=title, artist=artist,
             lyric_free=lyric_free,
+            pre_scrubbed=pre_scrubbed,
         ),
         visceral_charge=calibration.get("visceral_charge"),
         route=calibration.get("route"),
@@ -562,6 +592,7 @@ def record_and_reconcile(
     is_new_row: bool = False,
     lyrics: str | None = None,
     allow_prose_generation: bool = True,
+    pre_scrubbed: bool = False,
 ) -> dict:
     """Full consensus flow: log the run, seed prior state if needed, compute
     consensus, update the canonical row, audit tier flips.
@@ -608,6 +639,7 @@ def record_and_reconcile(
         lyrics_fingerprint=lyrics_fingerprint,
         agent_model=agent_model,
         lyrics=lyrics,
+        pre_scrubbed=pre_scrubbed,
     )
 
     consensus = None

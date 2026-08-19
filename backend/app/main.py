@@ -22,6 +22,7 @@ from app.migrate import run_migrations
 # startup, migrations, and every swallowed "non-fatal" exception persist.
 configure_logging()
 from app.models import AgentDraft, AgentDraftSong, DailyReading, ApiCallLog
+from app.routers import lc_contest, lc_prepublish_sweep
 from app.routers import compass, drift, admin, admin_auth, weekly_albums, agent, misread, library_admin, analyzer, submissions_admin, badge, stream, artists, artists_admin, songs, recalibrations, vibe, db_search, calibration_log, artist_verification, ether_audits, ether_art_chart, backfill_admin, chart_snapshots, users, comments, comments_admin, alerts_admin, identity_webhook, users_admin, prose_admin, charger_activity, topic_trends
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,10 @@ def _init_database():
     ensure_pref_default("general_inquiry", enabled=True)
     # Shop: alert the admin by email on each new order. On by default.
     ensure_pref_default("shop_order", enabled=True)
+    # Lyrical Charger: a reader contested a reading. Fired after they accept or
+    # decline the re-read, so one email carries the whole exchange. On by
+    # default; mute it from Alerts if contest volume ever outgrows the inbox.
+    ensure_pref_default("contest_filed", enabled=True)
     # Faultline: a brand-new fault, a fault marked critical, or a resolved fault
     # that recurred. All on by default -- a new prod fault, a critical, or a
     # regression should never sit unseen (prod-gated in faultline._persist).
@@ -283,6 +288,9 @@ app.include_router(chart_anomalies.router, dependencies=_api_key_dep)
 # (first-party callers like chadlewine.com). Endpoints that distinguish
 # behavior re-declare the dependency to capture the tier.
 app.include_router(analyzer.router, dependencies=[Depends(verify_api_or_service_key)])
+# The contest lane rides the same public key gate as the calibrate endpoints it
+# follows -- a contest is the second half of one Lyrical Charger session.
+app.include_router(lc_contest.router, dependencies=[Depends(verify_api_or_service_key)])
 from app.routers import album_charger
 app.include_router(album_charger.router, dependencies=[Depends(verify_api_or_service_key)])
 app.include_router(badge.router, dependencies=_api_key_dep)
@@ -411,6 +419,9 @@ from app.routers import faultline_agent
 app.include_router(faultline_agent.router)
 from app.routers import leit_sweep
 app.include_router(leit_sweep.router)
+# Publishes Lyrical Charger readings the reader never answered. Cron lane
+# (X-Reading-Cron-Key), every 10 minutes -- HOLD_TTL is 30, not a night.
+app.include_router(lc_prepublish_sweep.router)
 from app.routers import cover_art_cron
 app.include_router(cover_art_cron.router)  # nightly cover-art sweep (cron key)
 from app.routers import lec_drift

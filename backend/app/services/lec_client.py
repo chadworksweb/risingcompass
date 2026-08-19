@@ -32,6 +32,8 @@ async def score_via_lec(
     lyrics: str,
     artifact_type: str = "lyric",
     satire: bool = False,
+    contest_directs: str | None = None,
+    contest_note: str | None = None,
 ) -> dict | None:
     """POST one artifact to LEC /api/score and map the response into RC's
     calibration-dict shape (the same keys the calibration path uses before
@@ -59,6 +61,18 @@ async def score_via_lec(
     }
     if satire:
         payload["satire"] = True
+    if contest_directs:
+        # A CONTESTED re-read (Lyrical Charger prepublish contest). LEC re-runs
+        # the standard rubric with the reader's objection supplied as a place to
+        # look, and the prior verdict deliberately withheld so the re-read is a
+        # re-derivation rather than a negotiation against a number.
+        #
+        # `contest_note` is reader-written text and reaches here ONLY after
+        # services/contest_guard.check_contest has passed it: closed axis, a
+        # pointer that matches the lyrics, and a hard fail on any tier word or
+        # directional demand. Never send an unguarded note.
+        payload["contest_directs"] = contest_directs
+        payload["contest_note"] = (contest_note or "")
     headers = {}
     if settings.lec_api_key:
         headers["X-Api-Key"] = settings.lec_api_key

@@ -86,7 +86,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css?v=20260817b">
-  <link rel="stylesheet" href="/lyrical-charger/charger.css?v=20260817c">
+  <link rel="stylesheet" href="/lyrical-charger/charger.css?v=20260819a">
   <link rel="stylesheet" href="/lyrical-charger/lc-intro.css?v=20260817">
 </head>
 <body class="rc-elevated">
@@ -511,6 +511,13 @@
       <div class="result-contamination hidden" id="result-contamination"></div>
       <div class="result-dogma hidden" id="result-dogma"></div>
 
+      <!-- Contest lane (prepublish). Rendered only while a reading is HELD:
+           the reader can accept it, say it missed something and get one
+           re-read, or send it to review. Empty and inert when the reading
+           published on delivery, which is what happens while
+           lc_prepublish.enabled is off. -->
+      <div class="result-contest hidden" id="result-contest"></div>
+
       <!-- Misread link -->
       <div class="result-misread" id="result-misread"></div>
 
@@ -844,6 +851,6 @@
   <script src="/js/auth.js?v=20260817" defer></script>
   <script src="/cards/rc-charge-card-generator.js?v=20260817b" defer></script>
   <script src="/js/rc-turnstile.js?v=20260817"></script>
-  <script src="/lyrical-charger/charger.js?v=20260817c" defer></script>
+  <script src="/lyrical-charger/charger.js?v=20260819a" defer></script>
 </body>
 </html>

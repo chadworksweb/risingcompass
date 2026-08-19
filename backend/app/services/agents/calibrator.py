@@ -281,6 +281,8 @@ async def calibrate_song_async(
     progress_cb: Callable[[str], None] | None = None,
     supplied: dict | None = None,
     allow_generation: bool = True,
+    contest_directs: str | None = None,
+    contest_note: str | None = None,
 ) -> dict:
     """The calibration path. Calibrate a song against the rubric, then complete
     the generated fields (effects prose, ether tagging, societal prose) in one
@@ -338,6 +340,14 @@ async def calibrate_song_async(
     from app.services import lec_client
     lec_calibration = await lec_client.score_via_lec(
         title, artist, lyrics, artifact_type="lyric",
+        # A CONTESTED re-read carries the reader's objection through to LEC. It
+        # reaches here only via the Lyrical Charger contest lane, which has
+        # already run contest_guard over the note. Everything downstream of the
+        # score -- the quote scrub, the enrichment chain -- is identical, which
+        # is the point of threading it here rather than calling LEC directly:
+        # a contested reading is a whole reading, not a bare tier.
+        contest_directs=contest_directs,
+        contest_note=contest_note,
     )
     if lec_calibration is None:
         logger.error("LEC scoring failed for '%s' by %s; needs human review",

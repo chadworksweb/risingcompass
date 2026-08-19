@@ -73,6 +73,7 @@ const resultConsensus = $('#result-consensus');
 const resultContamination = $('#result-contamination');
 const resultDogma = $('#result-dogma');
 const resultMisread = $('#result-misread');
+const resultContest = $('#result-contest');
 const btnAgain = $('#btn-again');
 const btnShare = $('#btn-share');
 const chargeCardModal = $('#charge-card-modal');
@@ -1324,10 +1325,18 @@ function renderResults(data) {
   const detailsLink = data.song_slug
     ? `<a href="/songs/${encodeURIComponent(data.song_slug)}" class="details-cta">Read the full reading -&gt;</a>`
     : '';
-  resultMisread.innerHTML = `
-    ${detailsLink}
-    <a href="/misread-submission.html?${misreadParams.toString()}" class="misread-link">Did we get it wrong?</a>
-  `;
+  // A HELD reading has no song page yet, and "Did we get it wrong?" would send
+  // the reader to a queue when a re-read is one click away. The contest lane
+  // replaces both while the reading is held.
+  renderContestLane(data);
+  if (data && data.held) {
+    resultMisread.innerHTML = '';
+  } else {
+    resultMisread.innerHTML = `
+      ${detailsLink}
+      <a href="/misread-submission.html?${misreadParams.toString()}" class="misread-link">Did we get it wrong?</a>
+    `;
+  }
 }
 
 // ============================================================
@@ -2377,3 +2386,267 @@ function showCappedCard(data) {
 
   validateAlbumSubmit();
 })();
+
+// ============================================================
+// Contest lane (prepublish)
+//
+// A reading arrives HELD: delivered to the reader, not yet in the Library.
+// They can take it, say it missed something and get exactly one re-read, or
+// send it to a person. Saying nothing is fine too, and the commonest case by
+// far: the server publishes it on a timer.
+//
+// The whole block is inert unless the server says `held`, so with the
+// prepublish flag off this file changes nothing about how a reading renders.
+// ============================================================
+
+let heldToken = null;      // the reader's handle on the held reading
+let heldIsReRead = false;  // true once they have spent their one re-read
+let contestAxes = null;    // fetched once, from the server's closed set
+
+async function loadContestAxes() {
+  // The axes live on the server because the guard validates against them
+  // there. Fetching rather than hardcoding means the list a reader picks from
+  // can never drift out of step with the list that gets accepted.
+  if (contestAxes) return contestAxes;
+  try {
+    const headers = await calibrateHeaders();
+    const resp = await fetch(`${API_BASE}/contest/axes`, { headers });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    contestAxes = data.axes || null;
+  } catch (_) {
+    contestAxes = null;
+  }
+  return contestAxes;
+}
+
+// The lane is new and it changes when a reading reaches the library, so it says
+// so on every screen of it -- held, form, and re-read alike. One constant rather
+// than three copies, so it cannot go missing from a state nobody looked at.
+const CONTEST_BETA = '<span class="contest-beta">Beta</span>';
+
+function renderHeldPrompt() {
+  resultContest.innerHTML = `
+    <div class="contest-held">
+      <p class="contest-held-note">${CONTEST_BETA}This reading is not saved yet.</p>
+      <div class="contest-held-actions">
+        <button type="button" class="btn btn-primary" id="contest-accept">Looks right</button>
+        <button type="button" class="btn btn-secondary" id="contest-open">Something's off</button>
+      </div>
+    </div>
+  `;
+  resultContest.classList.remove('hidden');
+  $('#contest-accept').addEventListener('click', acceptReading);
+  $('#contest-open').addEventListener('click', openContestForm);
+}
+
+async function openContestForm() {
+  const axes = await loadContestAxes();
+  if (!axes) {
+    renderContestError('That form could not load. You can still send this to review.');
+    return;
+  }
+  const options = axes.map((a) => `
+    <label class="contest-axis">
+      <input type="radio" name="contest-axis" value="${escapeAttr(a.key)}">
+      <span>${esc(a.label)}</span>
+    </label>
+  `).join('');
+
+  resultContest.innerHTML = `
+    <div class="contest-form">
+      <p class="contest-form-title">${CONTEST_BETA}What did the reading miss?</p>
+      <div class="contest-axes">${options}</div>
+
+      <label class="contest-label" for="contest-note">Quote the line it missed it on</label>
+      <textarea id="contest-note" class="contest-note" rows="3"
+        placeholder="Say what the line means, and quote enough of it that we can find it."></textarea>
+      <p class="contest-help">Leave the tier out of it. Point at the words and the rubric will do the rest.</p>
+
+      <label class="contest-label" for="contest-lyrics">Paste the lyrics again</label>
+      <textarea id="contest-lyrics" class="contest-lyrics" rows="6"
+        placeholder="The same lyrics you pasted before."></textarea>
+      <p class="contest-help">We cleared them the moment your reading landed, and we never store them, so we need them once more to read it again.</p>
+
+      <div class="contest-form-actions">
+        <button type="button" class="btn btn-primary" id="contest-submit">Read it again</button>
+        <button type="button" class="btn btn-secondary" id="contest-cancel">Never mind</button>
+      </div>
+      <div class="contest-error hidden" id="contest-error"></div>
+    </div>
+  `;
+  resultContest.classList.remove('hidden');
+  $('#contest-submit').addEventListener('click', submitContest);
+  $('#contest-cancel').addEventListener('click', renderHeldPrompt);
+  phCapture('contest_opened', {});
+}
+
+function renderContestError(message) {
+  const box = $('#contest-error');
+  if (box) {
+    box.textContent = message;
+    box.classList.remove('hidden');
+    return;
+  }
+  resultContest.innerHTML = `<div class="contest-error">${esc(message)}</div>`;
+  resultContest.classList.remove('hidden');
+}
+
+async function submitContest() {
+  const axis = (document.querySelector('input[name="contest-axis"]:checked') || {}).value;
+  const note = ($('#contest-note')?.value || '').trim();
+  const lyrics = ($('#contest-lyrics')?.value || '').trim();
+
+  if (!axis) return renderContestError('Pick what the reading got wrong.');
+  if (!note) return renderContestError('Tell us what it missed, and quote the line.');
+  if (!lyrics) return renderContestError('Paste the lyrics again so it can be read.');
+
+  const submitBtn = $('#contest-submit');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Reading it again...';
+  }
+
+  try {
+    const headers = await calibrateHeaders();
+    const resp = await fetch(`${API_BASE}/contest`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ job_token: heldToken, axis, note, lyrics }),
+    });
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok) {
+      // The guard's rejections are the useful ones: each says what to send
+      // instead, so surface it as written rather than flattening it.
+      const detail = data.detail || {};
+      const message = detail.message
+        || (typeof detail === 'string' ? detail : 'That could not be sent. Try again.');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Read it again';
+      }
+      return renderContestError(message);
+    }
+
+    phCapture('contest_reread', { tier_moved: !!data.tier_moved });
+    heldIsReRead = true;
+    renderResults(Object.assign({}, data.result, {
+      held: true,
+      job_token: heldToken,
+      _reReadOf: lastResult ? lastResult.tier : null,
+      _tierMoved: !!data.tier_moved,
+    }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (_) {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Read it again';
+    }
+    renderContestError('That could not be sent. Check your connection and try again.');
+  }
+}
+
+function isSignedIn() {
+  try {
+    return !!(window.Auth && window.Auth.isSignedIn());
+  } catch (_) {
+    return false;
+  }
+}
+
+function renderReReadPrompt(tierMoved) {
+  const moved = tierMoved
+    ? 'Here it is again, and it landed somewhere else this time.'
+    : 'Here it is again. It read the same way twice.';
+  // The reply address is asked for ONLY when signed out. A signed-in reader's
+  // account address is fetched server-side, so putting the field in front of
+  // them would be asking for something already known.
+  const emailField = isSignedIn() ? '' : `
+      <label class="contest-label" for="contest-email">Email, if you want an answer</label>
+      <input type="email" id="contest-email" class="contest-email"
+        autocomplete="email" placeholder="Leave it blank and it still gets read.">
+  `;
+  resultContest.innerHTML = `
+    <div class="contest-held">
+      <p class="contest-held-note">${CONTEST_BETA}${esc(moved)}</p>
+      ${emailField}
+      <div class="contest-held-actions">
+        <button type="button" class="btn btn-primary" id="contest-accept">Take this one</button>
+        <button type="button" class="btn btn-secondary" id="contest-decline">Still wrong, send it to review</button>
+      </div>
+    </div>
+  `;
+  resultContest.classList.remove('hidden');
+  $('#contest-accept').addEventListener('click', acceptReading);
+  $('#contest-decline').addEventListener('click', declineReading);
+}
+
+async function acceptReading() {
+  const btn = $('#contest-accept');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  try {
+    const headers = await calibrateHeaders();
+    const resp = await fetch(`${API_BASE}/accept`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ job_token: heldToken }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error('accept failed');
+
+    phCapture('contest_accepted', { was_reread: heldIsReRead });
+    heldToken = null;
+    const link = data.song_slug
+      ? `<a href="/songs/${encodeURIComponent(data.song_slug)}" class="details-cta">Read the full reading -&gt;</a>`
+      : '';
+    resultContest.innerHTML = `<div class="contest-done"><p>Saved.</p>${link}</div>`;
+  } catch (_) {
+    // It is on a 30-minute timer regardless, so nothing is lost here.
+    resultContest.innerHTML =
+      '<div class="contest-done"><p>That did not go through, but your reading is safe and will save itself shortly.</p></div>';
+  }
+}
+
+async function declineReading() {
+  const btn = $('#contest-decline');
+  const email = ($('#contest-email')?.value || '').trim();
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  try {
+    const headers = await calibrateHeaders();
+    const resp = await fetch(`${API_BASE}/decline`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ job_token: heldToken, email: email || null }),
+    });
+    if (!resp.ok) throw new Error('decline failed');
+    phCapture('contest_declined', { gave_email: !!email });
+    heldToken = null;
+    const answer = email
+      ? ' We have your address if there is anything to tell you.'
+      : '';
+    resultContest.innerHTML =
+      `<div class="contest-done"><p>Sent to review. A person reads these, and this one will not go into the library in the meantime.${answer}</p></div>`;
+  } catch (_) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Still wrong, send it to review'; }
+    renderContestError('That could not be sent. Try again in a moment.');
+  }
+}
+
+function renderContestLane(data) {
+  // Not held means it published on delivery, which is every reading while the
+  // prepublish flag is off. Leave the block empty and hidden.
+  if (!data || !data.held || !data.job_token) {
+    heldToken = null;
+    heldIsReRead = false;
+    resultContest.classList.add('hidden');
+    resultContest.innerHTML = '';
+    return;
+  }
+  heldToken = data.job_token;
+  if (data._reReadOf !== undefined) {
+    heldIsReRead = true;
+    renderReReadPrompt(data._tierMoved);
+  } else {
+    heldIsReRead = false;
+    renderHeldPrompt();
+  }
+}
