@@ -69,10 +69,17 @@ async def main() -> None:
     p.add_argument("--release-id", type=int, default=None, help="Resolve one release.")
     p.add_argument("--dry-run", action="store_true",
                    help="Show what would be picked; write nothing.")
+    p.add_argument("--recheck-misses", action="store_true",
+                   help="Revisit releases recorded as a definitive miss "
+                        "(mbid_checked_at set). Mirrors the song lane's flag.")
     args = p.parse_args()
 
+    # --release-id bypasses the pending filters on purpose: naming a release
+    # explicitly is a deliberate act, and it must work on a recorded miss and on
+    # the catch-all bucket without needing a second flag.
     ids = ([args.release_id] if args.release_id
-           else release_mbid.pending_release_ids(limit=args.limit))
+           else release_mbid.pending_release_ids(
+               limit=args.limit, recheck_misses=args.recheck_misses))
     if not ids:
         print("Release MBIDs up to date -- nothing without one.")
         return
@@ -97,7 +104,11 @@ async def main() -> None:
               f"{' ' + res['musicbrainz_id'] if res['musicbrainz_id'] else ''}{art}")
 
     print(f"\nDone. attached={counts['attached']} (with art {counts['with_art']}) "
-          f"ambiguous={counts['ambiguous']} no_match={counts['not_found']}")
+          f"ambiguous={counts['ambiguous']} no_match={counts['not_found']} "
+          f"unreachable={counts.get('error', 0)}")
+    if counts.get("aborted"):
+        print("  ABORTED on a run of MusicBrainz errors. Nothing was recorded as "
+              "missed; re-run when the service is back.")
     if counts["ambiguous"]:
         print("  Ambiguous releases were left alone on purpose -- no art beats wrong art.")
 

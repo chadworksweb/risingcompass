@@ -229,9 +229,20 @@ async def sweep_songs(limit: int | None = DEFAULT_SONG_LIMIT,
 
 async def run_sweep(release_limit: int = DEFAULT_RELEASE_LIMIT,
                     song_limit: int = DEFAULT_SONG_LIMIT) -> dict:
-    """One automated pass: releases first, then songs. Both bounded, both fail-soft."""
-    releases = await release_mbid.resolve_pending(limit=release_limit)
+    """One automated pass: SONGS first, then releases. Both bounded, both fail-soft.
+
+    The order is load-bearing and used to be the other way round. A release whose
+    title is ambiguous in MusicBrainz (an album and a single sharing a name and a
+    date is the common case) is only resolvable once its own tracks have
+    resolved, because release_mbid._track_mbid_hint uses two or more agreeing
+    tracks to break the tie. Running releases first meant that hint was always
+    empty on a release created since the last sweep, so an ambiguous release
+    failed and could only succeed on the NEXT night's pass. Songs first makes it
+    resolve in the same pass. Found on a terminal album read 2026-08-20, where
+    eleven agreeing tracks were the only thing that separated the album from a
+    same-titled single."""
     songs = await sweep_songs(limit=song_limit)
+    releases = await release_mbid.resolve_pending(limit=release_limit)
     summary = {"releases": releases, "songs": songs}
     logger.info("Cover art sweep: %s", summary)
     return summary

@@ -390,6 +390,12 @@ class Release(Base):
     calibrated_count = Column(Integer, default=0)
     contamination_count = Column(Integer, default=0)
     musicbrainz_id = Column(Text)
+    # Stamped when an MBID resolve was attempted and DEFINITIVELY missed, so the
+    # nightly sweep stops re-checking a release that can never resolve and the
+    # queue behind it moves. Never stamped on an AMBIGUOUS result: those become
+    # resolvable once the release's own tracks resolve and the track hint breaks
+    # the tie. Mirrors songs.release_group_checked_at (migration 158).
+    mbid_checked_at = Column(DateTime(timezone=True))
     spotify_id = Column(Text)
     # Album Charger: album-level synthesized reading (migration 069). NULL on
     # MusicBrainz/Spotify-derived releases that were never run through the

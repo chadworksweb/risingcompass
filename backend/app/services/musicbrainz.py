@@ -170,12 +170,20 @@ async def search_artist(name: str, limit: int = 5) -> list[dict]:
     ]
 
 
-async def search_release_group(artist: str, title: str, limit: int = 8) -> list[dict]:
+async def search_release_group(artist: str, title: str, limit: int = 8,
+                               raise_on_error: bool = False) -> list[dict]:
     """Search release-groups matching a title + artist, best score first.
 
     Used by the Album Charger to attach a release-group MBID to a user-charged
     album (which is what unlocks Cover Art Archive art for it). Returns dicts:
       mbid, title, primary_type, first_release_date, artist_credit, score.
+
+    `raise_on_error` re-raises a transport or HTTP failure instead of returning
+    an empty list. An empty list means "MusicBrainz answered and knows of no such
+    release group"; a 503 means "MusicBrainz did not answer". Those are the same
+    value to a caller that only sees [], and a caller that RECORDS a miss must be
+    able to tell them apart or an outage gets written down as a permanent fact.
+    Defaults False so existing callers keep the old fail-soft behaviour.
     """
     await _rate_limit()
     query = f'releasegroup:"{title}" AND artist:"{artist}"'
@@ -208,6 +216,8 @@ async def search_release_group(artist: str, title: str, limit: int = 8) -> list[
 
     except Exception:
         logger.exception("MusicBrainz release-group search failed: '%s' / '%s'", artist, title)
+        if raise_on_error:
+            raise
         return []
 
 

@@ -27,6 +27,12 @@ from sqlalchemy import text
 from app.database import SessionLocal
 from app.models import Release
 from app.services import coverart, musicbrainz
+from app.constants import CATCH_ALL_RELEASE_TITLE
+
+# Consecutive MusicBrainz errors that end a sweep. A miss and an outage are
+# distinguishable here (see resolve_release_mbid), so this is purely about
+# not burning a rate-limited slice against a service that is down.
+ERROR_RUN_ABORT = 4
 from app.services.artist_utils import slugify
 
 logger = logging.getLogger(__name__)
@@ -88,11 +94,33 @@ def _track_mbid_hint(db, release_id: int) -> str | None:
     return None if taken else top.m
 
 
+def _stamp_checked(release_id: int) -> None:
+    """Record that this release was resolved against MusicBrainz and MISSED.
+
+    Called ONLY on `not_found`, never on `ambiguous`. An ambiguous release is one
+    MusicBrainz has several equally-good candidates for, and it becomes
+    resolvable the moment its own tracks resolve, because _track_mbid_hint then
+    breaks the tie. Stamping ambiguous would permanently skip precisely the
+    releases that were about to become answerable.
+    """
+    db = SessionLocal()
+    try:
+        db.execute(text(
+            "UPDATE releases SET mbid_checked_at = now() WHERE id = :r"
+        ), {"r": release_id})
+        db.commit()
+    finally:
+        db.close()
+
+
 async def resolve_release_mbid(release_id: int) -> dict:
     """Resolve ONE release to a release-group MBID and warm its cover art.
 
     Returns {release_id, title, status, musicbrainz_id, has_art}. `status` is one
-    of: `attached`, `already_set`, `ambiguous`, `not_found`, `missing`.
+    of: `attached`, `already_set`, `ambiguous`, `not_found`, `error`, `missing`.
+
+    `not_found` means MusicBrainz answered and knows of no such group, and it is
+    recorded. `error` means MusicBrainz did not answer, and it is NOT recorded.
     """
     out = {"release_id": release_id, "title": None, "status": "missing",
            "musicbrainz_id": None, "has_art": None}
@@ -117,9 +145,22 @@ async def resolve_release_mbid(release_id: int) -> dict:
 
     if not artist_name or not title:
         out["status"] = "not_found"
+        _stamp_checked(release_id)
         return out
 
-    candidates = await musicbrainz.search_release_group(artist_name, title)
+    # raise_on_error so a MusicBrainz outage cannot be recorded as a definitive
+    # miss. A 503 and "no such release group" both arrive as an empty list
+    # otherwise, and stamping the first one is permanent until someone runs
+    # --recheck-misses. Caught live on the first batch after miss-recording
+    # landed: a 503 on two Michael Jackson discs stamped both as missed.
+    try:
+        candidates = await musicbrainz.search_release_group(
+            artist_name, title, raise_on_error=True)
+    except Exception:
+        out["status"] = "error"
+        logger.warning("Release %s '%s': MusicBrainz unreachable, not recording a miss",
+                       release_id, title)
+        return out
     chosen, needs_pick, _top = pick_mb_match(title, candidates)
 
     # The hint only ever CONFIRMS. If the search was ambiguous but the tracks
@@ -132,6 +173,8 @@ async def resolve_release_mbid(release_id: int) -> dict:
 
     if not chosen:
         out["status"] = "ambiguous" if needs_pick else "not_found"
+        if not needs_pick:
+            _stamp_checked(release_id)
         return out
 
     # Attach only if still unset, so two lanes racing cannot fight over it.
@@ -164,30 +207,53 @@ async def resolve_release_mbid(release_id: int) -> dict:
     return out
 
 
-def pending_release_ids(limit: int | None = None, readings_first: bool = True) -> list[int]:
+def pending_release_ids(limit: int | None = None, readings_first: bool = True,
+                        recheck_misses: bool = False) -> list[int]:
     """Releases with no MBID yet, readings first.
 
     A release carrying a reading is a page someone is meant to look at, so it is
     resolved before the long tail of metadata-only rows.
+
+    TWO EXCLUSIONS, both of them about HEAD-BLOCKING. This query feeds a nightly
+    sweep that takes a bounded slice off the front, so anything permanently
+    unresolvable at the front starves everything behind it. Found live on
+    2026-08-20: 36 releases pending, the front 15 unresolvable, three consecutive
+    nights of checked=15 attached=0 not_found=15, and positions 16 to 36 never
+    reached at all. A newly created release sat at the back and would never have
+    been resolved.
+      1. The synthetic catch-all bucket has no MusicBrainz counterpart by
+         construction and can never resolve. Eleven of those front 15 were it.
+      2. A release whose resolve was attempted and DEFINITIVELY missed carries
+         mbid_checked_at and is skipped, exactly as the song lane skips on
+         songs.release_group_checked_at. `recheck_misses` deliberately revisits
+         them, mirroring the song lane's flag of the same name.
+    An AMBIGUOUS release is never stamped and so is never excluded here; see the
+    note in resolve_release_mbid.
     """
     db = SessionLocal()
     try:
         order = ("ORDER BY (charge_summary IS NULL), id" if readings_first else "ORDER BY id")
-        sql = f"SELECT id FROM releases WHERE musicbrainz_id IS NULL {order}"
+        where = ["musicbrainz_id IS NULL", "title IS DISTINCT FROM :catchall"]
+        if not recheck_misses:
+            where.append("mbid_checked_at IS NULL")
+        sql = f"SELECT id FROM releases WHERE {' AND '.join(where)} {order}"
         if limit:
             sql += f" LIMIT {int(limit)}"
-        return [r[0] for r in db.execute(text(sql)).fetchall()]
+        return [r[0] for r in db.execute(
+            text(sql), {"catchall": CATCH_ALL_RELEASE_TITLE}).fetchall()]
     finally:
         db.close()
 
 
-async def resolve_pending(limit: int = 25) -> dict:
+async def resolve_pending(limit: int = 25, recheck_misses: bool = False) -> dict:
     """Resolve a bounded batch. Bounded on purpose: MusicBrainz is 1 req/sec and
     503s freely under load, so this takes a slice per run rather than trying to
     drain the backlog in one pass.
     """
-    stats = {"checked": 0, "attached": 0, "ambiguous": 0, "not_found": 0, "with_art": 0}
-    for rid in pending_release_ids(limit=limit):
+    stats = {"checked": 0, "attached": 0, "ambiguous": 0, "not_found": 0,
+             "error": 0, "with_art": 0, "aborted": False}
+    consecutive_errors = 0
+    for rid in pending_release_ids(limit=limit, recheck_misses=recheck_misses):
         try:
             res = await resolve_release_mbid(rid)
         except Exception:
@@ -199,6 +265,22 @@ async def resolve_pending(limit: int = 25) -> dict:
             stats["attached"] += 1
             if res.get("has_art"):
                 stats["with_art"] += 1
-        elif res["status"] in ("ambiguous", "not_found"):
+        elif res["status"] in ("ambiguous", "not_found", "error"):
             stats[res["status"]] += 1
+
+        # STOP ON A RUN OF ERRORS. One 503 is noise; a run of them means
+        # MusicBrainz is down, and every further request is a wasted second
+        # against a rate limit. Mirrors MISS_RUN_ABORT in the song lane. Errors
+        # are never recorded, so an aborted run costs nothing but the remainder
+        # of this slice, and the next pass picks the same releases back up.
+        if res["status"] == "error":
+            consecutive_errors += 1
+            if consecutive_errors >= ERROR_RUN_ABORT:
+                logger.warning(
+                    "Release MBID sweep aborted after %d consecutive MusicBrainz "
+                    "errors; nothing recorded as missed.", consecutive_errors)
+                stats["aborted"] = True
+                break
+        else:
+            consecutive_errors = 0
     return stats

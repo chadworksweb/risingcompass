@@ -1,3 +1,10 @@
+# The synthetic per-artist bucket that catches songs belonging to no real
+# release. It is created by artist_utils._apply_catch_all and has NO MusicBrainz
+# counterpart by construction, so any lane that resolves releases against
+# MusicBrainz must skip it rather than retry it forever. See migration 158.
+CATCH_ALL_RELEASE_TITLE = "Singles & Uncategorized"
+
+
 # Tier display constants — single source of truth
 COLOR_LABELS = {
     "violet": "Ascended", "blue": "Elevated", "green": "Decent",

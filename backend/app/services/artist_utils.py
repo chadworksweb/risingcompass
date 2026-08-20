@@ -9,7 +9,7 @@ from sqlalchemy import func
 from app.models import (
     Artist, Release, ReleaseSong, ReleaseSuppression, SongArtist, Song,
 )
-from app.constants import COLOR_LABELS, COLOR_HEX
+from app.constants import COLOR_LABELS, COLOR_HEX, CATCH_ALL_RELEASE_TITLE
 
 logger = logging.getLogger(__name__)
 
@@ -418,7 +418,7 @@ def _apply_catch_all(artist: Artist, all_songs: list[dict], db) -> int:
 
     catch_all = (
         db.query(Release)
-        .filter(Release.artist_id == artist.id, Release.title == "Singles & Uncategorized")
+        .filter(Release.artist_id == artist.id, Release.title == CATCH_ALL_RELEASE_TITLE)
         .first()
     )
     if not catch_all:
