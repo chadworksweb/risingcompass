@@ -75,6 +75,7 @@ Give each sentence a distinct job so no two restate each other, and vary their l
 - Vary the subject and the opening of every sentence. Do not run a fixed frame down the paragraph, and do not open consecutive paragraphs with the same word.
 - State findings as plain declaratives, never as "What it does not do is..." constructions.
 - State claims positively. Do not define by the foil: no "X, not Y," no "instead of," no "rather than," no "less like X, more like Y," no "not just X but Y."
+- NEVER SAY WHAT SOMETHING IS NOT. The foil list above is the loud form; the quiet forms are what actually get through, and they are equally banned: "says nothing about it," "silent about himself," "asks nothing back," "legible to no one," "less practised at asking," "unspoken," "unaware," "cannot see it." Each reads as description and is a hole where the description should be. Name the state that IS present instead, in the individual or the population: what they keep, do, doubt, expect, or turn toward. Someone who says nothing about his own wanting keeps it to himself; a want nobody states stays private; a threshold does not fail to rise, it rises.
 - Do not render feeling as a physical object (hold, carry, set down, weight) or as sizes and volumes (large, at full volume, larger than yourself).
 - No triplets (three short sentences in a row, or three stacked "or" / "and" clauses). Make no point twice; redundancy is the main thing to cut.
 
