@@ -88,12 +88,13 @@ DEADPAN_RULES_NUDGE = (
     "roughly len(title)+len(artist) characters, no terminal period, no leading "
     "article, one per song. Descriptive adjectives are allowed, evaluative ones "
     "are not, and it names the lyrics rather than the artist."
-    " NEVER NAME IT BY WHAT IT IS NOT: no absence, no negation, and none of the "
-    "quiet forms either (\"silent about himself\", \"unspoken\", \"unreciprocated\", "
-    "\"cannot see it\"). Those read as description and are a hole where the "
-    "description should be, and a placard is four or five words, so a negation "
-    "spends one of them saying nothing. Name the state that IS there: a crush "
-    "kept quiet, a wanting that is one-sided, a worth its owner doubts."
+    " Name what is present. A placard naming a thing by what it lacks is a hole "
+    "where the description should be, and at four or five words a negation spends "
+    "one of them saying nothing. The test: take the negation out, and if the "
+    "fragment still names the song it was doing other work and it stays; if it "
+    "collapses, the naming has not been found yet, and it exists and is usually "
+    "shorter. A crush kept quiet. A wanting that is one-sided. A worth its owner "
+    "doubts."
 )
 
 CORRECTIVE_NUDGE = (
