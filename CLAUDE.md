@@ -203,7 +203,7 @@ endpoint, which stores a supplied calibration with no model call).
 **Canonical rubric = the saved local copy `plans and docs/LEC-RUBRIC-LIVE.md`
 (NOT a per-session live pull).** LEC owns the rubric, but the live `GET /api/rubric`
 text is snapshotted to that file (version-stamped in its header comment; currently
-`f5e0fc75b07f`, pulled 2026-08-20 — the LEC deploy that day shipped the
+`1a90f87e796e`, pulled 2026-08-20 — the LEC deploy that day shipped the
 `_apply_glossary` fix, so prod stopped serving a corrupted line inside the live
 prompt and the hash moved off `069e4968a63c`). **Read that file every session and calibrate
 against it. Do NOT re-pull live each time** — the old "always pull, from-memory is
@@ -848,7 +848,7 @@ rewrite lands, guard that overwrite first** (refuse when the release has a
 - **On demand, one at a time. There is no album backfill and none is planned.**
 
 **HARD READ-GATE, separate from the song gate.** Read
-`plans and docs/LEC-ALBUM-RUBRIC-LIVE.md` (currently `b70ec221f529`) in the
+`plans and docs/LEC-ALBUM-RUBRIC-LIVE.md` (currently `9253cb83fcaf`) in the
 current session before producing ANY album output — not even a gut read before
 it. **Reading the SONG rubric does NOT satisfy the album gate**; they are
 different instruments pointed at different texts. The file is now a real pull:
@@ -902,18 +902,33 @@ renders it only `if deadpan`, so both reader lanes already treated it as optiona
 The rc-album `product_framing` still mentions placards on purpose -- it describes
 the song ROWS the lens reads, which carry their own.
 
-**A6 / S2, NEVER SAY WHAT SOMETHING IS NOT (Chad's ruling 2026-08-20).** Every
-authored field describes what is present. An absence, a negation, or a thing named
-by what it lacks is banned, and the quiet forms are the ones that get through:
-"silent about himself", "says nothing about it", "legible to no one", "unspoken",
-"unaware", "cannot see it". The rule existed for `charge_summary` and in a
-foil-only form for the prose lanes; it existed nowhere for `deadpan_line`, and
-eight such phrases shipped to live pages in one album run. **It is LENS law, not
-method prose** -- `rc-lyric` `lens_rules.S2` and `rc-album` `lens_rules.A6`, which
-render into the hashed LAW half. Writing it into the method half first was wrong
-twice over: the method is not the lens, and `rubric_version` does not hash it.
-Mirrored RC-side in `DEADPAN_RULES_NUDGE` and both prose `VOICE` constants, which
-feed the server's public generation and never see the lens.
+**A6 / S2, DESCRIBE WHAT IS PRESENT (Chad's ruling 2026-08-20).** A thing named
+by what it lacks is a hole where the description should be. Found in a live album
+placard; eight such phrases had shipped to live pages in one album run. The rule
+existed for `charge_summary` and in a foil-only form for the prose lanes; it
+existed nowhere for `deadpan_line`.
+
+**IT IS A TEST, NOT A LIST OF THINGS NOT TO SAY, and do not turn it back into
+one.** The first version enumerated nine banned phrases. Chad: "this feels like
+we're starting a new 'dont do this' rule list.... which never works." A matcher
+for those nine was measured against the corpus and DELETED before shipping: 15.7%
+of reader-facing fields flagged, with honest uses of every construction live -- a
+population growing *less willing* to accept something is the clinical form
+`SOCIETAL_VOICE` explicitly asks for on a negative charge, so the blocklist fought
+the instrument's own requirements. The rule now gives the removal test: take the
+negation out, and if the sentence still says what the thing is it was doing other
+work and it stays; if it collapses, the description has not been found yet, and it
+exists and is usually shorter. **Do not propose a matcher for this** -- the
+distinction is semantic. Deadpan FORM is mechanically decidable and its guard is
+correct; this is not the same kind of rule.
+
+**It is LENS law, not method prose** -- `rc-lyric` `lens_rules.S2` and `rc-album`
+`lens_rules.A6`, which render into the hashed LAW half. Writing it into the method
+half first was wrong twice over: the method is not the lens, and `rubric_version`
+does not hash it. Mirrored RC-side in `DEADPAN_RULES_NUDGE` and both prose `VOICE`
+constants, which feed the server's public generation and never see the lens. S1
+keeps its "no running order" wording on purpose: that defines SCOPE, which is
+stated by naming what falls outside it.
 
 **Two pieces of scar tissue, both from the first two albums:**
 - `validate_components` used to require a `route`, so both album writes copied the
