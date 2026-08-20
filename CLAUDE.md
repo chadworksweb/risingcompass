@@ -203,7 +203,7 @@ endpoint, which stores a supplied calibration with no model call).
 **Canonical rubric = the saved local copy `plans and docs/LEC-RUBRIC-LIVE.md`
 (NOT a per-session live pull).** LEC owns the rubric, but the live `GET /api/rubric`
 text is snapshotted to that file (version-stamped in its header comment; currently
-`c57ec1b0a078`, pulled 2026-08-14 — the LEC deploy that day shipped the
+`f5e0fc75b07f`, pulled 2026-08-20 — the LEC deploy that day shipped the
 `_apply_glossary` fix, so prod stopped serving a corrupted line inside the live
 prompt and the hash moved off `069e4968a63c`). **Read that file every session and calibrate
 against it. Do NOT re-pull live each time** — the old "always pull, from-memory is
@@ -848,7 +848,7 @@ rewrite lands, guard that overwrite first** (refuse when the release has a
 - **On demand, one at a time. There is no album backfill and none is planned.**
 
 **HARD READ-GATE, separate from the song gate.** Read
-`plans and docs/LEC-ALBUM-RUBRIC-LIVE.md` (currently `40d2c1615ffa`) in the
+`plans and docs/LEC-ALBUM-RUBRIC-LIVE.md` (currently `b70ec221f529`) in the
 current session before producing ANY album output — not even a gut read before
 it. **Reading the SONG rubric does NOT satisfy the album gate**; they are
 different instruments pointed at different texts. The file is now a real pull:
@@ -887,6 +887,33 @@ with no approval gate anywhere in front of it. The script:
 `release_prose_versions` is the album twin of `song_prose_versions` (its
 `release_id` is deliberately NOT an FK — a catalogue rebuild churns
 `releases.id`).
+
+**ALBUMS CARRY NO PLACARD (Chad's ruling 2026-08-20).** "albums are too complex
+for deadpan. it doesnt feel right or necessary." A museum placard names one thing
+and a release is a dozen, so `deadpan_line` belongs to the song lens alone. It is
+out of the rc-album JSON contract, out of A6, out of the psyche_facts source list;
+`album_guard` now treats a SUPPLIED placard as a violation (it used to treat a
+missing one as one) and the column is out of `READER_FIELDS`;
+`write_album_reading.py` neither writes it nor counts it, so **a complete album
+reading is SEVEN fields, not eight**. The column was cleared on all 8 releases
+that carried one. Song placards are untouched. Nothing downstream needed changing:
+`release.js` leaves the element hidden unless a value arrives and `ssr_release`
+renders it only `if deadpan`, so both reader lanes already treated it as optional.
+The rc-album `product_framing` still mentions placards on purpose -- it describes
+the song ROWS the lens reads, which carry their own.
+
+**A6 / S2, NEVER SAY WHAT SOMETHING IS NOT (Chad's ruling 2026-08-20).** Every
+authored field describes what is present. An absence, a negation, or a thing named
+by what it lacks is banned, and the quiet forms are the ones that get through:
+"silent about himself", "says nothing about it", "legible to no one", "unspoken",
+"unaware", "cannot see it". The rule existed for `charge_summary` and in a
+foil-only form for the prose lanes; it existed nowhere for `deadpan_line`, and
+eight such phrases shipped to live pages in one album run. **It is LENS law, not
+method prose** -- `rc-lyric` `lens_rules.S2` and `rc-album` `lens_rules.A6`, which
+render into the hashed LAW half. Writing it into the method half first was wrong
+twice over: the method is not the lens, and `rubric_version` does not hash it.
+Mirrored RC-side in `DEADPAN_RULES_NUDGE` and both prose `VOICE` constants, which
+feed the server's public generation and never see the lens.
 
 **Two pieces of scar tissue, both from the first two albums:**
 - `validate_components` used to require a `route`, so both album writes copied the
@@ -1012,8 +1039,28 @@ hand-run script and release MBIDs were only ever a side effect of a MusicBrainz
 catalogue resolve or an Album Charger run, so a release created by hand for a
 terminal album read could never show art at all.
 
-- **Releases resolve BEFORE songs**, because attaching one release MBID drops its
-  whole tracklist out of the song queue in a single lookup instead of N.
+- **SONGS resolve BEFORE releases (reversed 2026-08-20).** The old order was
+  releases-first, on the reasoning that one release MBID drops a whole tracklist
+  out of the song queue in a single lookup. True, and wrong for a release created
+  since the last sweep: `release_mbid._track_mbid_hint` breaks a title tie using
+  two or more agreeing tracks, and those tracks have no MBID yet, so an ambiguous
+  release failed and could only succeed on the NEXT night's pass. Songs first
+  resolves it in the same pass. Found on a terminal album read whose title
+  collided with a same-dated single; eleven agreeing tracks were the only thing
+  that separated them.
+- **The release queue used to head-block, and two guards now stop it.** It takes
+  the first 15 pending by `(charge_summary IS NULL), id` and recorded nothing
+  about a failure, so anything permanently unresolvable at the front starved
+  everything behind it: 36 pending, the front 15 unresolvable, three consecutive
+  nights of `checked=15 attached=0 not_found=15`, positions 16-36 never reached.
+  Eleven of those were the synthetic `CATCH_ALL_RELEASE_TITLE` bucket
+  (`app/constants.py`), which has no MusicBrainz counterpart by construction and
+  is now skipped. And `releases.mbid_checked_at` (migration 158) records a
+  definitive miss, mirroring `songs.release_group_checked_at`, with
+  `--recheck-misses` to revisit. **Stamped on `not_found` ONLY, NEVER on
+  `ambiguous`** -- an ambiguous release becomes resolvable the moment its tracks
+  do, so stamping it would permanently skip exactly the ones about to become
+  answerable.
 - **`services/release_mbid.py` owns the match rule** for BOTH lanes -- the Album
   Charger imports its thresholds rather than keeping a second copy. It also reads
   a free corroborating signal: the release's own tracks often already carry a
@@ -1022,6 +1069,15 @@ terminal album read could never show art at all.
 - **Bounded per run** (15 releases + 60 songs). MusicBrainz is 1 req/sec and 503s
   freely, so a backlog drains over nights. NEVER call the resolvers from a
   request -- one song costs up to 2 searches + 8 lookups.
+- **A MusicBrainz outage must never be recorded as a miss, on either lane.**
+  `search_release_group` swallowed every exception and returned `[]`, so a 503
+  and "no such release group" were the same value to the caller -- and the first
+  batch after miss-recording landed wrote two Michael Jackson discs down as
+  permanent misses during a wobble. It now takes `raise_on_error`, the resolver
+  reports status `error` and records nothing, and `resolve_pending` aborts after
+  `ERROR_RUN_ABORT = 4` consecutive errors. Same hazard the song lane guards with
+  `MISS_RUN_ABORT`; mirroring the stamping without mirroring the guard is what
+  caused it.
 - **It stops after 8 consecutive song misses, and that guard is load-bearing.**
   `_mb_get` swallows its errors and returns None, so a MusicBrainz OUTAGE and a
   genuine no-match are indistinguishable -- and a miss stamps
