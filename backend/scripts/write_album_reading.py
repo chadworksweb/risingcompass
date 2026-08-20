@@ -32,7 +32,7 @@ Usage:
 The reading file is the lens's JSON output verbatim: visceral_charge, coherence,
 harm{value,pervasive}, transcendence{value}, center, vernier{sat,res,reg,reach},
 contaminated, contamination_note, dogma_referenced, dogma_note, charge_summary,
-arc_prose, listener_effects_prose, societal_effects_prose, deadpan_line, topics,
+arc_prose, listener_effects_prose, societal_effects_prose, topics,
 topic_audit, psyche_facts, effects_pl, confidence.
 """
 from __future__ import annotations
@@ -224,7 +224,6 @@ def main() -> int:
             "arc_prose": reading.get("arc_prose"),
             "listener_effects_prose": reading.get("listener_effects_prose"),
             "societal_effects_prose": reading.get("societal_effects_prose"),
-            "deadpan_line": reading.get("deadpan_line"),
             "contaminated": composed.contaminated,
             "contamination_note": reading.get("contamination_note"),
             "dogma_referenced": bool(reading.get("dogma_referenced", False)),
@@ -270,8 +269,7 @@ def main() -> int:
             SELECT rubric_color, charge_value, contaminated, confidence,
                    (charge_summary IS NOT NULL), (arc_prose IS NOT NULL),
                    (listener_effects_prose IS NOT NULL),
-                   (societal_effects_prose IS NOT NULL),
-                   (deadpan_line IS NOT NULL), (topics IS NOT NULL),
+                   (societal_effects_prose IS NOT NULL), (topics IS NOT NULL),
                    (psyche_facts IS NOT NULL), (effects_pl IS NOT NULL)
               FROM releases WHERE id = :i"""), {"i": release["id"]}).fetchone()
         complete = all(check[4:])
@@ -281,7 +279,7 @@ def main() -> int:
               f"coherence={reading.get('coherence')!r}, argument stored)")
         if archived:
             print(f"  archived prior prose: {', '.join(archived)}")
-        print("  all eight reading fields present"
+        print("  all seven reading fields present"
               if complete else "  INCOMPLETE -- a reading field landed NULL")
         return 0 if complete else 1
     finally:

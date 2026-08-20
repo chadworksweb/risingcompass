@@ -49,9 +49,6 @@ import json
 import re
 import sys
 
-from app.services.agents.deadpan_guard import (
-    deadpan_length_cap, deadpan_violations,
-)
 from app.services.agents.summary_guard import summary_violations, text_names_titles
 from app.services.prose_tell_guard import hard_findings
 
@@ -66,7 +63,7 @@ SENTENCES_PER_PARAGRAPH = (2, 3)
 # Every reader-facing album field, for the vocabulary + title sweeps.
 READER_FIELDS = (
     "charge_summary", "arc_prose", "listener_effects_prose",
-    "societal_effects_prose", "deadpan_line", "contamination_note", "dogma_note",
+    "societal_effects_prose", "contamination_note", "dogma_note",
 )
 
 # "album" / "release", never "record". Matches the noun and its plural; leaves
@@ -257,15 +254,17 @@ def album_violations(reading: dict, *, release_title: str = "", artist: str = ""
                 f"list cadence: {len(hits)} enumerated positions -- the arc "
                 "names turns, it does not walk the tracklist"])
 
-    # 5. Deadpan placard form, sized to the RELEASE title + artist.
-    deadpan = reading.get("deadpan_line")
-    if not isinstance(deadpan, str) or not deadpan.strip():
-        add("deadpan_line", ["missing"])
-    else:
-        add("deadpan_line", deadpan_violations(deadpan, release_title, artist))
-        cap = deadpan_length_cap(release_title, artist)
-        if len(deadpan) > cap:
-            add("deadpan_line", [f"{len(deadpan)} chars, cap is {cap}"])
+    # 5. Albums carry NO placard. Chad's ruling 2026-08-20: "albums are too
+    # complex for deadpan" -- a museum placard names one thing, and a release is
+    # a dozen. The field is not part of the album lens at all, so supplying one
+    # is an error rather than an optional extra, and the guard says so. The
+    # reader surfaces already treat it as absent by default (release.js leaves
+    # the element hidden, ssr_release renders it only `if deadpan`), so a NULL
+    # needs nothing downstream.
+    if (reading.get("deadpan_line") or "").strip():
+        add("deadpan_line", [
+            "supplied, and albums do not carry a placard -- the field belongs to "
+            "the song lens only"])
 
     # 6. Ether entry, prescription, per-listen effects.
     topics = reading.get("topics")
