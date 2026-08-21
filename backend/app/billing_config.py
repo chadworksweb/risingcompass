@@ -83,12 +83,11 @@ PACKS: dict[str, Pack] = {p.key: p for p in (PACK_25, PACK_100, PACK_300)}
 # song page does not run Opus, so it is the subscription benefit (no
 # variable cost). Only the engine miss (a fresh calibration) costs credits.
 #
-# Album track miss is the per-track worst-case used when sizing the hold;
-# settle_hold refunds the difference for tracks that turned out to be cache
-# hits.
+# (COST_ALBUM_TRACK_MISS retired 2026-08-21 with the Album Charger. It sized
+# the per-track hold that settle_hold reconciled, and nothing else ever used
+# either of them.)
 COST_SONG_MISS         = 1
 COST_SONG_CACHE_HIT    = 0
-COST_ALBUM_TRACK_MISS  = 1
 
 # Anonymous (no Clerk session) Charger daily allowance per-IP. Cost
 # firewall + funnel; signed-in users are gated by credits instead.

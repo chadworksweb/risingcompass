@@ -130,8 +130,10 @@ class CheckoutOut(BaseModel):
 
 
 class EstimateIn(BaseModel):
+    # `track_count` came out with the Album Charger (2026-08-21). The model does
+    # not forbid extras, so a stale caller still sending it is ignored rather
+    # than rejected.
     word_count: Optional[int] = Field(None, ge=0)
-    track_count: Optional[int] = Field(None, ge=0)
 
 
 class EstimateOut(BaseModel):
@@ -243,9 +245,9 @@ async def billing_estimate(body: EstimateIn):
     """Cost estimator. Frontend pre-flights a charge so the wallet UI can
     show "this run will cost N credits" before submission.
 
-    Worst-case sizing -- assumes every track/song is a cache miss. The
-    actual charge_credits call (in M3) settles to the real cost after the
-    engine resolves cache hit vs miss per-song.
+    Worst-case sizing -- assumes every song is a cache miss. The actual
+    charge_credits call (in M3) settles to the real cost after the engine
+    resolves cache hit vs miss per-song.
     """
     breakdown: dict = {}
     total = 0
@@ -257,10 +259,6 @@ async def billing_estimate(body: EstimateIn):
         song_runs = 1
         cost = song_runs * billing_config.COST_SONG_MISS
         breakdown["song_runs"] = {"count": song_runs, "cost_each": billing_config.COST_SONG_MISS, "subtotal": cost}
-        total += cost
-    if body.track_count and body.track_count > 0:
-        cost = body.track_count * billing_config.COST_ALBUM_TRACK_MISS
-        breakdown["album_tracks"] = {"count": body.track_count, "cost_each": billing_config.COST_ALBUM_TRACK_MISS, "subtotal": cost}
         total += cost
     return EstimateOut(credits=total, breakdown=breakdown)
 

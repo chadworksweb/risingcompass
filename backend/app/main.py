@@ -119,12 +119,6 @@ def _init_database():
     # a later admin choice. See app/services/cache_advisor.py.
     from app.services.alerts import ensure_pref_default
     ensure_pref_default("prompt_cache_warranted", enabled=True)
-    # Album Charger: alert the admin by email whenever someone charges an album.
-    # On by default (the admin asked for it); toggleable in the Alerts UI.
-    ensure_pref_default("album_charged", enabled=True)
-    # Album Charger cover-art match: verify-me alert when an album is matched to
-    # a MusicBrainz release-group (auto when confident, user-confirmed when not).
-    ensure_pref_default("album_mb_match", enabled=True)
     # General inquiry / contact form: alert the admin on each submission.
     ensure_pref_default("general_inquiry", enabled=True)
     # Shop: alert the admin by email on each new order. On by default.

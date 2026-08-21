@@ -382,11 +382,12 @@ Spec: `RISING-COMPASS-TAXONOMY-EDITOR-SCOPE.md`.
   `topic_hierarchy(db)` (response shape unchanged). **Phase 2a (DB drives the
   tagger) is FLAG-GATED**: `system_flags` `taxonomy_db_driven.enabled`
   (fail-CLOSED, in `feature_flags.py`). When ON, `ether_tagger.py` +
-  `album_synthesis.py` build their prompt + valid-slug set from the DB (each
-  resolves via its OWN short-lived `SessionLocal` -- tag_song runs in a worker
-  thread, so it must not touch the request Session), fail-safe to code. Flip it
+  the DB (resolving via its OWN short-lived `SessionLocal` -- tag_song runs in a
+  worker thread, so it must not touch the request Session), fail-safe to code.
+  (`album_synthesis.py` was the second reader; it retired with the Album Charger
+  2026-08-21.) Flip it
   from the admin "Tagger source" toggle. **Currently OFF in prod** (tagger reads
-  code). Terminal scripts (`calibrate_song.py`/`backfill_album.py`) still
+  code). The terminal script (`calibrate_song.py`) still
   validate against the code set by design.
 - **Phase 2b (NOT built):** topic-slug rename/remove + an `ether_topic_aliases`
   map honored by the rollups + a server-side retag tool. Until then the slug is
@@ -648,9 +649,8 @@ recalibration -- which supersedes the prior runs -- resets the budget and
   `/calibrate-search`) resolve the canonical song BEFORE the Opus call and
   short-circuit with `status="run_capped"` (+ `run_count`/`run_cap`/`song_slug`/
   `block_reason`); `charger.js` renders `showCappedCard`.
-- Album Charger: a maxed track is **skipped** in Phase A (`status="skipped"`,
-  run-limit reason) -- the album won't re-run it; checked regardless of cache
-  state because even a cache hit logs a run via `record_and_reconcile`.
+  (The Album Charger had a parallel skip-a-maxed-track branch; it retired with
+  the charger 2026-08-21.)
 Only `tier=='public'` is gated -- service/terminal callers (RC_SERVICE_KEY,
 `calibrate_song.py`/`correct_song.py`) bypass, so admin/terminal can still run a
 maxed song. The admin Runs "By Song" view badges maxed songs (`capped` =
@@ -747,94 +747,63 @@ admin section **Artist Verified** (`templates/admin/artist_verified.html`).
   compliance concern (Lookout discipline by construction). Plan:
   `RISING-COMPASS-HOCKEY-STICK-PLAN.md` Build 8.
 
-## Album Charger (Lyrical Charger tab)
+## Album Charger -- RETIRED 2026-08-21
 
-A second top-level tab in the Lyrical Charger frontend (`frontend/lyrical-charger/`,
-`Song Charger` default + `Album Charger`). Charges a whole album by calibrating
-each track and aggregating.
+The public Album Charger is GONE from this codebase. It scored each track from
+pasted lyrics and took the MEAN; the `rc-album` lens (next section) reads the
+approved song rows in running order and builds a case from them, and a mean
+cannot express either thing that lens exists to measure -- the closing stance
+(A1) or pervasiveness counted in tracks (A2). Keeping both meant keeping a
+second, weaker album path behind the real one.
 
-- **Kill switch (`album_charger.disabled`, 2026-06-04).** An independent
-  `system_flags` gate that closes ONLY the Album Charger while the single-song
-  Song Charger stays open. **Fail-closed** (absent flag = disabled), so a fresh
-  deploy ships with album charging CLOSED until an admin opens it. When closed:
-  `/config` returns `album_charger_enabled: false` (frontend hides the whole
-  Album Charger top-tab via `charger.js`), and the album endpoints
-  (`/calibrate`, `/search`, `/search-tracks`) 503 via
-  `_check_album_available_or_503()`. Toggle from **Site Admin -> LC Status ->
-  Album Charger** (`POST /api/admin/lc-status/album-toggle {"disabled": false}`,
-  `lc_status_admin.py`) -- no redeploy, ~30s propagation. Accessors in
-  `feature_flags.py`; mirrors the `lyrical_charger.disabled` whole-LC pattern.
+**It never produced a live row.** Zero releases ever carried
+`source='album_charger'`, and the fail-closed `album_charger.disabled` flag was
+absent from `system_flags`, so the feature was off in prod for its whole life.
+It also carried a latent defect: the router overwrote an existing release's
+charge, colour, all four prose fields, deadpan and topics unconditionally, so
+charging a release that held a v3 lens reading would have replaced it with the
+track mean, silently.
 
-- **Async job model.** A full album is minutes of sequential Opus work, too long
-  to hold an HTTP connection open for, so charging is a background job + polling
-  (table `album_charge_jobs`, migration 071). Router `app/routers/album_charger.py`,
-  prefix `/api/analyzer/album/`:
-  - `POST /calibrate` — validates + bot-checks **synchronously**, creates an
-    `album_charge_jobs` row, launches an `asyncio.create_task` worker (refs held
-    in a module set so the loop doesn't GC them), and returns a `job_token`
-    immediately (202). Reuses `analyzer._check_bot_protection / _validate_lyrics /
-    _resolve_source / _song_persist_fields / _record_user_calibration` and
-    `analyzer.limiter` (6/day). Search-Album (`/search`, `/search-tracks`) is
-    **Musixmatch-gated** (`musixmatch.is_configured()`) and ships dark.
-  - `GET /status/{job_token}` — poll progress (`phase` + `calibrated_tracks`) and,
-    once `status='done'`, the full `AlbumCalibrateOut` result. A job stuck
-    queued/running past 15 min (e.g. a redeploy mid-charge) is reported as errored
-    so the UI stops polling. Limited 600/hour for the poll.
-  - Worker flow (`_run_album_charge`, off the request): read lyrics + per-track
-    cache lookup -> calibrate every track **concurrently** (`asyncio.gather`, cap
-    `ALBUM_TRACK_CONCURRENCY=5`; each track is the normal song path: calibrator +
-    effects + ether + societal), persisting progress as each completes -> one
-    **album synthesis** call (`services/album_synthesis.py`, mirrors
-    `effects_prose.py`) that compiles the album reading FROM the per-song
-    listener/societal prose (songs are the atomic unit; never re-analyzes lyrics)
-    -> single write txn -> store result on the job. Completes (incl. the Release
-    write) even if the client disconnects. The frontend (`charger.js`) submits then
-    polls every 3s, driving the real progress bar.
-  - This removes the timeout problem entirely (every request is short), so no
-    nginx `proxy_read_timeout` change is needed.
-- **No prompt caching.** It was tried (rubric is ~10.9k tokens) but caching only
-  saves input cost, and making the cache hit needs warm-then-serialize ordering
-  that costs more wall-time than it saves. `cache_advisor` will email when LC
-  traffic density makes it worth turning on.
-- **Artist-page attachment:** the Album Charger is the first public path that
-  creates a real `Release` (it has real release metadata). It upserts the artist,
-  creates/updates `Release` with `source='album_charger'` + the synthesis columns
-  (migration 069: `charge_summary, arc_prose, societal_prose, source, submitted_at`),
-  links each scored track via `ReleaseSong` (pointed at the canonical row), and
-  writes aggregates exactly like `refresh-release-aggregates`. Album charge =
-  `compute_release_charge` (mean of track charges). Per-track featured artists are
-  layered onto each track's credit (album artists + that track's features); the
-  Release attaches to the album's primary artist only.
-- **Release date** (form field, encouraged; trusted-source prefill from Musixmatch
-  search) matters: the artist page's default `/releases?status=released` filters
-  out releases with no `release_date`, so a year-only album lands in `unreleased`.
-- **15-track cap** (schema `max_length=15`; frontend disables "+ Add track" and
-  links to the inquiry form). Longer albums -> general inquiry.
-- **Monitoring:** album events flow into LC Activity (`album_success`,
-  `album_search_query`, `album_no_tracks`, `album_other_error` in `lc_events`).
-  `GET /api/admin/lc-events/albums` + an "Album Charger" strip on the LC Activity
-  page (counts + recent charged albums). Email alert `album_charged` (Activity,
-  default-on, toggleable) via `alerts.emit_album_charged`.
+Removed: `routers/album_charger.py` (five routes under `/api/analyzer/album`),
+`services/album_synthesis.py`, `scripts/backfill_album.py`, 15 orphaned schemas,
+the kill-switch helpers + their admin toggle, the `/api/admin/lc-events/albums`
+route, the `album_charged` / `album_mb_match` alerts, `billing.hold_credits` /
+`settle_hold` + `COST_ALBUM_TRACK_MISS` + the estimate endpoint's `track_count`,
+and the whole frontend half (the `initAlbumCharger` IIFE, both album screens,
+the top-level mode tabs, and the CSS).
+
+**Kept on purpose, do not "finish the job" by removing these:**
+- `artist_utils.compute_release_charge` -- 107 catalogue releases depend on it
+  for a placeholder tier. Not charger code.
+- `POST /api/badge/album-calibrate` + the `album_calibrations` table (5 live
+  rows) -- a different surface computing its own inline mean. Same model,
+  different question; it gets its own decision.
+- The `album_charge_jobs` table -- dropping a table is a migration and a data
+  decision, not a code cleanup.
+- Migrations naming `album_charger` -- migration history is a record of what
+  happened and is never edited.
+
+Archived out of tree at
+`Local Sites/_archive/rising-compass-album-charger-2026-08-21/` with a README.
+Nothing there is wired; restoring means putting back the call sites, not copying
+files.
+
+**The album path is now one lane and one entry point:**
+`scripts/prepare_release.py` -> the read -> `scripts/write_album_reading.py`.
 
 ## Album v3 calibrator (terminal lens lane, LIVE 2026-08-14)
 
-**RC has TWO album paths and they are not the same thing.** The Album Charger
-(above) is the public one: it scores each track from pasted lyrics and takes the
-MEAN. This one READS THE RELEASE as a work, against its own instrument.
+**RC has ONE album path, and this is it** (since 2026-08-21). It READS THE
+RELEASE as a work, against its own instrument. The public Album Charger, which
+scored each track from pasted lyrics and took the MEAN, is retired and removed --
+see the section above.
 
-**They converge, in a fixed order (Chad's ruling, 2026-08-17).** Fine-tune and
-APPROVE this terminal calibrator first, THEN adapt it into the public Album
-Charger. Do not repoint the charger at the lens as an interim step, and do not
-retune `album_synthesis.py::ALBUM_VOICE` -- it is superseded and retires with
-that rewrite. Safe to park because `album_charger.disabled` is absent from
-`system_flags` and the flag is fail-closed, so the charger is OFF in prod. Its
-one hazard is latent, not live: `routers/album_charger.py` overwrites an
-existing release's `charge_value` / `rubric_color` / all four prose fields /
-`deadpan_line` / `topics` unconditionally -- no guard, no archive, no run logged
--- so charging a release that carries a v3 lens reading would silently replace
-it with the track-charge mean. **If the charger is ever re-enabled before the
-rewrite lands, guard that overwrite first** (refuse when the release has a
-`calibration_runs` row keyed to `release_id`).
+**The convergence question is settled by deletion.** The 2026-08-17 ruling was
+to approve this calibrator first and THEN adapt it into the charger; Chad's call
+on 2026-08-21 was that the charger goes instead, so there is nothing to converge
+with and nothing to re-enable. The latent overwrite hazard it carried (it
+replaced an existing release's whole reading with the track mean, no guard, no
+archive, no run logged) left with it.
 
 - **The instrument is the `rc-album` lens**, a third LEC lens and RC's second
   (sibling to `rc-lyric`; `cc-essay` is the other). It is the first lens whose
@@ -1005,7 +974,9 @@ Per-release detail pages + Cover Art Archive artwork. Full spec:
   populated by `resolve_artist_releases` + `scripts/backfill_cover_art.py` (~1/sec).
   List endpoint adds `cover_thumb_url`; thumbnail replaces the tier dot on the
   artist page and every release row links to its page.
-- **Album Charger MB match:** user-charged albums have no MBID, so the worker now
+- **MB match for hand-built releases** (was the Album Charger's; the rule now
+  lives in `services/release_mbid.py` and the nightly sweep runs it): a release
+  with no MBID is searched and
   searches MusicBrainz and **auto-attaches when confident** (score >=92, title-slug
   match, margin >=12) else returns candidates for a **picker**
   (`POST /api/analyzer/album/choose-release/{job_token}`, validates against offered
@@ -1051,7 +1022,7 @@ unflattering verdict, so it fails the terms on both counts. Do not re-propose it
 `POST /api/admin/agent/cron/cover-art` (reading-cron key) ->
 `services/cover_art_sweep.py`. Before this, NOTHING was automatic: song art was a
 hand-run script and release MBIDs were only ever a side effect of a MusicBrainz
-catalogue resolve or an Album Charger run, so a release created by hand for a
+catalogue resolve, so a release created by hand for a
 terminal album read could never show art at all.
 
 - **SONGS resolve BEFORE releases (reversed 2026-08-20).** The old order was
@@ -1328,7 +1299,8 @@ Apple's public RSS JSON feed -- no Playwright). **Lyrics are supplied manually**
 ## General Inquiry form
 
 Reusable account-free contact form (`frontend/inquiry.html`). First caller is the
-Album Charger's "need more than 15 tracks?" link (`?topic=album_charger&source=...`).
+Album Charger's "need more than 15 tracks?" link; that caller retired with the
+charger 2026-08-21 and the `album_charger` topic came out of `VALID_TOPICS`.
 
 - `app/routers/inquiries.py`: public `POST /api/inquiry` (bot-protected, rate
   limited 5/hour, no login), admin `GET/PATCH /api/admin/inquiries`. Table
