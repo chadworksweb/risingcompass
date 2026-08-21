@@ -149,6 +149,15 @@ def create_release(db, *, artist_id, title, rtype, date, tracks) -> int:
     composed mean sitting in the row is a conclusion the read has not earned,
     and the aggregate must not exist anywhere the reader might see it first.
 
+    `source='manual_terminal'` is what PROTECTS that emptiness, and it has to be
+    a durable stamp rather than something inferred. `releases_admin` refuses to
+    write its placeholder mean onto a release awaiting a read, and it identifies
+    one by this value. An earlier version inferred it from "no musicbrainz_id and
+    no spotify_id", which holds only until the nightly cover-art sweep attaches
+    an MBID -- and attaching MBIDs to releases that lack them is that sweep's
+    entire job, so the guard would have quietly stopped guarding. Nothing in the
+    codebase writes `releases.source` after creation, so this survives.
+
     track_count states the length of the sequence the lens READ, which keeps the
     stored release and the read release the same object.
     """
@@ -162,6 +171,7 @@ def create_release(db, *, artist_id, title, rtype, date, tracks) -> int:
         calibrated_count=len(tracks),
         rubric_color=None,
         charge_value=None,
+        source="manual_terminal",
     )
     db.add(rel)
     db.flush()

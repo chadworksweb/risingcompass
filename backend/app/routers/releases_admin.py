@@ -78,6 +78,13 @@ def _has_reading(rel: Release) -> bool:
     return any(getattr(rel, f, None) for f in READING_FIELDS)
 
 
+# Provenance values that mean "assembled by hand for a lens read". A release
+# carrying one of these is waiting for its reading, so the placeholder mean must
+# stay off it. `prepare_release.py` stamps `manual_terminal`; `album_backfill`
+# is the older hand-built lane.
+_HAND_BUILT_SOURCES = ("manual_terminal", "album_backfill")
+
+
 def _pending_read(db: Session, rel: Release) -> bool:
     """True when this release was assembled FOR a lens read that has not landed.
 
@@ -90,11 +97,16 @@ def _pending_read(db: Session, rel: Release) -> bool:
     Without this test, touching such a release through this admin stamps the
     placeholder mean onto it and quietly destroys that property. `_has_reading`
     cannot cover it, since it asks whether a reading EXISTS, not whether one is
-    coming. Hand-assembled provenance is the signal: MusicBrainz and Spotify
-    releases arrive with a musicbrainz_id or spotify_id, and a release built for
-    the lens has neither.
+    coming.
+
+    TEST ON THE STAMP, NOT ON WHAT IS ABSENT. The first version of this asked
+    whether the release had neither a musicbrainz_id nor a spotify_id, on the
+    reasoning that a hand-built release arrives with neither. True at creation
+    and false soon after: the nightly cover-art sweep exists to attach MBIDs to
+    releases that lack them, so that test decays into False on exactly the rows
+    it was written to protect, and does it silently.
     """
-    return rel.musicbrainz_id is None and rel.spotify_id is None
+    return rel.source in _HAND_BUILT_SOURCES
 
 
 def _recompute_aggregates(db: Session, rel: Release) -> None:
