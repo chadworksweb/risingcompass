@@ -409,8 +409,12 @@ class Release(Base):
     deadpan_line = Column(Text)
     topics = Column(Text)       # JSON-encoded list of taxonomy slugs
     topic_audit = Column(Text)  # JSON-encoded audit dict, or NULL when topics present
-    source = Column(String(30))  # 'album_charger' for user-charged albums; else NULL
-    submitted_at = Column(DateTime(timezone=True))  # when charged via the Album Charger
+    # Provenance lane. 'manual_terminal' / 'album_backfill' for hand-assembled
+    # releases, else NULL for MusicBrainz/Spotify-derived ones. (The public
+    # Album Charger once wrote 'album_charger' here; it was retired 2026-08-21
+    # having never produced a row.)
+    source = Column(String(30))
+    submitted_at = Column(DateTime(timezone=True))
     # --- the rest of the v3 release reading (migration 148) ---
     # The rc-album lens emits a full v3 reading; migrations 069/090 only had room
     # for the prose. This is the SONG column set (see Song below), so a release
@@ -2599,9 +2603,10 @@ class AlltimeAlbum(Base):
     `last_reviewed_at` drives a data-driven staleness banner.
 
     Self-contained: the display fields (charge + album-level deadpan + topics)
-    are copied onto the row from album synthesis output
-    (`services/album_synthesis.py::generate_album_synthesis`, which already emits
-    a whole-album `deadpan_line` + `topics`). `release_id` links the calibrated
+    are copied onto the row rather than joined. They were originally filled from
+    the retired album-synthesis path; the rc-album lens is the source now, and it
+    emits no `deadpan_line` (an album carries no placard), so that column stays
+    NULL on anything written after 2026-08-20. `release_id` links the calibrated
     Release for provenance; the chart row is the source of truth for what renders."""
     __tablename__ = "alltime_albums"
 

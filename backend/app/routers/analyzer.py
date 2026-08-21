@@ -27,7 +27,6 @@ from app.models import LyricalChargerSubscriber, UserCalibration, User, Calibrat
 from app.services.feature_flags import (
     is_lyrical_charger_disabled, lyrical_charger_disabled_message,
     lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
-    is_album_charger_disabled, album_charger_disabled_message,
 )
 from app.constants import COLOR_LABELS
 from app.services.agents.calibrator import (
@@ -223,23 +222,18 @@ async def _check_bot_protection(
 @router.get("/config")
 async def analyzer_config():
     """Public config for the LC frontend (which bot protection to render, which
-    Musixmatch-gated search surfaces to enable, whether the Album Charger tab is
-    open, etc.)."""
+    Musixmatch-gated search surfaces to enable, etc.).
+
+    The Album Charger keys are gone with the charger itself (2026-08-21). The
+    frontend reads a missing key as falsy and hides the tab, which is the state
+    the fail-closed flag was already producing in prod.
+    """
     search_enabled = musixmatch.is_configured()
-    db = SessionLocal()
-    try:
-        album_enabled = not is_album_charger_disabled(db)
-    finally:
-        db.close()
     return {
         "turnstile_site_key": settings.turnstile_site_key,
-        # Musixmatch-gated surfaces. Both the song "Search by Song" tab and the
-        # album "Search Album" sub-tab ship dark until the key is configured.
+        # Musixmatch-gated surface: the "Search by Song" tab ships dark until
+        # the key is configured.
         "song_search_enabled": search_enabled,
-        "album_search_enabled": search_enabled,
-        # Album Charger kill switch (its own flag; fails closed). When false the
-        # frontend hides the whole Album Charger top-tab.
-        "album_charger_enabled": album_enabled,
     }
 
 
@@ -273,23 +267,6 @@ def _check_lc_available_or_503() -> None:
                 detail={
                     "available": False,
                     "message": lyrical_charger_disabled_message(db),
-                },
-            )
-    finally:
-        db.close()
-
-
-def _check_album_available_or_503() -> None:
-    """Raise 503 when the Album Charger is closed (its own kill switch,
-    independent of the whole-LC gate above). Single-song stays open."""
-    db = SessionLocal()
-    try:
-        if is_album_charger_disabled(db):
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "available": False,
-                    "message": album_charger_disabled_message(db),
                 },
             )
     finally:

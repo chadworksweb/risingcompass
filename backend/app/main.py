@@ -291,8 +291,6 @@ app.include_router(analyzer.router, dependencies=[Depends(verify_api_or_service_
 # The contest lane rides the same public key gate as the calibrate endpoints it
 # follows -- a contest is the second half of one Lyrical Charger session.
 app.include_router(lc_contest.router, dependencies=[Depends(verify_api_or_service_key)])
-from app.routers import album_charger
-app.include_router(album_charger.router, dependencies=[Depends(verify_api_or_service_key)])
 app.include_router(badge.router, dependencies=_api_key_dep)
 app.include_router(artists.router, dependencies=_public_read_dep)
 app.include_router(artists.releases_router, dependencies=_public_read_dep)

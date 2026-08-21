@@ -100,7 +100,6 @@ _ACTIVE_CALL_SITES = {
     "ether_tagger":           "Ether tagger (topics)",
     "identity_guard":         "Identity + commercial guard",
     "prose_judge":            "Prose semantic judge",
-    "album_synthesis":        "Album synthesis",
     "resonance_slicer":       "Audience resonance slicer",
     "leit_sweep":             "LEIT clutter sweep",
 }
@@ -109,6 +108,7 @@ _RETIRED_CALL_SITES = {
     "editorial_summary":   "Editorial (retired; now terminal-supplied, no server gen path)",
     "effects_prose":       "Listener effects prose (old name; renamed listener_effects_prose)",
     "satire_recalibrator": "Satire recalibrator (legacy; no live generator)",
+    "album_synthesis":     "Album synthesis (retired 2026-08-21 with the Album Charger; albums read by the rc-album lens)",
 }
 
 

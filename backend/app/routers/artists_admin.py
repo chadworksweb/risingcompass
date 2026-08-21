@@ -400,9 +400,8 @@ async def rebuild_releases(
        is unavailable or empty (see below).
     2. Delete every Release for the artist that is MB-sourced
        (musicbrainz_id IS NOT NULL) OR the "Singles & Uncategorized" catch-all,
-       plus their release_songs links. Album-Charger releases
-       (source='album_charger') are left untouched, and so is **any release
-       carrying its own reading** -- see below.
+       plus their release_songs links. **Any release carrying its own reading**
+       is left untouched -- see below.
     3. Apply the already-fetched catalogue, which re-creates the MB releases
        under the codified type/edition/hits/bootleg filters + tracklist dedup
        and re-links each song to every release it appears on.
@@ -447,22 +446,23 @@ async def rebuild_releases(
             "deleted -- retry later.",
         )
 
-    # Phase 2 -- purge MB-sourced releases + catch-all atomically; keep
-    # album_charger. Delete links first to respect the FK.
+    # Phase 2 -- purge MB-sourced releases + catch-all atomically. Delete links
+    # first to respect the FK.
     #
     # A RELEASE THAT CARRIES A READING IS NEVER PURGED, whatever its source.
-    # The old exemption keyed on source='album_charger' alone, which was correct
+    # An older exemption keyed on source='album_charger', which was correct
     # while that was the only thing producing a release-level reading. The v3
-    # album lens is now the other one, and it writes releases created by hand
-    # with source 'manual_terminal' / 'album_backfill' / NULL. Those survived a
-    # rebuild only because nothing had ever set their musicbrainz_id -- so the
-    # moment cover art attached one, a rebuild would have deleted the release
-    # and its whole reading. Test on the READING, not on the provenance string:
-    # a release the instrument has spoken about is not MusicBrainz-derived data
-    # to be re-fetched, regardless of which lane produced it.
+    # album lens is the one that produces them now, and it writes releases
+    # created by hand with source 'manual_terminal' / 'album_backfill' / NULL.
+    # Those survived a rebuild only because nothing had ever set their
+    # musicbrainz_id -- so the moment cover art attached one, a rebuild would
+    # have deleted the release and its whole reading. Test on the READING, not
+    # on the provenance string: a release the instrument has spoken about is not
+    # MusicBrainz-derived data to be re-fetched, regardless of which lane
+    # produced it. The charger clause came out with the charger (2026-08-21);
+    # no row ever carried that source.
     where = (
         " WHERE artist_id = :aid"
-        "   AND source IS DISTINCT FROM 'album_charger'"
         "   AND charge_summary IS NULL"
         "   AND id NOT IN (SELECT release_id FROM calibration_runs"
         "                  WHERE release_id IS NOT NULL AND NOT superseded)"

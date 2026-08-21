@@ -78,13 +78,32 @@ def _has_reading(rel: Release) -> bool:
     return any(getattr(rel, f, None) for f in READING_FIELDS)
 
 
+def _pending_read(db: Session, rel: Release) -> bool:
+    """True when this release was assembled FOR a lens read that has not landed.
+
+    `prepare_release.py` deliberately creates a release with `rubric_color` and
+    `charge_value` NULL, because the aggregate of the track charges must not
+    exist anywhere the reader might see it before the read: a mean sitting in
+    the row is a conclusion the read has not earned, and seeing one anchors the
+    read on it.
+
+    Without this test, touching such a release through this admin stamps the
+    placeholder mean onto it and quietly destroys that property. `_has_reading`
+    cannot cover it, since it asks whether a reading EXISTS, not whether one is
+    coming. Hand-assembled provenance is the signal: MusicBrainz and Spotify
+    releases arrive with a musicbrainz_id or spotify_id, and a release built for
+    the lens has neither.
+    """
+    return rel.musicbrainz_id is None and rel.spotify_id is None
+
+
 def _recompute_aggregates(db: Session, rel: Release) -> None:
     """Refresh track/calibrated/contamination counts and the placeholder charge.
 
-    The charge here is the legacy mean. It is a PLACEHOLDER, not an album reading:
-    the v3 album instrument composes a charge from center + vernier under the
-    governing axis and will overwrite it. Kept so a freshly assembled release is
-    not left with a NULL tier in listings.
+    The charge here is the legacy mean. It is a PLACEHOLDER for catalogue
+    releases nobody will read with the album lens, kept so a freshly assembled
+    release is not left with a NULL tier in listings. It is never written over a
+    release that carries a reading, and never onto one awaiting one.
     """
     rows = (
         db.query(ReleaseSong, Song)
@@ -97,7 +116,7 @@ def _recompute_aggregates(db: Session, rel: Release) -> None:
     scored = [s.charge_value for s in songs if s.charge_value is not None]
     rel.calibrated_count = len(scored)
     rel.contamination_count = sum(1 for s in songs if s.contaminated)
-    if scored and not _has_reading(rel):
+    if scored and not _has_reading(rel) and not _pending_read(db, rel):
         avg, color, _label, _hex = compute_release_charge(scored)
         rel.charge_value = avg
         rel.rubric_color = color

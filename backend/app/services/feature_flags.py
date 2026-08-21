@@ -177,51 +177,6 @@ def set_lyrical_charger_disabled_message(db: Session, message: str | None) -> No
     db.commit()
 
 
-# --- Album Charger kill switch ---------------------------------------------
-# Independent of the whole-LC kill switch above: closes ONLY the Album Charger
-# tab (manual + search) while the single-song Song Charger stays open. Fails
-# CLOSED -- an absent flag means disabled, so the Album Charger is off until an
-# admin explicitly opens it (mirrors the launch.locked default).
-
-ALBUM_DISABLED_KEY = "album_charger.disabled"
-ALBUM_DISABLED_MESSAGE_KEY = "album_charger.disabled_message"
-DEFAULT_ALBUM_DISABLED_MESSAGE = (
-    "Album charging is closed right now. Single songs are still open."
-)
-
-
-def is_album_charger_disabled(db: Session) -> bool:
-    # Absent flag -> disabled (fail closed). Only an explicit "false" opens it.
-    return (_get_flag(db, ALBUM_DISABLED_KEY) or "true").lower() == "true"
-
-
-def album_charger_disabled_message(db: Session) -> str:
-    return _get_flag(db, ALBUM_DISABLED_MESSAGE_KEY) or DEFAULT_ALBUM_DISABLED_MESSAGE
-
-
-def set_album_charger_disabled(db: Session, disabled: bool) -> None:
-    row = db.query(SystemFlag).filter(SystemFlag.key == ALBUM_DISABLED_KEY).first()
-    if row:
-        row.value = "true" if disabled else "false"
-    else:
-        db.add(SystemFlag(key=ALBUM_DISABLED_KEY, value="true" if disabled else "false"))
-    db.commit()
-
-
-def set_album_charger_disabled_message(db: Session, message: str | None) -> None:
-    row = db.query(SystemFlag).filter(SystemFlag.key == ALBUM_DISABLED_MESSAGE_KEY).first()
-    if message is None:
-        if row:
-            db.delete(row)
-            db.commit()
-        return
-    if row:
-        row.value = message
-    else:
-        db.add(SystemFlag(key=ALBUM_DISABLED_MESSAGE_KEY, value=message))
-    db.commit()
-
-
 # --- Discussion (public per-song/artist comments) kill switch --------------
 # Closes the public Discussion widget on song + artist pages. Fails CLOSED --
 # an absent flag means disabled, so Discussion ships DARK until an admin opens

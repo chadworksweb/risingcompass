@@ -23,8 +23,6 @@ from app.services.feature_flags import (
     lyrical_charger_anon_daily_limit, lyrical_charger_user_daily_limit,
     set_lyrical_charger_anon_daily_limit, set_lyrical_charger_user_daily_limit,
     lyrical_charger_free_daily_charges, set_lyrical_charger_free_daily_charges,
-    is_album_charger_disabled, album_charger_disabled_message,
-    set_album_charger_disabled, set_album_charger_disabled_message,
 )
 from app.services.lc_subscriber_notifier import notify_subscribers
 
@@ -46,8 +44,6 @@ def _status_payload(db: Session) -> LCStatusOut:
         anon_daily_limit=lyrical_charger_anon_daily_limit(db),
         user_daily_limit=lyrical_charger_user_daily_limit(db),
         free_daily_charges=lyrical_charger_free_daily_charges(db),
-        album_disabled=is_album_charger_disabled(db),
-        album_message=album_charger_disabled_message(db),
     )
 
 
@@ -82,17 +78,6 @@ def toggle(data: LCToggleIn, db: Session = Depends(get_db)):
         msg = data.message.strip()
         # Empty string -> reset to default
         set_lyrical_charger_disabled_message(db, msg if msg else None)
-    return _status_payload(db)
-
-
-@router.post("/album-toggle", response_model=LCStatusOut, dependencies=[Depends(verify_admin_key)])
-def album_toggle(data: LCToggleIn, db: Session = Depends(get_db)):
-    """Open / close the Album Charger independently of the whole-LC switch.
-    The single-song Song Charger is unaffected."""
-    set_album_charger_disabled(db, data.disabled)
-    if data.message is not None:
-        msg = data.message.strip()
-        set_album_charger_disabled_message(db, msg if msg else None)
     return _status_payload(db)
 
 
